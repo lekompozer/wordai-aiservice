@@ -20,7 +20,7 @@ Firebase project `wordai-6779e` has been successfully configured for WordAI AI S
 ```
 🚀 WordAI Firebase Configuration Test
 🔥 Testing Firebase Credentials File... ✅
-🌍 Testing Environment Variables... ✅ 
+🌍 Testing Environment Variables... ✅
 🐍 Testing Firebase SDK Import... ✅
 
 🏆 Results: 3/3 tests passed
@@ -29,7 +29,7 @@ Firebase project `wordai-6779e` has been successfully configured for WordAI AI S
 
 ### Authentication Features:
 - ✅ Firebase Admin SDK authentication
-- ✅ ID token verification  
+- ✅ ID token verification
 - ✅ Session cookie management (24h expiry)
 - ✅ User management and claims
 - ✅ Multi-provider authentication support

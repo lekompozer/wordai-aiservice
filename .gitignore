@@ -92,4 +92,6 @@ docs/aivungtau/
 docs/firebase-implementation-plan.md
 
 # Test files with credentials
-tests/test_vision_simple.py
+tests/test_vision_simple.pydocs/wordai/
+setup-nginx-wordai.sh
+start_wordai.sh

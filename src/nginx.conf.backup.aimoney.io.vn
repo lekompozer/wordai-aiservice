@@ -1,7 +1,7 @@
 # HTTP server - redirect to HTTPS
 server {
     listen 80;
-    server_name ai.wordai.pro;
+    server_name ai.aimoney.io.vn;
 
     # Let's Encrypt challenge location
     location /.well-known/acme-challenge/ {
@@ -18,11 +18,11 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name ai.wordai.pro;
+    server_name ai.aimoney.io.vn;
 
     # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/ai.wordai.pro/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/ai.wordai.pro/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/ai.aimoney.io.vn/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/ai.aimoney.io.vn/privkey.pem;
 
     # SSL Security settings
     ssl_protocols TLSv1.2 TLSv1.3;
@@ -38,9 +38,9 @@ server {
     add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload";
 
     # Add standard CORS headers for all routes except chat-stream
-    # Development and Production CORS origins for WordAI
+    # Development and Production CORS origins
     set $cors_origin "";
-    if ($http_origin ~* "^(http://localhost:8001|http://localhost:3002|http://localhost:3000|https://ai\.wordai\.pro|https://wordai\.pro|https://www\.wordai\.pro|https://api\.wordai\.pro|https://static\.wordai\.pro)$") {
+    if ($http_origin ~* "^(http://localhost:8001|http://localhost:3002|http://localhost:3000|https://api\.agent8x\.io\.vn|https://agent8x\.io\.vn|https://admin\.agent8x\.io\.vn|https://aivungtau\.com|https://www\.aivungtau\.com|https://api\.aivungtau\.com)$") {
         set $cors_origin $http_origin;
     }
 
@@ -274,6 +274,6 @@ server {
     }
 
     # Logs
-    access_log /var/log/nginx/ai.wordai.pro.access.log;
-    error_log /var/log/nginx/ai.wordai.pro.error.log;
+    access_log /var/log/nginx/ai.aimoney.io.vn.access.log;
+    error_log /var/log/nginx/ai.aimoney.io.vn.error.log;
 }
