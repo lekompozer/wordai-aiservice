@@ -1,0 +1,69 @@
+{
+  "assessmentId": "assessment_1751044028094",
+  "applicationId": "LOAN-TEST-REJECTED-003",
+  "timestamp": "2025-06-28T00:07:55.316008",
+  "applicant": {
+    "name": "LÊ VĂN BÌNH",
+    "idNumber": "079123789456",
+    "age": 50
+  },
+  "loanRequest": {
+    "amount": 3000000000,
+    "type": "Thế chấp",
+    "term": "25 năm",
+    "purpose": "Mua nhà ở và đầu tư"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 33000000,
+    "currentDebtRatio": 0.5454545454545454,
+    "projectedDebtRatio": 1.2774791667837557,
+    "loanToValue": 1.2,
+    "estimatedMonthlyPayment": 24156812.50386394
+  },
+  "assessmentResult": {
+    "status": "rejected",
+    "confidence": 0.95,
+    "creditScore": 550,
+    "reasoning": "Hồ sơ vay của khách hàng Lê Văn Bình không đáp ứng được các tiêu chuẩn tín dụng của ngân hàng Việt Nam do nhiều yếu tố rủi ro. Đầu tiên, tỷ lệ nợ trên thu nhập (DTI) sau khi vay lên tới 127.7%, vượt xa ngưỡng an toàn 50% theo quy định của ngân hàng. Khách hàng có thu nhập chính từ nông nghiệp (25 triệu VNĐ/tháng) và thu nhập phụ từ bán hàng online (8 triệu VNĐ/tháng), nhưng không ổn định và phụ thuộc vào thời vụ. Lịch sử tín dụng của khách hàng thuộc nhóm 3 với 3 lần chậm trả quá 60 ngày trong 2 năm qua, cho thấy khả năng trả nợ kém. Tài sản đảm bảo là nhà cấp 4 ở vùng nông thôn xa trung tâm, có nguy cơ ngập lụt, giá trị thanh khoản thấp và không đủ để đảm bảo cho khoản vay 3 tỷ VNĐ. Tỷ lệ cho vay trên giá trị tài sản (LTV) dự kiến là 120%, vượt quá mức tối đa 70-80% theo quy định ngân hàng.",
+    "riskFactors": [
+      "Tỷ lệ nợ/thu nhập (DTI) quá cao (127.7%)",
+      "Lịch sử tín dụng xấu (nhóm 3, chậm trả nhiều lần)",
+      "Tài sản đảm bảo có giá trị thanh khoản thấp và rủi ro ngập lụt",
+      "Thu nhập không ổn định, phụ thuộc vào nông nghiệp",
+      "Tỷ lệ LTV vượt quá 120%"
+    ],
+    "recommendations": [
+      "Từ chối hồ sơ vay do không đáp ứng tiêu chuẩn tín dụng",
+      "Khuyến nghị khách hàng cải thiện lịch sử tín dụng và giảm tỷ lệ DTI trước khi nộp hồ sơ mới",
+      "Xem xét các khoản vay nhỏ hơn với tài sản đảm bảo có giá trị cao hơn"
+    ],
+    "approvedAmount": 0,
+    "interestRate": 0,
+    "loanTerm": 0,
+    "monthlyPayment": 0,
+    "loanToValue": 1.2,
+    "debtToIncome": 1.277,
+    "conditions": [],
+    "collateralValuation": {
+      "estimatedValue": 1500000000,
+      "marketAnalysis": "Tài sản là nhà cấp 4 ở vùng nông thôn xa trung tâm, diện tích 150m2, xây dựng năm 2005 đã xuống cấp. Khu vực có thanh khoản thấp và thường xuyên ngập lụt. Giá trị thị trường ước tính chỉ khoảng 1.5 tỷ VNĐ, thấp hơn nhiều so với giá trị khách hàng đưa ra (2.5 tỷ VNĐ).",
+      "liquidityRisk": "high",
+      "valuationMethod": "customer_description_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 33000000,
+      "totalMonthlyDebt": 18000000,
+      "newLoanPayment": 24156812,
+      "remainingIncome": -9156812,
+      "emergencyFund": 100000000,
+      "incomeStability": "low",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 45.609814167022705,
+    "totalProcessingTime": 47.22136902809143,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"rejected\",\n  \"confidence\": 0.95,\n  \"creditScore\": 550,\n  \"reasoning\": \"Hồ sơ vay của khách hàng Lê Văn Bình không đáp ứng được các tiêu chuẩn tín dụng của ngân hàng Việt Nam do nhiều yếu tố rủi ro. Đầu tiên, tỷ lệ nợ trên thu nhập (DTI) sau khi vay lên tới 127.7%, vượt xa ngưỡng an toàn 50% theo quy định của ngân hàng. Khách hàng có thu nhập chính từ nông nghiệp (25 triệu VNĐ/tháng) và thu nhập phụ từ bán hàng online (8 triệu VNĐ/tháng), nhưng không ổn định và phụ thuộc vào thời vụ. Lịch sử tín dụng của khách hàng thuộc nhóm 3 với 3 lần chậm trả quá 60 ngày trong 2 năm qua, cho thấy khả năng trả nợ kém. Tài sản đảm bảo là nhà cấp 4 ở vùng nông thôn xa trung tâm, có nguy cơ ngập lụt, giá trị thanh khoản thấp và không đủ để đảm bảo cho khoản vay 3 tỷ VNĐ. Tỷ lệ cho vay trên giá trị tài sản (LTV) dự kiến là 120%, vượt quá mức tối đa 70-80% theo quy định ngân hàng.\",\n  \"riskFactors\": [\n    \"Tỷ lệ nợ/thu nhập (DTI) quá cao (127.7%)\",\n    \"Lịch sử tín dụng xấu (nhóm 3, chậm trả nhiều lần)\",\n    \"Tài sản đảm bảo có giá trị thanh khoản thấp và rủi ro ngập lụt\",\n    \"Thu nhập không ổn định, phụ thuộc vào nông nghiệp\",\n    \"Tỷ lệ LTV vượt quá 120%\"\n  ],\n  \"recommendations\": [\n    \"Từ chối hồ sơ vay do không đáp ứng tiêu chuẩn tín dụng\",\n    \"Khuyến nghị khách hàng cải thiện lịch sử tín dụng và giảm tỷ lệ DTI trước khi nộp hồ sơ mới\",\n    \"Xem xét các khoản vay nhỏ hơn với tài sản đảm bảo có giá trị cao hơn\"\n  ],\n  \"approvedAmount\": 0,\n  \"interestRate\": 0,\n  \"loanTerm\": 0,\n  \"monthlyPayment\": 0,\n  \"loanToValue\": 1.20,\n  \"debtToIncome\": 1.277,\n  \"conditions\": [],\n  \"collateralValuation\": {\n    \"estimatedValue\": 1500000000,\n    \"marketAnalysis\": \"Tài sản là nhà cấp 4 ở vùng nông thôn xa trung tâm, diện tích 150m2, xây dựng năm 2005 đã xuống cấp. Khu vực có thanh khoản thấp và thường xuyên ngập lụt. Giá trị thị trường ước tính chỉ khoảng 1.5 tỷ VNĐ, thấp hơn nhiều so với giá trị khách hàng đưa ra (2.5 tỷ VNĐ).\",\n    \"liquidityRisk\": \"high\",\n    \"valuationMethod\": \"customer_description_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 33000000,\n    \"totalMonthlyDebt\": 18000000,\n    \"newLoanPayment\": 24156812,\n    \"remainingIncome\": -9156812,\n    \"emergencyFund\": 100000000,\n    \"incomeStability\": \"low\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n```"
+}

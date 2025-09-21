@@ -1,0 +1,56 @@
+{
+  "request": {
+    "question": "Tư vấn tôi lãi suất vay thế chấp của VRB",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-18T18:46:40.829416"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1750247200.844794,
+      "result": {
+        "property_type": null,
+        "project_name": null,
+        "location": {
+          "province": null,
+          "district": null
+        },
+        "search_query": null,
+        "confidence": 0.0,
+        "dientich": null,
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search_skipped",
+      "timestamp": 1750247200.848748,
+      "reason": "low_confidence",
+      "confidence": 0.0
+    }
+  ],
+  "web_search": {
+    "search_query": null,
+    "target_urls": [],
+    "full_responses": {},
+    "properties_found": [],
+    "performance_metrics": {}
+  },
+  "processed_files": [],
+  "ai_response": "",
+  "performance_metrics": {
+    "total_duration": 91.218834400177,
+    "start_time": 1750247200.8294988,
+    "end_time": 1750247292.0483341,
+    "steps_completed": 2,
+    "errors_count": 0,
+    "success": true
+  },
+  "errors": [],
+  "timestamp": "2025-06-18T18:48:12.049055",
+  "session_id": "42f6e1c7",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

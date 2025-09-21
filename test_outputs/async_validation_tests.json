@@ -1,0 +1,172 @@
+[
+  {
+    "test_name": "missing_required_fields",
+    "description": "Empty payload - should fail",
+    "payload": {},
+    "status_code": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "r2_url"
+          ],
+          "msg": "Field required",
+          "input": {},
+          "url": "https://errors.pydantic.dev/2.5/v/missing"
+        },
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "company_id"
+          ],
+          "msg": "Field required",
+          "input": {},
+          "url": "https://errors.pydantic.dev/2.5/v/missing"
+        },
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "industry"
+          ],
+          "msg": "Field required",
+          "input": {},
+          "url": "https://errors.pydantic.dev/2.5/v/missing"
+        },
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "file_name"
+          ],
+          "msg": "Field required",
+          "input": {},
+          "url": "https://errors.pydantic.dev/2.5/v/missing"
+        }
+      ]
+    },
+    "timestamp": "2025-07-28T15:19:11.695716"
+  },
+  {
+    "test_name": "invalid_industry",
+    "description": "Invalid industry value",
+    "payload": {
+      "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+      "company_id": "test-validation",
+      "industry": "invalid_industry"
+    },
+    "status_code": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "enum",
+          "loc": [
+            "body",
+            "industry"
+          ],
+          "msg": "Input should be 'banking', 'insurance', 'restaurant', 'hotel', 'retail', 'fashion', 'industrial', 'healthcare', 'education', 'real_estate', 'automotive', 'technology', 'consulting', 'logistics', 'manufacturing' or 'other'",
+          "input": "invalid_industry",
+          "ctx": {
+            "expected": "'banking', 'insurance', 'restaurant', 'hotel', 'retail', 'fashion', 'industrial', 'healthcare', 'education', 'real_estate', 'automotive', 'technology', 'consulting', 'logistics', 'manufacturing' or 'other'"
+          }
+        },
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "file_name"
+          ],
+          "msg": "Field required",
+          "input": {
+            "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+            "company_id": "test-validation",
+            "industry": "invalid_industry"
+          },
+          "url": "https://errors.pydantic.dev/2.5/v/missing"
+        }
+      ]
+    },
+    "timestamp": "2025-07-28T15:19:11.704661"
+  },
+  {
+    "test_name": "invalid_language",
+    "description": "Invalid language value",
+    "payload": {
+      "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+      "company_id": "test-validation",
+      "industry": "insurance",
+      "data_type": "products",
+      "language": "invalid_language"
+    },
+    "status_code": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "file_name"
+          ],
+          "msg": "Field required",
+          "input": {
+            "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+            "company_id": "test-validation",
+            "industry": "insurance",
+            "data_type": "products",
+            "language": "invalid_language"
+          },
+          "url": "https://errors.pydantic.dev/2.5/v/missing"
+        },
+        {
+          "type": "enum",
+          "loc": [
+            "body",
+            "language"
+          ],
+          "msg": "Input should be 'vi', 'en' or 'auto'",
+          "input": "invalid_language",
+          "ctx": {
+            "expected": "'vi', 'en' or 'auto'"
+          }
+        }
+      ]
+    },
+    "timestamp": "2025-07-28T15:19:11.711726"
+  },
+  {
+    "test_name": "missing_file_name",
+    "description": "Missing required file_name field",
+    "payload": {
+      "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+      "company_id": "test-validation",
+      "industry": "insurance",
+      "data_type": "products",
+      "language": "vi"
+    },
+    "status_code": 422,
+    "response": {
+      "detail": [
+        {
+          "type": "missing",
+          "loc": [
+            "body",
+            "file_name"
+          ],
+          "msg": "Field required",
+          "input": {
+            "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+            "company_id": "test-validation",
+            "industry": "insurance",
+            "data_type": "products",
+            "language": "vi"
+          },
+          "url": "https://errors.pydantic.dev/2.5/v/missing"
+        }
+      ]
+    },
+    "timestamp": "2025-07-28T15:19:11.717675"
+  }
+]

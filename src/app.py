@@ -1,0 +1,480 @@
+"""
+Main FastAPI application factory and startup configuration
+"""
+
+import asyncio
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+import time
+from datetime import datetime
+import asyncio
+import os
+
+from src.core.config import APP_CONFIG
+from src.api.health_routes import router as health_router
+from src.api.chat_routes import router as chat_router
+from src.api.real_estate_routes import router as real_estate_router
+from src.api.ocr_routes import router as ocr_router
+from src.api.loan_routes import router as loan_router
+
+# ✅ ADDED: Document Processing API for Phase 1
+from src.api.document_processing_routes import router as document_processing_router
+
+# ✅ ADDED: Document Generation API for AI-powered document creation
+from src.api.document_generation import router as document_generation_router
+
+# ✅ ADDED: Quote Generation API with AI Gemini Pro 2.5
+from src.api.quote_generation import router as quote_generation_router
+
+# ✅ ADDED: Quote Settings API for managing user quote preferences
+from src.routes.quote_settings import router as quote_settings_router
+
+# ✅ ADDED: Enhanced Template Upload API for DOCX template processing with AI
+from src.routes.enhanced_template_routes import router as enhanced_template_router
+
+# ✅ ADDED: AI Sales Agent for loan consultation
+from src.ai_sales_agent.api.routes import router as ai_sales_agent_router
+
+# ✅ ADDED: Unified Chat System for multi-industry support
+from src.api.unified_chat_routes import router as unified_chat_router
+
+# ✅ ADDED: Conversation Analysis API for remarketing insights with Google Gemini
+from src.api.conversation_analysis_routes import router as conversation_analysis_router
+
+# ✅ ADDED: Admin API for Company Data Management - Modular Structure
+from src.api.admin.company_routes import router as company_router
+from src.api.admin.file_routes import router as file_router
+from src.api.admin.products_services_routes import router as products_services_router
+from src.api.admin.image_routes import router as image_router
+from src.api.admin.task_status_routes import router as task_status_router
+
+# ✅ ADDED: Admin Template Management for System Templates
+from src.routes.admin_template_routes import router as admin_template_router
+
+# ✅ ADDED: Company Context and User History APIs for Optimized Chat
+from src.api.admin.company_context_routes import router as company_context_router
+from src.api.user_history_routes import router as user_history_router
+
+# ✅ ADDED: AI Extraction API for structured data extraction
+from src.api.extraction_routes import router as extraction_router
+
+# ✅ ADDED: Hybrid Search Strategy for enhanced callbacks, search & CRUD
+from src.api.hybrid_strategy_router import main_router as hybrid_strategy_router
+
+# ✅ ADDED: Internal CORS management for chat-plugin dynamic domains
+from src.api.internal_cors_routes import router as internal_cors_router
+
+# ✅ ADDED: Dynamic CORS middleware for chat-plugin support
+from src.middleware.dynamic_cors import DynamicCORSMiddleware
+
+# ✅ ADDED: Hybrid Search API for direct search testing
+from src.api.hybrid_search.hybrid_search_routes import router as hybrid_search_router
+
+# ✅ ADDED: Firebase Authentication API for user management
+from src.api.auth_routes import router as auth_router
+
+# ✅ ADDED: HTML to DOCX Conversion API for template editing
+from src.api.conversion_routes import router as conversion_router
+
+# Global startup time for uptime tracking
+startup_time = time.time()
+
+# Global worker management
+background_workers = {}
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    ✅ STARTUP/SHUTDOWN: Application lifecycle management
+    """
+    # ===== STARTUP =====
+    print("🚀 Starting AI Chatbot RAG Service...")
+    print(
+        f"   Environment: {APP_CONFIG.get('debug', False) and 'Development' or 'Production'}"
+    )
+    print(f"   Host: {APP_CONFIG['host']}")
+    print(f"   Port: {APP_CONFIG['port']}")
+    print(f"   Base URL: {APP_CONFIG['base_url']}")
+
+    # Initialize global components here if needed
+    try:
+        # Load documents or initialize services
+        await load_documents()
+
+        # ✅ Start background workers
+        await start_background_workers()
+
+        print("✅ Application startup completed")
+    except Exception as e:
+        print(f"❌ Startup error: {e}")
+        raise
+
+    yield
+
+    # ===== SHUTDOWN =====
+    print("🛑 Shutting down AI Chatbot RAG Service...")
+
+    # ✅ Shutdown background workers
+    await shutdown_background_workers()
+
+    print("✅ Shutdown completed")
+
+
+async def load_documents():
+    """
+    ✅ Load documents and initialize services on startup
+    """
+    global documents
+    documents = {}
+
+    try:
+        print("📚 Loading documents and initializing services...")
+
+        # Add any initialization logic here
+        # For example: load vector store, initialize AI providers, etc.
+
+        print("✅ Documents and services loaded successfully")
+
+    except Exception as e:
+        print(f"❌ Failed to load documents: {e}")
+        raise
+
+
+async def start_background_workers():
+    """
+    ✅ Start background workers for queue processing
+    """
+    try:
+        print("🔧 Starting background workers...")
+
+        # ===== START DOCUMENT PROCESSING WORKER (for /upload endpoint) =====
+        print("📄 Starting DocumentProcessingWorker for /upload endpoint...")
+        from src.workers.document_processing_worker import DocumentProcessingWorker
+
+        doc_worker = DocumentProcessingWorker(
+            worker_id="app_doc_worker", poll_interval=2.0  # Poll every 2 seconds
+        )
+
+        await doc_worker.initialize()
+
+        # Start worker in background task
+        doc_worker_task = asyncio.create_task(doc_worker.run())
+        background_workers["document_worker"] = {
+            "worker": doc_worker,
+            "task": doc_worker_task,
+        }
+
+        print("✅ DocumentProcessingWorker started")
+
+        # ===== START EXTRACTION PROCESSING WORKER (Worker 1) =====
+        print(
+            "🎯 Starting ExtractionProcessingWorker (Worker 1: AI extraction only)..."
+        )
+        from src.workers.extraction_processing_worker import ExtractionProcessingWorker
+
+        extraction_worker = ExtractionProcessingWorker(
+            worker_id="app_extraction_worker", poll_interval=1.0
+        )
+
+        await extraction_worker.initialize()
+
+        # Start worker in background task
+        extraction_worker_task = asyncio.create_task(extraction_worker.run())
+        background_workers["extraction_worker"] = {
+            "worker": extraction_worker,
+            "task": extraction_worker_task,
+        }
+
+        print("✅ ExtractionProcessingWorker started")
+
+        # ===== START STORAGE PROCESSING WORKER (Worker 2) =====
+        print(
+            "💾 Starting StorageProcessingWorker (Worker 2: Qdrant + callback only)..."
+        )
+        from src.workers.storage_processing_worker import StorageProcessingWorker
+
+        storage_worker = StorageProcessingWorker(
+            worker_id="app_storage_worker", poll_interval=1.0
+        )
+
+        await storage_worker.initialize()
+
+        # Start worker in background task
+        storage_worker_task = asyncio.create_task(storage_worker.run())
+        background_workers["storage_worker"] = {
+            "worker": storage_worker,
+            "task": storage_worker_task,
+        }
+
+        print("✅ StorageProcessingWorker started")
+        print("")
+        print("🎉 All workers started successfully!")
+        print("📋 Worker Architecture:")
+        print(
+            "   📄 DocumentProcessingWorker → /upload endpoint (DocumentProcessingTask only)"
+        )
+        print(
+            "   🎯 ExtractionProcessingWorker → Worker 1: AI extraction for /process-async"
+        )
+        print(
+            "   💾 StorageProcessingWorker → Worker 2: Qdrant storage + backend callbacks"
+        )
+        print("   🔄 Flow: API → Worker 1 (AI) → Worker 2 (Storage) → Backend")
+
+    except Exception as e:
+        print(f"❌ Failed to start background workers: {e}")
+        raise
+
+
+async def shutdown_background_workers():
+    """
+    ✅ Shutdown background workers gracefully
+    """
+    try:
+        print("🛑 Shutting down background workers...")
+
+        for worker_name, worker_info in background_workers.items():
+            try:
+                print(f"   🛑 Stopping {worker_name}...")
+
+                # Shutdown worker
+                await worker_info["worker"].shutdown()
+
+                # Cancel task
+                worker_info["task"].cancel()
+                try:
+                    await worker_info["task"]
+                except asyncio.CancelledError:
+                    pass
+
+                print(f"   ✅ {worker_name} stopped")
+
+            except Exception as worker_error:
+                print(f"   ❌ Error stopping {worker_name}: {worker_error}")
+
+        background_workers.clear()
+        print("✅ All background workers stopped")
+
+    except Exception as e:
+        print(f"❌ Error shutting down workers: {e}")
+
+
+def create_app() -> FastAPI:
+    """
+    ✅ FastAPI application factory
+    """
+    app = FastAPI(
+        title="AI Chatbot RAG Service",
+        description="Advanced AI-powered chatbot with RAG capabilities, document processing, OCR, and financial services",
+        version="1.0.0",
+        lifespan=lifespan,
+        docs_url="/docs" if APP_CONFIG["debug"] else None,
+        redoc_url="/redoc" if APP_CONFIG["debug"] else None,
+    )
+
+    # ===== CORS MIDDLEWARE REMOVED =====
+    # CORS is now handled at the bottom of the file based on ENVIRONMENT variable
+    # This prevents duplicate CORS middleware that was causing "true, true" headers
+
+    # Dynamic CORS middleware for chat-plugin support (streaming routes only)
+    backend_url = APP_CONFIG.get("backend_webhook_url", "http://localhost:8001")
+    app.add_middleware(DynamicCORSMiddleware, backend_url=backend_url)
+
+    # ===== SECURITY MIDDLEWARE =====
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        """Add security headers to all responses"""
+        response = await call_next(request)
+
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        return response
+
+    # ===== REGISTER ROUTERS =====
+
+    # Authentication endpoints - Firebase auth
+    app.include_router(auth_router, tags=["Firebase Authentication"])
+
+    # Health and status endpoints
+    app.include_router(health_router, tags=["Health"])
+
+    # Chat endpoints - General RAG-based chat
+    app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
+
+    # ✅ ALIAS: Support legacy frontend paths
+    app.include_router(chat_router, tags=["Chat - Legacy Paths"])
+
+    # Unified Chat System - Multi-industry with intelligent routing
+    app.include_router(unified_chat_router, tags=["Unified Chat - Multi-Industry"])
+
+    # Conversation Analysis API - Remarketing insights with Google Gemini
+    app.include_router(
+        conversation_analysis_router,
+        tags=["Conversation Analysis", "Remarketing", "Gemini AI"],
+    )
+
+    # Real estate analysis endpoints
+    app.include_router(real_estate_router, tags=["Real Estate"])
+
+    # OCR endpoints
+    app.include_router(ocr_router, tags=["OCR"])
+
+    # Loan assessment endpoints
+    app.include_router(loan_router, tags=["Loan Assessment"])
+
+    # Document processing endpoints
+    app.include_router(document_processing_router, tags=["Document Processing"])
+
+    # Quote generation endpoints - New workflow with AI Gemini Pro 2.5
+    app.include_router(quote_generation_router, tags=["Quote Generation", "Gemini AI"])
+
+    # Quote settings endpoints - User preferences and configuration
+    app.include_router(
+        quote_settings_router, tags=["Quote Settings", "User Preferences"]
+    )
+
+    # Template upload endpoints - DOCX template processing with AI
+    # ✅ Enhanced Template Management API with PDF processing và metadata editing
+    app.include_router(
+        enhanced_template_router,
+        tags=["Template Management", "AI Analysis", "PDF Processing"],
+    )
+
+    # ✅ Legacy Template Upload API (kept for backward compatibility)
+    # AI Sales Agent endpoints for loan consultation
+    app.include_router(
+        ai_sales_agent_router,
+        prefix="/api/sales-agent",
+        tags=["AI Sales Agent - Loan Consultation"],
+    )
+
+    # Conversation Analysis API for remarketing insights
+    app.include_router(
+        conversation_analysis_router,
+        prefix="/api/conversation-analysis",
+        tags=["Conversation Analysis - Google Gemini"],
+    )
+
+    # Admin routers for company data management - Modular Structure
+    app.include_router(
+        company_router, prefix="/api/admin", tags=["Admin - Company Management"]
+    )
+    app.include_router(
+        file_router, prefix="/api/admin", tags=["Admin - File Management"]
+    )
+    app.include_router(
+        products_services_router,
+        prefix="/api/admin",
+        tags=["Admin - Products & Services"],
+    )
+    app.include_router(
+        image_router, prefix="/api/admin", tags=["Admin - Image Processing"]
+    )
+    app.include_router(task_status_router)
+
+    # ✅ ADDED: Admin Template Management for System Templates
+    app.include_router(admin_template_router, tags=["Admin - System Templates"])
+
+    # ✅ ADDED: HTML to DOCX Conversion API
+    app.include_router(conversion_router, tags=["Document Conversion"])
+
+    # ✅ ADDED: Company Context and User History APIs
+    app.include_router(company_context_router)
+    app.include_router(user_history_router)
+
+    # ✅ ADDED: AI Extraction API
+    app.include_router(extraction_router, tags=["AI Extraction - Products & Services"])
+
+    # ✅ ADDED: Hybrid Search API for direct testing
+    app.include_router(hybrid_search_router, tags=["Hybrid Search API"])
+
+    # ✅ ADDED: Document Generation API for AI-powered document creation
+    app.include_router(document_generation_router, tags=["Document Generation"])
+
+    # ✅ ADDED: Internal CORS management for chat-plugin
+    app.include_router(internal_cors_router, tags=["Internal CORS"])
+
+    # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
+    app.include_router(
+        hybrid_strategy_router,
+        prefix="/api",
+        tags=[
+            "Hybrid Search Strategy",
+            "Enhanced Callbacks",
+            "Metadata + Vector Search",
+        ],
+    )
+
+    # ✅ Admin Task Status API
+    app.include_router(
+        task_status_router, prefix="/api/admin", tags=["Admin - Task Status"]
+    )
+
+    print("✅ FastAPI application created with all routes")
+    print("📌 Unified Chat System endpoints:")
+    print("   POST /api/unified/chat-stream - Streaming version of unified chat")
+    print("   POST /api/unified/detect-intent - Intent detection only")
+    print("   GET  /api/unified/industries - Supported industries")
+    print("   GET  /api/unified/languages - Supported languages")
+    print("   GET  /api/unified/session/{id} - Session management")
+    print("   DELETE /api/unified/session/{id} - Clear session")
+    print("📌 AI Sales Agent endpoints:")
+    print("   POST /api/sales-agent/chat - Natural conversation for loan consultation")
+    print("   POST /api/sales-agent/assess - Loan assessment based on collected data")
+    print(
+        "   POST /api/sales-agent/check-readiness - Check if data is ready for assessment"
+    )
+    print(
+        "   GET  /api/sales-agent/suggest-questions/{session_id} - Get smart question suggestions"
+    )
+    print("   DELETE /api/sales-agent/session/{session_id} - Clear session data")
+    print("📌 Admin API endpoints:")
+    print("   POST /api/admin/companies/register - Register new company")
+    print("   GET  /api/admin/companies/{id} - Get company details")
+    print("   GET  /api/admin/companies/{id}/stats - Get company data statistics")
+    print(
+        "   POST /api/admin/companies/{id}/context/basic-info/from-backend - Update basic info (Backend format)"
+    )
+    print(
+        "   POST /api/admin/companies/{id}/files/upload - Upload company files (R2 URL only)"
+    )
+    print("   POST /api/admin/companies/{id}/extract - Extract data from files")
+    print("   POST /api/admin/companies/{id}/search - Search company data")
+    print(
+        "   GET  /api/admin/industries/{industry}/data-types - Get supported data types"
+    )
+    print("   GET  /api/admin/file-types - Get supported file types")
+
+    return app
+
+
+# Create the FastAPI application instance
+app = create_app()
+
+# CORS Middleware
+# IMPORTANT: Only add CORSMiddleware if NOT in production.
+# In production, Nginx handles all CORS headers. Adding them here will cause duplication.
+if os.getenv("ENVIRONMENT") != "production":
+    print("✅ DEVELOPMENT MODE: Enabling FastAPI CORSMiddleware.")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "http://localhost:3002",
+            "https://aivungtau.com",
+            "https://www.aivungtau.com",
+        ],  # Origins for dev
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    print("✅ PRODUCTION MODE: Skipping FastAPI CORSMiddleware (handled by Nginx).")
+
+# Global variable for document storage (will be moved to proper service later)
+documents = {}

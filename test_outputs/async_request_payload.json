@@ -1,0 +1,18 @@
+{
+  "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+  "company_id": "test-async-timing-async",
+  "industry": "insurance",
+  "data_type": "products",
+  "file_name": "SanPham-AIA.txt",
+  "file_type": "text/plain",
+  "file_size": 1024000,
+  "language": "vi",
+  "target_categories": [
+    "products",
+    "services"
+  ],
+  "company_info": {
+    "name": "AIA Insurance Test",
+    "description": "Test company for async extraction"
+  }
+}

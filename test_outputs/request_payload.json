@@ -1,0 +1,20 @@
+{
+  "r2_url": "https://static.agent8x.io.vn/company/5a44b799-4783-448f-b6a8-b9a51ed7ab76/files/SanPham-AIA.txt",
+  "company_id": "aia-test-company-hybrid",
+  "industry": "insurance",
+  "file_name": "SanPham-AIA.txt",
+  "file_size": 50000,
+  "file_type": "text/plain",
+  "language": "vi",
+  "target_categories": [
+    "products",
+    "services"
+  ],
+  "callback_url": "http://localhost:8088/extraction-callback",
+  "company_info": {
+    "id": "aia-test-company-hybrid",
+    "name": "AIA Vietnam",
+    "industry": "insurance",
+    "description": "Leading insurance company in Vietnam"
+  }
+}

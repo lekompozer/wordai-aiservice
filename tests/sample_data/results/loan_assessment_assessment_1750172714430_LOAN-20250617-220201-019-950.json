@@ -1,0 +1,73 @@
+{
+  "assessmentId": "assessment_1750172714430",
+  "applicationId": "LOAN-20250617-220201-019-950",
+  "timestamp": "2025-06-17T22:06:12.694391",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1099000000,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Vay mua bất động sản"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 80000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.1352785967700284,
+    "loanToValue": 0.3010958904109589,
+    "estimatedMonthlyPayment": 10822287.741602272
+  },
+  "assessmentResult": {
+    "status": "APPROVED",
+    "confidence": 0.92,
+    "creditScore": 850,
+    "reasoning": "Hồ sơ đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập cao (80 triệu VNĐ/tháng) và ổn định (10 năm kinh nghiệm tại Savills), không có nợ hiện tại (DTI = 0%), thuộc nhóm tín dụng CIC 1 (lịch sử tốt). Tài sản đảm bảo là bất động sản thổ cư 100% tại vị trí chiến lược (An Phú, Thuận An) với giá trị thẩm định 3.65 tỷ VNĐ, đảm bảo tỷ lệ LTV an toàn (30.1%). Dòng tiền sau trả nợ dư dả (69.2 triệu VNĐ/tháng), đảm bảo khả năng trả nợ. Rủi ro tổng thể được đánh giá thấp do pháp lý tài sản rõ ràng và thu nhập ổn định.",
+    "riskFactors": [
+      "Phụ thuộc vào một nguồn thu nhập (lương)",
+      "Tài sản thanh khoản thấp (0 tỷ VNĐ)",
+      "Biến động thị trường bất động sản địa phương"
+    ],
+    "recommendations": [
+      "Duy trì hợp đồng lao động dài hạn với Savills",
+      "Xây dựng quỹ dự phòng tài chính ít nhất 6 tháng",
+      "Mua bảo hiểm khoản vay để giảm thiểu rủi ro"
+    ],
+    "approvedAmount": 1100000000,
+    "interestRate": 8.5,
+    "loanTerm": 180,
+    "monthlyPayment": 10822287,
+    "loanToValue": 30.1,
+    "debtToIncome": 13.5,
+    "conditions": [
+      "Chứng minh thu nhập 3 tháng gần nhất",
+      "Bổ sung sổ hồng gốc để thế chấp",
+      "Mở tài khoản thanh toán tại ngân hàng",
+      "Bảo hiểm tài sản đảm bảo trong suốt thời hạn vay"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Đất thổ cư 125m2 tại vị trí trung tâm An Phú, cách đường Liên Huyện 50m. Giá thị trường tương đương 28-32 triệu/m2. Định giá bảo thủ ở mức 29.2 triệu/m2 (3.65 tỷ) để đảm bảo an toàn cho ngân hàng.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 80000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 10822287,
+      "remainingIncome": 69177713,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    },
+    "additionalNotes": "Ưu tiên phê duyệt do hồ sơ chất lượng cao. Cân nhắc tăng hạn mức nếu khách hàng bổ sung tài sản đảm bảo phụ hoặc người đồng trả nợ."
+  },
+  "processingDetails": {
+    "reasoningDuration": 58.25340676307678,
+    "totalProcessingTime": 58.26419496536255,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"APPROVED\",\n  \"confidence\": 0.92,\n  \"creditScore\": 850,\n  \"reasoning\": \"Hồ sơ đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập cao (80 triệu VNĐ/tháng) và ổn định (10 năm kinh nghiệm tại Savills), không có nợ hiện tại (DTI = 0%), thuộc nhóm tín dụng CIC 1 (lịch sử tốt). Tài sản đảm bảo là bất động sản thổ cư 100% tại vị trí chiến lược (An Phú, Thuận An) với giá trị thẩm định 3.65 tỷ VNĐ, đảm bảo tỷ lệ LTV an toàn (30.1%). Dòng tiền sau trả nợ dư dả (69.2 triệu VNĐ/tháng), đảm bảo khả năng trả nợ. Rủi ro tổng thể được đánh giá thấp do pháp lý tài sản rõ ràng và thu nhập ổn định.\",\n  \"riskFactors\": [\n    \"Phụ thuộc vào một nguồn thu nhập (lương)\",\n    \"Tài sản thanh khoản thấp (0 tỷ VNĐ)\",\n    \"Biến động thị trường bất động sản địa phương\"\n  ],\n  \"recommendations\": [\n    \"Duy trì hợp đồng lao động dài hạn với Savills\",\n    \"Xây dựng quỹ dự phòng tài chính ít nhất 6 tháng\",\n    \"Mua bảo hiểm khoản vay để giảm thiểu rủi ro\"\n  ],\n  \"approvedAmount\": 1100000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 180,\n  \"monthlyPayment\": 10822287,\n  \"loanToValue\": 30.1,\n  \"debtToIncome\": 13.5,\n  \"conditions\": [\n    \"Chứng minh thu nhập 3 tháng gần nhất\",\n    \"Bổ sung sổ hồng gốc để thế chấp\",\n    \"Mở tài khoản thanh toán tại ngân hàng\",\n    \"Bảo hiểm tài sản đảm bảo trong suốt thời hạn vay\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Đất thổ cư 125m2 tại vị trí trung tâm An Phú, cách đường Liên Huyện 50m. Giá thị trường tương đương 28-32 triệu/m2. Định giá bảo thủ ở mức 29.2 triệu/m2 (3.65 tỷ) để đảm bảo an toàn cho ngân hàng.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 80000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 10822287,\n    \"remainingIncome\": 69177713,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  },\n  \"additionalNotes\": \"Ưu tiên phê duyệt do hồ sơ chất lượng cao. Cân nhắc tăng hạn mức nếu khách hàng bổ sung tài sản đảm bảo phụ hoặc người đồng trả nợ.\"\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Khả năng tài chính (9.5/10 điểm):**\n   - DTI sau vay chỉ 13.5% (<<50% ngưỡng an toàn)\n   - Dòng tiền dư 69.2 triệu/tháng sau trả nợ (>>15 triệu yêu cầu)\n   - Thu nhập ổn định 10 năm cùng ngành (Savills - lĩnh vực BĐS)\n\n2. **Tài sản đảm bảo (8/10 điểm):**\n   - LTV 30.1% (<<70% ngưỡng phê duyệt)\n   - Định giá 3.65 tỷ (cao hơn 3.6 tỷ khách đề xuất) dựa trên:\n     * Vị trí vàng (50m đường Liên Huyện)\n     * Diện tích vuông vắn 5x25m\n     * Sổ hồng riêng, thổ cư 100%\n   - Thanh khoản trung bình do kích thước lô đất lớn\n\n3. **Rủi ro tín dụng (7.5/10 điểm):**\n   - Điểm trừ: Thiếu đa dạng thu nhập, không có tài sản thanh khoản\n   - Điểm cộng: CIC nhóm 1, không nợ xấu, ngành nghề ổn định\n\n4. **Điều kiện bổ sung:**\n   - Yêu cầu bảo hiểm tài sản để phòng cháy nổ\n   - Giám sát định kỳ hợp đồng lao động\n   - Khuyến nghị thêm tài sản đảm bảo phụ nếu tăng hạn mức\n\n**LÃI SUẤT ƯU ĐÃI 8.5%:** Áp dụng cho khách hàng premium có credit score >800 và quan hệ ngân hàng độc quyền."
+}

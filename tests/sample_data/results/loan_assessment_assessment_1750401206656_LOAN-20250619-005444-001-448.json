@@ -1,0 +1,72 @@
+{
+  "assessmentId": "assessment_1750401206656",
+  "applicationId": "LOAN-20250619-005444-001-448",
+  "timestamp": "2025-06-20T13:34:22.640165",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 399999999,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 15000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.2625972147903319,
+    "loanToValue": 0.036363636272727276,
+    "estimatedMonthlyPayment": 3938958.2218549782
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.92,
+    "creditScore": 800,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 15 triệu VNĐ/tháng từ công việc Sales tại Savills với 10 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau khi vay chỉ 26.3% (dưới ngưỡng 50%), thu nhập sau trả nợ còn 11.1 triệu VNĐ/tháng (vượt yêu cầu tối thiểu 15 triệu). Tài sản thế chấp là nhà mặt tiền đường Nam Kỳ Khởi Nghĩa, Vũng Tàu có giá trị ước tính 11 tỷ VNĐ, LTV chỉ 3.6% (thấp hơn nhiều so với giới hạn 80%). Lịch sử tín dụng CIC nhóm 1 và không có nợ xấu. Tuy nhiên, cần bổ sung thông tin CCCD và xác minh thu nhập để hoàn thiện hồ sơ.",
+    "riskFactors": [
+      "Thiếu thông tin định danh (CCCD, địa chỉ thường trú)",
+      "Chưa xác minh được hợp đồng lao động/payslip",
+      "Tài sản đảm bảo chưa được thẩm định trực tiếp"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung CCCD, hợp đồng lao động 3 tháng gần nhất",
+      "Thẩm định hiện trường tài sản đảm bảo trước khi giải ngân",
+      "Xem xét bảo hiểm khoản vay do thời hạn dài (15 năm)"
+    ],
+    "approvedAmount": 400000000,
+    "interestRate": 8.5,
+    "loanTerm": 15,
+    "monthlyPayment": 3938958,
+    "loanToValue": 3.6,
+    "debtToIncome": 26.3,
+    "conditions": [
+      "Bổ sung đầy đủ giấy tờ định danh",
+      "Xác minh thu nhập qua ngân hàng nhận lương",
+      "Đăng ký giao dịch đảm bảo tại Văn phòng đăng ký đất đai",
+      "Mua bảo hiểm khoản vay"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 11000000000,
+      "marketAnalysis": "Nhà mặt tiền đường Nam Kỳ Khởi Nghĩa (trục đường chính TP.Vũng Tàu) có giá trị thương mại cao. Diện tích 100m2 xây 3 tầng phù hợp với nhu cầu ở hoặc kinh doanh. Giá ước tính 11 tỷ là hợp lý so với thị trường (khoảng 110-120 triệu/m2 với vị trí này).",
+      "liquidityRisk": "low",
+      "valuationMethod": "customer_description_analysis + comparable_sales_method"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 15000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 3938958,
+      "remainingIncome": 11061042,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "medium"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 55.96843218803406,
+    "totalProcessingTime": 55.98386812210083,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.92,\n  \"creditScore\": 800,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 15 triệu VNĐ/tháng từ công việc Sales tại Savills với 10 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau khi vay chỉ 26.3% (dưới ngưỡng 50%), thu nhập sau trả nợ còn 11.1 triệu VNĐ/tháng (vượt yêu cầu tối thiểu 15 triệu). Tài sản thế chấp là nhà mặt tiền đường Nam Kỳ Khởi Nghĩa, Vũng Tàu có giá trị ước tính 11 tỷ VNĐ, LTV chỉ 3.6% (thấp hơn nhiều so với giới hạn 80%). Lịch sử tín dụng CIC nhóm 1 và không có nợ xấu. Tuy nhiên, cần bổ sung thông tin CCCD và xác minh thu nhập để hoàn thiện hồ sơ.\",\n  \"riskFactors\": [\n    \"Thiếu thông tin định danh (CCCD, địa chỉ thường trú)\",\n    \"Chưa xác minh được hợp đồng lao động/payslip\",\n    \"Tài sản đảm bảo chưa được thẩm định trực tiếp\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung CCCD, hợp đồng lao động 3 tháng gần nhất\",\n    \"Thẩm định hiện trường tài sản đảm bảo trước khi giải ngân\",\n    \"Xem xét bảo hiểm khoản vay do thời hạn dài (15 năm)\"\n  ],\n  \"approvedAmount\": 400000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 15,\n  \"monthlyPayment\": 3938958,\n  \"loanToValue\": 3.6,\n  \"debtToIncome\": 26.3,\n  \"conditions\": [\n    \"Bổ sung đầy đủ giấy tờ định danh\",\n    \"Xác minh thu nhập qua ngân hàng nhận lương\",\n    \"Đăng ký giao dịch đảm bảo tại Văn phòng đăng ký đất đai\",\n    \"Mua bảo hiểm khoản vay\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 11000000000,\n    \"marketAnalysis\": \"Nhà mặt tiền đường Nam Kỳ Khởi Nghĩa (trục đường chính TP.Vũng Tàu) có giá trị thương mại cao. Diện tích 100m2 xây 3 tầng phù hợp với nhu cầu ở hoặc kinh doanh. Giá ước tính 11 tỷ là hợp lý so với thị trường (khoảng 110-120 triệu/m2 với vị trí này).\",\n    \"liquidityRisk\": \"low\",\n    \"valuationMethod\": \"customer_description_analysis + comparable_sales_method\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 15000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 3938958,\n    \"remainingIncome\": 11061042,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"medium\"\n  }\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Khả năng tài chính:**\n   - DTI 26.3% (an toàn dưới 50%)\n   - Dòng tiền sau trả nợ 11.1 triệu (vượt yêu cầu)\n   - Thu nhập ổn định 10 năm cùng ngành\n\n2. **Tài sản đảm bảo:**\n   - LTV cực thấp (3.6%) so với hạn mức 80%\n   - Vị trí mặt tiền trung tâm Vũng Tàu có tính thanh khoản cao\n   - Giá trị tài sản gấp 27.5 lần khoản vay\n\n3. **Rủi ro tín dụng:**\n   - CIC nhóm 1 (lịch sử tốt)\n   - Không nợ xấu hiện tại\n   - Ngành bất động sản có rủi ro chu kỳ nhưng được bù đắp bằng LTV thấp\n\n4. **Điều kiện bổ sung:**\n   - Cần xác minh thu nhập thực tế qua sao kê ngân hàng\n   - Thẩm định hiện trường tài sản để loại trừ rủi ro pháp lý\n   - Bảo hiểm khoản vay bắt buộc do kỳ hạn dài\n\n*Lưu ý: Quyết định cuối cùng có thể điều chỉnh sau khi kiểm tra hồ sơ gốc và thẩm định hiện trường.*"
+}

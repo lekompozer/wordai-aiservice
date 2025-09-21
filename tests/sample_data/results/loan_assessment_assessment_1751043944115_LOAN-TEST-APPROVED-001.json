@@ -1,0 +1,71 @@
+{
+  "assessmentId": "assessment_1751043944115",
+  "applicationId": "LOAN-TEST-APPROVED-001",
+  "timestamp": "2025-06-28T00:06:27.132227",
+  "applicant": {
+    "name": "NGUYỄN VĂN THÀNH",
+    "idNumber": "024789123456",
+    "age": 45
+  },
+  "loanRequest": {
+    "amount": 1500000000,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Mua nhà ở"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 150000000,
+    "currentDebtRatio": 0.05333333333333334,
+    "projectedDebtRatio": 0.15180728912589267,
+    "loanToValue": 0.25,
+    "estimatedMonthlyPayment": 14771093.368883902
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.95,
+    "creditScore": 800,
+    "reasoning": "Khách hàng Nguyễn Văn Thành có hồ sơ tài chính mạnh với thu nhập ổn định từ lương và cho thuê nhà, tổng cộng 150 triệu VNĐ/tháng. Tỷ lệ nợ trên thu nhập (DTI) sau khi vay chỉ 15.2%, nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là căn hộ cao cấp tại Times City có giá trị thị trường ước tính 6 tỷ VNĐ, đáp ứng tiêu chuẩn thế chấp với LTV chỉ 25%. Lịch sử tín dụng thuộc nhóm 1, không nợ xấu. Khả năng trả nợ được đảm bảo bởi dòng tiền dư dả (127.2 triệu VNĐ/tháng sau trả nợ) và tài sản thanh khoản cao (2 tỷ VNĐ).",
+    "riskFactors": [
+      "Rủi ro biến động thị trường bất động sản",
+      "Rủi ro từ thu nhập cho thuê nhà (có thể thay đổi)",
+      "Rủi ro tỷ giá (nếu khách hàng làm việc cho doanh nghiệp nước ngoài)"
+    ],
+    "recommendations": [
+      "Duyệt hạn mức 1.5 tỷ VNĐ với LTV 25%",
+      "Áp dụng lãi suất ưu đãi 8.5%/năm cố định 12 tháng đầu",
+      "Yêu cầu bổ sung hợp đồng lao động và sao kê ngân hàng 6 tháng"
+    ],
+    "approvedAmount": 1500000000,
+    "interestRate": 8.5,
+    "loanTerm": 15,
+    "monthlyPayment": 14771093,
+    "loanToValue": 0.25,
+    "debtToIncome": 0.152,
+    "conditions": [
+      "Bổ sung giấy tờ chứng minh thu nhập cho thuê nhà",
+      "Mua bảo hiểm khoản vay",
+      "Đăng ký thế chấp tại Văn phòng đăng ký đất đai"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 6000000000,
+      "marketAnalysis": "Căn hộ tại Times City thuộc phân khúc cao cấp, vị trí trung tâm quận Hai Bà Trưng. Giá thị trường 2025 dự báo tăng 5-7%/năm nhờ hạ tầng hoàn thiện. Diện tích 100m2 phù hợp nhu cầu gia đình. Thanh khoản tốt do nằm trong dự án đã hoàn thiện đầy đủ tiện ích.",
+      "liquidityRisk": "low",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 150000000,
+      "totalMonthlyDebt": 8000000,
+      "newLoanPayment": 14771093,
+      "remainingIncome": 127228907,
+      "emergencyFund": 2000000000,
+      "incomeStability": "high",
+      "assetLiquidity": "high"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 41.66787314414978,
+    "totalProcessingTime": 43.016350746154785,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.95,\n  \"creditScore\": 800,\n  \"reasoning\": \"Khách hàng Nguyễn Văn Thành có hồ sơ tài chính mạnh với thu nhập ổn định từ lương và cho thuê nhà, tổng cộng 150 triệu VNĐ/tháng. Tỷ lệ nợ trên thu nhập (DTI) sau khi vay chỉ 15.2%, nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là căn hộ cao cấp tại Times City có giá trị thị trường ước tính 6 tỷ VNĐ, đáp ứng tiêu chuẩn thế chấp với LTV chỉ 25%. Lịch sử tín dụng thuộc nhóm 1, không nợ xấu. Khả năng trả nợ được đảm bảo bởi dòng tiền dư dả (127.2 triệu VNĐ/tháng sau trả nợ) và tài sản thanh khoản cao (2 tỷ VNĐ).\",\n  \"riskFactors\": [\n    \"Rủi ro biến động thị trường bất động sản\",\n    \"Rủi ro từ thu nhập cho thuê nhà (có thể thay đổi)\",\n    \"Rủi ro tỷ giá (nếu khách hàng làm việc cho doanh nghiệp nước ngoài)\"\n  ],\n  \"recommendations\": [\n    \"Duyệt hạn mức 1.5 tỷ VNĐ với LTV 25%\",\n    \"Áp dụng lãi suất ưu đãi 8.5%/năm cố định 12 tháng đầu\",\n    \"Yêu cầu bổ sung hợp đồng lao động và sao kê ngân hàng 6 tháng\"\n  ],\n  \"approvedAmount\": 1500000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 15,\n  \"monthlyPayment\": 14771093,\n  \"loanToValue\": 0.25,\n  \"debtToIncome\": 0.152,\n  \"conditions\": [\n    \"Bổ sung giấy tờ chứng minh thu nhập cho thuê nhà\",\n    \"Mua bảo hiểm khoản vay\",\n    \"Đăng ký thế chấp tại Văn phòng đăng ký đất đai\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 6000000000,\n    \"marketAnalysis\": \"Căn hộ tại Times City thuộc phân khúc cao cấp, vị trí trung tâm quận Hai Bà Trưng. Giá thị trường 2025 dự báo tăng 5-7%/năm nhờ hạ tầng hoàn thiện. Diện tích 100m2 phù hợp nhu cầu gia đình. Thanh khoản tốt do nằm trong dự án đã hoàn thiện đầy đủ tiện ích.\",\n    \"liquidityRisk\": \"low\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 150000000,\n    \"totalMonthlyDebt\": 8000000,\n    \"newLoanPayment\": 14771093,\n    \"remainingIncome\": 127228907,\n    \"emergencyFund\": 2000000000,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"high\"\n  }\n}\n```"
+}

@@ -1,0 +1,25 @@
+{
+  "query": "restaurant hotel",
+  "company_id": "xuan_phuong_hotel_001",
+  "request": {
+    "query": "restaurant hotel",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "restaurant hotel",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 7.078493
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:37:07.817525"
+}

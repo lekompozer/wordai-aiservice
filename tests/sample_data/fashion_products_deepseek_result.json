@@ -1,0 +1,38 @@
+{
+  "success": true,
+  "message": "Auto-categorization extraction completed successfully",
+  "raw_content": null,
+  "structured_data": {
+    "products": [],
+    "services": [],
+    "extraction_summary": {}
+  },
+  "template_used": "GenericExtractionTemplate",
+  "ai_provider": "deepseek",
+  "industry": "Industry.FASHION",
+  "data_type": "auto_categorized",
+  "processing_time": 60.595146,
+  "total_items_extracted": 0,
+  "extraction_metadata": {
+    "r2_url": "https://agent8x.io.vn/companies/ivy-fashion-store/20250714_103032_ivy-fashion-products.csv",
+    "extraction_mode": "auto_categorization",
+    "target_categories": [
+      "products",
+      "services"
+    ],
+    "ai_provider": "deepseek",
+    "template_used": "GenericExtractionTemplate",
+    "industry": "fashion",
+    "company_name": "Ivy Fashion Store",
+    "file_extension": ".csv",
+    "extraction_timestamp": "2025-07-16T18:18:28.332960",
+    "total_items": 0,
+    "source": "r2_extraction_service_v2",
+    "categorization_summary": {
+      "products": 0,
+      "services": 0
+    }
+  },
+  "error": null,
+  "error_details": null
+}

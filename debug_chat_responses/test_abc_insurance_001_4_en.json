@@ -1,0 +1,1482 @@
+{
+  "test_info": {
+    "test_number": 4,
+    "company_id": "abc_insurance_001",
+    "industry": "insurance",
+    "scenario": {
+      "language": "en",
+      "message": "What are the differences between your life insurance products and which one would you recommend for a 35-year-old professional?",
+      "expected_intent": "SALES",
+      "description": "English - Life insurance consultation"
+    },
+    "timestamp": "2025-07-31T15:39:45.265068"
+  },
+  "request": {
+    "message": "What are the differences between your life insurance products and which one would you recommend for a 35-year-old professional?",
+    "company_id": "abc_insurance_001",
+    "industry": "insurance",
+    "language": "en",
+    "user_info": {
+      "user_id": "test_user_4",
+      "device_id": "test_device_4",
+      "source": "web_device",
+      "name": "Test User 4"
+    },
+    "session_id": "test_session_abc_insurance_001_4",
+    "context": {
+      "page_url": "https://test.com",
+      "disable_webhooks": true
+    }
+  },
+  "response_chunks": [
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " hiểu",
+      "type": "content"
+    },
+    {
+      "content": " rằng",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đang",
+      "type": "content"
+    },
+    {
+      "content": " tìm",
+      "type": "content"
+    },
+    {
+      "content": " kiếm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " biết",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " khác",
+      "type": "content"
+    },
+    {
+      "content": " biệt",
+      "type": "content"
+    },
+    {
+      "content": " giữa",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " cũng",
+      "type": "content"
+    },
+    {
+      "content": " như",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " nào",
+      "type": "content"
+    },
+    {
+      "content": " phù",
+      "type": "content"
+    },
+    {
+      "content": " hợp",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " chuyên",
+      "type": "content"
+    },
+    {
+      "content": " gia",
+      "type": "content"
+    },
+    {
+      "content": "35",
+      "type": "content"
+    },
+    {
+      "content": " tuổi",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Đầu",
+      "type": "content"
+    },
+    {
+      "content": " tiên",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " let",
+      "type": "content"
+    },
+    {
+      "content": " me",
+      "type": "content"
+    },
+    {
+      "content": " tell",
+      "type": "content"
+    },
+    {
+      "content": " you",
+      "type": "content"
+    },
+    {
+      "content": " rằng",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " số",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " khác",
+      "type": "content"
+    },
+    {
+      "content": " nhau",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bao",
+      "type": "content"
+    },
+    {
+      "content": " gồm",
+      "type": "content"
+    },
+    {
+      "content": " Bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " cơ",
+      "type": "content"
+    },
+    {
+      "content": " bản",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " Bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " kỳ",
+      "type": "content"
+    },
+    {
+      "content": " hạn",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " Bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " trọn",
+      "type": "content"
+    },
+    {
+      "content": " đời",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " Bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " liên",
+      "type": "content"
+    },
+    {
+      "content": " kết",
+      "type": "content"
+    },
+    {
+      "content": " đơn",
+      "type": "content"
+    },
+    {
+      "content": " vị",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": "B",
+      "type": "content"
+    },
+    {
+      "content": "ảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " cơ",
+      "type": "content"
+    },
+    {
+      "content": " bản",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " vệ",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": " cơ",
+      "type": "content"
+    },
+    {
+      "content": " bản",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " người",
+      "type": "content"
+    },
+    {
+      "content": " thụ",
+      "type": "content"
+    },
+    {
+      "content": " hưởng",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " trường",
+      "type": "content"
+    },
+    {
+      "content": " hợp",
+      "type": "content"
+    },
+    {
+      "content": " người",
+      "type": "content"
+    },
+    {
+      "content": " được",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " qua",
+      "type": "content"
+    },
+    {
+      "content": " đời",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": "B",
+      "type": "content"
+    },
+    {
+      "content": "ảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " kỳ",
+      "type": "content"
+    },
+    {
+      "content": " hạn",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " vệ",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " khoảng",
+      "type": "content"
+    },
+    {
+      "content": " thời",
+      "type": "content"
+    },
+    {
+      "content": " gian",
+      "type": "content"
+    },
+    {
+      "content": " nhất",
+      "type": "content"
+    },
+    {
+      "content": " định",
+      "type": "content"
+    },
+    {
+      "content": " (",
+      "type": "content"
+    },
+    {
+      "content": "th",
+      "type": "content"
+    },
+    {
+      "content": "ường",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": "10",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": "20",
+      "type": "content"
+    },
+    {
+      "content": " hoặc",
+      "type": "content"
+    },
+    {
+      "content": "30",
+      "type": "content"
+    },
+    {
+      "content": " năm",
+      "type": "content"
+    },
+    {
+      "content": ")",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " thường",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " mức",
+      "type": "content"
+    },
+    {
+      "content": " phí",
+      "type": "content"
+    },
+    {
+      "content": " thấp",
+      "type": "content"
+    },
+    {
+      "content": " hơn",
+      "type": "content"
+    },
+    {
+      "content": " so",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " khác",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": "B",
+      "type": "content"
+    },
+    {
+      "content": "ảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " trọn",
+      "type": "content"
+    },
+    {
+      "content": " đời",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " vệ",
+      "type": "content"
+    },
+    {
+      "content": " suốt",
+      "type": "content"
+    },
+    {
+      "content": " đời",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " tích",
+      "type": "content"
+    },
+    {
+      "content": " lũy",
+      "type": "content"
+    },
+    {
+      "content": " giá",
+      "type": "content"
+    },
+    {
+      "content": " trị",
+      "type": "content"
+    },
+    {
+      "content": " tiền",
+      "type": "content"
+    },
+    {
+      "content": " mặt",
+      "type": "content"
+    },
+    {
+      "content": " theo",
+      "type": "content"
+    },
+    {
+      "content": " thời",
+      "type": "content"
+    },
+    {
+      "content": " gian",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": "B",
+      "type": "content"
+    },
+    {
+      "content": "ảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " liên",
+      "type": "content"
+    },
+    {
+      "content": " kết",
+      "type": "content"
+    },
+    {
+      "content": " đơn",
+      "type": "content"
+    },
+    {
+      "content": " vị",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": " kết",
+      "type": "content"
+    },
+    {
+      "content": " hợp",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " đầu",
+      "type": "content"
+    },
+    {
+      "content": " tư",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " quỹ",
+      "type": "content"
+    },
+    {
+      "content": " đầu",
+      "type": "content"
+    },
+    {
+      "content": " tư",
+      "type": "content"
+    },
+    {
+      "content": " khác",
+      "type": "content"
+    },
+    {
+      "content": " nhau",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Đối",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " chuyên",
+      "type": "content"
+    },
+    {
+      "content": " gia",
+      "type": "content"
+    },
+    {
+      "content": "35",
+      "type": "content"
+    },
+    {
+      "content": " tuổi",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " sẽ",
+      "type": "content"
+    },
+    {
+      "content": " recommend",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "B",
+      "type": "content"
+    },
+    {
+      "content": "ảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " kỳ",
+      "type": "content"
+    },
+    {
+      "content": " hạn",
+      "type": "content"
+    },
+    {
+      "content": "**",
+      "type": "content"
+    },
+    {
+      "content": " hoặc",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "B",
+      "type": "content"
+    },
+    {
+      "content": "ảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": " trọn",
+      "type": "content"
+    },
+    {
+      "content": " đời",
+      "type": "content"
+    },
+    {
+      "content": "**.",
+      "type": "content"
+    },
+    {
+      "content": " Cả",
+      "type": "content"
+    },
+    {
+      "content": " hai",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " này",
+      "type": "content"
+    },
+    {
+      "content": " đều",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " vệ",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": " toàn",
+      "type": "content"
+    },
+    {
+      "content": " diện",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " giúp",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đạt",
+      "type": "content"
+    },
+    {
+      "content": " được",
+      "type": "content"
+    },
+    {
+      "content": " mục",
+      "type": "content"
+    },
+    {
+      "content": " tiêu",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": " dài",
+      "type": "content"
+    },
+    {
+      "content": " hạn",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Tuy",
+      "type": "content"
+    },
+    {
+      "content": " nhiên",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " đưa",
+      "type": "content"
+    },
+    {
+      "content": " ra",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " khuyến",
+      "type": "content"
+    },
+    {
+      "content": " nghị",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": " xác",
+      "type": "content"
+    },
+    {
+      "content": " hơn",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " biết",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " tình",
+      "type": "content"
+    },
+    {
+      "content": " hình",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " mục",
+      "type": "content"
+    },
+    {
+      "content": " tiêu",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " nhu",
+      "type": "content"
+    },
+    {
+      "content": " cầu",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Bạn",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " vui",
+      "type": "content"
+    },
+    {
+      "content": " lòng",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " thu",
+      "type": "content"
+    },
+    {
+      "content": " nhập",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " chi",
+      "type": "content"
+    },
+    {
+      "content": " tiêu",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " nợ",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " mục",
+      "type": "content"
+    },
+    {
+      "content": " tiêu",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " mình",
+      "type": "content"
+    },
+    {
+      "content": " không",
+      "type": "content"
+    },
+    {
+      "content": "?\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Intent",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": " GENERAL",
+      "type": "content"
+    },
+    {
+      "content": "_INFORMATION",
+      "type": "content"
+    },
+    {
+      "content": "Vai",
+      "type": "content"
+    },
+    {
+      "content": " trò",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": " Ch",
+      "type": "content"
+    },
+    {
+      "content": "uyên",
+      "type": "content"
+    },
+    {
+      "content": " gia",
+      "type": "content"
+    },
+    {
+      "content": " ngành",
+      "type": "content"
+    },
+    {
+      "content": " insurance",
+      "type": "content"
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "full_response": "Tôi hiểu rằng bạn đang tìm kiếm thông tin về các sản phẩm bảo hiểm nhân thọ của chúng tôi và muốn biết sự khác biệt giữa chúng cũng như sản phẩm nào phù hợp cho một chuyên gia35 tuổi.\n\nĐầu tiên, let me tell you rằng chúng tôi có một số sản phẩm bảo hiểm nhân thọ khác nhau, bao gồm Bảo hiểm nhân thọ cơ bản, Bảo hiểm nhân thọ có kỳ hạn, Bảo hiểm nhân thọ trọn đời và Bảo hiểm nhân thọ liên kết đơn vị.\n\n**Bảo hiểm nhân thọ cơ bản** cung cấp sự bảo vệ tài chính cơ bản cho người thụ hưởng trong trường hợp người được bảo hiểm qua đời.\n\n**Bảo hiểm nhân thọ có kỳ hạn** cung cấp bảo vệ trong một khoảng thời gian nhất định (thường là10,20 hoặc30 năm) và thường có mức phí thấp hơn so với các sản phẩm khác.\n\n**Bảo hiểm nhân thọ trọn đời** cung cấp bảo vệ suốt đời và tích lũy giá trị tiền mặt theo thời gian.\n\n**Bảo hiểm nhân thọ liên kết đơn vị** kết hợp bảo hiểm nhân thọ với đầu tư vào các quỹ đầu tư khác nhau.\n\nĐối với một chuyên gia35 tuổi, tôi sẽ recommend **Bảo hiểm nhân thọ có kỳ hạn** hoặc **Bảo hiểm nhân thọ trọn đời**. Cả hai sản phẩm này đều cung cấp sự bảo vệ tài chính toàn diện và có thể giúp bạn đạt được mục tiêu tài chính dài hạn.\n\nTuy nhiên, để đưa ra một khuyến nghị chính xác hơn, tôi cần biết thêm thông tin về tình hình tài chính, mục tiêu và nhu cầu của bạn. Bạn có thể vui lòng cung cấp thêm thông tin về thu nhập, chi tiêu, nợ và mục tiêu tài chính của mình không?\n\nIntent: GENERAL_INFORMATIONVai trò: Chuyên gia ngành insurance",
+  "status": 200
+}

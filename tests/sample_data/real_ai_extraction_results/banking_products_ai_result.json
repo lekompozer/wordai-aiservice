@@ -1,0 +1,15 @@
+{
+  "error": {
+    "message": "Authentication Fails, Your api key: None is invalid",
+    "type": "authentication_error",
+    "param": null,
+    "code": "invalid_request_error"
+  },
+  "extraction_metadata": {
+    "industry_used": "banking",
+    "template_used": "BankingExtractionTemplate",
+    "source": "real_ai_service",
+    "ai_provider": "chatgpt",
+    "extraction_mode": "backend_metadata"
+  }
+}

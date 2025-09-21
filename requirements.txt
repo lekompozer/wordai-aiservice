@@ -1,0 +1,93 @@
+# Core FastAPI and web framework
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+pydantic==2.8.0
+pydantic-settings==2.4.0
+
+# HTTP client and file handling
+httpx==0.27.0
+aiohttp==3.10.0
+aiofiles==24.1.0
+python-multipart==0.0.9
+boto3==1.35.0
+
+# Database connections
+pymongo==4.6.1
+motor==3.3.2
+
+# Vector database
+qdrant-client==1.15.0
+
+# Redis for caching and sessions
+redis==5.0.1
+
+# Firebase Admin SDK for authentication
+firebase-admin==6.2.0
+
+# AI and ML libraries
+openai>=1.40.0,<2.0.0
+anthropic>=0.30.0,<1.0.0
+google-generativeai>=0.8.0
+# Document processing and conversion
+python-docx==1.1.0
+PyPDF2==3.0.1
+reportlab==4.0.8
+# cerebras-cloud-sdk==1.29.0  # Temporarily commented due to anyio conflict
+tiktoken==0.6.0
+sentence-transformers==5.0.0
+torch==2.2.2
+scikit-learn==1.6.1
+scipy==1.13.1
+transformers==4.53.3
+faiss-cpu==1.7.4
+
+# Document processing
+# PyMuPDF==1.23.0  # REMOVED: Now using Gemini for document extraction
+openpyxl==3.1.2
+pillow==10.1.0
+
+# OCR capabilities
+pytesseract==0.3.10
+
+# Task scheduling and background jobs
+celery==5.3.4
+schedule==1.2.0
+
+# Environment and configuration
+python-dotenv==1.0.0
+
+# Logging and monitoring
+structlog==23.2.0
+
+# Utility libraries
+python-dateutil==2.8.2
+requests==2.31.0
+urllib3==1.26.18
+tenacity==8.2.3
+
+# Data processing
+pandas==2.1.4
+numpy==1.25.2
+
+# Text processing
+nltk==3.8.1
+beautifulsoup4==4.12.2
+markdownify==0.11.6
+
+# Document generation dependencies
+jinja2==3.1.2
+
+# Development and testing (optional)
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# Security
+cryptography==41.0.7
+passlib==1.7.4
+
+# JSON handling
+orjson==3.9.10
+
+# Document processing and PDF conversion
+# google-genai>=1.25.0,<1.32.0  # Temporarily commented due to anyio conflict
+docx2txt==0.9

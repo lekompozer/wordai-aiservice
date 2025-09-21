@@ -1,0 +1,70 @@
+{
+  "assessmentId": "assessment_1750406066606",
+  "applicationId": "LOAN-20250619-005444-001-448",
+  "timestamp": "2025-06-20T14:55:01.059050",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 399999999,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 8999997,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.4376621705379433,
+    "loanToValue": 0.036363636272727276,
+    "estimatedMonthlyPayment": 3938958.2218549782
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.9,
+    "creditScore": 750,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập ổn định từ lương tại Savills với kinh nghiệm 10 năm, thu nhập 9 triệu VNĐ/tháng. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 43.8%, nằm trong ngưỡng an toàn ≤50%. Khách hàng không có nợ hiện tại và có lịch sử tín dụng tốt (CIC nhóm 1). Tài sản đảm bảo là bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, TP. Vũng Tàu với giá trị ước tính 11 tỷ VNĐ, tỷ lệ LTV chỉ 3.6% - rất thấp so với giới hạn 80%. Dòng tiền sau trả nợ còn 5.1 triệu VNĐ/tháng đảm bảo khả năng chi trả.",
+    "riskFactors": [
+      "Thu nhập chính chỉ từ nguồn lương, chưa đa dạng hóa",
+      "Không có tài sản thanh khoản dự phòng",
+      "Phụ thuộc vào một nguồn thu nhập duy nhất"
+    ],
+    "recommendations": [
+      "Nên duy trì công việc hiện tại để đảm bảo ổn định thu nhập",
+      "Cân nhắc xây dựng quỹ dự phòng tài chính"
+    ],
+    "approvedAmount": 400000000,
+    "interestRate": 8.5,
+    "loanTerm": 15,
+    "monthlyPayment": 3938958,
+    "loanToValue": 3.6,
+    "debtToIncome": 43.8,
+    "conditions": [
+      "Xác minh hợp đồng lao động và sao kê lương 3 tháng gần nhất",
+      "Đăng ký thế chấp tài sản tại cơ quan có thẩm quyền",
+      "Mua bảo hiểm tính mạng cho khoản vay"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 11000000000,
+      "marketAnalysis": "Bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, P3, TP. Vũng Tàu có vị trí đắc địa, giá trị thị trường ổn định. Nhà 3 lầu 100m2 phù hợp với nhu cầu ở hoặc kinh doanh. Khu vực có hạ tầng phát triển, tiện ích đầy đủ.",
+      "liquidityRisk": "low",
+      "valuationMethod": "customer_description_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 9000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 3938958,
+      "remainingIncome": 5061042,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 34.414655923843384,
+    "totalProcessingTime": 34.45253086090088,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.9,\n  \"creditScore\": 750,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập ổn định từ lương tại Savills với kinh nghiệm 10 năm, thu nhập 9 triệu VNĐ/tháng. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 43.8%, nằm trong ngưỡng an toàn ≤50%. Khách hàng không có nợ hiện tại và có lịch sử tín dụng tốt (CIC nhóm 1). Tài sản đảm bảo là bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, TP. Vũng Tàu với giá trị ước tính 11 tỷ VNĐ, tỷ lệ LTV chỉ 3.6% - rất thấp so với giới hạn 80%. Dòng tiền sau trả nợ còn 5.1 triệu VNĐ/tháng đảm bảo khả năng chi trả.\",\n  \"riskFactors\": [\n    \"Thu nhập chính chỉ từ nguồn lương, chưa đa dạng hóa\",\n    \"Không có tài sản thanh khoản dự phòng\",\n    \"Phụ thuộc vào một nguồn thu nhập duy nhất\"\n  ],\n  \"recommendations\": [\n    \"Nên duy trì công việc hiện tại để đảm bảo ổn định thu nhập\",\n    \"Cân nhắc xây dựng quỹ dự phòng tài chính\"\n  ],\n  \"approvedAmount\": 400000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 15,\n  \"monthlyPayment\": 3938958,\n  \"loanToValue\": 3.6,\n  \"debtToIncome\": 43.8,\n  \"conditions\": [\n    \"Xác minh hợp đồng lao động và sao kê lương 3 tháng gần nhất\",\n    \"Đăng ký thế chấp tài sản tại cơ quan có thẩm quyền\",\n    \"Mua bảo hiểm tính mạng cho khoản vay\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 11000000000,\n    \"marketAnalysis\": \"Bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, P3, TP. Vũng Tàu có vị trí đắc địa, giá trị thị trường ổn định. Nhà 3 lầu 100m2 phù hợp với nhu cầu ở hoặc kinh doanh. Khu vực có hạ tầng phát triển, tiện ích đầy đủ.\",\n    \"liquidityRisk\": \"low\",\n    \"valuationMethod\": \"customer_description_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 9000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 3938958,\n    \"remainingIncome\": 5061042,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n```"
+}

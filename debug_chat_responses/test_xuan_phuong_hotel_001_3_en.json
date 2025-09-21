@@ -1,0 +1,642 @@
+{
+  "test_info": {
+    "test_number": 3,
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "scenario": {
+      "language": "en",
+      "message": "I want to make a reservation at your seafood restaurant for 6 people this Saturday evening. Do you have availability and what are your signature dishes?",
+      "expected_intent": "SALES",
+      "description": "English - Restaurant reservation"
+    },
+    "timestamp": "2025-07-31T15:40:16.148232"
+  },
+  "request": {
+    "message": "I want to make a reservation at your seafood restaurant for 6 people this Saturday evening. Do you have availability and what are your signature dishes?",
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "language": "en",
+    "user_info": {
+      "user_id": "test_user_3",
+      "device_id": "test_device_3",
+      "source": "web_device",
+      "name": "Test User 3"
+    },
+    "session_id": "test_session_xuan_phuong_hotel_001_3",
+    "context": {
+      "page_url": "https://test.com",
+      "disable_webhooks": true
+    }
+  },
+  "response_chunks": [
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " giúp",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " việc",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " chỗ",
+      "type": "content"
+    },
+    {
+      "content": " tại",
+      "type": "content"
+    },
+    {
+      "content": " nhà",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " hải",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Trước",
+      "type": "content"
+    },
+    {
+      "content": " hết",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " kiểm",
+      "type": "content"
+    },
+    {
+      "content": " tra",
+      "type": "content"
+    },
+    {
+      "content": " availability",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " buổi",
+      "type": "content"
+    },
+    {
+      "content": " tối",
+      "type": "content"
+    },
+    {
+      "content": " thứ",
+      "type": "content"
+    },
+    {
+      "content": " B",
+      "type": "content"
+    },
+    {
+      "content": "ảy",
+      "type": "content"
+    },
+    {
+      "content": " này",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " (",
+      "type": "content"
+    },
+    {
+      "content": "checking",
+      "type": "content"
+    },
+    {
+      "content": " availability",
+      "type": "content"
+    },
+    {
+      "content": "...",
+      "type": "content"
+    },
+    {
+      "content": ")\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " chỗ",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": "6",
+      "type": "content"
+    },
+    {
+      "content": " người",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " buổi",
+      "type": "content"
+    },
+    {
+      "content": " tối",
+      "type": "content"
+    },
+    {
+      "content": " thứ",
+      "type": "content"
+    },
+    {
+      "content": " B",
+      "type": "content"
+    },
+    {
+      "content": "ảy",
+      "type": "content"
+    },
+    {
+      "content": " này",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "Về",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " món",
+      "type": "content"
+    },
+    {
+      "content": " ăn",
+      "type": "content"
+    },
+    {
+      "content": " đặc",
+      "type": "content"
+    },
+    {
+      "content": " trưng",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " gợi",
+      "type": "content"
+    },
+    {
+      "content": " ý",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " số",
+      "type": "content"
+    },
+    {
+      "content": " món",
+      "type": "content"
+    },
+    {
+      "content": " ăn",
+      "type": "content"
+    },
+    {
+      "content": " được",
+      "type": "content"
+    },
+    {
+      "content": " yêu",
+      "type": "content"
+    },
+    {
+      "content": " thích",
+      "type": "content"
+    },
+    {
+      "content": " như",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Sushi",
+      "type": "content"
+    },
+    {
+      "content": " cá",
+      "type": "content"
+    },
+    {
+      "content": " hồi",
+      "type": "content"
+    },
+    {
+      "content": " tươi",
+      "type": "content"
+    },
+    {
+      "content": " sống",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " C",
+      "type": "content"
+    },
+    {
+      "content": "ua",
+      "type": "content"
+    },
+    {
+      "content": " hấp",
+      "type": "content"
+    },
+    {
+      "content": " sốt",
+      "type": "content"
+    },
+    {
+      "content": " b",
+      "type": "content"
+    },
+    {
+      "content": "ơ",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " T",
+      "type": "content"
+    },
+    {
+      "content": "ôm",
+      "type": "content"
+    },
+    {
+      "content": " nướng",
+      "type": "content"
+    },
+    {
+      "content": " muối",
+      "type": "content"
+    },
+    {
+      "content": "ớt",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " M",
+      "type": "content"
+    },
+    {
+      "content": "ực",
+      "type": "content"
+    },
+    {
+      "content": " x",
+      "type": "content"
+    },
+    {
+      "content": "ào",
+      "type": "content"
+    },
+    {
+      "content": " rau",
+      "type": "content"
+    },
+    {
+      "content": " củ",
+      "type": "content"
+    },
+    {
+      "content": "Chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " menu",
+      "type": "content"
+    },
+    {
+      "content": " đa",
+      "type": "content"
+    },
+    {
+      "content": " dạng",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " nhiều",
+      "type": "content"
+    },
+    {
+      "content": " lựa",
+      "type": "content"
+    },
+    {
+      "content": " chọn",
+      "type": "content"
+    },
+    {
+      "content": " hải",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " tươi",
+      "type": "content"
+    },
+    {
+      "content": " sống",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " ngày",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Bạn",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " gửi",
+      "type": "content"
+    },
+    {
+      "content": " menu",
+      "type": "content"
+    },
+    {
+      "content": " chi",
+      "type": "content"
+    },
+    {
+      "content": " tiết",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " không",
+      "type": "content"
+    },
+    {
+      "content": "?\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Bạn",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " chỗ",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " thời",
+      "type": "content"
+    },
+    {
+      "content": " gian",
+      "type": "content"
+    },
+    {
+      "content": " cụ",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " nào",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " buổi",
+      "type": "content"
+    },
+    {
+      "content": " tối",
+      "type": "content"
+    },
+    {
+      "content": " thứ",
+      "type": "content"
+    },
+    {
+      "content": " B",
+      "type": "content"
+    },
+    {
+      "content": "ảy",
+      "type": "content"
+    },
+    {
+      "content": " này",
+      "type": "content"
+    },
+    {
+      "content": "?",
+      "type": "content"
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "full_response": "Tôi có thể giúp bạn với việc đặt chỗ tại nhà hàng hải sản của chúng tôi.\n\nTrước hết, tôi cần kiểm tra availability cho buổi tối thứ Bảy này. (checking availability...)\n\nChúng tôi có chỗ cho6 người vào buổi tối thứ Bảy này.Về các món ăn đặc trưng của chúng tôi, tôi có thể gợi ý một số món ăn được yêu thích như:- Sushi cá hồi tươi sống- Cua hấp sốt bơ- Tôm nướng muốiớt- Mực xào rau củChúng tôi có menu đa dạng với nhiều lựa chọn hải sản tươi sống hàng ngày. Bạn có muốn tôi gửi menu chi tiết cho bạn không?\n\nBạn muốn đặt chỗ vào thời gian cụ thể nào vào buổi tối thứ Bảy này?",
+  "status": 200
+}

@@ -1,0 +1,25 @@
+{
+  "query": "bảo hiểm sức khỏe",
+  "company_id": "abc_insurance_001",
+  "request": {
+    "query": "bảo hiểm sức khỏe",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "bảo hiểm sức khỏe",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 11.695865
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:36:14.939435"
+}

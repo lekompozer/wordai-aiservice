@@ -1,0 +1,70 @@
+{
+  "assessmentId": "assessment_1749725121942",
+  "applicationId": "LOAN-TEST-CORRECTED-001",
+  "timestamp": "2025-06-12T17:46:04.150619",
+  "applicant": {
+    "name": "NGUYỄN VĂN NAM",
+    "idNumber": "024789123456",
+    "age": 40
+  },
+  "loanRequest": {
+    "amount": 2500000000,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Mua nhà ở để kinh doanh cho thuê"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 110000000,
+    "currentDebtRatio": 0.10909090909090909,
+    "projectedDebtRatio": 0.33289535407399845,
+    "loanToValue": 0.29411764705882354,
+    "estimatedMonthlyPayment": 24618488.948139835
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.9,
+    "creditScore": 780,
+    "reasoning": "Hồ sơ vay của khách hàng Nguyễn Văn Nam đáp ứng đầy đủ các tiêu chí thẩm định tín dụng của ngân hàng. Khách hàng có thu nhập ổn định (110 triệu VNĐ/tháng) với nguồn thu đa dạng từ kinh doanh và cho thuê nhà. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 33.3%, nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là căn hộ cao cấp tại Golden Palace có giá trị thị trường ước tính 8.2 tỷ VNĐ, đủ đảm bảo cho khoản vay 2.5 tỷ VNĐ (LTV 29.4%). Lịch sử tín dụng tốt (nhóm 2 CIC), có quỹ dự phòng khẩn cấp 3.5 tỷ VNĐ. Rủi ro chính là biến động thu nhập từ kinh doanh, nhưng được bù đắp bằng tài sản thanh khoản cao.",
+    "riskFactors": [
+      "Biến động thu nhập từ hoạt động kinh doanh",
+      "Rủi ro thị trường bất động sản (mặc dù thấp do vị trí đắc địa)",
+      "Lãi suất có thể tăng trong tương lai"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung hợp đồng lao động/Giấy phép kinh doanh để xác minh thu nhập",
+      "Theo dõi định kỳ tình hình kinh doanh của khách hàng 6 tháng/lần",
+      "Khuyến nghị mua bảo hiểm khoản vay"
+    ],
+    "approvedAmount": 2500000000,
+    "interestRate": 8.5,
+    "loanTerm": "15 năm",
+    "monthlyPayment": 24618488,
+    "loanToValue": 0.294,
+    "debtToIncome": 0.333,
+    "conditions": [
+      "Mua bảo hiểm cháy nổ cho tài sản đảm bảo",
+      "Đăng ký thế chấp tại Sở Tài nguyên Môi trường",
+      "Duy trì số dư tài khoản thanh toán tối thiểu 100 triệu tại ngân hàng"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 8200000000,
+      "marketAnalysis": "Khu vực Mễ Trì là phân khúc cao cấp với nhu cầu thuê cao. Giá căn hộ tương đương trong khu vực dao động 75-85 triệu/m2. Căn hộ có view hồ, nội thất cao cấp và tiện ích đầy đủ nên có tính thanh khoản tốt. Dự báo giá tăng 5-7%/năm đến 2025 nhờ quy hoạch khu vực phía Tây Hà Nội.",
+      "liquidityRisk": "low"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 110000000,
+      "totalMonthlyDebt": 12000000,
+      "newLoanPayment": 24618488,
+      "remainingIncome": 73381511,
+      "emergencyFund": 3500000000,
+      "incomeStability": "high",
+      "assetLiquidity": "high"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 42.19418692588806,
+    "totalProcessingTime": 42.208648920059204,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.9,\n  \"creditScore\": 780,\n  \"reasoning\": \"Hồ sơ vay của khách hàng Nguyễn Văn Nam đáp ứng đầy đủ các tiêu chí thẩm định tín dụng của ngân hàng. Khách hàng có thu nhập ổn định (110 triệu VNĐ/tháng) với nguồn thu đa dạng từ kinh doanh và cho thuê nhà. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 33.3%, nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là căn hộ cao cấp tại Golden Palace có giá trị thị trường ước tính 8.2 tỷ VNĐ, đủ đảm bảo cho khoản vay 2.5 tỷ VNĐ (LTV 29.4%). Lịch sử tín dụng tốt (nhóm 2 CIC), có quỹ dự phòng khẩn cấp 3.5 tỷ VNĐ. Rủi ro chính là biến động thu nhập từ kinh doanh, nhưng được bù đắp bằng tài sản thanh khoản cao.\",\n  \"riskFactors\": [\n    \"Biến động thu nhập từ hoạt động kinh doanh\",\n    \"Rủi ro thị trường bất động sản (mặc dù thấp do vị trí đắc địa)\",\n    \"Lãi suất có thể tăng trong tương lai\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung hợp đồng lao động/Giấy phép kinh doanh để xác minh thu nhập\",\n    \"Theo dõi định kỳ tình hình kinh doanh của khách hàng 6 tháng/lần\",\n    \"Khuyến nghị mua bảo hiểm khoản vay\"\n  ],\n  \"approvedAmount\": 2500000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": \"15 năm\",\n  \"monthlyPayment\": 24618488,\n  \"loanToValue\": 0.294,\n  \"debtToIncome\": 0.333,\n  \"conditions\": [\n    \"Mua bảo hiểm cháy nổ cho tài sản đảm bảo\",\n    \"Đăng ký thế chấp tại Sở Tài nguyên Môi trường\",\n    \"Duy trì số dư tài khoản thanh toán tối thiểu 100 triệu tại ngân hàng\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 8200000000,\n    \"marketAnalysis\": \"Khu vực Mễ Trì là phân khúc cao cấp với nhu cầu thuê cao. Giá căn hộ tương đương trong khu vực dao động 75-85 triệu/m2. Căn hộ có view hồ, nội thất cao cấp và tiện ích đầy đủ nên có tính thanh khoản tốt. Dự báo giá tăng 5-7%/năm đến 2025 nhờ quy hoạch khu vực phía Tây Hà Nội.\",\n    \"liquidityRisk\": \"low\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 110000000,\n    \"totalMonthlyDebt\": 12000000,\n    \"newLoanPayment\": 24618488,\n    \"remainingIncome\": 73381511,\n    \"emergencyFund\": 3500000000,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"high\"\n  }\n}\n```"
+}

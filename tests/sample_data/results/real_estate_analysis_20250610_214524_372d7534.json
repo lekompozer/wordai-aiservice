@@ -1,0 +1,147 @@
+{
+  "request": {
+    "question": "Định giá  miếng Đất Đẹp -diện tích 180M - Ngang 10m - View Pháo Hoa - Đường Hoài Thanh - Ngũ Hành Sơn - Đà Nẵng.\n+ Diện tích: 180 m mặt tiền ngang 12m vuông đẹp.\n+ Đường 7m5 vỉa hè mỗi bên 4m.",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-10T21:44:10.886037"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1749566650.9792352,
+      "result": {
+        "property_type": null,
+        "project_name": null,
+        "location": {
+          "province": "đà nẵng",
+          "district": null
+        },
+        "search_query": "giá đường hoài thanh ngũ hành sơn đà nẵng diện tích 180 m mặt tiền ngang 12m vuông đẹp 7m5 vỉa",
+        "confidence": 0.6,
+        "dientich": null,
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search",
+      "timestamp": 1749566655.0114508,
+      "duration": 4.029091835021973,
+      "search_query": "giá đường hoài thanh ngũ hành sơn đà nẵng diện tích 180 m mặt tiền ngang 12m vuông đẹp 7m5 vỉa",
+      "result": {
+        "success": true,
+        "properties_found": 0,
+        "successful_websites": 0,
+        "timeout": false,
+        "raw_data": {
+          "search_query": "giá đường hoài thanh ngũ hành sơn đà nẵng diện tích 180 m mặt tiền ngang 12m vuông đẹp 7m5 vỉa",
+          "total_properties": 0,
+          "successful_websites": 0,
+          "total_websites_tried": 3,
+          "website_results": [
+            {
+              "website": "alonhadat.com.vn",
+              "target_url": "",
+              "properties": [],
+              "property_count": 0,
+              "success": false,
+              "error": "Timeout"
+            },
+            {
+              "website": "nhadat.cafeland.vn",
+              "target_url": "",
+              "properties": [],
+              "property_count": 0,
+              "success": false,
+              "error": "Timeout"
+            },
+            {
+              "website": "guland.vn",
+              "target_url": "",
+              "properties": [],
+              "property_count": 0,
+              "success": false,
+              "error": "Timeout"
+            }
+          ],
+          "all_properties": [],
+          "processing_time": 4.022797641984653,
+          "status": "no_results",
+          "strategy": "parallel_all_websites_with_timeout",
+          "is_partial": false,
+          "timeout_occurred": false
+        }
+      }
+    }
+  ],
+  "web_search": {
+    "search_query": "giá đường hoài thanh ngũ hành sơn đà nẵng diện tích 180 m mặt tiền ngang 12m vuông đẹp 7m5 vỉa",
+    "target_urls": [],
+    "full_responses": {
+      "search_query": "giá đường hoài thanh ngũ hành sơn đà nẵng diện tích 180 m mặt tiền ngang 12m vuông đẹp 7m5 vỉa",
+      "total_urls_scraped": 0,
+      "websites_accessed": [],
+      "raw_result": {
+        "search_query": "giá đường hoài thanh ngũ hành sơn đà nẵng diện tích 180 m mặt tiền ngang 12m vuông đẹp 7m5 vỉa",
+        "total_properties": 0,
+        "successful_websites": 0,
+        "total_websites_tried": 3,
+        "website_results": [
+          {
+            "website": "alonhadat.com.vn",
+            "target_url": "",
+            "properties": [],
+            "property_count": 0,
+            "success": false,
+            "error": "Timeout"
+          },
+          {
+            "website": "nhadat.cafeland.vn",
+            "target_url": "",
+            "properties": [],
+            "property_count": 0,
+            "success": false,
+            "error": "Timeout"
+          },
+          {
+            "website": "guland.vn",
+            "target_url": "",
+            "properties": [],
+            "property_count": 0,
+            "success": false,
+            "error": "Timeout"
+          }
+        ],
+        "all_properties": [],
+        "processing_time": 4.022797641984653,
+        "status": "no_results",
+        "strategy": "parallel_all_websites_with_timeout",
+        "is_partial": false,
+        "timeout_occurred": false
+      },
+      "scraped_content": []
+    },
+    "properties_found": [],
+    "performance_metrics": {
+      "total_time": 4.029091835021973,
+      "timeout": false,
+      "success": true
+    }
+  },
+  "processed_files": [],
+  "ai_response": "",
+  "performance_metrics": {
+    "total_duration": 73.36515522003174,
+    "start_time": 1749566650.886796,
+    "end_time": 1749566724.2519512,
+    "steps_completed": 2,
+    "errors_count": 0,
+    "success": true
+  },
+  "errors": [],
+  "timestamp": "2025-06-10T21:45:24.256358",
+  "session_id": "372d7534",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

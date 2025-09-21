@@ -1,0 +1,69 @@
+{
+  "assessmentId": "assessment_1749707081501",
+  "applicationId": "LOAN-TEST-REJECTED-003",
+  "timestamp": "2025-06-12T12:45:21.397647",
+  "applicant": {
+    "name": "LÊ VĂN BÌNH",
+    "idNumber": "079123789456",
+    "age": 50
+  },
+  "loanRequest": {
+    "amount": 3000000000,
+    "type": "Thế chấp",
+    "term": "25 năm",
+    "purpose": "Mua nhà ở và đầu tư"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 33000000,
+    "currentDebtRatio": 0.5454545454545454,
+    "projectedDebtRatio": 1.2774791667837557,
+    "loanToValue": 1.2,
+    "estimatedMonthlyPayment": 24156812.50386394
+  },
+  "assessmentResult": {
+    "status": "rejected",
+    "confidence": 0.95,
+    "creditScore": 550,
+    "reasoning": "Hồ sơ vay của khách hàng Lê Văn Bình không đáp ứng được các tiêu chuẩn tín dụng của ngân hàng do các lý do sau: (1) Tỷ lệ nợ/thu nhập (DTI) sau khi vay lên tới 127.7%, vượt xa ngưỡng an toàn 50% theo quy định ngân hàng. (2) Khách hàng đang có lịch sử tín dụng xấu (nhóm 3 CIC) với 3 lần chậm trả quá 60 ngày trong 2 năm. (3) Tài sản đảm bảo là nhà cấp 4 ở vùng nông thôn có thanh khoản thấp, giá trị thẩm định thực tế chỉ khoảng 1.8-2 tỷ, không đủ đảm bảo cho khoản vay 3 tỷ. (4) Thu nhập từ nông nghiệp không ổn định, lại ở khu vực thường xuyên ngập lụt. (5) Sau khi trả nợ, khách hàng âm 9.2 triệu/tháng, không đảm bảo khả năng trả nợ.",
+    "riskFactors": [
+      "Rủi ro tín dụng cao do lịch sử nợ xấu nhóm 3",
+      "Rủi ro thanh khoản tài sản đảm bảo thấp",
+      "Rủi ro thu nhập không ổn định từ nông nghiệp",
+      "Rủi ro địa lý (ngập lụt thường xuyên)",
+      "Rủi ro DTI vượt ngưỡng cho phép"
+    ],
+    "recommendations": [
+      "Từ chối cho vay do không đủ điều kiện tín dụng",
+      "Có thể xem xét lại nếu khách hàng: (a) Giảm số tiền vay xuống dưới 1.5 tỷ, (b) Có tài sản đảm bảo tốt hơn, (c) Cải thiện lịch sử tín dụng trong 12 tháng"
+    ],
+    "approvedAmount": 0,
+    "interestRate": null,
+    "loanTerm": null,
+    "monthlyPayment": null,
+    "loanToValue": 1.67,
+    "debtToIncome": 1.277,
+    "conditions": [
+      "Không đủ điều kiện phê duyệt theo chính sách rủi ro hiện hành"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 1875000000,
+      "marketAnalysis": "BĐS nông thôn tại Cần Thơ có thanh khoản rất thấp. Giá đất khu vực Ấp Tân Lợi dao động 10-15 triệu/m2. Nhà cấp 4 cũ chỉ có giá trị tháo dỡ. Giá trị thực tế không vượt quá 1.8 tỷ.",
+      "liquidityRisk": "high"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 33000000,
+      "totalMonthlyDebt": 18000000,
+      "newLoanPayment": 24156812,
+      "remainingIncome": -9156812,
+      "emergencyFund": 100000000,
+      "incomeStability": "low",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 39.89355111122131,
+    "totalProcessingTime": 39.896028995513916,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"rejected\",\n  \"confidence\": 0.95,\n  \"creditScore\": 550,\n  \"reasoning\": \"Hồ sơ vay của khách hàng Lê Văn Bình không đáp ứng được các tiêu chuẩn tín dụng của ngân hàng do các lý do sau: (1) Tỷ lệ nợ/thu nhập (DTI) sau khi vay lên tới 127.7%, vượt xa ngưỡng an toàn 50% theo quy định ngân hàng. (2) Khách hàng đang có lịch sử tín dụng xấu (nhóm 3 CIC) với 3 lần chậm trả quá 60 ngày trong 2 năm. (3) Tài sản đảm bảo là nhà cấp 4 ở vùng nông thôn có thanh khoản thấp, giá trị thẩm định thực tế chỉ khoảng 1.8-2 tỷ, không đủ đảm bảo cho khoản vay 3 tỷ. (4) Thu nhập từ nông nghiệp không ổn định, lại ở khu vực thường xuyên ngập lụt. (5) Sau khi trả nợ, khách hàng âm 9.2 triệu/tháng, không đảm bảo khả năng trả nợ.\",\n  \"riskFactors\": [\n    \"Rủi ro tín dụng cao do lịch sử nợ xấu nhóm 3\",\n    \"Rủi ro thanh khoản tài sản đảm bảo thấp\",\n    \"Rủi ro thu nhập không ổn định từ nông nghiệp\",\n    \"Rủi ro địa lý (ngập lụt thường xuyên)\",\n    \"Rủi ro DTI vượt ngưỡng cho phép\"\n  ],\n  \"recommendations\": [\n    \"Từ chối cho vay do không đủ điều kiện tín dụng\",\n    \"Có thể xem xét lại nếu khách hàng: (a) Giảm số tiền vay xuống dưới 1.5 tỷ, (b) Có tài sản đảm bảo tốt hơn, (c) Cải thiện lịch sử tín dụng trong 12 tháng\"\n  ],\n  \"approvedAmount\": 0,\n  \"interestRate\": null,\n  \"loanTerm\": null,\n  \"monthlyPayment\": null,\n  \"loanToValue\": 1.67,\n  \"debtToIncome\": 1.277,\n  \"conditions\": [\n    \"Không đủ điều kiện phê duyệt theo chính sách rủi ro hiện hành\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 1875000000,\n    \"marketAnalysis\": \"BĐS nông thôn tại Cần Thơ có thanh khoản rất thấp. Giá đất khu vực Ấp Tân Lợi dao động 10-15 triệu/m2. Nhà cấp 4 cũ chỉ có giá trị tháo dỡ. Giá trị thực tế không vượt quá 1.8 tỷ.\",\n    \"liquidityRisk\": \"high\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 33000000,\n    \"totalMonthlyDebt\": 18000000,\n    \"newLoanPayment\": 24156812,\n    \"remainingIncome\": -9156812,\n    \"emergencyFund\": 100000000,\n    \"incomeStability\": \"low\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n```"
+}

@@ -1,0 +1,67 @@
+{
+  "request": {
+    "question": "Hãy phân tích và định giá bất động sản dựa trên thông tin mô tả được cung cấp.\n\nTHÔNG TIN BẤT ĐỘNG SẢN:\nđất 5x25m KDc hiện hữu p.An Phú, Tp.Thuận An\nDT: 125m2 thổ cư 100% ( 5x25m )\nCách đường Liên Huyện 50m\nCách Vòng xoay An Phú 1km\nĐường rộng 17m\nSổ hồng riêng\n\nGIÁ TRỊ THAM KHẢO CỦA KHÁCH HÀNG: 3.6 tỷ VNĐ\n\nYÊU CẦU PHÂN TÍCH CHI TIẾT:\n1. Phân tích thông tin mô tả về bất động sản\n2. Đánh giá tính hợp lý của giá trị tham khảo (nếu có)\n3. Ước tính khoảng giá trị thị trường dựa trên mô tả\n4. Phân tích ưu và nhược điểm của tài sản\n5. Đánh giá khả năng thanh khoản\n6. Các rủi ro cần lưu ý khi sử dụng làm tài sản đảm bảo\n7. Khuyến nghị về tỷ lệ cho vay an toàn (LTV)\n\nVui lòng đưa ra phân tích chi tiết và chuyên nghiệp.",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-16T23:38:45.728185"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1750091925.782922,
+      "result": {
+        "property_type": "bất động sản",
+        "project_name": null,
+        "location": {
+          "province": "thuận an",
+          "district": "50m"
+        },
+        "search_query": "giá bất động sản 125m² đường liên 50m thuận an 2025",
+        "confidence": 1.4999999999999998,
+        "dientich": "125m²",
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search",
+      "timestamp": 1750091935.794026,
+      "duration": 10.00857925415039,
+      "search_query": "giá bất động sản 125m² đường liên 50m thuận an 2025",
+      "result": {
+        "success": false,
+        "properties_found": 0,
+        "successful_websites": 0,
+        "timeout": false,
+        "raw_data": null
+      }
+    }
+  ],
+  "web_search": {
+    "search_query": "giá bất động sản 125m² đường liên 50m thuận an 2025",
+    "target_urls": [],
+    "full_responses": {},
+    "properties_found": [],
+    "performance_metrics": {
+      "total_time": 10.00857925415039,
+      "timeout": true,
+      "success": false
+    }
+  },
+  "processed_files": [],
+  "ai_response": "",
+  "performance_metrics": {
+    "total_duration": 94.30419206619263,
+    "start_time": 1750091925.728389,
+    "end_time": 1750092020.0325818,
+    "steps_completed": 2,
+    "errors_count": 0,
+    "success": true
+  },
+  "errors": [],
+  "timestamp": "2025-06-16T23:40:20.032758",
+  "session_id": "768292ad",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

@@ -1,0 +1,29 @@
+
+{
+    "tone_mappings": {
+        "finance": "professional",
+        "banking": "professional",
+        "lãi suất": "professional",
+        "chào": "friendly",
+        "cảm ơn": "friendly",
+        "help": "friendly"
+    },
+    "default_tone": "default",
+    "response_templates": {
+        "default": {
+            "greetings": ["Xin chào!", "Chào bạn!", "Mình có thể giúp gì?"],
+            "closings": ["Bạn cần thêm thông tin gì nữa không?"],
+            "source_notice": "Thông tin được tổng hợp từ dữ liệu nội bộ"
+        },
+        "friendly": {
+            "greetings": ["Chào bạn nhé!", "Rất vui được trò chuyện!", "Bạn cần giúp gì nào?"],
+            "closings": ["Cứ hỏi nếu bạn cần thêm nhé!", "Mình luôn sẵn sàng giúp đỡ!"],
+            "source_notice": "Theo những gì mình tìm hiểu được"
+        },
+        "professional": {
+            "greetings": ["Kính chào quý khách!", "Xin chào!"],
+            "closings": ["Trân trọng!", "Xin cảm ơn!"],
+            "source_notice": "Theo thông tin chính thức từ nguồn dữ liệu"
+        }
+    }
+}

@@ -1,0 +1,1026 @@
+{
+  "test_info": {
+    "test_number": 1,
+    "company_id": "abc_insurance_001",
+    "industry": "insurance",
+    "scenario": {
+      "language": "vi",
+      "message": "Xin chào, tôi muốn tìm hiểu về công ty bảo hiểm ABC và các sản phẩm mà các bạn cung cấp?",
+      "expected_intent": "ASK_COMPANY_INFORMATION",
+      "description": "Vietnamese - Company information inquiry"
+    },
+    "timestamp": "2025-07-31T15:38:36.045071"
+  },
+  "request": {
+    "message": "Xin chào, tôi muốn tìm hiểu về công ty bảo hiểm ABC và các sản phẩm mà các bạn cung cấp?",
+    "company_id": "abc_insurance_001",
+    "industry": "insurance",
+    "language": "vi",
+    "user_info": {
+      "user_id": "test_user_1",
+      "device_id": "test_device_1",
+      "source": "web_device",
+      "name": "Test User 1"
+    },
+    "session_id": "test_session_abc_insurance_001_1",
+    "context": {
+      "page_url": "https://test.com",
+      "disable_webhooks": true
+    }
+  },
+  "response_chunks": [
+    {
+      "content": "Xin",
+      "type": "content"
+    },
+    {
+      "content": " chào",
+      "type": "content"
+    },
+    {
+      "content": "!",
+      "type": "content"
+    },
+    {
+      "content": " C",
+      "type": "content"
+    },
+    {
+      "content": "ảm",
+      "type": "content"
+    },
+    {
+      "content": " ơn",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đã",
+      "type": "content"
+    },
+    {
+      "content": " quan",
+      "type": "content"
+    },
+    {
+      "content": " tâm",
+      "type": "content"
+    },
+    {
+      "content": " đến",
+      "type": "content"
+    },
+    {
+      "content": " công",
+      "type": "content"
+    },
+    {
+      "content": " ty",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " ABC",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Tôi",
+      "type": "content"
+    },
+    {
+      "content": " rất",
+      "type": "content"
+    },
+    {
+      "content": " sẵn",
+      "type": "content"
+    },
+    {
+      "content": " lòng",
+      "type": "content"
+    },
+    {
+      "content": " giúp",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " tìm",
+      "type": "content"
+    },
+    {
+      "content": " hiểu",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " mà",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Công",
+      "type": "content"
+    },
+    {
+      "content": " ty",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " ABC",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " những",
+      "type": "content"
+    },
+    {
+      "content": " công",
+      "type": "content"
+    },
+    {
+      "content": " ty",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " đầu",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " ngành",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " mục",
+      "type": "content"
+    },
+    {
+      "content": " tiêu",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " giải",
+      "type": "content"
+    },
+    {
+      "content": " pháp",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " toàn",
+      "type": "content"
+    },
+    {
+      "content": " diện",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " chất",
+      "type": "content"
+    },
+    {
+      "content": " lượng",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " cao",
+      "type": "content"
+    },
+    {
+      "content": " nhất",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " hiểu",
+      "type": "content"
+    },
+    {
+      "content": " rằng",
+      "type": "content"
+    },
+    {
+      "content": " mỗi",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " nhu",
+      "type": "content"
+    },
+    {
+      "content": " cầu",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " mục",
+      "type": "content"
+    },
+    {
+      "content": " tiêu",
+      "type": "content"
+    },
+    {
+      "content": " khác",
+      "type": "content"
+    },
+    {
+      "content": " nhau",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " vì",
+      "type": "content"
+    },
+    {
+      "content": " vậy",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " đa",
+      "type": "content"
+    },
+    {
+      "content": " dạng",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " đáp",
+      "type": "content"
+    },
+    {
+      "content": " ứng",
+      "type": "content"
+    },
+    {
+      "content": " nhu",
+      "type": "content"
+    },
+    {
+      "content": " cầu",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " từng",
+      "type": "content"
+    },
+    {
+      "content": " người",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Các",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " bao",
+      "type": "content"
+    },
+    {
+      "content": " gồm",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " nhân",
+      "type": "content"
+    },
+    {
+      "content": " thọ",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " sức",
+      "type": "content"
+    },
+    {
+      "content": " khỏe",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " nhiều",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " khác",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Mỗi",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " đều",
+      "type": "content"
+    },
+    {
+      "content": " được",
+      "type": "content"
+    },
+    {
+      "content": " thiết",
+      "type": "content"
+    },
+    {
+      "content": " kế",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " vệ",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " an",
+      "type": "content"
+    },
+    {
+      "content": " tâm",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " những",
+      "type": "content"
+    },
+    {
+      "content": " tình",
+      "type": "content"
+    },
+    {
+      "content": " huống",
+      "type": "content"
+    },
+    {
+      "content": " không",
+      "type": "content"
+    },
+    {
+      "content": " may",
+      "type": "content"
+    },
+    {
+      "content": " xảy",
+      "type": "content"
+    },
+    {
+      "content": " ra",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Nếu",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " tìm",
+      "type": "content"
+    },
+    {
+      "content": " hiểu",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " cụ",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " hoặc",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " tư",
+      "type": "content"
+    },
+    {
+      "content": " vấn",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " cách",
+      "type": "content"
+    },
+    {
+      "content": " chọn",
+      "type": "content"
+    },
+    {
+      "content": " sản",
+      "type": "content"
+    },
+    {
+      "content": " phẩm",
+      "type": "content"
+    },
+    {
+      "content": " phù",
+      "type": "content"
+    },
+    {
+      "content": " hợp",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " nhu",
+      "type": "content"
+    },
+    {
+      "content": " cầu",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " mình",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " rất",
+      "type": "content"
+    },
+    {
+      "content": " sẵn",
+      "type": "content"
+    },
+    {
+      "content": " lòng",
+      "type": "content"
+    },
+    {
+      "content": " giúp",
+      "type": "content"
+    },
+    {
+      "content": " đỡ",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Bạn",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " biết",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " nhu",
+      "type": "content"
+    },
+    {
+      "content": " cầu",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " không",
+      "type": "content"
+    },
+    {
+      "content": "?",
+      "type": "content"
+    },
+    {
+      "content": "[",
+      "type": "content"
+    },
+    {
+      "content": " Nh",
+      "type": "content"
+    },
+    {
+      "content": "ập",
+      "type": "content"
+    },
+    {
+      "content": " vai",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": " Ch",
+      "type": "content"
+    },
+    {
+      "content": "uyên",
+      "type": "content"
+    },
+    {
+      "content": " viên",
+      "type": "content"
+    },
+    {
+      "content": " bán",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " nhiệt",
+      "type": "content"
+    },
+    {
+      "content": " tình",
+      "type": "content"
+    },
+    {
+      "content": " ]",
+      "type": "content"
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "full_response": "Xin chào! Cảm ơn bạn đã quan tâm đến công ty bảo hiểm ABC. Tôi rất sẵn lòng giúp bạn tìm hiểu về chúng tôi và các sản phẩm bảo hiểm mà chúng tôi cung cấp.\n\nCông ty bảo hiểm ABC là một trong những công ty bảo hiểm hàng đầu trong ngành, với mục tiêu cung cấp các giải pháp bảo hiểm toàn diện và chất lượng dịch vụ cao nhất cho khách hàng. Chúng tôi hiểu rằng mỗi khách hàng có nhu cầu và mục tiêu khác nhau, vì vậy chúng tôi cung cấp đa dạng các sản phẩm bảo hiểm để đáp ứng nhu cầu của từng người.\n\nCác sản phẩm bảo hiểm của chúng tôi bao gồm bảo hiểm nhân thọ, bảo hiểm sức khỏe, bảo hiểm tài sản, bảo hiểm xe và nhiều sản phẩm khác. Mỗi sản phẩm đều được thiết kế để cung cấp sự bảo vệ tài chính và sự an tâm cho khách hàng trong những tình huống không may xảy ra.\n\nNếu bạn muốn tìm hiểu thêm về một sản phẩm cụ thể hoặc cần tư vấn về cách chọn sản phẩm phù hợp với nhu cầu của mình, tôi rất sẵn lòng giúp đỡ. Bạn có thể cho tôi biết thêm về nhu cầu của bạn không?[ Nhập vai: Chuyên viên bán hàng nhiệt tình ]",
+  "status": 200
+}

@@ -1,0 +1,67 @@
+{
+  "request": {
+    "question": "Tôi cần định giá lô đất 163m full thổ cư (5mx32,6m) đất nằm mặt tiền QL56 \nVị trí: Đường Quốc lộ 56, Xã Tân Hải, Thị xã Phú Mỹ, Bà Rịa - Vũng Tàu\nhướng về TP BÀ RỊA - Vũng Tàu. khu đông dân cư. trong bán kính 2km là trường học, bệnh viện, chợ chu hải, Uỷ Ban Nhân Dân, QL51, điểm giao đi đảo Long Sơn. nút giao cao tốc BH - Vũng Tàu chỉ 3 phút. \nGiấy tờ pháp lý Đã có sổ\nHướng đất Đông Bắc\nĐặc điểm nhà/đất: Mặt tiền, Nở hậu, Thổ cư toàn bộ",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-10T00:34:49.538995"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1749490489.5588,
+      "result": {
+        "property_type": "nhà đất",
+        "project_name": null,
+        "location": {
+          "province": "bà rịa vũng tàu",
+          "district": "phú"
+        },
+        "search_query": "giá nhà đất đường quốc lộ 56 phú bà rịa vũng tàu 2025",
+        "confidence": 1.0,
+        "dientich": null,
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search",
+      "timestamp": 1749490499.564867,
+      "duration": 10.0053071975708,
+      "search_query": "giá nhà đất đường quốc lộ 56 phú bà rịa vũng tàu 2025",
+      "result": {
+        "success": false,
+        "properties_found": 0,
+        "successful_websites": 0,
+        "timeout": false,
+        "raw_data": null
+      }
+    }
+  ],
+  "web_search": {
+    "search_query": "giá nhà đất đường quốc lộ 56 phú bà rịa vũng tàu 2025",
+    "target_urls": [],
+    "full_responses": {},
+    "properties_found": [],
+    "performance_metrics": {
+      "total_time": 10.0053071975708,
+      "timeout": true,
+      "success": false
+    }
+  },
+  "processed_files": [],
+  "ai_response": "",
+  "performance_metrics": {
+    "total_duration": 62.40062618255615,
+    "start_time": 1749490499.59988,
+    "end_time": 1749490562.0005069,
+    "steps_completed": 2,
+    "errors_count": 0,
+    "success": true
+  },
+  "errors": [],
+  "timestamp": "2025-06-10T00:36:02.000650",
+  "session_id": "446f7858",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

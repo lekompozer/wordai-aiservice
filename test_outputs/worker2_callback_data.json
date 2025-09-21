@@ -1,0 +1,123 @@
+{
+  "timestamp": "2025-07-28T18:14:10.265688",
+  "path": "/extraction-callback",
+  "headers": {
+    "Host": "localhost:8088",
+    "Content-Type": "application/json",
+    "X-Webhook-Source": "ai-service",
+    "X-Webhook-Signature": "sha256=e08312ebf89e89b01e535473118b3f655f0976ac18e0e8af2faa057579276194",
+    "User-Agent": "Agent8x-AI-Service/1.0",
+    "Accept": "*/*",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Content-Length": "12679"
+  },
+  "payload": {
+    "task_id": "storage_hybrid_extract_1753701221742_6ccc00e6",
+    "status": "completed",
+    "company_id": "aia-test-company-hybrid",
+    "raw_content": "--- DỊCH VỤ AIA VIỆT NAM (25/7/2025) – CHI TIẾT QUYỀN LỢI – PHÍ – ĐIỀU KIỆN ---\n\n1. AIA – Khỏe Trọn Vẹn (Bảo hiểm liên kết chung)\n   * Quỹ bảo vệ: Khách đóng phí cơ bản đầy đủ trong 4‑15 năm đầu tùy phương án\n     → được cam kết bảo vệ suốt 30 năm hợp đồng .\n   * Quyền lợi:\n     - Bảo vệ tài chính trước rủi ro tử vong, thương tật toàn bộ vĩnh viễn, bệnh hiểm nghèo (tùy gói).\n     - Hưởng giá trị bảo vệ ưu việt; quyền lợi bảo vệ có thể tăng thêm tới 20% STBH nhờ chương trình AIA Vitality .\n     - Thưởng duy trì hợp đồng: tại năm kỷ niệm 10: +50%; năm 20: +100%; năm 30: +200% phí cơ bản thực đóng hàng năm (nếu không mất hợp đồng, đóng phí đúng hạn, không rút giá trị tài khoản) .\n   * Phí tham gia:\n     - Tùy thuộc vào tuổi, giới tính, chương trình, sản phẩm bổ sung. Phí có thể điều chỉnh theo quyết định Bộ Tài chính và được thông báo trước 30 ngày .\n   * Điều kiện tham gia:\n     - Tùy sản phẩm, yêu cầu sức khỏe và khai thác thông tin y tế. Bảo hiểm có thể cho phép gia hạn nộp phí trong 60 ngày kể từ hạn đóng mà vẫn giữ hiệu lực.\n\n2. Bảo hiểm Toàn diện Bệnh hiểm nghèo 2.0 (Critical Illness 2.0)\n   * Độ tuổi áp dụng: 30 ngày – 65 tuổi; kết thúc hợp đồng tối đa đến 75 tuổi .\n   * Quyền lợi:\n     - Bảo vệ trước 107 bệnh hiểm nghèo, chi trả theo giai đoạn:\n         • Giai đoạn sớm: tối đa 4 lần × 30% mỗi lần STBH;\n         • Giai đoạn giữa: tối đa 2 lần × 60% mỗi lần;\n         • Giai đoạn nghiêm trọng: 100% STBH .\n     - Tích hợp AIA Vitality – thưởng đến 30% phí bảo hiểm trung bình 5 năm .\n     - Từ 17/7/2025 đến 31/12/2025: ưu đãi dịch vụ đặt lịch khám tại một số bệnh viện uy tín .\n   * Phí tham gia:\n     - Phí thay đổi tùy theo tuổi, gói bảo hiểm và được phê duyệt bởi Bộ Tài chính. Phải đóng phí đúng hạn để duy trì hiệu lực .\n   * Điều kiện tham gia:\n     - Tuổi từ 30 ngày đến 65 tuổi, không tham gia nếu đã có bệnh hiểm nghèo tại thời điểm tham gia;\n     - Quy định thời gian chờ: 30 ngày với bệnh thông thường; 90 ngày với bệnh đặc biệt, ung thư, ghép tạng (không áp dụng cho tai nạn) .\n     - Quyền lợi tự động gia hạn mỗi năm tới khi NĐBH đạt tuổi kết thúc hoặc hợp đồng chính hết hiệu lực.\n\n3. Bảo hiểm sức khỏe Bùng Gia Lực (Family Health Insurance)\n   * Tuổi áp dụng: từ 30 ngày tuổi đến 46 tuổi (ái tự kỷ niệm sau 46 tuổi); chỉ tại Việt Nam .\n   * Quyền lợi chính:\n     - Điều trị nội trú: chi trả theo phần trăm phí y tế (năm đầu 50%; năm hai 80%; từ năm ba trở đi 100%) tới giới hạn STBH/năm .\n     - Phòng và giường bệnh: tối đa 100 ngày/năm; chăm sóc đặc biệt: tối đa 30 ngày/năm; chi trả cao với bệnh viện công (nhân đôi bảo vệ) .\n     - Sinh sản và chăm sóc trẻ sơ sinh: chi trả cho khám thai (tối đa 8 lần/năm); sinh và biến chứng; trẻ sơ sinh (7 ngày đầu); chi phí thực tế theo mức giới hạn phụ .\n     - Quyền lợi miễn phí cho thành viên mới: miễn phí bảo hiểm chính cho bé thứ hai (dưới 5 tuổi), nếu hợp đồng có ít nhất 3 thành viên trước 270 ngày kể từ ngày sinh bé và đáp ứng điều kiện thẩm định .\n   * Quyền lợi bổ sung (tùy chọn):\n     - Điều trị ngoại trú và chăm sóc nha khoa (nếu đã chọn ngoại trú) với mức chi trả theo gói và giới hạn STBH tương ứng: ví dụ điều trị ngoại trú lên đến 5–40 triệu/năm, chi trả 80% chi phí y tế, đồng thanh toán ~20% .\n   * Phí tham gia:\n     - Phí tùy theo gói chọn (Cơ bản, Nâng cao, Toàn diện, Hoàn hảo), giới tính, tuổi và phạm vi bảo vệ (Việt Nam/Toàn cầu). Thành viên AIA Vitality có thể nhận thưởng đến 60% phí .\n   * Điều kiện tham gia:\n     - Tuổi từ 30 ngày đến 46 tuổi (hoặc theo điều khoản cụ thể), điều kiện sức khỏe theo thẩm định của AIA. Gia hạn đóng phí như hợp đồng chính.\n     - Quyền lợi mới được áp dụng khi đóng phí đúng hạn và đủ; sản phẩm có thời gian chờ không áp dụng cho tai nạn .",
+    "structured_data": {
+      "products": [
+        {
+          "name": "AIA – Khỏe Trọn Vẹn",
+          "qdrant_point_id": "6a7fd65f-1e06-494a-bc37-d23d2433d3d8",
+          "category": "bao_hiem",
+          "original_data": {
+            "id": 1,
+            "name": "AIA – Khỏe Trọn Vẹn",
+            "description": "Bảo hiểm liên kết chung. Bảo vệ tài chính trước rủi ro tử vong, thương tật toàn bộ vĩnh viễn, bệnh hiểm nghèo (tùy gói). Hưởng giá trị bảo vệ ưu việt; quyền lợi bảo vệ có thể tăng thêm tới 20% STBH nhờ chương trình AIA Vitality. Thưởng duy trì hợp đồng.",
+            "category": "bao_hiem",
+            "sub_category": "bao_hiem_hon_hop",
+            "tags": [
+              "bao_hiem_doi_song",
+              "bao_hiem_suc_khoe",
+              "lien_ket_dau_tu",
+              "dai_han",
+              "an_toan"
+            ],
+            "target_audience": [
+              "gia_dinh",
+              "nguoi_lao_dong",
+              "nguoi_cao_tuoi"
+            ],
+            "coverage_type": [
+              "tu_vong",
+              "thuong_tat",
+              "benh_tat"
+            ],
+            "content_for_embedding": "Bảo hiểm AIA – Khỏe Trọn Vẹn, bảo hiểm liên kết chung. Bảo vệ tài chính trước rủi ro tử vong, thương tật toàn bộ vĩnh viễn, bệnh hiểm nghèo (tùy gói).  Hưởng giá trị bảo vệ ưu việt, có thể tăng thêm 20% nhờ AIA Vitality.  Thưởng duy trì hợp đồng.  Phí bảo hiểm tùy thuộc vào tuổi, giới tính, chương trình, sản phẩm bổ sung.",
+            "premium": null,
+            "currency": null
+          }
+        },
+        {
+          "name": "Bảo hiểm Toàn diện Bệnh hiểm nghèo 2.0",
+          "qdrant_point_id": "af059fcc-7812-4404-9afb-63c8761703ff",
+          "category": "bao_hiem",
+          "original_data": {
+            "id": 2,
+            "name": "Bảo hiểm Toàn diện Bệnh hiểm nghèo 2.0",
+            "description": "Bảo vệ trước 107 bệnh hiểm nghèo, chi trả theo giai đoạn: Giai đoạn sớm (tối đa 4 lần × 30%), giai đoạn giữa (tối đa 2 lần × 60%), giai đoạn nghiêm trọng (100%). Tích hợp AIA Vitality – thưởng đến 30% phí bảo hiểm trung bình 5 năm. Ưu đãi đặt lịch khám tại một số bệnh viện uy tín (17/7/2025 - 31/12/2025).",
+            "category": "bao_hiem",
+            "sub_category": "bao_hiem_suc_khoe",
+            "tags": [
+              "benh_hiem_ngheo",
+              "toan_dien",
+              "bao_ve_suc_khoe",
+              "uu_dai",
+              "2.0"
+            ],
+            "target_audience": [
+              "gia_dinh",
+              "ca_nhan"
+            ],
+            "coverage_type": [
+              "benh_tat"
+            ],
+            "content_for_embedding": "Bảo hiểm Toàn diện Bệnh hiểm nghèo 2.0. Bảo vệ trước 107 bệnh hiểm nghèo, chi trả theo 3 giai đoạn. Tích hợp AIA Vitality, thưởng đến 30% phí bảo hiểm trung bình 5 năm.  Ưu đãi đặt lịch khám (17/7/2025 - 31/12/2025). Phí bảo hiểm thay đổi tùy theo tuổi, gói bảo hiểm.",
+            "premium": null,
+            "currency": null
+          }
+        },
+        {
+          "name": "Bảo hiểm sức khỏe Bùng Gia Lực",
+          "qdrant_point_id": "2881033c-d5c5-48d6-81b5-74c3719ef8d4",
+          "category": "bao_hiem",
+          "original_data": {
+            "id": 3,
+            "name": "Bảo hiểm sức khỏe Bùng Gia Lực",
+            "description": "Bảo hiểm sức khỏe cho gia đình. Điều trị nội trú (tỷ lệ chi trả tăng dần theo năm), phòng và giường bệnh (tối đa 100 ngày/năm), chăm sóc đặc biệt (tối đa 30 ngày/năm). Chi trả cao với bệnh viện công.  Quyền lợi sinh sản và chăm sóc trẻ sơ sinh.  Quyền lợi bổ sung: điều trị ngoại trú và chăm sóc nha khoa.",
+            "category": "bao_hiem",
+            "sub_category": "bao_hiem_suc_khoe",
+            "tags": [
+              "gia_dinh",
+              "suc_khoe",
+              "tre_em",
+              "noi_tru",
+              "ngoai_tru"
+            ],
+            "target_audience": [
+              "gia_dinh",
+              "co_con"
+            ],
+            "coverage_type": [
+              "benh_tat"
+            ],
+            "content_for_embedding": "Bảo hiểm sức khỏe Bùng Gia Lực. Bảo hiểm sức khỏe cho gia đình, chi trả điều trị nội trú, phòng bệnh, chăm sóc đặc biệt. Bao gồm quyền lợi sinh sản và chăm sóc trẻ sơ sinh. Có quyền lợi bổ sung điều trị ngoại trú và nha khoa. Phí bảo hiểm tùy theo gói chọn, giới tính, tuổi và phạm vi bảo vệ.",
+            "premium": null,
+            "currency": null
+          }
+        }
+      ],
+      "services": []
+    },
+    "extraction_metadata": {
+      "callback_url": "http://localhost:8088/extraction-callback",
+      "total_products_stored": 3,
+      "total_services_stored": 0,
+      "storage_strategy": "individual_qdrant_points",
+      "processed_by": "worker_2_storage_callback"
+    },
+    "timestamp": "2025-07-28T18:14:10.257689"
+  }
+}

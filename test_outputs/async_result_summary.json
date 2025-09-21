@@ -1,0 +1,9 @@
+{
+  "success": true,
+  "task_id": "hybrid_extract_1753690751679_46080809",
+  "company_id": "test-async-timing-async",
+  "status": "queued",
+  "message": "✅ HYBRID STRATEGY: Task queued successfully for products extraction với AI auto-categorization + individual storage",
+  "estimated_time": 30,
+  "error": null
+}

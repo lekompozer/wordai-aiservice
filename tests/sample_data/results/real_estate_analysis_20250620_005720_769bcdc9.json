@@ -1,0 +1,57 @@
+{
+  "request": {
+    "question": "Hãy phân tích và định giá bất động sản dựa trên thông tin mô tả được cung cấp.\n\nTHÔNG TIN BẤT ĐỘNG SẢN:\nNhà 3 lầu diện tích 100m2 mặt tiền đường Nam Kỳ Khởi Nghĩa, P3, TP. Vũng Tàu\n\nGIÁ TRỊ THAM KHẢO CỦA KHÁCH HÀNG: 11.0 tỷ VNĐ\n\nYÊU CẦU PHÂN TÍCH CHI TIẾT:\n1. Phân tích thông tin mô tả về bất động sản\n2. Đánh giá tính hợp lý của giá trị tham khảo (nếu có)\n3. Ước tính khoảng giá trị thị trường dựa trên mô tả\n4. Phân tích ưu và nhược điểm của tài sản\n5. Đánh giá khả năng thanh khoản\n6. Các rủi ro cần lưu ý khi sử dụng làm tài sản đảm bảo\n7. Khuyến nghị về tỷ lệ cho vay an toàn (LTV)\n\nVui lòng đưa ra phân tích chi tiết và chuyên nghiệp.",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-20T00:56:05.018247",
+    "analysis_type": "single_use_no_history"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1750355765.042619,
+      "result": {
+        "property_type": "bất động sản",
+        "project_name": null,
+        "location": {
+          "province": "vũng tàu",
+          "district": null
+        },
+        "confidence": 1.2,
+        "dientich": "100m²",
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search_skipped",
+      "timestamp": 1750355765.07074,
+      "reason": "disabled_for_single_use_analysis"
+    },
+    {
+      "step": 3,
+      "name": "conversation_history_skipped",
+      "timestamp": 1750355765.070743,
+      "reason": "single_use_analysis_no_history"
+    }
+  ],
+  "processed_files": [],
+  "ai_response": "**PHÂN TÍCH ĐỊNH GIÁ BẤT ĐỘNG SẢN CHUYÊN SÂU**\n\n**1. Phân tích thông tin mô tả:**  \n- **Loại hình:** Nhà phố thương mại 3 tầng (1 trệt + 2 lầu)  \n- **Vị trí:** Mặt tiền đường Nam Kỳ Khởi Nghĩa - trục đường chính khu vực trung tâm TP. Vũng Tàu, thuộc phường 3 (gần khu vực Bãi Trước, khách sạn 5 sao)  \n- **Diện tích:** 100m² (kích thước điển hình 5x20m) - phù hợp kinh doanh hoặc ở  \n- **Pháp lý:** Giả định có sổ đỏ hợp lệ (cần kiểm tra thực tế hiện trạng sổ, quy hoạch)  \n\n**2. Đánh giá tính hợp lý của giá 11 tỷ:**  \n- Giá tham khảo **11 tỷ (~110 triệu/m²)** tương đương mặt bằng chung khu vực trung tâm Vũng Tàu:  \n  - Nhà phố mặt tiền trung tâm hiện giao dịch **90-130 triệu/m²** tùy vị trí cụ thể  \n  - Đường Nam Kỳ Khởi Nghĩa thuộc nhóm **\"vị trí vàng\"** với mật độ kinh doanh cao, giá thuê mặt bằng tốt  \n  → Giá đề xuất **nằm trong khoảng hợp lý**, có thể thương lượng giảm 5-10%  \n\n**3. Ước tính giá trị thị trường:**  \n- **Khoảng giá tham khảo:** **9.5 - 12 tỷ** (95-120 triệu/m²)  \n  - Giá thấp nhất (9.5 tỷ): Nhà cũ, cần cải tạo, vị trí hơi lệch  \n  - Giá cao nhất (12 tỷ): Nhà mới xây, thiết kế đẹp, vị trí đắc địa  \n- **Giá trị thẩm định ngân hàng:** **8.5 - 10.2 tỷ** (áp dụng hệ số 0.85-0.9 so với giá thị trường)  \n\n**4. Ưu điểm & Nhược điểm:**  \n*Ưu điểm:*  \n- **Vị trí đắt giá:** Trục đường chính, gần biển, tiềm năng kinh doanh khách sạn/nhà hàng  \n- **Diện tích đẹp:** 100m² phù hợp đa mục đích (ở hoặc cho thuê)  \n- **Thanh khoản tốt:** Nhu cầu mua nhà mặt tiền trung tâm luôn cao  \n\n*Nhược điểm:*  \n- **Áp lực cạnh tranh:** Nhiều nhà cùng phân khúc trên đường  \n- **Rủi ro quy hoạch:** Cần kiểm tra quy hoạch chi tiết tuyến đường  \n- **Chi phí bảo trì:** Nhà 3 tầng có thể tốn chi phí vận hành  \n\n**5. Khả năng thanh khoản:**  \n- **Xếp loại:** **Cao** (nhóm BĐS dễ bán lại)  \n- Thời gian bán ước tính: **3-6 tháng** nếu giá đúng thị trường  \n- Đối tượng mua tiềm năng: Nhà đầu tư, người kinh doanh dịch vụ  \n\n**6. Rủi ro khi thế chấp:**  \n- **Biến động thị trường:** Giá BĐS Vũng Tàu phụ thuộc vào du lịch  \n- **Pháp lý tiềm ẩn:** Cần xác minh sổ đỏ, tranh chấp (nếu có)  \n- **Khấu hao vật chất:** Nhà cũ có thể giảm giá trị theo thời gian  \n\n**7. Khuyến nghị tỷ lệ cho vay (LTV):**  \n- **Tỷ lệ an toàn:** **50-65%** giá trị thẩm định  \n  - Mức vay tối đa đề xuất: **5.5 - 6.6 tỷ** (tương ứng 8.5-10.2 tỷ thẩm định)  \n- Lý do: Đảm bảo đệm rủi ro biến động giá và thanh khoản  \n\n**KẾT LUẬN:**  \n- Giá trị hợp lý: **10 - 11 tỷ** (có thể thương lượng)  \n- Khuyến nghị:  \n  - Kiểm tra pháp lý sổ đỏ & quy hoạch tại Sở TNMT  \n  - Đánh giá hiện trạng công trình trước khi quyết định  \n  - Ưu tiên sử dụng vào mục đích kinh doanh để tối ưu ROI  \n\n*Lưu ý: Báo cáo dựa trên thông tin giới hạn - Cần khảo sát thực địa để có kết quả chính xác.*",
+  "performance_metrics": {
+    "total_duration": 75.82323670387268,
+    "start_time": 1750355765.0183702,
+    "end_time": 1750355840.841608,
+    "steps_completed": 3,
+    "errors_count": 0,
+    "success": true,
+    "web_search_skipped": true,
+    "history_skipped": true,
+    "analysis_type": "standalone_single_use"
+  },
+  "errors": [],
+  "timestamp": "2025-06-20T00:57:20.844585",
+  "session_id": "769bcdc9",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

@@ -1,0 +1,72 @@
+{
+  "assessmentId": "assessment_1750414165819",
+  "applicationId": "LOAN-20250619-005444-001-448",
+  "timestamp": "2025-06-20T17:10:02.382417",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 399999999,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 16000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.24618488886593615,
+    "loanToValue": 0.036363636272727276,
+    "estimatedMonthlyPayment": 3938958.2218549782
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.92,
+    "creditScore": 800,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 16 triệu VNĐ/tháng từ công việc Sales tại Savills với kinh nghiệm 10 năm, đảm bảo khả năng trả nợ. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 24.6%, nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, TP. Vũng Tàu có giá trị thị trường cao và tính thanh khoản tốt. Khách hàng không có nợ xấu, nhóm CIC 1 thể hiện lịch sử tín dụng tốt. Số tiền vay 0.4 tỷ chỉ chiếm 3.6% giá trị tài sản đảm bảo, đảm bảo tỷ lệ LTV an toàn (<80%). Dòng tiền sau trả nợ còn 12.1 triệu VNĐ/tháng đáp ứng nhu cầu sinh hoạt.",
+    "riskFactors": [
+      "Phụ thuộc vào một nguồn thu nhập chính",
+      "Không có tài sản thanh khoản dự phòng",
+      "Biến động thị trường bất động sản địa phương"
+    ],
+    "recommendations": [
+      "Duy trì hợp đồng lao động dài hạn với Savills",
+      "Xây dựng quỹ khẩn cấp bằng 3-6 tháng thu nhập",
+      "Mua bảo hiểm nhân thọ bảo vệ khoản vay"
+    ],
+    "approvedAmount": 400000000,
+    "interestRate": 8.5,
+    "loanTerm": 15,
+    "monthlyPayment": 3938958,
+    "loanToValue": 3.6,
+    "debtToIncome": 24.6,
+    "conditions": [
+      "Bổ sung bản sao hợp đồng lao động có xác nhận",
+      "Giấy tờ chứng minh quyền sở hữu BĐS đầy đủ",
+      "Mở tài khoản thanh toán tại ngân hàng cho vay"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 11000000000,
+      "marketAnalysis": "BĐS mặt tiền trung tâm TP. Vũng Tàu có giá trị thương mại cao. Diện tích 100m2 với 3 tầng phù hợp cho mục đích kinh doanh hoặc cho thuê. Khu vực Nam Kỳ Khởi Nghĩa có hạ tầng hoàn thiện, gần các tiện ích du lịch - dịch vụ. Giá ước tính 11 tỷ là hợp lý so với thị trường hiện tại.",
+      "liquidityRisk": "low",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 16000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 3938958,
+      "remainingIncome": 12061042,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    },
+    "additionalNotes": "Ưu tiên phê duyệt do hồ sơ đạt điểm tín dụng cao. Cân nhắc tăng hạn mức nếu khách hàng bổ sung tài sản đảm bảo phụ. Theo dõi định kỳ 6 tháng/lần đối với khoản vay dài hạn."
+  },
+  "processingDetails": {
+    "reasoningDuration": 36.527174949645996,
+    "totalProcessingTime": 36.562894105911255,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.92,\n  \"creditScore\": 800,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 16 triệu VNĐ/tháng từ công việc Sales tại Savills với kinh nghiệm 10 năm, đảm bảo khả năng trả nợ. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 24.6%, nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, TP. Vũng Tàu có giá trị thị trường cao và tính thanh khoản tốt. Khách hàng không có nợ xấu, nhóm CIC 1 thể hiện lịch sử tín dụng tốt. Số tiền vay 0.4 tỷ chỉ chiếm 3.6% giá trị tài sản đảm bảo, đảm bảo tỷ lệ LTV an toàn (<80%). Dòng tiền sau trả nợ còn 12.1 triệu VNĐ/tháng đáp ứng nhu cầu sinh hoạt.\",\n  \"riskFactors\": [\n    \"Phụ thuộc vào một nguồn thu nhập chính\",\n    \"Không có tài sản thanh khoản dự phòng\",\n    \"Biến động thị trường bất động sản địa phương\"\n  ],\n  \"recommendations\": [\n    \"Duy trì hợp đồng lao động dài hạn với Savills\",\n    \"Xây dựng quỹ khẩn cấp bằng 3-6 tháng thu nhập\",\n    \"Mua bảo hiểm nhân thọ bảo vệ khoản vay\"\n  ],\n  \"approvedAmount\": 400000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 15,\n  \"monthlyPayment\": 3938958,\n  \"loanToValue\": 3.6,\n  \"debtToIncome\": 24.6,\n  \"conditions\": [\n    \"Bổ sung bản sao hợp đồng lao động có xác nhận\",\n    \"Giấy tờ chứng minh quyền sở hữu BĐS đầy đủ\",\n    \"Mở tài khoản thanh toán tại ngân hàng cho vay\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 11000000000,\n    \"marketAnalysis\": \"BĐS mặt tiền trung tâm TP. Vũng Tàu có giá trị thương mại cao. Diện tích 100m2 với 3 tầng phù hợp cho mục đích kinh doanh hoặc cho thuê. Khu vực Nam Kỳ Khởi Nghĩa có hạ tầng hoàn thiện, gần các tiện ích du lịch - dịch vụ. Giá ước tính 11 tỷ là hợp lý so với thị trường hiện tại.\",\n    \"liquidityRisk\": \"low\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 16000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 3938958,\n    \"remainingIncome\": 12061042,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  },\n  \"additionalNotes\": \"Ưu tiên phê duyệt do hồ sơ đạt điểm tín dụng cao. Cân nhắc tăng hạn mức nếu khách hàng bổ sung tài sản đảm bảo phụ. Theo dõi định kỳ 6 tháng/lần đối với khoản vay dài hạn.\"\n}\n```"
+}

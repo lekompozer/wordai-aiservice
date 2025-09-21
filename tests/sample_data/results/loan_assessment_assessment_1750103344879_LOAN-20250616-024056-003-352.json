@@ -1,0 +1,70 @@
+{
+  "assessmentId": "assessment_1750103344879",
+  "applicationId": "LOAN-20250616-024056-003-352",
+  "timestamp": "2025-06-17T02:49:44.487693",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1000000000,
+    "type": "Thế chấp",
+    "term": "20 năm",
+    "purpose": "Vay sửa chữa / nâng cấp nhà"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 100000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.0867823233365534,
+    "loanToValue": 0.273972602739726,
+    "estimatedMonthlyPayment": 8678232.33365534
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.95,
+    "creditScore": 850,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định và cao (100 triệu VNĐ/tháng) từ vị trí CEO tại Savills với 15 năm kinh nghiệm, đảm bảo khả năng trả nợ tốt. Tỷ lệ nợ/thu nhập (DTI) sau khi vay chỉ 8.7%, thấp hơn nhiều so với ngưỡng an toàn 50%. Khách hàng không có nợ hiện tại và có lịch sử tín dụng tốt (CIC nhóm 1). Tài sản đảm bảo là bất động sản có vị trí tốt tại Thuận An, giá trị thị trường ước tính phù hợp với khai báo của khách hàng. Tỷ lệ cho vay/giá trị tài sản (LTV) dự kiến chỉ 27.4%, thấp hơn nhiều so với giới hạn 80% của ngân hàng.",
+    "riskFactors": [
+      "Không có tài sản thanh khoản để dự phòng rủi ro",
+      "Phụ thuộc vào một nguồn thu nhập chính",
+      "Biến động thị trường bất động sản có thể ảnh hưởng đến giá trị tài sản đảm bảo"
+    ],
+    "recommendations": [
+      "Khách hàng nên xây dựng quỹ dự phòng tài chính để tăng tính an toàn",
+      "Nên đa dạng hóa nguồn thu nhập để giảm rủi ro phụ thuộc"
+    ],
+    "approvedAmount": 1000000000,
+    "interestRate": 8.5,
+    "loanTerm": 20,
+    "monthlyPayment": 8678232,
+    "loanToValue": 27.4,
+    "debtToIncome": 8.7,
+    "conditions": [
+      "Khách hàng cần cung cấp đầy đủ giấy tờ chứng minh thu nhập",
+      "Hoàn thiện hồ sơ pháp lý về tài sản đảm bảo",
+      "Mua bảo hiểm khoản vay theo quy định"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Tài sản nằm ở vị trí thuận lợi tại Thuận An, gần đường Liên Huyện và vòng xoay An Phú. Diện tích 125m2 thổ cư 100%, đường rộng 17m, có sổ hồng riêng. Giá trị ước tính phù hợp với thị trường khu vực hiện nay.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "customer_description_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 100000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 8678232,
+      "remainingIncome": 91321768,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 39.60219597816467,
+    "totalProcessingTime": 39.60849714279175,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.95,\n  \"creditScore\": 850,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định và cao (100 triệu VNĐ/tháng) từ vị trí CEO tại Savills với 15 năm kinh nghiệm, đảm bảo khả năng trả nợ tốt. Tỷ lệ nợ/thu nhập (DTI) sau khi vay chỉ 8.7%, thấp hơn nhiều so với ngưỡng an toàn 50%. Khách hàng không có nợ hiện tại và có lịch sử tín dụng tốt (CIC nhóm 1). Tài sản đảm bảo là bất động sản có vị trí tốt tại Thuận An, giá trị thị trường ước tính phù hợp với khai báo của khách hàng. Tỷ lệ cho vay/giá trị tài sản (LTV) dự kiến chỉ 27.4%, thấp hơn nhiều so với giới hạn 80% của ngân hàng.\",\n  \"riskFactors\": [\n    \"Không có tài sản thanh khoản để dự phòng rủi ro\",\n    \"Phụ thuộc vào một nguồn thu nhập chính\",\n    \"Biến động thị trường bất động sản có thể ảnh hưởng đến giá trị tài sản đảm bảo\"\n  ],\n  \"recommendations\": [\n    \"Khách hàng nên xây dựng quỹ dự phòng tài chính để tăng tính an toàn\",\n    \"Nên đa dạng hóa nguồn thu nhập để giảm rủi ro phụ thuộc\"\n  ],\n  \"approvedAmount\": 1000000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 20,\n  \"monthlyPayment\": 8678232,\n  \"loanToValue\": 27.4,\n  \"debtToIncome\": 8.7,\n  \"conditions\": [\n    \"Khách hàng cần cung cấp đầy đủ giấy tờ chứng minh thu nhập\",\n    \"Hoàn thiện hồ sơ pháp lý về tài sản đảm bảo\",\n    \"Mua bảo hiểm khoản vay theo quy định\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Tài sản nằm ở vị trí thuận lợi tại Thuận An, gần đường Liên Huyện và vòng xoay An Phú. Diện tích 125m2 thổ cư 100%, đường rộng 17m, có sổ hồng riêng. Giá trị ước tính phù hợp với thị trường khu vực hiện nay.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"customer_description_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 100000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 8678232,\n    \"remainingIncome\": 91321768,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n```"
+}

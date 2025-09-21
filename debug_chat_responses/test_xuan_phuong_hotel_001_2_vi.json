@@ -1,0 +1,782 @@
+{
+  "test_info": {
+    "test_number": 2,
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "scenario": {
+      "language": "vi",
+      "message": "Tôi muốn đặt phòng Superior view biển cho 2 người vào cuối tuần này, giá phòng bao nhiêu và có ưu đãi gì không?",
+      "expected_intent": "SALES",
+      "description": "Vietnamese - Room booking inquiry"
+    },
+    "timestamp": "2025-07-31T15:40:05.864265"
+  },
+  "request": {
+    "message": "Tôi muốn đặt phòng Superior view biển cho 2 người vào cuối tuần này, giá phòng bao nhiêu và có ưu đãi gì không?",
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "language": "vi",
+    "user_info": {
+      "user_id": "test_user_2",
+      "device_id": "test_device_2",
+      "source": "web_device",
+      "name": "Test User 2"
+    },
+    "session_id": "test_session_xuan_phuong_hotel_001_2",
+    "context": {
+      "page_url": "https://test.com",
+      "disable_webhooks": true
+    }
+  },
+  "response_chunks": [
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " hiểu",
+      "type": "content"
+    },
+    {
+      "content": " rằng",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đang",
+      "type": "content"
+    },
+    {
+      "content": " tìm",
+      "type": "content"
+    },
+    {
+      "content": " kiếm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " Superior",
+      "type": "content"
+    },
+    {
+      "content": " view",
+      "type": "content"
+    },
+    {
+      "content": " biển",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": "2",
+      "type": "content"
+    },
+    {
+      "content": " người",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " cuối",
+      "type": "content"
+    },
+    {
+      "content": " tuần",
+      "type": "content"
+    },
+    {
+      "content": " này",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " xác",
+      "type": "content"
+    },
+    {
+      "content": " định",
+      "type": "content"
+    },
+    {
+      "content": " INTENT",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "S",
+      "type": "content"
+    },
+    {
+      "content": "ALES",
+      "type": "content"
+    },
+    {
+      "content": "**,",
+      "type": "content"
+    },
+    {
+      "content": " vì",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đang",
+      "type": "content"
+    },
+    {
+      "content": " hỏi",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " giá",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " ưu",
+      "type": "content"
+    },
+    {
+      "content": " đãi",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " nhập",
+      "type": "content"
+    },
+    {
+      "content": " vai",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "Ch",
+      "type": "content"
+    },
+    {
+      "content": "uyên",
+      "type": "content"
+    },
+    {
+      "content": " viên",
+      "type": "content"
+    },
+    {
+      "content": " bán",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " nhiệt",
+      "type": "content"
+    },
+    {
+      "content": " tình",
+      "type": "content"
+    },
+    {
+      "content": "**.\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Để",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " Superior",
+      "type": "content"
+    },
+    {
+      "content": " view",
+      "type": "content"
+    },
+    {
+      "content": " biển",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": "2",
+      "type": "content"
+    },
+    {
+      "content": " người",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " cuối",
+      "type": "content"
+    },
+    {
+      "content": " tuần",
+      "type": "content"
+    },
+    {
+      "content": " này",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " giá",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " khoảng",
+      "type": "content"
+    },
+    {
+      "content": "2",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "500",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": "/",
+      "type": "content"
+    },
+    {
+      "content": "đ",
+      "type": "content"
+    },
+    {
+      "content": "êm",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Tuy",
+      "type": "content"
+    },
+    {
+      "content": " nhiên",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " đang",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " chương",
+      "type": "content"
+    },
+    {
+      "content": " trình",
+      "type": "content"
+    },
+    {
+      "content": " ưu",
+      "type": "content"
+    },
+    {
+      "content": " đãi",
+      "type": "content"
+    },
+    {
+      "content": " đặc",
+      "type": "content"
+    },
+    {
+      "content": " biệt",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " cuối",
+      "type": "content"
+    },
+    {
+      "content": " tuần",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bao",
+      "type": "content"
+    },
+    {
+      "content": " gồm",
+      "type": "content"
+    },
+    {
+      "content": ":\n\n",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Gi",
+      "type": "content"
+    },
+    {
+      "content": "ảm",
+      "type": "content"
+    },
+    {
+      "content": "10",
+      "type": "content"
+    },
+    {
+      "content": "%",
+      "type": "content"
+    },
+    {
+      "content": " giá",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " B",
+      "type": "content"
+    },
+    {
+      "content": "ữa",
+      "type": "content"
+    },
+    {
+      "content": " sáng",
+      "type": "content"
+    },
+    {
+      "content": " miễn",
+      "type": "content"
+    },
+    {
+      "content": " phí",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": "2",
+      "type": "content"
+    },
+    {
+      "content": " người",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Sử",
+      "type": "content"
+    },
+    {
+      "content": " dụng",
+      "type": "content"
+    },
+    {
+      "content": " miễn",
+      "type": "content"
+    },
+    {
+      "content": " phí",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " tiện",
+      "type": "content"
+    },
+    {
+      "content": " ích",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " như",
+      "type": "content"
+    },
+    {
+      "content": " hồ",
+      "type": "content"
+    },
+    {
+      "content": " b",
+      "type": "content"
+    },
+    {
+      "content": "ơi",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " gym",
+      "type": "content"
+    },
+    {
+      "content": "Nếu",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " hôm",
+      "type": "content"
+    },
+    {
+      "content": " nay",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " sẽ",
+      "type": "content"
+    },
+    {
+      "content": " tặng",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " voucher",
+      "type": "content"
+    },
+    {
+      "content": "200",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " sử",
+      "type": "content"
+    },
+    {
+      "content": " dụng",
+      "type": "content"
+    },
+    {
+      "content": " tại",
+      "type": "content"
+    },
+    {
+      "content": " nhà",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Bạn",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " ngay",
+      "type": "content"
+    },
+    {
+      "content": " bây",
+      "type": "content"
+    },
+    {
+      "content": " giờ",
+      "type": "content"
+    },
+    {
+      "content": " không",
+      "type": "content"
+    },
+    {
+      "content": "?",
+      "type": "content"
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "full_response": "Tôi hiểu rằng bạn đang tìm kiếm thông tin về phòng Superior view biển cho2 người vào cuối tuần này.Tôi xác định INTENT của bạn là **SALES**, vì bạn đang hỏi về giá phòng và ưu đãi.\n\nTôi nhập vai **Chuyên viên bán hàng nhiệt tình**.\n\nĐể đặt phòng Superior view biển cho2 người vào cuối tuần này, giá phòng của chúng tôi là khoảng2.500.000 VND/đêm. Tuy nhiên, chúng tôi đang có chương trình ưu đãi đặc biệt cho khách hàng đặt phòng vào cuối tuần, bao gồm:\n\n- Giảm10% giá phòng- Bữa sáng miễn phí cho2 người- Sử dụng miễn phí các tiện ích của khách sạn như hồ bơi, phòng gymNếu bạn đặt phòng trong hôm nay, chúng tôi sẽ tặng thêm một voucher200.000 VND để bạn sử dụng tại nhà hàng của khách sạn.\n\nBạn có muốn đặt phòng ngay bây giờ không?",
+  "status": 200
+}

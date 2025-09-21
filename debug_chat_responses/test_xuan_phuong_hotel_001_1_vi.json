@@ -1,0 +1,878 @@
+{
+  "test_info": {
+    "test_number": 1,
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "scenario": {
+      "language": "vi",
+      "message": "Cho tôi biết thông tin về khách sạn Xuân Phương và các dịch vụ tiện ích mà khách sạn cung cấp?",
+      "expected_intent": "ASK_COMPANY_INFORMATION",
+      "description": "Vietnamese - Hotel information inquiry"
+    },
+    "timestamp": "2025-07-31T15:39:55.461926"
+  },
+  "request": {
+    "message": "Cho tôi biết thông tin về khách sạn Xuân Phương và các dịch vụ tiện ích mà khách sạn cung cấp?",
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "language": "vi",
+    "user_info": {
+      "user_id": "test_user_1",
+      "device_id": "test_device_1",
+      "source": "web_device",
+      "name": "Test User 1"
+    },
+    "session_id": "test_session_xuan_phuong_hotel_001_1",
+    "context": {
+      "page_url": "https://test.com",
+      "disable_webhooks": true
+    }
+  },
+  "response_chunks": [
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " hiểu",
+      "type": "content"
+    },
+    {
+      "content": " rằng",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đang",
+      "type": "content"
+    },
+    {
+      "content": " tìm",
+      "type": "content"
+    },
+    {
+      "content": " kiếm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " Xuân",
+      "type": "content"
+    },
+    {
+      "content": " Phương",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " tiện",
+      "type": "content"
+    },
+    {
+      "content": " ích",
+      "type": "content"
+    },
+    {
+      "content": " mà",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "D",
+      "type": "content"
+    },
+    {
+      "content": "ựa",
+      "type": "content"
+    },
+    {
+      "content": " trên",
+      "type": "content"
+    },
+    {
+      "content": " câu",
+      "type": "content"
+    },
+    {
+      "content": " hỏi",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " xác",
+      "type": "content"
+    },
+    {
+      "content": " định",
+      "type": "content"
+    },
+    {
+      "content": " INTENT",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": " ASK",
+      "type": "content"
+    },
+    {
+      "content": "_COMP",
+      "type": "content"
+    },
+    {
+      "content": "ANY",
+      "type": "content"
+    },
+    {
+      "content": "_INFORMATION",
+      "type": "content"
+    },
+    {
+      "content": "Với",
+      "type": "content"
+    },
+    {
+      "content": " vai",
+      "type": "content"
+    },
+    {
+      "content": " trò",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " Lễ",
+      "type": "content"
+    },
+    {
+      "content": " tân",
+      "type": "content"
+    },
+    {
+      "content": " chuyên",
+      "type": "content"
+    },
+    {
+      "content": " nghiệp",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " xin",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " Xuân",
+      "type": "content"
+    },
+    {
+      "content": " Phương",
+      "type": "content"
+    },
+    {
+      "content": " như",
+      "type": "content"
+    },
+    {
+      "content": " sau",
+      "type": "content"
+    },
+    {
+      "content": ":\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Kh",
+      "type": "content"
+    },
+    {
+      "content": "ách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " Xuân",
+      "type": "content"
+    },
+    {
+      "content": " Phương",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " những",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " đầu",
+      "type": "content"
+    },
+    {
+      "content": " tại",
+      "type": "content"
+    },
+    {
+      "content": " [",
+      "type": "content"
+    },
+    {
+      "content": "đ",
+      "type": "content"
+    },
+    {
+      "content": "ịa",
+      "type": "content"
+    },
+    {
+      "content": " điểm",
+      "type": "content"
+    },
+    {
+      "content": "],",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " những",
+      "type": "content"
+    },
+    {
+      "content": " trải",
+      "type": "content"
+    },
+    {
+      "content": " nghiệm",
+      "type": "content"
+    },
+    {
+      "content": " tuyệt",
+      "type": "content"
+    },
+    {
+      "content": " vời",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " tiện",
+      "type": "content"
+    },
+    {
+      "content": " ích",
+      "type": "content"
+    },
+    {
+      "content": " hiện",
+      "type": "content"
+    },
+    {
+      "content": " đại",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Một",
+      "type": "content"
+    },
+    {
+      "content": " số",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " tiện",
+      "type": "content"
+    },
+    {
+      "content": " ích",
+      "type": "content"
+    },
+    {
+      "content": " mà",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " bao",
+      "type": "content"
+    },
+    {
+      "content": " gồm",
+      "type": "content"
+    },
+    {
+      "content": ":\n\n",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Phòng",
+      "type": "content"
+    },
+    {
+      "content": " nghỉ",
+      "type": "content"
+    },
+    {
+      "content": " thoải",
+      "type": "content"
+    },
+    {
+      "content": " mái",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " rộng",
+      "type": "content"
+    },
+    {
+      "content": " rãi",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " đầy",
+      "type": "content"
+    },
+    {
+      "content": " đủ",
+      "type": "content"
+    },
+    {
+      "content": " tiện",
+      "type": "content"
+    },
+    {
+      "content": " nghi",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Nhà",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": " trong",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " phục",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " món",
+      "type": "content"
+    },
+    {
+      "content": " ăn",
+      "type": "content"
+    },
+    {
+      "content": " địa",
+      "type": "content"
+    },
+    {
+      "content": " phương",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " quốc",
+      "type": "content"
+    },
+    {
+      "content": " tế",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Phòng",
+      "type": "content"
+    },
+    {
+      "content": " họp",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " hội",
+      "type": "content"
+    },
+    {
+      "content": " nghị",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " kiện",
+      "type": "content"
+    },
+    {
+      "content": " kinh",
+      "type": "content"
+    },
+    {
+      "content": " doanh",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Hồ",
+      "type": "content"
+    },
+    {
+      "content": " b",
+      "type": "content"
+    },
+    {
+      "content": "ơi",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " gym",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " những",
+      "type": "content"
+    },
+    {
+      "content": " ai",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " thư",
+      "type": "content"
+    },
+    {
+      "content": " giãn",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " tập",
+      "type": "content"
+    },
+    {
+      "content": " luyện",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " hỗ",
+      "type": "content"
+    },
+    {
+      "content": " trợ",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": "24",
+      "type": "content"
+    },
+    {
+      "content": "/",
+      "type": "content"
+    },
+    {
+      "content": "7",
+      "type": "content"
+    },
+    {
+      "content": "Nếu",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " hoặc",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " phòng",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " xin",
+      "type": "content"
+    },
+    {
+      "content": " vui",
+      "type": "content"
+    },
+    {
+      "content": " lòng",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " biết",
+      "type": "content"
+    },
+    {
+      "content": "!",
+      "type": "content"
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "full_response": "Tôi hiểu rằng bạn đang tìm kiếm thông tin về khách sạn Xuân Phương và các dịch vụ tiện ích mà khách sạn cung cấp.\n\nDựa trên câu hỏi của bạn, tôi xác định INTENT của bạn là: ASK_COMPANY_INFORMATIONVới vai trò là Lễ tân chuyên nghiệp, tôi xin cung cấp thông tin về khách sạn Xuân Phương như sau:\n\nKhách sạn Xuân Phương là một trong những khách sạn hàng đầu tại [địa điểm], cung cấp cho khách hàng những trải nghiệm tuyệt vời với các dịch vụ tiện ích hiện đại. Một số dịch vụ tiện ích mà chúng tôi cung cấp bao gồm:\n\n- Phòng nghỉ thoải mái và rộng rãi với đầy đủ tiện nghi- Nhà hàng trong khách sạn phục vụ các món ăn địa phương và quốc tế- Phòng họp và hội nghị cho các sự kiện kinh doanh- Hồ bơi và phòng gym cho những ai muốn thư giãn và tập luyện- Dịch vụ phòng và dịch vụ hỗ trợ khách hàng24/7Nếu bạn cần thêm thông tin hoặc muốn đặt phòng, xin vui lòng cho tôi biết!",
+  "status": 200
+}

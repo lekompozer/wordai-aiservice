@@ -1,0 +1,74 @@
+{
+  "assessmentId": "assessment_1750345058680",
+  "applicationId": "LOAN-20250614-2WPI",
+  "timestamp": "2025-06-19T21:58:16.727890",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1111111111,
+    "type": "Thế chấp",
+    "term": "05 năm",
+    "purpose": "Vay mua bất động sản"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 30000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.759871530555541,
+    "loanToValue": 0.30441400301369864,
+    "estimatedMonthlyPayment": 22796145.916666232
+  },
+  "assessmentResult": {
+    "status": "needs_review",
+    "confidence": 0.75,
+    "creditScore": 700,
+    "reasoning": "Hồ sơ vay có một số điểm mạnh như thu nhập ổn định từ lương 30 triệu VNĐ/tháng, không có nợ hiện tại, và lịch sử tín dụng tốt (CIC Nhóm 1). Tuy nhiên, tỷ lệ DTI sau khi vay lên tới 76% vượt quá ngưỡng an toàn 50% của ngân hàng. Tài sản đảm bảo có giá trị cao (3.6 tỷ VNĐ) và vị trí tốt nhưng cần thẩm định thực tế để xác minh giá trị chính xác. Khả năng trả nợ còn lại 7.2 triệu VNĐ/tháng là thấp so với mức sống tại Bình Dương. Cần bổ sung thông tin về hợp đồng lao động, sao kê ngân hàng 3 tháng gần nhất, và giấy tờ chứng minh quyền sở hữu tài sản đảm bảo.",
+    "riskFactors": [
+      "DTI quá cao (76%)",
+      "Khả năng trả nợ còn lại thấp",
+      "Chưa xác minh được giá trị tài sản đảm bảo thực tế",
+      "Thiếu thông tin về hợp đồng lao động và sao kê ngân hàng"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung hợp đồng lao động, sao kê ngân hàng 3 tháng",
+      "Thẩm định thực tế tài sản đảm bảo",
+      "Xem xét giảm số tiền vay để đưa DTI về dưới 50%",
+      "Có thể đề xuất vay với lãi suất cao hơn do rủi ro DTI cao"
+    ],
+    "approvedAmount": 800000000,
+    "interestRate": 10.5,
+    "loanTerm": 60,
+    "monthlyPayment": 17200000,
+    "loanToValue": 22.2,
+    "debtToIncome": 57.3,
+    "conditions": [
+      "Bổ sung hợp đồng lao động và sao kê ngân hàng",
+      "Thẩm định thực tế tài sản đảm bảo",
+      "Mua bảo hiểm khoản vay",
+      "Duy trì tài khoản chính tại ngân hàng"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3600000000,
+      "marketAnalysis": "Tài sản có vị trí tốt tại mặt tiền kinh doanh gần chợ An Cơ, diện tích lớn (417m2) và đang có nguồn thu từ cho thuê nhà trọ 37tr/tháng. Tuy nhiên cần kiểm tra thực tế tình trạng pháp lý sổ hồng và chất lượng công trình.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "customer_description_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 30000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 17200000,
+      "remainingIncome": 12800000,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 38.038625955581665,
+    "totalProcessingTime": 38.04703116416931,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"needs_review\",\n  \"confidence\": 0.75,\n  \"creditScore\": 700,\n  \"reasoning\": \"Hồ sơ vay có một số điểm mạnh như thu nhập ổn định từ lương 30 triệu VNĐ/tháng, không có nợ hiện tại, và lịch sử tín dụng tốt (CIC Nhóm 1). Tuy nhiên, tỷ lệ DTI sau khi vay lên tới 76% vượt quá ngưỡng an toàn 50% của ngân hàng. Tài sản đảm bảo có giá trị cao (3.6 tỷ VNĐ) và vị trí tốt nhưng cần thẩm định thực tế để xác minh giá trị chính xác. Khả năng trả nợ còn lại 7.2 triệu VNĐ/tháng là thấp so với mức sống tại Bình Dương. Cần bổ sung thông tin về hợp đồng lao động, sao kê ngân hàng 3 tháng gần nhất, và giấy tờ chứng minh quyền sở hữu tài sản đảm bảo.\",\n  \"riskFactors\": [\n    \"DTI quá cao (76%)\",\n    \"Khả năng trả nợ còn lại thấp\",\n    \"Chưa xác minh được giá trị tài sản đảm bảo thực tế\",\n    \"Thiếu thông tin về hợp đồng lao động và sao kê ngân hàng\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung hợp đồng lao động, sao kê ngân hàng 3 tháng\",\n    \"Thẩm định thực tế tài sản đảm bảo\",\n    \"Xem xét giảm số tiền vay để đưa DTI về dưới 50%\",\n    \"Có thể đề xuất vay với lãi suất cao hơn do rủi ro DTI cao\"\n  ],\n  \"approvedAmount\": 800000000,\n  \"interestRate\": 10.5,\n  \"loanTerm\": 60,\n  \"monthlyPayment\": 17200000,\n  \"loanToValue\": 22.2,\n  \"debtToIncome\": 57.3,\n  \"conditions\": [\n    \"Bổ sung hợp đồng lao động và sao kê ngân hàng\",\n    \"Thẩm định thực tế tài sản đảm bảo\",\n    \"Mua bảo hiểm khoản vay\",\n    \"Duy trì tài khoản chính tại ngân hàng\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3600000000,\n    \"marketAnalysis\": \"Tài sản có vị trí tốt tại mặt tiền kinh doanh gần chợ An Cơ, diện tích lớn (417m2) và đang có nguồn thu từ cho thuê nhà trọ 37tr/tháng. Tuy nhiên cần kiểm tra thực tế tình trạng pháp lý sổ hồng và chất lượng công trình.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"customer_description_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 30000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 17200000,\n    \"remainingIncome\": 12800000,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n```"
+}

@@ -1,0 +1,61 @@
+```json
+{
+  "restaurant": "Golden Dragon",
+  "categories": [
+    {
+      "name": "Gà - Vịt - Chim",
+      "items": [
+        {"name": "Vịt chiên Hong Kong", "price": "260K", "description": ""},
+        {"name": "Gà nấm bí quả (½ con bổ dưỡng)", "price": "375K", "description": ""},
+        {"name": "Gà H'mông nấm bí quả (½ con bổ dưỡng)", "price": "450K", "description": "Must try"},
+        {"name": "Gà quay mật ong Sentosa (1 con)", "price": "450K", "description": ""},
+        {"name": "Gà hấp mắm nhĩ (1 con)", "price": "450K", "description": ""},
+        {"name": "Gà rang muối (1 con)", "price": "450K", "description": ""},
+        {"name": "Gà chiên mắm (1 con)", "price": "450K", "description": ""},
+        {"name": "Gà hấp xì dầu (1 con, rút xương)", "price": "450K", "description": "Must try"},
+        {"name": "Cánh gà chiên giòn", "price": "285K", "description": ""},
+        {"name": "Đùi gà chiên giòn", "price": "325K", "description": ""},
+        {"name": "Chim câu băm xúc bánh đa", "price": "215K", "description": ""},
+        {"name": "Chim câu quay thảo mộc", "price": "475K", "description": ""}
+      ]
+    },
+    {
+      "name": "Bò - Bê Mộc Châu",
+      "items": [
+        {"name": "Bê xào lăn", "price": "200K", "description": ""},
+        {"name": "Bê tái chanh", "price": "225K", "description": ""},
+        {"name": "Bê chao Mộc Châu", "price": "250K", "description": ""},
+        {"name": "Bê cháy tỏi", "price": "250K", "description": ""},
+        {"name": "Bê sữa nướng tảng", "price": "325K", "description": ""},
+        {"name": "Bò xào măng trúc", "price": "225K", "description": ""},
+        {"name": "Bò sốt tiêu đen (kèm bánh bao chiên)", "price": "280K", "description": ""},
+        {"name": "Bò lúc lắc trái thơm", "price": "295K", "description": "Must try"},
+        {"name": "Bò hầm vang đỏ (kèm bánh mỳ)", "price": "295K", "description": ""},
+        {"name": "Thăn bò Mỹ bò lò sốt tiêu xanh", "price": "350K", "description": "Must try"}
+      ]
+    },
+    {
+      "name": "Ếch đồng - Ba ba quê",
+      "items": [
+        {"name": "Ếch đồng chiên bơ", "price": "225K", "description": ""},
+        {"name": "Ếch đồng rang muối", "price": "225K", "description": ""},
+        {"name": "Ếch om chuối đậu (kèm bún)", "price": "395K", "description": ""},
+        {"name": "Combo baba (1.6 kg làm 2 món)", "price": "1250K", "description": "Must try + rang muối + om chuối đậu"}
+      ]
+    },
+    {
+      "name": "Heo - Lợn mán Tây Bắc",
+      "items": [
+        {"name": "Má heo nướng kiểu Thái", "price": "225K", "description": "Must try"},
+        {"name": "Heo nướng mắc khén", "price": "225K", "description": ""},
+        {"name": "Sườn nướng BBQ", "price": "325K", "description": ""},
+        {"name": "Chân giò chiên giòn bì", "price": "365K", "description": ""},
+        {"name": "Chân giò hầm kiểu Đức", "price": "365K", "description": "Must try"},
+        {"name": "Lợn mán xào lăn", "price": "250K", "description": ""},
+        {"name": "Lợn mán nướng Tây Bắc", "price": "275K", "description": ""},
+        {"name": "Lợn mán nấu rựa mận", "price": "365K", "description": ""}
+      ]
+    }
+  ]
+}
+```

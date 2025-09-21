@@ -1,0 +1,25 @@
+{
+  "query": "dịch vụ spa massage",
+  "company_id": "xuan_phuong_hotel_001",
+  "request": {
+    "query": "dịch vụ spa massage",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "dịch vụ spa massage",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 11.618029
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:38:19.162521"
+}

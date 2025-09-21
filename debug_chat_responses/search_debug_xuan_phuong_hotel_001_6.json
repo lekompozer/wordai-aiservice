@@ -1,0 +1,25 @@
+{
+  "query": "phòng superior view biển",
+  "company_id": "xuan_phuong_hotel_001",
+  "request": {
+    "query": "phòng superior view biển",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "phòng superior view biển",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 6.871542
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:38:35.043265"
+}

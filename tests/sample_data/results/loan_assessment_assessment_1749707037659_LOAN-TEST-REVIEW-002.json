@@ -1,0 +1,70 @@
+{
+  "assessmentId": "assessment_1749707037659",
+  "applicationId": "LOAN-TEST-REVIEW-002",
+  "timestamp": "2025-06-12T12:44:41.480211",
+  "applicant": {
+    "name": "TRẦN THỊ LAN",
+    "idNumber": "036789456123",
+    "age": 40
+  },
+  "loanRequest": {
+    "amount": 2000000000,
+    "type": "Thế chấp",
+    "term": "20 năm",
+    "purpose": "Mua nhà ở và kinh doanh"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 80000000,
+    "currentDebtRatio": 0.1875,
+    "projectedDebtRatio": 0.4044558083413835,
+    "loanToValue": 0.5714285714285714,
+    "estimatedMonthlyPayment": 17356464.66731068
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.9,
+    "creditScore": 750,
+    "reasoning": "Khách hàng Trần Thị Lan có hồ sơ vay đáp ứng các tiêu chuẩn tín dụng của ngân hàng Việt Nam. Tổng thu nhập hàng tháng là 80 triệu VNĐ, trong đó thu nhập từ kinh doanh ổn định (8 năm kinh nghiệm) và thu nhập từ cho thuê phòng trọ. Tỷ lệ nợ trên thu nhập (DTI) hiện tại là 18.8%, sau khi vay sẽ tăng lên 40.4%, vẫn trong ngưỡng an toàn (<50%). Tài sản thế chấp là nhà phố 3 tầng tại vị trí trung tâm Hải Phòng, có giá trị thị trường ước tính 8.2 tỷ VNĐ (cao hơn khai báo của khách hàng), đảm bảo tỷ lệ LTV 57.1% an toàn. Lịch sử tín dụng tốt (nhóm 2 CIC), có quỹ dự phòng 0.8 tỷ VNĐ. Rủi ro chính là kinh doanh tự do và tài sản cũ cần sửa chữa, nhưng được bù đắp bằng vị trí BDS tốt và khả năng tài chính mạnh.",
+    "riskFactors": [
+      "Rủi ro kinh doanh tự do (không có hợp đồng lao động ổn định)",
+      "Tài sản thế chấp là nhà cũ xây năm 2010, cần sửa chữa",
+      "Hẻm nhỏ có thể ảnh hưởng thanh khoản BĐS"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung hợp đồng thuê phòng trọ và báo cáo thuế kinh doanh 3 năm gần nhất",
+      "Thẩm định hiện trường tài sản đảm bảo để xác nhận tình trạng thực tế",
+      "Khuyến nghị mua bảo hiểm khoản vay"
+    ],
+    "approvedAmount": 2000000000,
+    "interestRate": 8.5,
+    "loanTerm": "20 năm",
+    "monthlyPayment": 17356464,
+    "loanToValue": 0.571,
+    "debtToIncome": 0.404,
+    "conditions": [
+      "Mua bảo hiểm khoản vay và bảo hiểm cháy nổ cho tài sản đảm bảo",
+      "Duy trì số dư tài khoản chính tại Vietcombank tối thiểu 100 triệu VNĐ",
+      "Không phát sinh nợ mới trong 12 tháng đầu"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 8200000000,
+      "marketAnalysis": "Khu vực Trần Phú, Quận Ngô Quyền là trung tâm Hải Phòng, giá đất năm 2025 dự báo tăng 7-10%/năm. Nhà phố 80m² nền x 3 tầng có giá thuê thô ước 25-30 triệu/tháng. Giá bán tham khảo: 35-40 triệu/m² (tổng 8.2 tỷ).",
+      "liquidityRisk": "medium"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 80000000,
+      "totalMonthlyDebt": 15000000,
+      "newLoanPayment": 17356464,
+      "remainingIncome": 47643535,
+      "emergencyFund": 800000000,
+      "incomeStability": "high",
+      "assetLiquidity": "medium"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 43.80921697616577,
+    "totalProcessingTime": 43.82086968421936,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.9,\n  \"creditScore\": 750,\n  \"reasoning\": \"Khách hàng Trần Thị Lan có hồ sơ vay đáp ứng các tiêu chuẩn tín dụng của ngân hàng Việt Nam. Tổng thu nhập hàng tháng là 80 triệu VNĐ, trong đó thu nhập từ kinh doanh ổn định (8 năm kinh nghiệm) và thu nhập từ cho thuê phòng trọ. Tỷ lệ nợ trên thu nhập (DTI) hiện tại là 18.8%, sau khi vay sẽ tăng lên 40.4%, vẫn trong ngưỡng an toàn (<50%). Tài sản thế chấp là nhà phố 3 tầng tại vị trí trung tâm Hải Phòng, có giá trị thị trường ước tính 8.2 tỷ VNĐ (cao hơn khai báo của khách hàng), đảm bảo tỷ lệ LTV 57.1% an toàn. Lịch sử tín dụng tốt (nhóm 2 CIC), có quỹ dự phòng 0.8 tỷ VNĐ. Rủi ro chính là kinh doanh tự do và tài sản cũ cần sửa chữa, nhưng được bù đắp bằng vị trí BDS tốt và khả năng tài chính mạnh.\",\n  \"riskFactors\": [\n    \"Rủi ro kinh doanh tự do (không có hợp đồng lao động ổn định)\",\n    \"Tài sản thế chấp là nhà cũ xây năm 2010, cần sửa chữa\",\n    \"Hẻm nhỏ có thể ảnh hưởng thanh khoản BĐS\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung hợp đồng thuê phòng trọ và báo cáo thuế kinh doanh 3 năm gần nhất\",\n    \"Thẩm định hiện trường tài sản đảm bảo để xác nhận tình trạng thực tế\",\n    \"Khuyến nghị mua bảo hiểm khoản vay\"\n  ],\n  \"approvedAmount\": 2000000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": \"20 năm\",\n  \"monthlyPayment\": 17356464,\n  \"loanToValue\": 0.571,\n  \"debtToIncome\": 0.404,\n  \"conditions\": [\n    \"Mua bảo hiểm khoản vay và bảo hiểm cháy nổ cho tài sản đảm bảo\",\n    \"Duy trì số dư tài khoản chính tại Vietcombank tối thiểu 100 triệu VNĐ\",\n    \"Không phát sinh nợ mới trong 12 tháng đầu\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 8200000000,\n    \"marketAnalysis\": \"Khu vực Trần Phú, Quận Ngô Quyền là trung tâm Hải Phòng, giá đất năm 2025 dự báo tăng 7-10%/năm. Nhà phố 80m² nền x 3 tầng có giá thuê thô ước 25-30 triệu/tháng. Giá bán tham khảo: 35-40 triệu/m² (tổng 8.2 tỷ).\",\n    \"liquidityRisk\": \"medium\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 80000000,\n    \"totalMonthlyDebt\": 15000000,\n    \"newLoanPayment\": 17356464,\n    \"remainingIncome\": 47643535,\n    \"emergencyFund\": 800000000,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"medium\"\n  }\n}\n```"
+}

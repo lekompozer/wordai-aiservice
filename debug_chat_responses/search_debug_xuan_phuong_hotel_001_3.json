@@ -1,0 +1,25 @@
+{
+  "query": "spa services",
+  "company_id": "xuan_phuong_hotel_001",
+  "request": {
+    "query": "spa services",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "spa services",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 6.763447
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:37:15.587929"
+}

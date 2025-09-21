@@ -1,0 +1,71 @@
+{
+  "assessmentId": "assessment_1751043987146",
+  "applicationId": "LOAN-TEST-REVIEW-002",
+  "timestamp": "2025-06-28T00:07:08.080812",
+  "applicant": {
+    "name": "TRẦN THỊ LAN",
+    "idNumber": "036789456123",
+    "age": 40
+  },
+  "loanRequest": {
+    "amount": 2000000000,
+    "type": "Thế chấp",
+    "term": "20 năm",
+    "purpose": "Mua nhà ở và kinh doanh"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 80000000,
+    "currentDebtRatio": 0.1875,
+    "projectedDebtRatio": 0.4044558083413835,
+    "loanToValue": 0.5714285714285714,
+    "estimatedMonthlyPayment": 17356464.66731068
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.9,
+    "creditScore": 750,
+    "reasoning": "Khách hàng Trần Thị Lan có hồ sơ tín dụng khá tốt với thu nhập ổn định từ kinh doanh và cho thuê phòng trọ. Tổng thu nhập hàng tháng là 80 triệu VNĐ, trong khi tổng chi trả nợ hiện tại và dự kiến sau khi vay là 32.4 triệu VNĐ, chiếm 40.4% thu nhập - nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là nhà phố tại vị trí trung tâm Hải Phòng, có giá trị thị trường ước tính phù hợp với khai báo của khách hàng. Lịch sử tín dụng nhóm 2 với chỉ 1 lần chậm trả nhỏ không đáng kể. Khách hàng có tài sản thanh khoản 800 triệu VNĐ đủ để đáp ứng các khoản chi phí phát sinh.",
+    "riskFactors": [
+      "Rủi ro từ kinh doanh thời trang - ngành có tính cạnh tranh cao",
+      "Tài sản đảm bảo là nhà cũ xây năm 2010 có thể xuống cấp",
+      "Hẻm nhỏ có thể ảnh hưởng đến tính thanh khoản BĐS"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung hồ sơ pháp lý đầy đủ của tài sản đảm bảo",
+      "Khuyến nghị mua bảo hiểm khoản vay",
+      "Giám sát định kỳ hoạt động kinh doanh của khách hàng"
+    ],
+    "approvedAmount": 2000000000,
+    "interestRate": 8.5,
+    "loanTerm": 20,
+    "monthlyPayment": 17356464,
+    "loanToValue": 0.571,
+    "debtToIncome": 0.404,
+    "conditions": [
+      "Mua bảo hiểm khoản vay",
+      "Đăng ký thế chấp tại Văn phòng đăng ký đất đai",
+      "Duy trì số dư tài khoản thanh toán tối thiểu 100 triệu VNĐ"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3500000000,
+      "marketAnalysis": "Nhà phố 3 tầng 80m² tại trung tâm Hải Phòng có giá thị trường khoảng 40-45 triệu/m². Giá trị ước tính 3.5 tỷ là hợp lý. Vị trí gần chợ, trường học tăng tính thanh khoản.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "customer_description_analysis + market_comparison"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 80000000,
+      "totalMonthlyDebt": 15000000,
+      "newLoanPayment": 17356464,
+      "remainingIncome": 47643535,
+      "emergencyFund": 800000000,
+      "incomeStability": "high",
+      "assetLiquidity": "medium"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 39.52170419692993,
+    "totalProcessingTime": 40.9343581199646,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.9,\n  \"creditScore\": 750,\n  \"reasoning\": \"Khách hàng Trần Thị Lan có hồ sơ tín dụng khá tốt với thu nhập ổn định từ kinh doanh và cho thuê phòng trọ. Tổng thu nhập hàng tháng là 80 triệu VNĐ, trong khi tổng chi trả nợ hiện tại và dự kiến sau khi vay là 32.4 triệu VNĐ, chiếm 40.4% thu nhập - nằm trong ngưỡng an toàn (<50%). Tài sản đảm bảo là nhà phố tại vị trí trung tâm Hải Phòng, có giá trị thị trường ước tính phù hợp với khai báo của khách hàng. Lịch sử tín dụng nhóm 2 với chỉ 1 lần chậm trả nhỏ không đáng kể. Khách hàng có tài sản thanh khoản 800 triệu VNĐ đủ để đáp ứng các khoản chi phí phát sinh.\",\n  \"riskFactors\": [\n    \"Rủi ro từ kinh doanh thời trang - ngành có tính cạnh tranh cao\",\n    \"Tài sản đảm bảo là nhà cũ xây năm 2010 có thể xuống cấp\",\n    \"Hẻm nhỏ có thể ảnh hưởng đến tính thanh khoản BĐS\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung hồ sơ pháp lý đầy đủ của tài sản đảm bảo\",\n    \"Khuyến nghị mua bảo hiểm khoản vay\",\n    \"Giám sát định kỳ hoạt động kinh doanh của khách hàng\"\n  ],\n  \"approvedAmount\": 2000000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 20,\n  \"monthlyPayment\": 17356464,\n  \"loanToValue\": 0.571,\n  \"debtToIncome\": 0.404,\n  \"conditions\": [\n    \"Mua bảo hiểm khoản vay\",\n    \"Đăng ký thế chấp tại Văn phòng đăng ký đất đai\",\n    \"Duy trì số dư tài khoản thanh toán tối thiểu 100 triệu VNĐ\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3500000000,\n    \"marketAnalysis\": \"Nhà phố 3 tầng 80m² tại trung tâm Hải Phòng có giá thị trường khoảng 40-45 triệu/m². Giá trị ước tính 3.5 tỷ là hợp lý. Vị trí gần chợ, trường học tăng tính thanh khoản.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"customer_description_analysis + market_comparison\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 80000000,\n    \"totalMonthlyDebt\": 15000000,\n    \"newLoanPayment\": 17356464,\n    \"remainingIncome\": 47643535,\n    \"emergencyFund\": 800000000,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"medium\"\n  }\n}\n```"
+}

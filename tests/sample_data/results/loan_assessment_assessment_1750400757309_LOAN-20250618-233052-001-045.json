@@ -1,0 +1,75 @@
+{
+  "assessmentId": "assessment_1750400757309",
+  "applicationId": "LOAN-20250618-233052-001-045",
+  "timestamp": "2025-06-20T13:26:40.065678",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 299000000,
+    "type": "Thế chấp",
+    "term": "01 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 30000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.8692904985189247,
+    "loanToValue": 0.08191780821917809,
+    "estimatedMonthlyPayment": 26078714.95556774
+  },
+  "assessmentResult": {
+    "status": "rejected",
+    "confidence": 0.95,
+    "creditScore": 750,
+    "reasoning": "Hồ sơ vay không đáp ứng các tiêu chuẩn tín dụng cơ bản của ngân hàng Việt Nam. Tỷ lệ nợ/thu nhập (DTI) sau khi vay lên tới 86.9%, vượt xa ngưỡng an toàn 50%. Thu nhập còn lại sau trả nợ chỉ 3.9 triệu VNĐ/tháng, không đủ đảm bảo an toàn tài chính theo quy định. Mặc dù khách hàng có lịch sử tín dụng tốt (CIC nhóm 1) và tài sản đảm bảo có giá trị, nhưng khả năng trả nợ không đáp ứng yêu cầu. Tài sản đảm bảo tuy có vị trí tốt (gần đường Liên Huyện, An Phú) nhưng chưa được định giá chính thức bởi ngân hàng. Hồ sơ thiếu nhiều thông tin cá nhân cơ bản (CCCD, địa chỉ thường trú) làm tăng rủi ro pháp lý.",
+    "riskFactors": [
+      "DTI vượt ngưỡng cho phép (86.9% > 50%)",
+      "Thu nhập còn lại sau trả nợ quá thấp (3.9 triệu VNĐ)",
+      "Thiếu thông tin định danh khách hàng (CCCD, địa chỉ)",
+      "Tài sản chưa được định giá chính thức",
+      "Không có tài sản thanh khoản dự phòng"
+    ],
+    "recommendations": [
+      "Giảm số tiền vay để DTI ≤ 50%",
+      "Bổ sung đầy đủ giấy tờ định danh",
+      "Cung cấp bản sao sổ hồng và giấy tờ liên quan đến tài sản đảm bảo",
+      "Xem xét vay với kỳ hạn dài hơn để giảm áp lực trả nợ hàng tháng",
+      "Bổ sung tài sản đảm bảo thứ 2 hoặc người bảo lãnh"
+    ],
+    "approvedAmount": 0,
+    "interestRate": null,
+    "loanTerm": null,
+    "monthlyPayment": null,
+    "loanToValue": 8.2,
+    "debtToIncome": 86.9,
+    "conditions": [
+      "Không thể phê duyệt trong điều kiện hiện tại",
+      "Yêu cầu điều chỉnh lại cơ cấu khoản vay",
+      "Bắt buộc định giá tài sản bởi đơn vị thẩm định độc lập"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3600000000,
+      "marketAnalysis": "Vị trí đất tại An Phú, Thuận An có tiềm năng tốt do gần trục đường chính (Liên Huyện) và khu vực đang phát triển. Diện tích 125m2 thổ cư 100% là điểm mạnh. Tuy nhiên cần kiểm tra thực tế về tình trạng pháp lý sổ hồng và quy hoạch khu vực.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "customer_description_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 30000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 26078714,
+      "remainingIncome": 3921285,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 42.74360704421997,
+    "totalProcessingTime": 42.75591015815735,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"rejected\",\n  \"confidence\": 0.95,\n  \"creditScore\": 750,\n  \"reasoning\": \"Hồ sơ vay không đáp ứng các tiêu chuẩn tín dụng cơ bản của ngân hàng Việt Nam. Tỷ lệ nợ/thu nhập (DTI) sau khi vay lên tới 86.9%, vượt xa ngưỡng an toàn 50%. Thu nhập còn lại sau trả nợ chỉ 3.9 triệu VNĐ/tháng, không đủ đảm bảo an toàn tài chính theo quy định. Mặc dù khách hàng có lịch sử tín dụng tốt (CIC nhóm 1) và tài sản đảm bảo có giá trị, nhưng khả năng trả nợ không đáp ứng yêu cầu. Tài sản đảm bảo tuy có vị trí tốt (gần đường Liên Huyện, An Phú) nhưng chưa được định giá chính thức bởi ngân hàng. Hồ sơ thiếu nhiều thông tin cá nhân cơ bản (CCCD, địa chỉ thường trú) làm tăng rủi ro pháp lý.\",\n  \"riskFactors\": [\n    \"DTI vượt ngưỡng cho phép (86.9% > 50%)\",\n    \"Thu nhập còn lại sau trả nợ quá thấp (3.9 triệu VNĐ)\",\n    \"Thiếu thông tin định danh khách hàng (CCCD, địa chỉ)\",\n    \"Tài sản chưa được định giá chính thức\",\n    \"Không có tài sản thanh khoản dự phòng\"\n  ],\n  \"recommendations\": [\n    \"Giảm số tiền vay để DTI ≤ 50%\",\n    \"Bổ sung đầy đủ giấy tờ định danh\",\n    \"Cung cấp bản sao sổ hồng và giấy tờ liên quan đến tài sản đảm bảo\",\n    \"Xem xét vay với kỳ hạn dài hơn để giảm áp lực trả nợ hàng tháng\",\n    \"Bổ sung tài sản đảm bảo thứ 2 hoặc người bảo lãnh\"\n  ],\n  \"approvedAmount\": 0,\n  \"interestRate\": null,\n  \"loanTerm\": null,\n  \"monthlyPayment\": null,\n  \"loanToValue\": 8.2,\n  \"debtToIncome\": 86.9,\n  \"conditions\": [\n    \"Không thể phê duyệt trong điều kiện hiện tại\",\n    \"Yêu cầu điều chỉnh lại cơ cấu khoản vay\",\n    \"Bắt buộc định giá tài sản bởi đơn vị thẩm định độc lập\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3600000000,\n    \"marketAnalysis\": \"Vị trí đất tại An Phú, Thuận An có tiềm năng tốt do gần trục đường chính (Liên Huyện) và khu vực đang phát triển. Diện tích 125m2 thổ cư 100% là điểm mạnh. Tuy nhiên cần kiểm tra thực tế về tình trạng pháp lý sổ hồng và quy hoạch khu vực.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"customer_description_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 30000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 26078714,\n    \"remainingIncome\": 3921285,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n```"
+}

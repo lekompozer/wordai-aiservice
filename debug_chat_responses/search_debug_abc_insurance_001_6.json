@@ -1,0 +1,25 @@
+{
+  "query": "claim service",
+  "company_id": "abc_insurance_001",
+  "request": {
+    "query": "claim service",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "claim service",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 6.210765
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:36:52.405876"
+}

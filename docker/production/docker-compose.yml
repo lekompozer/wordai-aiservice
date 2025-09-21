@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  ai-service:
+    image: ${DOCKER_REGISTRY:-ai-chatbot-rag}:production-${TAG:-latest}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../../data:/app/data
+      - ../../logs/production:/app/logs
+    environment:
+      - ENVIRONMENT=production
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - USE_MOCK_EMBEDDING=false
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: "2"

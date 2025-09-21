@@ -1,0 +1,283 @@
+{
+  "success": true,
+  "message": "Auto-categorization extraction completed successfully",
+  "raw_content": "1. Vịt chiên Hong Kong 260K\n2. Gà nấm bí quả (½ con bổ dưỡng) 375K\n3. Gà H'mông nấm bí quả (½ con bổ dưỡng) 450K\n4. Gà quay mật ong Sentosa (1 con) 450K\n5. Gà hấp mắm nhĩ (1 con) 450K\n6. Gà rang muối (1 con) 450K\n7. Gà chiên mắm (1 con) 450K\n8. Gà hấp xì dầu (1 con, rút xương) 450K\n9. Cánh gà chiên giòn 285K\n10. Đùi gà chiên giòn 325K\n11. Chim câu băm xúc bánh đa 215K\n12. Chim câu quay thảo mộc 475K\n13. Bê xào lăn 200K\n14. Bê tái chanh 225K\n15. Bê chao Mộc Châu 250K\n16. Bê cháy tỏi 250K\n17. Bê sữa nướng tảng 325K\n18. Bò xào măng trúc 225K\n19. Bò sốt tiêu đen (kèm bánh bao chiên) 280K\n20. Bò lúc lắc trái thơm 295K\n21. Bò hầm vang đỏ (kèm bánh mỳ) 295K\n22. Thăn bò Mỹ bò lố sốt tiêu xanh 350K\n23. Ếch đồng chiên bơ 225K\n24. Ếch đồng rang muối 225K\n25. Ếch om chuối đậu (kèm bún) 395K\n26. Combo baba (1.6 kg làm 2 món) 1250K\n27. Má heo nướng kiểu Thái 225K\n28. Heo nướng mắc khén 225K\n29. Sườn nướng BBQ 325K\n30. Chân giò chiên giòn bì 365K\n31. Chân giò hầm kiểu Đức 365K\n32. Lợn mán xào lăn 250K\n33. Lợn mán nướng Tây Bắc 275K\n34. Lợn mán nấu rựa mận 365K",
+  "structured_data": {
+    "products": [
+      {
+        "name": "Vịt chiên Hong Kong",
+        "price": 260000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Gà nấm bí quả",
+        "price": 375000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "½ con bổ dưỡng"
+      },
+      {
+        "name": "Gà H'mông nấm bí quả",
+        "price": 450000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "½ con bổ dưỡng"
+      },
+      {
+        "name": "Gà quay mật ong Sentosa",
+        "price": 450000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "1 con"
+      },
+      {
+        "name": "Gà hấp mắm nhĩ",
+        "price": 450000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "1 con"
+      },
+      {
+        "name": "Gà rang muối",
+        "price": 450000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "1 con"
+      },
+      {
+        "name": "Gà chiên mắm",
+        "price": 450000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "1 con"
+      },
+      {
+        "name": "Gà hấp xì dầu",
+        "price": 450000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "1 con, rút xương"
+      },
+      {
+        "name": "Cánh gà chiên giòn",
+        "price": 285000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Đùi gà chiên giòn",
+        "price": 325000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Chim câu băm xúc bánh đa",
+        "price": 215000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Chim câu quay thảo mộc",
+        "price": 475000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bê xào lăn",
+        "price": 200000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bê tái chanh",
+        "price": 225000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bê chao Mộc Châu",
+        "price": 250000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bê cháy tỏi",
+        "price": 250000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bê sữa nướng tảng",
+        "price": 325000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bò xào măng trúc",
+        "price": 225000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bò sốt tiêu đen",
+        "price": 280000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "kèm bánh bao chiên"
+      },
+      {
+        "name": "Bò lúc lắc trái thơm",
+        "price": 295000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Bò hầm vang đỏ",
+        "price": 295000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "kèm bánh mỳ"
+      },
+      {
+        "name": "Thăn bò Mỹ bò lố sốt tiêu xanh",
+        "price": 350000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Ếch đồng chiên bơ",
+        "price": 225000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Ếch đồng rang muối",
+        "price": 225000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Ếch om chuối đậu",
+        "price": 395000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "kèm bún"
+      },
+      {
+        "name": "Combo baba",
+        "price": 1250000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": "1.6 kg làm 2 món"
+      },
+      {
+        "name": "Má heo nướng kiểu Thái",
+        "price": 225000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Heo nướng mắc khén",
+        "price": 225000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Sườn nướng BBQ",
+        "price": 325000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Chân giò chiên giòn bì",
+        "price": 365000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Chân giò hầm kiểu Đức",
+        "price": 365000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Lợn mán xào lăn",
+        "price": 250000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Lợn mán nướng Tây Bắc",
+        "price": 275000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      },
+      {
+        "name": "Lợn mán nấu rựa mận",
+        "price": 365000,
+        "currency": "VND",
+        "category": "main_course",
+        "description": ""
+      }
+    ],
+    "services": [],
+    "extraction_summary": {
+      "total_products": 34,
+      "total_services": 0,
+      "data_quality": "high",
+      "categorization_notes": "All items are categorized as products since they are menu items.",
+      "industry_context": "Traditional Vietnamese restaurant menu items."
+    }
+  },
+  "template_used": "RestaurantExtractionTemplate",
+  "ai_provider": "chatgpt",
+  "industry": "Industry.RESTAURANT",
+  "data_type": "auto_categorized",
+  "processing_time": 58.796631,
+  "total_items_extracted": 34,
+  "extraction_metadata": {
+    "r2_url": "https://agent8x.io.vn/companies/golden-dragon-restaurant/20250714_131220_golden-dragon-menu.jpg",
+    "extraction_mode": "auto_categorization",
+    "target_categories": [
+      "products",
+      "services"
+    ],
+    "ai_provider": "chatgpt",
+    "template_used": "RestaurantExtractionTemplate",
+    "industry": "restaurant",
+    "company_name": "Golden Dragon Restaurant",
+    "file_extension": ".jpg",
+    "extraction_timestamp": "2025-07-16T18:03:40.075769",
+    "total_items": 34,
+    "source": "r2_extraction_service_v2",
+    "categorization_summary": {
+      "products": 34,
+      "services": 0
+    }
+  },
+  "error": null,
+  "error_details": null
+}

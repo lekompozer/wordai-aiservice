@@ -1,0 +1,116 @@
+# IVY Fashion - Thông tin cửa hàng
+
+## Giới thiệu công ty
+IVY Fashion là thương hiệu thời trang nữ hàng đầu Việt Nam, được thành lập năm 2005. Chúng tôi chuyên cung cấp các sản phẩm thời trang công sở và dạo phố cho phụ nữ hiện đại.
+
+## Thông tin liên hệ
+- **Công ty**: Công ty TNHH Thời trang IVY
+- **Địa chỉ**: 789 Nguyễn Thị Minh Khai, Q.3, TP.HCM
+- **Điện thoại**: (028) 3932 5678
+- **Email**: info@ivyfashion.vn
+- **Website**: https://ivyfashion.vn
+- **Fanpage**: facebook.com/ivyfashionvn
+
+## Hệ thống cửa hàng
+### TP.HCM (15 cửa hàng)
+- **Flagship Store**: 789 Nguyễn Thị Minh Khai, Q.3
+- **Vincom Center**: Tầng 2, Vincom Đồng Khởi, Q.1
+- **Crescent Mall**: Tầng 1, Crescent Mall, Q.7
+- **Saigon Centre**: Tầng 3, Saigon Centre, Q.1
+- **Landmark 81**: Tầng B1, Landmark 81, Q. Bình Thạnh
+
+### Hà Nội (10 cửa hàng)
+- **Lotte Center**: Tầng 2, Lotte Center Hanoi
+- **Vincom Bà Triệu**: Tầng 1, Vincom Bà Triệu
+- **Tràng Tiền Plaza**: Tầng 2, Tràng Tiền Plaza
+
+### Tỉnh thành khác (20 cửa hàng)
+- Đà Nẵng: 3 cửa hàng
+- Cần Thơ: 2 cửa hàng  
+- Nha Trang: 2 cửa hàng
+- Hải Phòng: 2 cửa hàng
+- Vũng Tàu: 1 cửa hàng
+- Các tỉnh khác: 10 cửa hàng
+
+## Sản phẩm chính
+### Thời trang công sở
+- Áo blazer cao cấp
+- Áo sơ mi/kiểu công sở
+- Chân váy/Quần tây công sở
+- Đầm công sở thanh lịch
+
+### Thời trang dạo phố
+- Áo thun/tank top basic
+- Váy midi/maxi
+- Quần jeans/shorts
+- Áo khoác cardigan/hoodie
+
+### Thời trang dự tiệc
+- Đầm cocktail
+- Jumpsuit elegant
+- Áo kiểu lụa cao cấp
+- Váy xòe/ôm dáng
+
+## Chất lượng sản phẩm
+- **Chất liệu**: Cotton, lụa, wool, modal cao cấp
+- **Thiết kế**: Theo xu hướng thời trang quốc tế
+- **Size**: XS - XXL (đa dạng size cho người Việt)
+- **Màu sắc**: Palette màu hài hòa, dễ phối đồ
+- **Giá cả**: Trung bình từ 200,000 - 2,000,000 VNĐ
+
+## Dịch vụ khách hàng
+### Online
+- **Website**: Mua sắm trực tuyến 24/7
+- **Mobile App**: IVY Fashion App (iOS/Android)
+- **Social Media**: Instagram, Facebook, TikTok
+- **Live Stream**: Shopping live hàng tuần
+
+### Offline
+- **Tư vấn**: Stylist chuyên nghiệp tại cửa hàng
+- **Try-on**: Thử đồ tại cửa hàng
+- **Tailoring**: Chỉnh sửa size miễn phí
+- **Personal Shopping**: Dịch vụ mua sắm cá nhân hóa
+
+## Chính sách
+### Đổi trả
+- **Thời gian**: 30 ngày kể từ ngày mua
+- **Điều kiện**: Còn nguyên tem mác, chưa qua sử dụng
+- **Địa điểm**: Tại cửa hàng hoặc gửi qua bưu điện
+- **Phí**: Miễn phí đổi trả (lỗi nhà sản xuất)
+
+### Giao hàng
+- **Nội thành**: 2-3 ngày làm việc
+- **Ngoại thành**: 3-5 ngày làm việc
+- **Miễn phí**: Đơn hàng từ 500,000 VNĐ
+- **Express**: Giao trong ngày (TP.HCM, HN)
+
+### Thanh toán
+- **Tiền mặt**: Tại cửa hàng
+- **Thẻ**: Visa, Mastercard, JCB
+- **Ví điện tử**: MoMo, ZaloPay, ShopeePay
+- **Banking**: Chuyển khoản ngân hàng
+- **COD**: Thanh toán khi nhận hàng
+
+## Chương trình khách hàng
+### IVY VIP Club
+- **Điều kiện**: Mua từ 5 triệu VNĐ/năm
+- **Ưu đãi**: 
+  - Giảm 10% mọi sản phẩm
+  - Ưu tiên mua hàng collection mới
+  - Miễn phí giao hàng
+  - Quà tặng sinh nhật
+
+### IVY Premium
+- **Điều kiện**: Mua từ 10 triệu VNĐ/năm
+- **Ưu đãi**:
+  - Giảm 15% mọi sản phẩm
+  - Personal stylist
+  - Private shopping
+  - Sự kiện VIP exclusive
+
+## Thông tin tài chính
+- **Vốn điều lệ**: 50 tỷ VNĐ
+- **Doanh thu năm 2024**: 200 tỷ VNĐ
+- **Lợi nhuận**: 15 tỷ VNĐ
+- **Nhân viên**: 500 người
+- **Nhà cung cấp**: 50 đối tác trong và ngoài nước

@@ -1,0 +1,1074 @@
+{
+  "test_info": {
+    "test_number": 4,
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "scenario": {
+      "language": "en",
+      "message": "I'm staying at your hotel next week and I'm interested in your spa services and Sky Bar. What are the operating hours and prices?",
+      "expected_intent": "GENERAL_INFORMATION",
+      "description": "English - Hotel services inquiry"
+    },
+    "timestamp": "2025-07-31T15:40:27.603953"
+  },
+  "request": {
+    "message": "I'm staying at your hotel next week and I'm interested in your spa services and Sky Bar. What are the operating hours and prices?",
+    "company_id": "xuan_phuong_hotel_001",
+    "industry": "hotel",
+    "language": "en",
+    "user_info": {
+      "user_id": "test_user_4",
+      "device_id": "test_device_4",
+      "source": "web_device",
+      "name": "Test User 4"
+    },
+    "session_id": "test_session_xuan_phuong_hotel_001_4",
+    "context": {
+      "page_url": "https://test.com",
+      "disable_webhooks": true
+    }
+  },
+  "response_chunks": [
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " hiểu",
+      "type": "content"
+    },
+    {
+      "content": " rằng",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " đang",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " kế",
+      "type": "content"
+    },
+    {
+      "content": " hoạch",
+      "type": "content"
+    },
+    {
+      "content": " lưu",
+      "type": "content"
+    },
+    {
+      "content": " trú",
+      "type": "content"
+    },
+    {
+      "content": " tại",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " sạn",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " vào",
+      "type": "content"
+    },
+    {
+      "content": " tuần",
+      "type": "content"
+    },
+    {
+      "content": " tới",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " quan",
+      "type": "content"
+    },
+    {
+      "content": " tâm",
+      "type": "content"
+    },
+    {
+      "content": " đến",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " spa",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " Sky",
+      "type": "content"
+    },
+    {
+      "content": " Bar",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Bạn",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " biết",
+      "type": "content"
+    },
+    {
+      "content": " giờ",
+      "type": "content"
+    },
+    {
+      "content": " hoạt",
+      "type": "content"
+    },
+    {
+      "content": " động",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " giá",
+      "type": "content"
+    },
+    {
+      "content": " cả",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " này",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " nhập",
+      "type": "content"
+    },
+    {
+      "content": " vai",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " Lễ",
+      "type": "content"
+    },
+    {
+      "content": " tân",
+      "type": "content"
+    },
+    {
+      "content": " chuyên",
+      "type": "content"
+    },
+    {
+      "content": " nghiệp",
+      "type": "content"
+    },
+    {
+      "content": " (",
+      "type": "content"
+    },
+    {
+      "content": "ASK",
+      "type": "content"
+    },
+    {
+      "content": "_COMP",
+      "type": "content"
+    },
+    {
+      "content": "ANY",
+      "type": "content"
+    },
+    {
+      "content": "_INFORMATION",
+      "type": "content"
+    },
+    {
+      "content": ")",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " chi",
+      "type": "content"
+    },
+    {
+      "content": " tiết",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Về",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " spa",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " giờ",
+      "type": "content"
+    },
+    {
+      "content": " hoạt",
+      "type": "content"
+    },
+    {
+      "content": " động",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " từ",
+      "type": "content"
+    },
+    {
+      "content": "9",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "00",
+      "type": "content"
+    },
+    {
+      "content": " sáng",
+      "type": "content"
+    },
+    {
+      "content": " đến",
+      "type": "content"
+    },
+    {
+      "content": "9",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "00",
+      "type": "content"
+    },
+    {
+      "content": " tối",
+      "type": "content"
+    },
+    {
+      "content": " từ",
+      "type": "content"
+    },
+    {
+      "content": " thứ",
+      "type": "content"
+    },
+    {
+      "content": " Hai",
+      "type": "content"
+    },
+    {
+      "content": " đến",
+      "type": "content"
+    },
+    {
+      "content": " thứ",
+      "type": "content"
+    },
+    {
+      "content": " Chủ",
+      "type": "content"
+    },
+    {
+      "content": " nhật",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Giá",
+      "type": "content"
+    },
+    {
+      "content": " cả",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " spa",
+      "type": "content"
+    },
+    {
+      "content": " như",
+      "type": "content"
+    },
+    {
+      "content": " sau",
+      "type": "content"
+    },
+    {
+      "content": ":\n",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Massage",
+      "type": "content"
+    },
+    {
+      "content": " thư",
+      "type": "content"
+    },
+    {
+      "content": " giãn",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "1",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "200",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": "/g",
+      "type": "content"
+    },
+    {
+      "content": "iờ",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " T",
+      "type": "content"
+    },
+    {
+      "content": "ắm",
+      "type": "content"
+    },
+    {
+      "content": " hơi",
+      "type": "content"
+    },
+    {
+      "content": " detox",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "800",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": "/l",
+      "type": "content"
+    },
+    {
+      "content": "ượt",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Điều",
+      "type": "content"
+    },
+    {
+      "content": " trị",
+      "type": "content"
+    },
+    {
+      "content": " chăm",
+      "type": "content"
+    },
+    {
+      "content": " sóc",
+      "type": "content"
+    },
+    {
+      "content": " da",
+      "type": "content"
+    },
+    {
+      "content": " mặt",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "1",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "500",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": "/l",
+      "type": "content"
+    },
+    {
+      "content": "ượt",
+      "type": "content"
+    },
+    {
+      "content": "Về",
+      "type": "content"
+    },
+    {
+      "content": " Sky",
+      "type": "content"
+    },
+    {
+      "content": " Bar",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " giờ",
+      "type": "content"
+    },
+    {
+      "content": " hoạt",
+      "type": "content"
+    },
+    {
+      "content": " động",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " từ",
+      "type": "content"
+    },
+    {
+      "content": "5",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "00",
+      "type": "content"
+    },
+    {
+      "content": " chiều",
+      "type": "content"
+    },
+    {
+      "content": " đến",
+      "type": "content"
+    },
+    {
+      "content": "12",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "00",
+      "type": "content"
+    },
+    {
+      "content": " giờ",
+      "type": "content"
+    },
+    {
+      "content": " đêm",
+      "type": "content"
+    },
+    {
+      "content": " từ",
+      "type": "content"
+    },
+    {
+      "content": " thứ",
+      "type": "content"
+    },
+    {
+      "content": " Hai",
+      "type": "content"
+    },
+    {
+      "content": " đến",
+      "type": "content"
+    },
+    {
+      "content": " thứ",
+      "type": "content"
+    },
+    {
+      "content": " Chủ",
+      "type": "content"
+    },
+    {
+      "content": " nhật",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Giá",
+      "type": "content"
+    },
+    {
+      "content": " cả",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " loại",
+      "type": "content"
+    },
+    {
+      "content": " đồ",
+      "type": "content"
+    },
+    {
+      "content": " uống",
+      "type": "content"
+    },
+    {
+      "content": " tại",
+      "type": "content"
+    },
+    {
+      "content": " Sky",
+      "type": "content"
+    },
+    {
+      "content": " Bar",
+      "type": "content"
+    },
+    {
+      "content": " như",
+      "type": "content"
+    },
+    {
+      "content": " sau",
+      "type": "content"
+    },
+    {
+      "content": ":\n",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Cocktail",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "250",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": "/",
+      "type": "content"
+    },
+    {
+      "content": "ly",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " R",
+      "type": "content"
+    },
+    {
+      "content": "ượu",
+      "type": "content"
+    },
+    {
+      "content": " vang",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "300",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": "/",
+      "type": "content"
+    },
+    {
+      "content": "ly",
+      "type": "content"
+    },
+    {
+      "content": "-",
+      "type": "content"
+    },
+    {
+      "content": " Đ",
+      "type": "content"
+    },
+    {
+      "content": "ồ",
+      "type": "content"
+    },
+    {
+      "content": " uống",
+      "type": "content"
+    },
+    {
+      "content": " không",
+      "type": "content"
+    },
+    {
+      "content": " c",
+      "type": "content"
+    },
+    {
+      "content": "ồn",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": "150",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "000",
+      "type": "content"
+    },
+    {
+      "content": " VND",
+      "type": "content"
+    },
+    {
+      "content": "/",
+      "type": "content"
+    },
+    {
+      "content": "ly",
+      "type": "content"
+    },
+    {
+      "content": "Nếu",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " hoặc",
+      "type": "content"
+    },
+    {
+      "content": " muốn",
+      "type": "content"
+    },
+    {
+      "content": " đặt",
+      "type": "content"
+    },
+    {
+      "content": " lịch",
+      "type": "content"
+    },
+    {
+      "content": " sử",
+      "type": "content"
+    },
+    {
+      "content": " dụng",
+      "type": "content"
+    },
+    {
+      "content": " dịch",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " spa",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " vui",
+      "type": "content"
+    },
+    {
+      "content": " lòng",
+      "type": "content"
+    },
+    {
+      "content": " cho",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " biết",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " sẵn",
+      "type": "content"
+    },
+    {
+      "content": " sàng",
+      "type": "content"
+    },
+    {
+      "content": " hỗ",
+      "type": "content"
+    },
+    {
+      "content": " trợ",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "full_response": "Tôi hiểu rằng bạn đang có kế hoạch lưu trú tại khách sạn của chúng tôi vào tuần tới và bạn quan tâm đến các dịch vụ spa và Sky Bar của chúng tôi. Bạn muốn biết giờ hoạt động và giá cả của các dịch vụ này.\n\nTôi nhập vai là Lễ tân chuyên nghiệp (ASK_COMPANY_INFORMATION) để cung cấp thông tin chi tiết cho bạn.\n\nVề dịch vụ spa của chúng tôi, giờ hoạt động là từ9:00 sáng đến9:00 tối từ thứ Hai đến thứ Chủ nhật. Giá cả của các dịch vụ spa như sau:\n- Massage thư giãn:1.200.000 VND/giờ- Tắm hơi detox:800.000 VND/lượt- Điều trị chăm sóc da mặt:1.500.000 VND/lượtVề Sky Bar, giờ hoạt động là từ5:00 chiều đến12:00 giờ đêm từ thứ Hai đến thứ Chủ nhật. Giá cả của các loại đồ uống tại Sky Bar như sau:\n- Cocktail:250.000 VND/ly- Rượu vang:300.000 VND/ly- Đồ uống không cồn:150.000 VND/lyNếu bạn cần thêm thông tin hoặc muốn đặt lịch sử dụng dịch vụ spa, vui lòng cho tôi biết. Chúng tôi sẵn sàng hỗ trợ bạn.",
+  "status": 200
+}

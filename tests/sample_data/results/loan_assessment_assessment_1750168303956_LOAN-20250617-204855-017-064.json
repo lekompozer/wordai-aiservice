@@ -1,0 +1,71 @@
+{
+  "assessmentId": "assessment_1750168303956",
+  "applicationId": "LOAN-20250617-204855-017-064",
+  "timestamp": "2025-06-17T20:52:31.520272",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1099000000,
+    "type": "Thế chấp",
+    "term": "20 năm",
+    "purpose": "Vay mua bất động sản"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 80000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.11921721668359023,
+    "loanToValue": 0.3010958904109589,
+    "estimatedMonthlyPayment": 9537377.334687218
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.95,
+    "creditScore": 850,
+    "reasoning": "Hồ sơ đáp ứng đầy đủ các tiêu chuẩn thẩm định tín dụng của ngân hàng Việt Nam. Khách hàng có thu nhập cao (80 triệu VNĐ/tháng) và ổn định (10 năm kinh nghiệm tại vị trí CEO), không có nợ hiện tại, nhóm CIC 1 (rất tốt). Tài sản đảm bảo là bất động sản có giá trị thị trường ước tính 3.6 tỷ VNĐ, pháp lý rõ ràng (sổ hồng riêng), vị trí thuận lợi tại khu vực đang phát triển. Tỷ lệ DTI sau vay chỉ 11.9% (dưới ngưỡng 50%), LTV dự kiến 30.1% (dưới ngưỡng 70%), dòng tiền dư sau trả nợ lên tới 70.5 triệu VNĐ/tháng. Đây là hồ sơ chất lượng cao với rủi ro tín dụng thấp.",
+    "riskFactors": [
+      "Rủi ro biến động thị trường bất động sản Bình Dương",
+      "Rủi ro thu nhập phụ thuộc vào một nguồn (lương)",
+      "Rủi ro pháp lý tiềm ẩn chưa kiểm tra hồ sơ gốc"
+    ],
+    "recommendations": [
+      "Kiểm tra trực tiếp hồ sơ pháp lý gốc của bất động sản",
+      "Xác minh thu nhập qua sao kê ngân hàng 6 tháng gần nhất",
+      "Cân nhắc bảo hiểm khoản vay để giảm thiểu rủi ro"
+    ],
+    "approvedAmount": 1100000000,
+    "interestRate": 8.5,
+    "loanTerm": 20,
+    "monthlyPayment": 9537377,
+    "loanToValue": 30.1,
+    "debtToIncome": 11.9,
+    "conditions": [
+      "Hoàn thiện hồ sơ pháp lý tài sản đảm bảo",
+      "Mua bảo hiểm khoản vay",
+      "Duy trì tài khoản thanh toán tại ngân hàng"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Đất thổ cư 125m2 tại phường An Phú (Thuận An) có giá thị trường 25-35 triệu/m2. Vị trí cách đường Liên Huyện 50m, hẻm rộng 17m, sổ hồng riêng. Giá 3.6 tỷ (28.8 triệu/m2) phù hợp với khu vực đang phát triển.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "comparable_market_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 80000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 9537377,
+      "remainingIncome": 70462623,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "medium"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 47.55398511886597,
+    "totalProcessingTime": 47.56413292884827,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.95,\n  \"creditScore\": 850,\n  \"reasoning\": \"Hồ sơ đáp ứng đầy đủ các tiêu chuẩn thẩm định tín dụng của ngân hàng Việt Nam. Khách hàng có thu nhập cao (80 triệu VNĐ/tháng) và ổn định (10 năm kinh nghiệm tại vị trí CEO), không có nợ hiện tại, nhóm CIC 1 (rất tốt). Tài sản đảm bảo là bất động sản có giá trị thị trường ước tính 3.6 tỷ VNĐ, pháp lý rõ ràng (sổ hồng riêng), vị trí thuận lợi tại khu vực đang phát triển. Tỷ lệ DTI sau vay chỉ 11.9% (dưới ngưỡng 50%), LTV dự kiến 30.1% (dưới ngưỡng 70%), dòng tiền dư sau trả nợ lên tới 70.5 triệu VNĐ/tháng. Đây là hồ sơ chất lượng cao với rủi ro tín dụng thấp.\",\n  \"riskFactors\": [\n    \"Rủi ro biến động thị trường bất động sản Bình Dương\",\n    \"Rủi ro thu nhập phụ thuộc vào một nguồn (lương)\",\n    \"Rủi ro pháp lý tiềm ẩn chưa kiểm tra hồ sơ gốc\"\n  ],\n  \"recommendations\": [\n    \"Kiểm tra trực tiếp hồ sơ pháp lý gốc của bất động sản\",\n    \"Xác minh thu nhập qua sao kê ngân hàng 6 tháng gần nhất\",\n    \"Cân nhắc bảo hiểm khoản vay để giảm thiểu rủi ro\"\n  ],\n  \"approvedAmount\": 1100000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 20,\n  \"monthlyPayment\": 9537377,\n  \"loanToValue\": 30.1,\n  \"debtToIncome\": 11.9,\n  \"conditions\": [\n    \"Hoàn thiện hồ sơ pháp lý tài sản đảm bảo\",\n    \"Mua bảo hiểm khoản vay\",\n    \"Duy trì tài khoản thanh toán tại ngân hàng\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Đất thổ cư 125m2 tại phường An Phú (Thuận An) có giá thị trường 25-35 triệu/m2. Vị trí cách đường Liên Huyện 50m, hẻm rộng 17m, sổ hồng riêng. Giá 3.6 tỷ (28.8 triệu/m2) phù hợp với khu vực đang phát triển.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"comparable_market_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 80000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 9537377,\n    \"remainingIncome\": 70462623,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"medium\"\n  }\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Phân tích khả năng tài chính:**\n   - DTI trước vay: 0% (không có nợ hiện tại)\n   - DTI sau vay: 11.9% (9.5tr/80tr) << 50% tiêu chuẩn\n   - Dòng tiền dư sau trả nợ: 70.5tr >> 15tr yêu cầu\n   - Thu nhập ổn định 10 năm tại vị trí CEO Savills\n\n2. **Thẩm định tài sản đảm bảo:**\n   - Giá trị tài sản: 3.65 tỷ (thận trọng hơn giá khách hàng)\n   - LTV: 30.1% (1.1 tỷ/3.65 tỷ) << 70% an toàn\n   - Pháp lý: Sổ hồng riêng, thổ cư 100%\n   - Vị trí: Khu vực đang phát triển, giao thông thuận lợi\n\n3. **Đánh giá rủi ro tín dụng:**\n   - CIC nhóm 1 (lịch sử tín dụng hoàn hảo)\n   - Không có nợ xấu hay nợ quá hạn\n   - Thu nhập cao và ổn định\n   - Rủi ro chính: Biến động thị trường BĐS\n\n4. **Điều kiện bổ sung:**\n   - Kiểm tra hồ sơ pháp lý gốc\n   - Xác minh thu nhập qua sao kê\n   - Mua bảo hiểm khoản vay\n   - Duy trì quan hệ ngân hàng\n\n**KẾT LUẬN:** Hồ sơ đạt tiêu chuẩn cho vay cao nhất với lãi suất ưu đãi 8.5%/năm trong 20 năm. Khả năng trả nợ cực kỳ tốt, tài sản đảm bảo chất lượng."
+}

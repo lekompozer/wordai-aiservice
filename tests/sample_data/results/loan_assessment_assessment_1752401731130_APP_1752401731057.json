@@ -1,0 +1,89 @@
+{
+  "assessmentId": "assessment_1752401731130",
+  "applicationId": "APP_1752401731057",
+  "timestamp": "2025-07-13T17:16:17.553864",
+  "applicant": {
+    "name": "Pham Ba Duy",
+    "idNumber": "Chưa cung cấp",
+    "age": 36
+  },
+  "loanRequest": {
+    "amount": 3000000000,
+    "type": "Thế chấp",
+    "term": "5 năm",
+    "purpose": "Mua nhà"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 3000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 18871.233644010987,
+    "loanToValue": 0,
+    "estimatedMonthlyPayment": 56613700.932032965
+  },
+  "assessmentResult": {
+    "status": "rejected",
+    "confidence": 0.95,
+    "creditScore": 0,
+    "reasoning": "Hồ sơ vay không đáp ứng các tiêu chuẩn tín dụng cơ bản của ngân hàng Việt Nam. Phân tích chi tiết: (1) Khả năng tài chính: Khách hàng không cung cấp thông tin thu nhập (ghi 0 triệu VNĐ/tháng) trong khi khoản trả nợ dự kiến lên tới 56.6 triệu VNĐ/tháng, tỷ lệ DTI vượt quá 1,800,000% - hoàn toàn không khả thi. (2) Tài sản đảm bảo: Không có mô tả chi tiết về tài sản thế chấp, giá trị ước tính 0 tỷ VNĐ không đủ đảm bảo khoản vay 3 tỷ. (3) Thông tin cá nhân thiếu các giấy tờ cơ bản như CCCD, địa chỉ thường trú. (4) Kinh nghiệm làm việc 0 năm tại vị trí sales credit tại ACB bank cho thấy thu nhập không ổn định.",
+    "riskFactors": [
+      "Không có khả năng trả nợ do thu nhập = 0",
+      "Tài sản đảm bảo không xác định được giá trị",
+      "Thiếu thông tin nhận dạng khách hàng (CCCD)",
+      "Lịch sử tín dụng không rõ ràng"
+    ],
+    "recommendations": [
+      "Yêu cầu khách hàng cung cấp bằng chứng thu nhập ít nhất 60 triệu VNĐ/tháng",
+      "Bổ sung đầy đủ giấy tờ nhận dạng và địa chỉ thường trú",
+      "Cần định giá chính thức tài sản đảm bảo bởi đơn vị thẩm định độc lập"
+    ],
+    "approvedAmount": 0,
+    "interestRate": 0,
+    "loanTerm": 0,
+    "monthlyPayment": 0,
+    "loanToValue": 0,
+    "debtToIncome": 1887123.4,
+    "conditions": [
+      "Chỉ xem xét lại khi có xác nhận thu nhập từ ACB Bank",
+      "Tài sản đảm bảo phải được định giá ≥ 4.3 tỷ VNĐ (LTV 70%)",
+      "Cung cấp đầy đủ CCCD và sổ hộ khẩu"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 0,
+      "marketAnalysis": "Không thể đánh giá do thiếu thông tin mô tả tài sản (địa chỉ, diện tích, tình trạng pháp lý, hiện trạng xây dựng)",
+      "liquidityRisk": "high",
+      "valuationMethod": "insufficient_data"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 0,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 56613700,
+      "remainingIncome": -56613700,
+      "emergencyFund": 0,
+      "incomeStability": "low",
+      "assetLiquidity": "low"
+    },
+    "nextSteps": [
+      "Thông báo từ chối hồ sơ và gửi lý do chi tiết",
+      "Hướng dẫn khách hàng bổ sung hồ sơ theo yêu cầu",
+      "Đề xuất gói vay phù hợp hơn nếu có thu nhập chứng minh được"
+    ],
+    "documentRequirements": [
+      "Hợp đồng lao động + sao kê lương 3 tháng gần nhất",
+      "Bản sao CCCD + sổ hộ khẩu công chứng",
+      "Giấy tờ pháp lý tài sản đảm bảo (sổ đỏ, giấy phép xây dựng)",
+      "Báo cáo định giá tài sản từ đơn vị được ngân hàng chỉ định"
+    ],
+    "estimatedProcessingTime": "5 ngày làm việc sau khi nhận đủ hồ sơ hợp lệ",
+    "contactInfo": {
+      "hotline": "1900-9090",
+      "email": "credit@vietinbank.vn",
+      "salesAgent": "Phòng Tín dụng Cá nhân - VietinBank"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 45.16736602783203,
+    "totalProcessingTime": 46.42330813407898,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"rejected\",\n  \"confidence\": 0.95,\n  \"creditScore\": 0,\n  \"reasoning\": \"Hồ sơ vay không đáp ứng các tiêu chuẩn tín dụng cơ bản của ngân hàng Việt Nam. Phân tích chi tiết: (1) Khả năng tài chính: Khách hàng không cung cấp thông tin thu nhập (ghi 0 triệu VNĐ/tháng) trong khi khoản trả nợ dự kiến lên tới 56.6 triệu VNĐ/tháng, tỷ lệ DTI vượt quá 1,800,000% - hoàn toàn không khả thi. (2) Tài sản đảm bảo: Không có mô tả chi tiết về tài sản thế chấp, giá trị ước tính 0 tỷ VNĐ không đủ đảm bảo khoản vay 3 tỷ. (3) Thông tin cá nhân thiếu các giấy tờ cơ bản như CCCD, địa chỉ thường trú. (4) Kinh nghiệm làm việc 0 năm tại vị trí sales credit tại ACB bank cho thấy thu nhập không ổn định.\",\n  \"riskFactors\": [\n    \"Không có khả năng trả nợ do thu nhập = 0\",\n    \"Tài sản đảm bảo không xác định được giá trị\",\n    \"Thiếu thông tin nhận dạng khách hàng (CCCD)\",\n    \"Lịch sử tín dụng không rõ ràng\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu khách hàng cung cấp bằng chứng thu nhập ít nhất 60 triệu VNĐ/tháng\",\n    \"Bổ sung đầy đủ giấy tờ nhận dạng và địa chỉ thường trú\",\n    \"Cần định giá chính thức tài sản đảm bảo bởi đơn vị thẩm định độc lập\"\n  ],\n  \"approvedAmount\": 0,\n  \"interestRate\": 0,\n  \"loanTerm\": 0,\n  \"monthlyPayment\": 0,\n  \"loanToValue\": 0,\n  \"debtToIncome\": 1887123.4,\n  \"conditions\": [\n    \"Chỉ xem xét lại khi có xác nhận thu nhập từ ACB Bank\",\n    \"Tài sản đảm bảo phải được định giá ≥ 4.3 tỷ VNĐ (LTV 70%)\",\n    \"Cung cấp đầy đủ CCCD và sổ hộ khẩu\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 0,\n    \"marketAnalysis\": \"Không thể đánh giá do thiếu thông tin mô tả tài sản (địa chỉ, diện tích, tình trạng pháp lý, hiện trạng xây dựng)\",\n    \"liquidityRisk\": \"high\",\n    \"valuationMethod\": \"insufficient_data\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 0,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 56613700,\n    \"remainingIncome\": -56613700,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"low\",\n    \"assetLiquidity\": \"low\"\n  },\n  \"nextSteps\": [\n    \"Thông báo từ chối hồ sơ và gửi lý do chi tiết\",\n    \"Hướng dẫn khách hàng bổ sung hồ sơ theo yêu cầu\",\n    \"Đề xuất gói vay phù hợp hơn nếu có thu nhập chứng minh được\"\n  ],\n  \"documentRequirements\": [\n    \"Hợp đồng lao động + sao kê lương 3 tháng gần nhất\",\n    \"Bản sao CCCD + sổ hộ khẩu công chứng\",\n    \"Giấy tờ pháp lý tài sản đảm bảo (sổ đỏ, giấy phép xây dựng)\",\n    \"Báo cáo định giá tài sản từ đơn vị được ngân hàng chỉ định\"\n  ],\n  \"estimatedProcessingTime\": \"5 ngày làm việc sau khi nhận đủ hồ sơ hợp lệ\",\n  \"contactInfo\": {\n    \"hotline\": \"1900-9090\",\n    \"email\": \"credit@vietinbank.vn\",\n    \"salesAgent\": \"Phòng Tín dụng Cá nhân - VietinBank\"\n  }\n}\n```"
+}

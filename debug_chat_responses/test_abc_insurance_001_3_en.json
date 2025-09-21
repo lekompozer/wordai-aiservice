@@ -1,0 +1,1386 @@
+{
+  "test_info": {
+    "test_number": 3,
+    "company_id": "abc_insurance_001",
+    "industry": "insurance",
+    "scenario": {
+      "language": "en",
+      "message": "Hello, I had an accident and need to claim my car insurance. What documents do I need to prepare?",
+      "expected_intent": "SUPPORT",
+      "description": "English - Insurance claim support"
+    },
+    "timestamp": "2025-07-31T15:39:35.097060"
+  },
+  "request": {
+    "message": "Hello, I had an accident and need to claim my car insurance. What documents do I need to prepare?",
+    "company_id": "abc_insurance_001",
+    "industry": "insurance",
+    "language": "en",
+    "user_info": {
+      "user_id": "test_user_3",
+      "device_id": "test_device_3",
+      "source": "web_device",
+      "name": "Test User 3"
+    },
+    "session_id": "test_session_abc_insurance_001_3",
+    "context": {
+      "page_url": "https://test.com",
+      "disable_webhooks": true
+    }
+  },
+  "response_chunks": [
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " xin",
+      "type": "content"
+    },
+    {
+      "content": " lỗi",
+      "type": "content"
+    },
+    {
+      "content": " vì",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " bất",
+      "type": "content"
+    },
+    {
+      "content": " tiện",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " nhưng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " giúp",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " ngay",
+      "type": "content"
+    },
+    {
+      "content": " lập",
+      "type": "content"
+    },
+    {
+      "content": " tức",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": "D",
+      "type": "content"
+    },
+    {
+      "content": "ựa",
+      "type": "content"
+    },
+    {
+      "content": " trên",
+      "type": "content"
+    },
+    {
+      "content": " câu",
+      "type": "content"
+    },
+    {
+      "content": " hỏi",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ":",
+      "type": "content"
+    },
+    {
+      "content": " \"",
+      "type": "content"
+    },
+    {
+      "content": "Hello",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " I",
+      "type": "content"
+    },
+    {
+      "content": " had",
+      "type": "content"
+    },
+    {
+      "content": " an",
+      "type": "content"
+    },
+    {
+      "content": " accident",
+      "type": "content"
+    },
+    {
+      "content": " and",
+      "type": "content"
+    },
+    {
+      "content": " need",
+      "type": "content"
+    },
+    {
+      "content": " to",
+      "type": "content"
+    },
+    {
+      "content": " claim",
+      "type": "content"
+    },
+    {
+      "content": " my",
+      "type": "content"
+    },
+    {
+      "content": " car",
+      "type": "content"
+    },
+    {
+      "content": " insurance",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " What",
+      "type": "content"
+    },
+    {
+      "content": " documents",
+      "type": "content"
+    },
+    {
+      "content": " do",
+      "type": "content"
+    },
+    {
+      "content": " I",
+      "type": "content"
+    },
+    {
+      "content": " need",
+      "type": "content"
+    },
+    {
+      "content": " to",
+      "type": "content"
+    },
+    {
+      "content": " prepare",
+      "type": "content"
+    },
+    {
+      "content": "?",
+      "type": "content"
+    },
+    {
+      "content": "\"\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Tôi",
+      "type": "content"
+    },
+    {
+      "content": " xác",
+      "type": "content"
+    },
+    {
+      "content": " định",
+      "type": "content"
+    },
+    {
+      "content": " INTENT",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " SUPPORT",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " vì",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " hỗ",
+      "type": "content"
+    },
+    {
+      "content": " trợ",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " thủ",
+      "type": "content"
+    },
+    {
+      "content": " tục",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " liệu",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " thiết",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " khiếu",
+      "type": "content"
+    },
+    {
+      "content": " nại",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": " sau",
+      "type": "content"
+    },
+    {
+      "content": " khi",
+      "type": "content"
+    },
+    {
+      "content": " gặp",
+      "type": "content"
+    },
+    {
+      "content": " tai",
+      "type": "content"
+    },
+    {
+      "content": " nạn",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Với",
+      "type": "content"
+    },
+    {
+      "content": " vai",
+      "type": "content"
+    },
+    {
+      "content": " trò",
+      "type": "content"
+    },
+    {
+      "content": " là",
+      "type": "content"
+    },
+    {
+      "content": " Trưởng",
+      "type": "content"
+    },
+    {
+      "content": " bộ",
+      "type": "content"
+    },
+    {
+      "content": " phận",
+      "type": "content"
+    },
+    {
+      "content": " chăm",
+      "type": "content"
+    },
+    {
+      "content": " sóc",
+      "type": "content"
+    },
+    {
+      "content": " khách",
+      "type": "content"
+    },
+    {
+      "content": " hàng",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " sẽ",
+      "type": "content"
+    },
+    {
+      "content": " hỗ",
+      "type": "content"
+    },
+    {
+      "content": " trợ",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " một",
+      "type": "content"
+    },
+    {
+      "content": " cách",
+      "type": "content"
+    },
+    {
+      "content": " chu",
+      "type": "content"
+    },
+    {
+      "content": " đáo",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Để",
+      "type": "content"
+    },
+    {
+      "content": " tiến",
+      "type": "content"
+    },
+    {
+      "content": " hành",
+      "type": "content"
+    },
+    {
+      "content": " khiếu",
+      "type": "content"
+    },
+    {
+      "content": " nại",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": " sau",
+      "type": "content"
+    },
+    {
+      "content": " khi",
+      "type": "content"
+    },
+    {
+      "content": " gặp",
+      "type": "content"
+    },
+    {
+      "content": " tai",
+      "type": "content"
+    },
+    {
+      "content": " nạn",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " thường",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " chuẩn",
+      "type": "content"
+    },
+    {
+      "content": " bị",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " liệu",
+      "type": "content"
+    },
+    {
+      "content": " sau",
+      "type": "content"
+    },
+    {
+      "content": ":\n\n",
+      "type": "content"
+    },
+    {
+      "content": "1",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "Gi",
+      "type": "content"
+    },
+    {
+      "content": "ấy",
+      "type": "content"
+    },
+    {
+      "content": " tờ",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": "**:",
+      "type": "content"
+    },
+    {
+      "content": " Bao",
+      "type": "content"
+    },
+    {
+      "content": " gồm",
+      "type": "content"
+    },
+    {
+      "content": " giấy",
+      "type": "content"
+    },
+    {
+      "content": " đăng",
+      "type": "content"
+    },
+    {
+      "content": " ký",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " giấy",
+      "type": "content"
+    },
+    {
+      "content": " phép",
+      "type": "content"
+    },
+    {
+      "content": " lái",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ".\n",
+      "type": "content"
+    },
+    {
+      "content": "2",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "Báo",
+      "type": "content"
+    },
+    {
+      "content": " cáo",
+      "type": "content"
+    },
+    {
+      "content": " tai",
+      "type": "content"
+    },
+    {
+      "content": " nạn",
+      "type": "content"
+    },
+    {
+      "content": "**:",
+      "type": "content"
+    },
+    {
+      "content": " Báo",
+      "type": "content"
+    },
+    {
+      "content": " cáo",
+      "type": "content"
+    },
+    {
+      "content": " chi",
+      "type": "content"
+    },
+    {
+      "content": " tiết",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " vụ",
+      "type": "content"
+    },
+    {
+      "content": " tai",
+      "type": "content"
+    },
+    {
+      "content": " nạn",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bao",
+      "type": "content"
+    },
+    {
+      "content": " gồm",
+      "type": "content"
+    },
+    {
+      "content": " thời",
+      "type": "content"
+    },
+    {
+      "content": " gian",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " địa",
+      "type": "content"
+    },
+    {
+      "content": " điểm",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " mô",
+      "type": "content"
+    },
+    {
+      "content": " tả",
+      "type": "content"
+    },
+    {
+      "content": " sự",
+      "type": "content"
+    },
+    {
+      "content": " việc",
+      "type": "content"
+    },
+    {
+      "content": ".\n",
+      "type": "content"
+    },
+    {
+      "content": "3",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "Ch",
+      "type": "content"
+    },
+    {
+      "content": "ứng",
+      "type": "content"
+    },
+    {
+      "content": " từ",
+      "type": "content"
+    },
+    {
+      "content": " ảnh",
+      "type": "content"
+    },
+    {
+      "content": "**:",
+      "type": "content"
+    },
+    {
+      "content": " Ảnh",
+      "type": "content"
+    },
+    {
+      "content": " chụp",
+      "type": "content"
+    },
+    {
+      "content": " hiện",
+      "type": "content"
+    },
+    {
+      "content": " trường",
+      "type": "content"
+    },
+    {
+      "content": " tai",
+      "type": "content"
+    },
+    {
+      "content": " nạn",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " ảnh",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": " hư",
+      "type": "content"
+    },
+    {
+      "content": " hỏng",
+      "type": "content"
+    },
+    {
+      "content": ".\n",
+      "type": "content"
+    },
+    {
+      "content": "4",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "Gi",
+      "type": "content"
+    },
+    {
+      "content": "ấy",
+      "type": "content"
+    },
+    {
+      "content": " chứng",
+      "type": "content"
+    },
+    {
+      "content": " nhận",
+      "type": "content"
+    },
+    {
+      "content": " tai",
+      "type": "content"
+    },
+    {
+      "content": " nạn",
+      "type": "content"
+    },
+    {
+      "content": "**:",
+      "type": "content"
+    },
+    {
+      "content": " Nếu",
+      "type": "content"
+    },
+    {
+      "content": " có",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " giấy",
+      "type": "content"
+    },
+    {
+      "content": " chứng",
+      "type": "content"
+    },
+    {
+      "content": " nhận",
+      "type": "content"
+    },
+    {
+      "content": " tai",
+      "type": "content"
+    },
+    {
+      "content": " nạn",
+      "type": "content"
+    },
+    {
+      "content": " từ",
+      "type": "content"
+    },
+    {
+      "content": " cảnh",
+      "type": "content"
+    },
+    {
+      "content": " sát",
+      "type": "content"
+    },
+    {
+      "content": " hoặc",
+      "type": "content"
+    },
+    {
+      "content": " cơ",
+      "type": "content"
+    },
+    {
+      "content": " quan",
+      "type": "content"
+    },
+    {
+      "content": " chức",
+      "type": "content"
+    },
+    {
+      "content": " năng",
+      "type": "content"
+    },
+    {
+      "content": ".\n",
+      "type": "content"
+    },
+    {
+      "content": "5",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "Th",
+      "type": "content"
+    },
+    {
+      "content": "ẻ",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": "**:",
+      "type": "content"
+    },
+    {
+      "content": " Th",
+      "type": "content"
+    },
+    {
+      "content": "ẻ",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " xe",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ".\n",
+      "type": "content"
+    },
+    {
+      "content": "6",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " **",
+      "type": "content"
+    },
+    {
+      "content": "Bản",
+      "type": "content"
+    },
+    {
+      "content": " kê",
+      "type": "content"
+    },
+    {
+      "content": " khai",
+      "type": "content"
+    },
+    {
+      "content": " yêu",
+      "type": "content"
+    },
+    {
+      "content": " cầu",
+      "type": "content"
+    },
+    {
+      "content": " bồi",
+      "type": "content"
+    },
+    {
+      "content": " thường",
+      "type": "content"
+    },
+    {
+      "content": "**:",
+      "type": "content"
+    },
+    {
+      "content": " Mẫu",
+      "type": "content"
+    },
+    {
+      "content": " đơn",
+      "type": "content"
+    },
+    {
+      "content": " do",
+      "type": "content"
+    },
+    {
+      "content": " công",
+      "type": "content"
+    },
+    {
+      "content": " ty",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " cung",
+      "type": "content"
+    },
+    {
+      "content": " cấp",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " điền",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " ký",
+      "type": "content"
+    },
+    {
+      "content": " tên",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Hãy",
+      "type": "content"
+    },
+    {
+      "content": " liên",
+      "type": "content"
+    },
+    {
+      "content": " hệ",
+      "type": "content"
+    },
+    {
+      "content": " với",
+      "type": "content"
+    },
+    {
+      "content": " công",
+      "type": "content"
+    },
+    {
+      "content": " ty",
+      "type": "content"
+    },
+    {
+      "content": " bảo",
+      "type": "content"
+    },
+    {
+      "content": " hiểm",
+      "type": "content"
+    },
+    {
+      "content": " của",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " được",
+      "type": "content"
+    },
+    {
+      "content": " hướng",
+      "type": "content"
+    },
+    {
+      "content": " dẫn",
+      "type": "content"
+    },
+    {
+      "content": " cụ",
+      "type": "content"
+    },
+    {
+      "content": " thể",
+      "type": "content"
+    },
+    {
+      "content": " và",
+      "type": "content"
+    },
+    {
+      "content": " chính",
+      "type": "content"
+    },
+    {
+      "content": " xác",
+      "type": "content"
+    },
+    {
+      "content": " hơn",
+      "type": "content"
+    },
+    {
+      "content": " về",
+      "type": "content"
+    },
+    {
+      "content": " các",
+      "type": "content"
+    },
+    {
+      "content": " tài",
+      "type": "content"
+    },
+    {
+      "content": " liệu",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " thiết",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " cũng",
+      "type": "content"
+    },
+    {
+      "content": " như",
+      "type": "content"
+    },
+    {
+      "content": " quy",
+      "type": "content"
+    },
+    {
+      "content": " trình",
+      "type": "content"
+    },
+    {
+      "content": " khiếu",
+      "type": "content"
+    },
+    {
+      "content": " nại",
+      "type": "content"
+    },
+    {
+      "content": ".\n\n",
+      "type": "content"
+    },
+    {
+      "content": "Nếu",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": " cần",
+      "type": "content"
+    },
+    {
+      "content": " thêm",
+      "type": "content"
+    },
+    {
+      "content": " thông",
+      "type": "content"
+    },
+    {
+      "content": " tin",
+      "type": "content"
+    },
+    {
+      "content": " hoặc",
+      "type": "content"
+    },
+    {
+      "content": " hỗ",
+      "type": "content"
+    },
+    {
+      "content": " trợ",
+      "type": "content"
+    },
+    {
+      "content": ",",
+      "type": "content"
+    },
+    {
+      "content": " xin",
+      "type": "content"
+    },
+    {
+      "content": " đừng",
+      "type": "content"
+    },
+    {
+      "content": " ng",
+      "type": "content"
+    },
+    {
+      "content": "ần",
+      "type": "content"
+    },
+    {
+      "content": " ngại",
+      "type": "content"
+    },
+    {
+      "content": " hỏi",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "content": " Chúng",
+      "type": "content"
+    },
+    {
+      "content": " tôi",
+      "type": "content"
+    },
+    {
+      "content": " luôn",
+      "type": "content"
+    },
+    {
+      "content": " ở",
+      "type": "content"
+    },
+    {
+      "content": " đây",
+      "type": "content"
+    },
+    {
+      "content": " để",
+      "type": "content"
+    },
+    {
+      "content": " giúp",
+      "type": "content"
+    },
+    {
+      "content": " đỡ",
+      "type": "content"
+    },
+    {
+      "content": " bạn",
+      "type": "content"
+    },
+    {
+      "content": ".",
+      "type": "content"
+    },
+    {
+      "type": "done"
+    }
+  ],
+  "full_response": "Tôi xin lỗi vì sự bất tiện, nhưng tôi có thể giúp bạn ngay lập tức.Dựa trên câu hỏi của bạn: \"Hello, I had an accident and need to claim my car insurance. What documents do I need to prepare?\"\n\nTôi xác định INTENT của bạn là SUPPORT, vì bạn cần hỗ trợ về thủ tục và tài liệu cần thiết để khiếu nại bảo hiểm xe sau khi gặp tai nạn.\n\nVới vai trò là Trưởng bộ phận chăm sóc khách hàng, tôi sẽ hỗ trợ bạn một cách chu đáo.\n\nĐể tiến hành khiếu nại bảo hiểm xe sau khi gặp tai nạn, bạn thường cần chuẩn bị các tài liệu sau:\n\n1. **Giấy tờ xe**: Bao gồm giấy đăng ký xe và giấy phép lái xe của bạn.\n2. **Báo cáo tai nạn**: Báo cáo chi tiết về vụ tai nạn, bao gồm thời gian, địa điểm, và mô tả sự việc.\n3. **Chứng từ ảnh**: Ảnh chụp hiện trường tai nạn và ảnh xe hư hỏng.\n4. **Giấy chứng nhận tai nạn**: Nếu có, giấy chứng nhận tai nạn từ cảnh sát hoặc cơ quan chức năng.\n5. **Thẻ bảo hiểm**: Thẻ bảo hiểm xe của bạn.\n6. **Bản kê khai yêu cầu bồi thường**: Mẫu đơn do công ty bảo hiểm cung cấp, bạn cần điền thông tin và ký tên.\n\nHãy liên hệ với công ty bảo hiểm của bạn để được hướng dẫn cụ thể và chính xác hơn về các tài liệu cần thiết, cũng như quy trình khiếu nại.\n\nNếu bạn cần thêm thông tin hoặc hỗ trợ, xin đừng ngần ngại hỏi. Chúng tôi luôn ở đây để giúp đỡ bạn.",
+  "status": 200
+}

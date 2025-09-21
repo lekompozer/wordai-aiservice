@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  ai-service:
+    image: ${DOCKER_REGISTRY:-ai-chatbot-rag}:staging-${TAG:-latest}
+    ports:
+      - "8001:8000"  # Different port for staging
+    volumes:
+      - ../../data-staging:/app/data
+      - ../../logs/staging:/app/logs
+    environment:
+      - ENVIRONMENT=staging
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY_STAGING}
+      - USE_MOCK_EMBEDDING=true
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1"

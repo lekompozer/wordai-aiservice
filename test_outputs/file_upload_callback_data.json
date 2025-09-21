@@ -1,0 +1,43 @@
+{
+  "timestamp": "2025-07-30T12:31:03.884252",
+  "path": "/file-processed",
+  "headers": {
+    "Host": "localhost:8089",
+    "Content-Type": "application/json",
+    "X-Webhook-Source": "ai-service",
+    "X-Webhook-Secret": "webhook-secret-for-signature",
+    "User-Agent": "Agent8x-AI-Service/1.0",
+    "Accept": "*/*",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Content-Length": "3705"
+  },
+  "payload": {
+    "task_id": "1b7b60be-8dc9-4612-8d7d-e98404be3c86",
+    "status": "completed",
+    "timestamp": "2025-07-30T12:31:03.881179",
+    "data": {
+      "task_id": "1b7b60be-8dc9-4612-8d7d-e98404be3c86",
+      "company_id": "5a44b799-4783-448f-b6a8-b9a51ed7ab76",
+      "status": "completed",
+      "success": true,
+      "processing_time": 14.813996076583862,
+      "timestamp": "2025-07-30T12:31:03.879389",
+      "raw_content": "THÔNG TIN CƠ BẢN VỀ AIA TOÀN CẦU VÀ AIA VIỆT NAM (CẬP NHẬT 2025)\nI. AIA TOÀN CẦU (AIA GROUP LIMITED)\n1. Giới thiệu chung:\n- Tên đầy đủ: AIA Group Limited\n- Thành lập: Năm 1919 tại Thượng Hải, Trung Quốc\n- Trụ sở chính: Central, Hồng Kông\n- Niêm yết: Sàn chứng khoán Hồng Kông (HKEX) - mã cổ phiếu: 1299.HK\n\n2. Quy mô & kết quả tài chính (Q1/2025):\n- VONB đạt 1,497 triệu USD (tăng 13% so với cùng kỳ)\n- ANP đạt 2,617 triệu USD (tăng 7%)\n- VONB margin: 57.5%\n- NB CSM: tăng 16%\n- Tổng tài sản: >330 tỷ USD\n\n3. Chiến lược & hoạt động:\n- Mạnh ở kênh Premier Agency và bancassurance\n- Mở rộng thị trường tại Trung Quốc đại lục (Anhui, Shandong)\n- Mua lại cổ phiếu trị giá 1,6 tỷ USD\n\n4. Đầu tư & an toàn tài chính:\n- Tỷ lệ nợ dưới chuẩn: chỉ 2% (~3.2 tỷ USD)\n- Dự phòng ECL ước tính 463 triệu USD\nII. AIA VIỆT NAM\n1. Giới thiệu:\n- Thành lập: Năm 2000\n- Vốn điều lệ: >5.500 tỷ đồng\n- Trụ sở: Saigon Centre, Quận 1, TP.HCM\n\n2. Quy mô hoạt động (2025):\n- Hơn 1,6 triệu hợp đồng bảo hiểm đang phục vụ\n- 200+ văn phòng và trung tâm dịch vụ\n- 27.000+ đại lý trên toàn quốc\n\n3. Tài chính & chi trả:\n- Tổng tài sản: ~67.557 tỷ VND (~2,7 tỷ USD)\n- Tỷ lệ dự phòng thanh khoản: 191%\n- Chi trả quyền lợi bảo hiểm cộng dồn: >15.000 tỷ VND\n\n4. Sản phẩm & công nghệ:\n- AIA Vitality: kết hợp chăm sóc sức khỏe\n- MyAIA, iClaim, iPoS: xử lý hợp đồng và bồi thường online\n- Gói bảo hiểm \"Bung Gia Lực\", \"Uplift Your Life 10+\"\n\n5. Giải thưởng:\n- Golden Dragon Awards 2025\n- Insurance Asia Awards 2023: Health Initiative of the Year\n- Asian Technology Excellence Awards: Cloud Life Insurance\n\n6. CSR & hoạt động cộng đồng:\n- AIA Pink Journey: tầm soát ung thư vú cho phụ nữ Việt Nam\n- Hướng tới 30.000 người thụ hưởng đến 2030",
+      "file_processing": {
+        "ai_provider": "simple_text_extraction",
+        "extraction_type": "raw_text_only",
+        "file_name": "company-profile.docx",
+        "content_length": 1701,
+        "processing_method": "document_upload_workflow"
+      },
+      "file_metadata": {
+        "original_name": "company-profile.docx",
+        "file_size": 250000,
+        "file_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "data_type": "document",
+        "industry": "Industry.INSURANCE",
+        "language": "Language.VIETNAMESE"
+      }
+    }
+  }
+}

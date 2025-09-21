@@ -1,0 +1,19 @@
+CSV FILE: ivy-fashion-products.csv
+Total Rows: 25
+Columns: product_id, product_name, category, brand, price, size, color, material, stock_quantity, description
+
+HEADER:
+product_id | product_name | category | brand | price | size | color | material | stock_quantity | description
+
+DATA ROWS:
+Row 1: FW001 | Áo blazer nữ cao cấp | Áo khoác | IVY Fashion | 1580000 | S|M|L|XL | Đen|Xám|Be | Vải wool blend | 25 | Áo blazer nữ phong cách công sở, thiết kế thanh lịch
+Row 2: FW002 | Váy midi hoa nhí | Váy | IVY Fashion | 890000 | S|M|L | Hồng|Xanh|Trắng | Cotton | 40 | Váy midi họa tiết hoa nhí, phù hợp dạo phố
+Row 3: FW003 | Quần jean skinny | Quần | Denim Style | 650000 | 26|27|28|29|30 | Xanh đậm|Xanh nhạt|Đen | Denim cotton | 60 | Quần jean skinny ôm dáng, co giãn tốt
+Row 4: FW004 | Áo sơ mi lụa | Áo | Silk Garden | 1200000 | S|M|L | Trắng|Kem|Hồng phấn | Lụa tơ tằm | 30 | Áo sơ mi lụa cao cấp, mềm mại và thoáng mát
+Row 5: FW005 | Chân váy chữ A | Váy | Classic Line | 420000 | S|M|L|XL | Đen|Xám|Navy | Polyester | 45 | Chân váy chữ A cơ bản, dễ phối đồ
+Row 6: FW006 | Áo len cổ lọ | Áo len | Warm Winter | 580000 | S|M|L | Đỏ|Xanh|Nâu | Len merino | 35 | Áo len cổ lọ ấm áp, chất liệu cao cấp
+Row 7: FW007 | Đầm maxi hoa | Đầm | Summer Breeze | 750000 | S|M|L | Xanh lá|Vàng|Tím | Chiffon | 28 | Đầm maxi họa tiết hoa, phù hợp dự tiệc
+Row 8: FW008 | Quần tây nữ | Quần | Office Lady | 680000 | S|M|L|XL | Đen|Xám|Navy | Wool blend | 50 | Quần tây nữ công sở, form dáng chuẩn
+Row 9: FW009 | Áo khoác cardigan | Áo khoác | Cozy Time | 480000 | S|M|L | Be|Xám|Hồng | Acrylic | 38 | Cardigan nhẹ nhàng, phù hợp mùa thu
+Row 10: FW010 | Váy ngắn da | Váy | Rock Style | 950000 | S|M|L | Đen|Nâu | Da thật | 22 | Váy ngắn da thật, phong cách cá tính
+... and 15 more rows

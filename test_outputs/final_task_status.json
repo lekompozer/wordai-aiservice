@@ -1,0 +1,12 @@
+{
+  "task_id": "hybrid_extract_1753690751679_46080809",
+  "status": "processing",
+  "progress": {
+    "stage": "ai_extraction",
+    "estimated_remaining": "10-20 seconds"
+  },
+  "submitted_at": "2025-07-28T15:19:11.683275",
+  "completed_at": null,
+  "processing_time": null,
+  "error_message": null
+}

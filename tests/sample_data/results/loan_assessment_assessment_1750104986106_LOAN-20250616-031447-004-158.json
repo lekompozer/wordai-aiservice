@@ -1,0 +1,72 @@
+{
+  "assessmentId": "assessment_1750104986106",
+  "applicationId": "LOAN-20250616-031447-004-158",
+  "timestamp": "2025-06-17T03:17:14.318738",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1000000000,
+    "type": "Thế chấp",
+    "term": "10 năm",
+    "purpose": "Vay kinh doanh / đầu tư"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 99000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.1252380695702133,
+    "loanToValue": 0.273972602739726,
+    "estimatedMonthlyPayment": 12398568.887451116
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.95,
+    "creditScore": 850,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chuẩn thẩm định tín dụng của ngân hàng Việt Nam. Khách hàng có thu nhập ổn định cao (99 triệu VNĐ/tháng) từ vị trí Project Director tại Savills với 15 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau vay chỉ 12.5% (dưới ngưỡng an toàn 50%), dòng tiền dư sau trả nợ lên tới 86.6 triệu VNĐ/tháng. Tài sản thế chấp là đất thổ cư 125m2 tại vị trí đắc địa (cách đường Liên Huyện 50m, đường rộng 17m) có sổ hồng riêng, được định giá 3.65 tỷ VNĐ (cao hơn ước tính khách hàng) với LTV chỉ 27.4% - đảm bảo an toàn cho ngân hàng. Lịch sử tín dụng CIC nhóm 1 và không có nợ hiện tại là điểm cộng lớn.",
+    "riskFactors": [
+      "Thiếu thông tin xác minh thu nhập (bảng lương, hợp đồng lao động)",
+      "Tài sản thanh khoản thấp (không có tiền mặt/tài sản ngắn hạn)",
+      "Phụ thuộc vào một nguồn thu nhập duy nhất"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung hợp đồng lao động + sao kê lương 3 tháng gần nhất",
+      "Xem xét mua bảo hiểm khoản vay để giảm thiểu rủi ro",
+      "Tư vấn đa dạng hóa đầu tư để cải thiện tính thanh khoản"
+    ],
+    "approvedAmount": 1000000000,
+    "interestRate": 8.5,
+    "loanTerm": 120,
+    "monthlyPayment": 12398568,
+    "loanToValue": 27.4,
+    "debtToIncome": 12.5,
+    "conditions": [
+      "Bổ sung đầy đủ hồ sơ thu nhập trong vòng 15 ngày",
+      "Mua bảo hiểm khoản vay theo quy định",
+      "Không phát sinh nợ mới trong thời gian vay mà không thông báo"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Đất thổ cư 100% tại An Phú (Thuận An) có vị trí chiến lược gần trục giao thông chính. Giá đất khu vực hiện dao động 25-35 triệu/m2. Định giá 29.2 triệu/m2 (cao hơn 5% so với khai báo) là hợp lý do lô đất vuông vức, hẻm rộng và tiện ích xung quanh phát triển.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 99000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 12398568,
+      "remainingIncome": 86601432,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    },
+    "additionalNotes": "Ưu tiên phê duyệt do hồ sơ thuộc nhóm khách hàng VIP (thu nhập cao, tài sản đảm bảo chất lượng). Cần giám sát định kỳ tình hình kinh doanh của khách hàng do mục đích vay là đầu tư."
+  },
+  "processingDetails": {
+    "reasoningDuration": 48.19862508773804,
+    "totalProcessingTime": 48.212019205093384,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.95,\n  \"creditScore\": 850,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chuẩn thẩm định tín dụng của ngân hàng Việt Nam. Khách hàng có thu nhập ổn định cao (99 triệu VNĐ/tháng) từ vị trí Project Director tại Savills với 15 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau vay chỉ 12.5% (dưới ngưỡng an toàn 50%), dòng tiền dư sau trả nợ lên tới 86.6 triệu VNĐ/tháng. Tài sản thế chấp là đất thổ cư 125m2 tại vị trí đắc địa (cách đường Liên Huyện 50m, đường rộng 17m) có sổ hồng riêng, được định giá 3.65 tỷ VNĐ (cao hơn ước tính khách hàng) với LTV chỉ 27.4% - đảm bảo an toàn cho ngân hàng. Lịch sử tín dụng CIC nhóm 1 và không có nợ hiện tại là điểm cộng lớn.\",\n  \"riskFactors\": [\n    \"Thiếu thông tin xác minh thu nhập (bảng lương, hợp đồng lao động)\",\n    \"Tài sản thanh khoản thấp (không có tiền mặt/tài sản ngắn hạn)\",\n    \"Phụ thuộc vào một nguồn thu nhập duy nhất\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung hợp đồng lao động + sao kê lương 3 tháng gần nhất\",\n    \"Xem xét mua bảo hiểm khoản vay để giảm thiểu rủi ro\",\n    \"Tư vấn đa dạng hóa đầu tư để cải thiện tính thanh khoản\"\n  ],\n  \"approvedAmount\": 1000000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 120,\n  \"monthlyPayment\": 12398568,\n  \"loanToValue\": 27.4,\n  \"debtToIncome\": 12.5,\n  \"conditions\": [\n    \"Bổ sung đầy đủ hồ sơ thu nhập trong vòng 15 ngày\",\n    \"Mua bảo hiểm khoản vay theo quy định\",\n    \"Không phát sinh nợ mới trong thời gian vay mà không thông báo\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Đất thổ cư 100% tại An Phú (Thuận An) có vị trí chiến lược gần trục giao thông chính. Giá đất khu vực hiện dao động 25-35 triệu/m2. Định giá 29.2 triệu/m2 (cao hơn 5% so với khai báo) là hợp lý do lô đất vuông vức, hẻm rộng và tiện ích xung quanh phát triển.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 99000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 12398568,\n    \"remainingIncome\": 86601432,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  },\n  \"additionalNotes\": \"Ưu tiên phê duyệt do hồ sơ thuộc nhóm khách hàng VIP (thu nhập cao, tài sản đảm bảo chất lượng). Cần giám sát định kỳ tình hình kinh doanh của khách hàng do mục đích vay là đầu tư.\"\n}\n```"
+}

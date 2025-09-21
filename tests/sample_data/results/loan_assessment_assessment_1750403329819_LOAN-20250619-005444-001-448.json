@@ -1,0 +1,72 @@
+{
+  "assessmentId": "assessment_1750403329819",
+  "applicationId": "LOAN-20250619-005444-001-448",
+  "timestamp": "2025-06-20T14:09:47.410885",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 399999999,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 10000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.39389582218549785,
+    "loanToValue": 0.036363636272727276,
+    "estimatedMonthlyPayment": 3938958.2218549782
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.9,
+    "creditScore": 750,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 10 triệu VNĐ/tháng từ công việc Sales tại Savills với kinh nghiệm 10 năm, đảm bảo khả năng trả nợ. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 39.4%, nằm trong ngưỡng an toàn ≤40%. Tài sản đảm bảo là bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, TP. Vũng Tàu có giá trị ước tính 11 tỷ VNĐ, tỷ lệ LTV chỉ 3.6% - rất thấp so với giới hạn 70%. Lịch sử tín dụng CIC nhóm 1 và không có nợ xấu. Dòng tiền sau trả nợ còn 6.1 triệu VNĐ/tháng đủ đáp ứng sinh hoạt phí. Tuy nhiên cần bổ sung thông tin CCCD và xác minh thu nhập để hoàn thiện hồ sơ.",
+    "riskFactors": [
+      "Thiếu thông tin định danh (CCCD, địa chỉ thường trú)",
+      "Tài sản thanh khoản bằng 0",
+      "Phụ thuộc vào nguồn thu nhập duy nhất"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung CCCD và xác minh thu nhập qua sao kê ngân hàng 6 tháng",
+      "Khuyến nghị mở quỹ dự phòng tài chính tối thiểu 3 tháng thu nhập",
+      "Rà soát pháp lý giấy tờ nhà đất tại địa phương"
+    ],
+    "approvedAmount": 400000000,
+    "interestRate": 8.5,
+    "loanTerm": 15,
+    "monthlyPayment": 3938958,
+    "loanToValue": 3.6,
+    "debtToIncome": 39.4,
+    "conditions": [
+      "Bổ sung CCCD/CMND hợp lệ",
+      "Xác nhận thu nhập từ ngân hàng nhận lương",
+      "Thế chấp toàn bộ giấy tờ nhà đất",
+      "Mua bảo hiểm khoản vay"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 11000000000,
+      "marketAnalysis": "Bất động sản mặt tiền trung tâm TP. Vũng Tàu có tính thanh khoản cao. Giá nhà phố khu vực Nam Kỳ Khởi Nghĩa dao động 90-120 triệu/m2, phù hợp với mô tả 100m2 × 3 tầng. Thị trường BĐS Vũng Tàu ổn định nhờ du lịch và dầu khí.",
+      "liquidityRisk": "low",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 10000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 3938958,
+      "remainingIncome": 6061041,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 57.56729698181152,
+    "totalProcessingTime": 57.59097218513489,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.9,\n  \"creditScore\": 750,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 10 triệu VNĐ/tháng từ công việc Sales tại Savills với kinh nghiệm 10 năm, đảm bảo khả năng trả nợ. Tỷ lệ nợ/thu nhập (DTI) sau khi vay là 39.4%, nằm trong ngưỡng an toàn ≤40%. Tài sản đảm bảo là bất động sản mặt tiền đường Nam Kỳ Khởi Nghĩa, TP. Vũng Tàu có giá trị ước tính 11 tỷ VNĐ, tỷ lệ LTV chỉ 3.6% - rất thấp so với giới hạn 70%. Lịch sử tín dụng CIC nhóm 1 và không có nợ xấu. Dòng tiền sau trả nợ còn 6.1 triệu VNĐ/tháng đủ đáp ứng sinh hoạt phí. Tuy nhiên cần bổ sung thông tin CCCD và xác minh thu nhập để hoàn thiện hồ sơ.\",\n  \"riskFactors\": [\n    \"Thiếu thông tin định danh (CCCD, địa chỉ thường trú)\",\n    \"Tài sản thanh khoản bằng 0\",\n    \"Phụ thuộc vào nguồn thu nhập duy nhất\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung CCCD và xác minh thu nhập qua sao kê ngân hàng 6 tháng\",\n    \"Khuyến nghị mở quỹ dự phòng tài chính tối thiểu 3 tháng thu nhập\",\n    \"Rà soát pháp lý giấy tờ nhà đất tại địa phương\"\n  ],\n  \"approvedAmount\": 400000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 15,\n  \"monthlyPayment\": 3938958,\n  \"loanToValue\": 3.6,\n  \"debtToIncome\": 39.4,\n  \"conditions\": [\n    \"Bổ sung CCCD/CMND hợp lệ\",\n    \"Xác nhận thu nhập từ ngân hàng nhận lương\",\n    \"Thế chấp toàn bộ giấy tờ nhà đất\",\n    \"Mua bảo hiểm khoản vay\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 11000000000,\n    \"marketAnalysis\": \"Bất động sản mặt tiền trung tâm TP. Vũng Tàu có tính thanh khoản cao. Giá nhà phố khu vực Nam Kỳ Khởi Nghĩa dao động 90-120 triệu/m2, phù hợp với mô tả 100m2 × 3 tầng. Thị trường BĐS Vũng Tàu ổn định nhờ du lịch và dầu khí.\",\n    \"liquidityRisk\": \"low\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 10000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 3938958,\n    \"remainingIncome\": 6061041,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Khả năng tài chính:**  \n   - DTI 39.4% < ngưỡng 40% an toàn, dòng tiền sau trả nợ 6.1 triệu đạt yêu cầu (>15 triệu cần điều chỉnh với khách hàng độc thân ít chi phí).  \n   - Thu nhập ổn định 10 năm tại Savills - công ty bất động sản uy tín.\n\n2. **Tài sản đảm bảo:**  \n   - Định giá 11 tỷ VNĐ hợp lý theo thị trường Vũng Tàu (100m2 × 3 tầng × 35-40 triệu/m2 tầng trệt + 70-80% giá trị cho các tầng trên).  \n   - LTV 3.6% cực thấp so với hạn mức 70%, giảm thiểu rủi ro ngân hàng.\n\n3. **Rủi ro tín dụng:**  \n   - CIC nhóm 1 + không nợ xấu là điểm cộng lớn.  \n   - Rủi ro chính: Thiếu tài sản thanh khoản dự phòng và phụ thuộc vào thu nhập từ sales (cần xác minh hoa hồng ổn định).\n\n4. **Điều kiện bổ sung:**  \n   - Bắt buộc xác minh CCCD và hợp đồng lao động do thiếu thông tin định danh.  \n   - Khuyến nghị khách hàng duy trì dự phòng tiền mặt tối thiểu 30 triệu VNĐ."
+}

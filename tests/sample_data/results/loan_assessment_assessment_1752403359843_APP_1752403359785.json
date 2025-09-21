@@ -1,0 +1,83 @@
+{
+  "assessmentId": "assessment_1752403359843",
+  "applicationId": "APP_1752403359785",
+  "timestamp": "2025-07-13T17:43:20.288975",
+  "applicant": {
+    "name": "Nguyễn Thị Hoa",
+    "idNumber": "Chưa cung cấp",
+    "age": 29
+  },
+  "loanRequest": {
+    "amount": 5000000000,
+    "type": "Tín chấp",
+    "term": "10 năm",
+    "purpose": "mua nhà"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 20000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 4.504629976024928,
+    "loanToValue": 0,
+    "estimatedMonthlyPayment": 90092599.52049856
+  },
+  "assessmentResult": {
+    "status": "rejected",
+    "confidence": 0.95,
+    "creditScore": 500,
+    "reasoning": "Hồ sơ vay không đáp ứng các tiêu chuẩn tín dụng cơ bản của ngân hàng Việt Nam. Phân tích chi tiết: (1) Khả năng tài chính: Thu nhập 20 triệu VNĐ/tháng không đủ để chi trả khoản vay 5 tỷ VNĐ với dự kiến trả nợ hàng tháng 90.1 triệu VNĐ (DTI 450.5%). (2) Tài sản đảm bảo: Không có thông tin cụ thể về tài sản thế chấp, giá trị ước tính 0 tỷ VNĐ. (3) Rủi ro tín dụng: Khách hàng không có kinh nghiệm làm việc (0 năm), không có tài sản thanh khoản, và thu nhập không ổn định. (4) Mục đích vay tín chấp 5 tỷ để mua nhà là không phù hợp với chính sách ngân hàng.",
+    "riskFactors": [
+      "Tỷ lệ nợ/thu nhập quá cao (450.5%) vượt xa ngưỡng an toàn 40%",
+      "Không có tài sản đảm bảo cho khoản vay",
+      "Thu nhập không đủ để chi trả khoản vay",
+      "Không có kinh nghiệm làm việc",
+      "Mục đích vay tín chấp để mua nhà không phù hợp"
+    ],
+    "recommendations": [
+      "Từ chối hồ sơ vay do không đáp ứng điều kiện tài chính cơ bản",
+      "Nếu khách hàng muốn vay mua nhà, nên xem xét khoản vay thế chấp với giá trị nhà thấp hơn",
+      "Cải thiện thu nhập và tích lũy tài sản trước khi nộp hồ sơ vay mới"
+    ],
+    "approvedAmount": 0,
+    "interestRate": 0,
+    "loanTerm": 0,
+    "monthlyPayment": 0,
+    "loanToValue": 0,
+    "debtToIncome": 4.505,
+    "conditions": [],
+    "collateralValuation": {
+      "estimatedValue": 0,
+      "marketAnalysis": "Không có thông tin về tài sản đảm bảo để phân tích thị trường",
+      "liquidityRisk": "high",
+      "valuationMethod": "no_collateral_provided"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 20000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 90092599,
+      "remainingIncome": -70100000,
+      "emergencyFund": 0,
+      "incomeStability": "low",
+      "assetLiquidity": "none"
+    },
+    "nextSteps": [
+      "Thông báo từ chối cho vay đến khách hàng",
+      "Giải thích lý do từ chối chi tiết",
+      "Tư vấn các giải pháp tài chính phù hợp hơn"
+    ],
+    "documentRequirements": [
+      "Không áp dụng do hồ sơ bị từ chối"
+    ],
+    "estimatedProcessingTime": "3 ngày làm việc",
+    "contactInfo": {
+      "hotline": "1900-xxxx",
+      "email": "support@bank.com",
+      "salesAgent": "AI Sales Agent"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 39.236817836761475,
+    "totalProcessingTime": 40.445038080215454,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"rejected\",\n  \"confidence\": 0.95,\n  \"creditScore\": 500,\n  \"reasoning\": \"Hồ sơ vay không đáp ứng các tiêu chuẩn tín dụng cơ bản của ngân hàng Việt Nam. Phân tích chi tiết: (1) Khả năng tài chính: Thu nhập 20 triệu VNĐ/tháng không đủ để chi trả khoản vay 5 tỷ VNĐ với dự kiến trả nợ hàng tháng 90.1 triệu VNĐ (DTI 450.5%). (2) Tài sản đảm bảo: Không có thông tin cụ thể về tài sản thế chấp, giá trị ước tính 0 tỷ VNĐ. (3) Rủi ro tín dụng: Khách hàng không có kinh nghiệm làm việc (0 năm), không có tài sản thanh khoản, và thu nhập không ổn định. (4) Mục đích vay tín chấp 5 tỷ để mua nhà là không phù hợp với chính sách ngân hàng.\",\n  \"riskFactors\": [\n    \"Tỷ lệ nợ/thu nhập quá cao (450.5%) vượt xa ngưỡng an toàn 40%\",\n    \"Không có tài sản đảm bảo cho khoản vay\",\n    \"Thu nhập không đủ để chi trả khoản vay\",\n    \"Không có kinh nghiệm làm việc\",\n    \"Mục đích vay tín chấp để mua nhà không phù hợp\"\n  ],\n  \"recommendations\": [\n    \"Từ chối hồ sơ vay do không đáp ứng điều kiện tài chính cơ bản\",\n    \"Nếu khách hàng muốn vay mua nhà, nên xem xét khoản vay thế chấp với giá trị nhà thấp hơn\",\n    \"Cải thiện thu nhập và tích lũy tài sản trước khi nộp hồ sơ vay mới\"\n  ],\n  \"approvedAmount\": 0,\n  \"interestRate\": 0,\n  \"loanTerm\": 0,\n  \"monthlyPayment\": 0,\n  \"loanToValue\": 0,\n  \"debtToIncome\": 4.505,\n  \"conditions\": [],\n  \"collateralValuation\": {\n    \"estimatedValue\": 0,\n    \"marketAnalysis\": \"Không có thông tin về tài sản đảm bảo để phân tích thị trường\",\n    \"liquidityRisk\": \"high\",\n    \"valuationMethod\": \"no_collateral_provided\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 20000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 90092599,\n    \"remainingIncome\": -70100000,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"low\",\n    \"assetLiquidity\": \"none\"\n  },\n  \"nextSteps\": [\n    \"Thông báo từ chối cho vay đến khách hàng\",\n    \"Giải thích lý do từ chối chi tiết\",\n    \"Tư vấn các giải pháp tài chính phù hợp hơn\"\n  ],\n  \"documentRequirements\": [\n    \"Không áp dụng do hồ sơ bị từ chối\"\n  ],\n  \"estimatedProcessingTime\": \"3 ngày làm việc\",\n  \"contactInfo\": {\n    \"hotline\": \"1900-xxxx\",\n    \"email\": \"support@bank.com\",\n    \"salesAgent\": \"AI Sales Agent\"\n  }\n}\n```"
+}

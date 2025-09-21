@@ -1,0 +1,95 @@
+# Environment files
+.env
+.env.*
+development.env
+production.env
+
+# Firebase credentials
+firebase-credentials.json
+firebase-service-account.json
+*-service-account.json
+
+# API Keys and secrets
+*.key
+*.pem
+*.p12
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Logs
+*.log
+logs/
+server.log
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Data files
+data/
+temp/
+generated_documents/
+uploads/
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+dump.rdb
+
+# Backup files
+backup/
+*.backup
+tests/backup_untracked/
+
+# Documentation with sensitive info
+docs/aivungtau/
+docs/firebase-implementation-plan.md
+
+# Test files with credentials
+tests/test_vision_simple.py

@@ -1,0 +1,72 @@
+{
+  "assessmentId": "assessment_1752392495986",
+  "applicationId": "APP_1752392495937",
+  "timestamp": "2025-07-13T14:42:24.959647",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 3000000000,
+    "type": "Tín chấp",
+    "term": "5 năm",
+    "purpose": "kinh doanh"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 0,
+    "currentDebtRatio": 0,
+    "projectedDebtRatio": 0,
+    "loanToValue": 0,
+    "estimatedMonthlyPayment": 61549593.98115378
+  },
+  "assessmentResult": {
+    "status": "rejected",
+    "confidence": 0.95,
+    "creditScore": 300,
+    "reasoning": "Hồ sơ vay không đáp ứng các tiêu chuẩn cơ bản của ngân hàng Việt Nam do thiếu thông tin quan trọng và rủi ro tín dụng quá cao. Cụ thể: (1) Không có thông tin thu nhập (0 VNĐ/tháng) dẫn đến không thể đánh giá khả năng trả nợ, tỷ lệ DTI vô hạn (-61.5 triệu VNĐ sau trả nợ). (2) Tài sản đảm bảo không có giá trị định lượng (0 tỷ VNĐ) và không cung cấp mô tả chi tiết để thẩm định. (3) Thiếu thông tin nhận dạng (CCCD, địa chỉ), vi phạm quy định KYC. (4) Mục đích vay 'kinh doanh' nhưng không có kế hoạch kinh doanh hoặc kinh nghiệm liên quan (0 năm làm việc).",
+    "riskFactors": [
+      "Rủi ro vỡ nợ cực cao do không có nguồn thu",
+      "Rủi ro pháp lý từ thiếu thông tin định danh",
+      "Rủi ro tài sản đảm bảo không xác định được giá trị",
+      "Rủi ro mục đích vay không minh bạch"
+    ],
+    "recommendations": [
+      "Từ chối cho vay do không đủ điều kiện thẩm định",
+      "Yêu cầu bổ sung đầy đủ: chứng minh thu nhập ít nhất 125 triệu VNĐ/tháng (gấp 2x khoản trả nợ), giấy tờ pháp lý tài sản đảm bảo, CCCD/CMND hợp lệ",
+      "Xem xét lại với điều kiện chuyển sang vay thế chấp nếu có BĐS giá trị tối thiểu 4.3 tỷ VNĐ (LTV 70%)"
+    ],
+    "approvedAmount": 0,
+    "interestRate": 0,
+    "loanTerm": 0,
+    "monthlyPayment": 0,
+    "loanToValue": 0,
+    "debtToIncome": 0,
+    "conditions": [
+      "Bổ sung chứng minh thu nhập 3 tháng gần nhất",
+      "Cung cấp giấy tờ pháp lý tài sản đảm bảo",
+      "Xác minh CCCD/CMND và địa chỉ thường trú"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 0,
+      "marketAnalysis": "Không thể định giá do thiếu mô tả vị trí, diện tích, pháp lý và hình ảnh tài sản",
+      "liquidityRisk": "high",
+      "valuationMethod": "insufficient_data"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 0,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 61549593,
+      "remainingIncome": -61549593,
+      "emergencyFund": 0,
+      "incomeStability": "none",
+      "assetLiquidity": "none"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 47.719220876693726,
+    "totalProcessingTime": 48.972736120224,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"rejected\",\n  \"confidence\": 0.95,\n  \"creditScore\": 300,\n  \"reasoning\": \"Hồ sơ vay không đáp ứng các tiêu chuẩn cơ bản của ngân hàng Việt Nam do thiếu thông tin quan trọng và rủi ro tín dụng quá cao. Cụ thể: (1) Không có thông tin thu nhập (0 VNĐ/tháng) dẫn đến không thể đánh giá khả năng trả nợ, tỷ lệ DTI vô hạn (-61.5 triệu VNĐ sau trả nợ). (2) Tài sản đảm bảo không có giá trị định lượng (0 tỷ VNĐ) và không cung cấp mô tả chi tiết để thẩm định. (3) Thiếu thông tin nhận dạng (CCCD, địa chỉ), vi phạm quy định KYC. (4) Mục đích vay 'kinh doanh' nhưng không có kế hoạch kinh doanh hoặc kinh nghiệm liên quan (0 năm làm việc).\",\n  \"riskFactors\": [\n    \"Rủi ro vỡ nợ cực cao do không có nguồn thu\",\n    \"Rủi ro pháp lý từ thiếu thông tin định danh\",\n    \"Rủi ro tài sản đảm bảo không xác định được giá trị\",\n    \"Rủi ro mục đích vay không minh bạch\"\n  ],\n  \"recommendations\": [\n    \"Từ chối cho vay do không đủ điều kiện thẩm định\",\n    \"Yêu cầu bổ sung đầy đủ: chứng minh thu nhập ít nhất 125 triệu VNĐ/tháng (gấp 2x khoản trả nợ), giấy tờ pháp lý tài sản đảm bảo, CCCD/CMND hợp lệ\",\n    \"Xem xét lại với điều kiện chuyển sang vay thế chấp nếu có BĐS giá trị tối thiểu 4.3 tỷ VNĐ (LTV 70%)\"\n  ],\n  \"approvedAmount\": 0,\n  \"interestRate\": 0,\n  \"loanTerm\": 0,\n  \"monthlyPayment\": 0,\n  \"loanToValue\": 0,\n  \"debtToIncome\": 0,\n  \"conditions\": [\n    \"Bổ sung chứng minh thu nhập 3 tháng gần nhất\",\n    \"Cung cấp giấy tờ pháp lý tài sản đảm bảo\",\n    \"Xác minh CCCD/CMND và địa chỉ thường trú\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 0,\n    \"marketAnalysis\": \"Không thể định giá do thiếu mô tả vị trí, diện tích, pháp lý và hình ảnh tài sản\",\n    \"liquidityRisk\": \"high\",\n    \"valuationMethod\": \"insufficient_data\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 0,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 61549593,\n    \"remainingIncome\": -61549593,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"none\",\n    \"assetLiquidity\": \"none\"\n  }\n}\n``` \n\n**PHÂN TÍCH BỔ SUNG:**\n1. **Vi phạm nguyên tắc 5C**: \n   - Character (nhân thân): Thiếu thông tin định danh cơ bản\n   - Capacity (năng lực trả nợ): Thu nhập = 0 VNĐ\n   - Capital (vốn tự có): Tổng tài sản = 0 tỷ VNĐ\n   - Collateral (tài sản đảm bảo): Giá trị = 0 tỷ\n   - Condition (điều kiện vay): Không rõ mục đích sử dụng vốn\n\n2. **Cảnh báo gian lận**: \n   - Điểm CIC nhóm 1 nhưng không có lịch sử tín dụng có thể do chưa từng vay nợ hoặc sử dụng CCCD giả\n\n3. **Khuyến nghị hồ sơ thay thế**:\n   - Nếu khách hàng có thu nhập thực tế từ kinh doanh, cần cung cấp: (1) Sao kê ngân hàng 6 tháng, (2) Giấy phép kinh doanh, (3) Hóa đơn đầu vào/ra."
+}

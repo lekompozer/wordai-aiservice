@@ -1,0 +1,56 @@
+{
+  "request": {
+    "question": "Tư vấn tôi lãi suất vay thế chấp.",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-18T18:44:56.161112"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1750247096.236875,
+      "result": {
+        "property_type": null,
+        "project_name": null,
+        "location": {
+          "province": null,
+          "district": null
+        },
+        "search_query": null,
+        "confidence": 0.0,
+        "dientich": null,
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search_skipped",
+      "timestamp": 1750247096.238925,
+      "reason": "low_confidence",
+      "confidence": 0.0
+    }
+  ],
+  "web_search": {
+    "search_query": null,
+    "target_urls": [],
+    "full_responses": {},
+    "properties_found": [],
+    "performance_metrics": {}
+  },
+  "processed_files": [],
+  "ai_response": "",
+  "performance_metrics": {
+    "total_duration": 29.18641686439514,
+    "start_time": 1750247096.1611881,
+    "end_time": 1750247125.347606,
+    "steps_completed": 2,
+    "errors_count": 0,
+    "success": true
+  },
+  "errors": [],
+  "timestamp": "2025-06-18T18:45:25.347850",
+  "session_id": "0bd1ed9c",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

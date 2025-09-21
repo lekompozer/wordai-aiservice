@@ -1,0 +1,25 @@
+{
+  "query": "nhà hàng khách sạn",
+  "company_id": "xuan_phuong_hotel_001",
+  "request": {
+    "query": "nhà hàng khách sạn",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "nhà hàng khách sạn",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 6.314702
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:36:59.732183"
+}

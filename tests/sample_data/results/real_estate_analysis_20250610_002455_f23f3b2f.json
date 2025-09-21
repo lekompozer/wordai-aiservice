@@ -1,0 +1,147 @@
+{
+  "request": {
+    "question": "Định giá CĂN HỘ RICHSTAR TÂN PHÚ\n\n🎍 Căn 2PN, 53M2, nhà đẹp\nĐịa chỉ: 239 – 241 – 278 , Hòa Bình, Phường Hiệp Tân, Quận Tân Phú, Tp Hồ Chí Minh\nDự Án: Căn hộ RichStar",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-10T00:23:54.044130"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1749489834.135486,
+      "result": {
+        "property_type": "căn hộ",
+        "project_name": "căn hộ richstar",
+        "location": {
+          "province": "hồ chí minh",
+          "district": "tân phú tp hồ chí minh dự án căn hộ richstar"
+        },
+        "search_query": "giá căn hộ hộ richstar 2PN 53m² tân phú tp hồ chí minh dự án 2025",
+        "confidence": 1.4499999999999997,
+        "dientich": "53m²",
+        "bedrooms": "2PN"
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search",
+      "timestamp": 1749489838.1679611,
+      "duration": 4.028907775878906,
+      "search_query": "giá căn hộ hộ richstar 2PN 53m² tân phú tp hồ chí minh dự án 2025",
+      "result": {
+        "success": true,
+        "properties_found": 0,
+        "successful_websites": 0,
+        "timeout": false,
+        "raw_data": {
+          "search_query": "giá căn hộ hộ richstar 2PN 53m² tân phú tp hồ chí minh dự án 2025",
+          "total_properties": 0,
+          "successful_websites": 0,
+          "total_websites_tried": 3,
+          "website_results": [
+            {
+              "website": "guland.vn",
+              "target_url": "",
+              "properties": [],
+              "property_count": 0,
+              "success": false,
+              "error": "Timeout"
+            },
+            {
+              "website": "nhadat.cafeland.vn",
+              "target_url": "",
+              "properties": [],
+              "property_count": 0,
+              "success": false,
+              "error": "No search results found"
+            },
+            {
+              "website": "alonhadat.com.vn",
+              "target_url": "",
+              "properties": [],
+              "property_count": 0,
+              "success": false,
+              "error": "Timeout"
+            }
+          ],
+          "all_properties": [],
+          "processing_time": 4.021205039985944,
+          "status": "no_results",
+          "strategy": "parallel_all_websites_with_timeout",
+          "is_partial": false,
+          "timeout_occurred": false
+        }
+      }
+    }
+  ],
+  "web_search": {
+    "search_query": "giá căn hộ hộ richstar 2PN 53m² tân phú tp hồ chí minh dự án 2025",
+    "target_urls": [],
+    "full_responses": {
+      "search_query": "giá căn hộ hộ richstar 2PN 53m² tân phú tp hồ chí minh dự án 2025",
+      "total_urls_scraped": 0,
+      "websites_accessed": [],
+      "raw_result": {
+        "search_query": "giá căn hộ hộ richstar 2PN 53m² tân phú tp hồ chí minh dự án 2025",
+        "total_properties": 0,
+        "successful_websites": 0,
+        "total_websites_tried": 3,
+        "website_results": [
+          {
+            "website": "guland.vn",
+            "target_url": "",
+            "properties": [],
+            "property_count": 0,
+            "success": false,
+            "error": "Timeout"
+          },
+          {
+            "website": "nhadat.cafeland.vn",
+            "target_url": "",
+            "properties": [],
+            "property_count": 0,
+            "success": false,
+            "error": "No search results found"
+          },
+          {
+            "website": "alonhadat.com.vn",
+            "target_url": "",
+            "properties": [],
+            "property_count": 0,
+            "success": false,
+            "error": "Timeout"
+          }
+        ],
+        "all_properties": [],
+        "processing_time": 4.021205039985944,
+        "status": "no_results",
+        "strategy": "parallel_all_websites_with_timeout",
+        "is_partial": false,
+        "timeout_occurred": false
+      },
+      "scraped_content": []
+    },
+    "properties_found": [],
+    "performance_metrics": {
+      "total_time": 4.028907775878906,
+      "timeout": false,
+      "success": true
+    }
+  },
+  "processed_files": [],
+  "ai_response": "",
+  "performance_metrics": {
+    "total_duration": 57.73574614524841,
+    "start_time": 1749489838.230412,
+    "end_time": 1749489895.9662569,
+    "steps_completed": 2,
+    "errors_count": 0,
+    "success": true
+  },
+  "errors": [],
+  "timestamp": "2025-06-10T00:24:55.967009",
+  "session_id": "f23f3b2f",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

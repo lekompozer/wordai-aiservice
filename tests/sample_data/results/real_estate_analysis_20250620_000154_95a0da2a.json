@@ -1,0 +1,57 @@
+{
+  "request": {
+    "question": "Hãy phân tích và định giá bất động sản dựa trên thông tin mô tả được cung cấp.\n\nTHÔNG TIN BẤT ĐỘNG SẢN:\nđất 5x25m KDc hiện hữu p.An Phú, Tp.Thuận An\nDT: 125m2 thổ cư 100% ( 5x25m )\nCách đường Liên Huyện 50m\nCách Vòng xoay An Phú 1km\nĐường rộng 17m\nSổ hồng riêng\n\nGIÁ TRỊ THAM KHẢO CỦA KHÁCH HÀNG: 3.6 tỷ VNĐ\n\nYÊU CẦU PHÂN TÍCH CHI TIẾT:\n1. Phân tích thông tin mô tả về bất động sản\n2. Đánh giá tính hợp lý của giá trị tham khảo (nếu có)\n3. Ước tính khoảng giá trị thị trường dựa trên mô tả\n4. Phân tích ưu và nhược điểm của tài sản\n5. Đánh giá khả năng thanh khoản\n6. Các rủi ro cần lưu ý khi sử dụng làm tài sản đảm bảo\n7. Khuyến nghị về tỷ lệ cho vay an toàn (LTV)\n\nVui lòng đưa ra phân tích chi tiết và chuyên nghiệp.",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-20T00:00:51.937764",
+    "analysis_type": "single_use_no_history"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1750352451.969293,
+      "result": {
+        "property_type": "bất động sản",
+        "project_name": null,
+        "location": {
+          "province": "thuận an",
+          "district": "50m"
+        },
+        "confidence": 1.4999999999999998,
+        "dientich": "125m²",
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search_skipped",
+      "timestamp": 1750352451.970447,
+      "reason": "disabled_for_single_use_analysis"
+    },
+    {
+      "step": 3,
+      "name": "conversation_history_skipped",
+      "timestamp": 1750352451.9704478,
+      "reason": "single_use_analysis_no_history"
+    }
+  ],
+  "processed_files": [],
+  "ai_response": "### **PHÂN TÍCH & ĐỊNH GIÁ BẤT ĐỘNG SẢN**  \n**Địa chỉ:** Đất 5x25m, phường An Phú, TP. Thuận An, Bình Dương  \n**Diện tích:** 125m² (thổ cư 100%)  \n**Giá tham khảo:** 3.6 tỷ VNĐ  \n\n---\n\n### **1. Phân tích thông tin mô tả**  \n- **Loại hình:** Đất thổ cư 100%, phù hợp xây dựng nhà ở hoặc kinh doanh.  \n- **Vị trí:**  \n  - Cách đường Liên Huyện 50m (đường rộng 17m, thuận tiện giao thông).  \n  - Gần vòng xoay An Phú (1km), khu vực đang phát triển, có tiềm năng tăng giá.  \n- **Pháp lý:** Sổ hồng riêng, rõ ràng, không tranh chấp.  \n\n---\n\n### **2. Đánh giá tính hợp lý của giá 3.6 tỷ VNĐ**  \n- **Giá thị trường khu vực An Phú, Thuận An:**  \n  - Đất thổ cư 100% có giá dao động **25–35 triệu/m²** tùy vị trí.  \n  - Với lô đất 125m², giá hợp lý khoảng **3.125–4.375 tỷ**.  \n  - Giá khách hàng đề xuất (**3.6 tỷ ~ 28.8 triệu/m²**) nằm trong khoảng hợp lý, phù hợp với vị trí gần đường Liên Huyện.  \n\n---\n\n### **3. Ước tính giá trị thị trường**  \n- **Giá thấp nhất (25tr/m²):** 125m² × 25tr = **3.125 tỷ**  \n- **Giá trung bình (30tr/m²):** 125m² × 30tr = **3.75 tỷ**  \n- **Giá cao nhất (35tr/m²):** 125m² × 35tr = **4.375 tỷ**  \n→ **Khoảng giá thị trường đề xuất: 3.5–3.8 tỷ VNĐ**  \n\n---\n\n### **4. Ưu & nhược điểm**  \n✅ **Ưu điểm:**  \n- Vị trí đẹp, giao thông thuận lợi, gần trục đường chính.  \n- Diện tích vuông vắn (5x25m), dễ xây dựng.  \n- Pháp lý rõ ràng (sổ hồng riêng).  \n- Khu vực đang phát triển, tiềm năng tăng giá.  \n\n❌ **Nhược điểm:**  \n- Đường vào 17m nhưng không phải mặt tiền chính.  \n- Khu vực cạnh tranh nhiều đất tương tự, thanh khoản không quá cao.  \n\n---\n\n### **5. Đánh giá khả năng thanh khoản**  \n- **Mức độ thanh khoản:** Trung bình – khá.  \n- **Thời gian bán dự kiến:** 3–6 tháng nếu giá hợp lý.  \n- **Đối tượng mua tiềm năng:** Nhà đầu tư, người muốn xây nhà ở hoặc kinh doanh.  \n\n---\n\n### **6. Rủi ro khi dùng làm tài sản đảm bảo**  \n⚠ **Rủi ro pháp lý:**  \n- Kiểm tra quy hoạch (nếu có) tại phường An Phú.  \n- Xác minh sổ hồng có chính chủ, không thế chấp ngân hàng.  \n\n⚠ **Rủi ro thị trường:**  \n- Giá đất Bình Dương có thể biến động nếu kinh tế vĩ mô bất ổn.  \n- Thanh khoản không nhanh như đất mặt tiền.  \n\n---\n\n### **7. Khuyến nghị tỷ lệ cho vay (LTV)**  \n- **Giá trị thẩm định ngân hàng:** Thường thấp hơn giá thị trường (~85%).  \n  - Nếu giá thị trường **3.6 tỷ** → Giá trị thẩm định ~**3.06 tỷ**.  \n- **Tỷ lệ cho vay an toàn (LTV):**  \n  - Ngân hàng thường cho vay tối đa **70% giá trị thẩm định** → **~2.14 tỷ VNĐ**.  \n  - Khuyến nghị **không vượt quá 60–65%** để giảm rủi ro (~1.8–2 tỷ).  \n\n---\n\n### **KẾT LUẬN**  \n- **Giá hợp lý:** **3.5–3.8 tỷ VNĐ** (tương đương 28–30.4tr/m²).  \n- **Giá khách hàng đề xuất (3.6 tỷ) là hợp lý**, có thể thương lượng giảm nhẹ nếu cần.  \n- **Khả năng vay thế chấp:** ~1.8–2.1 tỷ (tùy ngân hàng).  \n- **Đầu tư khả thi** nếu mua với giá ≤3.5 tỷ, chờ tăng giá trong 2–3 năm.  \n\n**→ Nên kiểm tra pháp lý kỹ, xem xét khả năng sinh lời trước khi quyết định.**",
+  "performance_metrics": {
+    "total_duration": 62.46439290046692,
+    "start_time": 1750352451.937943,
+    "end_time": 1750352514.402336,
+    "steps_completed": 3,
+    "errors_count": 0,
+    "success": true,
+    "web_search_skipped": true,
+    "history_skipped": true,
+    "analysis_type": "standalone_single_use"
+  },
+  "errors": [],
+  "timestamp": "2025-06-20T00:01:54.405320",
+  "session_id": "95a0da2a",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

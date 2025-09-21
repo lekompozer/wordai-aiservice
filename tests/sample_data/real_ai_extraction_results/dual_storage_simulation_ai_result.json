@@ -1,0 +1,27 @@
+{
+  "structured_storage": {
+    "chunks": [],
+    "total_chunks": 0,
+    "priority": "high"
+  },
+  "raw_storage": {
+    "chunk": {
+      "chunk_id": "hotel_services_raw_backup",
+      "data_type": "other",
+      "priority": "low",
+      "content": "\n                DỊCH VỤ KHÁCH SẠN PARADISE BAY RESORT & SPA\n                \n                1. AIRPORT TRANSFER SERVICE\n                Giá: 800,000 VNĐ/chuyến (một chiều)\n                - Xe Mercedes VIP đón tiễn sân bay Tân Sơn Nhất\n                - Thời gian di chuyển: 45 phút\n                - Bao gồm: nước uống, báo chí, WiFi miễn phí\n                - Đặt trước 24h, hủy miễn phí trước 12h\n                \n                2. SPA & WELLNESS CENTER\n                Giá: 1,500,000 - 3,000,000 VNĐ/liệu trình\n                - Massage truyền thống Thái Lan (90 phút): 1,800,000 VNĐ\n                - Liệu pháp đá nóng aromatherapy (120 phút): 2,500,000 VNĐ\n                - Gói chăm sóc toàn thân VIP (180 phút): 3,000,000 VNĐ\n                - Mở cửa: 9:00 - 22:00 hàng ngày\n                \n                3. ROOM SERVICE 24/7\n                Phí dịch vụ: 50,000 VNĐ/đơn hàng\n                - Menu đa dạng: Món Á, Âu, chay\n                - Đồ uống: cocktail, rượu vang, nước ngọt\n                - Thời gian giao: 30-45 phút\n                - Phục vụ 24/7 tất cả các ngày\n                \n                4. CONFERENCE & MEETING ROOMS\n                Giá: 2,000,000 - 5,000,000 VNĐ/ngày\n                - Phòng họp nhỏ (20 người): 2,000,000 VNĐ/ngày\n                - Phòng hội thảo (100 người): 3,500,000 VNĐ/ngày\n                - Auditorium (300 người): 5,000,000 VNĐ/ngày\n                - Bao gồm: projector, âm thanh, WiFi, coffee break\n                ",
+      "metadata": {
+        "backup_for": "hotel_services_extraction",
+        "total_items_extracted": 0,
+        "ai_provider": "chatgpt",
+        "raw_text_length": 1474
+      }
+    },
+    "priority": "low"
+  },
+  "extraction_info": {
+    "ai_provider": "chatgpt",
+    "template_used": "HotelExtractionTemplate",
+    "total_services": 0
+  }
+}

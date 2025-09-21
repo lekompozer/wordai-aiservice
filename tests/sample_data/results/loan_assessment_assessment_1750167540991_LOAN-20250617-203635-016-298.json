@@ -1,0 +1,72 @@
+{
+  "assessmentId": "assessment_1750167540991",
+  "applicationId": "LOAN-20250617-203635-016-298",
+  "timestamp": "2025-06-17T20:39:48.236170",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1099000000,
+    "type": "Thế chấp",
+    "term": "20 năm",
+    "purpose": "Vay kinh doanh / đầu tư"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 90000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.10597085927430243,
+    "loanToValue": 0.3010958904109589,
+    "estimatedMonthlyPayment": 9537377.334687218
+  },
+  "assessmentResult": {
+    "status": "APPROVED",
+    "confidence": 0.92,
+    "creditScore": 820,
+    "reasoning": "Hồ sơ đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập cao (90 triệu VNĐ/tháng) và ổn định (10 năm kinh nghiệm tại Savills), không có nợ hiện tại, CIC nhóm 1. Tỷ lệ DTI sau vay chỉ 10.6% (dưới ngưỡng 40% an toàn). Tài sản đảm bảo là đất thổ cư 100% tại vị trí chiến lược ở Thuận An, có sổ hồng riêng, giá trị thẩm định 3.65 tỷ VNĐ phù hợp với thị trường. LTV đề xuất 30.1% thấp hơn nhiều so với giới hạn 70% của ngân hàng. Dòng tiền dư sau trả nợ 80.5 triệu VNĐ/tháng đảm bảo khả năng chi trả.",
+    "riskFactors": [
+      "Phụ thuộc vào một nguồn thu nhập (lương)",
+      "Tài sản thanh khoản bằng 0",
+      "Biến động thị trường BĐS Bình Dương"
+    ],
+    "recommendations": [
+      "Duy trì hợp đồng lao động dài hạn với Savills",
+      "Xây dựng quỹ dự phòng ít nhất 6 tháng chi phí",
+      "Mua bảo hiểm khoản vay để giảm thiểu rủi ro"
+    ],
+    "approvedAmount": 1100000000,
+    "interestRate": 8.5,
+    "loanTerm": 240,
+    "monthlyPayment": 9537377,
+    "loanToValue": 30.1,
+    "debtToIncome": 10.6,
+    "conditions": [
+      "Bổ sung hợp đồng lao động và sao kê lương 3 tháng",
+      "Đăng ký thế chấp tại Văn phòng đăng ký đất đai",
+      "Mua bảo hiểm cháy nổ cho tài sản đảm bảo"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Đất thổ cư 125m2 tại An Phú có giá thị trường 25-30 triệu/m2. Vị trí cách đường Liên Huyện 50m (đường 17m) thuộc khu vực đang phát triển. Giá 3.65 tỷ VNĐ phù hợp với phân khúc đất hẻm rộng có tiện ích giao thông tốt.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 90000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 9537377,
+      "remainingIncome": 80462623,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    },
+    "additionalNotes": "Ưu tiên xử lý hồ sơ trong 5 ngày làm việc do hồ sơ đạt chuẩn A1. Cân nhắc giảm 0.25% lãi suất nếu khách hàng mở tài khoản thanh toán chính tại ngân hàng."
+  },
+  "processingDetails": {
+    "reasoningDuration": 47.219223976135254,
+    "totalProcessingTime": 47.24501895904541,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"APPROVED\",\n  \"confidence\": 0.92,\n  \"creditScore\": 820,\n  \"reasoning\": \"Hồ sơ đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập cao (90 triệu VNĐ/tháng) và ổn định (10 năm kinh nghiệm tại Savills), không có nợ hiện tại, CIC nhóm 1. Tỷ lệ DTI sau vay chỉ 10.6% (dưới ngưỡng 40% an toàn). Tài sản đảm bảo là đất thổ cư 100% tại vị trí chiến lược ở Thuận An, có sổ hồng riêng, giá trị thẩm định 3.65 tỷ VNĐ phù hợp với thị trường. LTV đề xuất 30.1% thấp hơn nhiều so với giới hạn 70% của ngân hàng. Dòng tiền dư sau trả nợ 80.5 triệu VNĐ/tháng đảm bảo khả năng chi trả.\",\n  \"riskFactors\": [\n    \"Phụ thuộc vào một nguồn thu nhập (lương)\",\n    \"Tài sản thanh khoản bằng 0\",\n    \"Biến động thị trường BĐS Bình Dương\"\n  ],\n  \"recommendations\": [\n    \"Duy trì hợp đồng lao động dài hạn với Savills\",\n    \"Xây dựng quỹ dự phòng ít nhất 6 tháng chi phí\",\n    \"Mua bảo hiểm khoản vay để giảm thiểu rủi ro\"\n  ],\n  \"approvedAmount\": 1100000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 240,\n  \"monthlyPayment\": 9537377,\n  \"loanToValue\": 30.1,\n  \"debtToIncome\": 10.6,\n  \"conditions\": [\n    \"Bổ sung hợp đồng lao động và sao kê lương 3 tháng\",\n    \"Đăng ký thế chấp tại Văn phòng đăng ký đất đai\",\n    \"Mua bảo hiểm cháy nổ cho tài sản đảm bảo\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Đất thổ cư 125m2 tại An Phú có giá thị trường 25-30 triệu/m2. Vị trí cách đường Liên Huyện 50m (đường 17m) thuộc khu vực đang phát triển. Giá 3.65 tỷ VNĐ phù hợp với phân khúc đất hẻm rộng có tiện ích giao thông tốt.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 90000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 9537377,\n    \"remainingIncome\": 80462623,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  },\n  \"additionalNotes\": \"Ưu tiên xử lý hồ sơ trong 5 ngày làm việc do hồ sơ đạt chuẩn A1. Cân nhắc giảm 0.25% lãi suất nếu khách hàng mở tài khoản thanh toán chính tại ngân hàng.\"\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Khả năng tài chính vượt trội**:\n   - Thu nhập 90 triệu/tháng thuộc top 1% tại Bình Dương\n   - DTI 10.6% thấp hơn 1/4 ngưỡng an toàn (40%)\n   - Dòng tiền dư 80.5 triệu/tháng đủ trang trải 8.45 lần khoản vay\n\n2. **Tài sản đảm bảo chất lượng**:\n   - Đất thổ cư 100% có sổ hồng riêng, không tranh chấp\n   - Vị trí cách trục chính 50m thuộc khu vực quy hoạch phát triển\n   - Giá trị thẩm định 3.65 tỷ bảo thủ hơn giá khách hàng đề xuất\n\n3. **Hồ sơ pháp lý hoàn chỉnh**:\n   - CIC nhóm 1 với lịch sử tín dụng hoàn hảo\n   - Hợp đồng lao động dài hạn với tập đoàn đa quốc gia\n   - Không có rủi ro pháp lý về quyền sử dụng đất\n\n4. **Điều kiện tài trợ ưu đãi**:\n   - Lãi suất 8.5%/năm thấp hơn 0.5-1% so với thị trường\n   - Thời gian xử lý nhanh trong 5 ngày làm việc\n   - Có thể giảm thêm lãi suất nếu sử dụng dịch vụ ngân hàng số"
+}

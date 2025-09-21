@@ -1,0 +1,77 @@
+{
+  "assessmentId": "assessment_1750100074997",
+  "applicationId": "LOAN-TEST-DEBUG-001",
+  "timestamp": "2025-06-17T01:55:57.741664",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1200000000,
+    "type": "Thế chấp",
+    "term": "15 năm",
+    "purpose": "Mua nhà ở"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 50000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.23633749390214243,
+    "loanToValue": 0.48,
+    "estimatedMonthlyPayment": 11816874.695107121
+  },
+  "assessmentResult": {
+    "status": "needs_review",
+    "confidence": 0.75,
+    "creditScore": 700,
+    "reasoning": "Hồ sơ vay hiện tại có một số điểm mạnh như tỷ lệ DTI sau vay chỉ 23.6% (thấp hơn ngưỡng 50% theo tiêu chuẩn ngân hàng), dòng tiền sau trả nợ còn dư gần 38.2 triệu VNĐ/tháng (vượt ngưỡng 15 triệu VNĐ), và không có nợ xấu hiện tại. Tuy nhiên, hồ sơ thiếu nghiêm trọng các thông tin căn cước, xác minh thu nhập, hợp đồng lao động, và chi tiết tài sản đảm bảo. Kinh nghiệm làm việc 0 năm là điểm bất thường cần kiểm tra. Tài sản đảm bảo chưa được định giá độc lập, chỉ dựa trên ước tính của khách hàng. Nhóm CIC chưa xác định cũng là rủi ro tiềm ẩn. Cần bổ sung đầy đủ giấy tờ pháp lý và xác minh thu nhập thực tế trước khi phê duyệt chính thức.",
+    "riskFactors": [
+      "Thiếu thông tin nhận dạng khách hàng (CCCD, địa chỉ)",
+      "Không có xác minh thu nhập (hợp đồng lao động, sao kê ngân hàng)",
+      "Tài sản đảm bảo chưa được định giá chuyên nghiệp",
+      "Lịch sử tín dụng chưa rõ ràng (nhóm CIC không xác định)",
+      "Kinh nghiệm làm việc 0 năm - bất thường với thu nhập 50 triệu/tháng"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung CCCD, hộ khẩu, hợp đồng lao động và sao kê lương 3 tháng gần nhất",
+      "Thực hiện định giá độc lập tài sản đảm bảo bởi đơn vị thẩm định được ngân hàng chỉ định",
+      "Kiểm tra lịch sử tín dụng CIC để xác nhận nhóm nợ",
+      "Phỏng vấn trực tiếp để làm rõ nguồn gốc thu nhập và kinh nghiệm làm việc",
+      "Xem xét giảm hạn mức vay nếu không xác minh được thu nhập bền vững"
+    ],
+    "approvedAmount": 0,
+    "interestRate": 0,
+    "loanTerm": 0,
+    "monthlyPayment": 11816874,
+    "loanToValue": 48.0,
+    "debtToIncome": 23.6,
+    "conditions": [
+      "Bổ sung đầy đủ giấy tờ pháp lý cá nhân",
+      "Xác minh thu nhập qua sao kê ngân hàng và hợp đồng lao động",
+      "Định giá tài sản bởi đơn vị độc lập",
+      "Kiểm tra CIC và lịch sử tín dụng",
+      "Giải trình nguồn gốc thu nhập nếu không có kinh nghiệm làm việc"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 2500000000,
+      "marketAnalysis": "Không thể đánh giá chính xác do thiếu thông tin chi tiết về vị trí, diện tích, tình trạng pháp lý và hiện trạng tài sản. Cần kiểm tra sổ đỏ, giấy tờ chứng minh quyền sở hữu và khảo sát thực địa.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "customer_estimate_only"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 50000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 11816874,
+      "remainingIncome": 38183125,
+      "emergencyFund": 0,
+      "incomeStability": "unknown",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 82.73864793777466,
+    "totalProcessingTime": 82.74389314651489,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"needs_review\",\n  \"confidence\": 0.75,\n  \"creditScore\": 700,\n  \"reasoning\": \"Hồ sơ vay hiện tại có một số điểm mạnh như tỷ lệ DTI sau vay chỉ 23.6% (thấp hơn ngưỡng 50% theo tiêu chuẩn ngân hàng), dòng tiền sau trả nợ còn dư gần 38.2 triệu VNĐ/tháng (vượt ngưỡng 15 triệu VNĐ), và không có nợ xấu hiện tại. Tuy nhiên, hồ sơ thiếu nghiêm trọng các thông tin căn cước, xác minh thu nhập, hợp đồng lao động, và chi tiết tài sản đảm bảo. Kinh nghiệm làm việc 0 năm là điểm bất thường cần kiểm tra. Tài sản đảm bảo chưa được định giá độc lập, chỉ dựa trên ước tính của khách hàng. Nhóm CIC chưa xác định cũng là rủi ro tiềm ẩn. Cần bổ sung đầy đủ giấy tờ pháp lý và xác minh thu nhập thực tế trước khi phê duyệt chính thức.\",\n  \"riskFactors\": [\n    \"Thiếu thông tin nhận dạng khách hàng (CCCD, địa chỉ)\",\n    \"Không có xác minh thu nhập (hợp đồng lao động, sao kê ngân hàng)\",\n    \"Tài sản đảm bảo chưa được định giá chuyên nghiệp\",\n    \"Lịch sử tín dụng chưa rõ ràng (nhóm CIC không xác định)\",\n    \"Kinh nghiệm làm việc 0 năm - bất thường với thu nhập 50 triệu/tháng\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung CCCD, hộ khẩu, hợp đồng lao động và sao kê lương 3 tháng gần nhất\",\n    \"Thực hiện định giá độc lập tài sản đảm bảo bởi đơn vị thẩm định được ngân hàng chỉ định\",\n    \"Kiểm tra lịch sử tín dụng CIC để xác nhận nhóm nợ\",\n    \"Phỏng vấn trực tiếp để làm rõ nguồn gốc thu nhập và kinh nghiệm làm việc\",\n    \"Xem xét giảm hạn mức vay nếu không xác minh được thu nhập bền vững\"\n  ],\n  \"approvedAmount\": 0,\n  \"interestRate\": 0,\n  \"loanTerm\": 0,\n  \"monthlyPayment\": 11816874,\n  \"loanToValue\": 48.0,\n  \"debtToIncome\": 23.6,\n  \"conditions\": [\n    \"Bổ sung đầy đủ giấy tờ pháp lý cá nhân\",\n    \"Xác minh thu nhập qua sao kê ngân hàng và hợp đồng lao động\",\n    \"Định giá tài sản bởi đơn vị độc lập\",\n    \"Kiểm tra CIC và lịch sử tín dụng\",\n    \"Giải trình nguồn gốc thu nhập nếu không có kinh nghiệm làm việc\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 2500000000,\n    \"marketAnalysis\": \"Không thể đánh giá chính xác do thiếu thông tin chi tiết về vị trí, diện tích, tình trạng pháp lý và hiện trạng tài sản. Cần kiểm tra sổ đỏ, giấy tờ chứng minh quyền sở hữu và khảo sát thực địa.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"customer_estimate_only\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 50000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 11816874,\n    \"remainingIncome\": 38183125,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"unknown\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT THEO TIÊU CHUẨN NGÂN HÀNG:**\n\n1. **Khả năng tài chính**: \n   - Ưu điểm: DTI 23.6% an toàn (<50%), dòng tiền dư 38.2 triệu/tháng (>15 triệu VNĐ yêu cầu)\n   - Rủi ro: Thu nhập chưa xác minh, nguồn thu không rõ ràng, kinh nghiệm làm việc 0 năm là dấu hiệu đỏ cần điều tra\n\n2. **Tài sản đảm bảo**:\n   - LTV 48% (<80%) đạt yêu cầu nhưng giá trị 2.5 tỷ chỉ là ước tính khách hàng\n   - Thiếu hoàn toàn thông tin pháp lý (sổ đỏ, giấy tờ sở hữu), vị trí, diện tích\n   - Rủi ro thanh khoản trung bình do thị trường BĐS đang biến động\n\n3. **Rủi ro tín dụng**:\n   - Không có nợ xấu hiện tại là điểm tích cực\n   - Nhóm CIC không xác định - cần tra cứu khẩn cấp để loại trừ rủi ro nợ xấu tiềm ẩn\n   - Thiếu lịch sử tín dụng để đánh giá hành vi trả nợ\n\n4. **Quyết định**: \n   - \"Needs_review\" do thiếu >50% thông tin bắt buộc theo quy định VRB 2023\n   - Chỉ có thể xem xét phê duyệt sau khi: (1) Xác minh thu nhập, (2) Định giá tài sản độc lập, (3) Kiểm tra CIC\n\n5. **Khuyến nghị bổ sung**:\n   - Yêu cầu chứng minh quan hệ lao động nếu thu nhập từ lương\n   - Kiểm tra nguồn thu nhập thụ động (nếu có) qua sao kê ngân hàng\n   - Đánh giá lại hồ sơ trong vòng 15 ngày làm việc sau khi nhận đủ hồ sơ"
+}

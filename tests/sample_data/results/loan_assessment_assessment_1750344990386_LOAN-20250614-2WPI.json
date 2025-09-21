@@ -1,0 +1,74 @@
+{
+  "assessmentId": "assessment_1750344990386",
+  "applicationId": "LOAN-20250614-2WPI",
+  "timestamp": "2025-06-19T21:57:12.623626",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 1111111111,
+    "type": "Thế chấp",
+    "term": "05 năm",
+    "purpose": "Vay mua bất động sản"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 30000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.759871530555541,
+    "loanToValue": 0.30441400301369864,
+    "estimatedMonthlyPayment": 22796145.916666232
+  },
+  "assessmentResult": {
+    "status": "needs_review",
+    "confidence": 0.75,
+    "creditScore": 750,
+    "reasoning": "Hồ sơ vay có một số điểm mạnh như thu nhập ổn định từ lương 30 triệu VNĐ/tháng, lịch sử tín dụng tốt (CIC nhóm 1), không có nợ hiện tại, và tài sản đảm bảo có giá trị cao (3.6 tỷ VNĐ). Tuy nhiên, tỷ lệ nợ/thu nhập sau khi vay (DTI) là 76%, vượt quá ngưỡng an toàn 50% theo tiêu chuẩn ngân hàng. Dòng tiền sau trả nợ còn 7.2 triệu VNĐ/tháng, đủ để trang trải sinh hoạt nhưng không dư dả. Tài sản đảm bảo có tính thanh khoản trung bình do là bất động sản mặt tiền kinh doanh nhưng phụ thuộc vào vị trí cụ thể và tình hình thị trường Bình Dương. Cần bổ sung thông tin chi tiết về hợp đồng lao động, xác minh thu nhập, và định giá chính thức tài sản đảm bảo để giảm thiểu rủi ro.",
+    "riskFactors": [
+      "DTI cao (76%) vượt ngưỡng an toàn",
+      "Thu nhập sau trả nợ chỉ còn 7.2 triệu VNĐ/tháng",
+      "Tài sản đảm bảo chưa được định giá chính thức",
+      "Thiếu thông tin xác minh thu nhập và hợp đồng lao động"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung hợp đồng lao động, sao kê lương 3 tháng gần nhất",
+      "Định giá chính thức tài sản đảm bảo bởi đơn vị thẩm định độc lập",
+      "Xem xét giảm số tiền vay để đưa DTI về dưới 50%",
+      "Yêu cầu mua bảo hiểm khoản vay để giảm thiểu rủi ro"
+    ],
+    "approvedAmount": 900000000,
+    "interestRate": 8.5,
+    "loanTerm": 60,
+    "monthlyPayment": 18468304,
+    "loanToValue": 25,
+    "debtToIncome": 61.56,
+    "conditions": [
+      "Bổ sung hợp đồng lao động và sao kê lương 3 tháng",
+      "Định giá tài sản đảm bảo bởi đơn vị được ngân hàng chỉ định",
+      "Mua bảo hiểm khoản vay",
+      "Giảm số tiền vay xuống 900 triệu VNĐ để đảm bảo DTI dưới 65%"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3600000000,
+      "marketAnalysis": "Tài sản là bất động sản mặt tiền kinh doanh tại vị trí đắc địa gần chợ An Cơ, đường Lê Thị Trung rộng 22m, có tiềm năng kinh doanh tốt. Đang cho thuê nhà trọ với thu nhập 37 triệu VNĐ/tháng. Tuy nhiên, cần kiểm tra thực tế hiện trạng và pháp lý sổ đỏ.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "customer_description_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 30000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 18468304,
+      "remainingIncome": 11531696,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 42.2250292301178,
+    "totalProcessingTime": 42.23736023902893,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"needs_review\",\n  \"confidence\": 0.75,\n  \"creditScore\": 750,\n  \"reasoning\": \"Hồ sơ vay có một số điểm mạnh như thu nhập ổn định từ lương 30 triệu VNĐ/tháng, lịch sử tín dụng tốt (CIC nhóm 1), không có nợ hiện tại, và tài sản đảm bảo có giá trị cao (3.6 tỷ VNĐ). Tuy nhiên, tỷ lệ nợ/thu nhập sau khi vay (DTI) là 76%, vượt quá ngưỡng an toàn 50% theo tiêu chuẩn ngân hàng. Dòng tiền sau trả nợ còn 7.2 triệu VNĐ/tháng, đủ để trang trải sinh hoạt nhưng không dư dả. Tài sản đảm bảo có tính thanh khoản trung bình do là bất động sản mặt tiền kinh doanh nhưng phụ thuộc vào vị trí cụ thể và tình hình thị trường Bình Dương. Cần bổ sung thông tin chi tiết về hợp đồng lao động, xác minh thu nhập, và định giá chính thức tài sản đảm bảo để giảm thiểu rủi ro.\",\n  \"riskFactors\": [\n    \"DTI cao (76%) vượt ngưỡng an toàn\",\n    \"Thu nhập sau trả nợ chỉ còn 7.2 triệu VNĐ/tháng\",\n    \"Tài sản đảm bảo chưa được định giá chính thức\",\n    \"Thiếu thông tin xác minh thu nhập và hợp đồng lao động\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung hợp đồng lao động, sao kê lương 3 tháng gần nhất\",\n    \"Định giá chính thức tài sản đảm bảo bởi đơn vị thẩm định độc lập\",\n    \"Xem xét giảm số tiền vay để đưa DTI về dưới 50%\",\n    \"Yêu cầu mua bảo hiểm khoản vay để giảm thiểu rủi ro\"\n  ],\n  \"approvedAmount\": 900000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 60,\n  \"monthlyPayment\": 18468304,\n  \"loanToValue\": 25,\n  \"debtToIncome\": 61.56,\n  \"conditions\": [\n    \"Bổ sung hợp đồng lao động và sao kê lương 3 tháng\",\n    \"Định giá tài sản đảm bảo bởi đơn vị được ngân hàng chỉ định\",\n    \"Mua bảo hiểm khoản vay\",\n    \"Giảm số tiền vay xuống 900 triệu VNĐ để đảm bảo DTI dưới 65%\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3600000000,\n    \"marketAnalysis\": \"Tài sản là bất động sản mặt tiền kinh doanh tại vị trí đắc địa gần chợ An Cơ, đường Lê Thị Trung rộng 22m, có tiềm năng kinh doanh tốt. Đang cho thuê nhà trọ với thu nhập 37 triệu VNĐ/tháng. Tuy nhiên, cần kiểm tra thực tế hiện trạng và pháp lý sổ đỏ.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"customer_description_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 30000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 18468304,\n    \"remainingIncome\": 11531696,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n```"
+}

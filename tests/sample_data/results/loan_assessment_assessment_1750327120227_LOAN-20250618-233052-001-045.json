@@ -1,0 +1,70 @@
+{
+  "assessmentId": "assessment_1750327120227",
+  "applicationId": "LOAN-20250618-233052-001-045",
+  "timestamp": "2025-06-19T16:59:37.954180",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 299000000,
+    "type": "Thế chấp",
+    "term": "01 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 60000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.43464524925946235,
+    "loanToValue": 0.08191780821917809,
+    "estimatedMonthlyPayment": 26078714.95556774
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.92,
+    "creditScore": 800,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 60 triệu VNĐ/tháng từ vị trí Director tại Savills với 10 năm kinh nghiệm, thể hiện khả năng tài chính vững vàng. Tỷ lệ DTI sau khi vay là 43.5% (<50%), dòng tiền sau trả nợ còn 33.9 triệu VNĐ (>15 triệu VNĐ). Tài sản đảm bảo là bất động sản thổ cư 100% tại vị trí đắc địa (cách đường Liên Huyện 50m, đường rộng 17m), có sổ hồng riêng, giá trị định giá 3.65 tỷ VNĐ (LTV chỉ 8.2%). Lịch sử tín dụng CIC nhóm 1, không có nợ xấu. Mặc dù thiếu một số thông tin cá nhân như CCCD, nhưng các yếu tố tài chính và tài sản đảm bảo đủ mạnh để bù đắp rủi ro này.",
+    "riskFactors": [
+      "Thiếu thông tin định danh (CCCD, địa chỉ thường trú)",
+      "Tài sản thanh khoản thấp (0 tỷ VNĐ)",
+      "Phụ thuộc vào nguồn thu nhập duy nhất"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung CCCD và địa chỉ thường trú để hoàn thiện hồ sơ pháp lý",
+      "Khuyến nghị khách hàng duy trì khoản tiết kiệm dự phòng ít nhất 3 tháng lương"
+    ],
+    "approvedAmount": 300000000,
+    "interestRate": 8.5,
+    "loanTerm": 12,
+    "monthlyPayment": 26078714,
+    "loanToValue": 8.2,
+    "debtToIncome": 43.5,
+    "conditions": [
+      "Bổ sung CCCD/CMND và địa chỉ thường trú",
+      "Ký hợp đồng thế chấp tài sản tại công chứng",
+      "Mở tài khoản thanh toán tại ngân hàng"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Bất động sản có vị trí chiến lược tại TP. Thuận An (Bình Dương) - khu vực đang phát triển mạnh về hạ tầng và dân cư. Diện tích 125m2 thổ cư 100%, mặt tiền 5m phù hợp kinh doanh. Giá đất khu vực An Phú hiện dao động 25-35 triệu/m2 tùy vị trí. Đường rộng 17m và gần trục đường chính làm tăng tính thanh khoản.",
+      "liquidityRisk": "low",
+      "valuationMethod": "comparable_sales_method"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 60000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 26078714,
+      "remainingIncome": 33921286,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 57.70875096321106,
+    "totalProcessingTime": 57.72631120681763,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.92,\n  \"creditScore\": 800,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 60 triệu VNĐ/tháng từ vị trí Director tại Savills với 10 năm kinh nghiệm, thể hiện khả năng tài chính vững vàng. Tỷ lệ DTI sau khi vay là 43.5% (<50%), dòng tiền sau trả nợ còn 33.9 triệu VNĐ (>15 triệu VNĐ). Tài sản đảm bảo là bất động sản thổ cư 100% tại vị trí đắc địa (cách đường Liên Huyện 50m, đường rộng 17m), có sổ hồng riêng, giá trị định giá 3.65 tỷ VNĐ (LTV chỉ 8.2%). Lịch sử tín dụng CIC nhóm 1, không có nợ xấu. Mặc dù thiếu một số thông tin cá nhân như CCCD, nhưng các yếu tố tài chính và tài sản đảm bảo đủ mạnh để bù đắp rủi ro này.\",\n  \"riskFactors\": [\n    \"Thiếu thông tin định danh (CCCD, địa chỉ thường trú)\",\n    \"Tài sản thanh khoản thấp (0 tỷ VNĐ)\",\n    \"Phụ thuộc vào nguồn thu nhập duy nhất\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung CCCD và địa chỉ thường trú để hoàn thiện hồ sơ pháp lý\",\n    \"Khuyến nghị khách hàng duy trì khoản tiết kiệm dự phòng ít nhất 3 tháng lương\"\n  ],\n  \"approvedAmount\": 300000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 12,\n  \"monthlyPayment\": 26078714,\n  \"loanToValue\": 8.2,\n  \"debtToIncome\": 43.5,\n  \"conditions\": [\n    \"Bổ sung CCCD/CMND và địa chỉ thường trú\",\n    \"Ký hợp đồng thế chấp tài sản tại công chứng\",\n    \"Mở tài khoản thanh toán tại ngân hàng\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Bất động sản có vị trí chiến lược tại TP. Thuận An (Bình Dương) - khu vực đang phát triển mạnh về hạ tầng và dân cư. Diện tích 125m2 thổ cư 100%, mặt tiền 5m phù hợp kinh doanh. Giá đất khu vực An Phú hiện dao động 25-35 triệu/m2 tùy vị trí. Đường rộng 17m và gần trục đường chính làm tăng tính thanh khoản.\",\n    \"liquidityRisk\": \"low\",\n    \"valuationMethod\": \"comparable_sales_method\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 60000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 26078714,\n    \"remainingIncome\": 33921286,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Khả năng tài chính (9.5/10 điểm):**\n   - Thu nhập 60 triệu/tháng thuộc nhóm cao, ổn định 10 năm tại cùng công ty\n   - DTI 43.5% an toàn (<50%), dư đủ 33.9 triệu sau trả nợ\n   - Thiếu tài sản thanh khoản được bù đắp bằng thu nhập cao\n\n2. **Tài sản đảm bảo (9/10 điểm):**\n   - Định giá 3.65 tỷ VNĐ dựa trên:\n     * Giá tham khảo khu vực: 29.2 triệu/m2 (125m2 × 29.2tr = 3.65 tỷ)\n     * Ưu điểm: Sổ riêng, thổ cư 100%, giao thông thuận lợi\n   - LTV cực thấp (8.2%) → Rủi ro tín dụng gần như bằng 0\n\n3. **Rủi ro cần kiểm soát:**\n   - Yêu cầu bổ sung CCCD để đảm bảo tính pháp lý\n   - Theo dõi tập trung thu nhập (phụ thuộc vào 1 nguồn)\n   - Khuyến nghị mua bảo hiểm khoản vay\n\n**LƯU Ý VẬN HÀNH:**\n- Ưu tiên xử lý nhanh do hồ sơ chất lượng cao\n- Lãi suất 8.5%/năm áp dụng chính sách ưu đãi cho khách VIP\n- Thời gian giải ngân: 5 ngày làm việc sau khi nhận đủ hồ sơ"
+}

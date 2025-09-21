@@ -1,0 +1,1165 @@
+{
+  "task_id": "hybrid_extract_1755713350586_93e2b4d1",
+  "timestamp": "2025-08-20T18:09:46.299693",
+  "company_id": "1e789800-b402-41b0-99d6-2e8d494a3beb",
+  "industry": "Industry.HOTEL",
+  "processing_time": 35.708210945129395,
+  "worker": "ExtractionProcessingWorker",
+  "raw_extraction_result": {
+    "raw_content": "Dưới đây là phân tích chi tiết file cung cấp thông tin về các hạng phòng và bảng giá tại Mermaid Seaside Hotel Vũng Tàu, áp dụng cho ngày thường.\n\n**Tổng quan:**\n\n*   **Nguồn:** File cung cấp bảng giá chi tiết các hạng phòng tại Mermaid Seaside Hotel Vũng Tàu cho một ngày đêm ngày thường.\n*   **Đơn vị tiền tệ:** VND (₫).\n*   **Thông tin chung:** Bao gồm tên hạng phòng, đánh giá (ví dụ: 8.2 - Excellent), tùy chọn giường, tiện nghi và chi tiết phòng, cùng với các \"Offer\" (gói ưu đãi) khác nhau.\n*   **Các \"Offer\" thường đi kèm với:**\n    *   Giá gốc và giá đã giảm (kèm tỷ lệ giảm).\n    *   Bao gồm bữa sáng.\n    *   Chính sách hủy phòng (hủy miễn phí trước ngày đặt hoặc không được hủy).\n    *   Hình thức thanh toán (thanh toán ngay hoặc thanh toán sau/tại khách sạn).\n    *   Một số lưu ý đặc biệt (ví dụ: số lượng có hạn, giá thấp).\n\n**Phân tích chi tiết từng hạng phòng:**\n\n**1. Superior Standard (8.2 - Excellent)**\n*   **Tùy chọn giường:** 1 giường đôi hoặc 2 giường đơn.\n*   **Tiện nghi & chi tiết:** Diện tích 28m², ban công/sân hiên, rèm cản sáng, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung, tủ quần áo.\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 2.040.052 ₫\n    *   Giá ưu đãi: 754.691 ₫ (Giảm 63%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, chỗ đậu xe, WiFi miễn phí.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 2.040.105 ₫\n    *   Giá ưu đãi: 771.013 ₫ (Giảm 62%)\n    *   Bao gồm: Bữa sáng, không được hủy, thanh toán ngay.\n\n**2. Superior Seaview (8.3 - Excellent | Recommended)**\n*   **Tùy chọn giường:** 1 giường cỡ King hoặc 2 giường đơn.\n*   **Tiện nghi & chi tiết:** Diện tích 30m², hướng nhìn ra biển (một phần), ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung.\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 1.633.028 ₫\n    *   Giá ưu đãi: 804.010 ₫ (Giảm 51%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán ngay. Số lượng có hạn.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 1.633.045 ₫\n    *   Giá ưu đãi: 809.532 ₫ (Giảm 50%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán sau.\n\n**3. 1 Bedroom Apartment (8.4 - Excellent)**\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 2.081.695 ₫\n    *   Giá ưu đãi: 1.025.324 ₫ (Giảm 51%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán ngay.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 2.081.695 ₫\n    *   Giá ưu đãi: 1.061.955 ₫ (Giảm 49%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán sau.\n\n**4. Superior Triple**\n*   **Offer 1 (3 người):**\n    *   Giá gốc: 1.743.977 ₫\n    *   Giá ưu đãi: 1.174.033 ₫ (Giảm 33%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (3 người):**\n    *   Giá gốc: 1.743.977 ₫\n    *   Giá ưu đãi: 1.246.276 ₫ (Giảm 29%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**5. Superior Family Room**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 2.285.483 ₫\n    *   Giá ưu đãi: 1.531.287 ₫ (Giảm 33%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (4 người):**\n    *   Giá gốc: 2.285.483 ₫\n    *   Giá ưu đãi: 1.623.977 ₫ (Giảm 29%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**6. Deluxe Seaview (8.4 - Excellent)**\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 1.748.625 ₫\n    *   Giá ưu đãi: 911.211 ₫ (Giảm 48%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 1.748.625 ₫\n    *   Giá ưu đãi: 950.345 ₫ (Giảm 46%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**7. Deluxe Family Room**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 2.305.818 ₫\n    *   Giá ưu đãi: 1.582.302 ₫ (Giảm 31%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (4 người):**\n    *   Giá gốc: 2.305.818 ₫\n    *   Giá ưu đãi: 1.678.961 ₫ (Giảm 27%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**8. Grand Suite Sea View (8.5 - Excellent)**\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 2.011.140 ₫\n    *   Giá ưu đãi: 1.630.903 ₫ (Giảm 19%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (2 người):**\n    *   Giá: 2.308.333 ₫\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**9. 2 Bed Apartment (8.5 - Excellent)**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 2.806.903 ₫\n    *   Giá ưu đãi: 1.735.565 ₫ (Giảm 38%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (4 người):**\n    *   Giá gốc: 2.806.903 ₫\n    *   Giá ưu đãi: 1.862.148 ₫ (Giảm 34%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**10. Standard Triple Room**\n*   **Offer 1 (3 người):**\n    *   Giá: 1.891.667 ₫\n    *   **Không bao gồm bữa sáng** (Có thể thêm: 120.000 ₫/người).\n    *   Hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (3 người):**\n    *   Giá: 1.958.333 ₫\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**11. Grand Family Room (8.6 - Excellent)**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 3.106.493 ₫\n    *   Giá ưu đãi: 2.143.918 ₫ (Giảm 31%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (6 người):**\n    *   Giá gốc: 3.106.493 ₫\n    *   Giá ưu đãi: 2.300.949 ₫ (Giảm 26%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n*   **Offer 3 (2 người):**\n    *   Giá gốc: 3.106.493 ₫\n    *   Giá ưu đãi: 2.347.549 ₫ (Giảm 24%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**12. Quadruple Room with Balcony**\n*   **Offer 1 (4 người):**\n    *   Giá: 2.695.000 ₫\n    *   Bao gồm: Bữa sáng, **không được hủy** (Giá thấp), thanh toán tại khách sạn.\n*   **Offer 2 (4 người):**\n    *   Giá: 2.750.000 ₫\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán tại khách sạn.\n\n**Ghi chú chung:**\n\n*   Giá đã bao gồm thuế và phí dịch vụ.\n*   \"Thanh toán sau\": Khách hàng không cần thanh toán trước ngày chỉ định.\n*   **Tiện nghi chung cho tất cả phòng:** Wifi miễn phí, bếp riêng, máy lạnh, TV, ban công (tùy loại).\n\n**Nhận xét và điểm nổi bật:**\n\n*   **Đa dạng hạng phòng:** Khách sạn cung cấp nhiều loại phòng khác nhau, từ tiêu chuẩn đến căn hộ và phòng gia đình, đáp ứng nhu cầu đa dạng của khách.\n*   **Ưu đãi hấp dẫn:** Hầu hết các hạng phòng đều có các chương trình ưu đãi giảm giá đáng kể, có thể lên đến hơn 50%.\n*   **Linh hoạt chính sách hủy và thanh toán:** Khách hàng có thể lựa chọn giữa các gói linh hoạt (hủy miễn phí, thanh toán sau) hoặc các gói có giá tốt hơn nhưng hạn chế hơn (không được hủy, thanh toán ngay).\n*   **Tiện nghi đầy đủ:** Thông tin về tiện nghi phòng khá chi tiết, cho thấy sự quan tâm đến trải nghiệm của khách hàng.\n*   **Thông tin rõ ràng:** Bố cục file rõ ràng, dễ đọc, giúp người xem nhanh chóng tìm được thông tin mình cần.\n\nFile này là một tài liệu marketing hiệu quả, trình bày chi tiết các lựa chọn lưu trú và khuyến mãi tại Mermaid Seaside Hotel Vũng Tàu.",
+    "products": [
+      {
+        "name": "Superior Standard",
+        "description": "Phòng Superior Standard có diện tích 28m², bao gồm ban công/sân hiên, rèm cản sáng, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung và tủ quần áo. Có thể chọn 1 giường đôi hoặc 2 giường đơn.",
+        "category": "phong_o",
+        "sub_category": "phong_tieu_chuan",
+        "tags": [
+          "thong_thoang",
+          "tien_nghi",
+          "co_ban",
+          "dep",
+          "thoai_mai"
+        ],
+        "target_audience": [
+          "cap_doi",
+          "gia_dinh_nho",
+          "doanh_nhan"
+        ],
+        "price_1": 754691,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Chỗ đậu xe | WiFi miễn phí",
+        "occupancy_price_1": 2,
+        "price_2": 771013,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Không được hủy | Thanh toán ngay",
+        "occupancy_price_2": 2,
+        "original_price": 2040052,
+        "other_info": {
+          "area": "28m²",
+          "bed_options": "1 giường đôi hoặc 2 giường đơn",
+          "view": "Không rõ",
+          "amenities": "Ban công/sân hiên, rèm cản sáng, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung, tủ quần áo"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Superior Seaview",
+        "description": "Phòng Superior Seaview có diện tích 30m², hướng nhìn ra biển một phần, ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc và phòng tắm chung. Có thể chọn 1 giường cỡ King hoặc 2 giường đơn.",
+        "category": "phong_o",
+        "sub_category": "phong_huong_bien",
+        "tags": [
+          "huong_bien",
+          "lang_man",
+          "dep",
+          "thoai_mai",
+          "co_ban"
+        ],
+        "target_audience": [
+          "cap_doi",
+          "gia_dinh_nho",
+          "nguoi_thich_canh_dep"
+        ],
+        "price_1": 804010,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán ngay | Số lượng có hạn",
+        "occupancy_price_1": 2,
+        "price_2": 809532,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán sau",
+        "occupancy_price_2": 2,
+        "original_price": 1633028,
+        "other_info": {
+          "area": "30m²",
+          "bed_options": "1 giường cỡ King hoặc 2 giường đơn",
+          "view": "Một phần biển",
+          "amenities": "Ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "1 Bedroom Apartment",
+        "description": "Căn hộ 1 phòng ngủ với các tiện nghi cơ bản, bao gồm bữa sáng và có các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "can_ho_mot_phong_ngu",
+        "tags": [
+          "can_ho",
+          "gia_dinh",
+          "dai_ngay",
+          "thoai_mai",
+          "tien_nghi_day_du"
+        ],
+        "target_audience": [
+          "gia_dinh",
+          "nhom_ban_be",
+          "cap_doi"
+        ],
+        "price_1": 1025324,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán ngay",
+        "occupancy_price_1": 2,
+        "price_2": 1061955,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán sau",
+        "occupancy_price_2": 2,
+        "original_price": 2081695,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Superior Triple",
+        "description": "Phòng Superior Triple dành cho 3 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "phong_ba_nguoi",
+        "tags": [
+          "gia_dinh",
+          "ban_be",
+          "ba_nguoi",
+          "thoai_mai",
+          "tiet_kiem"
+        ],
+        "target_audience": [
+          "gia_dinh_co_tre",
+          "nhom_ban_be",
+          "cap_doi_co_con"
+        ],
+        "price_1": 1174033,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 3,
+        "price_2": 1246276,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 3,
+        "original_price": 1743977,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Superior Family Room",
+        "description": "Phòng Superior Family Room dành cho 4 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "phong_gia_dinh",
+        "tags": [
+          "gia_dinh",
+          "bon_nguoi",
+          "thoai_mai",
+          "rong_rai",
+          "uu_dai"
+        ],
+        "target_audience": [
+          "gia_dinh_lon",
+          "nhom_ban_be",
+          "cap_doi_co_con"
+        ],
+        "price_1": 1531287,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 4,
+        "price_2": 1623977,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 4,
+        "original_price": 2285483,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Deluxe Seaview",
+        "description": "Phòng Deluxe Seaview có diện tích 30m² (không rõ, nhưng có thể tương đương Superior Seaview), hướng nhìn ra biển, ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc và phòng tắm chung. Có thể chọn 1 giường cỡ King hoặc 2 giường đơn.",
+        "category": "phong_o",
+        "sub_category": "phong_huong_bien_cao_cap",
+        "tags": [
+          "huong_bien",
+          "cao_cap",
+          "lang_man",
+          "sang_trong",
+          "view_dep"
+        ],
+        "target_audience": [
+          "cap_doi",
+          "doanh_nhan",
+          "nguoi_thich_sang_trong"
+        ],
+        "price_1": 911211,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 2,
+        "price_2": 950345,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 2,
+        "original_price": 1748625,
+        "other_info": {
+          "area": "Không rõ (tương đương 30m²)",
+          "bed_options": "1 giường cỡ King hoặc 2 giường đơn",
+          "view": "Biển",
+          "amenities": "Ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Deluxe Family Room",
+        "description": "Phòng Deluxe Family Room dành cho 4 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "phong_gia_dinh_cao_cap",
+        "tags": [
+          "gia_dinh",
+          "bon_nguoi",
+          "cao_cap",
+          "thoai_mai",
+          "sang_trong"
+        ],
+        "target_audience": [
+          "gia_dinh_lon",
+          "nhom_ban_be",
+          "cap_doi_co_con"
+        ],
+        "price_1": 1582302,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 4,
+        "price_2": 1678961,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 4,
+        "original_price": 2305818,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Grand Suite Sea View",
+        "description": "Phòng Grand Suite Sea View dành cho 2 người với tầm nhìn ra biển, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "hang_sang_lon",
+        "tags": [
+          "hang_sang",
+          "huong_bien",
+          "cao_cap",
+          "sang_trong",
+          "lang_man"
+        ],
+        "target_audience": [
+          "cap_doi",
+          "khach_vip",
+          "nguoi_thich_sang_trong"
+        ],
+        "price_1": 1630903,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 2,
+        "price_2": 2308333,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 2,
+        "original_price": 2011140,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Biển",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "2 Bed Apartment",
+        "description": "Căn hộ 2 phòng ngủ dành cho 4 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "can_ho_hai_phong_ngu",
+        "tags": [
+          "can_ho",
+          "gia_dinh",
+          "bon_nguoi",
+          "dai_ngay",
+          "thoai_mai"
+        ],
+        "target_audience": [
+          "gia_dinh_lon",
+          "nhom_ban_be",
+          "doanh_nhan_cong_tac"
+        ],
+        "price_1": 1735565,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 4,
+        "price_2": 1862148,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 4,
+        "original_price": 2806903,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Standard Triple Room",
+        "description": "Phòng Standard Triple dành cho 3 người, có tùy chọn không bao gồm bữa sáng (có thể thêm 120.000 ₫/người) hoặc bao gồm bữa sáng, với các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "phong_ba_nguoi",
+        "tags": [
+          "ba_nguoi",
+          "tiet_kiem",
+          "co_ban",
+          "gia_dinh",
+          "ban_be"
+        ],
+        "target_audience": [
+          "gia_dinh_co_tre",
+          "nhom_ban_be",
+          "cap_doi_co_con"
+        ],
+        "price_1": 1891667,
+        "currency_1": "VND",
+        "condition_price_1": "Không bao gồm bữa sáng (có thể thêm: 120.000 ₫/người) | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 3,
+        "price_2": 1958333,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 3,
+        "original_price": null,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Grand Family Room",
+        "description": "Phòng Grand Family Room có thể chứa 2, 4 hoặc 6 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+        "category": "phong_o",
+        "sub_category": "phong_gia_dinh_lon",
+        "tags": [
+          "gia_dinh",
+          "lon",
+          "nhom",
+          "thoai_mai",
+          "cao_cap"
+        ],
+        "target_audience": [
+          "gia_dinh_rat_lon",
+          "nhom_ban_be_lon",
+          "doanh_nghiep_du_lich"
+        ],
+        "price_1": 2143918,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+        "occupancy_price_1": 4,
+        "price_2": 2300949,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_2": 6,
+        "price_3": 2347549,
+        "currency_3": "VND",
+        "condition_price_3": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+        "occupancy_price_3": 2,
+        "original_price": 3106493,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Không rõ"
+        },
+        "quantity": 1
+      },
+      {
+        "name": "Quadruple Room with Balcony",
+        "description": "Phòng Quadruple Room có ban công dành cho 4 người, bao gồm bữa sáng, với hai tùy chọn về chính sách hủy: không được hủy (giá thấp) hoặc hủy miễn phí trước ngày.",
+        "category": "phong_o",
+        "sub_category": "phong_bon_nguoi",
+        "tags": [
+          "bon_nguoi",
+          "gia_dinh",
+          "ban_be",
+          "co_ban",
+          "view_dep"
+        ],
+        "target_audience": [
+          "gia_dinh_co_tre",
+          "nhom_ban_be",
+          "cap_doi_co_con"
+        ],
+        "price_1": 2695000,
+        "currency_1": "VND",
+        "condition_price_1": "Bao gồm bữa sáng | Không được hủy (Giá thấp) | Thanh toán tại khách sạn",
+        "occupancy_price_1": 4,
+        "price_2": 2750000,
+        "currency_2": "VND",
+        "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán tại khách sạn",
+        "occupancy_price_2": 4,
+        "original_price": null,
+        "other_info": {
+          "area": "Không rõ",
+          "bed_options": "Không rõ",
+          "view": "Không rõ",
+          "amenities": "Ban công"
+        },
+        "quantity": 1
+      }
+    ],
+    "services": [
+      {
+        "name": "Bữa sáng",
+        "description": "Bữa sáng được bao gồm trong hầu hết các gói đặt phòng, ngoại trừ một số tùy chọn phòng.",
+        "category": "do_an_thuc_uong",
+        "sub_category": "bua_sang",
+        "tags": [
+          "mien_phi",
+          "bao_gom",
+          "an_sang",
+          "dinh_duong"
+        ],
+        "target_audience": [
+          "tat_ca_khach_hang"
+        ],
+        "price_type": "free",
+        "price_min": 0,
+        "price_max": 0,
+        "service_details": "Bao gồm trong các gói phòng nhất định.",
+        "service_policies": [],
+        "content_for_embedding": "Dịch vụ bữa sáng. Bữa sáng được bao gồm trong hầu hết các gói đặt phòng, ngoại trừ một số tùy chọn phòng. Miễn phí cho khách lưu trú với các gói phòng áp dụng."
+      },
+      {
+        "name": "Chỗ đậu xe",
+        "description": "Dịch vụ chỗ đậu xe được cung cấp miễn phí cho khách lưu trú.",
+        "category": "tien_ich_khach_san",
+        "sub_category": "dich_vu_xe",
+        "tags": [
+          "mien_phi",
+          "xe_hoi",
+          "an_toan",
+          "tien_loi"
+        ],
+        "target_audience": [
+          "tat_ca_khach_hang_co_xe"
+        ],
+        "price_type": "free",
+        "price_min": 0,
+        "price_max": 0,
+        "service_details": "Miễn phí cho khách lưu trú.",
+        "service_policies": [],
+        "content_for_embedding": "Dịch vụ chỗ đậu xe. Chỗ đậu xe được cung cấp miễn phí cho khách lưu trú. Miễn phí cho khách lưu trú."
+      },
+      {
+        "name": "WiFi miễn phí",
+        "description": "Dịch vụ WiFi miễn phí được cung cấp cho tất cả khách lưu trú.",
+        "category": "cong_nghe",
+        "sub_category": "ket_noi_internet",
+        "tags": [
+          "mien_phi",
+          "wifi",
+          "internet",
+          "ket_noi",
+          "nhanh"
+        ],
+        "target_audience": [
+          "tat_ca_khach_hang",
+          "doanh_nhan",
+          "nguoi_du_lich"
+        ],
+        "price_type": "free",
+        "price_min": 0,
+        "price_max": 0,
+        "service_details": "Miễn phí cho khách lưu trú.",
+        "service_policies": [],
+        "content_for_embedding": "Dịch vụ WiFi miễn phí. Dịch vụ WiFi miễn phí được cung cấp cho tất cả khách lưu trú. Miễn phí cho khách lưu trú."
+      },
+      {
+        "name": "Tùy chọn thêm bữa sáng",
+        "description": "Cho phép khách hàng thêm bữa sáng vào các gói phòng không bao gồm với chi phí 120.000 ₫/người.",
+        "category": "do_an_thuc_uong",
+        "sub_category": "dich_vu_them",
+        "tags": [
+          "them",
+          "bua_sang",
+          "an_sang",
+          "thanh_toan_them"
+        ],
+        "target_audience": [
+          "khach_hang_chon_goi_khong_bao_gom_bua_sang"
+        ],
+        "price_type": "per_person",
+        "price_min": 120000,
+        "price_max": 120000,
+        "currency": "VND",
+        "service_details": "Có thể thêm vào các phòng không bao gồm bữa sáng.",
+        "service_policies": [],
+        "content_for_embedding": "Dịch vụ tùy chọn thêm bữa sáng. Cho phép khách hàng thêm bữa sáng vào các gói phòng không bao gồm với chi phí 120.000 ₫/người. Thuộc danh mục đồ ăn thức uống. Giá 120.000 ₫/người."
+      }
+    ],
+    "extraction_summary": {
+      "total_products": 12,
+      "total_services": 4,
+      "data_quality": "high",
+      "categorization_notes": "All identified room types have been categorized as products. Ancillary services like breakfast, parking and WiFi are categorized as services. Some services like 'adding breakfast' are also categorized as paid services for clarity.",
+      "industry_context": "The extracted data pertains to hotel room bookings and associated services. The pricing and conditions clearly indicate a focus on the hotel industry, with various room types and flexible booking options."
+    },
+    "extraction_metadata": {
+      "r2_url": "https://static.agent8x.io.vn/company/1e789800-b402-41b0-99d6-2e8d494a3beb/files/7371c75a-4d6a-4373-a75e-8c034ec31d65.pdf",
+      "extraction_mode": "auto_categorization",
+      "target_categories": [
+        "products",
+        "services"
+      ],
+      "ai_provider": "gemini",
+      "template_used": "HotelExtractionTemplate",
+      "industry": "hotel",
+      "company_name": null,
+      "file_extension": ".pdf",
+      "extraction_timestamp": "2025-08-20T18:09:46.299176",
+      "total_items": 16,
+      "source": "r2_extraction_service_v2",
+      "categorization_summary": {
+        "products": 12,
+        "services": 4
+      },
+      "total_products_extracted": 12,
+      "total_services_extracted": 4,
+      "total_items_extracted": 16,
+      "extraction_success": true,
+      "structure_normalized": true,
+      "normalization_timestamp": "2025-08-20T18:09:46.299538"
+    }
+  },
+  "normalized_extraction_result": {
+    "raw_content": "Dưới đây là phân tích chi tiết file cung cấp thông tin về các hạng phòng và bảng giá tại Mermaid Seaside Hotel Vũng Tàu, áp dụng cho ngày thường.\n\n**Tổng quan:**\n\n*   **Nguồn:** File cung cấp bảng giá chi tiết các hạng phòng tại Mermaid Seaside Hotel Vũng Tàu cho một ngày đêm ngày thường.\n*   **Đơn vị tiền tệ:** VND (₫).\n*   **Thông tin chung:** Bao gồm tên hạng phòng, đánh giá (ví dụ: 8.2 - Excellent), tùy chọn giường, tiện nghi và chi tiết phòng, cùng với các \"Offer\" (gói ưu đãi) khác nhau.\n*   **Các \"Offer\" thường đi kèm với:**\n    *   Giá gốc và giá đã giảm (kèm tỷ lệ giảm).\n    *   Bao gồm bữa sáng.\n    *   Chính sách hủy phòng (hủy miễn phí trước ngày đặt hoặc không được hủy).\n    *   Hình thức thanh toán (thanh toán ngay hoặc thanh toán sau/tại khách sạn).\n    *   Một số lưu ý đặc biệt (ví dụ: số lượng có hạn, giá thấp).\n\n**Phân tích chi tiết từng hạng phòng:**\n\n**1. Superior Standard (8.2 - Excellent)**\n*   **Tùy chọn giường:** 1 giường đôi hoặc 2 giường đơn.\n*   **Tiện nghi & chi tiết:** Diện tích 28m², ban công/sân hiên, rèm cản sáng, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung, tủ quần áo.\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 2.040.052 ₫\n    *   Giá ưu đãi: 754.691 ₫ (Giảm 63%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, chỗ đậu xe, WiFi miễn phí.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 2.040.105 ₫\n    *   Giá ưu đãi: 771.013 ₫ (Giảm 62%)\n    *   Bao gồm: Bữa sáng, không được hủy, thanh toán ngay.\n\n**2. Superior Seaview (8.3 - Excellent | Recommended)**\n*   **Tùy chọn giường:** 1 giường cỡ King hoặc 2 giường đơn.\n*   **Tiện nghi & chi tiết:** Diện tích 30m², hướng nhìn ra biển (một phần), ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung.\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 1.633.028 ₫\n    *   Giá ưu đãi: 804.010 ₫ (Giảm 51%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán ngay. Số lượng có hạn.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 1.633.045 ₫\n    *   Giá ưu đãi: 809.532 ₫ (Giảm 50%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán sau.\n\n**3. 1 Bedroom Apartment (8.4 - Excellent)**\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 2.081.695 ₫\n    *   Giá ưu đãi: 1.025.324 ₫ (Giảm 51%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán ngay.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 2.081.695 ₫\n    *   Giá ưu đãi: 1.061.955 ₫ (Giảm 49%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày đặt, thanh toán sau.\n\n**4. Superior Triple**\n*   **Offer 1 (3 người):**\n    *   Giá gốc: 1.743.977 ₫\n    *   Giá ưu đãi: 1.174.033 ₫ (Giảm 33%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (3 người):**\n    *   Giá gốc: 1.743.977 ₫\n    *   Giá ưu đãi: 1.246.276 ₫ (Giảm 29%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**5. Superior Family Room**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 2.285.483 ₫\n    *   Giá ưu đãi: 1.531.287 ₫ (Giảm 33%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (4 người):**\n    *   Giá gốc: 2.285.483 ₫\n    *   Giá ưu đãi: 1.623.977 ₫ (Giảm 29%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**6. Deluxe Seaview (8.4 - Excellent)**\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 1.748.625 ₫\n    *   Giá ưu đãi: 911.211 ₫ (Giảm 48%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (2 người):**\n    *   Giá gốc: 1.748.625 ₫\n    *   Giá ưu đãi: 950.345 ₫ (Giảm 46%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**7. Deluxe Family Room**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 2.305.818 ₫\n    *   Giá ưu đãi: 1.582.302 ₫ (Giảm 31%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (4 người):**\n    *   Giá gốc: 2.305.818 ₫\n    *   Giá ưu đãi: 1.678.961 ₫ (Giảm 27%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**8. Grand Suite Sea View (8.5 - Excellent)**\n*   **Offer 1 (2 người):**\n    *   Giá gốc: 2.011.140 ₫\n    *   Giá ưu đãi: 1.630.903 ₫ (Giảm 19%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (2 người):**\n    *   Giá: 2.308.333 ₫\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**9. 2 Bed Apartment (8.5 - Excellent)**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 2.806.903 ₫\n    *   Giá ưu đãi: 1.735.565 ₫ (Giảm 38%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (4 người):**\n    *   Giá gốc: 2.806.903 ₫\n    *   Giá ưu đãi: 1.862.148 ₫ (Giảm 34%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**10. Standard Triple Room**\n*   **Offer 1 (3 người):**\n    *   Giá: 1.891.667 ₫\n    *   **Không bao gồm bữa sáng** (Có thể thêm: 120.000 ₫/người).\n    *   Hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (3 người):**\n    *   Giá: 1.958.333 ₫\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**11. Grand Family Room (8.6 - Excellent)**\n*   **Offer 1 (4 người):**\n    *   Giá gốc: 3.106.493 ₫\n    *   Giá ưu đãi: 2.143.918 ₫ (Giảm 31%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán ngay.\n*   **Offer 2 (6 người):**\n    *   Giá gốc: 3.106.493 ₫\n    *   Giá ưu đãi: 2.300.949 ₫ (Giảm 26%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n*   **Offer 3 (2 người):**\n    *   Giá gốc: 3.106.493 ₫\n    *   Giá ưu đãi: 2.347.549 ₫ (Giảm 24%)\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán sau.\n\n**12. Quadruple Room with Balcony**\n*   **Offer 1 (4 người):**\n    *   Giá: 2.695.000 ₫\n    *   Bao gồm: Bữa sáng, **không được hủy** (Giá thấp), thanh toán tại khách sạn.\n*   **Offer 2 (4 người):**\n    *   Giá: 2.750.000 ₫\n    *   Bao gồm: Bữa sáng, hủy miễn phí trước ngày, thanh toán tại khách sạn.\n\n**Ghi chú chung:**\n\n*   Giá đã bao gồm thuế và phí dịch vụ.\n*   \"Thanh toán sau\": Khách hàng không cần thanh toán trước ngày chỉ định.\n*   **Tiện nghi chung cho tất cả phòng:** Wifi miễn phí, bếp riêng, máy lạnh, TV, ban công (tùy loại).\n\n**Nhận xét và điểm nổi bật:**\n\n*   **Đa dạng hạng phòng:** Khách sạn cung cấp nhiều loại phòng khác nhau, từ tiêu chuẩn đến căn hộ và phòng gia đình, đáp ứng nhu cầu đa dạng của khách.\n*   **Ưu đãi hấp dẫn:** Hầu hết các hạng phòng đều có các chương trình ưu đãi giảm giá đáng kể, có thể lên đến hơn 50%.\n*   **Linh hoạt chính sách hủy và thanh toán:** Khách hàng có thể lựa chọn giữa các gói linh hoạt (hủy miễn phí, thanh toán sau) hoặc các gói có giá tốt hơn nhưng hạn chế hơn (không được hủy, thanh toán ngay).\n*   **Tiện nghi đầy đủ:** Thông tin về tiện nghi phòng khá chi tiết, cho thấy sự quan tâm đến trải nghiệm của khách hàng.\n*   **Thông tin rõ ràng:** Bố cục file rõ ràng, dễ đọc, giúp người xem nhanh chóng tìm được thông tin mình cần.\n\nFile này là một tài liệu marketing hiệu quả, trình bày chi tiết các lựa chọn lưu trú và khuyến mãi tại Mermaid Seaside Hotel Vũng Tàu.",
+    "structured_data": {
+      "products": [
+        {
+          "name": "Superior Standard",
+          "description": "Phòng Superior Standard có diện tích 28m², bao gồm ban công/sân hiên, rèm cản sáng, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung và tủ quần áo. Có thể chọn 1 giường đôi hoặc 2 giường đơn.",
+          "category": "phong_o",
+          "sub_category": "phong_tieu_chuan",
+          "tags": [
+            "thong_thoang",
+            "tien_nghi",
+            "co_ban",
+            "dep",
+            "thoai_mai"
+          ],
+          "target_audience": [
+            "cap_doi",
+            "gia_dinh_nho",
+            "doanh_nhan"
+          ],
+          "price_1": 754691,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Chỗ đậu xe | WiFi miễn phí",
+          "occupancy_price_1": 2,
+          "price_2": 771013,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Không được hủy | Thanh toán ngay",
+          "occupancy_price_2": 2,
+          "original_price": 2040052,
+          "other_info": {
+            "area": "28m²",
+            "bed_options": "1 giường đôi hoặc 2 giường đơn",
+            "view": "Không rõ",
+            "amenities": "Ban công/sân hiên, rèm cản sáng, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung, tủ quần áo"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Superior Seaview",
+          "description": "Phòng Superior Seaview có diện tích 30m², hướng nhìn ra biển một phần, ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc và phòng tắm chung. Có thể chọn 1 giường cỡ King hoặc 2 giường đơn.",
+          "category": "phong_o",
+          "sub_category": "phong_huong_bien",
+          "tags": [
+            "huong_bien",
+            "lang_man",
+            "dep",
+            "thoai_mai",
+            "co_ban"
+          ],
+          "target_audience": [
+            "cap_doi",
+            "gia_dinh_nho",
+            "nguoi_thich_canh_dep"
+          ],
+          "price_1": 804010,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán ngay | Số lượng có hạn",
+          "occupancy_price_1": 2,
+          "price_2": 809532,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán sau",
+          "occupancy_price_2": 2,
+          "original_price": 1633028,
+          "other_info": {
+            "area": "30m²",
+            "bed_options": "1 giường cỡ King hoặc 2 giường đơn",
+            "view": "Một phần biển",
+            "amenities": "Ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "1 Bedroom Apartment",
+          "description": "Căn hộ 1 phòng ngủ với các tiện nghi cơ bản, bao gồm bữa sáng và có các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "can_ho_mot_phong_ngu",
+          "tags": [
+            "can_ho",
+            "gia_dinh",
+            "dai_ngay",
+            "thoai_mai",
+            "tien_nghi_day_du"
+          ],
+          "target_audience": [
+            "gia_dinh",
+            "nhom_ban_be",
+            "cap_doi"
+          ],
+          "price_1": 1025324,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán ngay",
+          "occupancy_price_1": 2,
+          "price_2": 1061955,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày đặt | Thanh toán sau",
+          "occupancy_price_2": 2,
+          "original_price": 2081695,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Superior Triple",
+          "description": "Phòng Superior Triple dành cho 3 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "phong_ba_nguoi",
+          "tags": [
+            "gia_dinh",
+            "ban_be",
+            "ba_nguoi",
+            "thoai_mai",
+            "tiet_kiem"
+          ],
+          "target_audience": [
+            "gia_dinh_co_tre",
+            "nhom_ban_be",
+            "cap_doi_co_con"
+          ],
+          "price_1": 1174033,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 3,
+          "price_2": 1246276,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 3,
+          "original_price": 1743977,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Superior Family Room",
+          "description": "Phòng Superior Family Room dành cho 4 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "phong_gia_dinh",
+          "tags": [
+            "gia_dinh",
+            "bon_nguoi",
+            "thoai_mai",
+            "rong_rai",
+            "uu_dai"
+          ],
+          "target_audience": [
+            "gia_dinh_lon",
+            "nhom_ban_be",
+            "cap_doi_co_con"
+          ],
+          "price_1": 1531287,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 4,
+          "price_2": 1623977,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 4,
+          "original_price": 2285483,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Deluxe Seaview",
+          "description": "Phòng Deluxe Seaview có diện tích 30m² (không rõ, nhưng có thể tương đương Superior Seaview), hướng nhìn ra biển, ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc và phòng tắm chung. Có thể chọn 1 giường cỡ King hoặc 2 giường đơn.",
+          "category": "phong_o",
+          "sub_category": "phong_huong_bien_cao_cap",
+          "tags": [
+            "huong_bien",
+            "cao_cap",
+            "lang_man",
+            "sang_trong",
+            "view_dep"
+          ],
+          "target_audience": [
+            "cap_doi",
+            "doanh_nhan",
+            "nguoi_thich_sang_trong"
+          ],
+          "price_1": 911211,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 2,
+          "price_2": 950345,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 2,
+          "original_price": 1748625,
+          "other_info": {
+            "area": "Không rõ (tương đương 30m²)",
+            "bed_options": "1 giường cỡ King hoặc 2 giường đơn",
+            "view": "Biển",
+            "amenities": "Ban công/sân hiên, cửa sổ, chăn điện, quầy bar mini, tầng cao, phòng không hút thuốc, phòng tắm chung"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Deluxe Family Room",
+          "description": "Phòng Deluxe Family Room dành cho 4 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "phong_gia_dinh_cao_cap",
+          "tags": [
+            "gia_dinh",
+            "bon_nguoi",
+            "cao_cap",
+            "thoai_mai",
+            "sang_trong"
+          ],
+          "target_audience": [
+            "gia_dinh_lon",
+            "nhom_ban_be",
+            "cap_doi_co_con"
+          ],
+          "price_1": 1582302,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 4,
+          "price_2": 1678961,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 4,
+          "original_price": 2305818,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Grand Suite Sea View",
+          "description": "Phòng Grand Suite Sea View dành cho 2 người với tầm nhìn ra biển, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "hang_sang_lon",
+          "tags": [
+            "hang_sang",
+            "huong_bien",
+            "cao_cap",
+            "sang_trong",
+            "lang_man"
+          ],
+          "target_audience": [
+            "cap_doi",
+            "khach_vip",
+            "nguoi_thich_sang_trong"
+          ],
+          "price_1": 1630903,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 2,
+          "price_2": 2308333,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 2,
+          "original_price": 2011140,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Biển",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "2 Bed Apartment",
+          "description": "Căn hộ 2 phòng ngủ dành cho 4 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "can_ho_hai_phong_ngu",
+          "tags": [
+            "can_ho",
+            "gia_dinh",
+            "bon_nguoi",
+            "dai_ngay",
+            "thoai_mai"
+          ],
+          "target_audience": [
+            "gia_dinh_lon",
+            "nhom_ban_be",
+            "doanh_nhan_cong_tac"
+          ],
+          "price_1": 1735565,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 4,
+          "price_2": 1862148,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 4,
+          "original_price": 2806903,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Standard Triple Room",
+          "description": "Phòng Standard Triple dành cho 3 người, có tùy chọn không bao gồm bữa sáng (có thể thêm 120.000 ₫/người) hoặc bao gồm bữa sáng, với các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "phong_ba_nguoi",
+          "tags": [
+            "ba_nguoi",
+            "tiet_kiem",
+            "co_ban",
+            "gia_dinh",
+            "ban_be"
+          ],
+          "target_audience": [
+            "gia_dinh_co_tre",
+            "nhom_ban_be",
+            "cap_doi_co_con"
+          ],
+          "price_1": 1891667,
+          "currency_1": "VND",
+          "condition_price_1": "Không bao gồm bữa sáng (có thể thêm: 120.000 ₫/người) | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 3,
+          "price_2": 1958333,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 3,
+          "original_price": null,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Grand Family Room",
+          "description": "Phòng Grand Family Room có thể chứa 2, 4 hoặc 6 người, bao gồm bữa sáng và các tùy chọn về chính sách hủy và thanh toán.",
+          "category": "phong_o",
+          "sub_category": "phong_gia_dinh_lon",
+          "tags": [
+            "gia_dinh",
+            "lon",
+            "nhom",
+            "thoai_mai",
+            "cao_cap"
+          ],
+          "target_audience": [
+            "gia_dinh_rat_lon",
+            "nhom_ban_be_lon",
+            "doanh_nghiep_du_lich"
+          ],
+          "price_1": 2143918,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán ngay",
+          "occupancy_price_1": 4,
+          "price_2": 2300949,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_2": 6,
+          "price_3": 2347549,
+          "currency_3": "VND",
+          "condition_price_3": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán sau",
+          "occupancy_price_3": 2,
+          "original_price": 3106493,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Không rõ"
+          },
+          "quantity": 1
+        },
+        {
+          "name": "Quadruple Room with Balcony",
+          "description": "Phòng Quadruple Room có ban công dành cho 4 người, bao gồm bữa sáng, với hai tùy chọn về chính sách hủy: không được hủy (giá thấp) hoặc hủy miễn phí trước ngày.",
+          "category": "phong_o",
+          "sub_category": "phong_bon_nguoi",
+          "tags": [
+            "bon_nguoi",
+            "gia_dinh",
+            "ban_be",
+            "co_ban",
+            "view_dep"
+          ],
+          "target_audience": [
+            "gia_dinh_co_tre",
+            "nhom_ban_be",
+            "cap_doi_co_con"
+          ],
+          "price_1": 2695000,
+          "currency_1": "VND",
+          "condition_price_1": "Bao gồm bữa sáng | Không được hủy (Giá thấp) | Thanh toán tại khách sạn",
+          "occupancy_price_1": 4,
+          "price_2": 2750000,
+          "currency_2": "VND",
+          "condition_price_2": "Bao gồm bữa sáng | Hủy miễn phí trước ngày | Thanh toán tại khách sạn",
+          "occupancy_price_2": 4,
+          "original_price": null,
+          "other_info": {
+            "area": "Không rõ",
+            "bed_options": "Không rõ",
+            "view": "Không rõ",
+            "amenities": "Ban công"
+          },
+          "quantity": 1
+        }
+      ],
+      "services": [
+        {
+          "name": "Bữa sáng",
+          "description": "Bữa sáng được bao gồm trong hầu hết các gói đặt phòng, ngoại trừ một số tùy chọn phòng.",
+          "category": "do_an_thuc_uong",
+          "sub_category": "bua_sang",
+          "tags": [
+            "mien_phi",
+            "bao_gom",
+            "an_sang",
+            "dinh_duong"
+          ],
+          "target_audience": [
+            "tat_ca_khach_hang"
+          ],
+          "price_type": "free",
+          "price_min": 0,
+          "price_max": 0,
+          "service_details": "Bao gồm trong các gói phòng nhất định.",
+          "service_policies": [],
+          "content_for_embedding": "Dịch vụ bữa sáng. Bữa sáng được bao gồm trong hầu hết các gói đặt phòng, ngoại trừ một số tùy chọn phòng. Miễn phí cho khách lưu trú với các gói phòng áp dụng."
+        },
+        {
+          "name": "Chỗ đậu xe",
+          "description": "Dịch vụ chỗ đậu xe được cung cấp miễn phí cho khách lưu trú.",
+          "category": "tien_ich_khach_san",
+          "sub_category": "dich_vu_xe",
+          "tags": [
+            "mien_phi",
+            "xe_hoi",
+            "an_toan",
+            "tien_loi"
+          ],
+          "target_audience": [
+            "tat_ca_khach_hang_co_xe"
+          ],
+          "price_type": "free",
+          "price_min": 0,
+          "price_max": 0,
+          "service_details": "Miễn phí cho khách lưu trú.",
+          "service_policies": [],
+          "content_for_embedding": "Dịch vụ chỗ đậu xe. Chỗ đậu xe được cung cấp miễn phí cho khách lưu trú. Miễn phí cho khách lưu trú."
+        },
+        {
+          "name": "WiFi miễn phí",
+          "description": "Dịch vụ WiFi miễn phí được cung cấp cho tất cả khách lưu trú.",
+          "category": "cong_nghe",
+          "sub_category": "ket_noi_internet",
+          "tags": [
+            "mien_phi",
+            "wifi",
+            "internet",
+            "ket_noi",
+            "nhanh"
+          ],
+          "target_audience": [
+            "tat_ca_khach_hang",
+            "doanh_nhan",
+            "nguoi_du_lich"
+          ],
+          "price_type": "free",
+          "price_min": 0,
+          "price_max": 0,
+          "service_details": "Miễn phí cho khách lưu trú.",
+          "service_policies": [],
+          "content_for_embedding": "Dịch vụ WiFi miễn phí. Dịch vụ WiFi miễn phí được cung cấp cho tất cả khách lưu trú. Miễn phí cho khách lưu trú."
+        },
+        {
+          "name": "Tùy chọn thêm bữa sáng",
+          "description": "Cho phép khách hàng thêm bữa sáng vào các gói phòng không bao gồm với chi phí 120.000 ₫/người.",
+          "category": "do_an_thuc_uong",
+          "sub_category": "dich_vu_them",
+          "tags": [
+            "them",
+            "bua_sang",
+            "an_sang",
+            "thanh_toan_them"
+          ],
+          "target_audience": [
+            "khach_hang_chon_goi_khong_bao_gom_bua_sang"
+          ],
+          "price_type": "per_person",
+          "price_min": 120000,
+          "price_max": 120000,
+          "currency": "VND",
+          "service_details": "Có thể thêm vào các phòng không bao gồm bữa sáng.",
+          "service_policies": [],
+          "content_for_embedding": "Dịch vụ tùy chọn thêm bữa sáng. Cho phép khách hàng thêm bữa sáng vào các gói phòng không bao gồm với chi phí 120.000 ₫/người. Thuộc danh mục đồ ăn thức uống. Giá 120.000 ₫/người."
+        }
+      ]
+    },
+    "extraction_metadata": {
+      "r2_url": "https://static.agent8x.io.vn/company/1e789800-b402-41b0-99d6-2e8d494a3beb/files/7371c75a-4d6a-4373-a75e-8c034ec31d65.pdf",
+      "extraction_mode": "auto_categorization",
+      "target_categories": [
+        "products",
+        "services"
+      ],
+      "ai_provider": "gemini",
+      "template_used": "HotelExtractionTemplate",
+      "industry": "hotel",
+      "company_name": null,
+      "file_extension": ".pdf",
+      "extraction_timestamp": "2025-08-20T18:09:46.299176",
+      "total_items": 16,
+      "source": "r2_extraction_service_v2",
+      "categorization_summary": {
+        "products": 12,
+        "services": 4
+      },
+      "total_products_extracted": 12,
+      "total_services_extracted": 4,
+      "total_items_extracted": 16,
+      "extraction_success": true,
+      "structure_normalized": true,
+      "normalization_timestamp": "2025-08-20T18:09:46.299538"
+    },
+    "extraction_summary": {
+      "total_products": 12,
+      "total_services": 4,
+      "total_items": 16,
+      "data_quality": "high",
+      "categorization_notes": "All identified room types have been categorized as products. Ancillary services like breakfast, parking and WiFi are categorized as services. Some services like 'adding breakfast' are also categorized as paid services for clarity.",
+      "industry_context": "The extracted data pertains to hotel room bookings and associated services. The pricing and conditions clearly indicate a focus on the hotel industry, with various room types and flexible booking options."
+    }
+  },
+  "extraction_result_keys": [
+    "raw_content",
+    "products",
+    "services",
+    "extraction_summary",
+    "extraction_metadata"
+  ],
+  "products_count": 12,
+  "services_count": 4,
+  "total_items": 16,
+  "has_structured_data_key": false,
+  "has_products_key": true,
+  "has_services_key": true,
+  "raw_content_length": 6980,
+  "metadata": {
+    "original_name": "Bang_gia_phong_ks_Mermaid.pdf",
+    "file_size": 133159,
+    "file_type": "application/pdf",
+    "industry": "hotel",
+    "language": "vi",
+    "extraction_timestamp": "2025-08-20T18:09:10.591914",
+    "task_id": "hybrid_extract_1755713350586_93e2b4d1",
+    "company_id": "1e789800-b402-41b0-99d6-2e8d494a3beb",
+    "data_type": "products",
+    "processing_metadata": {
+      "hybrid_strategy_enabled": true,
+      "individual_storage_mode": true,
+      "ai_auto_categorization": true,
+      "enhanced_callback_mode": true,
+      "extraction_mode": "hybrid_search_ready",
+      "processing_type": "hybrid_extraction_workflow",
+      "storage_strategy": "individual_points_with_metadata",
+      "callback_strategy": "enhanced_with_qdrant_ids",
+      "use_generic_prompts": true,
+      "auto_categorization_fields": [
+        "category",
+        "sub_category",
+        "tags",
+        "target_audience",
+        "coverage_type",
+        "service_type"
+      ],
+      "collection_name": "multi_company_data",
+      "point_strategy": "one_product_one_point",
+      "metadata_filtering_enabled": true,
+      "vector_search_enabled": true,
+      "embedding_strategy": "individual_item_embeddings",
+      "chunking_strategy": "per_item_chunking",
+      "content_for_embedding_required": true,
+      "callback_includes_qdrant_ids": true,
+      "callback_includes_categories": true,
+      "callback_handler": "enhanced_callback_handler",
+      "min_items_per_chunk": 1,
+      "chunk_by_categories": false,
+      "upload_to_qdrant": true,
+      "search_capabilities": {
+        "metadata_filtering_fields": [
+          "category",
+          "sub_category",
+          "tags",
+          "target_audience",
+          "coverage_type",
+          "service_type",
+          "industry",
+          "item_type"
+        ],
+        "vector_search_enabled": true,
+        "individual_item_crud": true,
+        "filter_then_search": true
+      }
+    }
+  },
+  "ai_provider": "gemini",
+  "template_used": "HotelExtractionTemplate"
+}

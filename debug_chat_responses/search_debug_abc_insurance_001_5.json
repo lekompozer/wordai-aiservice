@@ -1,0 +1,25 @@
+{
+  "query": "dịch vụ bồi thường",
+  "company_id": "abc_insurance_001",
+  "request": {
+    "query": "dịch vụ bồi thường",
+    "mode": "hybrid",
+    "categories": [
+      "products",
+      "services",
+      "company_info"
+    ],
+    "max_results": 10
+  },
+  "response": {
+    "success": false,
+    "mode": "hybrid",
+    "total_found": 0,
+    "query_used": "dịch vụ bồi thường",
+    "filters_applied": {},
+    "results": [],
+    "processing_time": 6.4477
+  },
+  "chunks_found": 0,
+  "timestamp": "2025-07-31T15:36:45.186849"
+}

@@ -1,0 +1,67 @@
+{
+  "request": {
+    "question": "Định giá miếng đất 5x25m KDc hiện hữu p.An Phú, Tp.Thuận An, Bình Dương.\nDT: 125m2 thổ cư 100% ( 5x25m )\nCách đường Liên Huyện 50m\nCách Vòng xoay An Phú 1km\nĐường rộng 17m\nSổ hồng riêng",
+    "files_count": 0,
+    "user_id": "932d82c2-b9fb-4630-a520-b9270a7eeb09",
+    "timestamp": "2025-06-18T18:41:09.192019"
+  },
+  "processing_steps": [
+    {
+      "step": 0,
+      "name": "quick_analysis",
+      "timestamp": 1750246869.2679129,
+      "result": {
+        "property_type": null,
+        "project_name": null,
+        "location": {
+          "province": "bình dương",
+          "district": "50m"
+        },
+        "search_query": "giá 125m² đường liên 50m bình dương 2025",
+        "confidence": 1.05,
+        "dientich": "125m²",
+        "bedrooms": null
+      }
+    },
+    {
+      "step": 2,
+      "name": "web_search",
+      "timestamp": 1750246879.300202,
+      "duration": 10.030394077301025,
+      "search_query": "giá 125m² đường liên 50m bình dương 2025",
+      "result": {
+        "success": false,
+        "properties_found": 0,
+        "successful_websites": 0,
+        "timeout": false,
+        "raw_data": null
+      }
+    }
+  ],
+  "web_search": {
+    "search_query": "giá 125m² đường liên 50m bình dương 2025",
+    "target_urls": [],
+    "full_responses": {},
+    "properties_found": [],
+    "performance_metrics": {
+      "total_time": 10.030394077301025,
+      "timeout": true,
+      "success": false
+    }
+  },
+  "processed_files": [],
+  "ai_response": "",
+  "performance_metrics": {
+    "total_duration": 41.96200203895569,
+    "start_time": 1750246869.192045,
+    "end_time": 1750246911.154048,
+    "steps_completed": 2,
+    "errors_count": 0,
+    "success": true
+  },
+  "errors": [],
+  "timestamp": "2025-06-18T18:41:51.155616",
+  "session_id": "53b95d5c",
+  "analysis_type": "real_estate_valuation",
+  "version": "1.0"
+}

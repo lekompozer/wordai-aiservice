@@ -1,0 +1,71 @@
+{
+  "assessmentId": "assessment_1750101915906",
+  "applicationId": "LOAN-20250616-022302-002-381",
+  "timestamp": "2025-06-17T02:26:00.623694",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 999999999,
+    "type": "Thế chấp",
+    "term": "10 năm",
+    "purpose": "Vay mua bất động sản"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 100000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.12398568875052547,
+    "loanToValue": 0.27397260246575345,
+    "estimatedMonthlyPayment": 12398568.875052547
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.95,
+    "creditScore": 850,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định và cao (100 triệu VNĐ/tháng) từ vị trí CEO tại Savills với 12 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau khi vay chỉ 12.4%, thấp hơn nhiều so với ngưỡng 50% cho phép. Tài sản đảm bảo là bất động sản có vị trí tốt tại Thuận An, giá trị ước tính 3.65 tỷ VNĐ, đảm bảo tỷ lệ LTV chỉ 27.4% (thấp hơn ngưỡng 80%). Lịch sử tín dụng nhóm 1 và không có nợ xấu. Dòng tiền sau trả nợ còn lại 87.6 triệu VNĐ/tháng, đảm bảo khả năng chi trả và tích lũy.",
+    "riskFactors": [
+      "Không có tài sản thanh khoản dự phòng",
+      "Phụ thuộc vào một nguồn thu nhập chính",
+      "Biến động thị trường bất động sản khu vực Thuận An"
+    ],
+    "recommendations": [
+      "Duy trì tài khoản thanh toán chính tại ngân hàng cho vay để theo dõi dòng tiền",
+      "Mua bảo hiểm khoản vay để giảm thiểu rủi ro"
+    ],
+    "approvedAmount": 1000000000,
+    "interestRate": 8.5,
+    "loanTerm": 120,
+    "monthlyPayment": 12398568,
+    "loanToValue": 27.4,
+    "debtToIncome": 12.4,
+    "conditions": [
+      "Mở tài khoản thanh toán chính tại ngân hàng",
+      "Cung cấp hợp đồng lao động và sao kê lương 3 tháng gần nhất",
+      "Đăng ký giao dịch đảm bảo tại cơ quan có thẩm quyền",
+      "Mua bảo hiểm cháy nổ cho tài sản đảm bảo"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Bất động sản có vị trí tốt tại phường An Phú, TP. Thuận An - khu vực đang phát triển mạnh. Diện tích 125m2 thổ cư 100%, mặt tiền 5m, gần đường Liên Huyện và vòng xoay An Phú. Giá đất khu vực hiện dao động 25-30 triệu/m2. Giá trị ước tính 3.65 tỷ là hợp lý.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "customer_description_analysis + market_comparison"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 100000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 12398568,
+      "remainingIncome": 87601432,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "medium"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 44.70006322860718,
+    "totalProcessingTime": 44.717363119125366,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.95,\n  \"creditScore\": 850,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chí thẩm định tín dụng theo tiêu chuẩn ngân hàng Việt Nam. Khách hàng có thu nhập ổn định và cao (100 triệu VNĐ/tháng) từ vị trí CEO tại Savills với 12 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau khi vay chỉ 12.4%, thấp hơn nhiều so với ngưỡng 50% cho phép. Tài sản đảm bảo là bất động sản có vị trí tốt tại Thuận An, giá trị ước tính 3.65 tỷ VNĐ, đảm bảo tỷ lệ LTV chỉ 27.4% (thấp hơn ngưỡng 80%). Lịch sử tín dụng nhóm 1 và không có nợ xấu. Dòng tiền sau trả nợ còn lại 87.6 triệu VNĐ/tháng, đảm bảo khả năng chi trả và tích lũy.\",\n  \"riskFactors\": [\n    \"Không có tài sản thanh khoản dự phòng\",\n    \"Phụ thuộc vào một nguồn thu nhập chính\",\n    \"Biến động thị trường bất động sản khu vực Thuận An\"\n  ],\n  \"recommendations\": [\n    \"Duy trì tài khoản thanh toán chính tại ngân hàng cho vay để theo dõi dòng tiền\",\n    \"Mua bảo hiểm khoản vay để giảm thiểu rủi ro\"\n  ],\n  \"approvedAmount\": 1000000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 120,\n  \"monthlyPayment\": 12398568,\n  \"loanToValue\": 27.4,\n  \"debtToIncome\": 12.4,\n  \"conditions\": [\n    \"Mở tài khoản thanh toán chính tại ngân hàng\",\n    \"Cung cấp hợp đồng lao động và sao kê lương 3 tháng gần nhất\",\n    \"Đăng ký giao dịch đảm bảo tại cơ quan có thẩm quyền\",\n    \"Mua bảo hiểm cháy nổ cho tài sản đảm bảo\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Bất động sản có vị trí tốt tại phường An Phú, TP. Thuận An - khu vực đang phát triển mạnh. Diện tích 125m2 thổ cư 100%, mặt tiền 5m, gần đường Liên Huyện và vòng xoay An Phú. Giá đất khu vực hiện dao động 25-30 triệu/m2. Giá trị ước tính 3.65 tỷ là hợp lý.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"customer_description_analysis + market_comparison\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 100000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 12398568,\n    \"remainingIncome\": 87601432,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"medium\"\n  }\n}\n```"
+}

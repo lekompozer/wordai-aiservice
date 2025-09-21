@@ -1,0 +1,70 @@
+{
+  "assessmentId": "assessment_1750160914737",
+  "applicationId": "LOAN-20250617-184418-013-037",
+  "timestamp": "2025-06-17T18:49:32.503312",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 790000000,
+    "type": "Thế chấp",
+    "term": "05 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 80000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.2026007468546312,
+    "loanToValue": 0.21643835616438356,
+    "estimatedMonthlyPayment": 16208059.748370495
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.92,
+    "creditScore": 750,
+    "reasoning": "Hồ sơ đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập ổn định 80 triệu VNĐ/tháng từ công việc Project Manager tại Savills với 10 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau khi vay chỉ 20.3% (dưới ngưỡng 50%), dòng tiền dư sau trả nợ lên tới 63.8 triệu VNĐ. Tài sản đảm bảo là đất thổ cư 125m2 tại An Phú, Thuận An có vị trí tốt, pháp lý rõ ràng (sổ hồng riêng), được định giá 3.65 tỷ VNĐ phù hợp thị trường. Lịch sử tín dụng CIC nhóm 1, không có nợ xấu. Mức vay 0.8 tỷ chỉ chiếm 21.9% giá trị tài sản (LTV thấp hơn nhiều so với giới hạn 70%).",
+    "riskFactors": [
+      "Phụ thuộc vào một nguồn thu nhập duy nhất",
+      "Tài sản đảm bảo ở khu vực có biến động giá tiềm ẩn",
+      "Không có khoản dự phòng tài chính thể hiện"
+    ],
+    "recommendations": [
+      "Duy trì hợp đồng lao động dài hạn để đảm bảo thu nhập ổn định",
+      "Bổ sung tài sản thanh khoản để tăng tính an toàn tài chính"
+    ],
+    "approvedAmount": 800000000,
+    "interestRate": 8.5,
+    "loanTerm": 60,
+    "monthlyPayment": 16208059,
+    "loanToValue": 21.9,
+    "debtToIncome": 20.3,
+    "conditions": [
+      "Bổ sung hợp đồng lao động và sao kê lương 3 tháng gần nhất",
+      "Mua bảo hiểm khoản vay",
+      "Đăng ký thế chấp tại cơ quan có thẩm quyền"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Đất thổ cư 125m2 mặt tiền 5m, cách đường Liên Huyện 50m, đường rộng 17m. Khu vực An Phú đang phát triển mạnh với nhiều dự án hạ tầng. Giá thị trường tương đương 29-30 triệu/m2.",
+      "liquidityRisk": "medium",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 80000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 16208059,
+      "remainingIncome": 63791940,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "low"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 57.753408908843994,
+    "totalProcessingTime": 57.765336990356445,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.92,\n  \"creditScore\": 750,\n  \"reasoning\": \"Hồ sơ đáp ứng đầy đủ các tiêu chí thẩm định của ngân hàng. Khách hàng có thu nhập ổn định 80 triệu VNĐ/tháng từ công việc Project Manager tại Savills với 10 năm kinh nghiệm, đảm bảo khả năng trả nợ. Tỷ lệ DTI sau khi vay chỉ 20.3% (dưới ngưỡng 50%), dòng tiền dư sau trả nợ lên tới 63.8 triệu VNĐ. Tài sản đảm bảo là đất thổ cư 125m2 tại An Phú, Thuận An có vị trí tốt, pháp lý rõ ràng (sổ hồng riêng), được định giá 3.65 tỷ VNĐ phù hợp thị trường. Lịch sử tín dụng CIC nhóm 1, không có nợ xấu. Mức vay 0.8 tỷ chỉ chiếm 21.9% giá trị tài sản (LTV thấp hơn nhiều so với giới hạn 70%).\",\n  \"riskFactors\": [\n    \"Phụ thuộc vào một nguồn thu nhập duy nhất\",\n    \"Tài sản đảm bảo ở khu vực có biến động giá tiềm ẩn\",\n    \"Không có khoản dự phòng tài chính thể hiện\"\n  ],\n  \"recommendations\": [\n    \"Duy trì hợp đồng lao động dài hạn để đảm bảo thu nhập ổn định\",\n    \"Bổ sung tài sản thanh khoản để tăng tính an toàn tài chính\"\n  ],\n  \"approvedAmount\": 800000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 60,\n  \"monthlyPayment\": 16208059,\n  \"loanToValue\": 21.9,\n  \"debtToIncome\": 20.3,\n  \"conditions\": [\n    \"Bổ sung hợp đồng lao động và sao kê lương 3 tháng gần nhất\",\n    \"Mua bảo hiểm khoản vay\",\n    \"Đăng ký thế chấp tại cơ quan có thẩm quyền\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Đất thổ cư 125m2 mặt tiền 5m, cách đường Liên Huyện 50m, đường rộng 17m. Khu vực An Phú đang phát triển mạnh với nhiều dự án hạ tầng. Giá thị trường tương đương 29-30 triệu/m2.\",\n    \"liquidityRisk\": \"medium\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 80000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 16208059,\n    \"remainingIncome\": 63791940,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"low\"\n  }\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Khả năng tài chính vượt trội**:\n   - Thu nhập 80 triệu/tháng gấp 4.9 lần khoản trả nợ dự kiến (16.2 triệu)\n   - DTI 20.3% thấp hơn nhiều so với ngưỡng 50% của ngân hàng\n   - Không có khoản nợ hiện tại, lịch sử tín dụng hoàn hảo (CIC nhóm 1)\n\n2. **Tài sản đảm bảo chất lượng**:\n   - Giá trị thẩm định 3.65 tỷ (cao hơn 1.4% so với khai báo của khách hàng)\n   - LTV chỉ 21.9% so với giới hạn 70% của ngân hàng\n   - Vị trí thuận lợi gần trục đường chính, pháp lý minh bạch\n\n3. **Điều kiện vay bảo thủ**:\n   - Lãi suất 8.5%/năm áp dụng cho khách hàng ưu tiên\n   - Thời hạn 5 năm phù hợp với mục đích vay tiêu dùng\n   - Các điều kiện bổ sung tiêu chuẩn để quản lý rủi ro\n\n4. **Rủi ro được kiểm soát**:\n   - Thanh khoản tài sản trung bình (cần 3-6 tháng để bán)\n   - Thu nhập ổn định nhưng phụ thuộc vào một nguồn\n   - Đề xuất bổ sung quỹ dự phòng để tăng tính an toàn\n\n**QUYẾT ĐỊNH**: Phê duyệt khoản vay với các điều kiện tiêu chuẩn do hồ sơ đáp ứng vượt các tiêu chí thẩm định khắt khe nhất của ngân hàng."
+}

@@ -1,0 +1,71 @@
+{
+  "assessmentId": "assessment_1750327699073",
+  "applicationId": "LOAN-20250618-233052-001-045",
+  "timestamp": "2025-06-19T17:09:11.223222",
+  "applicant": {
+    "name": "N/A",
+    "idNumber": "Chưa cung cấp",
+    "age": "Chưa xác định"
+  },
+  "loanRequest": {
+    "amount": 299000000,
+    "type": "Thế chấp",
+    "term": "01 năm",
+    "purpose": "Vay tiêu dùng cá nhân"
+  },
+  "financialMetrics": {
+    "totalMonthlyIncome": 60000000,
+    "currentDebtRatio": 0.0,
+    "projectedDebtRatio": 0.43464524925946235,
+    "loanToValue": 0.08191780821917809,
+    "estimatedMonthlyPayment": 26078714.95556774
+  },
+  "assessmentResult": {
+    "status": "approved",
+    "confidence": 0.92,
+    "creditScore": 790,
+    "reasoning": "Hồ sơ vay đáp ứng đầy đủ các tiêu chuẩn thẩm định tín dụng theo quy định của ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 60 triệu VNĐ/tháng từ vị trí Director tại Savills với 10 năm kinh nghiệm, thể hiện năng lực tài chính tốt. Tỷ lệ DTI sau vay là 43.5% (<50%), dòng tiền sau trả nợ còn 33.9 triệu VNĐ/tháng (>15 triệu VNĐ). Tài sản thế chấp là đất thổ cư 125m2 tại vị trí đắc địa (cách đường Liên Huyện 50m, đường rộng 17m) có giá trị thị trường ước tính 3.65 tỷ VNĐ, LTV chỉ 8.2% (<70%). Lịch sử tín dụng CIC nhóm 1 hoàn hảo, không có nợ xấu. Đây là hồ sơ chất lượng cao với rủi ro thấp.",
+    "riskFactors": [
+      "Thiếu thông tin cá nhân đầy đủ (CCCD, địa chỉ)",
+      "Không có tài sản thanh khoản dự phòng",
+      "Phụ thuộc vào nguồn thu nhập đơn lẻ"
+    ],
+    "recommendations": [
+      "Yêu cầu bổ sung bản sao CCCD và địa chỉ thường trú",
+      "Khuyến nghị mở quỹ dự phòng tài chính ít nhất 3 tháng thu nhập",
+      "Xem xét bảo hiểm khoản vay để giảm thiểu rủi ro"
+    ],
+    "approvedAmount": 300000000,
+    "interestRate": 8.5,
+    "loanTerm": 12,
+    "monthlyPayment": 26078714,
+    "loanToValue": 8.22,
+    "debtToIncome": 43.5,
+    "conditions": [
+      "Bổ sung đầy đủ giấy tờ cá nhân (CCCD, hộ khẩu)",
+      "Ký hợp đồng thế chấp tài sản tại cơ quan có thẩm quyền",
+      "Duy trì tài khoản lương tại ngân hàng cho vay"
+    ],
+    "collateralValuation": {
+      "estimatedValue": 3650000000,
+      "marketAnalysis": "Đất thổ cư 100% tại An Phú, Thuận An có giá trị cao do vị trí gần trục đường chính (Liên Huyện), hạ tầng hoàn thiện. Giá đất khu vực hiện dao động 25-30 triệu/m2. Định giá 3.65 tỷ VNĐ (tương đương 29.2 triệu/m2) là hợp lý.",
+      "liquidityRisk": "low",
+      "valuationMethod": "comparable_sales_analysis"
+    },
+    "financialAnalysis": {
+      "totalMonthlyIncome": 60000000,
+      "totalMonthlyDebt": 0,
+      "newLoanPayment": 26078714,
+      "remainingIncome": 33921286,
+      "emergencyFund": 0,
+      "incomeStability": "high",
+      "assetLiquidity": "medium"
+    }
+  },
+  "processingDetails": {
+    "reasoningDuration": 52.1439368724823,
+    "totalProcessingTime": 52.14999198913574,
+    "modelUsed": "deepseek-reasoning"
+  },
+  "rawResponse": "```json\n{\n  \"status\": \"approved\",\n  \"confidence\": 0.92,\n  \"creditScore\": 790,\n  \"reasoning\": \"Hồ sơ vay đáp ứng đầy đủ các tiêu chuẩn thẩm định tín dụng theo quy định của ngân hàng Việt Nam. Khách hàng có thu nhập ổn định 60 triệu VNĐ/tháng từ vị trí Director tại Savills với 10 năm kinh nghiệm, thể hiện năng lực tài chính tốt. Tỷ lệ DTI sau vay là 43.5% (<50%), dòng tiền sau trả nợ còn 33.9 triệu VNĐ/tháng (>15 triệu VNĐ). Tài sản thế chấp là đất thổ cư 125m2 tại vị trí đắc địa (cách đường Liên Huyện 50m, đường rộng 17m) có giá trị thị trường ước tính 3.65 tỷ VNĐ, LTV chỉ 8.2% (<70%). Lịch sử tín dụng CIC nhóm 1 hoàn hảo, không có nợ xấu. Đây là hồ sơ chất lượng cao với rủi ro thấp.\",\n  \"riskFactors\": [\n    \"Thiếu thông tin cá nhân đầy đủ (CCCD, địa chỉ)\",\n    \"Không có tài sản thanh khoản dự phòng\",\n    \"Phụ thuộc vào nguồn thu nhập đơn lẻ\"\n  ],\n  \"recommendations\": [\n    \"Yêu cầu bổ sung bản sao CCCD và địa chỉ thường trú\",\n    \"Khuyến nghị mở quỹ dự phòng tài chính ít nhất 3 tháng thu nhập\",\n    \"Xem xét bảo hiểm khoản vay để giảm thiểu rủi ro\"\n  ],\n  \"approvedAmount\": 300000000,\n  \"interestRate\": 8.5,\n  \"loanTerm\": 12,\n  \"monthlyPayment\": 26078714,\n  \"loanToValue\": 8.22,\n  \"debtToIncome\": 43.5,\n  \"conditions\": [\n    \"Bổ sung đầy đủ giấy tờ cá nhân (CCCD, hộ khẩu)\",\n    \"Ký hợp đồng thế chấp tài sản tại cơ quan có thẩm quyền\",\n    \"Duy trì tài khoản lương tại ngân hàng cho vay\"\n  ],\n  \"collateralValuation\": {\n    \"estimatedValue\": 3650000000,\n    \"marketAnalysis\": \"Đất thổ cư 100% tại An Phú, Thuận An có giá trị cao do vị trí gần trục đường chính (Liên Huyện), hạ tầng hoàn thiện. Giá đất khu vực hiện dao động 25-30 triệu/m2. Định giá 3.65 tỷ VNĐ (tương đương 29.2 triệu/m2) là hợp lý.\",\n    \"liquidityRisk\": \"low\",\n    \"valuationMethod\": \"comparable_sales_analysis\"\n  },\n  \"financialAnalysis\": {\n    \"totalMonthlyIncome\": 60000000,\n    \"totalMonthlyDebt\": 0,\n    \"newLoanPayment\": 26078714,\n    \"remainingIncome\": 33921286,\n    \"emergencyFund\": 0,\n    \"incomeStability\": \"high\",\n    \"assetLiquidity\": \"medium\"\n  }\n}\n``` \n\n**PHÂN TÍCH CHI TIẾT:**\n\n1. **Khả năng tài chính (9.5/10 điểm):**\n   - Thu nhập 60 triệu/tháng từ công ty uy tín (Savills) với thâm niên 10 năm → Độ tin cậy cao\n   - DTI 43.5% an toàn (<50%), dòng tiền dư 33.9 triệu/tháng đảm bảo khả năng trả nợ\n   - Thiếu tài sản thanh khoản là điểm trừ nhỏ\n\n2. **Tài sản đảm bảo (9/10 điểm):**\n   - Đất thổ cư 125m2 vị trí đẹp, giá trị thị trường 3.65 tỷ VNĐ được xác nhận qua phân tích so sánh\n   - LTV 8.22% cực thấp → Rủi ro tín dụng gần như bằng 0\n   - Sổ hồng riêng, pháp lý rõ ràng\n\n3. **Rủi ro tín dụng (9/10 điểm):**\n   - CIC nhóm 1 hoàn hảo, không nợ xấu\n   - Lịch sử công việc ổn định, thu nhập cao\n   - Rủi ro chính: Phụ thuộc vào thu nhập từ 1 nguồn\n\n4. **Điều kiện bổ sung:**\n   - Cần xác minh thông tin cá nhân qua CCCD\n   - Thế chấp tài sản bắt buộc theo quy định\n   - Khuyến nghị đa dạng hóa thu nhập để giảm rủi ro tập trung\n\n**LƯU Ý:** Lãi suất 8.5%/năm áp dụng theo chính sách ưu đãi cho khách hàng cao cấp có hồ sơ đẹp. Có thể điều chỉnh nếu khách hàng chấp nhận gói bảo hiểm khoản vay."
+}

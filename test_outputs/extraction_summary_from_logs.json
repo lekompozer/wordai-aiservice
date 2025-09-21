@@ -1,0 +1,33 @@
+{
+  "task_id": "hybrid_extract_1753690751679_46080809",
+  "timestamp": "2025-07-28T15:22:57.032837",
+  "status_from_logs": "completed",
+  "worker_1_extraction": {
+    "ai_extraction_time": "18.69s",
+    "products_extracted": 3,
+    "services_extracted": 0,
+    "total_items": 3,
+    "products_data_sample": {
+      "1": "AIA – Khỏe Trọn Vẹn",
+      "2": "Bảo hiểm Toàn diện Bệnh hiểm nghèo 2.0",
+      "3": "Bảo hiểm sức khỏe Bùng Gia Lực"
+    }
+  },
+  "worker_2_storage": {
+    "status": "partially_failed",
+    "products_received": 3,
+    "products_stored": 0,
+    "services_received": 0,
+    "services_stored": 0,
+    "error": "Pydantic validation error - missing 'type' field in ProductData",
+    "embedding_model": "paraphrase-multilingual-mpnet-base-v2",
+    "embedding_dimension": 768
+  },
+  "total_processing_time": "33.36s",
+  "issues_found": [
+    "Task status API not updating to 'completed'",
+    "ProductData model validation error - missing 'type' field",
+    "Products data format mismatch between AI extraction and storage model"
+  ],
+  "raw_content_sample": "--- DỊCH VỤ AIA VIỆT NAM (25/7/2025) – CHI TIẾT QUYỀN LỢI – PHÍ – ĐIỀU KIỆN ---\n\n1. AIA – Khỏe Trọn Vẹn (Bảo hiểm liên kết chung)..."
+}
