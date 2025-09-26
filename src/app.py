@@ -13,7 +13,9 @@ import os
 
 from src.core.config import APP_CONFIG
 from src.api.health_routes import router as health_router
-from src.api.chat_routes import router as chat_router
+
+# ✅ COMMENTED: Chat routes - Firebase auth dependency
+# from src.api.chat_routes import router as chat_router
 from src.api.real_estate_routes import router as real_estate_router
 from src.api.ocr_routes import router as ocr_router
 from src.api.loan_routes import router as loan_router
@@ -21,7 +23,7 @@ from src.api.loan_routes import router as loan_router
 # ✅ ADDED: Document Processing API for Phase 1
 from src.api.document_processing_routes import router as document_processing_router
 
-# ✅ ADDED: Document Generation API for AI-powered document creation
+# ✅ ADDED: Document Generation API for AI-powered document creation - KEEP (uses WordAI credentials)
 from src.api.document_generation import router as document_generation_router
 
 # ✅ ADDED: Quote Generation API with AI Gemini Pro 2.5
@@ -74,12 +76,15 @@ from src.api.hybrid_search.hybrid_search_routes import router as hybrid_search_r
 # ✅ ADDED: Firebase Authentication API for user management
 from src.api.auth_routes import router as auth_router
 
-# ✅ ADDED: HTML to DOCX Conversion API for template editing
-from src.api.conversion_routes import router as conversion_router
+# Authentication API
+# from src.api.auth_routes import router as auth_router
 
-# ✅ ADDED: Document Settings and History APIs for user document management
-from src.api.document_settings_routes import router as document_settings_router
-from src.api.documents_history_routes import router as documents_history_router
+# ✅ COMMENTED: HTML to DOCX Conversion API - Firebase auth dependency
+# from src.api.conversion_routes import router as conversion_router
+
+# ✅ COMMENTED: Document Settings and History APIs - Firebase auth dependency
+# from src.api.document_settings_routes import router as document_settings_router
+# from src.api.documents_history_routes import router as documents_history_router
 
 # Global startup time for uptime tracking
 startup_time = time.time()
@@ -300,17 +305,17 @@ def create_app() -> FastAPI:
 
     # ===== REGISTER ROUTERS =====
 
-    # Authentication endpoints - Firebase auth
+    # ✅ Authentication endpoints - Firebase auth for user management
     app.include_router(auth_router, tags=["Firebase Authentication"])
 
     # Health and status endpoints
     app.include_router(health_router, tags=["Health"])
 
-    # Chat endpoints - General RAG-based chat
-    app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
+    # ✅ COMMENTED: Chat endpoints - Firebase auth dependency
+    # app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])
 
-    # ✅ ALIAS: Support legacy frontend paths
-    app.include_router(chat_router, tags=["Chat - Legacy Paths"])
+    # ✅ COMMENTED: Support legacy frontend paths - Firebase auth dependency
+    # app.include_router(chat_router, tags=["Chat - Legacy Paths"])
 
     # Unified Chat System - Multi-industry with intelligent routing
     app.include_router(unified_chat_router, tags=["Unified Chat - Multi-Industry"])
@@ -383,12 +388,12 @@ def create_app() -> FastAPI:
     # ✅ ADDED: Admin Template Management for System Templates
     app.include_router(admin_template_router, tags=["Admin - System Templates"])
 
-    # ✅ ADDED: HTML to DOCX Conversion API
-    app.include_router(conversion_router, tags=["Document Conversion"])
+    # ✅ COMMENTED: HTML to DOCX Conversion API - Firebase auth dependency
+    # app.include_router(conversion_router, tags=["Document Conversion"])
 
-    # ✅ ADDED: Document Settings and History APIs
-    app.include_router(document_settings_router, tags=["Document Settings"])
-    app.include_router(documents_history_router, tags=["Documents History"])
+    # ✅ COMMENTED: Document Settings and History APIs - Firebase auth dependency
+    # app.include_router(document_settings_router, tags=["Document Settings"])
+    # app.include_router(documents_history_router, tags=["Documents History"])
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)
@@ -400,7 +405,7 @@ def create_app() -> FastAPI:
     # ✅ ADDED: Hybrid Search API for direct testing
     app.include_router(hybrid_search_router, tags=["Hybrid Search API"])
 
-    # ✅ ADDED: Document Generation API for AI-powered document creation
+    # ✅ ADDED: Document Generation API for AI-powered document creation - KEEP
     app.include_router(document_generation_router, tags=["Document Generation"])
 
     # ✅ ADDED: Internal CORS management for chat-plugin
