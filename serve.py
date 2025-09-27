@@ -50,6 +50,9 @@ try:
                 "project_id": firebase_project_id,
                 "private_key": firebase_private_key,
                 "client_email": firebase_client_email,
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
             }
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
