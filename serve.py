@@ -26,19 +26,50 @@ from pathlib import Path
 src_path = Path(__file__).parent / "src"
 sys.path.insert(0, str(src_path))
 
-# ✅ CRITICAL: Initialize Firebase before any other imports
-# This ensures that all modules get the same, initialized instance of firebase_admin
+# ✅ CRITICAL: Initialize Firebase BEFORE any other imports
+# This ensures firebase_admin is initialized before any module can import it
 try:
-    from src.config.firebase_config import FirebaseConfig
+    import firebase_admin
+    from firebase_admin import credentials
+    import os
+    import json
 
-    firebase_config = FirebaseConfig()
-    if not firebase_config.app:
-        print(
-            "⚠️ WARNING: Firebase could not be initialized. Auth will fail.",
-            file=sys.stderr,
+    # Check if already initialized
+    if not firebase_admin._apps:
+        # Try to load from environment variables first (production)
+        firebase_project_id = os.getenv("FIREBASE_PROJECT_ID")
+        firebase_private_key = os.getenv("FIREBASE_PRIVATE_KEY", "").replace(
+            "\\n", "\n"
         )
+        firebase_client_email = os.getenv("FIREBASE_CLIENT_EMAIL")
+
+        if firebase_project_id and firebase_private_key and firebase_client_email:
+            # Initialize from environment variables
+            cred_dict = {
+                "type": "service_account",
+                "project_id": firebase_project_id,
+                "private_key": firebase_private_key,
+                "client_email": firebase_client_email,
+            }
+            cred = credentials.Certificate(cred_dict)
+            firebase_admin.initialize_app(cred)
+            print("✅ Firebase Admin SDK initialized from environment variables")
+        else:
+            # Fallback to file (development)
+            cred_path = Path(__file__).parent / "firebase-credentials.json"
+            if cred_path.exists():
+                cred = credentials.Certificate(str(cred_path))
+                firebase_admin.initialize_app(cred)
+                print("✅ Firebase Admin SDK initialized from credentials file")
+            else:
+                print(
+                    "⚠️ WARNING: Firebase credentials not found, Firebase not initialized"
+                )
+    else:
+        print("✅ Firebase Admin SDK already initialized")
+
 except Exception as e:
-    print(f"🔥 FATAL: Failed to initialize Firebase on startup: {e}", file=sys.stderr)
+    print(f"🔥 FATAL: Failed to initialize Firebase: {e}", file=sys.stderr)
     sys.exit(1)
 
 
