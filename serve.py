@@ -70,6 +70,37 @@ try:
 
 except Exception as e:
     print(f"🔥 FATAL: Failed to initialize Firebase: {e}", file=sys.stderr)
+    import traceback
+
+    print("🔍 Full error traceback:", file=sys.stderr)
+    traceback.print_exc()
+
+    # Debug: Print the credentials that were loaded
+    try:
+        cred_path = Path(__file__).parent / "firebase-credentials.json"
+        if cred_path.exists():
+            import json
+
+            with open(cred_path) as f:
+                creds = json.load(f)
+                print(
+                    f"🔍 DEBUG: Loaded credentials keys: {list(creds.keys())}",
+                    file=sys.stderr,
+                )
+                print(
+                    f"🔍 DEBUG: token_uri present: {'token_uri' in creds}",
+                    file=sys.stderr,
+                )
+                print(
+                    f"🔍 DEBUG: token_uri value: {creds.get('token_uri', 'MISSING')}",
+                    file=sys.stderr,
+                )
+    except Exception as debug_e:
+        print(
+            f"🔍 DEBUG: Could not load credentials for debugging: {debug_e}",
+            file=sys.stderr,
+        )
+
     sys.exit(1)
 
 
