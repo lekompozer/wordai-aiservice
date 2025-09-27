@@ -70,17 +70,29 @@ async def verify_firebase_token(
     Supports both Authorization header (Bearer token) and session cookie
     Xác thực Firebase JWT token cho authentication người dùng
     """
+    import logging
+
+    logger = logging.getLogger("auth")
+
+    # Debug logging
+    logger.info(f"🔍 Auth check for {request.url.path}")
+    logger.info(f"   Authorization header: {'Yes' if authorization else 'No'}")
+    logger.info(f"   Session cookies: {list(request.cookies.keys())}")
+
     token = None
 
     # Try Authorization header first (Bearer token)
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split("Bearer ")[1]
+        logger.info("   Using Bearer token from Authorization header")
 
     # Try session cookie if no Authorization header
     elif "wordai_session_cookie" in request.cookies:
         token = request.cookies["wordai_session_cookie"]
+        logger.info(f"   Using session cookie (length: {len(token) if token else 0})")
 
     if not token:
+        logger.warning("   ❌ No authentication token found")
         raise HTTPException(
             status_code=401,
             detail="Authentication required. Provide Authorization header or session cookie.",
@@ -88,44 +100,56 @@ async def verify_firebase_token(
 
     try:
         # Verify the Firebase token (works for both ID tokens and session cookies)
+        logger.info("   🔍 Attempting session cookie verification...")
         decoded_token = firebase_auth.verify_session_cookie(token, check_revoked=True)
         user_uid = decoded_token.get("uid")
 
         if not user_uid:
+            logger.error("   ❌ No user ID found in decoded token")
             raise HTTPException(
                 status_code=401, detail="Invalid token: no user ID found"
             )
 
+        logger.info(f"   ✅ Auth success: {decoded_token.get('email', 'no-email')}")
         return {
             "uid": user_uid,
             "email": decoded_token.get("email"),
             "decoded_token": decoded_token,
         }
 
-    except firebase_auth.InvalidSessionCookieError:
+    except firebase_auth.InvalidSessionCookieError as e:
+        logger.info(f"   ⚠️ Session cookie invalid, trying as ID token: {e}")
         # Try as ID token if session cookie fails
         try:
             decoded_token = firebase_auth.verify_id_token(token)
             user_uid = decoded_token.get("uid")
 
             if not user_uid:
+                logger.error("   ❌ No user ID found in ID token")
                 raise HTTPException(
                     status_code=401, detail="Invalid token: no user ID found"
                 )
 
+            logger.info(
+                f"   ✅ ID token auth success: {decoded_token.get('email', 'no-email')}"
+            )
             return {
                 "uid": user_uid,
                 "email": decoded_token.get("email"),
                 "decoded_token": decoded_token,
             }
-        except Exception:
+        except Exception as inner_e:
+            logger.error(f"   ❌ ID token verification failed: {inner_e}")
             raise HTTPException(status_code=401, detail="Invalid Firebase token")
 
-    except firebase_auth.RevokedSessionCookieError:
+    except firebase_auth.RevokedSessionCookieError as e:
+        logger.error(f"   ❌ Session revoked: {e}")
         raise HTTPException(status_code=401, detail="Session has been revoked")
-    except firebase_auth.ExpiredIdTokenError:
+    except firebase_auth.ExpiredIdTokenError as e:
+        logger.error(f"   ❌ Token expired: {e}")
         raise HTTPException(status_code=401, detail="Firebase token has expired")
     except Exception as e:
+        logger.error(f"   ❌ Token verification failed: {e}")
         raise HTTPException(
             status_code=401, detail=f"Token verification failed: {str(e)}"
         )
