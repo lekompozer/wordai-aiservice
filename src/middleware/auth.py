@@ -7,6 +7,8 @@ from fastapi import Header, HTTPException, Request, Depends
 from typing import Optional
 import os
 from functools import wraps
+import firebase_admin
+from firebase_admin import auth as firebase_auth
 
 # Get API key from environment
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "agent8x-backend-secret-key-2025")
@@ -58,6 +60,49 @@ async def verify_company_access(x_company_id: Optional[str] = Header(None)):
     # In production, you might want to verify this company exists in database
     # TODO: Add company existence validation
     return x_company_id
+
+
+async def verify_firebase_token(authorization: Optional[str] = Header(None)):
+    """
+    Verify Firebase JWT token for user authentication
+    Xác thực Firebase JWT token cho authentication người dùng
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+
+    try:
+        # Extract token from "Bearer <token>"
+        if not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid authorization header format. Expected: Bearer <token>",
+            )
+
+        token = authorization.split("Bearer ")[1]
+
+        # Verify the Firebase token
+        decoded_token = firebase_auth.verify_id_token(token)
+        user_uid = decoded_token.get("uid")
+
+        if not user_uid:
+            raise HTTPException(
+                status_code=401, detail="Invalid token: no user ID found"
+            )
+
+        return {
+            "uid": user_uid,
+            "email": decoded_token.get("email"),
+            "decoded_token": decoded_token,
+        }
+
+    except firebase_auth.InvalidIdTokenError:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+    except firebase_auth.ExpiredIdTokenError:
+        raise HTTPException(status_code=401, detail="Firebase token has expired")
+    except Exception as e:
+        raise HTTPException(
+            status_code=401, detail=f"Token verification failed: {str(e)}"
+        )
 
 
 async def verify_webhook_signature(request: Request):
