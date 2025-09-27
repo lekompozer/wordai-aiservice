@@ -62,26 +62,33 @@ async def verify_company_access(x_company_id: Optional[str] = Header(None)):
     return x_company_id
 
 
-async def verify_firebase_token(authorization: Optional[str] = Header(None)):
+async def verify_firebase_token(
+    request: Request, authorization: Optional[str] = Header(None)
+):
     """
     Verify Firebase JWT token for user authentication
+    Supports both Authorization header (Bearer token) and session cookie
     Xác thực Firebase JWT token cho authentication người dùng
     """
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header required")
+    token = None
 
-    try:
-        # Extract token from "Bearer <token>"
-        if not authorization.startswith("Bearer "):
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid authorization header format. Expected: Bearer <token>",
-            )
-
+    # Try Authorization header first (Bearer token)
+    if authorization and authorization.startswith("Bearer "):
         token = authorization.split("Bearer ")[1]
 
-        # Verify the Firebase token
-        decoded_token = firebase_auth.verify_id_token(token)
+    # Try session cookie if no Authorization header
+    elif "wordai_session_cookie" in request.cookies:
+        token = request.cookies["wordai_session_cookie"]
+
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Provide Authorization header or session cookie.",
+        )
+
+    try:
+        # Verify the Firebase token (works for both ID tokens and session cookies)
+        decoded_token = firebase_auth.verify_session_cookie(token, check_revoked=True)
         user_uid = decoded_token.get("uid")
 
         if not user_uid:
@@ -95,8 +102,27 @@ async def verify_firebase_token(authorization: Optional[str] = Header(None)):
             "decoded_token": decoded_token,
         }
 
-    except firebase_auth.InvalidIdTokenError:
-        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+    except firebase_auth.InvalidSessionCookieError:
+        # Try as ID token if session cookie fails
+        try:
+            decoded_token = firebase_auth.verify_id_token(token)
+            user_uid = decoded_token.get("uid")
+
+            if not user_uid:
+                raise HTTPException(
+                    status_code=401, detail="Invalid token: no user ID found"
+                )
+
+            return {
+                "uid": user_uid,
+                "email": decoded_token.get("email"),
+                "decoded_token": decoded_token,
+            }
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid Firebase token")
+
+    except firebase_auth.RevokedSessionCookieError:
+        raise HTTPException(status_code=401, detail="Session has been revoked")
     except firebase_auth.ExpiredIdTokenError:
         raise HTTPException(status_code=401, detail="Firebase token has expired")
     except Exception as e:
