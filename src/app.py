@@ -152,7 +152,9 @@ async def load_documents():
     try:
         print("📚 Loading documents and initializing services...")
 
-        # Firebase already initialized globally above
+        # Firebase is now initialized in serve.py before app import
+        # No need to initialize it here anymore
+
         # Add any other initialization logic here
         # For example: load vector store, initialize AI providers, etc.
 

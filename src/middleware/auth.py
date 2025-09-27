@@ -10,8 +10,8 @@ from functools import wraps
 import firebase_admin
 from firebase_admin import auth as firebase_auth
 
-# ✅ CRITICAL: Import firebase_config to ensure Firebase is initialized
-from src.config.firebase_config import firebase_config
+# No longer needed here, initialization is guaranteed by serve.py
+# from src.config.firebase_config import firebase_config
 
 # Get API key from environment
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "agent8x-backend-secret-key-2025")
