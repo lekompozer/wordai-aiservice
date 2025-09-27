@@ -141,7 +141,14 @@ async def load_documents():
     try:
         print("📚 Loading documents and initializing services...")
 
-        # Add any initialization logic here
+        # ✅ Initialize Firebase Admin SDK first
+        print("🔥 Initializing Firebase Admin SDK...")
+        from src.config.firebase_config import FirebaseConfig
+
+        firebase_config = FirebaseConfig()
+        print("✅ Firebase Admin SDK initialized successfully")
+
+        # Add any other initialization logic here
         # For example: load vector store, initialize AI providers, etc.
 
         print("✅ Documents and services loaded successfully")
