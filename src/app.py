@@ -92,6 +92,17 @@ startup_time = time.time()
 # Global worker management
 background_workers = {}
 
+# ✅ Initialize Firebase Admin SDK IMMEDIATELY (before any route definitions)
+print("🔥 Initializing Firebase Admin SDK globally...")
+try:
+    from src.config.firebase_config import FirebaseConfig
+
+    firebase_config = FirebaseConfig()
+    print("✅ Firebase Admin SDK initialized globally")
+except Exception as e:
+    print(f"❌ Firebase initialization failed: {e}")
+    # Don't raise error - let app continue without Firebase
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -141,13 +152,7 @@ async def load_documents():
     try:
         print("📚 Loading documents and initializing services...")
 
-        # ✅ Initialize Firebase Admin SDK first
-        print("🔥 Initializing Firebase Admin SDK...")
-        from src.config.firebase_config import FirebaseConfig
-
-        firebase_config = FirebaseConfig()
-        print("✅ Firebase Admin SDK initialized successfully")
-
+        # Firebase already initialized globally above
         # Add any other initialization logic here
         # For example: load vector store, initialize AI providers, etc.
 
