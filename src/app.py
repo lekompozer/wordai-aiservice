@@ -82,9 +82,9 @@ from src.api.auth_routes import router as auth_router
 # ✅ COMMENTED: HTML to DOCX Conversion API - Firebase auth dependency
 # from src.api.conversion_routes import router as conversion_router
 
-# ✅ COMMENTED: Document Settings and History APIs - Firebase auth dependency
-# from src.api.document_settings_routes import router as document_settings_router
-# from src.api.documents_history_routes import router as documents_history_router
+# ✅ UNCOMMENTED: Document Settings and History APIs - needed by frontend
+from src.api.document_settings_routes import router as document_settings_router
+from src.api.documents_history_routes import router as documents_history_router
 
 # Global startup time for uptime tracking
 startup_time = time.time()
@@ -391,9 +391,9 @@ def create_app() -> FastAPI:
     # ✅ COMMENTED: HTML to DOCX Conversion API - Firebase auth dependency
     # app.include_router(conversion_router, tags=["Document Conversion"])
 
-    # ✅ COMMENTED: Document Settings and History APIs - Firebase auth dependency
-    # app.include_router(document_settings_router, tags=["Document Settings"])
-    # app.include_router(documents_history_router, tags=["Documents History"])
+    # ✅ RESTORED: Document Settings and History APIs - needed by frontend
+    app.include_router(document_settings_router, tags=["Document Settings"])
+    app.include_router(documents_history_router, tags=["Documents History"])
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)
