@@ -86,6 +86,9 @@ from src.api.auth_routes import router as auth_router
 from src.api.document_settings_routes import router as document_settings_router
 from src.api.documents_history_routes import router as documents_history_router
 
+# ✅ ADDED: Simple File Management API for basic file upload & folder CRUD
+from src.api.simple_file_routes import router as simple_file_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -421,6 +424,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Document Generation API for AI-powered document creation - KEEP
     app.include_router(document_generation_router, tags=["Document Generation"])
+
+    # ✅ NEW: Simple File Management API with R2 integration
+    app.include_router(simple_file_router, tags=["Simple File Management"])
 
     # ✅ ADDED: Internal CORS management for chat-plugin
     app.include_router(internal_cors_router, tags=["Internal CORS"])
