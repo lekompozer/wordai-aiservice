@@ -36,38 +36,16 @@ try:
 
     # Check if already initialized
     if not firebase_admin._apps:
-        # Try to load from environment variables first (production)
-        firebase_project_id = os.getenv("FIREBASE_PROJECT_ID")
-        firebase_private_key = os.getenv("FIREBASE_PRIVATE_KEY", "").replace(
-            "\\n", "\n"
-        )
-        firebase_client_email = os.getenv("FIREBASE_CLIENT_EMAIL")
-
-        if firebase_project_id and firebase_private_key and firebase_client_email:
-            # Initialize from environment variables
-            cred_dict = {
-                "type": "service_account",
-                "project_id": firebase_project_id,
-                "private_key": firebase_private_key,
-                "client_email": firebase_client_email,
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            }
-            cred = credentials.Certificate(cred_dict)
+        # Load credentials from file (mounted by deploy script)
+        cred_path = Path(__file__).parent / "firebase-credentials.json"
+        if cred_path.exists():
+            cred = credentials.Certificate(str(cred_path))
             firebase_admin.initialize_app(cred)
-            print("✅ Firebase Admin SDK initialized from environment variables")
+            print("✅ Firebase Admin SDK initialized from mounted credentials file")
         else:
-            # Fallback to file (development)
-            cred_path = Path(__file__).parent / "firebase-credentials.json"
-            if cred_path.exists():
-                cred = credentials.Certificate(str(cred_path))
-                firebase_admin.initialize_app(cred)
-                print("✅ Firebase Admin SDK initialized from credentials file")
-            else:
-                print(
-                    "⚠️ WARNING: Firebase credentials not found, Firebase not initialized"
-                )
+            print(
+                "⚠️ WARNING: firebase-credentials.json not found, Firebase not initialized"
+            )
     else:
         print("✅ Firebase Admin SDK already initialized")
 
