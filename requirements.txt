@@ -72,7 +72,6 @@ numpy==1.25.2
 
 # Text processing
 nltk==3.8.1
-beautifulsoup4==4.12.2
 markdownify==0.11.6
 
 # Document generation dependencies
