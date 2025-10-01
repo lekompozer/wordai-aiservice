@@ -3,26 +3,73 @@ Script to fix MongoDB index conflicts
 Drop old indexes and recreate with correct configuration
 """
 
-from src.database.db_manager import DBManager
+import os
+import pymongo
 import logging
+from dotenv import load_dotenv
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Load environment variables
+load_dotenv()
+
+
+def get_mongodb_connection():
+    """
+    Try multiple MongoDB connection methods for Docker environment
+
+    Returns:
+        (client, db) or (None, None) if all methods fail
+    """
+    db_name = os.getenv("MONGODB_NAME", "ai_service_db")
+    mongo_user = os.getenv("MONGODB_APP_USERNAME")
+    mongo_pass = os.getenv("MONGODB_APP_PASSWORD")
+
+    # Try different connection methods
+    connection_methods = [
+        {
+            "name": "Container name (mongodb)",
+            "uri": f"mongodb://{mongo_user}:{mongo_pass}@mongodb:27017/{db_name}?authSource=admin",
+        },
+        {
+            "name": "host.docker.internal",
+            "uri": f"mongodb://{mongo_user}:{mongo_pass}@host.docker.internal:27017/{db_name}?authSource=admin",
+        },
+        {
+            "name": "localhost",
+            "uri": f"mongodb://{mongo_user}:{mongo_pass}@localhost:27017/{db_name}?authSource=admin",
+        },
+    ]
+
+    for method in connection_methods:
+        try:
+            logger.info(f"🔍 Trying: {method['name']}")
+            client = pymongo.MongoClient(method["uri"], serverSelectionTimeoutMS=5000)
+            # Test connection
+            client.admin.command("ping")
+            db = client[db_name]
+            logger.info(f"✅ Connected via {method['name']}")
+            return client, db
+        except Exception as e:
+            logger.warning(f"❌ Failed {method['name']}: {e}")
+            continue
+
+    logger.error("❌ All connection methods failed")
+    return None, None
 
 
 def fix_indexes():
     """Fix MongoDB index conflicts"""
     try:
-        db_manager = DBManager()
+        client, db = get_mongodb_connection()
 
-        if not db_manager.client:
+        if not client or not db:
             logger.error("MongoDB not connected")
             return
 
-        db = db_manager.db
-
         # Fix users collection
-        logger.info("Fixing 'users' collection indexes...")
+        logger.info("\n🔧 Fixing 'users' collection indexes...")
         users = db["users"]
 
         # List existing indexes
@@ -121,8 +168,21 @@ def fix_indexes():
                 f"  - {idx['name']}: {idx.get('key')}, unique={idx.get('unique', False)}, sparse={idx.get('sparse', False)}"
             )
 
+        logger.info("\nFinal indexes in 'user_files' collection:")
+        for idx in user_files.list_indexes():
+            logger.info(
+                f"  - {idx['name']}: {idx.get('key')}, unique={idx.get('unique', False)}, sparse={idx.get('sparse', False)}"
+            )
+
+        # Close connection
+        client.close()
+        logger.info("\n🔒 Database connection closed")
+
     except Exception as e:
         logger.error(f"❌ Error fixing indexes: {e}")
+        import traceback
+
+        traceback.print_exc()
 
 
 if __name__ == "__main__":
