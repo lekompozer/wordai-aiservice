@@ -89,6 +89,9 @@ from src.api.documents_history_routes import router as documents_history_router
 # ✅ ADDED: Simple File Management API for basic file upload & folder CRUD
 from src.api.simple_file_routes import router as simple_file_router
 
+# ✅ ADDED: AI Content Edit API for Tiptap editor with multiple AI providers
+from src.api.ai_content_edit import router as ai_content_edit_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -428,6 +431,9 @@ def create_app() -> FastAPI:
     # ✅ NEW: Simple File Management API with R2 integration
     app.include_router(simple_file_router, tags=["Simple File Management"])
 
+    # ✅ NEW: AI Content Edit API for Tiptap editor with AI providers
+    app.include_router(ai_content_edit_router, tags=["AI Content Editing"])
+
     # ✅ ADDED: Internal CORS management for chat-plugin
     app.include_router(internal_cors_router, tags=["Internal CORS"])
 
@@ -448,6 +454,11 @@ def create_app() -> FastAPI:
     )
 
     print("✅ FastAPI application created with all routes")
+    print("📌 AI Content Edit endpoints:")
+    print("   POST /api/ai/content/edit - AI-powered content editing")
+    print("   GET  /api/ai/content/health - Health check")
+    print("   GET  /api/ai/content/providers - Available AI providers")
+    print("   GET  /api/ai/content/operations - Supported operations")
     print("📌 Unified Chat System endpoints:")
     print("   POST /api/unified/chat-stream - Streaming version of unified chat")
     print("   POST /api/unified/detect-intent - Intent detection only")

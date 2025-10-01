@@ -90,6 +90,7 @@ tests/backup_untracked/
 # Documentation with sensitive info
 docs/aivungtau/
 docs/firebase-implementation-plan.md
+docs/wordai/
 
 # Test files with credentials
 tests/test_vision_simple.pydocs/wordai/
