@@ -64,7 +64,7 @@ def fix_indexes():
     try:
         client, db = get_mongodb_connection()
 
-        if not client or not db:
+        if client is None or db is None:
             logger.error("MongoDB not connected")
             return
 
