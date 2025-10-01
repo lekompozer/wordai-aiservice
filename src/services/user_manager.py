@@ -47,8 +47,8 @@ class UserManager:
             return
 
         try:
-            # User indexes
-            self.users.create_index("firebase_uid", unique=True)
+            # User indexes - sparse=True để tránh conflict với index cũ
+            self.users.create_index("firebase_uid", unique=True, sparse=True)
             self.users.create_index("email")
 
             # Conversation indexes - sử dụng sparse index để handle null values
