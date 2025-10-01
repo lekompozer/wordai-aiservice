@@ -92,6 +92,9 @@ from src.api.simple_file_routes import router as simple_file_router
 # ✅ ADDED: AI Content Edit API for Tiptap editor with multiple AI providers
 from src.api.ai_content_edit import router as ai_content_edit_router
 
+# ✅ ADDED: AI Chat API for streaming chat with file context
+from src.api.ai_chat import router as ai_chat_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -414,6 +417,12 @@ def create_app() -> FastAPI:
     # ✅ RESTORED: Document Settings and History APIs - needed by frontend
     app.include_router(document_settings_router, tags=["Document Settings"])
     app.include_router(documents_history_router, tags=["Documents History"])
+
+    # ✅ ADDED: AI Content Edit API - HTML editing with AI
+    app.include_router(ai_content_edit_router, tags=["AI Content Edit"])
+
+    # ✅ ADDED: AI Chat API - Streaming chat with file context
+    app.include_router(ai_chat_router, tags=["AI Chat"])
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)
