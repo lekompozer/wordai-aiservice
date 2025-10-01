@@ -5,9 +5,10 @@ API endpoints for AI-powered content editing
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 import time
+import uuid
 from datetime import datetime
 
 from src.models.ai_content_edit_models import (
@@ -21,6 +22,8 @@ from src.services.html_sanitization_service import HTMLSanitizationService
 from src.services.prompt_engineering_service import PromptEngineeringService
 from src.services.token_management_service import TokenManagementService
 from src.services.gemini_pdf_handler import GeminiPDFHandler
+from src.services.file_download_service import FileDownloadService
+from src.services.user_manager import get_user_manager as get_global_user_manager
 from src.providers.ai_provider_manager import AIProviderManager
 from src.middleware.auth import verify_firebase_token
 from src.core.config import get_app_config
@@ -51,6 +54,82 @@ def get_ai_manager() -> AIProviderManager:
     return _ai_manager
 
 
+async def _save_content_edit_history(
+    user_id: str,
+    conversation_id: Optional[str],
+    user_query: str,
+    html_input: str,
+    html_output: str,
+    operation_type: str,
+    provider: str,
+    metadata: Dict[str, Any],
+):
+    """
+    Save content edit interaction to user's conversation history
+
+    Args:
+        user_id: Firebase UID
+        conversation_id: Conversation ID (will be generated if None)
+        user_query: User's query/instruction
+        html_input: Input HTML content
+        html_output: Generated HTML output
+        operation_type: Type of operation performed
+        provider: AI provider used
+        metadata: Additional metadata
+    """
+    try:
+        user_manager = get_global_user_manager()
+
+        # Generate conversation_id if not provided
+        if not conversation_id:
+            conversation_id = f"edit_{user_id}_{uuid.uuid4().hex[:8]}"
+
+        # Create or update conversation (this will create if not exists)
+        await user_manager.save_conversation(
+            user_id=user_id,
+            conversation_id=conversation_id,
+            messages=[],  # Will add messages below
+            ai_provider=provider,
+            metadata=metadata,
+        )
+
+        # Create user message with HTML input
+        user_message = (
+            f"[{operation_type}] {user_query}\n\nInput HTML:\n{html_input[:500]}..."
+        )
+
+        # Add user message
+        await user_manager.add_message_to_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role="user",
+            content=user_message,
+            metadata={
+                "provider": provider,
+                "operationType": operation_type,
+                **metadata,
+            },
+        )
+
+        # Add AI response with HTML output
+        await user_manager.add_message_to_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            role="assistant",
+            content=html_output,
+            metadata={
+                "provider": provider,
+                "operationType": operation_type,
+                **metadata,
+            },
+        )
+
+        logger.info(f"   💾 Saved content edit to conversation {conversation_id}")
+
+    except Exception as e:
+        logger.error(f"   ⚠️ Failed to save content edit history: {e}")
+
+
 @router.post("/edit", response_model=AIContentEditResponse)
 async def edit_content(
     request: AIContentEditRequest,
@@ -73,7 +152,52 @@ async def edit_content(
             f"   Operation: {request.operationType}, Provider: {request.provider}"
         )
 
-        # ===== SPECIAL CASE: PDF with Gemini =====
+        # ===== STEP 1: Download and Parse File if URL provided =====
+        if (
+            request.currentFile
+            and request.currentFile.filePath
+            and request.currentFile.filePath.startswith("http")
+        ):
+            logger.info(f"📥 File URL detected, downloading from R2...")
+
+            text_content, temp_file_path = (
+                await FileDownloadService.download_and_parse_file(
+                    file_url=request.currentFile.filePath,
+                    file_type=request.currentFile.fileType,
+                    user_id=user_id,
+                    provider=request.provider,
+                )
+            )
+
+            # For PDF + Gemini: use temp_file_path directly
+            if (
+                request.provider.lower() == "gemini"
+                and request.currentFile.fileType == "pdf"
+            ):
+                if temp_file_path:
+                    logger.info(f"✅ PDF for Gemini: Using temp file path")
+                    request.currentFile.filePath = (
+                        temp_file_path  # Update to local path
+                    )
+                else:
+                    logger.error(f"❌ Failed to download PDF for Gemini")
+                    raise HTTPException(
+                        status_code=500, detail="Failed to download PDF file"
+                    )
+
+            # For other cases: inject parsed text into fullContent
+            elif text_content:
+                logger.info(
+                    f"✅ Parsed {len(text_content)} chars, injecting into fullContent"
+                )
+                request.currentFile.fullContent = text_content
+            else:
+                logger.error(f"❌ Failed to parse file from R2")
+                raise HTTPException(
+                    status_code=500, detail="Failed to parse file content"
+                )
+
+        # ===== STEP 2: SPECIAL CASE: PDF with Gemini =====
         # Only PDF files can be sent directly to Gemini
         # Other formats (DOCX, TXT, MD) must be parsed to text first
         if (
@@ -140,6 +264,23 @@ async def edit_content(
             )
 
             logger.info(f"   ✅ PDF processing complete in {processing_time}ms")
+
+            # Save to history
+            await _save_content_edit_history(
+                user_id=user_id,
+                conversation_id=request.conversationId,
+                user_query=request.userQuery,
+                html_input=request.selectedContent.html or "",
+                html_output=sanitized_output,
+                operation_type=request.operationType,
+                provider=request.provider,
+                metadata={
+                    "apiType": "content_edit",
+                    "pdfDirectUpload": True,
+                    "fileName": request.currentFile.fileName,
+                    "processingTime": processing_time,
+                },
+            )
 
             return AIContentEditResponse(
                 generatedHTML=sanitized_output, metadata=response_metadata
@@ -326,6 +467,23 @@ async def edit_content(
         )
 
         logger.info(f"✅ Content edit completed in {processing_time}ms")
+
+        # Save to history
+        await _save_content_edit_history(
+            user_id=user_id,
+            conversation_id=request.conversationId,
+            user_query=request.userQuery,
+            html_input=selected_html,
+            html_output=sanitized_output,
+            operation_type=request.operationType,
+            provider=request.provider,
+            metadata={
+                "apiType": "content_edit",
+                "fileName": request.currentFile.fileName,
+                "processingTime": processing_time,
+                "tokensUsed": total_tokens,
+            },
+        )
 
         return response
 

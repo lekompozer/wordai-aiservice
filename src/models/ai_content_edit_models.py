@@ -86,6 +86,9 @@ class AIContentEditRequest(BaseModel):
     ] = "general_edit"
     parameters: Optional[OperationParameters] = None
     editorContext: Optional[EditorContext] = None
+    conversationId: Optional[str] = Field(
+        None, description="Conversation ID for tracking edit history"
+    )
 
 
 class AlternativeSuggestion(BaseModel):

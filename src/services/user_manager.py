@@ -47,19 +47,71 @@ class UserManager:
             return
 
         try:
-            # User indexes - sparse=True để tránh conflict với index cũ
-            self.users.create_index("firebase_uid", unique=True, sparse=True)
-            self.users.create_index("email")
+            # Check existing indexes to avoid conflicts
+            existing_users_indexes = [idx["name"] for idx in self.users.list_indexes()]
+            existing_conv_indexes = [
+                idx["name"] for idx in self.conversations.list_indexes()
+            ]
+            existing_files_indexes = [
+                idx["name"] for idx in self.user_files.list_indexes()
+            ]
 
-            # Conversation indexes - sử dụng sparse index để handle null values
-            self.conversations.create_index("conversation_id", unique=True, sparse=True)
-            self.conversations.create_index("user_id")
-            self.conversations.create_index([("user_id", 1), ("updated_at", -1)])
+            # User indexes - use unique names with sparse=True
+            if (
+                "firebase_uid_1_sparse" not in existing_users_indexes
+                and "firebase_uid_1" not in existing_users_indexes
+            ):
+                self.users.create_index(
+                    "firebase_uid",
+                    unique=True,
+                    sparse=True,
+                    name="firebase_uid_1_sparse",
+                )
+
+            if "email_1" not in existing_users_indexes:
+                self.users.create_index("email", name="email_1")
+
+            # Conversation indexes
+            if (
+                "conversation_id_1_sparse" not in existing_conv_indexes
+                and "conversation_id_1" not in existing_conv_indexes
+            ):
+                self.conversations.create_index(
+                    "conversation_id",
+                    unique=True,
+                    sparse=True,
+                    name="conversation_id_1_sparse",
+                )
+
+            if "user_id_1" not in existing_conv_indexes:
+                self.conversations.create_index("user_id", name="user_id_1")
+
+            if "user_id_1_updated_at_-1" not in existing_conv_indexes:
+                self.conversations.create_index(
+                    [("user_id", 1), ("updated_at", -1)], name="user_id_1_updated_at_-1"
+                )
 
             # File indexes
-            self.user_files.create_index("file_id", unique=True, sparse=True)
-            self.user_files.create_index("user_id")
-            self.user_files.create_index([("user_id", 1), ("uploaded_at", -1)])
+            if (
+                "file_id_1_sparse" not in existing_files_indexes
+                and "file_id_1" not in existing_files_indexes
+            ):
+                self.user_files.create_index(
+                    "file_id", unique=True, sparse=True, name="file_id_1_sparse"
+                )
+
+            # These might already exist with different names, so check carefully
+            if "user_id_1" not in existing_files_indexes:
+                self.user_files.create_index("user_id", name="user_files_user_id_1")
+
+            if (
+                "user_files_user_id_1_uploaded_at_-1" not in existing_files_indexes
+                and "user_id_1_uploaded_at_-1" not in existing_files_indexes
+            ):
+                self.user_files.create_index(
+                    [("user_id", 1), ("uploaded_at", -1)],
+                    name="user_files_user_id_1_uploaded_at_-1",
+                )
 
             logger.info("✅ Database indexes created successfully")
         except Exception as e:
@@ -493,55 +545,6 @@ class UserManager:
                 "generated_at": datetime.now(timezone.utc),
                 "error": str(e),
             }
-
-    async def get_user_conversations(
-        self, user_id: str, limit: int = 20, skip: int = 0
-    ) -> List[Dict[str, Any]]:
-        """
-        Get user's conversations list (summary)
-
-        Args:
-            user_id: Firebase UID
-            limit: Number of conversations to return
-            skip: Number of conversations to skip
-
-        Returns:
-            List of conversation summaries
-        """
-        try:
-            if self.db.client:
-                conversations = list(
-                    self.conversations.find(
-                        {"user_id": user_id},
-                        {
-                            "conversation_id": 1,
-                            "title": 1,
-                            "created_at": 1,
-                            "updated_at": 1,
-                            "message_count": {"$size": "$messages"},
-                            "settings": 1,
-                        },
-                    )
-                    .sort("updated_at", -1)
-                    .skip(skip)
-                    .limit(limit)
-                )
-                return conversations
-            else:
-                # Fallback: filter conversations for user
-                user_conversations = [
-                    conv
-                    for conv in self.conversations.values()
-                    if conv.get("user_id") == user_id
-                ]
-                user_conversations.sort(
-                    key=lambda x: x.get("updated_at", datetime.min), reverse=True
-                )
-                return user_conversations[skip : skip + limit]
-
-        except Exception as e:
-            logger.error(f"❌ Error getting conversations for user {user_id}: {e}")
-            return []
 
     async def create_conversation(
         self, user_id: str, title: Optional[str] = None, ai_provider: str = "openai"

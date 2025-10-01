@@ -89,6 +89,28 @@ class SessionTokenResponse(BaseModel):
     expires_in_seconds: int
 
 
+class ConversationMessage(BaseModel):
+    """Single message in conversation"""
+
+    message_id: str
+    role: str  # user, assistant, system
+    content: str
+    timestamp: datetime
+    metadata: Dict[str, Any] = {}
+
+
+class ConversationDetail(BaseModel):
+    """Full conversation with all messages"""
+
+    conversation_id: str
+    user_id: str
+    ai_provider: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+    messages: List[ConversationMessage]
+    metadata: Dict[str, Any] = {}
+
+
 class AuthConversationSummary(BaseModel):
     """
     Corrected conversation summary model for auth routes.
@@ -250,6 +272,110 @@ async def get_user_conversations(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch conversations: {str(e)}",
+        )
+
+
+@router.get("/conversations/{conversation_id}", response_model=ConversationDetail)
+async def get_conversation_detail(
+    conversation_id: str,
+    user_data: Dict[str, Any] = Depends(require_auth),
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """
+    Get full conversation detail with all messages
+
+    This endpoint returns the complete conversation history including:
+    - All messages (user and assistant)
+    - Message metadata (timestamps, provider info, etc.)
+    - Conversation metadata (apiType, operation type, file context, etc.)
+
+    Use this to:
+    1. Load chat history when user opens a conversation
+    2. Build conversationHistory array for continuing the chat
+    3. Display conversation context in UI
+    """
+    try:
+        firebase_uid = user_data["firebase_uid"]
+
+        conversation = await user_manager.get_conversation(
+            conversation_id=conversation_id, user_id=firebase_uid
+        )
+
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conversation {conversation_id} not found",
+            )
+
+        # Convert messages to response model
+        messages = []
+        for msg in conversation.get("messages", []):
+            messages.append(
+                ConversationMessage(
+                    message_id=msg.get("message_id", ""),
+                    role=msg.get("role", "user"),
+                    content=msg.get("content", ""),
+                    timestamp=msg.get("timestamp", datetime.utcnow()),
+                    metadata=msg.get("metadata", {}),
+                )
+            )
+
+        return ConversationDetail(
+            conversation_id=conversation["conversation_id"],
+            user_id=conversation["user_id"],
+            ai_provider=conversation.get("ai_provider"),
+            created_at=conversation.get("created_at", datetime.utcnow()),
+            updated_at=conversation.get("updated_at", datetime.utcnow()),
+            messages=messages,
+            metadata=conversation.get("metadata", {}),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error fetching conversation {conversation_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch conversation: {str(e)}",
+        )
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: str,
+    user_data: Dict[str, Any] = Depends(require_auth),
+    user_manager: UserManager = Depends(get_user_manager),
+):
+    """
+    Delete a conversation
+
+    Permanently removes a conversation and all its messages.
+    """
+    try:
+        firebase_uid = user_data["firebase_uid"]
+
+        success = await user_manager.delete_conversation(
+            conversation_id=conversation_id, user_id=firebase_uid
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Conversation {conversation_id} not found or could not be deleted",
+            )
+
+        return {
+            "success": True,
+            "message": f"Conversation {conversation_id} deleted successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error deleting conversation {conversation_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete conversation: {str(e)}",
         )
 
 

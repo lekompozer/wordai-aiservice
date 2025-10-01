@@ -139,6 +139,27 @@ if docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_APP_USERNAME
     else
         echo "⚠️  fix_production_database.py not found - skipping database fix"
     fi
+
+    # 7b. Fix MongoDB indexes to prevent conflicts
+    echo "🔧 Fixing MongoDB indexes..."
+    if [ -f "fix_mongodb_indexes.py" ]; then
+        echo "🔗 Running MongoDB index fix with network connectivity..."
+        docker run --rm \
+          --network "$NETWORK_NAME" \
+          --env-file .env \
+          -v $(pwd):/app \
+          -w /app \
+          python:3.10-slim bash -c "
+            echo '📦 Installing dependencies...'
+            pip install pymongo python-dotenv >/dev/null 2>&1 &&
+            echo '🔧 Fixing MongoDB indexes (drop old, create new with sparse=True)...'
+            python fix_mongodb_indexes.py
+          "
+        echo "✅ MongoDB indexes fixed"
+    else
+        echo "⚠️  fix_mongodb_indexes.py not found - skipping index fix"
+        echo "ℹ️  Note: This may cause index conflict errors on first startup"
+    fi
 else
     echo "⚠️  MongoDB authentication check failed"
     echo "ℹ️  You may need to run deploy-fresh-start.sh first to set up authentication"
