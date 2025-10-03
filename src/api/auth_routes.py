@@ -571,3 +571,83 @@ async def create_development_token():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Development token creation failed: {str(e)}",
         )
+
+
+@router.post("/session")
+async def create_session_cookie(
+    request: CreateSessionRequest,
+    response: Any,  # FastAPI Response object
+) -> Dict[str, Any]:
+    """
+    Create a session cookie from Firebase ID token
+
+    This exchanges a short-lived ID token (1 hour) for a long-lived session cookie (up to 14 days).
+    The session cookie is set as an HttpOnly cookie for better security.
+
+    Args:
+        request: Contains Firebase ID token and desired expiry time
+        response: FastAPI Response object (auto-injected)
+
+    Returns:
+        Success response with user info
+
+    Example:
+        POST /api/auth/session
+        {
+          "id_token": "eyJhbGc...",
+          "expires_in_hours": 24
+        }
+    """
+    try:
+        logger.info("🔑 Creating session cookie from ID token...")
+
+        # Verify ID token first
+        decoded_token = firebase_config.verify_token(request.id_token)
+        user_id = decoded_token.get("uid")
+        user_email = decoded_token.get("email")
+
+        logger.info(f"✅ ID token verified for user: {user_email} ({user_id})")
+
+        # Create session cookie
+        expires_in = timedelta(hours=request.expires_in_hours)
+        session_cookie = firebase_config.create_session_cookie(
+            request.id_token, expires_in
+        )
+
+        # Set cookie in response (HttpOnly for security)
+        from fastapi import Response
+
+        if isinstance(response, Response):
+            response.set_cookie(
+                key="session",
+                value=session_cookie,
+                max_age=request.expires_in_hours * 3600,  # Convert to seconds
+                httponly=True,  # Prevent JavaScript access (XSS protection)
+                secure=True,  # HTTPS only (set to False for local dev without HTTPS)
+                samesite="lax",  # CSRF protection
+                path="/",  # Available for all paths
+            )
+
+        logger.info(
+            f"✅ Session cookie created for user {user_email}, "
+            f"expires in {request.expires_in_hours} hours"
+        )
+
+        return {
+            "success": True,
+            "message": "Session cookie created successfully",
+            "expires_in_hours": request.expires_in_hours,
+            "expires_in_seconds": request.expires_in_hours * 3600,
+            "user": {
+                "uid": user_id,
+                "email": user_email,
+                "email_verified": decoded_token.get("email_verified", False),
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to create session cookie: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Failed to create session cookie: {str(e)}",
+        )
