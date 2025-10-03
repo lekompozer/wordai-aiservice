@@ -165,17 +165,9 @@ if docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_APP_USERNAME
     echo "📝 Checking for Document Editor setup..."
     if [ -f "initialize_document_db.py" ]; then
         echo "🔗 Initializing Document Editor database..."
-        docker run --rm \
-          --network "$NETWORK_NAME" \
-          --env-file .env \
-          -v $(pwd):/app \
-          -w /app \
-          python:3.10-slim bash -c "
-            echo '📦 Installing dependencies...'
-            pip install pymongo python-dotenv >/dev/null 2>&1 &&
-            echo '📝 Creating Document Editor indexes...'
-            python initialize_document_db.py
-          "
+        # ✅ FIX: Use docker exec instead of docker run (MongoDB connection in Docker network)
+        # Reason: Container ai-chatbot-rag is already in network with correct MONGODB_URI_AUTH
+        docker exec ai-chatbot-rag python3 initialize_document_db.py
         echo "✅ Document Editor database initialized"
     else
         echo "ℹ️  initialize_document_db.py not found - skipping Document Editor setup"

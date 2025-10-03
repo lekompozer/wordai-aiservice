@@ -87,12 +87,12 @@ backup/
 *.backup
 tests/backup_untracked/
 
-# Documentation with sensitive info
-docs/aivungtau/
-docs/firebase-implementation-plan.md
-docs/wordai/
+# Documentation - ALL docs folder ignored
+docs/
 
 # Test files with credentials
-tests/test_vision_simple.pydocs/wordai/
+tests/test_vision_simple.py
+
+# WordAI specific scripts
 setup-nginx-wordai.sh
 start_wordai.sh
