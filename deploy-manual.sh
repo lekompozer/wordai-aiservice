@@ -165,6 +165,8 @@ if docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_APP_USERNAME
     echo "📝 Checking for Document Editor setup..."
     if [ -f "initialize_document_db.py" ]; then
         echo "🔗 Initializing Document Editor database..."
+        # Copy script into container (in case it's not in the image yet)
+        docker cp initialize_document_db.py ai-chatbot-rag:/app/initialize_document_db.py
         # ✅ FIX: Use docker exec instead of docker run (MongoDB connection in Docker network)
         # Reason: Container ai-chatbot-rag is already in network with correct MONGODB_URI_AUTH
         docker exec ai-chatbot-rag python3 initialize_document_db.py
