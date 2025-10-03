@@ -696,3 +696,18 @@ class AIProviderManager:
             self.logger.error(f"Failed to generate batch embeddings: {e}")
             # Return zero vectors as fallback
             return [[0.0] * 768] * len(texts)
+
+    async def stream_chat_completion(
+        self,
+        messages: List[Dict],
+        provider: str = "deepseek",
+        use_reasoning: bool = False,
+    ) -> AsyncGenerator[str, None]:
+        """
+        Alias method for backward compatibility.
+        Delegates to chat_completion_stream_with_reasoning.
+        """
+        async for chunk in self.chat_completion_stream_with_reasoning(
+            messages=messages, provider=provider, use_reasoning=use_reasoning
+        ):
+            yield chunk
