@@ -423,16 +423,17 @@ echo ""
 echo "🎉 Setup complete! Your AI Chatbot RAG system is updated and ready."
 echo "📋 All existing data has been preserved."
 
-# 12. Cleanup Docker cache to optimize disk space
+# 12. Cleanup Docker images (keep build cache for next deploy)
 echo ""
-echo "🧹 Cleaning up Docker cache and unused images..."
+echo "🧹 Cleaning up unused Docker images..."
 echo "ℹ️  This will remove:"
 echo "   • Dangling images (untagged)"
-echo "   • Build cache"
 echo "   • Stopped containers"
 echo ""
+echo "ℹ️  Build cache will be PRESERVED for faster next deploy"
+echo ""
 
-# Remove dangling images
+# Remove dangling images only (old/untagged images)
 DANGLING_IMAGES=$(docker images -f "dangling=true" -q | wc -l | tr -d ' ')
 if [ "$DANGLING_IMAGES" -gt 0 ]; then
     echo "🗑️  Removing $DANGLING_IMAGES dangling images..."
@@ -442,17 +443,15 @@ else
     echo "ℹ️  No dangling images to remove"
 fi
 
-# Remove build cache
-echo "🗑️  Removing build cache..."
-docker builder prune -f
-echo "✅ Build cache cleared"
-
-# Show disk space saved
+# Show disk space
 echo ""
-echo "💾 Docker Disk Space After Cleanup:"
+echo "💾 Docker Disk Space:"
 docker system df
 
 echo ""
-echo "🎉 Deployment complete with cache cleanup!"
-echo "💡 Tip: To skip DB initialization on next deploy, run:"
-echo "   export SKIP_DB_INIT=true SKIP_INDEX_FIX=true && ./deploy-manual.sh"
+echo "🎉 Deployment complete!"
+echo "✅ Build cache preserved for faster next deploy"
+echo "💡 Tips:"
+echo "   • Fast deploy (with cache):  ./deploy-manual.sh"
+echo "   • Full rebuild (no cache):   ./deploy-no-cache.sh"
+echo "   • Skip DB init:              export SKIP_DB_INIT=true SKIP_INDEX_FIX=true && ./deploy-manual.sh"
