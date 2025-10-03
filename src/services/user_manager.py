@@ -727,6 +727,35 @@ class UserManager:
             )
             return False
 
+    # File Management Methods
+    def get_file_by_id(self, file_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get file information by file_id - Synchronous for compatibility
+
+        Args:
+            file_id: File ID
+            user_id: Firebase UID (for authorization)
+
+        Returns:
+            File document or None
+        """
+        try:
+            if self.db and self.db.client:
+                file_doc = self.user_files.find_one(
+                    {"file_id": file_id, "user_id": user_id}
+                )
+                return file_doc
+            else:
+                # Fallback storage
+                file_doc = self.user_files.get(file_id)
+                if file_doc and file_doc.get("user_id") == user_id:
+                    return file_doc
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ Error getting file {file_id}: {e}")
+            return None
+
 
 # Global user manager instance - Initialize immediately
 def initialize_user_manager():

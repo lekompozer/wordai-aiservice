@@ -95,6 +95,9 @@ from src.api.ai_content_edit import router as ai_content_edit_router
 # ✅ ADDED: AI Chat API for streaming chat with file context
 from src.api.ai_chat import router as ai_chat_router
 
+# ✅ ADDED: Document Editor API for document management with auto-save
+from src.api.document_editor_routes import router as document_editor_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -423,6 +426,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: AI Chat API - Streaming chat with file context
     app.include_router(ai_chat_router, tags=["AI Chat"])
+
+    # ✅ ADDED: Document Editor API - Document management with auto-save
+    app.include_router(document_editor_router, tags=["Document Editor"])
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)

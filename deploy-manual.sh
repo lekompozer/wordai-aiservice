@@ -160,6 +160,26 @@ if docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_APP_USERNAME
         echo "⚠️  fix_mongodb_indexes.py not found - skipping index fix"
         echo "ℹ️  Note: This may cause index conflict errors on first startup"
     fi
+
+    # 7c. Initialize Document Editor database (if script exists)
+    echo "📝 Checking for Document Editor setup..."
+    if [ -f "initialize_document_db.py" ]; then
+        echo "🔗 Initializing Document Editor database..."
+        docker run --rm \
+          --network "$NETWORK_NAME" \
+          --env-file .env \
+          -v $(pwd):/app \
+          -w /app \
+          python:3.10-slim bash -c "
+            echo '📦 Installing dependencies...'
+            pip install pymongo python-dotenv >/dev/null 2>&1 &&
+            echo '📝 Creating Document Editor indexes...'
+            python initialize_document_db.py
+          "
+        echo "✅ Document Editor database initialized"
+    else
+        echo "ℹ️  initialize_document_db.py not found - skipping Document Editor setup"
+    fi
 else
     echo "⚠️  MongoDB authentication check failed"
     echo "ℹ️  You may need to run deploy-fresh-start.sh first to set up authentication"
