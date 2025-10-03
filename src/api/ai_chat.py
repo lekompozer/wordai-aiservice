@@ -11,6 +11,7 @@ import time
 import json
 import asyncio
 import uuid
+import os
 from datetime import datetime
 
 from src.models.ai_chat_models import (
@@ -31,11 +32,53 @@ from src.core.config import get_app_config
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ai/chat", tags=["AI Chat"])
 
+# R2 Configuration for file URL resolution
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "wordai")
+
 # Initialize config
 APP_CONFIG = get_app_config()
 
 # Global AI manager instance
 _ai_manager = None
+
+
+def resolve_r2_url_from_file_id(user_id: str, file_id: str) -> Optional[str]:
+    """
+    Resolve R2 URL from fileId
+
+    Args:
+        user_id: User ID
+        file_id: File ID (e.g., "file_abc123")
+
+    Returns:
+        R2 public URL or None if not found
+
+    Note:
+        Constructs URL based on standard R2 file path pattern:
+        https://static.wordai.pro/users/{user_id}/files/{file_id}.{ext}
+
+        In production, this should query a database/metadata store
+        to get the actual file path and extension.
+    """
+    try:
+        # TODO: Query database/metadata store for actual file path
+        # For now, we construct URL based on standard pattern
+        # This assumes frontend stores fileId with extension info
+
+        logger.info(f"🔍 Resolving R2 URL for fileId: {file_id}")
+
+        # Standard R2 path pattern: users/{user_id}/files/{filename}
+        # The fileId should contain the full filename with extension
+        r2_key = f"users/{user_id}/files/{file_id}"
+        r2_url = f"{R2_PUBLIC_URL}/{r2_key}"
+
+        logger.info(f"✅ Resolved URL: {r2_url[:80]}...")
+        return r2_url
+
+    except Exception as e:
+        logger.error(f"❌ Failed to resolve R2 URL for fileId {file_id}: {e}")
+        return None
 
 
 def get_ai_manager() -> AIProviderManager:
@@ -125,7 +168,32 @@ async def stream_chat_response(
     full_response = ""  # Track full response for saving to history
 
     try:
-        # ===== STEP 1: Download and Parse File if URL provided =====
+        # ===== STEP 1: Resolve R2 URL from fileId if needed =====
+        if request.currentFile and request.currentFile.fileId:
+            # Check if we need to resolve URL from fileId
+            if (
+                not request.currentFile.filePath
+                or not request.currentFile.filePath.startswith("http")
+            ):
+                logger.info(
+                    f"📂 No URL provided, resolving from fileId: {request.currentFile.fileId}"
+                )
+
+                resolved_url = resolve_r2_url_from_file_id(
+                    user_id=user_id, file_id=request.currentFile.fileId
+                )
+
+                if resolved_url:
+                    request.currentFile.filePath = resolved_url
+                    logger.info(f"✅ Resolved R2 URL from fileId")
+                else:
+                    logger.error(
+                        f"❌ Could not resolve R2 URL for fileId: {request.currentFile.fileId}"
+                    )
+                    yield f"data: {json.dumps({'error': 'File not found', 'done': True})}\n\n"
+                    return
+
+        # ===== STEP 2: Download and Parse File if URL provided =====
         if (
             request.currentFile
             and request.currentFile.filePath

@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 import logging
 import time
 import uuid
+import os
 from datetime import datetime
 
 from src.models.ai_content_edit_models import (
@@ -33,6 +34,47 @@ router = APIRouter(prefix="/api/ai/content", tags=["AI Content Editing"])
 
 # Initialize services
 APP_CONFIG = get_app_config()
+
+# R2 Configuration
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "wordai")
+
+
+def resolve_r2_url_from_file_id(user_id: str, file_id: str) -> Optional[str]:
+    """
+    Resolve R2 URL from fileId.
+
+    In production, this should query the database to get the actual file path.
+    For now, using standard R2 path pattern: users/{user_id}/files/{file_id}
+
+    Args:
+        user_id: Firebase UID
+        file_id: File ID (e.g., "abc123.pdf")
+
+    Returns:
+        Full R2 URL or None if resolution fails
+
+    Example:
+        >>> resolve_r2_url_from_file_id("user123", "doc.pdf")
+        "https://static.wordai.pro/users/user123/files/doc.pdf"
+    """
+    try:
+        logger.info(f"🔍 [Content Edit] Resolving R2 URL for fileId: {file_id}")
+
+        # TODO: In production, query database to get actual file path
+        # For now, construct URL from standard pattern
+        r2_key = f"users/{user_id}/files/{file_id}"
+        r2_url = f"{R2_PUBLIC_URL}/{r2_key}"
+
+        logger.info(f"✅ [Content Edit] Resolved URL: {r2_url[:80]}...")
+        return r2_url
+
+    except Exception as e:
+        logger.error(
+            f"❌ [Content Edit] Failed to resolve R2 URL for fileId {file_id}: {e}"
+        )
+        return None
+
 
 # Global AI manager instance
 _ai_manager = None
@@ -152,7 +194,31 @@ async def edit_content(
             f"   Operation: {request.operationType}, Provider: {request.provider}"
         )
 
-        # ===== STEP 1: Download and Parse File if URL provided =====
+        # ===== STEP 1: Resolve R2 URL from fileId if needed =====
+        if request.currentFile and request.currentFile.fileId:
+            # Check if we need to resolve URL from fileId
+            if (
+                not request.currentFile.filePath
+                or not request.currentFile.filePath.startswith("http")
+            ):
+                logger.info(
+                    f"📂 [Content Edit] No URL provided, resolving from fileId: {request.currentFile.fileId}"
+                )
+
+                resolved_url = resolve_r2_url_from_file_id(
+                    user_id=user_id, file_id=request.currentFile.fileId
+                )
+
+                if resolved_url:
+                    request.currentFile.filePath = resolved_url
+                    logger.info(f"✅ [Content Edit] Resolved R2 URL from fileId")
+                else:
+                    logger.error(
+                        f"❌ [Content Edit] Could not resolve R2 URL for fileId: {request.currentFile.fileId}"
+                    )
+                    raise HTTPException(status_code=404, detail="File not found")
+
+        # ===== STEP 2: Download and Parse File if URL provided =====
         if (
             request.currentFile
             and request.currentFile.filePath
@@ -197,7 +263,7 @@ async def edit_content(
                     status_code=500, detail="Failed to parse file content"
                 )
 
-        # ===== STEP 2: SPECIAL CASE: PDF with Gemini =====
+        # ===== STEP 3: SPECIAL CASE: PDF with Gemini =====
         # Only PDF files can be sent directly to Gemini
         # Other formats (DOCX, TXT, MD) must be parsed to text first
         if (
@@ -289,7 +355,7 @@ async def edit_content(
         # ===== NORMAL FLOW: Text-based processing =====
         # All non-PDF files OR non-Gemini providers
 
-        # ===== Step 1: Validate input =====
+        # ===== Step 4: Validate input =====
         if not request.selectedContent.html and not request.selectedContent.text:
             raise HTTPException(
                 status_code=400, detail="No content selected for editing"
@@ -332,7 +398,7 @@ async def edit_content(
 
         logger.info(f"   Total tokens after optimization: {total_tokens}")
 
-        # ===== Step 4: Build AI prompt =====
+        # ===== Step 5: Build AI prompt =====
         # Rebuild additional context with optimized content
         optimized_context_list = []
         if request.additionalContext and optimized_additional:
@@ -362,7 +428,7 @@ async def edit_content(
 
         logger.info(f"   Generated prompt: {len(prompt)} characters")
 
-        # ===== Step 5: Call AI provider =====
+        # ===== Step 6: Call AI provider =====
         messages = [{"role": "user", "content": prompt}]
 
         # Map provider names
@@ -392,7 +458,7 @@ async def edit_content(
 
         logger.info(f"   AI response received: {len(ai_response)} characters")
 
-        # ===== Step 6: Extract and sanitize HTML from response =====
+        # ===== Step 7: Extract and sanitize HTML from response =====
         generated_html = PromptEngineeringService.extract_html_from_response(
             ai_response
         )
@@ -416,7 +482,7 @@ async def edit_content(
                     status_code=500, detail="AI generated invalid HTML content"
                 )
 
-        # ===== Step 7: Build response =====
+        # ===== Step 8: Build response =====
         processing_time = int((time.time() - start_time) * 1000)
 
         metadata = ResponseMetadata(
