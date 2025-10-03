@@ -633,16 +633,15 @@ async def create_session_cookie(
             f"expires in {request.expires_in_hours} hours"
         )
 
+        # Calculate expiration time
+        expires_at = datetime.now() + timedelta(hours=request.expires_in_hours)
+        expires_in_seconds = request.expires_in_hours * 3600
+
         return {
             "success": True,
-            "message": "Session cookie created successfully",
-            "expires_in_hours": request.expires_in_hours,
-            "expires_in_seconds": request.expires_in_hours * 3600,
-            "user": {
-                "uid": user_id,
-                "email": user_email,
-                "email_verified": decoded_token.get("email_verified", False),
-            },
+            "sessionCookie": session_cookie,  # camelCase to match frontend
+            "expiresAt": expires_at.isoformat() + "Z",  # ISO format with Z
+            "expiresIn": expires_in_seconds,  # camelCase, in seconds
         }
 
     except Exception as e:
