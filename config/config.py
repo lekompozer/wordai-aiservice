@@ -67,7 +67,8 @@ if ENV == "development":
     print(f"Config: Development database - {MONGODB_URI}")
     print(f"Config: Development data dir - {DATA_DIR}")
 else:
-    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://host.docker.internal:27017/")
+    # FIXED: Use Docker network container name in production
+    MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://mongodb:27017/")
     MONGODB_NAME = os.getenv("MONGODB_NAME", "ai_service_db")
     DATA_DIR = os.getenv("DATA_DIR", "/app/data")
     print(f"Config: Production database - {MONGODB_URI}")

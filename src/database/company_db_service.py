@@ -30,23 +30,29 @@ class CompanyDBService:
             db_name = os.getenv("MONGODB_NAME", "ai_service_dev_db")
             logger.info(f"🏠 [DEV] Using local MongoDB: {mongo_uri}")
         else:
-            # Production: Use authenticated MongoDB
+            # Production: Use authenticated MongoDB with Docker network
             mongo_uri = os.getenv("MONGODB_URI_AUTH")
             if not mongo_uri:
                 # Build authenticated URI from components
                 mongo_user = os.getenv("MONGODB_APP_USERNAME")
                 mongo_pass = os.getenv("MONGODB_APP_PASSWORD")
-                mongo_host = (
-                    os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
-                    .replace("mongodb://", "")
-                    .rstrip("/")
-                )
                 db_name = os.getenv("MONGODB_NAME", "ai_service_db")
+
+                # FIXED: Use Docker network container name in production
+                # Don't parse from MONGODB_URI which might have host.docker.internal
+                mongo_host = "mongodb:27017"  # Docker network container name
 
                 if mongo_user and mongo_pass:
                     mongo_uri = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}/{db_name}?authSource=admin"
+                    logger.info(
+                        f"🐳 [PROD] Using Docker network MongoDB: mongodb://***:***@{mongo_host}/{db_name}"
+                    )
                 else:
-                    mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
+                    # Fallback to localhost (should not happen in production)
+                    mongo_uri = "mongodb://localhost:27017/"
+                    logger.warning(
+                        f"⚠️ [PROD] Missing MongoDB credentials, using fallback: {mongo_uri}"
+                    )
 
             db_name = os.getenv("MONGODB_NAME", "ai_service_db")
 

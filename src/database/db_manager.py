@@ -15,23 +15,29 @@ class DBManager:
         Enhanced MongoDB manager with user_id, device_id, session_id support
         Quản lý MongoDB nâng cao với hỗ trợ user_id, device_id, session_id
         """
-        # Use authenticated URI if available, fallback to basic URI
+        # Check environment
+        environment = os.getenv("ENVIRONMENT", "development")
+
+        # Use authenticated URI if available, fallback to build from components
         mongo_uri = os.getenv("MONGODB_URI_AUTH")
         if not mongo_uri:
-            # Fallback: build authenticated URI from components
+            # Build authenticated URI from components
             mongo_user = os.getenv("MONGODB_APP_USERNAME")
             mongo_pass = os.getenv("MONGODB_APP_PASSWORD")
-            mongo_host = (
-                os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
-                .replace("mongodb://", "")
-                .rstrip("/")
-            )
             db_name = os.getenv("MONGODB_NAME", "ai_service_db")
+
+            # FIXED: Use Docker network container name in production
+            if environment == "production":
+                mongo_host = "mongodb:27017"  # Docker network container name
+                logger.info(f"🐳 [PROD] Using Docker network MongoDB")
+            else:
+                mongo_host = "localhost:27017"
+                logger.info(f"🏠 [DEV] Using local MongoDB")
 
             if mongo_user and mongo_pass:
                 mongo_uri = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}/{db_name}?authSource=admin"
             else:
-                mongo_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
+                mongo_uri = f"mongodb://{mongo_host}/"
 
         db_name = os.getenv("MONGODB_NAME", "ai_service_db")
 
