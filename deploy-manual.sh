@@ -3,6 +3,13 @@
 # Script deploy hoàn chỉnh cho AI Chatbot RAG với Docker Network và Authentication
 set -e
 
+# ==============================
+# Configuration Flags
+# ==============================
+SKIP_DB_INIT=${SKIP_DB_INIT:-false}  # Set to 'true' to skip DB initialization (faster deploys)
+SKIP_INDEX_FIX=${SKIP_INDEX_FIX:-false}  # Set to 'true' to skip index fixing
+SKIP_DOC_EDITOR_INIT=${SKIP_DOC_EDITOR_INIT:-false}  # Set to 'true' to skip Document Editor init
+
 echo "🚀 Starting deployment with Docker Network and authentication..."
 echo "ℹ️  This script will:"
 echo "   • Update Docker containers (keep existing data)"
@@ -11,6 +18,12 @@ echo "   • Verify database connections"
 echo "   • Test service connectivity"
 echo ""
 echo "⚠️  NOTE: This script preserves existing data. Use deploy-fresh-start.sh for clean reset."
+echo ""
+echo "🔧 Optimization Flags:"
+echo "   SKIP_DB_INIT=$SKIP_DB_INIT"
+echo "   SKIP_INDEX_FIX=$SKIP_INDEX_FIX"
+echo "   SKIP_DOC_EDITOR_INIT=$SKIP_DOC_EDITOR_INIT"
+echo "   To skip initialization: export SKIP_DB_INIT=true && ./deploy-manual.sh"
 echo ""
 
 # Load environment variables từ .env
@@ -120,62 +133,74 @@ echo "🔍 Verifying existing MongoDB authentication..."
 if docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_APP_USERNAME" --password "$MONGODB_APP_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand('ping')" --quiet | grep -q "ok"; then
     echo "✅ MongoDB authentication verified - existing setup working"
 
-    # 7. Fix production database issues
-    echo "🔧 Fixing production database issues..."
-    if [ -f "fix_production_database.py" ]; then
-        echo "🔗 Running database fix with network connectivity..."
-        docker run --rm \
-          --network "$NETWORK_NAME" \
-          --env-file .env \
-          -v $(pwd):/app \
-          -w /app \
-          python:3.10-slim bash -c "
-            echo '📦 Installing dependencies...'
-            pip install pymongo python-dotenv >/dev/null 2>&1 &&
-            echo '🔧 Running database fix...'
-            python fix_production_database.py
-          "
-        echo "✅ Database fix completed"
+    # 7. Fix production database issues (OPTIONAL - can be skipped)
+    if [ "$SKIP_DB_INIT" = "false" ]; then
+        echo "🔧 Fixing production database issues..."
+        if [ -f "fix_production_database.py" ]; then
+            echo "🔗 Running database fix with network connectivity..."
+            docker run --rm \
+              --network "$NETWORK_NAME" \
+              --env-file .env \
+              -v $(pwd):/app \
+              -w /app \
+              python:3.10-slim bash -c "
+                echo '📦 Installing dependencies...'
+                pip install pymongo python-dotenv >/dev/null 2>&1 &&
+                echo '🔧 Running database fix...'
+                python fix_production_database.py
+              "
+            echo "✅ Database fix completed"
+        else
+            echo "⚠️  fix_production_database.py not found - skipping database fix"
+        fi
     else
-        echo "⚠️  fix_production_database.py not found - skipping database fix"
+        echo "⏭️  Skipping database fix (SKIP_DB_INIT=true)"
     fi
 
-    # 7b. Fix MongoDB indexes to prevent conflicts
-    echo "🔧 Fixing MongoDB indexes..."
-    if [ -f "fix_mongodb_indexes.py" ]; then
-        echo "🔗 Running MongoDB index fix with network connectivity..."
-        docker run --rm \
-          --network "$NETWORK_NAME" \
-          --env-file .env \
-          -v $(pwd):/app \
-          -w /app \
-          python:3.10-slim bash -c "
-            echo '📦 Installing dependencies...'
-            pip install pymongo python-dotenv >/dev/null 2>&1 &&
-            echo '🔧 Fixing MongoDB indexes (drop old, create new with sparse=True)...'
-            python fix_mongodb_indexes.py
-          "
-        echo "✅ MongoDB indexes fixed"
+    # 7b. Fix MongoDB indexes to prevent conflicts (OPTIONAL - can be skipped)
+    if [ "$SKIP_INDEX_FIX" = "false" ]; then
+        echo "🔧 Fixing MongoDB indexes..."
+        if [ -f "fix_mongodb_indexes.py" ]; then
+            echo "🔗 Running MongoDB index fix with network connectivity..."
+            docker run --rm \
+              --network "$NETWORK_NAME" \
+              --env-file .env \
+              -v $(pwd):/app \
+              -w /app \
+              python:3.10-slim bash -c "
+                echo '📦 Installing dependencies...'
+                pip install pymongo python-dotenv >/dev/null 2>&1 &&
+                echo '🔧 Fixing MongoDB indexes (drop old, create new with sparse=True)...'
+                python fix_mongodb_indexes.py
+              "
+            echo "✅ MongoDB indexes fixed"
+        else
+            echo "⚠️  fix_mongodb_indexes.py not found - skipping index fix"
+            echo "ℹ️  Note: This may cause index conflict errors on first startup"
+        fi
     else
-        echo "⚠️  fix_mongodb_indexes.py not found - skipping index fix"
-        echo "ℹ️  Note: This may cause index conflict errors on first startup"
+        echo "⏭️  Skipping MongoDB index fix (SKIP_INDEX_FIX=true)"
     fi
 
-    # 7c. Initialize Document Editor database (if script exists)
-    echo "📝 Checking for Document Editor setup..."
-    if [ -f "initialize_document_db.py" ]; then
-        echo "🔗 Initializing Document Editor database..."
-        # Copy script and required modules into container (in case they're not in the image yet)
-        echo "📦 Copying Document Editor files into container..."
-        docker cp initialize_document_db.py ai-chatbot-rag:/app/initialize_document_db.py
-        docker cp src/models/document_editor_models.py ai-chatbot-rag:/app/src/models/document_editor_models.py
-        docker cp src/services/document_manager.py ai-chatbot-rag:/app/src/services/document_manager.py
-        # ✅ FIX: Use docker exec instead of docker run (MongoDB connection in Docker network)
-        # Reason: Container ai-chatbot-rag is already in network with correct MONGODB_URI_AUTH
-        docker exec ai-chatbot-rag python3 initialize_document_db.py
-        echo "✅ Document Editor database initialized"
+    # 7c. Initialize Document Editor database (OPTIONAL - can be skipped)
+    if [ "$SKIP_DOC_EDITOR_INIT" = "false" ]; then
+        echo "📝 Checking for Document Editor setup..."
+        if [ -f "initialize_document_db.py" ]; then
+            echo "🔗 Initializing Document Editor database..."
+            # Copy script and required modules into container (in case they're not in the image yet)
+            echo "📦 Copying Document Editor files into container..."
+            docker cp initialize_document_db.py ai-chatbot-rag:/app/initialize_document_db.py 2>/dev/null || true
+            docker cp src/models/document_editor_models.py ai-chatbot-rag:/app/src/models/document_editor_models.py 2>/dev/null || true
+            docker cp src/services/document_manager.py ai-chatbot-rag:/app/src/services/document_manager.py 2>/dev/null || true
+            # ✅ FIX: Use docker exec instead of docker run (MongoDB connection in Docker network)
+            # Reason: Container ai-chatbot-rag is already in network with correct MONGODB_URI_AUTH
+            docker exec ai-chatbot-rag python3 initialize_document_db.py
+            echo "✅ Document Editor database initialized"
+        else
+            echo "ℹ️  initialize_document_db.py not found - skipping Document Editor setup"
+        fi
     else
-        echo "ℹ️  initialize_document_db.py not found - skipping Document Editor setup"
+        echo "⏭️  Skipping Document Editor initialization (SKIP_DOC_EDITOR_INIT=true)"
     fi
 else
     echo "⚠️  MongoDB authentication check failed"
@@ -473,3 +498,37 @@ fi
 echo ""
 echo "🎉 Setup complete! Your AI Chatbot RAG system is updated and ready."
 echo "📋 All existing data has been preserved."
+
+# 12. Cleanup Docker cache to optimize disk space
+echo ""
+echo "🧹 Cleaning up Docker cache and unused images..."
+echo "ℹ️  This will remove:"
+echo "   • Dangling images (untagged)"
+echo "   • Build cache"
+echo "   • Stopped containers"
+echo ""
+
+# Remove dangling images
+DANGLING_IMAGES=$(docker images -f "dangling=true" -q | wc -l | tr -d ' ')
+if [ "$DANGLING_IMAGES" -gt 0 ]; then
+    echo "🗑️  Removing $DANGLING_IMAGES dangling images..."
+    docker image prune -f
+    echo "✅ Dangling images removed"
+else
+    echo "ℹ️  No dangling images to remove"
+fi
+
+# Remove build cache
+echo "🗑️  Removing build cache..."
+docker builder prune -f
+echo "✅ Build cache cleared"
+
+# Show disk space saved
+echo ""
+echo "💾 Docker Disk Space After Cleanup:"
+docker system df
+
+echo ""
+echo "🎉 Deployment complete with cache cleanup!"
+echo "💡 Tip: To skip DB initialization on next deploy, run:"
+echo "   export SKIP_DB_INIT=true SKIP_INDEX_FIX=true SKIP_DOC_EDITOR_INIT=true && ./deploy-manual.sh"
