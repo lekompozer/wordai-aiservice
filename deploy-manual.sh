@@ -184,9 +184,10 @@ else
     echo "ℹ️  You may need to run deploy-fresh-start.sh first to set up authentication"
 fi
 
-# 8. Build AI Chatbot image với --no-cache để cài thư viện mới
-echo "🔨 Building AI Chatbot image with --no-cache for new dependencies..."
-docker build --no-cache -t ai-chatbot-rag:latest .
+# 8. Build AI Chatbot image với cache để deploy nhanh hơn
+echo "🔨 Building AI Chatbot image (using cache for faster build)..."
+echo "ℹ️  Note: If you updated requirements.txt, use deploy-no-cache.sh instead"
+docker build -t ai-chatbot-rag:latest .
 
 # 9. Deploy AI Chatbot với network và override Redis URL cho Docker network
 echo "🤖 Deploying AI Chatbot with Docker network Redis configuration..."

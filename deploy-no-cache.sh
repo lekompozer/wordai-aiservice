@@ -3,6 +3,12 @@
 # Script deploy hoàn chỉnh cho AI Chatbot RAG với Docker Network và Authentication
 set -e
 
+# ==============================
+# Configuration Flags
+# ==============================
+SKIP_DB_INIT=${SKIP_DB_INIT:-false}  # Set to 'true' to skip DB initialization (faster deploys)
+SKIP_INDEX_FIX=${SKIP_INDEX_FIX:-false}  # Set to 'true' to skip index fixing
+
 echo "🚀 Starting deployment with Docker Network and authentication..."
 echo "ℹ️  This script will:"
 echo "   • Update Docker containers (keep existing data)"
@@ -11,6 +17,11 @@ echo "   • Verify database connections"
 echo "   • Test service connectivity"
 echo ""
 echo "⚠️  NOTE: This script preserves existing data. Use deploy-fresh-start.sh for clean reset."
+echo ""
+echo "🔧 Optimization Flags:"
+echo "   SKIP_DB_INIT=$SKIP_DB_INIT"
+echo "   SKIP_INDEX_FIX=$SKIP_INDEX_FIX"
+echo "   To skip initialization: export SKIP_DB_INIT=true && ./deploy-manual.sh"
 echo ""
 
 # Load environment variables từ .env
@@ -119,13 +130,62 @@ sleep 5
 echo "🔍 Verifying existing MongoDB authentication..."
 if docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_APP_USERNAME" --password "$MONGODB_APP_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand('ping')" --quiet | grep -q "ok"; then
     echo "✅ MongoDB authentication verified - existing setup working"
+
+    # 7. Fix production database issues (OPTIONAL - can be skipped)
+    if [ "$SKIP_DB_INIT" = "false" ]; then
+        echo "🔧 Fixing production database issues..."
+        if [ -f "fix_production_database.py" ]; then
+            echo "🔗 Running database fix with network connectivity..."
+            docker run --rm \
+              --network "$NETWORK_NAME" \
+              --env-file .env \
+              -v $(pwd):/app \
+              -w /app \
+              python:3.10-slim bash -c "
+                echo '📦 Installing dependencies...'
+                pip install pymongo python-dotenv >/dev/null 2>&1 &&
+                echo '🔧 Running database fix...'
+                python fix_production_database.py
+              "
+            echo "✅ Database fix completed"
+        else
+            echo "⚠️  fix_production_database.py not found - skipping database fix"
+        fi
+    else
+        echo "⏭️  Skipping database fix (SKIP_DB_INIT=true)"
+    fi
+
+    # 7b. Fix MongoDB indexes to prevent conflicts (OPTIONAL - can be skipped)
+    if [ "$SKIP_INDEX_FIX" = "false" ]; then
+        echo "🔧 Fixing MongoDB indexes..."
+        if [ -f "fix_mongodb_indexes.py" ]; then
+            echo "🔗 Running MongoDB index fix with network connectivity..."
+            docker run --rm \
+              --network "$NETWORK_NAME" \
+              --env-file .env \
+              -v $(pwd):/app \
+              -w /app \
+              python:3.10-slim bash -c "
+                echo '📦 Installing dependencies...'
+                pip install pymongo python-dotenv >/dev/null 2>&1 &&
+                echo '🔧 Fixing MongoDB indexes (drop old, create new with sparse=True)...'
+                python fix_mongodb_indexes.py
+              "
+            echo "✅ MongoDB indexes fixed"
+        else
+            echo "⚠️  fix_mongodb_indexes.py not found - skipping index fix"
+            echo "ℹ️  Note: This may cause index conflict errors on first startup"
+        fi
+    else
+        echo "⏭️  Skipping MongoDB index fix (SKIP_INDEX_FIX=true)"
+    fi
 else
     echo "⚠️  MongoDB authentication check failed"
     echo "ℹ️  You may need to run deploy-fresh-start.sh first to set up authentication"
 fi
 
-# 8. Build AI Chatbot image
-echo "🔨 Building AI Chatbot image..."
+# 8. Build AI Chatbot image với --no-cache để cài thư viện mới
+echo "🔨 Building AI Chatbot image with --no-cache for new dependencies..."
 docker build --no-cache -t ai-chatbot-rag:latest .
 
 # 9. Deploy AI Chatbot với network và override Redis URL cho Docker network
@@ -138,13 +198,15 @@ docker run -d \
   --network "$NETWORK_NAME" \
   -p 8000:8000 \
   --env-file .env \
-  --add-host=host.docker.internal:host-gateway \
   --restart unless-stopped \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/chat_history.db:/app/chat_history.db \
   -v $(pwd)/logs:/app/logs \
+  -v $(pwd)/firebase-credentials.json:/app/firebase-credentials.json:ro \
   -e PYTHONPATH=/app \
   -e PYTHONUNBUFFERED=1 \
+  -e ENVIRONMENT=production \
+  -e GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-credentials.json \
   -e REDIS_URL=redis://redis-server:6379 \
   -e REDIS_HOST=redis-server \
   -e REDIS_PORT=6379 \
@@ -167,8 +229,8 @@ docker exec ai-chatbot-rag sh -c "command -v redis-cli >/dev/null 2>&1 || (apt-g
 # Test Redis connection with multiple methods
 echo "🧪 Testing Redis connectivity..."
 
-# Method 1: Direct container name
-echo "  📋 Method 1: Container name (redis-server)..."
+# Test via container name
+echo "  📋 Testing Redis via container name (redis-server)..."
 if docker exec ai-chatbot-rag redis-cli -h redis-server ping 2>/dev/null | grep -q "PONG"; then
     echo "  ✅ Container name connection: SUCCESS"
     REDIS_INFO=$(docker exec ai-chatbot-rag redis-cli -h redis-server info server | grep "redis_version" || echo "Version info unavailable")
@@ -177,61 +239,35 @@ else
     echo "  ❌ Container name connection: FAILED"
 fi
 
-# Method 2: Host docker internal
-echo "  📋 Method 2: Host docker internal..."
-if docker exec ai-chatbot-rag redis-cli -h host.docker.internal -p 6379 ping 2>/dev/null | grep -q "PONG"; then
-    echo "  ✅ Host docker internal connection: SUCCESS"
-else
-    echo "  ❌ Host docker internal connection: FAILED"
-fi
-
-# Method 3: Python redis test from container
-echo "  📋 Method 3: Python Redis client test..."
+# Python redis test from container
+echo "  📋 Python Redis client test..."
 docker exec ai-chatbot-rag python3 -c "
 import os
-import time
 print('🔍 Testing Redis connection from Python...')
 
 try:
     import redis
 
-    # Test container name connection
-    try:
-        r = redis.Redis(host='redis-server', port=6379, decode_responses=True, socket_timeout=5)
-        response = r.ping()
-        if response:
-            print('✅ Python Redis connection (container name): SUCCESS')
-            info = r.info('replication')
-            role = info.get('role', 'unknown')
-            print(f'ℹ️  Redis role: {role}')
+    # Test via Docker network container name
+    r = redis.Redis(host='redis-server', port=6379, decode_responses=True, socket_timeout=5)
+    response = r.ping()
+    if response:
+        print('✅ Python Redis connection: SUCCESS')
+        info = r.info('replication')
+        role = info.get('role', 'unknown')
+        print(f'ℹ️  Redis role: {role}')
 
-            # Test basic operations
-            r.set('test_key', 'test_value', ex=10)
-            value = r.get('test_key')
-            if value == 'test_value':
-                print('✅ Redis read/write operations: SUCCESS')
-            else:
-                print('❌ Redis read/write operations: FAILED')
+        # Test basic operations
+        r.set('test_key', 'test_value', ex=10)
+        value = r.get('test_key')
+        if value == 'test_value':
+            print('✅ Redis read/write operations: SUCCESS')
         else:
-            print('❌ Python Redis connection (container name): FAILED - No ping response')
-    except redis.exceptions.ConnectionError as e:
-        print(f'❌ Python Redis connection (container name): FAILED - {e}')
-    except Exception as e:
-        print(f'❌ Python Redis connection (container name): ERROR - {e}')
-
-    # Test host.docker.internal connection
-    try:
-        r2 = redis.Redis(host='host.docker.internal', port=6379, decode_responses=True, socket_timeout=5)
-        response2 = r2.ping()
-        if response2:
-            print('✅ Python Redis connection (host.docker.internal): SUCCESS')
-        else:
-            print('❌ Python Redis connection (host.docker.internal): FAILED - No ping response')
-    except redis.exceptions.ConnectionError as e:
-        print(f'❌ Python Redis connection (host.docker.internal): FAILED - {e}')
-    except Exception as e:
-        print(f'❌ Python Redis connection (host.docker.internal): ERROR - {e}')
-
+            print('❌ Redis read/write operations: FAILED')
+    else:
+        print('❌ Python Redis connection: FAILED - No ping response')
+except redis.exceptions.ConnectionError as e:
+    print(f'❌ Python Redis connection: FAILED - {e}')
 except ImportError:
     print('❌ Redis Python library not available')
 except Exception as e:
@@ -258,7 +294,7 @@ try:
         client = pymongo.MongoClient(mongodb_uri, serverSelectionTimeoutMS=10000)
         # Test connection
         result = client.admin.command('ping')
-        print('✅ MongoDB connection successful via MONGODB_URI_AUTH')
+        print('✅ MongoDB connection successful')
 
         # Test database access
         db_name = os.getenv('MONGODB_NAME', 'ai_service_db')
@@ -271,33 +307,6 @@ try:
         print('❌ MONGODB_URI_AUTH not found in environment')
 except Exception as e:
     print(f'❌ MongoDB connection failed: {e}')
-    print('Trying fallback connection methods...')
-
-    # Fallback 1: Try host.docker.internal
-    try:
-        mongodb_user = os.getenv('MONGODB_APP_USERNAME')
-        mongodb_pass = os.getenv('MONGODB_APP_PASSWORD')
-        mongodb_name = os.getenv('MONGODB_NAME')
-        if mongodb_user and mongodb_pass and mongodb_name:
-            uri = f'mongodb://{mongodb_user}:{mongodb_pass}@host.docker.internal:27017/{mongodb_name}?authSource=admin'
-            client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)
-            client.admin.command('ping')
-            print('✅ MongoDB connection successful via host.docker.internal')
-            client.close()
-        else:
-            print('❌ Missing MongoDB credentials in environment')
-    except Exception as e2:
-        print(f'❌ Fallback connection also failed: {e2}')
-
-        # Fallback 2: Try container name
-        try:
-            uri = f'mongodb://{mongodb_user}:{mongodb_pass}@mongodb:27017/{mongodb_name}?authSource=admin'
-            client = pymongo.MongoClient(uri, serverSelectionTimeoutMS=5000)
-            client.admin.command('ping')
-            print('✅ MongoDB connection successful via container name')
-            client.close()
-        except Exception as e3:
-            print(f'❌ All MongoDB connection methods failed: {e3}')
 "
 
 echo ""
@@ -412,3 +421,37 @@ fi
 echo ""
 echo "🎉 Setup complete! Your AI Chatbot RAG system is updated and ready."
 echo "📋 All existing data has been preserved."
+
+# 12. Cleanup Docker cache to optimize disk space
+echo ""
+echo "🧹 Cleaning up Docker cache and unused images..."
+echo "ℹ️  This will remove:"
+echo "   • Dangling images (untagged)"
+echo "   • Build cache"
+echo "   • Stopped containers"
+echo ""
+
+# Remove dangling images
+DANGLING_IMAGES=$(docker images -f "dangling=true" -q | wc -l | tr -d ' ')
+if [ "$DANGLING_IMAGES" -gt 0 ]; then
+    echo "🗑️  Removing $DANGLING_IMAGES dangling images..."
+    docker image prune -f
+    echo "✅ Dangling images removed"
+else
+    echo "ℹ️  No dangling images to remove"
+fi
+
+# Remove build cache
+echo "🗑️  Removing build cache..."
+docker builder prune -f
+echo "✅ Build cache cleared"
+
+# Show disk space saved
+echo ""
+echo "💾 Docker Disk Space After Cleanup:"
+docker system df
+
+echo ""
+echo "🎉 Deployment complete with cache cleanup!"
+echo "💡 Tip: To skip DB initialization on next deploy, run:"
+echo "   export SKIP_DB_INIT=true SKIP_INDEX_FIX=true && ./deploy-manual.sh"
