@@ -360,55 +360,61 @@ def create_app() -> FastAPI:
     @app.middleware("http")
     async def log_auth_requests(request: Request, call_next):
         """Log all requests to /api/auth/* endpoints"""
-        if request.url.path.startswith("/api/auth/"):
-            print("=" * 80)
-            print(f"🔐 INCOMING REQUEST TO AUTH API")
-            print(f"   Method: {request.method}")
-            print(f"   Path: {request.url.path}")
-            print(f"   Content-Type: {request.headers.get('content-type', 'NOT SET')}")
-            print(f"   Cookies: {list(request.cookies.keys())}")
-            print(
-                f"   Cookie 'session': {'YES' if 'session' in request.cookies else 'NO'}"
-            )
-            print(
-                f"   Cookie 'wordai_session_cookie': {'YES' if 'wordai_session_cookie' in request.cookies else 'NO'}"
-            )
-            if "authorization" in request.headers:
-                print(f"   Authorization: {request.headers['authorization'][:50]}...")
-            else:
-                print(f"   Authorization: NO")
+        try:
+            # Log EVERYTHING to /api/auth/*
+            is_auth_request = request.url.path.startswith("/api/auth/")
 
-            # Log body for POST requests
-            if request.method == "POST":
-                try:
-                    # Read body (this consumes the stream, so we need to store it)
-                    body_bytes = await request.body()
-                    print(f"   Body Length: {len(body_bytes)} bytes")
-                    if len(body_bytes) < 2000:  # Only print if < 2KB
-                        body_str = body_bytes.decode("utf-8")
-                        print(f"   Body Content: {body_str[:500]}")  # First 500 chars
+            if is_auth_request:
+                print("=" * 80)
+                print(f"🔐 INCOMING REQUEST TO AUTH API")
+                print(f"   Method: {request.method}")
+                print(f"   Path: {request.url.path}")
+                print(
+                    f"   Content-Type: {request.headers.get('content-type', 'NOT SET')}"
+                )
+                print(f"   Cookies: {list(request.cookies.keys())}")
+                print(
+                    f"   Cookie 'session': {'YES' if 'session' in request.cookies else 'NO'}"
+                )
+                print(
+                    f"   Cookie 'wordai_session_cookie': {'YES' if 'wordai_session_cookie' in request.cookies else 'NO'}"
+                )
+                if "authorization" in request.headers:
+                    print(
+                        f"   Authorization: {request.headers['authorization'][:50]}..."
+                    )
+                else:
+                    print(f"   Authorization: NO")
 
-                    # Important: Store body for FastAPI to read later
-                    async def receive():
-                        return {"type": "http.request", "body": body_bytes}
+                # Special log for /session endpoint
+                if request.url.path == "/api/auth/session":
+                    print(f"   🎯 THIS IS THE SESSION CREATION ENDPOINT!")
 
-                    request._receive = receive
-                except Exception as e:
-                    print(f"   Body Read Error: {e}")
+                print("=" * 80)
 
-            print("=" * 80)
+            response = await call_next(request)
 
-        response = await call_next(request)
+            if is_auth_request:
+                print("=" * 80)
+                print(f"🔐 OUTGOING RESPONSE FROM AUTH API")
+                print(f"   Method: {request.method}")
+                print(f"   Path: {request.url.path}")
+                print(f"   Status: {response.status_code}")
 
-        if request.url.path.startswith("/api/auth/"):
-            print("=" * 80)
-            print(f"🔐 OUTGOING RESPONSE FROM AUTH API")
-            print(f"   Method: {request.method}")
-            print(f"   Path: {request.url.path}")
-            print(f"   Status: {response.status_code}")
-            print("=" * 80)
+                # Log response body for 422 errors
+                if response.status_code == 422:
+                    print(f"   ⚠️ VALIDATION ERROR (422)!")
 
-        return response
+                print("=" * 80)
+
+            return response
+        except Exception as e:
+            print(f"🔴 MIDDLEWARE ERROR in log_auth_requests: {e}")
+            import traceback
+
+            traceback.print_exc()
+            # Don't raise - continue processing
+            return await call_next(request)
 
     # ===== REGISTER ROUTERS =====
 
