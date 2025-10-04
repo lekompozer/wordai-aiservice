@@ -356,6 +356,40 @@ def create_app() -> FastAPI:
 
         return response
 
+    # ===== DEBUG MIDDLEWARE FOR AUTH ENDPOINTS =====
+    @app.middleware("http")
+    async def log_auth_requests(request: Request, call_next):
+        """Log all requests to /api/auth/* endpoints"""
+        if request.url.path.startswith("/api/auth/"):
+            print("=" * 80)
+            print(f"🔐 INCOMING REQUEST TO AUTH API")
+            print(f"   Method: {request.method}")
+            print(f"   Path: {request.url.path}")
+            print(f"   Cookies: {list(request.cookies.keys())}")
+            print(
+                f"   Cookie 'session': {'YES' if 'session' in request.cookies else 'NO'}"
+            )
+            print(
+                f"   Cookie 'wordai_session_cookie': {'YES' if 'wordai_session_cookie' in request.cookies else 'NO'}"
+            )
+            if "authorization" in request.headers:
+                print(f"   Authorization: {request.headers['authorization'][:50]}...")
+            else:
+                print(f"   Authorization: NO")
+            print("=" * 80)
+
+        response = await call_next(request)
+
+        if request.url.path.startswith("/api/auth/"):
+            print("=" * 80)
+            print(f"🔐 OUTGOING RESPONSE FROM AUTH API")
+            print(f"   Method: {request.method}")
+            print(f"   Path: {request.url.path}")
+            print(f"   Status: {response.status_code}")
+            print("=" * 80)
+
+        return response
+
     # ===== REGISTER ROUTERS =====
 
     # ✅ Authentication endpoints - Firebase auth for user management
