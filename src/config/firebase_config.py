@@ -107,6 +107,8 @@ class FirebaseConfig:
 
     def verify_token(self, token: str) -> Dict[str, Any]:
         """Verify Firebase ID token"""
+        logger.info(f"🔍 verify_token() called with token length: {len(token)}")
+        
         if not self.app:
             # Development mode - create mock user data
             logger.warning(
@@ -125,7 +127,10 @@ class FirebaseConfig:
             }
 
         try:
+            logger.info("🔍 Calling auth.verify_id_token()...")
             decoded_token = auth.verify_id_token(token)
+            logger.info(f"✅ verify_id_token() SUCCESS - User: {decoded_token.get('email')}")
+            logger.info(f"   Issuer: {decoded_token.get('iss')}")
             return decoded_token
         except Exception as e:
             logger.error(f"❌ Token verification failed: {e}")

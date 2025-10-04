@@ -599,9 +599,14 @@ async def create_session_cookie(
         }
     """
     try:
-        logger.info("🔑 Creating session cookie from ID token...")
+        logger.info("=" * 80)
+        logger.info("🔑 POST /api/auth/session - CREATE SESSION COOKIE")
+        logger.info(f"   ID Token Length: {len(request.id_token)}")
+        logger.info(f"   Expires In: {request.expires_in_hours} hours")
+        logger.info("=" * 80)
 
-        # Verify ID token first
+        # Verify ID token first (using verify_token, NOT verify_session_cookie)
+        logger.info("🔍 Step 1: Verifying ID token with verify_token()...")
         decoded_token = firebase_config.verify_token(request.id_token)
         user_id = decoded_token.get("uid")
         user_email = decoded_token.get("email")
