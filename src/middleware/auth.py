@@ -113,7 +113,9 @@ async def verify_firebase_token(
                 status_code=401, detail="Invalid token: no user ID found"
             )
 
-        logger.info(f"   ✅ ID token auth success: {decoded_token.get('email', 'no-email')}")
+        logger.info(
+            f"   ✅ ID token auth success: {decoded_token.get('email', 'no-email')}"
+        )
         return {
             "uid": user_uid,
             "email": decoded_token.get("email"),
@@ -125,7 +127,9 @@ async def verify_firebase_token(
         # Try as session cookie if ID token fails
         try:
             logger.info("   🔍 Attempting session cookie verification...")
-            decoded_token = firebase_auth.verify_session_cookie(token, check_revoked=True)
+            decoded_token = firebase_auth.verify_session_cookie(
+                token, check_revoked=True
+            )
             user_uid = decoded_token.get("uid")
 
             if not user_uid:
