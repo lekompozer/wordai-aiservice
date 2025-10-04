@@ -650,3 +650,125 @@ async def create_session_cookie(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Failed to create session cookie: {str(e)}",
         )
+
+
+@router.get("/verify-session")
+async def verify_session_cookie(request: Request) -> Dict[str, Any]:
+    """
+    Verify session cookie validity
+
+    This endpoint checks if the current session cookie is valid.
+    Frontend calls this on page load to check if user is still authenticated.
+
+    The session cookie is automatically sent by the browser in the Cookie header.
+    No need to manually send it in Authorization header or request body.
+
+    Returns:
+        User info if session is valid, error if invalid/expired
+
+    Example:
+        GET /api/auth/verify-session
+        Cookie: session=eyJhbGc...
+
+        Response (200 OK):
+        {
+          "success": true,
+          "valid": true,
+          "user": {
+            "uid": "abc123",
+            "email": "user@example.com",
+            "emailVerified": true,
+            "name": "John Doe",
+            "picture": "https://...",
+            "provider": "google.com"
+          },
+          "expiresAt": "2025-10-05T10:30:00Z",
+          "expiresIn": 43200
+        }
+
+        Response (401 Unauthorized):
+        {
+          "success": false,
+          "valid": false,
+          "error": "Session cookie invalid or expired"
+        }
+    """
+    try:
+        logger.info("🔍 Verifying session cookie...")
+
+        # Get session cookie from request
+        session_cookie = request.cookies.get("session")
+
+        if not session_cookie:
+            logger.warning("❌ No session cookie found in request")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="No session cookie found",
+            )
+
+        # Verify session cookie using Firebase SDK
+        try:
+            decoded_claims = firebase_config.verify_session_cookie(session_cookie)
+
+            user_id = decoded_claims.get("uid")
+            user_email = decoded_claims.get("email")
+            user_name = decoded_claims.get("name")
+            user_picture = decoded_claims.get("picture")
+            email_verified = decoded_claims.get("email_verified", False)
+
+            # Get provider info
+            firebase_info = decoded_claims.get("firebase", {})
+            provider = firebase_info.get("sign_in_provider", "unknown")
+
+            # Calculate expiration time
+            exp_timestamp = decoded_claims.get("exp", 0)
+            expires_at = datetime.fromtimestamp(exp_timestamp)
+            current_time = datetime.now()
+            expires_in_seconds = int((expires_at - current_time).total_seconds())
+
+            logger.info(
+                f"✅ Session cookie valid for user: {user_email} ({user_id}), "
+                f"expires in {expires_in_seconds}s"
+            )
+
+            return {
+                "success": True,
+                "valid": True,
+                "user": {
+                    "uid": user_id,
+                    "email": user_email,
+                    "emailVerified": email_verified,
+                    "name": user_name,
+                    "picture": user_picture,
+                    "provider": provider,
+                },
+                "expiresAt": expires_at.isoformat() + "Z",
+                "expiresIn": expires_in_seconds,
+            }
+
+        except Exception as verify_error:
+            logger.warning(f"❌ Session cookie verification failed: {verify_error}")
+
+            # Check if it's a revoked session
+            error_message = str(verify_error).lower()
+            if "revoked" in error_message:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Session has been revoked",
+                )
+
+            # Generic invalid/expired session
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Session cookie invalid or expired",
+            )
+
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected error during session verification: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Session verification failed: {str(e)}",
+        )
