@@ -365,6 +365,7 @@ def create_app() -> FastAPI:
             print(f"🔐 INCOMING REQUEST TO AUTH API")
             print(f"   Method: {request.method}")
             print(f"   Path: {request.url.path}")
+            print(f"   Content-Type: {request.headers.get('content-type', 'NOT SET')}")
             print(f"   Cookies: {list(request.cookies.keys())}")
             print(
                 f"   Cookie 'session': {'YES' if 'session' in request.cookies else 'NO'}"
@@ -376,6 +377,25 @@ def create_app() -> FastAPI:
                 print(f"   Authorization: {request.headers['authorization'][:50]}...")
             else:
                 print(f"   Authorization: NO")
+
+            # Log body for POST requests
+            if request.method == "POST":
+                try:
+                    # Read body (this consumes the stream, so we need to store it)
+                    body_bytes = await request.body()
+                    print(f"   Body Length: {len(body_bytes)} bytes")
+                    if len(body_bytes) < 2000:  # Only print if < 2KB
+                        body_str = body_bytes.decode("utf-8")
+                        print(f"   Body Content: {body_str[:500]}")  # First 500 chars
+
+                    # Important: Store body for FastAPI to read later
+                    async def receive():
+                        return {"type": "http.request", "body": body_bytes}
+
+                    request._receive = receive
+                except Exception as e:
+                    print(f"   Body Read Error: {e}")
+
             print("=" * 80)
 
         response = await call_next(request)
