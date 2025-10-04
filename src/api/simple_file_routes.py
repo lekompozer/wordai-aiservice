@@ -98,6 +98,15 @@ class FileResponse(BaseModel):
     updated_at: datetime
 
 
+class FileUpdate(BaseModel):
+    """Model for updating file metadata"""
+
+    filename: Optional[str] = None  # New filename (without path)
+    folder_id: Optional[str] = (
+        None  # Move to different folder (use "root" or "default" for root folder)
+    )
+
+
 # Allowed file types
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".rtf"}
 ALLOWED_MIME_TYPES = {
@@ -107,6 +116,9 @@ ALLOWED_MIME_TYPES = {
     "text/plain",
     "application/rtf",
 }
+
+# File size limit: 100MB (matches Nginx client_max_body_size)
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB in bytes
 
 
 def get_file_extension_and_type(filename: str, content_type: str):
@@ -131,12 +143,22 @@ def get_file_extension_and_type(filename: str, content_type: str):
 async def upload_to_r2(file_content: bytes, key: str, content_type: str) -> str:
     """Upload file to R2 private storage and return private URL"""
     try:
+        logger.info(f"   [R2] Starting upload...")
+        logger.info(f"   [R2] Key: {key}")
+        logger.info(f"   [R2] Content-Type: {content_type}")
+        logger.info(f"   [R2] Size: {len(file_content)} bytes")
+
         if s3_client is None:
+            logger.error("   [R2] ❌ S3 client is None - R2 not configured!")
             raise HTTPException(
                 status_code=500, detail="R2 storage not configured properly"
             )
 
+        logger.info(f"   [R2] Bucket: {R2_BUCKET_NAME}")
+        logger.info(f"   [R2] Endpoint: {R2_ENDPOINT_URL}")
+
         # Upload without ACL (private by default)
+        logger.info("   [R2] Calling s3_client.put_object()...")
         s3_client.put_object(
             Bucket=R2_BUCKET_NAME,
             Key=key,
@@ -144,34 +166,51 @@ async def upload_to_r2(file_content: bytes, key: str, content_type: str) -> str:
             ContentType=content_type,
             # Remove ACL="public-read" to make it private
         )
+        logger.info("   [R2] ✅ put_object() completed successfully!")
 
         # Return private R2 URL (not publicly accessible)
         private_url = f"{R2_ENDPOINT_URL}/{R2_BUCKET_NAME}/{key}"
-        logger.info(f"✅ Uploaded to private R2: {key}")
+        logger.info(f"   [R2] Generated private URL: {private_url}")
+        logger.info(f"   [R2] ✅ Upload completed successfully!")
         return private_url
 
     except Exception as e:
-        logger.error(f"Failed to upload to R2: {e}")
+        logger.error(f"   [R2] ❌ Upload failed!")
+        logger.error(f"   [R2] Error Type: {type(e).__name__}")
+        logger.error(f"   [R2] Error Message: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
 def generate_signed_url(key: str, expiration: int = 3600) -> str:
     """Generate signed URL for private R2 file access"""
     try:
+        logger.info(f"   [SignedURL] Generating signed URL...")
+        logger.info(f"   [SignedURL] Key: {key}")
+        logger.info(
+            f"   [SignedURL] Expiration: {expiration}s ({expiration / 3600:.1f} hours)"
+        )
+
         if s3_client is None:
+            logger.error("   [SignedURL] ❌ S3 client is None!")
             raise HTTPException(status_code=500, detail="R2 client not available")
 
         # Generate presigned URL for GET request
+        logger.info("   [SignedURL] Calling generate_presigned_url()...")
         signed_url = s3_client.generate_presigned_url(
             "get_object",
             Params={"Bucket": R2_BUCKET_NAME, "Key": key},
             ExpiresIn=expiration,  # URL expires in 1 hour by default
         )
 
+        logger.info(f"   [SignedURL] ✅ Generated successfully!")
+        logger.info(f"   [SignedURL] URL length: {len(signed_url)} chars")
+
         return signed_url
 
     except Exception as e:
-        logger.error(f"Failed to generate signed URL: {e}")
+        logger.error(f"   [SignedURL] ❌ Failed to generate signed URL!")
+        logger.error(f"   [SignedURL] Error Type: {type(e).__name__}")
+        logger.error(f"   [SignedURL] Error Message: {str(e)}")
         raise HTTPException(
             status_code=500, detail=f"Failed to generate access URL: {str(e)}"
         )
@@ -343,31 +382,83 @@ async def upload_file(
         user_id = user_data.get("uid")
         user_email = user_data.get("email", "unknown")
 
+        # 🔍 DEBUG: Log incoming request
+        logger.info("=" * 80)
+        logger.info("📤 FILE UPLOAD REQUEST RECEIVED")
+        logger.info(f"   User: {user_email} (UID: {user_id})")
+        logger.info(f"   Filename: {file.filename}")
+        logger.info(f"   Content-Type: {file.content_type}")
+        logger.info(f"   Folder ID (raw): {repr(folder_id)}")
+
+        # Handle "default" folder_id from frontend → convert to root
+        if folder_id and folder_id.lower() in ["default", "root", ""]:
+            logger.info(
+                f"   ⚠️  Converting folder_id '{folder_id}' → None (root folder)"
+            )
+            folder_id = None
+
+        logger.info(f"   Folder ID (processed): {repr(folder_id)}")
+
         # Validate file type
+        logger.info("   🔍 Validating file type...")
         ext, content_type = get_file_extension_and_type(
             file.filename, file.content_type
         )
+        logger.info(f"   ✅ File type validated: {ext} ({content_type})")
 
         # Read file content
+        logger.info("   📥 Reading file content...")
         file_content = await file.read()
         file_size = len(file_content)
+        logger.info(
+            f"   ✅ File read successfully: {file_size} bytes ({file_size / 1024:.2f} KB)"
+        )
+
+        # Validate file size (100MB limit)
+        if file_size > MAX_FILE_SIZE:
+            size_mb = file_size / (1024 * 1024)
+            limit_mb = MAX_FILE_SIZE / (1024 * 1024)
+            logger.error(f"   ❌ File too large: {size_mb:.2f}MB (limit: {limit_mb}MB)")
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large: {size_mb:.2f}MB. Maximum allowed: {limit_mb}MB",
+            )
+
+        if file_size == 0:
+            logger.error("   ❌ File is empty (0 bytes)")
+            raise HTTPException(status_code=400, detail="File is empty")
+
+        logger.info(f"   ✅ File size validated: {file_size / (1024 * 1024):.2f}MB")
 
         # Generate unique filename
         file_id = f"file_{uuid.uuid4().hex[:12]}"
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         safe_filename = f"{timestamp}_{file.filename.replace(' ', '_')}"
+        logger.info(f"   📝 Generated file ID: {file_id}")
+        logger.info(f"   📝 Safe filename: {safe_filename}")
 
         # R2 key structure: files/{user_id}/{folder_id}/{file_id}/{filename}
         if folder_id:
             r2_key = f"files/{user_id}/{folder_id}/{file_id}/{safe_filename}"
+            logger.info(f"   📂 Using folder: {folder_id}")
         else:
             r2_key = f"files/{user_id}/root/{file_id}/{safe_filename}"
+            logger.info(f"   📂 Using root folder (no folder_id specified)")
+
+        logger.info(f"   🔑 R2 Key: {r2_key}")
+
+        logger.info(f"   🔑 R2 Key: {r2_key}")
 
         # Upload to R2 private storage
+        logger.info("   ☁️  Uploading to R2...")
         private_url = await upload_to_r2(file_content, r2_key, content_type)
+        logger.info(f"   ✅ R2 upload successful!")
+        logger.info(f"   🔗 Private URL: {private_url}")
 
         # Generate signed URL for download (expires in 1 hour)
+        logger.info("   🔐 Generating signed URL...")
         download_url = generate_signed_url(r2_key, expiration=3600)
+        logger.info(f"   ✅ Signed URL generated (expires in 1 hour)")
 
         # Create file record
         now = datetime.utcnow()
@@ -387,19 +478,34 @@ async def upload_file(
         }
 
         # In real app: save file record to database
+        logger.info("   💾 File record created (not saved to DB yet - mock mode)")
 
-        logger.info(
-            f"✅ Uploaded file {file.filename} ({file_size} bytes) for user {user_email}"
-        )
-        logger.info(f"   R2 Key: {r2_key}")
-        logger.info(f"   Private URL: {private_url}")
+        logger.info("✅ FILE UPLOAD COMPLETED SUCCESSFULLY!")
+        logger.info(f"   📄 File ID: {file_id}")
+        logger.info(f"   📁 Original Name: {file.filename}")
+        logger.info(f"   📊 Size: {file_size} bytes ({file_size / 1024:.2f} KB)")
+        logger.info(f"   🔗 Download URL: {download_url[:100]}...")
+        logger.info("=" * 80)
 
         return FileResponse(**file_data)
 
-    except HTTPException:
+    except HTTPException as http_exc:
+        logger.error("=" * 80)
+        logger.error("❌ FILE UPLOAD FAILED - HTTP Exception")
+        logger.error(f"   Status Code: {http_exc.status_code}")
+        logger.error(f"   Detail: {http_exc.detail}")
+        logger.error(f"   User: {user_data.get('email', 'unknown')}")
+        logger.error(f"   File: {file.filename if file else 'unknown'}")
+        logger.error("=" * 80)
         raise
     except Exception as e:
-        logger.error(f"❌ File upload failed: {e}")
+        logger.error("=" * 80)
+        logger.error("❌ FILE UPLOAD FAILED - Unexpected Error")
+        logger.error(f"   Error Type: {type(e).__name__}")
+        logger.error(f"   Error Message: {str(e)}")
+        logger.error(f"   User: {user_data.get('email', 'unknown')}")
+        logger.error(f"   File: {file.filename if file else 'unknown'}")
+        logger.error("=" * 80)
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
@@ -660,6 +766,191 @@ async def get_file(
     except Exception as e:
         logger.error(f"❌ Failed to get file: {e}")
         raise HTTPException(status_code=500, detail="Failed to get file")
+
+
+@router.put("/files/{file_id}", response_model=FileResponse)
+async def update_file(
+    file_id: str,
+    file_update: FileUpdate,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Update file metadata (filename and/or folder_id)
+    - Can rename file
+    - Can move file to different folder
+    - File content in R2 will be moved/renamed accordingly
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_email = user_data.get("email", "unknown")
+
+        logger.info("=" * 80)
+        logger.info(f"📝 FILE UPDATE REQUEST for file_id: {file_id}")
+        logger.info(f"   User: {user_email} (UID: {user_id})")
+        logger.info(f"   New filename: {file_update.filename}")
+        logger.info(f"   New folder_id: {file_update.folder_id}")
+
+        if s3_client is None:
+            raise HTTPException(status_code=503, detail="Storage service unavailable")
+
+        # Step 1: Find the existing file in R2
+        prefix = f"files/{user_id}/"
+        logger.info(f"   🔍 Searching for file with prefix: {prefix}")
+
+        response = s3_client.list_objects_v2(
+            Bucket=R2_BUCKET_NAME, Prefix=prefix, MaxKeys=1000
+        )
+
+        old_key = None
+        old_metadata = None
+
+        if "Contents" in response:
+            for obj in response["Contents"]:
+                key = obj["Key"]
+                if f"/{file_id}/" in key:
+                    key_parts = key.split("/")
+                    if len(key_parts) >= 4:
+                        found_file_id = key_parts[3]
+                        if found_file_id == file_id:
+                            old_key = key
+                            old_metadata = {
+                                "size": obj["Size"],
+                                "last_modified": obj["LastModified"],
+                                "folder_part": key_parts[2],
+                                "old_filename": (
+                                    key_parts[4] if len(key_parts) > 4 else key_parts[3]
+                                ),
+                            }
+                            break
+
+        if not old_key:
+            logger.warning(f"❌ File {file_id} not found for update")
+            raise HTTPException(status_code=404, detail="File not found")
+
+        logger.info(f"   ✅ Found file: {old_key}")
+        logger.info(f"   📦 Current size: {old_metadata['size']} bytes")
+
+        # Step 2: Determine new folder_id
+        new_folder_id = file_update.folder_id
+        if new_folder_id and new_folder_id.lower() in ["default", "root", ""]:
+            logger.info(f"   ⚠️  Converting folder_id '{new_folder_id}' → None (root)")
+            new_folder_id = None
+
+        # If folder_id not provided, keep current folder
+        if file_update.folder_id is None:
+            new_folder_id = (
+                old_metadata["folder_part"]
+                if old_metadata["folder_part"] != "root"
+                else None
+            )
+            logger.info(f"   📂 Keeping current folder: {new_folder_id or 'root'}")
+        else:
+            logger.info(f"   📂 Moving to folder: {new_folder_id or 'root'}")
+
+        # Step 3: Determine new filename
+        if file_update.filename:
+            # Use new filename but keep the timestamp prefix from old filename
+            old_filename = old_metadata["old_filename"]
+            if "_" in old_filename and len(old_filename.split("_", 1)) > 1:
+                timestamp_part = old_filename.split("_", 1)[0]
+                if len(timestamp_part) == 15:  # YYYYMMDD_HHMMSS format
+                    new_filename = (
+                        f"{timestamp_part}_{file_update.filename.replace(' ', '_')}"
+                    )
+                else:
+                    # No valid timestamp, add new one
+                    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                    new_filename = (
+                        f"{timestamp}_{file_update.filename.replace(' ', '_')}"
+                    )
+            else:
+                # No timestamp prefix, add new one
+                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+                new_filename = f"{timestamp}_{file_update.filename.replace(' ', '_')}"
+
+            logger.info(f"   ✏️  Renaming to: {new_filename}")
+        else:
+            # Keep old filename
+            new_filename = old_metadata["old_filename"]
+            logger.info(f"   ✏️  Keeping filename: {new_filename}")
+
+        # Step 4: Build new R2 key
+        if new_folder_id:
+            new_key = f"files/{user_id}/{new_folder_id}/{file_id}/{new_filename}"
+        else:
+            new_key = f"files/{user_id}/root/{file_id}/{new_filename}"
+
+        logger.info(f"   🔑 Old key: {old_key}")
+        logger.info(f"   🔑 New key: {new_key}")
+
+        # Step 5: Copy file to new location if key changed
+        if old_key != new_key:
+            logger.info("   📦 Copying file to new location...")
+
+            # Copy object to new location
+            s3_client.copy_object(
+                Bucket=R2_BUCKET_NAME,
+                CopySource={"Bucket": R2_BUCKET_NAME, "Key": old_key},
+                Key=new_key,
+            )
+            logger.info("   ✅ File copied successfully")
+
+            # Delete old file
+            logger.info("   🗑️  Deleting old file...")
+            s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=old_key)
+            logger.info("   ✅ Old file deleted")
+        else:
+            logger.info("   ℹ️  No changes to file location/name, skipping copy")
+
+        # Step 6: Generate new signed URL
+        logger.info("   🔐 Generating new signed URL...")
+        download_url = generate_signed_url(new_key, expiration=3600)
+        private_url = get_private_file_url(new_key)
+
+        # Step 7: Extract original name (without timestamp)
+        original_name = new_filename
+        if "_" in new_filename and len(new_filename.split("_", 1)) > 1:
+            timestamp_part, name_part = new_filename.split("_", 1)
+            if len(timestamp_part) == 15:
+                original_name = name_part
+
+        file_ext = Path(new_filename).suffix.lower()
+
+        # Step 8: Build response
+        now = datetime.utcnow()
+        file_data = {
+            "id": file_id,
+            "filename": new_filename,
+            "original_name": original_name,
+            "file_type": file_ext,
+            "file_size": old_metadata["size"],
+            "folder_id": new_folder_id,
+            "user_id": user_id,
+            "r2_key": new_key,
+            "private_url": private_url,
+            "download_url": download_url,
+            "created_at": old_metadata["last_modified"],
+            "updated_at": now,
+        }
+
+        logger.info("✅ FILE UPDATE COMPLETED!")
+        logger.info(f"   📄 File ID: {file_id}")
+        logger.info(f"   📁 New filename: {original_name}")
+        logger.info(f"   📂 New folder: {new_folder_id or 'root'}")
+        logger.info("=" * 80)
+
+        return FileResponse(**file_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("=" * 80)
+        logger.error(f"❌ FILE UPDATE FAILED for {file_id}")
+        logger.error(f"   Error Type: {type(e).__name__}")
+        logger.error(f"   Error Message: {str(e)}")
+        logger.error(f"   User: {user_data.get('email', 'unknown')}")
+        logger.error("=" * 80)
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
 
 
 @router.get("/files/{file_id}/download")
