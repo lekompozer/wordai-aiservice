@@ -138,63 +138,6 @@ class FirebaseConfig:
             logger.error(f"❌ Token verification failed: {e}")
             raise
 
-    def create_session_cookie(self, id_token: str, expires_in_hours: int = 24) -> str:
-        """
-        Tạo session cookie từ ID token với thời hạn dài hơn
-
-        Args:
-            id_token: Firebase ID token
-            expires_in_hours: Thời gian hết hạn (giờ), mặc định 24h
-
-        Returns:
-            Session cookie string
-        """
-        try:
-            # Chuyển đổi hours thành seconds (Firebase expects seconds, not milliseconds)
-            expires_in_seconds = expires_in_hours * 60 * 60
-
-            # Firebase max duration là 14 ngày (1209600 seconds)
-            max_duration = 14 * 24 * 60 * 60  # 14 days in seconds
-            if expires_in_seconds > max_duration:
-                expires_in_seconds = max_duration
-                logger.warning(
-                    f"⚠️ Session cookie duration capped at {max_duration}s (14 days)"
-                )
-
-            # Tạo session cookie
-            session_cookie = auth.create_session_cookie(
-                id_token, expires_in=expires_in_seconds
-            )
-
-            logger.info(
-                f"✅ Session cookie created with {expires_in_hours}h expiry ({expires_in_seconds}s)"
-            )
-            return session_cookie
-
-        except Exception as e:
-            logger.error(f"❌ Failed to create session cookie: {e}")
-            raise
-
-    def verify_session_cookie(self, session_cookie: str) -> Dict[str, Any]:
-        """
-        Verify session cookie và trả về decoded claims
-
-        Args:
-            session_cookie: Session cookie string
-
-        Returns:
-            Decoded token claims
-        """
-        try:
-            decoded_claims = auth.verify_session_cookie(
-                session_cookie, check_revoked=True
-            )
-            return decoded_claims
-
-        except Exception as e:
-            logger.error(f"❌ Session cookie verification failed: {e}")
-            raise
-
 
 # Global Firebase config instance
 firebase_config = FirebaseConfig()

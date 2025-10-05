@@ -314,31 +314,48 @@ def create_app() -> FastAPI:
 
     # ===== VALIDATION ERROR HANDLER =====
     logger = logging.getLogger("chatbot")
-    
+
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
         """Log validation errors with full details"""
         logger.error("=" * 80)
-        logger.error(f"❌ VALIDATION ERROR (422)")
+        logger.error(f"❌ FASTAPI VALIDATION ERROR (422)")
         logger.error(f"   Path: {request.url.path}")
         logger.error(f"   Method: {request.method}")
-        
-        # Log the raw body if available
-        try:
-            body = await request.body()
-            logger.error(f"   Request Body: {body.decode('utf-8')}")
-        except:
-            logger.error(f"   Request Body: (could not read)")
-        
-        logger.error(f"   Validation Errors:")
-        for error in exc.errors():
-            logger.error(f"      - {error}")
-        logger.error("=" * 80)
-        
-        return JSONResponse(
-            status_code=422,
-            content={"detail": exc.errors()}
+        logger.error(
+            f"   Content-Type: {request.headers.get('content-type', 'NOT SET')}"
         )
+
+        # Try to get the body - FastAPI may have cached it
+        body_str = "Could not read body"
+        try:
+            # Try to get from exc.body first (available in newer FastAPI versions)
+            if hasattr(exc, "body"):
+                body_str = (
+                    exc.body.decode("utf-8")
+                    if isinstance(exc.body, bytes)
+                    else str(exc.body)
+                )
+            else:
+                # Fallback: try to read from request (may fail if already consumed)
+                body = await request.body()
+                body_str = body.decode("utf-8")
+        except Exception as e:
+            body_str = f"Error reading body: {e}"
+
+        logger.error(f"   Request Body: {body_str}")
+        logger.error(f"   Validation Errors ({len(exc.errors())} total):")
+        for i, error in enumerate(exc.errors(), 1):
+            logger.error(f"      {i}. Location: {error.get('loc', 'unknown')}")
+            logger.error(f"         Message: {error.get('msg', 'unknown')}")
+            logger.error(f"         Type: {error.get('type', 'unknown')}")
+            if "input" in error:
+                logger.error(f"         Input: {error['input']}")
+        logger.error("=" * 80)
+
+        return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
     # ===== CORS MIDDLEWARE REMOVED =====
     # CORS is now handled at the bottom of the file based on ENVIRONMENT variable
@@ -386,66 +403,6 @@ def create_app() -> FastAPI:
             print("=" * 80)
 
         return response
-
-    # ===== DEBUG MIDDLEWARE FOR AUTH ENDPOINTS =====
-    @app.middleware("http")
-    async def log_auth_requests(request: Request, call_next):
-        """Log all requests to /api/auth/* endpoints"""
-        try:
-            # Log EVERYTHING to /api/auth/*
-            is_auth_request = request.url.path.startswith("/api/auth/")
-
-            if is_auth_request:
-                print("=" * 80)
-                print(f"🔐 INCOMING REQUEST TO AUTH API")
-                print(f"   Method: {request.method}")
-                print(f"   Path: {request.url.path}")
-                print(
-                    f"   Content-Type: {request.headers.get('content-type', 'NOT SET')}"
-                )
-                print(f"   Cookies: {list(request.cookies.keys())}")
-                print(
-                    f"   Cookie 'session': {'YES' if 'session' in request.cookies else 'NO'}"
-                )
-                print(
-                    f"   Cookie 'wordai_session_cookie': {'YES' if 'wordai_session_cookie' in request.cookies else 'NO'}"
-                )
-                if "authorization" in request.headers:
-                    print(
-                        f"   Authorization: {request.headers['authorization'][:50]}..."
-                    )
-                else:
-                    print(f"   Authorization: NO")
-
-                # Special log for /session endpoint
-                if request.url.path == "/api/auth/session":
-                    print(f"   🎯 THIS IS THE SESSION CREATION ENDPOINT!")
-
-                print("=" * 80)
-
-            response = await call_next(request)
-
-            if is_auth_request:
-                print("=" * 80)
-                print(f"🔐 OUTGOING RESPONSE FROM AUTH API")
-                print(f"   Method: {request.method}")
-                print(f"   Path: {request.url.path}")
-                print(f"   Status: {response.status_code}")
-
-                # Log response body for 422 errors
-                if response.status_code == 422:
-                    print(f"   ⚠️ VALIDATION ERROR (422)!")
-
-                print("=" * 80)
-
-            return response
-        except Exception as e:
-            print(f"🔴 MIDDLEWARE ERROR in log_auth_requests: {e}")
-            import traceback
-
-            traceback.print_exc()
-            # Don't raise - continue processing
-            return await call_next(request)
 
     # ===== REGISTER ROUTERS =====
 
