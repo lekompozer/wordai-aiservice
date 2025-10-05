@@ -84,6 +84,8 @@ class FolderResponse(BaseModel):
 
 
 class FileResponse(BaseModel):
+    """File metadata for list endpoints (no signed URLs)"""
+
     id: str
     filename: str
     original_name: str
@@ -91,9 +93,23 @@ class FileResponse(BaseModel):
     file_size: int
     folder_id: Optional[str]
     user_id: str
-    r2_key: str  # Changed from r2_url to r2_key for private storage
-    private_url: str  # Private R2 URL (not accessible without auth)
-    download_url: str  # Signed URL for temporary access
+    r2_key: str  # R2 storage key (internal use only)
+    created_at: datetime
+    updated_at: datetime
+
+
+class FileDownloadResponse(BaseModel):
+    """File metadata with download URL for single file requests"""
+
+    id: str
+    filename: str
+    original_name: str
+    file_type: str
+    file_size: int
+    folder_id: Optional[str]
+    user_id: str
+    r2_key: str
+    download_url: str  # ✅ Signed URL (only for single file requests)
     created_at: datetime
     updated_at: datetime
 
@@ -214,11 +230,6 @@ def generate_signed_url(key: str, expiration: int = 3600) -> str:
         raise HTTPException(
             status_code=500, detail=f"Failed to generate access URL: {str(e)}"
         )
-
-
-def get_private_file_url(key: str) -> str:
-    """Get private file URL (not publicly accessible)"""
-    return f"{R2_ENDPOINT_URL}/{R2_BUCKET_NAME}/{key}"
 
 
 # ===== FOLDER CRUD ENDPOINTS =====
@@ -564,10 +575,6 @@ async def list_files(
                         # Get file extension
                         file_ext = Path(filename).suffix.lower()
 
-                        # Generate signed URL for download
-                        download_url = generate_signed_url(key, expiration=3600)
-                        private_url = get_private_file_url(key)
-
                         # Create file response
                         file_data = {
                             "id": file_id,
@@ -578,8 +585,6 @@ async def list_files(
                             "folder_id": folder_part if folder_part != "root" else None,
                             "user_id": user_id,
                             "r2_key": key,
-                            "private_url": private_url,
-                            "download_url": download_url,
                             "created_at": obj["LastModified"],
                             "updated_at": obj["LastModified"],
                         }
@@ -647,10 +652,6 @@ async def list_all_files(
 
                         file_ext = Path(filename).suffix.lower()
 
-                        # Generate signed URL for download
-                        download_url = generate_signed_url(key, expiration=3600)
-                        private_url = get_private_file_url(key)
-
                         file_data = {
                             "id": file_id,
                             "filename": filename,
@@ -660,8 +661,6 @@ async def list_all_files(
                             "folder_id": folder_part if folder_part != "root" else None,
                             "user_id": user_id,
                             "r2_key": key,
-                            "private_url": private_url,
-                            "download_url": download_url,
                             "created_at": obj["LastModified"],
                             "updated_at": obj["LastModified"],
                         }
@@ -683,11 +682,11 @@ async def list_all_files(
         raise HTTPException(status_code=500, detail="Failed to list files")
 
 
-@router.get("/files/{file_id}", response_model=FileResponse)
+@router.get("/files/{file_id}", response_model=FileDownloadResponse)
 async def get_file(
     file_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
-    """Get file details by searching R2 storage"""
+    """Get file details with download URL (on-demand signed URL generation)"""
     try:
         user_id = user_data.get("uid")
 
@@ -727,9 +726,8 @@ async def get_file(
 
                                 file_ext = Path(filename).suffix.lower()
 
-                                # Generate signed URL for download
+                                # ✅ Generate signed URL for single file download (on-demand)
                                 download_url = generate_signed_url(key, expiration=3600)
-                                private_url = get_private_file_url(key)
 
                                 file_data = {
                                     "id": file_id,
@@ -742,14 +740,13 @@ async def get_file(
                                     ),
                                     "user_id": user_id,
                                     "r2_key": key,
-                                    "private_url": private_url,
                                     "download_url": download_url,
                                     "created_at": obj["LastModified"],
                                     "updated_at": obj["LastModified"],
                                 }
 
                                 logger.info(f"✅ Found file {file_id}: {filename}")
-                                return FileResponse(**file_data)
+                                return FileDownloadResponse(**file_data)
 
             # File not found
             logger.warning(f"❌ File {file_id} not found for user {user_id}")
@@ -768,7 +765,7 @@ async def get_file(
         raise HTTPException(status_code=500, detail="Failed to get file")
 
 
-@router.put("/files/{file_id}", response_model=FileResponse)
+@router.put("/files/{file_id}", response_model=FileDownloadResponse)
 async def update_file(
     file_id: str,
     file_update: FileUpdate,
@@ -779,6 +776,7 @@ async def update_file(
     - Can rename file
     - Can move file to different folder
     - File content in R2 will be moved/renamed accordingly
+    - Returns updated file with fresh download URL
     """
     try:
         user_id = user_data.get("uid")
@@ -902,10 +900,9 @@ async def update_file(
         else:
             logger.info("   ℹ️  No changes to file location/name, skipping copy")
 
-        # Step 6: Generate new signed URL
-        logger.info("   🔐 Generating new signed URL...")
+        # Step 6: Generate new signed URL (for immediate use after update)
+        logger.info("   🔐 Generating signed URL for updated file...")
         download_url = generate_signed_url(new_key, expiration=3600)
-        private_url = get_private_file_url(new_key)
 
         # Step 7: Extract original name (without timestamp)
         original_name = new_filename
@@ -927,7 +924,6 @@ async def update_file(
             "folder_id": new_folder_id,
             "user_id": user_id,
             "r2_key": new_key,
-            "private_url": private_url,
             "download_url": download_url,
             "created_at": old_metadata["last_modified"],
             "updated_at": now,
@@ -939,7 +935,7 @@ async def update_file(
         logger.info(f"   📂 New folder: {new_folder_id or 'root'}")
         logger.info("=" * 80)
 
-        return FileResponse(**file_data)
+        return FileDownloadResponse(**file_data)
 
     except HTTPException:
         raise
