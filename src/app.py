@@ -5,11 +5,14 @@ Main FastAPI application factory and startup configuration
 import asyncio
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 import time
 from datetime import datetime
 import asyncio
 import os
+import logging
 
 from src.core.config import APP_CONFIG
 from src.api.health_routes import router as health_router
@@ -308,6 +311,34 @@ def create_app() -> FastAPI:
         docs_url="/docs" if APP_CONFIG["debug"] else None,
         redoc_url="/redoc" if APP_CONFIG["debug"] else None,
     )
+
+    # ===== VALIDATION ERROR HANDLER =====
+    logger = logging.getLogger("chatbot")
+    
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """Log validation errors with full details"""
+        logger.error("=" * 80)
+        logger.error(f"❌ VALIDATION ERROR (422)")
+        logger.error(f"   Path: {request.url.path}")
+        logger.error(f"   Method: {request.method}")
+        
+        # Log the raw body if available
+        try:
+            body = await request.body()
+            logger.error(f"   Request Body: {body.decode('utf-8')}")
+        except:
+            logger.error(f"   Request Body: (could not read)")
+        
+        logger.error(f"   Validation Errors:")
+        for error in exc.errors():
+            logger.error(f"      - {error}")
+        logger.error("=" * 80)
+        
+        return JSONResponse(
+            status_code=422,
+            content={"detail": exc.errors()}
+        )
 
     # ===== CORS MIDDLEWARE REMOVED =====
     # CORS is now handled at the bottom of the file based on ENVIRONMENT variable
