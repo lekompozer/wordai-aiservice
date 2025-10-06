@@ -241,31 +241,57 @@ def generate_signed_url(key: str, expiration: int = 3600) -> str:
 async def create_folder(
     folder: FolderCreate, user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
-    """Create new folder"""
+    """Create new folder in MongoDB"""
     try:
         user_id = user_data.get("uid")
         folder_id = f"folder_{uuid.uuid4().hex[:12]}"
-        now = datetime.utcnow()
+        user_manager = get_user_manager()
 
-        # In real app, save to database
-        # For now, return mock response
-        folder_data = {
-            "id": folder_id,
-            "name": folder.name,
-            "description": folder.description,
-            "parent_id": folder.parent_id,
-            "user_id": user_id,
-            "created_at": now,
-            "updated_at": now,
-            "file_count": 0,
-        }
+        # Create folder in MongoDB
+        success = await asyncio.to_thread(
+            user_manager.create_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+            name=folder.name,
+            description=folder.description,
+            parent_id=folder.parent_id,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=400, detail="Failed to create folder (may already exist)"
+            )
+
+        # Retrieve the created folder to return
+        folder_doc = await asyncio.to_thread(
+            user_manager.get_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not folder_doc:
+            raise HTTPException(status_code=500, detail="Folder created but not found")
 
         logger.info(
             f"✅ Created folder {folder.name} for user {user_data.get('email')}"
         )
 
+        # Build response
+        folder_data = {
+            "id": folder_doc.get("folder_id"),
+            "name": folder_doc.get("name"),
+            "description": folder_doc.get("description"),
+            "parent_id": folder_doc.get("parent_id"),
+            "user_id": folder_doc.get("user_id"),
+            "created_at": folder_doc.get("created_at"),
+            "updated_at": folder_doc.get("updated_at"),
+            "file_count": folder_doc.get("file_count", 0),
+        }
+
         return FolderResponse(**folder_data)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to create folder: {e}")
         raise HTTPException(status_code=500, detail="Failed to create folder")
@@ -278,25 +304,37 @@ async def list_folders(
     ),
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
-    """List folders for user"""
+    """List folders for user from MongoDB"""
     try:
         user_id = user_data.get("uid")
+        user_manager = get_user_manager()
 
-        # Mock data - in real app, fetch from database
-        mock_folders = [
-            {
-                "id": "folder_default001",
-                "name": "Documents",
-                "description": "Default documents folder",
-                "parent_id": parent_id,
-                "user_id": user_id,
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-                "file_count": 0,
+        # Query folders from MongoDB
+        folders_docs = await asyncio.to_thread(
+            user_manager.list_folders,
+            user_id=user_id,
+            parent_id=parent_id,
+        )
+
+        # Build response list
+        folders = []
+        for doc in folders_docs:
+            folder_data = {
+                "id": doc.get("folder_id"),
+                "name": doc.get("name"),
+                "description": doc.get("description"),
+                "parent_id": doc.get("parent_id"),
+                "user_id": doc.get("user_id"),
+                "created_at": doc.get("created_at"),
+                "updated_at": doc.get("updated_at"),
+                "file_count": doc.get("file_count", 0),
             }
-        ]
+            folders.append(FolderResponse(**folder_data))
 
-        return [FolderResponse(**folder) for folder in mock_folders]
+        logger.info(
+            f"✅ Found {len(folders)} folders for user {user_id} (parent: {parent_id or 'root'})"
+        )
+        return folders
 
     except Exception as e:
         logger.error(f"❌ Failed to list folders: {e}")
@@ -307,24 +345,37 @@ async def list_folders(
 async def get_folder(
     folder_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
-    """Get folder details"""
+    """Get folder details from MongoDB"""
     try:
         user_id = user_data.get("uid")
+        user_manager = get_user_manager()
 
-        # Mock data
+        # Get folder from MongoDB
+        folder_doc = await asyncio.to_thread(
+            user_manager.get_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not folder_doc:
+            raise HTTPException(status_code=404, detail="Folder not found")
+
+        # Build response
         folder_data = {
-            "id": folder_id,
-            "name": "Sample Folder",
-            "description": "Sample folder description",
-            "parent_id": None,
-            "user_id": user_id,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-            "file_count": 0,
+            "id": folder_doc.get("folder_id"),
+            "name": folder_doc.get("name"),
+            "description": folder_doc.get("description"),
+            "parent_id": folder_doc.get("parent_id"),
+            "user_id": folder_doc.get("user_id"),
+            "created_at": folder_doc.get("created_at"),
+            "updated_at": folder_doc.get("updated_at"),
+            "file_count": folder_doc.get("file_count", 0),
         }
 
         return FolderResponse(**folder_data)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to get folder: {e}")
         raise HTTPException(status_code=404, detail="Folder not found")
@@ -336,27 +387,51 @@ async def update_folder(
     folder_update: FolderUpdate,
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
-    """Update folder"""
+    """Update folder in MongoDB"""
     try:
         user_id = user_data.get("uid")
-        now = datetime.utcnow()
+        user_manager = get_user_manager()
 
-        # Mock updated data
-        folder_data = {
-            "id": folder_id,
-            "name": folder_update.name or "Updated Folder",
-            "description": folder_update.description,
-            "parent_id": None,
-            "user_id": user_id,
-            "created_at": datetime.utcnow(),
-            "updated_at": now,
-            "file_count": 0,
-        }
+        # Update folder in MongoDB
+        success = await asyncio.to_thread(
+            user_manager.update_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+            name=folder_update.name,
+            description=folder_update.description,
+        )
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Folder not found")
+
+        # Get updated folder
+        folder_doc = await asyncio.to_thread(
+            user_manager.get_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not folder_doc:
+            raise HTTPException(status_code=500, detail="Folder updated but not found")
 
         logger.info(f"✅ Updated folder {folder_id} for user {user_data.get('email')}")
 
+        # Build response
+        folder_data = {
+            "id": folder_doc.get("folder_id"),
+            "name": folder_doc.get("name"),
+            "description": folder_doc.get("description"),
+            "parent_id": folder_doc.get("parent_id"),
+            "user_id": folder_doc.get("user_id"),
+            "created_at": folder_doc.get("created_at"),
+            "updated_at": folder_doc.get("updated_at"),
+            "file_count": folder_doc.get("file_count", 0),
+        }
+
         return FolderResponse(**folder_data)
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to update folder: {e}")
         raise HTTPException(status_code=500, detail="Failed to update folder")
@@ -366,16 +441,30 @@ async def update_folder(
 async def delete_folder(
     folder_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
-    """Delete folder"""
+    """Delete folder from MongoDB (only if empty)"""
     try:
         user_id = user_data.get("uid")
+        user_manager = get_user_manager()
 
-        # In real app: check if folder is empty, delete from database
+        # Delete folder from MongoDB
+        success = await asyncio.to_thread(
+            user_manager.delete_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete folder: folder not found or contains files/subfolders",
+            )
 
         logger.info(f"✅ Deleted folder {folder_id} for user {user_data.get('email')}")
 
         return {"success": True, "message": "Folder deleted successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to delete folder: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete folder")

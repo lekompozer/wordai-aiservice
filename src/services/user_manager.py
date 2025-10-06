@@ -24,6 +24,7 @@ class UserManager:
             self.users = self.db.db["users"]
             self.conversations = self.db.db["conversations"]
             self.user_files = self.db.db["user_files"]
+            self.folders = self.db.db["folders"]  # NEW: Folder management
 
             # Create indexes for better performance
             self._create_indexes()
@@ -33,6 +34,7 @@ class UserManager:
             self.users = {}
             self.conversations = {}
             self.user_files = {}
+            self.folders = {}  # NEW: Folder management
             logger.warning(
                 "⚠️ UserManager initialized with fallback storage (no MongoDB)"
             )
@@ -40,6 +42,7 @@ class UserManager:
             self.users = {}
             self.conversations = {}
             self.user_files = {}
+            self.folders = {}  # NEW: Folder management
 
     def _create_indexes(self):
         """Create database indexes for better performance"""
@@ -54,6 +57,9 @@ class UserManager:
             ]
             existing_files_indexes = [
                 idx["name"] for idx in self.user_files.list_indexes()
+            ]
+            existing_folder_indexes = [
+                idx["name"] for idx in self.folders.list_indexes()
             ]
 
             # User indexes - use unique names with sparse=True
@@ -111,6 +117,27 @@ class UserManager:
                 self.user_files.create_index(
                     [("user_id", 1), ("uploaded_at", -1)],
                     name="user_files_user_id_1_uploaded_at_-1",
+                )
+
+            # Folder indexes
+            if (
+                "folder_id_1_sparse" not in existing_folder_indexes
+                and "folder_id_1" not in existing_folder_indexes
+            ):
+                self.folders.create_index(
+                    "folder_id", unique=True, sparse=True, name="folder_id_1_sparse"
+                )
+
+            if "folders_user_id_1" not in existing_folder_indexes:
+                self.folders.create_index("user_id", name="folders_user_id_1")
+
+            if (
+                "folders_user_id_1_created_at_-1" not in existing_folder_indexes
+                and "user_id_1_created_at_-1" not in existing_folder_indexes
+            ):
+                self.folders.create_index(
+                    [("user_id", 1), ("created_at", -1)],
+                    name="folders_user_id_1_created_at_-1",
                 )
 
             logger.info("✅ Database indexes created successfully")
@@ -1015,6 +1042,313 @@ class UserManager:
         except Exception as e:
             logger.error(f"❌ Error listing deleted files for user {user_id}: {e}")
             return []
+
+    # ============================================================================
+    # FOLDER MANAGEMENT
+    # ============================================================================
+
+    def create_folder(
+        self,
+        folder_id: str,
+        user_id: str,
+        name: str,
+        description: Optional[str] = None,
+        parent_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Create a new folder in MongoDB
+
+        Args:
+            folder_id: Unique folder identifier
+            user_id: Owner's Firebase UID
+            name: Folder name
+            description: Optional folder description
+            parent_id: Optional parent folder ID (for nested folders)
+
+        Returns:
+            bool: True if created successfully
+        """
+        try:
+            now = datetime.now(timezone.utc)
+
+            folder_doc = {
+                "folder_id": folder_id,
+                "user_id": user_id,
+                "name": name,
+                "description": description,
+                "parent_id": parent_id,
+                "created_at": now,
+                "updated_at": now,
+            }
+
+            if self.db and self.db.client:
+                # MongoDB
+                self.folders.insert_one(folder_doc)
+                logger.info(
+                    f"✅ Created folder '{name}' (ID: {folder_id}) for user {user_id}"
+                )
+            else:
+                # Fallback storage
+                self.folders[folder_id] = folder_doc
+                logger.info(
+                    f"✅ Created folder '{name}' in fallback storage (ID: {folder_id})"
+                )
+
+            return True
+
+        except DuplicateKeyError:
+            logger.error(f"❌ Folder {folder_id} already exists")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error creating folder: {e}")
+            return False
+
+    def list_folders(
+        self, user_id: str, parent_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        List folders for a user
+
+        Args:
+            user_id: User's Firebase UID
+            parent_id: Optional parent folder ID (None for root folders)
+
+        Returns:
+            List of folder documents
+        """
+        try:
+            if self.db and self.db.client:
+                # MongoDB query
+                query = {"user_id": user_id, "parent_id": parent_id}
+                folders = list(self.folders.find(query).sort("created_at", -1))
+
+                # Count files in each folder
+                for folder in folders:
+                    file_count = self.user_files.count_documents(
+                        {
+                            "user_id": user_id,
+                            "folder_id": folder["folder_id"],
+                            "is_deleted": False,
+                        }
+                    )
+                    folder["file_count"] = file_count
+
+                logger.info(
+                    f"✅ Found {len(folders)} folders for user {user_id} (parent: {parent_id or 'root'})"
+                )
+                return folders
+            else:
+                # Fallback storage
+                folders = [
+                    f
+                    for f in self.folders.values()
+                    if f.get("user_id") == user_id and f.get("parent_id") == parent_id
+                ]
+
+                # Count files in each folder
+                for folder in folders:
+                    file_count = sum(
+                        1
+                        for f in self.user_files.values()
+                        if f.get("user_id") == user_id
+                        and f.get("folder_id") == folder["folder_id"]
+                        and not f.get("is_deleted", False)
+                    )
+                    folder["file_count"] = file_count
+
+                return sorted(
+                    folders,
+                    key=lambda x: x.get("created_at", datetime.min),
+                    reverse=True,
+                )
+
+        except Exception as e:
+            logger.error(f"❌ Error listing folders for user {user_id}: {e}")
+            return []
+
+    def get_folder(self, folder_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get folder details by ID
+
+        Args:
+            folder_id: Folder ID
+            user_id: User's Firebase UID (for security check)
+
+        Returns:
+            Folder document or None if not found
+        """
+        try:
+            if self.db and self.db.client:
+                # MongoDB
+                folder = self.folders.find_one(
+                    {"folder_id": folder_id, "user_id": user_id}
+                )
+
+                if folder:
+                    # Count files in folder
+                    file_count = self.user_files.count_documents(
+                        {
+                            "user_id": user_id,
+                            "folder_id": folder_id,
+                            "is_deleted": False,
+                        }
+                    )
+                    folder["file_count"] = file_count
+                    logger.info(f"✅ Found folder {folder_id}")
+                    return folder
+                else:
+                    logger.warning(
+                        f"❌ Folder {folder_id} not found for user {user_id}"
+                    )
+                    return None
+            else:
+                # Fallback storage
+                folder = self.folders.get(folder_id)
+                if folder and folder.get("user_id") == user_id:
+                    # Count files in folder
+                    file_count = sum(
+                        1
+                        for f in self.user_files.values()
+                        if f.get("user_id") == user_id
+                        and f.get("folder_id") == folder_id
+                        and not f.get("is_deleted", False)
+                    )
+                    folder["file_count"] = file_count
+                    return folder
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ Error getting folder {folder_id}: {e}")
+            return None
+
+    def update_folder(
+        self,
+        folder_id: str,
+        user_id: str,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> bool:
+        """
+        Update folder name and/or description
+
+        Args:
+            folder_id: Folder ID
+            user_id: User's Firebase UID (for security check)
+            name: Optional new name
+            description: Optional new description
+
+        Returns:
+            bool: True if updated successfully
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            update_fields = {"updated_at": now}
+
+            if name is not None:
+                update_fields["name"] = name
+            if description is not None:
+                update_fields["description"] = description
+
+            if self.db and self.db.client:
+                # MongoDB
+                result = self.folders.update_one(
+                    {"folder_id": folder_id, "user_id": user_id},
+                    {"$set": update_fields},
+                )
+
+                if result.matched_count > 0:
+                    logger.info(f"✅ Updated folder {folder_id}")
+                    return True
+                else:
+                    logger.warning(f"❌ Folder {folder_id} not found for update")
+                    return False
+            else:
+                # Fallback storage
+                folder = self.folders.get(folder_id)
+                if folder and folder.get("user_id") == user_id:
+                    folder.update(update_fields)
+                    logger.info(f"✅ Updated folder {folder_id} in fallback storage")
+                    return True
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Error updating folder {folder_id}: {e}")
+            return False
+
+    def delete_folder(self, folder_id: str, user_id: str) -> bool:
+        """
+        Delete folder (only if empty)
+
+        Args:
+            folder_id: Folder ID
+            user_id: User's Firebase UID (for security check)
+
+        Returns:
+            bool: True if deleted successfully
+        """
+        try:
+            # Check if folder has files
+            if self.db and self.db.client:
+                file_count = self.user_files.count_documents(
+                    {"user_id": user_id, "folder_id": folder_id, "is_deleted": False}
+                )
+            else:
+                file_count = sum(
+                    1
+                    for f in self.user_files.values()
+                    if f.get("user_id") == user_id
+                    and f.get("folder_id") == folder_id
+                    and not f.get("is_deleted", False)
+                )
+
+            if file_count > 0:
+                logger.warning(
+                    f"❌ Cannot delete folder {folder_id}: contains {file_count} files"
+                )
+                return False
+
+            # Check if folder has subfolders
+            if self.db and self.db.client:
+                subfolder_count = self.folders.count_documents(
+                    {"user_id": user_id, "parent_id": folder_id}
+                )
+            else:
+                subfolder_count = sum(
+                    1
+                    for f in self.folders.values()
+                    if f.get("user_id") == user_id and f.get("parent_id") == folder_id
+                )
+
+            if subfolder_count > 0:
+                logger.warning(
+                    f"❌ Cannot delete folder {folder_id}: contains {subfolder_count} subfolders"
+                )
+                return False
+
+            # Delete folder
+            if self.db and self.db.client:
+                result = self.folders.delete_one(
+                    {"folder_id": folder_id, "user_id": user_id}
+                )
+
+                if result.deleted_count > 0:
+                    logger.info(f"✅ Deleted folder {folder_id}")
+                    return True
+                else:
+                    logger.warning(f"❌ Folder {folder_id} not found for deletion")
+                    return False
+            else:
+                # Fallback storage
+                folder = self.folders.get(folder_id)
+                if folder and folder.get("user_id") == user_id:
+                    del self.folders[folder_id]
+                    logger.info(f"✅ Deleted folder {folder_id} from fallback storage")
+                    return True
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Error deleting folder {folder_id}: {e}")
+            return False
 
 
 # Global user manager instance - Initialize immediately
