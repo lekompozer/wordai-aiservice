@@ -819,14 +819,18 @@ class UserManager:
             return False
 
     def list_user_files(
-        self, user_id: str, folder_id: Optional[str] = None, limit: int = 100, offset: int = 0
+        self,
+        user_id: str,
+        folder_id: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
     ) -> List[Dict[str, Any]]:
         """
         List files for user from MongoDB (excludes deleted files)
 
         Args:
             user_id: Firebase UID
-            folder_id: Filter by folder ID (None = root folder if passed explicitly, 
+            folder_id: Filter by folder ID (None = root folder if passed explicitly,
                       use folder_id="__ALL__" to get all folders)
             limit: Maximum number of files
             offset: Pagination offset
@@ -863,17 +867,28 @@ class UserManager:
                 # Fallback storage
                 if folder_id == "__ALL__":
                     files = [
-                        f for f in self.user_files.values()
-                        if f.get("user_id") == user_id and not f.get("is_deleted", False)
+                        f
+                        for f in self.user_files.values()
+                        if f.get("user_id") == user_id
+                        and not f.get("is_deleted", False)
                     ]
                 else:
                     files = [
-                        f for f in self.user_files.values()
-                        if f.get("user_id") == user_id 
+                        f
+                        for f in self.user_files.values()
+                        if f.get("user_id") == user_id
                         and not f.get("is_deleted", False)
-                        and (f.get("folder_id") == folder_id if folder_id else f.get("folder_id") in [None, "root"])
+                        and (
+                            f.get("folder_id") == folder_id
+                            if folder_id
+                            else f.get("folder_id") in [None, "root"]
+                        )
                     ]
-                return sorted(files, key=lambda x: x.get("uploaded_at", datetime.min), reverse=True)[offset:offset+limit]
+                return sorted(
+                    files,
+                    key=lambda x: x.get("uploaded_at", datetime.min),
+                    reverse=True,
+                )[offset : offset + limit]
 
         except Exception as e:
             logger.error(f"❌ Error listing files for user {user_id}: {e}")
@@ -896,7 +911,7 @@ class UserManager:
             if self.db and self.db.client:
                 result = self.user_files.update_one(
                     {"file_id": file_id, "user_id": user_id},
-                    {"$set": {"is_deleted": True, "deleted_at": now}}
+                    {"$set": {"is_deleted": True, "deleted_at": now}},
                 )
 
                 if result.modified_count > 0:
@@ -935,7 +950,7 @@ class UserManager:
             if self.db and self.db.client:
                 result = self.user_files.update_one(
                     {"file_id": file_id, "user_id": user_id, "is_deleted": True},
-                    {"$set": {"is_deleted": False, "deleted_at": None}}
+                    {"$set": {"is_deleted": False, "deleted_at": None}},
                 )
 
                 if result.modified_count > 0:
@@ -948,7 +963,9 @@ class UserManager:
                 # Fallback storage
                 if file_id in self.user_files:
                     file_doc = self.user_files[file_id]
-                    if file_doc.get("user_id") == user_id and file_doc.get("is_deleted"):
+                    if file_doc.get("user_id") == user_id and file_doc.get(
+                        "is_deleted"
+                    ):
                         file_doc["is_deleted"] = False
                         file_doc["deleted_at"] = None
                         logger.info(f"♻️ Restored file (fallback): {file_id}")
@@ -987,10 +1004,13 @@ class UserManager:
             else:
                 # Fallback storage
                 files = [
-                    f for f in self.user_files.values()
+                    f
+                    for f in self.user_files.values()
                     if f.get("user_id") == user_id and f.get("is_deleted", False)
                 ]
-                return sorted(files, key=lambda x: x.get("deleted_at", datetime.min), reverse=True)[offset:offset+limit]
+                return sorted(
+                    files, key=lambda x: x.get("deleted_at", datetime.min), reverse=True
+                )[offset : offset + limit]
 
         except Exception as e:
             logger.error(f"❌ Error listing deleted files for user {user_id}: {e}")

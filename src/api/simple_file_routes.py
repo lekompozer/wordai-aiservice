@@ -476,7 +476,7 @@ async def upload_file(
         # Save file metadata to MongoDB
         logger.info("   💾 Saving file metadata to MongoDB...")
         user_manager = get_user_manager()
-        
+
         saved = await asyncio.to_thread(
             user_manager.save_file_metadata,
             file_id=file_id,
@@ -489,7 +489,7 @@ async def upload_file(
             r2_key=r2_key,
             private_url=private_url,
         )
-        
+
         if not saved:
             logger.warning("   ⚠️ Failed to save file metadata to MongoDB")
         else:
@@ -551,7 +551,9 @@ async def list_files(
         user_id = user_data.get("uid")
         user_manager = get_user_manager()
 
-        logger.info(f"🔍 Listing files for user {user_id}, folder: {folder_id or 'root'}")
+        logger.info(
+            f"🔍 Listing files for user {user_id}, folder: {folder_id or 'root'}"
+        )
 
         # Get files from MongoDB (excludes deleted files)
         files_docs = await asyncio.to_thread(
@@ -1107,6 +1109,7 @@ async def health_check():
 # ============================================================================
 # FILE TRASH MANAGEMENT
 # ============================================================================
+
 
 @router.delete("/files/{file_id}/trash")
 async def move_file_to_trash(
