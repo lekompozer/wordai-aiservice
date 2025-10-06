@@ -373,3 +373,106 @@ async def get_storage_stats(user_data: Dict[str, Any] = Depends(verify_firebase_
     except Exception as e:
         logger.error(f"❌ Error getting storage stats: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/trash/list")
+async def list_trash(
+    limit: int = 100,
+    offset: int = 0,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Lấy danh sách documents trong trash
+    Documents được soft-deleted (is_deleted=true)
+    """
+    user_id = user_data.get("uid")
+    doc_manager = get_document_manager()
+
+    try:
+        documents = await asyncio.to_thread(
+            doc_manager.list_trash_documents, user_id, limit, offset
+        )
+
+        # Convert to response format
+        items = [
+            {
+                "document_id": doc["document_id"],
+                "title": doc["title"],
+                "deleted_at": doc.get("deleted_at"),
+                "file_size_bytes": doc.get("file_size_bytes", 0),
+                "version": doc.get("version", 1),
+                "last_saved_at": doc.get("last_saved_at"),
+            }
+            for doc in documents
+        ]
+
+        return {
+            "success": True,
+            "data": {
+                "documents": items,
+                "total": len(items),
+                "limit": limit,
+                "offset": offset,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error listing trash: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/trash/restore/{document_id}")
+async def restore_from_trash(
+    document_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Khôi phục document từ trash
+    Set is_deleted=false, deleted_at=null
+    """
+    user_id = user_data.get("uid")
+    doc_manager = get_document_manager()
+
+    try:
+        success = await asyncio.to_thread(
+            doc_manager.restore_document, document_id, user_id
+        )
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Document not found in trash")
+
+        return {
+            "success": True,
+            "message": f"Document {document_id} restored from trash",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error restoring document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/trash/empty")
+async def empty_trash(
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Xóa vĩnh viễn TẤT CẢ documents trong trash
+    ⚠️ CẢNH BÁO: Không thể khôi phục sau khi xóa!
+    """
+    user_id = user_data.get("uid")
+    doc_manager = get_document_manager()
+
+    try:
+        deleted_count = await asyncio.to_thread(doc_manager.empty_trash, user_id)
+
+        return {
+            "success": True,
+            "message": f"Permanently deleted {deleted_count} documents from trash",
+            "deleted_count": deleted_count,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error emptying trash: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

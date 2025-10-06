@@ -244,3 +244,41 @@ class DocumentManager:
             "total_auto_saves": 0,
             "total_manual_saves": 0,
         }
+
+    def list_trash_documents(
+        self, user_id: str, limit: int = 100, offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Lấy danh sách documents trong trash"""
+        documents = list(
+            self.documents.find({"user_id": user_id, "is_deleted": True})
+            .sort("deleted_at", -1)
+            .skip(offset)
+            .limit(limit)
+        )
+
+        logger.info(f"🗑️ Listed {len(documents)} documents in trash for user {user_id}")
+        return documents
+
+    def restore_document(self, document_id: str, user_id: str) -> bool:
+        """Khôi phục document từ trash"""
+        result = self.documents.update_one(
+            {"document_id": document_id, "user_id": user_id, "is_deleted": True},
+            {"$set": {"is_deleted": False, "deleted_at": None}},
+        )
+
+        if result.modified_count > 0:
+            logger.info(f"♻️ Document {document_id} restored from trash")
+            return True
+
+        logger.warning(f"⚠️ Document {document_id} not found in trash")
+        return False
+
+    def empty_trash(self, user_id: str) -> int:
+        """Xóa vĩnh viễn tất cả documents trong trash"""
+        result = self.documents.delete_many({"user_id": user_id, "is_deleted": True})
+
+        deleted_count = result.deleted_count
+        logger.info(
+            f"🗑️ Permanently deleted {deleted_count} documents from trash for user {user_id}"
+        )
+        return deleted_count
