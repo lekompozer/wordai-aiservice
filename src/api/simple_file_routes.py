@@ -125,6 +125,22 @@ class FileUpdate(BaseModel):
     )
 
 
+class FolderWithFiles(BaseModel):
+    """Folder with its files"""
+
+    folder: FolderResponse
+    files: List[FileResponse]
+
+
+class FileSystemStructure(BaseModel):
+    """Complete file system structure with folders and files"""
+
+    root_files: List[FileResponse]  # Files in root (no folder)
+    folders: List[FolderWithFiles]  # Folders with their files
+    total_files: int
+    total_folders: int
+
+
 # Allowed file types
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".rtf"}
 ALLOWED_MIME_TYPES = {
@@ -676,28 +692,38 @@ async def list_files(
         raise HTTPException(status_code=500, detail="Failed to list files")
 
 
-@router.get("/files/all", response_model=List[FileResponse])
+@router.get("/files/all", response_model=FileSystemStructure)
 async def list_all_files(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
-    """List all files for user from MongoDB (across all folders, excludes deleted)"""
+    """
+    Get complete file system structure with folders and files
+    Returns organized structure: root files + folders with their files
+    """
     try:
         user_id = user_data.get("uid")
         user_manager = get_user_manager()
 
-        logger.info(f"🔍 Listing all files for user {user_id}")
+        logger.info(f"🔍 Getting file system structure for user {user_id}")
 
-        # Get all files from MongoDB (excludes deleted files)
-        # Use special value "__ALL__" to get files from all folders
-        files_docs = await asyncio.to_thread(
+        # 1. Get all root folders (parent_id = None)
+        folders_docs = await asyncio.to_thread(
+            user_manager.list_folders,
+            user_id=user_id,
+            parent_id=None,  # Root folders only
+        )
+
+        # 2. Get root files (folder_id = None)
+        root_files_docs = await asyncio.to_thread(
             user_manager.list_user_files,
             user_id=user_id,
-            folder_id="__ALL__",  # Special value for all folders
+            folder_id=None,  # Root files only
             limit=1000,
         )
 
-        files = []
-        for doc in files_docs:
+        # Build root files list
+        root_files = []
+        for doc in root_files_docs:
             file_data = {
                 "id": doc.get("file_id"),
                 "filename": doc.get("filename"),
@@ -710,14 +736,73 @@ async def list_all_files(
                 "created_at": doc.get("uploaded_at"),
                 "updated_at": doc.get("updated_at"),
             }
-            files.append(FileResponse(**file_data))
+            root_files.append(FileResponse(**file_data))
 
-        logger.info(f"✅ Found {len(files)} total files for user")
-        return files
+        # 3. For each folder, get its files
+        folders_with_files = []
+        total_files = len(root_files)
+
+        for folder_doc in folders_docs:
+            folder_id = folder_doc.get("folder_id")
+
+            # Get files in this folder
+            folder_files_docs = await asyncio.to_thread(
+                user_manager.list_user_files,
+                user_id=user_id,
+                folder_id=folder_id,
+                limit=1000,
+            )
+
+            folder_files = []
+            for doc in folder_files_docs:
+                file_data = {
+                    "id": doc.get("file_id"),
+                    "filename": doc.get("filename"),
+                    "original_name": doc.get("original_name"),
+                    "file_type": doc.get("file_type"),
+                    "file_size": doc.get("file_size"),
+                    "folder_id": doc.get("folder_id"),
+                    "user_id": doc.get("user_id"),
+                    "r2_key": doc.get("r2_key"),
+                    "created_at": doc.get("uploaded_at"),
+                    "updated_at": doc.get("updated_at"),
+                }
+                folder_files.append(FileResponse(**file_data))
+
+            total_files += len(folder_files)
+
+            # Build folder response
+            folder_response = FolderResponse(
+                id=folder_doc.get("folder_id"),
+                name=folder_doc.get("name"),
+                description=folder_doc.get("description"),
+                parent_id=folder_doc.get("parent_id"),
+                user_id=folder_doc.get("user_id"),
+                created_at=folder_doc.get("created_at"),
+                updated_at=folder_doc.get("updated_at"),
+                file_count=len(folder_files),
+            )
+
+            folders_with_files.append(
+                FolderWithFiles(folder=folder_response, files=folder_files)
+            )
+
+        # Build final response
+        result = FileSystemStructure(
+            root_files=root_files,
+            folders=folders_with_files,
+            total_files=total_files,
+            total_folders=len(folders_docs),
+        )
+
+        logger.info(
+            f"✅ File system structure: {len(folders_docs)} folders, {total_files} total files"
+        )
+        return result
 
     except Exception as e:
-        logger.error(f"❌ Failed to list all files: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list files")
+        logger.error(f"❌ Failed to get file system structure: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get file system")
 
 
 @router.get("/files/{file_id}", response_model=FileDownloadResponse)
