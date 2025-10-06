@@ -15,11 +15,13 @@ import mimetypes
 from pathlib import Path
 import logging
 from dotenv import load_dotenv
+import asyncio
 
 # Load environment variables
 load_dotenv()
 
 from src.middleware.auth import verify_firebase_token
+from src.services.user_manager import get_user_manager
 
 logger = logging.getLogger(__name__)
 
@@ -471,7 +473,29 @@ async def upload_file(
         download_url = generate_signed_url(r2_key, expiration=3600)
         logger.info(f"   ✅ Signed URL generated (expires in 1 hour)")
 
-        # Create file record
+        # Save file metadata to MongoDB
+        logger.info("   💾 Saving file metadata to MongoDB...")
+        user_manager = get_user_manager()
+        
+        saved = await asyncio.to_thread(
+            user_manager.save_file_metadata,
+            file_id=file_id,
+            user_id=user_id,
+            filename=safe_filename,
+            original_name=file.filename,
+            file_type=ext,
+            file_size=file_size,
+            folder_id=folder_id,
+            r2_key=r2_key,
+            private_url=private_url,
+        )
+        
+        if not saved:
+            logger.warning("   ⚠️ Failed to save file metadata to MongoDB")
+        else:
+            logger.info("   ✅ File metadata saved to MongoDB")
+
+        # Create file record for response
         now = datetime.utcnow()
         file_data = {
             "id": file_id,
@@ -487,9 +511,6 @@ async def upload_file(
             "created_at": now,
             "updated_at": now,
         }
-
-        # In real app: save file record to database
-        logger.info("   💾 File record created (not saved to DB yet - mock mode)")
 
         logger.info("✅ FILE UPLOAD COMPLETED SUCCESSFULLY!")
         logger.info(f"   📄 File ID: {file_id}")
@@ -525,78 +546,39 @@ async def list_files(
     folder_id: Optional[str] = Query(None, description="Folder ID to list files from"),
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
-    """List files for user (from R2 storage)"""
+    """List files for user from MongoDB (excludes deleted files)"""
     try:
         user_id = user_data.get("uid")
+        user_manager = get_user_manager()
 
-        if s3_client is None:
-            logger.warning("R2 client not available, returning empty list")
-            return []
+        logger.info(f"🔍 Listing files for user {user_id}, folder: {folder_id or 'root'}")
 
-        # Build S3 prefix based on folder_id
-        if folder_id:
-            prefix = f"files/{user_id}/{folder_id}/"
-        else:
-            prefix = f"files/{user_id}/root/"
+        # Get files from MongoDB (excludes deleted files)
+        files_docs = await asyncio.to_thread(
+            user_manager.list_user_files,
+            user_id=user_id,
+            folder_id=folder_id,
+            limit=100,
+        )
 
-        logger.info(f"🔍 Listing files with prefix: {prefix}")
+        files = []
+        for doc in files_docs:
+            file_data = {
+                "id": doc.get("file_id"),
+                "filename": doc.get("filename"),
+                "original_name": doc.get("original_name"),
+                "file_type": doc.get("file_type"),
+                "file_size": doc.get("file_size"),
+                "folder_id": doc.get("folder_id"),
+                "user_id": doc.get("user_id"),
+                "r2_key": doc.get("r2_key"),
+                "created_at": doc.get("uploaded_at"),
+                "updated_at": doc.get("updated_at"),
+            }
+            files.append(FileResponse(**file_data))
 
-        # List objects from R2
-        try:
-            response = s3_client.list_objects_v2(
-                Bucket=R2_BUCKET_NAME, Prefix=prefix, MaxKeys=100
-            )
-
-            files = []
-
-            if "Contents" in response:
-                for obj in response["Contents"]:
-                    key = obj["Key"]
-
-                    # Skip if it's just a folder marker
-                    if key.endswith("/"):
-                        continue
-
-                    # Parse file info from key
-                    # Format: files/{user_id}/{folder_id}/{file_id}/{filename}
-                    key_parts = key.split("/")
-                    if len(key_parts) >= 4:
-                        folder_part = key_parts[2]  # folder_id or 'root'
-                        file_id = key_parts[3]
-                        filename = key_parts[4] if len(key_parts) > 4 else key_parts[3]
-
-                        # Extract original name (remove timestamp prefix)
-                        original_name = filename
-                        if "_" in filename and len(filename.split("_", 1)) > 1:
-                            timestamp_part, name_part = filename.split("_", 1)
-                            if len(timestamp_part) == 15:  # YYYYMMDD_HHMMSS format
-                                original_name = name_part
-
-                        # Get file extension
-                        file_ext = Path(filename).suffix.lower()
-
-                        # Create file response
-                        file_data = {
-                            "id": file_id,
-                            "filename": filename,
-                            "original_name": original_name,
-                            "file_type": file_ext,
-                            "file_size": obj["Size"],
-                            "folder_id": folder_part if folder_part != "root" else None,
-                            "user_id": user_id,
-                            "r2_key": key,
-                            "created_at": obj["LastModified"],
-                            "updated_at": obj["LastModified"],
-                        }
-
-                        files.append(FileResponse(**file_data))
-
-            logger.info(f"✅ Found {len(files)} files in folder {folder_id or 'root'}")
-            return files
-
-        except Exception as s3_error:
-            logger.error(f"❌ R2 list error: {s3_error}")
-            return []
+        logger.info(f"✅ Found {len(files)} files in folder {folder_id or 'root'}")
+        return files
 
     except Exception as e:
         logger.error(f"❌ Failed to list files: {e}")
@@ -607,75 +589,40 @@ async def list_files(
 async def list_all_files(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
-    """List all files for user (across all folders)"""
+    """List all files for user from MongoDB (across all folders, excludes deleted)"""
     try:
         user_id = user_data.get("uid")
+        user_manager = get_user_manager()
 
-        if s3_client is None:
-            logger.warning("R2 client not available, returning empty list")
-            return []
+        logger.info(f"🔍 Listing all files for user {user_id}")
 
-        # List all files for user
-        prefix = f"files/{user_id}/"
-        logger.info(f"🔍 Listing all files with prefix: {prefix}")
+        # Get all files from MongoDB (excludes deleted files)
+        # Use special value "__ALL__" to get files from all folders
+        files_docs = await asyncio.to_thread(
+            user_manager.list_user_files,
+            user_id=user_id,
+            folder_id="__ALL__",  # Special value for all folders
+            limit=1000,
+        )
 
-        try:
-            response = s3_client.list_objects_v2(
-                Bucket=R2_BUCKET_NAME,
-                Prefix=prefix,
-                MaxKeys=1000,  # Increased limit for all files
-            )
+        files = []
+        for doc in files_docs:
+            file_data = {
+                "id": doc.get("file_id"),
+                "filename": doc.get("filename"),
+                "original_name": doc.get("original_name"),
+                "file_type": doc.get("file_type"),
+                "file_size": doc.get("file_size"),
+                "folder_id": doc.get("folder_id"),
+                "user_id": doc.get("user_id"),
+                "r2_key": doc.get("r2_key"),
+                "created_at": doc.get("uploaded_at"),
+                "updated_at": doc.get("updated_at"),
+            }
+            files.append(FileResponse(**file_data))
 
-            files = []
-
-            if "Contents" in response:
-                for obj in response["Contents"]:
-                    key = obj["Key"]
-
-                    # Skip if it's just a folder marker
-                    if key.endswith("/"):
-                        continue
-
-                    # Parse file info from key
-                    key_parts = key.split("/")
-                    if len(key_parts) >= 4:
-                        folder_part = key_parts[2]
-                        file_id = key_parts[3]
-                        filename = key_parts[4] if len(key_parts) > 4 else key_parts[3]
-
-                        # Extract original name
-                        original_name = filename
-                        if "_" in filename and len(filename.split("_", 1)) > 1:
-                            timestamp_part, name_part = filename.split("_", 1)
-                            if len(timestamp_part) == 15:
-                                original_name = name_part
-
-                        file_ext = Path(filename).suffix.lower()
-
-                        file_data = {
-                            "id": file_id,
-                            "filename": filename,
-                            "original_name": original_name,
-                            "file_type": file_ext,
-                            "file_size": obj["Size"],
-                            "folder_id": folder_part if folder_part != "root" else None,
-                            "user_id": user_id,
-                            "r2_key": key,
-                            "created_at": obj["LastModified"],
-                            "updated_at": obj["LastModified"],
-                        }
-
-                        files.append(FileResponse(**file_data))
-
-            # Sort by created date (newest first)
-            files.sort(key=lambda x: x.created_at, reverse=True)
-
-            logger.info(f"✅ Found {len(files)} total files for user")
-            return files
-
-        except Exception as s3_error:
-            logger.error(f"❌ R2 list error: {s3_error}")
-            return []
+        logger.info(f"✅ Found {len(files)} total files for user")
+        return files
 
     except Exception as e:
         logger.error(f"❌ Failed to list all files: {e}")
@@ -1155,3 +1102,121 @@ async def health_check():
         "service": "Simple File Management API",
         "timestamp": datetime.utcnow().isoformat(),
     }
+
+
+# ============================================================================
+# FILE TRASH MANAGEMENT
+# ============================================================================
+
+@router.delete("/files/{file_id}/trash")
+async def move_file_to_trash(
+    file_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Move file to trash (soft delete)
+    File is not physically deleted from R2, just marked as deleted in MongoDB
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        logger.info(f"🗑️ Moving file {file_id} to trash for user {user_id}")
+
+        success = await asyncio.to_thread(
+            user_manager.soft_delete_file,
+            file_id=file_id,
+            user_id=user_id,
+        )
+
+        if not success:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        return {
+            "success": True,
+            "message": f"File {file_id} moved to trash",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error moving file to trash: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/files/trash/list", response_model=List[FileResponse])
+async def list_trash_files(
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    List files in trash (soft-deleted files)
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        logger.info(f"🗑️ Listing trash files for user {user_id}")
+
+        files_docs = await asyncio.to_thread(
+            user_manager.list_deleted_files,
+            user_id=user_id,
+            limit=1000,
+        )
+
+        files = []
+        for doc in files_docs:
+            file_data = {
+                "id": doc.get("file_id"),
+                "filename": doc.get("filename"),
+                "original_name": doc.get("original_name"),
+                "file_type": doc.get("file_type"),
+                "file_size": doc.get("file_size"),
+                "folder_id": doc.get("folder_id"),
+                "user_id": doc.get("user_id"),
+                "r2_key": doc.get("r2_key"),
+                "created_at": doc.get("uploaded_at"),
+                "updated_at": doc.get("deleted_at"),  # Show when deleted
+            }
+            files.append(FileResponse(**file_data))
+
+        logger.info(f"✅ Found {len(files)} files in trash")
+        return files
+
+    except Exception as e:
+        logger.error(f"❌ Error listing trash files: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list trash")
+
+
+@router.post("/files/{file_id}/restore")
+async def restore_file_from_trash(
+    file_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Restore file from trash
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        logger.info(f"♻️ Restoring file {file_id} from trash for user {user_id}")
+
+        success = await asyncio.to_thread(
+            user_manager.restore_file,
+            file_id=file_id,
+            user_id=user_id,
+        )
+
+        if not success:
+            raise HTTPException(status_code=404, detail="File not found in trash")
+
+        return {
+            "success": True,
+            "message": f"File {file_id} restored from trash",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error restoring file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

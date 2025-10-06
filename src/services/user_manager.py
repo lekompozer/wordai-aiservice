@@ -742,7 +742,7 @@ class UserManager:
         try:
             if self.db and self.db.client:
                 file_doc = self.user_files.find_one(
-                    {"file_id": file_id, "user_id": user_id}
+                    {"file_id": file_id, "user_id": user_id, "is_deleted": False}
                 )
                 return file_doc
             else:
@@ -755,6 +755,246 @@ class UserManager:
         except Exception as e:
             logger.error(f"❌ Error getting file {file_id}: {e}")
             return None
+
+    def save_file_metadata(
+        self,
+        file_id: str,
+        user_id: str,
+        filename: str,
+        original_name: str,
+        file_type: str,
+        file_size: int,
+        folder_id: Optional[str],
+        r2_key: str,
+        private_url: str,
+    ) -> bool:
+        """
+        Save file metadata to MongoDB
+
+        Args:
+            file_id: Unique file ID
+            user_id: Firebase UID
+            filename: Safe filename with timestamp
+            original_name: Original uploaded filename
+            file_type: File extension (.pdf, .docx, etc.)
+            file_size: File size in bytes
+            folder_id: Folder ID or None for root
+            r2_key: R2 storage key
+            private_url: Private R2 URL
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            now = datetime.now(timezone.utc)
+
+            file_doc = {
+                "file_id": file_id,
+                "user_id": user_id,
+                "filename": filename,
+                "original_name": original_name,
+                "file_type": file_type,
+                "file_size": file_size,
+                "folder_id": folder_id,
+                "r2_key": r2_key,
+                "file_url": private_url,  # For compatibility with document_manager
+                "is_deleted": False,
+                "deleted_at": None,
+                "uploaded_at": now,
+                "updated_at": now,
+            }
+
+            if self.db and self.db.client:
+                self.user_files.insert_one(file_doc)
+                logger.info(f"✅ Saved file metadata: {file_id}")
+            else:
+                # Fallback storage
+                self.user_files[file_id] = file_doc
+                logger.info(f"✅ Saved file metadata (fallback): {file_id}")
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Error saving file metadata {file_id}: {e}")
+            return False
+
+    def list_user_files(
+        self, user_id: str, folder_id: Optional[str] = None, limit: int = 100, offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        List files for user from MongoDB (excludes deleted files)
+
+        Args:
+            user_id: Firebase UID
+            folder_id: Filter by folder ID (None = root folder if passed explicitly, 
+                      use folder_id="__ALL__" to get all folders)
+            limit: Maximum number of files
+            offset: Pagination offset
+
+        Returns:
+            List of file documents
+        """
+        try:
+            if self.db and self.db.client:
+                query = {"user_id": user_id, "is_deleted": False}
+
+                # Filter by folder
+                # Special value "__ALL__" means get ALL folders
+                if folder_id == "__ALL__":
+                    # No folder filter - get all
+                    pass
+                elif folder_id:
+                    # Specific folder
+                    query["folder_id"] = folder_id
+                else:
+                    # Root folder: folder_id is None or "root"
+                    query["folder_id"] = {"$in": [None, "root"]}
+
+                files = list(
+                    self.user_files.find(query)
+                    .sort("uploaded_at", -1)
+                    .skip(offset)
+                    .limit(limit)
+                )
+
+                logger.info(f"📋 Listed {len(files)} files for user {user_id}")
+                return files
+            else:
+                # Fallback storage
+                if folder_id == "__ALL__":
+                    files = [
+                        f for f in self.user_files.values()
+                        if f.get("user_id") == user_id and not f.get("is_deleted", False)
+                    ]
+                else:
+                    files = [
+                        f for f in self.user_files.values()
+                        if f.get("user_id") == user_id 
+                        and not f.get("is_deleted", False)
+                        and (f.get("folder_id") == folder_id if folder_id else f.get("folder_id") in [None, "root"])
+                    ]
+                return sorted(files, key=lambda x: x.get("uploaded_at", datetime.min), reverse=True)[offset:offset+limit]
+
+        except Exception as e:
+            logger.error(f"❌ Error listing files for user {user_id}: {e}")
+            return []
+
+    def soft_delete_file(self, file_id: str, user_id: str) -> bool:
+        """
+        Soft delete file (set is_deleted=True)
+
+        Args:
+            file_id: File ID
+            user_id: Firebase UID (for authorization)
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            now = datetime.now(timezone.utc)
+
+            if self.db and self.db.client:
+                result = self.user_files.update_one(
+                    {"file_id": file_id, "user_id": user_id},
+                    {"$set": {"is_deleted": True, "deleted_at": now}}
+                )
+
+                if result.modified_count > 0:
+                    logger.info(f"🗑️ Soft deleted file: {file_id}")
+                    return True
+                else:
+                    logger.warning(f"⚠️ File not found: {file_id}")
+                    return False
+            else:
+                # Fallback storage
+                if file_id in self.user_files:
+                    file_doc = self.user_files[file_id]
+                    if file_doc.get("user_id") == user_id:
+                        file_doc["is_deleted"] = True
+                        file_doc["deleted_at"] = now
+                        logger.info(f"🗑️ Soft deleted file (fallback): {file_id}")
+                        return True
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Error soft deleting file {file_id}: {e}")
+            return False
+
+    def restore_file(self, file_id: str, user_id: str) -> bool:
+        """
+        Restore soft-deleted file
+
+        Args:
+            file_id: File ID
+            user_id: Firebase UID (for authorization)
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            if self.db and self.db.client:
+                result = self.user_files.update_one(
+                    {"file_id": file_id, "user_id": user_id, "is_deleted": True},
+                    {"$set": {"is_deleted": False, "deleted_at": None}}
+                )
+
+                if result.modified_count > 0:
+                    logger.info(f"♻️ Restored file: {file_id}")
+                    return True
+                else:
+                    logger.warning(f"⚠️ File not found in trash: {file_id}")
+                    return False
+            else:
+                # Fallback storage
+                if file_id in self.user_files:
+                    file_doc = self.user_files[file_id]
+                    if file_doc.get("user_id") == user_id and file_doc.get("is_deleted"):
+                        file_doc["is_deleted"] = False
+                        file_doc["deleted_at"] = None
+                        logger.info(f"♻️ Restored file (fallback): {file_id}")
+                        return True
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Error restoring file {file_id}: {e}")
+            return False
+
+    def list_deleted_files(
+        self, user_id: str, limit: int = 100, offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        List deleted files (trash)
+
+        Args:
+            user_id: Firebase UID
+            limit: Maximum number of files
+            offset: Pagination offset
+
+        Returns:
+            List of deleted file documents
+        """
+        try:
+            if self.db and self.db.client:
+                files = list(
+                    self.user_files.find({"user_id": user_id, "is_deleted": True})
+                    .sort("deleted_at", -1)
+                    .skip(offset)
+                    .limit(limit)
+                )
+
+                logger.info(f"🗑️ Listed {len(files)} deleted files for user {user_id}")
+                return files
+            else:
+                # Fallback storage
+                files = [
+                    f for f in self.user_files.values()
+                    if f.get("user_id") == user_id and f.get("is_deleted", False)
+                ]
+                return sorted(files, key=lambda x: x.get("deleted_at", datetime.min), reverse=True)[offset:offset+limit]
+
+        except Exception as e:
+            logger.error(f"❌ Error listing deleted files for user {user_id}: {e}")
+            return []
 
 
 # Global user manager instance - Initialize immediately
