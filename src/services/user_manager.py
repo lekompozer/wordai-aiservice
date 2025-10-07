@@ -1008,6 +1008,7 @@ class UserManager:
     ) -> List[Dict[str, Any]]:
         """
         List deleted files (trash)
+        Includes both Upload Files (user_files) and Library Files (library_files)
 
         Args:
             user_id: Firebase UID
@@ -1015,19 +1016,38 @@ class UserManager:
             offset: Pagination offset
 
         Returns:
-            List of deleted file documents
+            List of deleted file documents (merged from both collections)
         """
         try:
             if self.db and self.db.client:
-                files = list(
+                # Query Upload Files (Type 1)
+                upload_files = list(
                     self.user_files.find({"user_id": user_id, "is_deleted": True})
-                    .sort("deleted_at", -1)
-                    .skip(offset)
-                    .limit(limit)
                 )
 
-                logger.info(f"🗑️ Listed {len(files)} deleted files for user {user_id}")
-                return files
+                # Query Library Files (Type 3)
+                library_files_collection = self.db.db["library_files"]
+                library_files = list(
+                    library_files_collection.find({"user_id": user_id, "is_deleted": True})
+                )
+
+                # Merge both lists
+                all_files = upload_files + library_files
+
+                # Sort by deleted_at (newest first)
+                all_files.sort(
+                    key=lambda x: x.get("deleted_at", datetime.min), 
+                    reverse=True
+                )
+
+                # Apply pagination
+                paginated_files = all_files[offset : offset + limit]
+
+                logger.info(
+                    f"🗑️ Listed {len(paginated_files)} deleted files for user {user_id} "
+                    f"({len(upload_files)} upload files + {len(library_files)} library files)"
+                )
+                return paginated_files
             else:
                 # Fallback storage
                 files = [
