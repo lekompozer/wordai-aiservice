@@ -1043,6 +1043,100 @@ class UserManager:
             logger.error(f"❌ Error listing deleted files for user {user_id}: {e}")
             return []
 
+    def permanent_delete_file(self, file_id: str, user_id: str) -> bool:
+        """
+        Permanently delete file from R2 and MongoDB
+        ⚠️ WARNING: This cannot be undone!
+
+        Args:
+            file_id: File ID
+            user_id: Firebase UID (for authorization)
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            # 1. Get file info first
+            if self.db and self.db.client:
+                file_doc = self.user_files.find_one(
+                    {"file_id": file_id, "user_id": user_id}
+                )
+            else:
+                file_doc = self.user_files.get(file_id)
+                if file_doc and file_doc.get("user_id") != user_id:
+                    file_doc = None
+
+            if not file_doc:
+                logger.warning(f"⚠️ File not found: {file_id}")
+                return False
+
+            # 2. Delete from R2 if exists
+            r2_key = file_doc.get("r2_key")
+            if r2_key:
+                try:
+                    from config.config import R2_BUCKET_NAME
+
+                    self.s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=r2_key)
+                    logger.info(f"🗑️ Deleted R2 file: {r2_key}")
+                except Exception as e:
+                    logger.error(f"❌ Error deleting R2 file {r2_key}: {e}")
+                    # Continue to delete MongoDB record anyway
+
+            # 3. Delete from MongoDB
+            if self.db and self.db.client:
+                result = self.user_files.delete_one(
+                    {"file_id": file_id, "user_id": user_id}
+                )
+                if result.deleted_count > 0:
+                    logger.info(f"🗑️ Permanently deleted file: {file_id}")
+                    return True
+                else:
+                    logger.warning(f"⚠️ Failed to delete file from MongoDB: {file_id}")
+                    return False
+            else:
+                # Fallback storage
+                if file_id in self.user_files:
+                    del self.user_files[file_id]
+                    logger.info(f"🗑️ Permanently deleted file (fallback): {file_id}")
+                    return True
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ Error permanently deleting file {file_id}: {e}")
+            return False
+
+    def empty_files_trash(self, user_id: str) -> int:
+        """
+        Permanently delete ALL files in trash for a user
+        ⚠️ WARNING: This cannot be undone!
+
+        Args:
+            user_id: Firebase UID
+
+        Returns:
+            int: Number of files deleted
+        """
+        try:
+            # 1. Get all deleted files
+            deleted_files = self.list_deleted_files(user_id=user_id, limit=10000)
+
+            deleted_count = 0
+
+            # 2. Delete each file from R2 and MongoDB
+            for file_doc in deleted_files:
+                file_id = file_doc.get("file_id")
+                if self.permanent_delete_file(file_id=file_id, user_id=user_id):
+                    deleted_count += 1
+
+            logger.info(
+                f"🗑️ Emptied trash: {deleted_count} files deleted for user {user_id}"
+            )
+            return deleted_count
+
+        except Exception as e:
+            logger.error(f"❌ Error emptying files trash for user {user_id}: {e}")
+            return 0
+
     # ============================================================================
     # FOLDER MANAGEMENT
     # ============================================================================

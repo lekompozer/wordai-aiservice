@@ -101,6 +101,12 @@ from src.api.ai_chat import router as ai_chat_router
 # ✅ ADDED: Document Editor API for document management with auto-save
 from src.api.document_editor_routes import router as document_editor_router
 
+# ✅ ADDED: Library Files API for Type 3 files (templates, guides, references, resources)
+from src.api.library_routes import router as library_router
+
+# ✅ ADDED: Document Editor API for document management with auto-save
+from src.api.document_editor_routes import router as document_editor_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -520,6 +526,9 @@ def create_app() -> FastAPI:
 
     # ✅ NEW: Simple File Management API with R2 integration
     app.include_router(simple_file_router, tags=["Simple File Management"])
+
+    # ✅ NEW: Library Files API - Type 3 files (Phase 1 complete)
+    app.include_router(library_router, tags=["Library Files"])
 
     # ✅ NEW: AI Content Edit API for Tiptap editor with AI providers
     app.include_router(ai_content_edit_router, tags=["AI Content Editing"])

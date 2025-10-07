@@ -1397,3 +1397,79 @@ async def restore_file_from_trash(
     except Exception as e:
         logger.error(f"❌ Error restoring file: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/files/{file_id}/permanent")
+async def permanent_delete_file(
+    file_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Permanently delete file from R2 and MongoDB
+    ⚠️ WARNING: This action cannot be undone!
+
+    Use this to delete a specific file from trash permanently.
+    The file will be removed from both R2 storage and MongoDB.
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        logger.info(f"💀 Permanently deleting file {file_id} for user {user_id}")
+
+        success = await asyncio.to_thread(
+            user_manager.permanent_delete_file,
+            file_id=file_id,
+            user_id=user_id,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=404, detail="File not found or already deleted"
+            )
+
+        return {
+            "success": True,
+            "message": f"File {file_id} permanently deleted",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error permanently deleting file: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/files/trash/empty")
+async def empty_files_trash(
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Permanently delete ALL files in trash
+    ⚠️ WARNING: This action cannot be undone!
+
+    This will:
+    1. Find all files with is_deleted=true for current user
+    2. Delete each file from R2 storage
+    3. Delete each file record from MongoDB
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        logger.info(f"💀 Emptying files trash for user {user_id}")
+
+        deleted_count = await asyncio.to_thread(
+            user_manager.empty_files_trash,
+            user_id=user_id,
+        )
+
+        return {
+            "success": True,
+            "message": f"Permanently deleted {deleted_count} files from trash",
+            "deleted_count": deleted_count,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error emptying files trash: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
