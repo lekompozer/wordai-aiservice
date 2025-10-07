@@ -165,11 +165,15 @@ def get_mongodb():
     from pymongo import MongoClient
 
     # Use authenticated URI if available (production), fallback to basic URI (development)
-    mongo_uri = MONGODB_URI_AUTH if 'MONGODB_URI_AUTH' in locals() or 'MONGODB_URI_AUTH' in globals() else MONGODB_URI
-    
+    mongo_uri = (
+        MONGODB_URI_AUTH
+        if "MONGODB_URI_AUTH" in locals() or "MONGODB_URI_AUTH" in globals()
+        else MONGODB_URI
+    )
+
     # Try to get from environment as final fallback
     mongo_uri = os.getenv("MONGODB_URI_AUTH", mongo_uri)
-    
+
     client = MongoClient(mongo_uri)
     return client[MONGODB_NAME]
 

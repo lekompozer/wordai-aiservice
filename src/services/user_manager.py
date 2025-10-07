@@ -997,7 +997,9 @@ class UserManager:
                     logger.info(f"♻️ Restored Library File: {file_id}")
                     return True
                 else:
-                    logger.warning(f"⚠️ File not found in trash (checked both collections): {file_id}")
+                    logger.warning(
+                        f"⚠️ File not found in trash (checked both collections): {file_id}"
+                    )
                     return False
             else:
                 # Fallback storage
@@ -1041,7 +1043,9 @@ class UserManager:
                 # Query Library Files (Type 3)
                 library_files_collection = self.db.db["library_files"]
                 library_files = list(
-                    library_files_collection.find({"user_id": user_id, "is_deleted": True})
+                    library_files_collection.find(
+                        {"user_id": user_id, "is_deleted": True}
+                    )
                 )
 
                 # Merge both lists
@@ -1049,8 +1053,7 @@ class UserManager:
 
                 # Sort by deleted_at (newest first)
                 all_files.sort(
-                    key=lambda x: x.get("deleted_at", datetime.min), 
-                    reverse=True
+                    key=lambda x: x.get("deleted_at", datetime.min), reverse=True
                 )
 
                 # Apply pagination
