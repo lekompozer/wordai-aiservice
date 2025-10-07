@@ -117,8 +117,31 @@ echo ""
 echo "🚀 Deploying new version with docker-compose..."
 echo "   Version: $NEW_VERSION_TAG"
 
-# Stop current services (but keep MongoDB and Redis data)
-echo "🛑 Stopping current services..."
+# Stop any standalone containers from deploy-manual.sh that might conflict
+echo "🛑 Checking for existing standalone containers..."
+if docker ps -a --format '{{.Names}}' | grep -q "^mongodb$"; then
+    echo "   Found standalone mongodb container, stopping it..."
+    docker stop mongodb 2>/dev/null || true
+    docker rm mongodb 2>/dev/null || true
+    echo "   ✅ Standalone mongodb container removed (data preserved in volume)"
+fi
+
+if docker ps -a --format '{{.Names}}' | grep -q "^redis-server$"; then
+    echo "   Found standalone redis-server container, stopping it..."
+    docker stop redis-server 2>/dev/null || true
+    docker rm redis-server 2>/dev/null || true
+    echo "   ✅ Standalone redis-server container removed (data preserved in volume)"
+fi
+
+if docker ps -a --format '{{.Names}}' | grep -q "^ai-chatbot-rag$"; then
+    echo "   Found standalone ai-chatbot-rag container, stopping it..."
+    docker stop ai-chatbot-rag 2>/dev/null || true
+    docker rm ai-chatbot-rag 2>/dev/null || true
+    echo "   ✅ Standalone ai-chatbot-rag container removed"
+fi
+
+# Stop current docker-compose services (if any)
+echo "🛑 Stopping docker-compose managed services..."
 $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE down --remove-orphans
 
 # Start new services
