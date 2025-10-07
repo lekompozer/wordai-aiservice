@@ -107,6 +107,9 @@ from src.api.library_routes import router as library_router
 # ✅ ADDED: Share API for File Sharing System (Phase 2)
 from src.api.share_routes import router as share_router
 
+# ✅ ADDED: Notification API for InApp notification system
+from src.api.notification_routes import router as notification_router
+
 # ✅ ADDED: Document Editor API for document management with auto-save
 from src.api.document_editor_routes import router as document_editor_router
 
@@ -535,6 +538,9 @@ def create_app() -> FastAPI:
 
     # ✅ NEW: Share API - File Sharing System (Phase 2 complete)
     app.include_router(share_router, tags=["File Sharing"])
+
+    # ✅ NEW: Notification API - InApp notification system
+    app.include_router(notification_router, tags=["Notifications"])
 
     # ✅ NEW: AI Content Edit API for Tiptap editor with AI providers
     app.include_router(ai_content_edit_router, tags=["AI Content Editing"])

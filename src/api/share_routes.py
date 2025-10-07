@@ -13,6 +13,7 @@ from datetime import datetime
 
 from src.middleware.auth import verify_firebase_token
 from src.services.share_manager import ShareManager
+from src.services.notification_manager import NotificationManager
 from config.config import get_mongodb
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,9 @@ class CreateShareRequest(BaseModel):
     file_type: str = Field(..., pattern="^(upload|document|library)$")
     permission: str = Field("view", pattern="^(view|download|edit)$")
     expires_at: Optional[datetime] = None
+    send_notification: bool = Field(
+        True, description="Send InApp and Email notification to recipient"
+    )
 
 
 class UpdateShareRequest(BaseModel):
@@ -82,6 +86,12 @@ def get_share_manager() -> ShareManager:
     return ShareManager(db=db)
 
 
+def get_notification_manager() -> NotificationManager:
+    """Get NotificationManager instance"""
+    db = get_mongodb()
+    return NotificationManager(db=db)
+
+
 def get_client_ip(request: Request) -> Optional[str]:
     """Extract client IP address from request"""
     return request.client.host if request.client else None
@@ -114,9 +124,14 @@ async def create_share(
     - `upload`: Upload Files (Type 1)
     - `document`: Documents (Type 2)
     - `library`: Library Files (Type 3)
+
+    **Notification:**
+    - Set `send_notification: true` to send InApp + Email notification to recipient
     """
     try:
         user_id = user_data.get("uid")
+        user_name = user_data.get("name", user_data.get("email", "Someone"))
+
         share_manager = get_share_manager()
 
         share = await asyncio.to_thread(
@@ -132,6 +147,58 @@ async def create_share(
         logger.info(
             f"✅ Share created: {share['share_id']} by {user_id} to {share_request.recipient_email}"
         )
+
+        # Send notification if requested
+        if share_request.send_notification:
+            try:
+                notification_manager = get_notification_manager()
+
+                # Create InApp notification
+                notification = await asyncio.to_thread(
+                    notification_manager.create_share_notification,
+                    recipient_id=share.get("recipient_id"),
+                    owner_id=user_id,
+                    owner_name=user_name,
+                    file_id=share.get("file_id"),
+                    filename=share.get("filename"),
+                    file_type=share.get("file_type"),
+                    permission=share.get("permission"),
+                    share_id=share.get("share_id"),
+                )
+
+                if notification:
+                    logger.info(
+                        f"✅ InApp notification sent to {share_request.recipient_email}"
+                    )
+
+                # Send Email notification via Brevo
+                # Get recipient info from users collection
+                from config.config import get_mongodb
+
+                db = get_mongodb()
+                recipient = db["users"].find_one({"uid": share.get("recipient_id")})
+                recipient_name = (
+                    recipient.get("name", recipient.get("email", "User"))
+                    if recipient
+                    else "User"
+                )
+
+                await asyncio.to_thread(
+                    notification_manager.send_share_email_notification,
+                    recipient_email=share_request.recipient_email,
+                    recipient_name=recipient_name,
+                    owner_name=user_name,
+                    filename=share.get("filename"),
+                    permission=share.get("permission"),
+                )
+
+                logger.info(
+                    f"✅ Email notification sent to {share_request.recipient_email}"
+                )
+
+            except Exception as notif_error:
+                logger.error(f"⚠️ Failed to send notification: {notif_error}")
+                # Continue even if notification fails
 
         return ShareResponse(**share)
 
@@ -453,4 +520,146 @@ async def initialize_share_indexes(
 
     except Exception as e:
         logger.error(f"❌ Error creating share indexes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# USER & FILE SHARES UTILITY
+# ============================================================================
+
+
+class CheckEmailRequest(BaseModel):
+    """Check email request"""
+
+    email: EmailStr
+
+
+@router.post("/check-email", response_model=Dict[str, Any])
+async def check_email_exists(
+    request: CheckEmailRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Check if user email exists in the system
+
+    **Request Body:**
+    ```json
+    {
+        "email": "user@example.com"
+    }
+    ```
+
+    **Response:**
+    ```json
+    {
+        "exists": true,
+        "user_id": "firebase_uid",
+        "email": "user@example.com",
+        "name": "John Doe",
+        "display_name": "John"
+    }
+    ```
+    """
+    try:
+        share_manager = get_share_manager()
+        user = await asyncio.to_thread(
+            share_manager.check_user_exists_by_email, email=request.email
+        )
+
+        if user:
+            return {
+                "exists": True,
+                "user_id": user.get("user_id"),
+                "email": user.get("email"),
+                "name": user.get("name", ""),
+                "display_name": user.get("display_name", ""),
+            }
+        else:
+            return {
+                "exists": False,
+                "message": f"User with email {request.email} not found",
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error checking email: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class FileShareResponse(BaseModel):
+    """File share response with recipient info"""
+
+    share_id: str
+    recipient_id: str
+    recipient_email: str
+    recipient_name: str
+    recipient_display_name: str
+    permission: str
+    is_active: bool
+    expires_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+
+@router.get("/file/{file_id}/shares", response_model=List[FileShareResponse])
+async def list_file_shares(
+    file_id: str,
+    limit: int = 100,
+    offset: int = 0,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Get list of all users who have access to a specific file
+    Only file owner can view this list
+
+    **Path Parameters:**
+    - `file_id`: File ID (file_id, document_id, or library_id)
+
+    **Query Parameters:**
+    - `limit`: Maximum number of results (default: 100)
+    - `offset`: Pagination offset (default: 0)
+
+    **Response:**
+    ```json
+    [
+        {
+            "share_id": "share_xyz789",
+            "recipient_id": "firebase_uid",
+            "recipient_email": "user@example.com",
+            "recipient_name": "John Doe",
+            "recipient_display_name": "John",
+            "permission": "download",
+            "is_active": true,
+            "expires_at": "2025-12-31T23:59:59Z",
+            "created_at": "2025-10-07T10:00:00Z",
+            "updated_at": "2025-10-07T10:00:00Z"
+        }
+    ]
+    ```
+    """
+    try:
+        user_id = user_data.get("uid")
+        share_manager = get_share_manager()
+
+        logger.info(f"📋 Listing shares for file {file_id} by owner {user_id}")
+
+        shares = await asyncio.to_thread(
+            share_manager.list_file_shares,
+            file_id=file_id,
+            owner_id=user_id,
+            limit=limit,
+            offset=offset,
+        )
+
+        # Convert to response model
+        result = []
+        for share in shares:
+            result.append(FileShareResponse(**share))
+
+        logger.info(f"✅ Found {len(result)} shares for file {file_id}")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Error listing file shares: {e}")
         raise HTTPException(status_code=500, detail=str(e))

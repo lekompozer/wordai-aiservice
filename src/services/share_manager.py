@@ -570,3 +570,88 @@ class ShareManager:
         except Exception as e:
             logger.error(f"❌ Error getting share by ID: {e}")
             raise
+
+    def check_user_exists_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """
+        Kiểm tra user có tồn tại trong hệ thống bằng email
+
+        Args:
+            email: Email cần check
+
+        Returns:
+            User document nếu tồn tại, None nếu không tìm thấy
+        """
+        try:
+            user = self.users.find_one({"email": email})
+
+            if user:
+                logger.info(f"✅ Found user with email: {email}")
+                return {
+                    "user_id": user.get("user_id"),
+                    "email": user.get("email"),
+                    "name": user.get("name", ""),
+                    "display_name": user.get("display_name", ""),
+                }
+            else:
+                logger.info(f"❌ User not found with email: {email}")
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ Error checking user by email: {e}")
+            return None
+
+    def list_file_shares(
+        self, file_id: str, owner_id: str, limit: int = 100, offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """
+        Lấy danh sách tất cả users đã được share file cụ thể
+        Chỉ owner mới có quyền xem
+
+        Args:
+            file_id: File ID cần lấy danh sách shares
+            owner_id: Owner ID (để verify quyền)
+            limit: Số lượng kết quả tối đa
+            offset: Offset cho pagination
+
+        Returns:
+            List of share documents với thông tin user
+        """
+        try:
+            # Verify owner
+            shares = list(
+                self.file_shares.find({"file_id": file_id, "owner_id": owner_id})
+                .sort("created_at", -1)
+                .skip(offset)
+                .limit(limit)
+            )
+
+            # Enrich với thông tin user
+            result = []
+            for share in shares:
+                recipient_id = share.get("recipient_id")
+                user = self.users.find_one({"user_id": recipient_id})
+
+                share_info = {
+                    "share_id": share.get("share_id"),
+                    "recipient_id": recipient_id,
+                    "recipient_email": share.get("recipient_email"),
+                    "recipient_name": user.get("name", "") if user else "",
+                    "recipient_display_name": (
+                        user.get("display_name", "") if user else ""
+                    ),
+                    "permission": share.get("permission"),
+                    "is_active": share.get("is_active"),
+                    "expires_at": share.get("expires_at"),
+                    "created_at": share.get("created_at"),
+                    "updated_at": share.get("updated_at"),
+                }
+                result.append(share_info)
+
+            logger.info(
+                f"✅ Listed {len(result)} shares for file {file_id} by owner {owner_id}"
+            )
+            return result
+
+        except Exception as e:
+            logger.error(f"❌ Error listing file shares: {e}")
+            return []
