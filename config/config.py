@@ -124,6 +124,45 @@ PROCESSING_TIMEOUT = int(os.getenv("PROCESSING_TIMEOUT", "600"))  # 10 minutes
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "1200"))
 CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "200"))
 
+
+# ✅ ADDED: Helper function to get R2 client
+def get_r2_client():
+    """
+    Get configured boto3 S3 client for R2 storage
+
+    Returns:
+        boto3.client: Configured S3 client for Cloudflare R2
+    """
+    import boto3
+
+    if not all([R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT]):
+        raise ValueError(
+            "Missing R2 credentials. Check R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT"
+        )
+
+    return boto3.client(
+        "s3",
+        aws_access_key_id=R2_ACCESS_KEY_ID,
+        aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+        endpoint_url=R2_ENDPOINT,
+        region_name="auto",
+    )
+
+
+# ✅ ADDED: Helper function to get MongoDB client
+def get_mongodb():
+    """
+    Get MongoDB database instance
+
+    Returns:
+        pymongo.database.Database: MongoDB database
+    """
+    from pymongo import MongoClient
+
+    client = MongoClient(MONGODB_URI)
+    return client[MONGODB_NAME]
+
+
 # ✅ ADDED: Debug logging for config verification
 print(f"🔧 Config.py loaded:")
 print(f"   Environment: {ENV}")

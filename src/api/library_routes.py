@@ -13,8 +13,7 @@ from datetime import datetime
 
 from src.middleware.auth import verify_firebase_token
 from src.services.library_manager import LibraryManager
-from src.services.r2_storage import get_r2_client
-from config.config import get_mongodb, R2_BUCKET_NAME
+from config.config import get_r2_client, get_mongodb, R2_BUCKET_NAME
 
 logger = logging.getLogger(__name__)
 
