@@ -170,6 +170,34 @@ $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d
 
 echo "✅ Services started"
 
+# --- 5b. ENSURE MONGODB USER EXISTS ---
+echo ""
+echo "🔐 Ensuring MongoDB application user exists..."
+sleep 10  # Wait for MongoDB to be ready
+
+# Check if app user exists, create if not
+docker exec mongodb mongosh admin \
+  --username "$MONGODB_ROOT_USERNAME" \
+  --password "$MONGODB_ROOT_PASSWORD" \
+  --eval "
+    const userExists = db.getUser('$MONGODB_APP_USERNAME');
+    if (!userExists) {
+      db.createUser({
+        user: '$MONGODB_APP_USERNAME',
+        pwd: '$MONGODB_APP_PASSWORD',
+        roles: [
+          { role: 'readWrite', db: '$MONGODB_NAME' },
+          { role: 'dbAdmin', db: '$MONGODB_NAME' }
+        ]
+      });
+      print('✅ Application user created');
+    } else {
+      print('ℹ️  Application user already exists');
+    }
+  " 2>/dev/null || echo "⚠️  Note: User may already exist or MongoDB is still starting"
+
+echo "✅ MongoDB user check completed"
+
 # --- 6. HEALTH CHECK WITH RETRY ---
 echo ""
 echo "🩺 Performing health checks..."
