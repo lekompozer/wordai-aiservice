@@ -965,9 +965,10 @@ class UserManager:
     def restore_file(self, file_id: str, user_id: str) -> bool:
         """
         Restore soft-deleted file
+        Supports both Upload Files (user_files) and Library Files (library_files)
 
         Args:
-            file_id: File ID
+            file_id: File ID or Library ID
             user_id: Firebase UID (for authorization)
 
         Returns:
@@ -975,16 +976,28 @@ class UserManager:
         """
         try:
             if self.db and self.db.client:
+                # Try restore from Upload Files (user_files) first
                 result = self.user_files.update_one(
                     {"file_id": file_id, "user_id": user_id, "is_deleted": True},
                     {"$set": {"is_deleted": False, "deleted_at": None}},
                 )
 
                 if result.modified_count > 0:
-                    logger.info(f"♻️ Restored file: {file_id}")
+                    logger.info(f"♻️ Restored Upload File: {file_id}")
+                    return True
+
+                # If not found in user_files, try library_files
+                library_files_collection = self.db.db["library_files"]
+                result = library_files_collection.update_one(
+                    {"library_id": file_id, "user_id": user_id, "is_deleted": True},
+                    {"$set": {"is_deleted": False, "deleted_at": None}},
+                )
+
+                if result.modified_count > 0:
+                    logger.info(f"♻️ Restored Library File: {file_id}")
                     return True
                 else:
-                    logger.warning(f"⚠️ File not found in trash: {file_id}")
+                    logger.warning(f"⚠️ File not found in trash (checked both collections): {file_id}")
                     return False
             else:
                 # Fallback storage
