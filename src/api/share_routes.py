@@ -30,15 +30,15 @@ class CreateShareRequest(BaseModel):
 
     recipient_email: EmailStr
     file_id: str
-    file_type: str = Field(..., regex="^(upload|document|library)$")
-    permission: str = Field("view", regex="^(view|download|edit)$")
+    file_type: str = Field(..., pattern="^(upload|document|library)$")
+    permission: str = Field("view", pattern="^(view|download|edit)$")
     expires_at: Optional[datetime] = None
 
 
 class UpdateShareRequest(BaseModel):
     """Update share request"""
 
-    permission: str = Field(..., regex="^(view|download|edit)$")
+    permission: str = Field(..., pattern="^(view|download|edit)$")
     expires_at: Optional[datetime] = None
 
 

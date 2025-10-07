@@ -1,7 +1,23 @@
-version: '3'
+version: '3.8'
+
+# ============================================================================
+# Docker Compose Configuration - Compatible with deploy-manual.sh
+# ============================================================================
+# This configuration mirrors the working setup from deploy-manual.sh
+# Key features:
+# - Uses external network "ai-chatbot-network"
+# - Redis hostname: "redis-server" (not "redis")
+# - MongoDB with authentication
+# - All volume mounts and environment variables match docker run setup
+# ============================================================================
 
 services:
-  ai-service:
+  # ============================================================================
+  # AI Chatbot Service (Main Application)
+  # ============================================================================
+  ai-chatbot-rag:
+    container_name: ai-chatbot-rag
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -10,22 +26,37 @@ services:
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
+      - ./chat_history.db:/app/chat_history.db
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-credentials.json
+      # DeepSeek API
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - USE_MOCK_EMBEDDING=${USE_MOCK_EMBEDDING:-false}
+      # Redis Configuration (matching deploy-manual.sh)
+      - REDIS_URL=redis://redis-server:6379
+      - REDIS_HOST=redis-server
+      - REDIS_PORT=6379
+      # MongoDB Configuration (with authentication)
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - MONGODB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME}
+      - MONGODB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+      - MONGODB_APP_USERNAME=${MONGODB_APP_USERNAME}
+      - MONGODB_APP_PASSWORD=${MONGODB_APP_PASSWORD}
+      # Other settings
       - DATA_DIR=/app/data
-      - MONGODB_URI=mongodb://mongodb:27017/
-      - MONGODB_NAME=ai_service_db
-      - REDIS_URL=redis://redis:6379
     depends_on:
       - mongodb
-      - redis
+      - redis-server
     restart: unless-stopped
+    networks:
+      - ai-chatbot-network
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/ping" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -36,30 +67,59 @@ services:
           memory: ${MEMORY_LIMIT:-6G}
           cpus: ${CPU_LIMIT:-2}
 
+  # ============================================================================
+  # MongoDB with Authentication (matching deploy-manual.sh)
+  # ============================================================================
   mongodb:
-    image: mongo:latest
+    container_name: mongodb
+    image: mongo:7.0
     ports:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-    restart: unless-stopped
     environment:
-      - MONGO_INITDB_DATABASE=ai_service_db
+      - MONGO_INITDB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGODB_NAME:-ai_service_db}
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
 
-  redis:
+  # ============================================================================
+  # Redis with Production Configuration (matching deploy-manual.sh)
+  # Container name: redis-server (not "redis"!)
+  # ============================================================================
+  redis-server:
+    container_name: redis-server
     image: redis:7-alpine
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
-    command: redis-server --appendonly yes
+    command: >
+      redis-server --appendonly yes --save 900 1 --save 300 10 --save 60 10000 --tcp-keepalive 300 --timeout 0 --maxmemory-policy allkeys-lru --replica-read-only no --replica-serve-stale-data yes --repl-diskless-sync no --repl-diskless-load disabled --protected-mode no --bind 0.0.0.0
     restart: unless-stopped
+    networks:
+      - ai-chatbot-network
     healthcheck:
       test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
 
+# ============================================================================
+# Networks - Use external network created by deploy-manual.sh
+# ============================================================================
+networks:
+  ai-chatbot-network:
+    external: true
+    name: ai-chatbot-network
+
+# ============================================================================
+# Volumes - Persistent storage
+# ============================================================================
 volumes:
   mongodb_data:
+    driver: local
   redis_data:
+    driver: local

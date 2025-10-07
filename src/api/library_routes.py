@@ -57,7 +57,7 @@ class UpdateLibraryMetadataRequest(BaseModel):
     filename: Optional[str] = None
     description: Optional[str] = None
     category: Optional[str] = Field(
-        None, regex="^(templates|guides|references|resources)$"
+        None, pattern="^(templates|guides|references|resources)$"
     )
     tags: Optional[List[str]] = None
 
@@ -231,7 +231,7 @@ async def upload_library_file(
 
 @router.get("/files", response_model=List[LibraryFileResponse])
 async def list_library_files(
-    category: Optional[str] = Query(None, regex="^(documents|images|videos|audio)$"),
+    category: Optional[str] = Query(None, pattern="^(documents|images|videos|audio)$"),
     tags: Optional[str] = Query(None, description="Comma-separated tags"),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
@@ -531,7 +531,7 @@ async def empty_library_trash(
 @router.get("/search", response_model=List[LibraryFileResponse])
 async def search_library_files(
     q: str = Query(..., min_length=1, description="Search query"),
-    category: Optional[str] = Query(None, regex="^(documents|images|videos|audio)$"),
+    category: Optional[str] = Query(None, pattern="^(documents|images|videos|audio)$"),
     limit: int = Query(50, ge=1, le=100),
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
