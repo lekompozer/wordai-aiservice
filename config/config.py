@@ -64,6 +64,8 @@ if ENV == "development":
     MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
     MONGODB_NAME = os.getenv("MONGODB_NAME", "ai_service_dev_db")
     DATA_DIR = os.getenv("DATA_DIR", "./data")
+    # Use authenticated URI in development if available
+    MONGODB_URI_AUTH = os.getenv("MONGODB_URI_AUTH", MONGODB_URI)
     print(f"Config: Development database - {MONGODB_URI}")
     print(f"Config: Development data dir - {DATA_DIR}")
 else:
@@ -71,7 +73,10 @@ else:
     MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://mongodb:27017/")
     MONGODB_NAME = os.getenv("MONGODB_NAME", "ai_service_db")
     DATA_DIR = os.getenv("DATA_DIR", "/app/data")
+    # Use authenticated URI in production (CRITICAL for security)
+    MONGODB_URI_AUTH = os.getenv("MONGODB_URI_AUTH", MONGODB_URI)
     print(f"Config: Production database - {MONGODB_URI}")
+    print(f"Config: Production authenticated URI - {MONGODB_URI_AUTH}")
     print(f"Config: Production data dir - {DATA_DIR}")
 
 # RAG Configuration
@@ -152,14 +157,20 @@ def get_r2_client():
 # ✅ ADDED: Helper function to get MongoDB client
 def get_mongodb():
     """
-    Get MongoDB database instance
+    Get MongoDB database instance with authentication
 
     Returns:
         pymongo.database.Database: MongoDB database
     """
     from pymongo import MongoClient
 
-    client = MongoClient(MONGODB_URI)
+    # Use authenticated URI if available (production), fallback to basic URI (development)
+    mongo_uri = MONGODB_URI_AUTH if 'MONGODB_URI_AUTH' in locals() or 'MONGODB_URI_AUTH' in globals() else MONGODB_URI
+    
+    # Try to get from environment as final fallback
+    mongo_uri = os.getenv("MONGODB_URI_AUTH", mongo_uri)
+    
+    client = MongoClient(mongo_uri)
     return client[MONGODB_NAME]
 
 
