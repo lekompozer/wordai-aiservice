@@ -104,6 +104,9 @@ from src.api.document_editor_routes import router as document_editor_router
 # ✅ ADDED: Library Files API for Type 3 files (templates, guides, references, resources)
 from src.api.library_routes import router as library_router
 
+# ✅ ADDED: Share API for File Sharing System (Phase 2)
+from src.api.share_routes import router as share_router
+
 # ✅ ADDED: Document Editor API for document management with auto-save
 from src.api.document_editor_routes import router as document_editor_router
 
@@ -529,6 +532,9 @@ def create_app() -> FastAPI:
 
     # ✅ NEW: Library Files API - Type 3 files (Phase 1 complete)
     app.include_router(library_router, tags=["Library Files"])
+
+    # ✅ NEW: Share API - File Sharing System (Phase 2 complete)
+    app.include_router(share_router, tags=["File Sharing"])
 
     # ✅ NEW: AI Content Edit API for Tiptap editor with AI providers
     app.include_router(ai_content_edit_router, tags=["AI Content Editing"])
