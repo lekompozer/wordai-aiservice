@@ -107,9 +107,7 @@ class ShareManager:
 
             # Validate permission
             if permission not in ["view", "download", "edit"]:
-                raise ValueError(
-                    "Invalid permission. Must be: view, download, or edit"
-                )
+                raise ValueError("Invalid permission. Must be: view, download, or edit")
 
             # Get file info to verify ownership and existence
             file_doc = None
@@ -314,9 +312,7 @@ class ShareManager:
         try:
             # Validate permission
             if permission not in ["view", "download", "edit"]:
-                raise ValueError(
-                    "Invalid permission. Must be: view, download, or edit"
-                )
+                raise ValueError("Invalid permission. Must be: view, download, or edit")
 
             # Find share
             share = self.file_shares.find_one(
@@ -340,9 +336,7 @@ class ShareManager:
             )
 
             if result.modified_count > 0:
-                logger.info(
-                    f"✅ Share updated: {share_id} | permission: {permission}"
-                )
+                logger.info(f"✅ Share updated: {share_id} | permission: {permission}")
                 return True
 
             return False
@@ -531,9 +525,7 @@ class ShareManager:
                 .limit(limit)
             )
 
-            logger.info(
-                f"📊 Retrieved {len(logs)} access logs for share: {share_id}"
-            )
+            logger.info(f"📊 Retrieved {len(logs)} access logs for share: {share_id}")
 
             return logs
 
