@@ -16,6 +16,20 @@
 
 set -e # Exit immediately if a command exits with a non-zero status
 
+# --- DETECT DOCKER COMPOSE COMMAND ---
+# Auto-detect whether to use 'docker-compose' (v1) or 'docker compose' (v2)
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker-compose"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE_CMD="docker compose"
+else
+    echo "❌ ERROR: Neither 'docker-compose' nor 'docker compose' command found!"
+    echo "   Please install Docker Compose: https://docs.docker.com/compose/install/"
+    exit 1
+fi
+
+echo "✅ Using Docker Compose command: $DOCKER_COMPOSE_CMD"
+
 # --- CONFIGURATION ---
 APP_NAME="wordai-aiservice"
 DOCKER_COMPOSE_FILE="docker-compose.yml"
@@ -105,11 +119,11 @@ echo "   Version: $NEW_VERSION_TAG"
 
 # Stop current services (but keep MongoDB and Redis data)
 echo "🛑 Stopping current services..."
-docker-compose -f $DOCKER_COMPOSE_FILE down --remove-orphans
+$DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE down --remove-orphans
 
 # Start new services
 echo "🚀 Starting new services..."
-docker-compose -f $DOCKER_COMPOSE_FILE up -d
+$DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d
 
 echo "✅ Services started"
 
@@ -182,7 +196,7 @@ if [ "$HEALTH_CHECK_PASSED" = true ]; then
     echo "🎉 New version $NEW_VERSION_TAG is running and healthy"
     echo ""
     echo "📊 Current Status:"
-    docker-compose -f $DOCKER_COMPOSE_FILE ps
+    $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE ps
     echo ""
     echo "🌐 Service URLs:"
     echo "   • API: http://localhost:8000"
@@ -190,9 +204,9 @@ if [ "$HEALTH_CHECK_PASSED" = true ]; then
     echo "   • Docs: http://localhost:8000/docs"
     echo ""
     echo "📋 Useful Commands:"
-    echo "   docker-compose -f $DOCKER_COMPOSE_FILE logs -f $SERVICE_NAME"
-    echo "   docker-compose -f $DOCKER_COMPOSE_FILE ps"
-    echo "   docker-compose -f $DOCKER_COMPOSE_FILE down"
+    echo "   $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE logs -f $SERVICE_NAME"
+    echo "   $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE ps"
+    echo "   $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE down"
 
 else
     # ❌ FAILURE - ROLLBACK
@@ -211,14 +225,14 @@ else
 
         # Stop failed deployment
         echo "🛑 Stopping failed deployment..."
-        docker-compose -f $DOCKER_COMPOSE_FILE down --remove-orphans
+        $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE down --remove-orphans
 
         # Set environment to previous version
         export IMAGE_TAG=$PREVIOUS_VERSION_TAG
 
         # Start previous version
         echo "🚀 Starting previous version..."
-        docker-compose -f $DOCKER_COMPOSE_FILE up -d
+        $DOCKER_COMPOSE_CMD -f $DOCKER_COMPOSE_FILE up -d
 
         # Quick health check on rolled-back version
         echo "🩺 Verifying rollback..."
