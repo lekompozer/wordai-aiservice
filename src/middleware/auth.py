@@ -118,9 +118,9 @@ async def verify_firebase_token(
 
         # Auto-create/update user in MongoDB
         try:
-            from src.services.user_manager import UserManager
+            from src.services.user_manager import get_user_manager
 
-            user_manager = UserManager()
+            user_manager = get_user_manager()
 
             # Prepare user data from Firebase token
             firebase_data = {
