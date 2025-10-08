@@ -394,25 +394,22 @@ def create_app() -> FastAPI:
     async def log_file_upload_requests(request: Request, call_next):
         """Log all requests to /api/simple-files/* endpoints"""
         if request.url.path.startswith("/api/simple-files/"):
-            print("=" * 80)
+            print("=" * 10)
             print(f"📥 INCOMING REQUEST TO FILE API")
             print(f"   Method: {request.method}")
             print(f"   Path: {request.url.path}")
-            print(f"   Query: {dict(request.query_params)}")
-            print(f"   Headers: {dict(request.headers)}")
             print(f"   Client: {request.client.host if request.client else 'unknown'}")
             print("=" * 80)
 
         response = await call_next(request)
 
         if request.url.path.startswith("/api/simple-files/"):
-            print("=" * 80)
+            print("=" * 10)
             print(f"📤 OUTGOING RESPONSE FROM FILE API")
             print(f"   Method: {request.method}")
             print(f"   Path: {request.url.path}")
             print(f"   Status: {response.status_code}")
-            print(f"   Headers: {dict(response.headers)}")
-            print("=" * 80)
+            print("=" * 10)
 
         return response
 

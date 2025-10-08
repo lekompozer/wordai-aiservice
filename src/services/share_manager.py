@@ -135,7 +135,14 @@ class ShareManager:
             if not recipient:
                 raise ValueError(f"Recipient with email {recipient_email} not found")
 
-            recipient_id = recipient.get("uid")
+            # Get firebase_uid as recipient_id (NOT "uid"!)
+            recipient_id = recipient.get("firebase_uid")
+
+            if not recipient_id:
+                logger.error(
+                    f"❌ User {recipient_email} has no firebase_uid in database"
+                )
+                raise ValueError(f"Invalid user data for {recipient_email}")
 
             # Cannot share with yourself
             if recipient_id == owner_id:
@@ -277,11 +284,49 @@ class ShareManager:
                 .limit(limit)
             )
 
+            # Filter out shares where the file has been deleted
+            valid_shares = []
+            for share in shares:
+                file_id = share.get("file_id")
+                file_type = share.get("file_type")
+
+                # Check if file still exists and is not deleted
+                file_exists = False
+
+                if file_type == "upload":
+                    file_doc = self.user_files.find_one(
+                        {"file_id": file_id, "is_deleted": {"$ne": True}}  # Not deleted
+                    )
+                    file_exists = file_doc is not None
+
+                elif file_type == "document":
+                    file_doc = self.documents.find_one(
+                        {"doc_id": file_id, "is_deleted": {"$ne": True}}  # Not deleted
+                    )
+                    file_exists = file_doc is not None
+
+                elif file_type == "library":
+                    file_doc = self.library_files.find_one(
+                        {
+                            "library_id": file_id,
+                            "is_deleted": {"$ne": True},  # Not deleted
+                        }
+                    )
+                    file_exists = file_doc is not None
+
+                # Only include shares where file still exists and is not deleted
+                if file_exists:
+                    valid_shares.append(share)
+                else:
+                    logger.debug(
+                        f"⚠️ Skipping share {share.get('share_id')} - file deleted or not found"
+                    )
+
             logger.info(
-                f"📋 Listed {len(shares)} shares for recipient: {recipient_id} (offset: {offset})"
+                f"📋 Listed {len(valid_shares)} shares for recipient: {recipient_id} (filtered from {len(shares)}, offset: {offset})"
             )
 
-            return shares
+            return valid_shares
 
         except Exception as e:
             logger.error(f"❌ Error listing shared with me: {e}")
@@ -631,19 +676,27 @@ class ShareManager:
             result = []
             for share in shares:
                 recipient_id = share.get("recipient_id")
+
+                # Skip shares without recipient_id (invalid data)
+                if not recipient_id:
+                    logger.warning(
+                        f"⚠️ Share {share.get('share_id')} has no recipient_id, skipping"
+                    )
+                    continue
+
                 # Query user by firebase_uid instead of user_id
                 user = self.users.find_one({"firebase_uid": recipient_id})
 
                 share_info = {
-                    "share_id": share.get("share_id"),
+                    "share_id": share.get("share_id", ""),
                     "recipient_id": recipient_id,
-                    "recipient_email": share.get("recipient_email"),
+                    "recipient_email": share.get("recipient_email", ""),
                     "recipient_name": user.get("display_name", "") if user else "",
                     "recipient_display_name": (
                         user.get("display_name", "") if user else ""
                     ),
-                    "permission": share.get("permission"),
-                    "is_active": share.get("is_active"),
+                    "permission": share.get("permission", "view"),
+                    "is_active": share.get("is_active", True),
                     "expires_at": share.get("expires_at"),
                     "created_at": share.get("created_at"),
                     "updated_at": share.get("updated_at"),
