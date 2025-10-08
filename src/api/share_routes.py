@@ -258,11 +258,62 @@ async def list_shared_with_me(
     """
     List files shared with me by others
 
+    **Returns:** List of shares with complete information:
+    - `share_id` - Use this to access the file via `/api/shares/{share_id}/access`
+    - `file_id` - The actual file ID (lib_*, file_*, doc_*)
+    - `file_type` - Type of file (upload, document, library)
+    - `filename` - Name of the file
+    - `permission` - Your permission level (view, download, edit)
+    - `owner_id` - Who shared the file with you
+    - `is_active` - Whether share is still active
+    - `expires_at` - When the share expires (null = never)
+
     **Query parameters:**
     - `file_type`: Filter by file type (upload, document, library)
     - `is_active`: Filter by active status (default: true)
     - `limit`: Max results (default: 100)
     - `offset`: Pagination offset (default: 0)
+
+    **Frontend Usage:**
+    ```typescript
+    // 1. Get list of shared files
+    const shares = await fetch('/api/shares/shared-with-me').then(r => r.json());
+
+    // 2. User clicks on a file
+    const selectedShare = shares[0];
+
+    // 3. Access the file using share_id (NOT file_id!)
+    const fileData = await fetch(`/api/shares/${selectedShare.share_id}/access`)
+      .then(r => r.json());
+
+    // 4. Now you have view_url/download_url based on permission
+    if (fileData.view_url) {
+      showFileViewer(fileData.view_url);
+    }
+    if (fileData.download_url) {
+      showDownloadButton(fileData.download_url);
+    }
+    ```
+
+    **Example Response:**
+    ```json
+    [
+      {
+        "share_id": "share_xyz789",
+        "owner_id": "firebase_uid_owner",
+        "recipient_id": "firebase_uid_me",
+        "recipient_email": "me@example.com",
+        "file_id": "lib_abc123",
+        "file_type": "library",
+        "filename": "contract.pdf",
+        "permission": "download",
+        "is_active": true,
+        "expires_at": null,
+        "created_at": "2025-10-08T10:00:00Z",
+        "updated_at": "2025-10-08T10:00:00Z"
+      }
+    ]
+    ```
     """
     try:
         user_id = user_data.get("uid")
@@ -312,6 +363,273 @@ async def get_share(
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
         logger.error(f"❌ Error getting share: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{share_id}/access")
+async def access_shared_file(
+    share_id: str,
+    request: Request,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Access a shared file and get file details + URLs for viewing/downloading
+
+    This unified endpoint handles all file types (upload, document, library)
+    and returns appropriate file details with URLs based on permissions.
+
+    **Path Parameters:**
+    - `share_id`: Share ID
+
+    **Permissions & URLs:**
+    - `view`: Returns `view_url` for preview (no download capability)
+    - `download`: Returns both `view_url` AND `download_url`
+    - `edit`: Returns both URLs (+ editable content for documents)
+
+    **Frontend Implementation:**
+    - `view` permission: Use `view_url` to display file in iframe/viewer (disable download)
+    - `download` permission: Show download button using `download_url`
+    - `edit` permission: Enable editing + download
+
+    **Example Response (view permission):**
+    ```json
+    {
+        "share_id": "share_xyz",
+        "file_id": "lib_abc123",
+        "file_type": "library",
+        "filename": "contract.pdf",
+        "file_size": 52428,
+        "permission": "view",
+        "view_url": "https://r2...?signature=...",
+        "expires_in": 3600,
+        "accessed_at": "2025-10-08T10:00:00Z"
+    }
+    ```
+
+    **Example Response (download permission):**
+    ```json
+    {
+        "share_id": "share_xyz",
+        "file_id": "lib_abc123",
+        "file_type": "library",
+        "filename": "contract.pdf",
+        "file_size": 52428,
+        "permission": "download",
+        "view_url": "https://r2...?signature=...",
+        "download_url": "https://r2...?signature=...",
+        "expires_in": 3600,
+        "download_expires_in": 3600,
+        "accessed_at": "2025-10-08T10:00:00Z"
+    }
+    ```
+    """
+    try:
+        from src.services.user_manager import get_user_manager
+        from src.services.library_manager import LibraryManager
+        from src.services.document_manager import DocumentManager
+        from config.config import get_r2_client, R2_BUCKET_NAME
+
+        user_id = user_data.get("uid")
+        share_manager = get_share_manager()
+
+        logger.info(f"🔍 User {user_id} accessing shared file via share {share_id}")
+
+        # 1. Get and verify share
+        share = await asyncio.to_thread(
+            share_manager.get_share_by_id, share_id=share_id, user_id=user_id
+        )
+
+        if not share:
+            raise HTTPException(status_code=404, detail="Share not found")
+
+        # Verify user is recipient
+        if share.get("recipient_id") != user_id:
+            raise HTTPException(
+                status_code=403, detail="You don't have permission to access this file"
+            )
+
+        # Check if share is active
+        if not share.get("is_active", False):
+            raise HTTPException(status_code=403, detail="Share has been revoked")
+
+        # Check expiration
+        expires_at = share.get("expires_at")
+        if expires_at and datetime.now() > expires_at:
+            raise HTTPException(status_code=403, detail="Share has expired")
+
+        file_id = share.get("file_id")
+        file_type = share.get("file_type")
+        permission = share.get("permission")
+
+        # 2. Log access
+        ip_address = get_client_ip(request)
+        user_agent = get_user_agent(request)
+
+        await asyncio.to_thread(
+            share_manager.log_share_access,
+            share_id=share_id,
+            user_id=user_id,
+            action="view",
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+
+        # 3. Get file details based on type
+        file_details = {}
+        view_url = None  # URL for preview/viewing (all permissions)
+        download_url = None  # URL for downloading (download/edit only)
+
+        if file_type == "library":
+            # Library file
+            db = get_mongodb()
+            s3_client = get_r2_client()
+            library_manager = LibraryManager(db=db, s3_client=s3_client)
+
+            library_file = await asyncio.to_thread(
+                library_manager.get_library_file,
+                library_id=file_id,
+                user_id=share.get("owner_id"),  # Owner's file
+            )
+
+            if not library_file:
+                raise HTTPException(status_code=404, detail="Library file not found")
+
+            file_details = {
+                "file_id": library_file.get("library_id"),
+                "filename": library_file.get("filename"),
+                "original_name": library_file.get(
+                    "original_name", library_file.get("filename")
+                ),
+                "file_size": library_file.get("file_size"),
+                "file_type_mime": library_file.get("file_type"),
+                "category": library_file.get("category"),
+                "description": library_file.get("description"),
+                "tags": library_file.get("tags", []),
+                "uploaded_at": library_file.get("uploaded_at"),
+            }
+
+            # Generate signed URL - ALWAYS (for all permissions)
+            r2_key = library_file.get("r2_key")
+            if r2_key:
+                view_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": R2_BUCKET_NAME, "Key": r2_key},
+                    ExpiresIn=3600,
+                )
+
+                # Download URL only for download/edit permissions
+                if permission in ["download", "edit"]:
+                    download_url = view_url  # Same URL, frontend controls behavior
+
+        elif file_type == "upload":
+            # Upload file
+            user_manager = get_user_manager()
+
+            upload_file = await asyncio.to_thread(
+                user_manager.get_file_by_id,
+                file_id=file_id,
+                user_id=share.get("owner_id"),
+            )
+
+            if not upload_file:
+                raise HTTPException(status_code=404, detail="Upload file not found")
+
+            file_details = {
+                "file_id": upload_file.get("file_id"),
+                "filename": upload_file.get("filename"),
+                "original_name": upload_file.get("original_name"),
+                "file_size": upload_file.get("file_size"),
+                "file_type_mime": upload_file.get("file_type"),
+                "folder_id": upload_file.get("folder_id"),
+                "uploaded_at": upload_file.get("uploaded_at"),
+            }
+
+            # Generate signed URL - ALWAYS (for all permissions)
+            r2_key = upload_file.get("r2_key")
+            if r2_key:
+                s3_client = get_r2_client()
+                view_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": R2_BUCKET_NAME, "Key": r2_key},
+                    ExpiresIn=3600,
+                )
+
+                # Download URL only for download/edit permissions
+                if permission in ["download", "edit"]:
+                    download_url = view_url  # Same URL, frontend controls behavior
+
+        elif file_type == "document":
+            # Document
+            db = get_mongodb()
+            document_manager = DocumentManager(db=db)
+
+            document = await asyncio.to_thread(
+                document_manager.get_document_by_id,
+                document_id=file_id,
+                user_id=share.get("owner_id"),
+            )
+
+            if not document:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            file_details = {
+                "file_id": document.get("document_id"),
+                "filename": document.get("title"),
+                "original_name": document.get("title"),
+                "file_size": document.get("file_size_bytes", 0),
+                "file_type_mime": "text/html",
+                "created_at": document.get("created_at"),
+                "updated_at": document.get("last_saved_at"),
+            }
+
+            # For documents, always include content for viewing
+            # (frontend can make it read-only based on permission)
+            file_details["content_html"] = document.get("content_html", "")
+            file_details["content_text"] = document.get("content_text", "")
+
+            # Documents don't have R2 URLs, content is in MongoDB
+            view_url = None  # Content is in response body
+            download_url = None if permission == "view" else "embedded"
+
+        else:
+            raise HTTPException(
+                status_code=400, detail=f"Unknown file type: {file_type}"
+            )
+
+        # 4. Build response
+        response = {
+            "share_id": share_id,
+            "file_type": file_type,
+            "permission": permission,
+            "owner_id": share.get("owner_id"),
+            "accessed_at": datetime.now().isoformat(),
+            **file_details,
+        }
+
+        # Add URLs based on availability
+        if view_url:
+            response["view_url"] = view_url
+            response["expires_in"] = 3600
+
+        if download_url:
+            response["download_url"] = download_url
+            if download_url != "embedded":  # Don't add expires_in for embedded content
+                response["download_expires_in"] = 3600
+
+        logger.info(
+            f"✅ User {user_id} accessed {file_type} file {file_id} via share {share_id} "
+            f"(permission: {permission}, view_url: {bool(view_url)}, download_url: {bool(download_url)})"
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error accessing shared file: {e}")
+        import traceback
+
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
