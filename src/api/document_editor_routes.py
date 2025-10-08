@@ -5,7 +5,7 @@ Using asyncio.to_thread to wrap synchronous PyMongo calls
 """
 
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 import asyncio
 
@@ -72,6 +72,96 @@ async def initialize_indexes(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/create", response_model=DocumentResponse)
+async def create_new_document(
+    request: DocumentCreate, user_data: Dict[str, Any] = Depends(verify_firebase_token)
+):
+    """
+    Tạo document mới từ đầu (không cần upload file)
+
+    Hỗ trợ 3 loại document:
+    - **doc**: Văn bản A4 chuẩn
+    - **slide**: Presentation 16:9
+    - **note**: Ghi chú tự do
+
+    Request Body:
+    ```json
+    {
+        "title": "My Document",
+        "source_type": "created",
+        "document_type": "doc",  // "doc" | "slide" | "note"
+        "content_html": "",      // Optional, empty cho document mới
+        "content_text": ""       // Optional
+    }
+    ```
+    """
+    user_id = user_data.get("uid")
+    doc_manager = get_document_manager()
+
+    try:
+        # Validate document type for created documents
+        if request.source_type == "created":
+            if not request.document_type:
+                raise HTTPException(
+                    status_code=400,
+                    detail="document_type is required for created documents",
+                )
+
+            if request.document_type not in ["doc", "slide", "note"]:
+                raise HTTPException(
+                    status_code=400, detail="document_type must be: doc, slide, or note"
+                )
+
+        # Create document
+        document_id = await asyncio.to_thread(
+            doc_manager.create_document,
+            user_id=user_id,
+            title=request.title,
+            content_html=request.content_html or "",
+            content_text=request.content_text or "",
+            source_type=request.source_type,
+            document_type=request.document_type,
+            file_id=request.file_id,
+            original_r2_url=request.original_r2_url,
+            original_file_type=request.original_file_type,
+        )
+
+        # Get created document
+        document = await asyncio.to_thread(
+            doc_manager.get_document, document_id, user_id
+        )
+
+        if not document:
+            raise HTTPException(
+                status_code=500, detail="Failed to retrieve created document"
+            )
+
+        logger.info(
+            f"✅ Created {request.source_type} document: {document_id} "
+            f"(type: {request.document_type})"
+        )
+
+        return DocumentResponse(
+            document_id=document["document_id"],
+            title=document["title"],
+            content_html=document["content_html"],
+            version=document["version"],
+            last_saved_at=document["last_saved_at"],
+            file_size_bytes=document["file_size_bytes"],
+            auto_save_count=document["auto_save_count"],
+            manual_save_count=document["manual_save_count"],
+            source_type=document.get("source_type", "file"),
+            document_type=document.get("document_type"),
+            file_id=document.get("file_id"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creating document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/file/{file_id}", response_model=DocumentResponse)
 async def get_document_by_file(
     file_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
@@ -113,6 +203,9 @@ async def get_document_by_file(
                 file_size_bytes=document["file_size_bytes"],
                 auto_save_count=document["auto_save_count"],
                 manual_save_count=document["manual_save_count"],
+                source_type=document.get("source_type", "file"),
+                document_type=document.get("document_type"),
+                file_id=document.get("file_id"),
             )
 
         # Step 2: Document doesn't exist - this is first time opening
@@ -158,6 +251,7 @@ async def get_document_by_file(
             content_text=content_text,
             original_r2_url=file_info["file_url"],
             original_file_type=file_info["file_type"],
+            source_type="file",  # This is a file-based document
         )
 
         logger.info(f"✅ Created new document {new_doc_id} for file {file_id}")
@@ -176,6 +270,9 @@ async def get_document_by_file(
             file_size_bytes=document["file_size_bytes"],
             auto_save_count=document["auto_save_count"],
             manual_save_count=document["manual_save_count"],
+            source_type=document.get("source_type", "file"),
+            document_type=document.get("document_type"),
+            file_id=document.get("file_id"),
         )
 
     except HTTPException:
@@ -290,18 +387,35 @@ async def save_document(
 async def list_documents(
     limit: int = 20,
     offset: int = 0,
+    source_type: Optional[str] = None,
+    document_type: Optional[str] = None,
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
     Lấy danh sách documents của user
     Sắp xếp theo last_opened_at (documents mở gần nhất sẽ lên đầu)
+
+    Query Parameters:
+    - **limit**: Số lượng documents trả về (default: 20)
+    - **offset**: Vị trí bắt đầu (default: 0)
+    - **source_type**: Lọc theo nguồn: "file" | "created" (optional)
+    - **document_type**: Lọc theo loại: "doc" | "slide" | "note" (optional)
+
+    Examples:
+    - GET /api/documents?source_type=created&document_type=doc
+    - GET /api/documents?source_type=file
     """
     user_id = user_data.get("uid")
     doc_manager = get_document_manager()
 
     try:
         documents = await asyncio.to_thread(
-            doc_manager.list_user_documents, user_id=user_id, limit=limit, offset=offset
+            doc_manager.list_user_documents,
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+            source_type=source_type,
+            document_type=document_type,
         )
 
         return [
@@ -312,6 +426,8 @@ async def list_documents(
                 last_opened_at=doc.get("last_opened_at"),
                 version=doc["version"],
                 file_size_bytes=doc["file_size_bytes"],
+                source_type=doc.get("source_type", "file"),
+                document_type=doc.get("document_type"),
             )
             for doc in documents
         ]

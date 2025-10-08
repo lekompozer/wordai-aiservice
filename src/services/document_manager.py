@@ -75,27 +75,40 @@ class DocumentManager:
     def create_document(
         self,
         user_id: str,
-        file_id: str,
         title: str,
         content_html: str,
         content_text: str,
-        original_r2_url: str,
-        original_file_type: str,
+        source_type: str = "file",
+        document_type: Optional[str] = None,
+        file_id: Optional[str] = None,
+        original_r2_url: Optional[str] = None,
+        original_file_type: Optional[str] = None,
     ) -> str:
-        """Tạo document mới, trả về document_id"""
+        """
+        Tạo document mới, trả về document_id
+
+        Args:
+            source_type: "file" (từ upload) hoặc "created" (tạo mới)
+            document_type: "doc", "slide", "note" (chỉ cho created documents)
+            file_id: Optional - chỉ có khi source_type="file"
+        """
         document_id = f"doc_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
 
         document = {
             "document_id": document_id,
             "user_id": user_id,
-            "file_id": file_id,
             "title": title,
             "content_html": content_html,
             "content_text": content_text,
             "version": 1,
             "auto_save_count": 0,
             "manual_save_count": 1,  # Lần tạo = manual save
+            # Source tracking
+            "source_type": source_type,  # "file" | "created"
+            "document_type": document_type,  # "doc" | "slide" | "note" (for created)
+            # File reference (optional)
+            "file_id": file_id,
             "original_r2_url": original_r2_url,
             "original_file_type": original_file_type,
             "file_size_bytes": len(content_html.encode("utf-8")),
@@ -109,7 +122,14 @@ class DocumentManager:
         }
 
         self.documents.insert_one(document)
-        logger.info(f"✅ Created document {document_id} for file {file_id}")
+
+        if source_type == "created":
+            logger.info(
+                f"✅ Created NEW document {document_id} (type: {document_type})"
+            )
+        else:
+            logger.info(f"✅ Created document {document_id} for file {file_id}")
+
         return document_id
 
     def get_document(self, document_id: str, user_id: str) -> Optional[Dict[str, Any]]:
@@ -173,17 +193,40 @@ class DocumentManager:
         return False
 
     def list_user_documents(
-        self, user_id: str, limit: int = 20, offset: int = 0
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        source_type: Optional[str] = None,
+        document_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Lấy danh sách documents của user, sắp xếp theo last_opened_at"""
+        """
+        Lấy danh sách documents của user, sắp xếp theo last_opened_at
+
+        Args:
+            source_type: Filter by "file" hoặc "created"
+            document_type: Filter by "doc", "slide", "note" (chỉ cho created)
+        """
+        query = {"user_id": user_id, "is_deleted": False}
+
+        # Add filters
+        if source_type:
+            query["source_type"] = source_type
+
+        if document_type:
+            query["document_type"] = document_type
+
         documents = list(
-            self.documents.find({"user_id": user_id, "is_deleted": False})
+            self.documents.find(query)
             .sort("last_opened_at", -1)
             .skip(offset)
             .limit(limit)
         )
 
-        logger.info(f"📋 Listed {len(documents)} documents for user {user_id}")
+        logger.info(
+            f"📋 Listed {len(documents)} documents for user {user_id} "
+            f"(source={source_type}, type={document_type})"
+        )
         return documents
 
     def delete_document(
