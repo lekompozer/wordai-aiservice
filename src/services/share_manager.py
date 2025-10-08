@@ -120,8 +120,14 @@ class ShareManager:
                     {"doc_id": file_id, "user_id": owner_id}
                 )
             elif file_type == "library":
+                # 🔄 Query bằng file_id (schema đã đồng bộ), fallback library_id
                 file_doc = self.library_files.find_one(
-                    {"library_id": file_id, "user_id": owner_id}
+                    {
+                        "$or": [
+                            {"file_id": file_id, "user_id": owner_id},
+                            {"library_id": file_id, "user_id": owner_id},
+                        ]
+                    }
                 )
 
             if not file_doc:
@@ -306,10 +312,13 @@ class ShareManager:
                     file_exists = file_doc is not None
 
                 elif file_type == "library":
+                    # 🔄 Query bằng file_id (schema đã đồng bộ), fallback library_id
                     file_doc = self.library_files.find_one(
                         {
-                            "library_id": file_id,
-                            "is_deleted": {"$ne": True},  # Not deleted
+                            "$or": [
+                                {"file_id": file_id, "is_deleted": {"$ne": True}},
+                                {"library_id": file_id, "is_deleted": {"$ne": True}},
+                            ]
                         }
                     )
                     file_exists = file_doc is not None

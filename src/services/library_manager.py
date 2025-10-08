@@ -200,19 +200,26 @@ class LibraryManager:
             category = self._detect_category_from_file_type(file_type, filename)
 
             library_doc = {
-                "library_id": library_id,
+                # 🔄 SYNCHRONIZED SCHEMA với upload files
+                "file_id": library_id,  # Đổi từ library_id → file_id để đồng bộ
+                "library_id": library_id,  # Giữ lại để backward compatibility
                 "user_id": user_id,
-                "filename": filename,
+                "filename": filename,  # Tên file đã được sanitize
+                "original_name": filename,  # Thêm original_name để đồng bộ
                 "file_type": file_type,
                 "file_size": file_size,
+                "folder_id": None,  # Library files không có folder, để None
                 "r2_key": r2_key,
                 "file_url": file_url,
+                # 📚 Library-specific fields
                 "category": category,
                 "description": description or "",
                 "tags": tags or [],
                 "metadata": metadata or {},
+                # 🗑️ Deletion tracking
                 "is_deleted": False,
                 "deleted_at": None,
+                # ⏰ Timestamps
                 "uploaded_at": now,
                 "updated_at": now,
             }

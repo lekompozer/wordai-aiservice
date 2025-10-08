@@ -1048,16 +1048,77 @@ class UserManager:
                     )
                 )
 
-                # Merge both lists
-                all_files = upload_files + library_files
+                # Normalize schema for both file types
+                normalized_files = []
+
+                # ✅ Upload Files - Schema đã chuẩn
+                for file in upload_files:
+                    normalized_files.append(
+                        {
+                            # Core fields (đồng bộ với FileResponse)
+                            "id": file.get("file_id", ""),
+                            "file_id": file.get("file_id", ""),
+                            "filename": file.get("filename", "Unknown"),
+                            "original_name": file.get(
+                                "original_name", file.get("filename", "Unknown")
+                            ),
+                            "file_type": file.get("file_type", ""),
+                            "file_size": file.get("file_size", 0),
+                            "folder_id": file.get("folder_id"),
+                            "user_id": file.get("user_id", ""),
+                            "r2_key": file.get("r2_key", ""),
+                            # Metadata
+                            "mime_type": file.get("mime_type", ""),
+                            # Timestamps
+                            "uploaded_at": file.get("uploaded_at"),
+                            "deleted_at": file.get("deleted_at"),
+                            "created_at": file.get("uploaded_at"),
+                            "updated_at": file.get("deleted_at"),
+                        }
+                    )
+
+                # ✅ Library Files - Schema đã được đồng bộ
+                for file in library_files:
+                    normalized_files.append(
+                        {
+                            # Core fields (GIỜ ĐÃ GIỐNG upload files)
+                            "id": file.get("file_id", file.get("library_id", "")),
+                            "file_id": file.get("file_id", file.get("library_id", "")),
+                            "filename": file.get("filename", "Unknown"),
+                            "original_name": file.get(
+                                "original_name", file.get("filename", "Unknown")
+                            ),
+                            "file_type": file.get("file_type", ""),
+                            "file_size": file.get("file_size", 0),
+                            "folder_id": file.get(
+                                "folder_id"
+                            ),  # None cho library files
+                            "user_id": file.get("user_id", ""),
+                            "r2_key": file.get("r2_key", ""),
+                            # Metadata
+                            "mime_type": file.get("file_type", ""),
+                            # Timestamps
+                            "uploaded_at": file.get(
+                                "uploaded_at", file.get("created_at")
+                            ),
+                            "deleted_at": file.get("deleted_at"),
+                            "created_at": file.get(
+                                "uploaded_at", file.get("created_at")
+                            ),
+                            "updated_at": file.get("deleted_at"),
+                            # Library-specific (giữ lại để tham khảo)
+                            "library_id": file.get("library_id", ""),
+                            "category": file.get("category", ""),
+                        }
+                    )
 
                 # Sort by deleted_at (newest first)
-                all_files.sort(
+                normalized_files.sort(
                     key=lambda x: x.get("deleted_at", datetime.min), reverse=True
                 )
 
                 # Apply pagination
-                paginated_files = all_files[offset : offset + limit]
+                paginated_files = normalized_files[offset : offset + limit]
 
                 logger.info(
                     f"🗑️ Listed {len(paginated_files)} deleted files for user {user_id} "
