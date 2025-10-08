@@ -587,9 +587,11 @@ class ShareManager:
             if user:
                 logger.info(f"✅ Found user with email: {email}")
                 return {
-                    "user_id": user.get("user_id"),
+                    "user_id": user.get(
+                        "firebase_uid"
+                    ),  # Return firebase_uid as user_id
                     "email": user.get("email"),
-                    "name": user.get("name", ""),
+                    "name": user.get("display_name", ""),
                     "display_name": user.get("display_name", ""),
                 }
             else:
@@ -629,13 +631,14 @@ class ShareManager:
             result = []
             for share in shares:
                 recipient_id = share.get("recipient_id")
-                user = self.users.find_one({"user_id": recipient_id})
+                # Query user by firebase_uid instead of user_id
+                user = self.users.find_one({"firebase_uid": recipient_id})
 
                 share_info = {
                     "share_id": share.get("share_id"),
                     "recipient_id": recipient_id,
                     "recipient_email": share.get("recipient_email"),
-                    "recipient_name": user.get("name", "") if user else "",
+                    "recipient_name": user.get("display_name", "") if user else "",
                     "recipient_display_name": (
                         user.get("display_name", "") if user else ""
                     ),

@@ -75,6 +75,8 @@ async def verify_firebase_token(
     Session cookies are NO LONGER supported - frontend should use ID tokens only.
     Firebase SDK automatically refreshes ID tokens when they expire.
 
+    Automatically creates/updates user in MongoDB on every authentication.
+
     Xác thực Firebase ID token cho authentication người dùng
     """
     import logging
@@ -109,7 +111,35 @@ async def verify_firebase_token(
             )
 
         user_email = decoded_token.get("email", "no-email")
+        user_name = decoded_token.get(
+            "name", user_email.split("@")[0] if user_email else "User"
+        )
         logger.info(f"   ✅ ID token verified: {user_email} (uid: {user_uid})")
+
+        # Auto-create/update user in MongoDB
+        try:
+            from src.services.user_manager import UserManager
+
+            user_manager = UserManager()
+
+            # Prepare user data from Firebase token
+            firebase_data = {
+                "firebase_uid": user_uid,
+                "email": user_email,
+                "display_name": user_name,
+                "photo_url": decoded_token.get("picture", ""),
+                "email_verified": decoded_token.get("email_verified", False),
+                "provider": decoded_token.get("firebase", {}).get(
+                    "sign_in_provider", "unknown"
+                ),
+            }
+
+            # Create or update user
+            await user_manager.create_or_update_user(firebase_data)
+            logger.info(f"   💾 User synced to MongoDB: {user_email}")
+        except Exception as e:
+            # Don't fail authentication if MongoDB sync fails
+            logger.error(f"   ⚠️ Failed to sync user to MongoDB: {e}")
 
         return {
             "uid": user_uid,
