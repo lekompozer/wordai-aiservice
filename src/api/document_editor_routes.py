@@ -316,6 +316,9 @@ async def get_document(
             file_size_bytes=document["file_size_bytes"],
             auto_save_count=document["auto_save_count"],
             manual_save_count=document["manual_save_count"],
+            source_type=document.get("source_type", "file"),
+            document_type=document.get("document_type"),
+            file_id=document.get("file_id"),
         )
 
     except HTTPException:
