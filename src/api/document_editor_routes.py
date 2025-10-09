@@ -54,6 +54,7 @@ def get_user_manager() -> UserManager:
 
 
 @router.post("/initialize")
+@router.post("/initialize/")
 async def initialize_indexes(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
@@ -73,6 +74,7 @@ async def initialize_indexes(
 
 
 @router.post("/create", response_model=DocumentResponse)
+@router.post("/create/", response_model=DocumentResponse)
 async def create_new_document(
     request: DocumentCreate, user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
@@ -163,6 +165,7 @@ async def create_new_document(
 
 
 @router.get("/file/{file_id}", response_model=DocumentResponse)
+@router.get("/file/{file_id}/", response_model=DocumentResponse)
 async def get_document_by_file(
     file_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
@@ -480,6 +483,7 @@ async def delete_document(
 
 
 @router.get("/stats/storage")
+@router.get("/stats/storage/")
 async def get_storage_stats(user_data: Dict[str, Any] = Depends(verify_firebase_token)):
     """
     Lấy thống kê storage của user
@@ -498,6 +502,7 @@ async def get_storage_stats(user_data: Dict[str, Any] = Depends(verify_firebase_
 
 
 @router.get("/trash/list")
+@router.get("/trash/list/")
 async def list_trash(
     limit: int = 100,
     offset: int = 0,
@@ -544,6 +549,7 @@ async def list_trash(
 
 
 @router.post("/trash/restore/{document_id}")
+@router.post("/trash/restore/{document_id}/")
 async def restore_from_trash(
     document_id: str,
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
@@ -576,6 +582,7 @@ async def restore_from_trash(
 
 
 @router.delete("/trash/empty")
+@router.delete("/trash/empty/")
 async def empty_trash(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
