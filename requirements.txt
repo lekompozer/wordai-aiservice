@@ -34,6 +34,9 @@ python-docx==1.1.0
 PyPDF2==3.0.1
 reportlab==4.0.8
 beautifulsoup4==4.12.3
+weasyprint==62.3  # HTML to PDF conversion
+htmldocx==0.0.6   # HTML to DOCX conversion
+lxml==5.1.0       # Required by htmldocx
 # cerebras-cloud-sdk==1.29.0  # Temporarily commented due to anyio conflict
 tiktoken==0.6.0
 sentence-transformers==5.0.0

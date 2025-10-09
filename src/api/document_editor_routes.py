@@ -608,3 +608,135 @@ async def empty_trash(
     except Exception as e:
         logger.error(f"❌ Error emptying trash: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# EXPORT / DOWNLOAD ENDPOINTS
+# ============================================================================
+
+
+@router.get("/{document_id}/download/{format}")
+@router.get("/{document_id}/download/{format}/")
+async def download_document(
+    document_id: str,
+    format: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Download document in specified format (PDF, DOCX, TXT, HTML)
+
+    **Single endpoint để frontend gọi - Backend tự động:**
+    1. Lấy latest HTML content từ MongoDB
+    2. Convert sang format yêu cầu (PDF/DOCX/TXT/HTML)
+    3. Upload file lên R2
+    4. Trả về presigned download URL (1 hour expiry)
+
+    **Supported formats:**
+    - `pdf` - Convert HTML → PDF (weasyprint)
+    - `docx` - Convert HTML → DOCX (python-docx)
+    - `txt` - Strip HTML tags → Plain text
+    - `html` - Raw HTML with styling
+
+    **Example:**
+    - GET `/api/documents/doc_abc123/download/pdf`
+    - GET `/api/documents/doc_abc123/download/docx`
+
+    **Response:**
+    ```json
+    {
+        "download_url": "https://r2.wordai.pro/exports/...",
+        "filename": "My_Document_20251009_153045.pdf",
+        "file_size": 123456,
+        "format": "pdf",
+        "expires_in": 3600,
+        "expires_at": "2025-10-09T16:30:45Z"
+    }
+    ```
+
+    Frontend chỉ cần trigger download:
+    ```javascript
+    window.open(response.download_url, '_blank');
+    ```
+    """
+    user_id = user_data.get("uid")
+    doc_manager = get_document_manager()
+
+    # Validate format
+    valid_formats = ["pdf", "docx", "txt", "html"]
+    if format.lower() not in valid_formats:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid format. Supported formats: {', '.join(valid_formats)}",
+        )
+
+    try:
+        # Step 1: Get document from MongoDB
+        document = await asyncio.to_thread(
+            doc_manager.get_document, document_id, user_id
+        )
+
+        if not document:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # Step 2: Extract data
+        html_content = document["content_html"]
+        title = document["title"]
+
+        if not html_content or html_content.strip() == "":
+            raise HTTPException(
+                status_code=400, detail="Document content is empty, cannot export"
+            )
+
+        # Step 3: Import export service and R2 client
+        from src.services.document_export_service import DocumentExportService
+        from src.storage.r2_client import R2Client
+        from src.core.config import APP_CONFIG
+        from config.config import get_mongodb
+
+        # Initialize services
+        r2_client = R2Client(
+            account_id=APP_CONFIG.r2_account_id,
+            access_key_id=APP_CONFIG.r2_access_key_id,
+            secret_access_key=APP_CONFIG.r2_secret_access_key,
+            bucket_name=APP_CONFIG.r2_bucket_name,
+        )
+
+        db = get_mongodb()
+        export_service = DocumentExportService(r2_client=r2_client, db=db)
+
+        # Step 4: Check rate limits
+        can_export, error_message = await asyncio.to_thread(
+            export_service.check_rate_limits, user_id, document_id
+        )
+
+        if not can_export:
+            raise HTTPException(status_code=429, detail=error_message)
+
+        # Step 5: Export and upload to R2
+        logger.info(
+            f"📥 Exporting document {document_id} to {format.upper()} for user {user_id}"
+        )
+
+        result = await export_service.export_and_upload(
+            user_id=user_id,
+            document_id=document_id,
+            html_content=html_content,
+            title=title,
+            format=format.lower(),
+        )
+
+        logger.info(
+            f"✅ Export successful: {result['filename']} ({result['file_size']} bytes)"
+        )
+
+        return {
+            "success": True,
+            "message": f"Document exported to {format.upper()} successfully",
+            **result,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error downloading document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
