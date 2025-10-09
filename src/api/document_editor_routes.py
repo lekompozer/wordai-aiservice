@@ -283,6 +283,9 @@ async def get_document_by_file(
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)
+@router.get(
+    "/{document_id}/", response_model=DocumentResponse
+)  # Support trailing slash
 async def get_document(
     document_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
@@ -320,6 +323,7 @@ async def get_document(
 
 
 @router.put("/{document_id}")
+@router.put("/{document_id}/")  # Support trailing slash
 async def save_document(
     document_id: str,
     update_data: DocumentUpdate,
@@ -439,6 +443,7 @@ async def list_documents(
 
 
 @router.delete("/{document_id}")
+@router.delete("/{document_id}/")  # Support trailing slash
 async def delete_document(
     document_id: str,
     hard_delete: bool = False,

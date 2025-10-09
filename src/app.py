@@ -322,6 +322,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
         docs_url="/docs" if APP_CONFIG["debug"] else None,
         redoc_url="/redoc" if APP_CONFIG["debug"] else None,
+        redirect_slashes=False,  # Tắt auto-redirect để tránh HTTPS downgrade
     )
 
     # ===== VALIDATION ERROR HANDLER =====
@@ -376,6 +377,23 @@ def create_app() -> FastAPI:
     # Dynamic CORS middleware for chat-plugin support (streaming routes only)
     backend_url = APP_CONFIG.get("backend_webhook_url", "http://localhost:8001")
     app.add_middleware(DynamicCORSMiddleware, backend_url=backend_url)
+
+    # ===== PROXY HEADERS MIDDLEWARE =====
+    @app.middleware("http")
+    async def handle_proxy_headers(request: Request, call_next):
+        """
+        Handle X-Forwarded-Proto header from Nginx to preserve HTTPS in redirects
+        This prevents FastAPI from downgrading HTTPS → HTTP when redirecting
+        """
+        # Get the X-Forwarded-Proto header (set by Nginx)
+        forwarded_proto = request.headers.get("X-Forwarded-Proto")
+
+        if forwarded_proto:
+            # Update request scope to use the forwarded protocol
+            request.scope["scheme"] = forwarded_proto
+
+        response = await call_next(request)
+        return response
 
     # ===== SECURITY MIDDLEWARE =====
     @app.middleware("http")
