@@ -359,6 +359,7 @@ async def save_document(
             user_id=user_id,
             content_html=update_data.content_html,
             content_text=content_text,
+            title=update_data.title,
             is_auto_save=update_data.is_auto_save,
         )
 

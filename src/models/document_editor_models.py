@@ -36,6 +36,7 @@ class DocumentCreate(BaseModel):
 class DocumentUpdate(BaseModel):
     """Model để update document"""
 
+    title: Optional[str] = Field(None, description="Tiêu đề tài liệu (optional)")
     content_html: str = Field(..., description="Nội dung HTML đã chỉnh sửa")
     content_text: Optional[str] = Field(
         None, description="Nội dung plain text (optional)"

@@ -154,9 +154,10 @@ class DocumentManager:
         user_id: str,
         content_html: str,
         content_text: Optional[str] = None,
+        title: Optional[str] = None,
         is_auto_save: bool = False,
     ) -> bool:
-        """Cập nhật nội dung document"""
+        """Cập nhật nội dung document (bao gồm title)"""
         now = datetime.utcnow()
 
         update_data = {
@@ -167,6 +168,10 @@ class DocumentManager:
 
         if content_text:
             update_data["content_text"] = content_text
+
+        # Update title if provided
+        if title is not None:
+            update_data["title"] = title
 
         if is_auto_save:
             update_data["last_auto_save_at"] = now
@@ -186,7 +191,10 @@ class DocumentManager:
 
         if result.modified_count > 0:
             save_type = "auto-saved" if is_auto_save else "manually saved"
-            logger.info(f"💾 Document {document_id} {save_type} (version +1)")
+            title_info = f" (title: {title})" if title else ""
+            logger.info(
+                f"💾 Document {document_id} {save_type} (version +1){title_info}"
+            )
             return True
 
         logger.warning(f"⚠️ Document {document_id} not found or not modified")
