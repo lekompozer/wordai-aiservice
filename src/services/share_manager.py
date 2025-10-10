@@ -87,7 +87,7 @@ class ShareManager:
         Args:
             owner_id: File owner's user ID
             recipient_email: Recipient's email address
-            file_id: ID of file to share (file_id, doc_id, or library_id)
+            file_id: ID of file to share (file_id for upload/library, document_id for documents)
             file_type: Type of file ("upload", "document", "library")
             permission: Permission level ("view", "download", "edit")
             expires_at: Optional expiration datetime
@@ -117,7 +117,7 @@ class ShareManager:
                 )
             elif file_type == "document":
                 file_doc = self.documents.find_one(
-                    {"doc_id": file_id, "user_id": owner_id}
+                    {"document_id": file_id, "user_id": owner_id}
                 )
             elif file_type == "library":
                 # 🔄 Query bằng file_id (schema đã đồng bộ), fallback library_id
@@ -173,6 +173,12 @@ class ShareManager:
             share_id = f"share_{uuid.uuid4().hex[:16]}"
             now = datetime.now(timezone.utc)
 
+            # Get filename based on file type
+            if file_type == "document":
+                filename = file_doc.get("title", "Untitled Document")
+            else:
+                filename = file_doc.get("filename", "Untitled File")
+
             share_doc = {
                 "share_id": share_id,
                 "owner_id": owner_id,
@@ -180,7 +186,7 @@ class ShareManager:
                 "recipient_email": recipient_email,
                 "file_id": file_id,
                 "file_type": file_type,
-                "filename": file_doc.get("filename", ""),
+                "filename": filename,
                 "permission": permission,
                 "is_active": True,
                 "expires_at": expires_at,
@@ -307,7 +313,10 @@ class ShareManager:
 
                 elif file_type == "document":
                     file_doc = self.documents.find_one(
-                        {"doc_id": file_id, "is_deleted": {"$ne": True}}  # Not deleted
+                        {
+                            "document_id": file_id,
+                            "is_deleted": {"$ne": True},
+                        }  # Not deleted
                     )
                     file_exists = file_doc is not None
 
