@@ -73,8 +73,3 @@ class DocumentListItem(BaseModel):
     file_size_bytes: int
     source_type: str = "file"
     document_type: Optional[str] = None
-    title: str
-    last_saved_at: datetime
-    last_opened_at: Optional[datetime] = None
-    version: int
-    file_size_bytes: int

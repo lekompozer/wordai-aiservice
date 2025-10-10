@@ -180,7 +180,7 @@ async def get_document_by_file(
     Query Parameters:
     - document_type: Optional - "doc", "slide", or "note" (default: "doc")
                      Frontend can specify preferred document type
-    
+
     Flow:
     1. Check if document exists in MongoDB by file_id
     2. If exists → return from MongoDB
@@ -251,7 +251,9 @@ async def get_document_by_file(
         content_text = text_content
 
         # Determine document_type: Use frontend value or default to "doc"
-        final_document_type = document_type if document_type in ["doc", "slide", "note"] else "doc"
+        final_document_type = (
+            document_type if document_type in ["doc", "slide", "note"] else "doc"
+        )
 
         # Create new document in MongoDB
         new_doc_id = await asyncio.to_thread(
@@ -432,6 +434,11 @@ async def list_documents(
     doc_manager = get_document_manager()
 
     try:
+        logger.info(
+            f"📋 Listing documents for user {user_id[:8]}... "
+            f"(source_type={source_type}, document_type={document_type}, limit={limit}, offset={offset})"
+        )
+
         documents = await asyncio.to_thread(
             doc_manager.list_user_documents,
             user_id=user_id,
@@ -439,6 +446,10 @@ async def list_documents(
             offset=offset,
             source_type=source_type,
             document_type=document_type,
+        )
+
+        logger.info(
+            f"✅ Found {len(documents)} documents for user {user_id[:8]}..."
         )
 
         return [
