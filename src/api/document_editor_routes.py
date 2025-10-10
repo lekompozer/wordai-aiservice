@@ -167,7 +167,9 @@ async def create_new_document(
 @router.get("/file/{file_id}", response_model=DocumentResponse)
 @router.get("/file/{file_id}/", response_model=DocumentResponse)
 async def get_document_by_file(
-    file_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
+    file_id: str,
+    document_type: Optional[str] = None,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
     Lấy hoặc tạo document từ file_id
@@ -175,6 +177,10 @@ async def get_document_by_file(
     - **Nếu document đã tồn tại**: Trả về HTML từ MongoDB (fast!)
     - **Nếu document chưa tồn tại**: Download từ R2, parse, tạo mới
 
+    Query Parameters:
+    - document_type: Optional - "doc", "slide", or "note" (default: "doc")
+                     Frontend can specify preferred document type
+    
     Flow:
     1. Check if document exists in MongoDB by file_id
     2. If exists → return from MongoDB
@@ -244,6 +250,9 @@ async def get_document_by_file(
         content_html = text_content.replace("\n", "<br>")
         content_text = text_content
 
+        # Determine document_type: Use frontend value or default to "doc"
+        final_document_type = document_type if document_type in ["doc", "slide", "note"] else "doc"
+
         # Create new document in MongoDB
         new_doc_id = await asyncio.to_thread(
             doc_manager.create_document,
@@ -255,9 +264,12 @@ async def get_document_by_file(
             original_r2_url=file_info["file_url"],
             original_file_type=file_info["file_type"],
             source_type="file",  # This is a file-based document
+            document_type=final_document_type,  # Frontend specified or default "doc"
         )
 
-        logger.info(f"✅ Created new document {new_doc_id} for file {file_id}")
+        logger.info(
+            f"✅ Created new document {new_doc_id} for file {file_id} (type: {final_document_type})"
+        )
 
         # Get the newly created document
         document = await asyncio.to_thread(
