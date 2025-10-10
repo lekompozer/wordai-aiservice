@@ -448,9 +448,7 @@ async def list_documents(
             document_type=document_type,
         )
 
-        logger.info(
-            f"✅ Found {len(documents)} documents for user {user_id[:8]}..."
-        )
+        logger.info(f"✅ Found {len(documents)} documents for user {user_id[:8]}...")
 
         return [
             DocumentListItem(
