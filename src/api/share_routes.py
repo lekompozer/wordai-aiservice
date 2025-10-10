@@ -564,7 +564,7 @@ async def access_shared_file(
             document_manager = DocumentManager(db=db)
 
             document = await asyncio.to_thread(
-                document_manager.get_document_by_id,
+                document_manager.get_document,
                 document_id=file_id,
                 user_id=share.get("owner_id"),
             )
