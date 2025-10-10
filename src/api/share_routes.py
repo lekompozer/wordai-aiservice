@@ -56,6 +56,7 @@ class ShareResponse(BaseModel):
     file_id: str
     file_type: str
     filename: str
+    document_type: Optional[str] = None  # doc/slide/note for documents, null for others
     permission: str
     is_active: bool
     expires_at: Optional[datetime]
@@ -578,6 +579,8 @@ async def access_shared_file(
                 "original_name": document.get("title"),
                 "file_size": document.get("file_size_bytes", 0),
                 "file_type_mime": "text/html",
+                "document_type": document.get("document_type"),  # doc/slide/note
+                "source_type": document.get("source_type", "file"),  # created/file
                 "created_at": document.get("created_at"),
                 "updated_at": document.get("last_saved_at"),
             }

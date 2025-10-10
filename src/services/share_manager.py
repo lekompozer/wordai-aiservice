@@ -173,9 +173,11 @@ class ShareManager:
             share_id = f"share_{uuid.uuid4().hex[:16]}"
             now = datetime.now(timezone.utc)
 
-            # Get filename based on file type
+            # Get filename and document_type based on file type
+            document_type = None
             if file_type == "document":
                 filename = file_doc.get("title", "Untitled Document")
+                document_type = file_doc.get("document_type")  # doc, slide, note
             else:
                 filename = file_doc.get("filename", "Untitled File")
 
@@ -187,6 +189,7 @@ class ShareManager:
                 "file_id": file_id,
                 "file_type": file_type,
                 "filename": filename,
+                "document_type": document_type,  # doc/slide/note for documents, null for others
                 "permission": permission,
                 "is_active": True,
                 "expires_at": expires_at,
