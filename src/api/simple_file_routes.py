@@ -897,16 +897,19 @@ async def get_file(
                                             f"🔍 FRONTEND: Must save to PUT /api/documents/{existing_doc['document_id']}/"
                                         )
                                     else:
-                                        logger.info(
+                                        logger.warning(
                                             f"📝 FILE DEBUG: file_id={file_id} → NO DOCUMENT YET"
                                         )
-                                        logger.info(
+                                        logger.warning(
                                             f"📝 FRONTEND: First time Edit will create new document"
                                         )
                                 except Exception as doc_check_error:
-                                    logger.debug(
-                                        f"Could not check document for file {file_id}: {doc_check_error}"
+                                    logger.error(
+                                        f"❌ ERROR checking document for file {file_id}: {doc_check_error}"
                                     )
+                                    import traceback
+
+                                    logger.error(traceback.format_exc())
 
                                 return FileDownloadResponse(**file_data)
 
