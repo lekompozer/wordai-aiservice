@@ -874,8 +874,10 @@ async def get_file(
                                 # 🔍 Check if this file has been converted to document
                                 doc_manager = get_document_manager()
                                 try:
-                                    existing_doc = doc_manager.get_document_by_file_id(
-                                        file_id, user_id
+                                    existing_doc = await asyncio.to_thread(
+                                        doc_manager.get_document_by_file_id,
+                                        file_id,
+                                        user_id,
                                     )
                                     if existing_doc:
                                         logger.warning(
