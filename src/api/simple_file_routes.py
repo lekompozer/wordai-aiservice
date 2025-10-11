@@ -22,7 +22,6 @@ load_dotenv()
 
 from src.middleware.auth import verify_firebase_token
 from src.services.user_manager import get_user_manager
-from src.services.document_manager import get_document_manager
 
 logger = logging.getLogger(__name__)
 
@@ -872,8 +871,12 @@ async def get_file(
                                 logger.info(f"✅ Found file {file_id}: {filename}")
 
                                 # 🔍 Check if this file has been converted to document
-                                doc_manager = get_document_manager()
                                 try:
+                                    from src.api.document_editor_routes import (
+                                        get_document_manager,
+                                    )
+
+                                    doc_manager = get_document_manager()
                                     existing_doc = await asyncio.to_thread(
                                         doc_manager.get_document_by_file_id,
                                         file_id,
