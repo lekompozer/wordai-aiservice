@@ -242,13 +242,23 @@ async def get_document_by_file(
             f"📥 Downloading file from R2: {file_info.get('file_name', 'unknown')}"
         )
 
-        # Download and parse file from R2
+        # Get r2_key to download directly using boto3 (server has credentials)
+        r2_key = file_info.get("r2_key")
+        if not r2_key:
+            raise HTTPException(
+                status_code=500, detail="File R2 key not found in database"
+            )
+
+        logger.info(
+            f"🔐 Downloading from R2 using boto3 with credentials (key: {r2_key})"
+        )
+
+        # Download and parse file from R2 using r2_key (not URL)
         text_content, temp_file_path = (
-            await FileDownloadService.download_and_parse_file(
-                file_url=file_info["file_url"],
+            await FileDownloadService.download_and_parse_file_from_r2(
+                r2_key=r2_key,
                 file_type=file_info["file_type"],
                 user_id=user_id,
-                provider=None,  # Parse to text for all files
             )
         )
 

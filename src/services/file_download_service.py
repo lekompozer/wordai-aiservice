@@ -8,10 +8,38 @@ import tempfile
 import logging
 import aiohttp
 import asyncio
+import boto3
 from typing import Optional, Tuple
 from pathlib import Path
+from dotenv import load_dotenv
+
+load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# R2 Configuration
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "wordai")
+R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT")
+
+# Initialize R2 client with credentials
+try:
+    if all([R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT_URL]):
+        s3_client = boto3.client(
+            "s3",
+            endpoint_url=R2_ENDPOINT_URL,
+            aws_access_key_id=R2_ACCESS_KEY_ID,
+            aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+            region_name="auto",
+        )
+        logger.info("✅ R2 S3 client initialized for file downloads")
+    else:
+        s3_client = None
+        logger.warning("⚠️ R2 credentials missing - boto3 download will not work")
+except Exception as e:
+    s3_client = None
+    logger.error(f"❌ Failed to initialize R2 client: {e}")
 
 
 class FileDownloadService:
@@ -29,6 +57,65 @@ class FileDownloadService:
 
     # Track temp files per user for cleanup
     _user_temp_files: dict = {}
+
+    @classmethod
+    async def download_and_parse_file_from_r2(
+        cls, r2_key: str, file_type: str, user_id: str
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Download file from R2 using boto3 (with credentials) and parse to text
+
+        Args:
+            r2_key: R2 object key (e.g. "files/user123/root/file_abc/doc.pdf")
+            file_type: File extension (txt, docx, pdf)
+            user_id: User ID for temp file tracking
+
+        Returns:
+            (text_content, temp_file_path) or (None, None) if failed
+        """
+        try:
+            if s3_client is None:
+                logger.error("❌ R2 S3 client not initialized")
+                return None, None
+
+            file_type = file_type.lower().replace(".", "")
+
+            # Cleanup old temp files for this user
+            await cls._cleanup_user_temp_files(user_id)
+
+            # Download file from R2 using boto3
+            logger.info(f"📥 Downloading {file_type.upper()} from R2 key: {r2_key}")
+            temp_file_path = await cls._download_file_from_r2_with_boto3(
+                r2_key, file_type
+            )
+
+            if not temp_file_path:
+                logger.error(f"❌ Failed to download file from R2 key: {r2_key}")
+                return None, None
+
+            # Track temp file for cleanup
+            if user_id not in cls._user_temp_files:
+                cls._user_temp_files[user_id] = []
+            cls._user_temp_files[user_id].append(temp_file_path)
+
+            logger.info(f"✅ Downloaded to: {temp_file_path}")
+
+            # Parse file to text
+            logger.info(f"📝 Parsing {file_type.upper()} to text...")
+            text_content = await cls._parse_file(temp_file_path, file_type)
+
+            if text_content:
+                logger.info(
+                    f"✅ Parsed {len(text_content)} characters from {file_type.upper()}"
+                )
+                return text_content, temp_file_path
+            else:
+                logger.error(f"❌ Failed to parse {file_type.upper()} file")
+                return None, None
+
+        except Exception as e:
+            logger.error(f"❌ Error downloading/parsing file from R2: {e}")
+            return None, None
 
     @classmethod
     async def download_and_parse_file(
@@ -94,6 +181,51 @@ class FileDownloadService:
         except Exception as e:
             logger.error(f"❌ Error downloading/parsing file: {e}")
             return None, None
+
+    @classmethod
+    async def _download_file_from_r2_with_boto3(
+        cls, r2_key: str, file_type: str
+    ) -> Optional[str]:
+        """
+        Download file from R2 using boto3 with credentials
+
+        Args:
+            r2_key: R2 object key
+            file_type: File extension for temp file
+
+        Returns:
+            Path to downloaded temp file
+        """
+        try:
+            if s3_client is None:
+                logger.error("❌ R2 S3 client not available")
+                return None
+
+            # Create temp file
+            temp_dir = tempfile.gettempdir()
+            temp_file = tempfile.NamedTemporaryFile(
+                delete=False, suffix=f".{file_type}", dir=temp_dir
+            )
+            temp_file_path = temp_file.name
+            temp_file.close()
+
+            # Download from R2 using boto3 (with credentials from env)
+            logger.info(f"🔐 Downloading from R2 bucket: {R2_BUCKET_NAME}")
+
+            # Run boto3 download in thread (boto3 is synchronous)
+            await asyncio.to_thread(
+                s3_client.download_file,
+                R2_BUCKET_NAME,
+                r2_key,
+                temp_file_path,
+            )
+
+            logger.info(f"✅ Downloaded {os.path.getsize(temp_file_path)} bytes")
+            return temp_file_path
+
+        except Exception as e:
+            logger.error(f"❌ Error downloading from R2 with boto3: {e}")
+            return None
 
     @classmethod
     async def _download_file(cls, url: str, file_type: str) -> Optional[str]:
