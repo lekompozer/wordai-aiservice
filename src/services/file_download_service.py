@@ -304,26 +304,67 @@ class FileDownloadService:
 
     @classmethod
     async def _parse_docx(cls, file_path: str) -> Optional[str]:
-        """Parse DOCX file using python-docx"""
+        """Parse DOCX file using python-docx with page breaks and font info"""
         try:
             from docx import Document
+            from docx.oxml.text.paragraph import CT_P
+            from docx.oxml.ns import qn
 
             doc = Document(file_path)
 
-            # Extract text from paragraphs
+            # Extract text from paragraphs with page break detection
             text_parts = []
+            current_page = []
+            page_num = 1
+
             for paragraph in doc.paragraphs:
+                # Check for page break
+                if paragraph._element.xpath('.//w:br[@w:type="page"]'):
+                    # End current page
+                    if current_page:
+                        text_parts.append(
+                            f"[PAGE {page_num}]\n" + "\n".join(current_page)
+                        )
+                        page_num += 1
+                        current_page = []
+
                 if paragraph.text.strip():
-                    text_parts.append(paragraph.text)
+                    # Try to get font size from first run
+                    font_size = None
+                    if paragraph.runs:
+                        first_run = paragraph.runs[0]
+                        if first_run.font.size:
+                            # Font size in points
+                            font_size = first_run.font.size.pt
+
+                    # Format with font size if available
+                    if font_size:
+                        current_page.append(
+                            f'<span style="font-size: {font_size}pt;">{paragraph.text}</span>'
+                        )
+                    else:
+                        current_page.append(paragraph.text)
+
+            # Add last page
+            if current_page:
+                text_parts.append(f"[PAGE {page_num}]\n" + "\n".join(current_page))
 
             # Extract text from tables
+            table_text = []
             for table in doc.tables:
                 for row in table.rows:
                     for cell in row.cells:
                         if cell.text.strip():
-                            text_parts.append(cell.text)
+                            table_text.append(cell.text)
 
-            return "\n".join(text_parts)
+            if table_text:
+                text_parts.append("\n".join(table_text))
+
+            return (
+                "\n\n[PAGE_BREAK]\n\n".join(text_parts)
+                if len(text_parts) > 1
+                else "\n".join(text_parts)
+            )
 
         except ImportError:
             logger.error("❌ python-docx not installed. Run: pip install python-docx")
@@ -340,14 +381,15 @@ class FileDownloadService:
 
             reader = PdfReader(file_path)
 
-            # Extract text from all pages
+            # Extract text from all pages with page markers
             text_parts = []
-            for page_num, page in enumerate(reader.pages):
+            for page_num, page in enumerate(reader.pages, 1):
                 text = page.extract_text()
                 if text.strip():
-                    text_parts.append(text)
+                    # Add page marker for document type formatting
+                    text_parts.append(f"[PAGE {page_num}]\n{text}")
 
-            return "\n".join(text_parts)
+            return "\n\n[PAGE_BREAK]\n\n".join(text_parts)
 
         except ImportError:
             logger.error("❌ PyPDF2 not installed. Run: pip install PyPDF2")

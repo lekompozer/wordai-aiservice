@@ -29,6 +29,167 @@ _document_manager = None
 _user_manager = None
 
 
+def format_content_for_document_type(text_content: str, document_type: str) -> str:
+    """
+    Format text content to HTML with appropriate styling for document type
+
+    Args:
+        text_content: Plain text content (with [PAGE_BREAK] markers from PDF parser)
+        document_type: "doc", "slide", or "note"
+
+    Returns:
+        Formatted HTML with document-type-specific wrapper and styling
+    """
+    # Split by page breaks if present (from PDF/Word)
+    if "[PAGE_BREAK]" in text_content:
+        pages = text_content.split("[PAGE_BREAK]")
+    else:
+        # No page breaks - treat as single page
+        pages = [text_content]
+
+    if document_type == "doc":
+        # Standard document: A4 size, preserve pages
+        html_parts = [
+            '<div class="document-content" style="max-width: 210mm; margin: 0 auto; padding: 20mm; background: white;">'
+        ]
+
+        for page_num, page_content in enumerate(pages, 1):
+            # Remove [PAGE X] markers
+            clean_content = page_content.replace(f"[PAGE {page_num}]", "").strip()
+
+            if not clean_content:
+                continue
+
+            # Add page container
+            html_parts.append(f'<div class="page" data-page="{page_num}">')
+
+            # Split into paragraphs
+            paragraphs = clean_content.split("\n\n")
+            for para in paragraphs:
+                if para.strip():
+                    # Preserve inline HTML tags (like <span style="font-size...">) from DOCX
+                    # Replace newlines with <br> but keep existing HTML
+                    para_html = para.replace("\n", "<br>")
+                    html_parts.append(
+                        f'<p style="margin-bottom: 1em; line-height: 1.6;">{para_html}</p>'
+                    )
+
+            html_parts.append("</div>")  # Close page div
+
+            # Add page break separator (except for last page)
+            if page_num < len(pages):
+                html_parts.append(
+                    '<div class="page-break" style="page-break-after: always; margin: 2em 0; border-top: 2px dashed #ccc;"></div>'
+                )
+
+        html_parts.append("</div>")
+        return "\n".join(html_parts)
+
+    elif document_type == "slide":
+        # Presentation slides: Each page = 1 slide, 16:9 Full HD (1920x1080)
+        html_parts = []
+
+        for slide_num, page_content in enumerate(pages, 1):
+            # Remove [PAGE X] markers
+            clean_content = page_content.replace(f"[PAGE {slide_num}]", "").strip()
+
+            if not clean_content:
+                continue
+
+            # Split into paragraphs
+            paragraphs = [p.strip() for p in clean_content.split("\n\n") if p.strip()]
+
+            # First paragraph = title, rest = content
+            title = paragraphs[0] if paragraphs else f"Slide {slide_num}"
+            content_paras = paragraphs[1:] if len(paragraphs) > 1 else []
+
+            # Create slide
+            html_parts.append(
+                f'<div class="slide" data-slide="{slide_num}" style="'
+                f"width: 100%; aspect-ratio: 16/9; max-width: 1920px; margin: 2em auto; "
+                f"padding: 3em; background: white; border: 1px solid #ddd; "
+                f'display: flex; flex-direction: column; justify-content: center; align-items: center;">'
+            )
+
+            # Add title
+            html_parts.append(
+                f'<h2 style="font-size: 2em; margin-bottom: 0.5em; text-align: center;">{title}</h2>'
+            )
+
+            # Add content
+            for para in content_paras:
+                para_html = para.replace("\n", "<br>")
+                html_parts.append(
+                    f'<p style="font-size: 1.2em; line-height: 1.8; text-align: center; max-width: 90%;">{para_html}</p>'
+                )
+
+            html_parts.append("</div>")
+
+        return (
+            "\n".join(html_parts)
+            if html_parts
+            else '<div class="slide" style="width: 100%; aspect-ratio: 16/9; max-width: 1920px; margin: 2em auto; padding: 3em; background: white; display: flex; justify-content: center; align-items: center;"><p>Empty slide</p></div>'
+        )
+
+        return (
+            "\n".join(html_parts)
+            if html_parts
+            else '<div class="slide" style="width: 100%; aspect-ratio: 16/9; max-width: 1280px; margin: 2em auto; padding: 3em; background: white; display: flex; justify-content: center; align-items: center;"><p>Empty slide</p></div>'
+        )
+
+    elif document_type == "note":
+        # Quick notes: Compact layout, merge all pages, detect bullet points
+        # Remove page markers and merge all content
+        clean_content = text_content
+        for page_num in range(1, 100):  # Remove up to 100 page markers
+            clean_content = clean_content.replace(f"[PAGE {page_num}]", "")
+        clean_content = clean_content.replace("[PAGE_BREAK]", "\n\n")
+
+        html_parts = [
+            '<div class="note-content" style="max-width: 800px; margin: 0 auto; padding: 1em; background: #fffef0; border-left: 4px solid #ffd700;">'
+        ]
+
+        paragraphs = clean_content.split("\n\n")
+        for para in paragraphs:
+            if para.strip():
+                # Check if it's a list item (starts with -, *, or number)
+                lines = para.split("\n")
+                has_list_items = any(
+                    line.strip().startswith(("-", "*", "•"))
+                    or (line.strip() and line.strip()[0].isdigit() and ". " in line[:5])
+                    for line in lines
+                )
+
+                if has_list_items:
+                    # Format as list
+                    html_parts.append(
+                        '<ul style="margin: 0.5em 0; padding-left: 1.5em;">'
+                    )
+                    for line in lines:
+                        if line.strip():
+                            # Remove list markers
+                            clean_line = line.strip().lstrip("-*•").strip()
+                            if clean_line and clean_line[0].isdigit():
+                                clean_line = clean_line.split(". ", 1)[-1]
+                            html_parts.append(
+                                f'<li style="margin: 0.3em 0;">{clean_line}</li>'
+                            )
+                    html_parts.append("</ul>")
+                else:
+                    # Regular paragraph
+                    para_html = para.replace("\n", "<br>")
+                    html_parts.append(
+                        f'<p style="margin: 0.5em 0; line-height: 1.5;">{para_html}</p>'
+                    )
+
+        html_parts.append("</div>")
+        return "\n".join(html_parts)
+
+    else:
+        # Fallback: simple conversion
+        return text_content.replace("\n", "<br>")
+
+
 def get_document_manager() -> DocumentManager:
     """Get or create DocumentManager instance"""
     global _document_manager
@@ -265,14 +426,20 @@ async def get_document_by_file(
         if not text_content:
             raise HTTPException(status_code=500, detail="Failed to parse file content")
 
-        # Convert text to HTML (basic conversion with line breaks)
-        # Frontend Tiptap editor will enhance this
-        content_html = text_content.replace("\n", "<br>")
-        content_text = text_content
-
         # Determine document_type: Use frontend value or default to "doc"
         final_document_type = (
             document_type if document_type in ["doc", "slide", "note"] else "doc"
+        )
+
+        # Convert text to HTML with document-type-specific formatting
+        logger.info(f"📝 Formatting content for document type: {final_document_type}")
+        content_html = format_content_for_document_type(
+            text_content, final_document_type
+        )
+        content_text = text_content
+
+        logger.info(
+            f"✅ Generated HTML: {len(content_html)} chars for {final_document_type}"
         )
 
         # Create new document in MongoDB
