@@ -203,7 +203,7 @@ async def get_document_by_file(
 
         if document:
             logger.info(f"📄 Loaded existing document for file {file_id} from MongoDB")
-            return DocumentResponse(
+            response = DocumentResponse(
                 document_id=document["document_id"],
                 title=document["title"],
                 content_html=document["content_html"],
@@ -216,6 +216,16 @@ async def get_document_by_file(
                 document_type=document.get("document_type"),
                 file_id=document.get("file_id"),
             )
+
+            logger.warning(
+                f"🔍 FRONTEND DEBUG: File {file_id} → Document ID is: {response.document_id}"
+            )
+            logger.warning(
+                f"🔍 FRONTEND MUST SAVE TO: PUT /api/documents/{response.document_id}/"
+            )
+            logger.warning(f"🔍 NOT: PUT /api/documents/{file_id}/")
+
+            return response
 
         # Step 2: Document doesn't exist - this is first time opening
         logger.info(f"📥 First time opening file {file_id}, creating new document...")
@@ -278,7 +288,7 @@ async def get_document_by_file(
             doc_manager.get_document, new_doc_id, user_id
         )
 
-        return DocumentResponse(
+        response = DocumentResponse(
             document_id=document["document_id"],
             title=document["title"],
             content_html=document["content_html"],
@@ -291,6 +301,16 @@ async def get_document_by_file(
             document_type=document.get("document_type"),
             file_id=document.get("file_id"),
         )
+
+        logger.warning(
+            f"🔍 FRONTEND DEBUG: File {file_id} → Document ID is: {response.document_id}"
+        )
+        logger.warning(
+            f"🔍 FRONTEND MUST SAVE TO: PUT /api/documents/{response.document_id}/"
+        )
+        logger.warning(f"🔍 NOT: PUT /api/documents/{file_id}/")
+
+        return response
 
     except HTTPException:
         raise

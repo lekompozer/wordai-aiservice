@@ -22,6 +22,7 @@ load_dotenv()
 
 from src.middleware.auth import verify_firebase_token
 from src.services.user_manager import get_user_manager
+from src.services.document_manager import get_document_manager
 
 logger = logging.getLogger(__name__)
 
@@ -869,6 +870,39 @@ async def get_file(
                                 }
 
                                 logger.info(f"✅ Found file {file_id}: {filename}")
+
+                                # 🔍 Check if this file has been converted to document
+                                doc_manager = get_document_manager()
+                                try:
+                                    existing_doc = doc_manager.get_document_by_file_id(
+                                        file_id, user_id
+                                    )
+                                    if existing_doc:
+                                        logger.warning(
+                                            f"🔍 FILE DEBUG: file_id={file_id} → "
+                                            f"DOCUMENT EXISTS: {existing_doc['document_id']}"
+                                        )
+                                        logger.warning(
+                                            f"🔍 FRONTEND: If user clicks Edit, call GET /api/documents/file/{file_id}"
+                                        )
+                                        logger.warning(
+                                            f"🔍 FRONTEND: Response will have document_id={existing_doc['document_id']}"
+                                        )
+                                        logger.warning(
+                                            f"🔍 FRONTEND: Must save to PUT /api/documents/{existing_doc['document_id']}/"
+                                        )
+                                    else:
+                                        logger.info(
+                                            f"📝 FILE DEBUG: file_id={file_id} → NO DOCUMENT YET"
+                                        )
+                                        logger.info(
+                                            f"📝 FRONTEND: First time Edit will create new document"
+                                        )
+                                except Exception as doc_check_error:
+                                    logger.debug(
+                                        f"Could not check document for file {file_id}: {doc_check_error}"
+                                    )
+
                                 return FileDownloadResponse(**file_data)
 
             # File not found
