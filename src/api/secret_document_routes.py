@@ -1,0 +1,844 @@
+"""
+Secret Documents API Routes - CRUD Operations
+E2EE secret document management
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Dict, Any, Optional, List
+from pydantic import BaseModel
+import logging
+import asyncio
+
+from src.middleware.auth import verify_firebase_token
+from src.services.secret_document_manager import SecretDocumentManager
+from src.database.db_manager import DBManager
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/secret-documents", tags=["E2EE - Secret Documents"])
+
+# Global instance
+_secret_document_manager = None
+
+
+def get_secret_document_manager() -> SecretDocumentManager:
+    """Get or create SecretDocumentManager instance"""
+    global _secret_document_manager
+    if _secret_document_manager is None:
+        db_manager = DBManager()
+        _secret_document_manager = SecretDocumentManager(db_manager.db)
+        logger.info("✅ SecretDocumentManager initialized")
+    return _secret_document_manager
+
+
+# ============ PYDANTIC MODELS ============
+
+
+class CreateSecretDocumentRequest(BaseModel):
+    title: str
+    documentType: str  # "doc" | "slide" | "note"
+    encryptedContent: str  # Base64 AES-256-GCM encrypted HTML
+    encryptionIv: str  # Base64 IV
+    encryptedFileKey: str  # Base64 RSA-OAEP encrypted file key
+    folderId: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class ConvertDocumentRequest(BaseModel):
+    encryptedContent: str
+    encryptionIv: str
+    encryptedFileKey: str  # Owner's encrypted file key
+    conversionAction: str  # "keep_shares" | "remove_shares"
+    shareEncryptedFileKeys: Optional[Dict[str, str]] = None  # {user_id: encrypted_key}
+
+
+class UpdateSecretContentRequest(BaseModel):
+    encryptedContent: str
+    encryptionIv: str
+
+
+class UpdateSecretMetadataRequest(BaseModel):
+    title: Optional[str] = None
+    folderId: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+
+class ShareSecretDocumentRequest(BaseModel):
+    recipientId: str
+    encryptedFileKeyForRecipient: str  # File key encrypted with recipient's public key
+
+
+# ============ CREATE ============
+
+
+@router.post("/create")
+async def create_secret_document(
+    request: CreateSecretDocumentRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Create new E2EE secret document
+
+    Client flow:
+    1. User creates content in editor
+    2. Generate random AES-256 file key
+    3. Encrypt content with file key (AES-256-GCM)
+    4. Encrypt file key with user's public RSA key
+    5. Send encrypted content + encrypted file key to server
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Body:
+        {
+            "title": "My Secret Document",
+            "documentType": "doc" | "slide" | "note",
+            "encryptedContent": "base64_encrypted_html",
+            "encryptionIv": "base64_iv",
+            "encryptedFileKey": "base64_rsa_encrypted_key",
+            "folderId": "folder_123" (optional),
+            "tags": ["personal", "work"] (optional)
+        }
+
+    Returns:
+        {
+            "success": true,
+            "secret_id": "secret_abc123",
+            "message": "Secret document created successfully"
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        logger.info(f"🔐 Creating secret document '{request.title}' for user {user_id}")
+
+        # Validate document type
+        if request.documentType not in ["doc", "slide", "note"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid document type. Must be 'doc', 'slide', or 'note'",
+            )
+
+        # Create secret document
+        secret_doc = await asyncio.to_thread(
+            manager.create_secret_document,
+            owner_id=user_id,
+            title=request.title,
+            document_type=request.documentType,
+            encrypted_content=request.encryptedContent,
+            encryption_iv=request.encryptionIv,
+            encrypted_file_key=request.encryptedFileKey,
+            folder_id=request.folderId,
+            tags=request.tags,
+        )
+
+        logger.info(
+            f"✅ Created secret document {secret_doc['secret_id']} for user {user_id}"
+        )
+
+        return {
+            "success": True,
+            "secret_id": secret_doc["secret_id"],
+            "message": "Secret document created successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error creating secret document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ CONVERT ============
+
+
+@router.post("/convert/{document_id}")
+async def convert_document_to_secret(
+    document_id: str,
+    request: ConvertDocumentRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Convert existing document to E2EE secret document
+
+    Client flow:
+    1. User clicks "Convert to Secret" on existing document
+    2. Fetch document content
+    3. Generate random AES-256 file key
+    4. Encrypt content with file key
+    5. Encrypt file key with owner's public key
+    6. If keeping shares:
+       a. Get shared users' public keys
+       b. Encrypt file key with each recipient's public key
+    7. Send encrypted content + all encrypted keys
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Body:
+        {
+            "encryptedContent": "base64_encrypted_html",
+            "encryptionIv": "base64_iv",
+            "encryptedFileKey": "base64_owner_encrypted_key",
+            "conversionAction": "keep_shares" | "remove_shares",
+            "shareEncryptedFileKeys": {
+                "user_123": "base64_encrypted_key",
+                "user_456": "base64_encrypted_key"
+            } (optional, required if conversionAction is "keep_shares")
+        }
+
+    Returns:
+        {
+            "success": true,
+            "secret_id": "secret_abc123",
+            "original_document_id": "doc_xyz",
+            "conversion_action": "keep_shares",
+            "shared_with_count": 2,
+            "message": "Document converted to secret successfully"
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        logger.info(
+            f"🔐 Converting document {document_id} to secret "
+            f"(action: {request.conversionAction})"
+        )
+
+        # Validate conversion action
+        if request.conversionAction not in ["keep_shares", "remove_shares"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid conversion action. Must be 'keep_shares' or 'remove_shares'",
+            )
+
+        # If keeping shares, must provide encrypted keys
+        if request.conversionAction == "keep_shares":
+            if not request.shareEncryptedFileKeys:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Must provide shareEncryptedFileKeys when keeping shares",
+                )
+
+        # Convert document
+        secret_doc = await asyncio.to_thread(
+            manager.convert_document_to_secret,
+            document_id=document_id,
+            owner_id=user_id,
+            encrypted_content=request.encryptedContent,
+            encryption_iv=request.encryptionIv,
+            encrypted_file_key=request.encryptedFileKey,
+            conversion_action=request.conversionAction,
+            share_encrypted_file_keys=request.shareEncryptedFileKeys,
+        )
+
+        logger.info(
+            f"✅ Converted document {document_id} to secret {secret_doc['secret_id']}"
+        )
+
+        return {
+            "success": True,
+            "secret_id": secret_doc["secret_id"],
+            "original_document_id": document_id,
+            "conversion_action": request.conversionAction,
+            "shared_with_count": len(secret_doc.get("shared_with", [])),
+            "message": "Document converted to secret successfully",
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error converting document to secret: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ READ ============
+
+
+@router.get("/{secret_id}")
+async def get_secret_document(
+    secret_id: str,
+    request: Request,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Get E2EE secret document
+
+    Client flow:
+    1. Fetch encrypted document from server
+    2. Get user's encrypted private key
+    3. User enters master password
+    4. Decrypt private key with master password
+    5. Decrypt file key with private key
+    6. Decrypt content with file key
+    7. Display decrypted content
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Returns:
+        {
+            "secret_id": "secret_abc123",
+            "owner_id": "user_123",
+            "title": "My Secret Document",
+            "document_type": "doc",
+            "source": "created" | "converted",
+            "encrypted_content": "base64_encrypted_html",
+            "encryption_iv": "base64_iv",
+            "user_encrypted_file_key": "base64_rsa_encrypted_key",
+            "folder_id": "folder_123",
+            "tags": ["personal"],
+            "created_at": "2025-10-12T...",
+            "updated_at": "2025-10-12T...",
+            "last_accessed_at": "2025-10-12T...",
+            "shared_with": ["user_456"],
+            "access_type": "owner" | "shared",
+            "converted_from_document_id": "doc_xyz" (if converted)
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        secret_doc = await asyncio.to_thread(
+            manager.get_secret_document, secret_id, user_id
+        )
+
+        if not secret_doc:
+            raise HTTPException(
+                status_code=404,
+                detail="Secret document not found or access denied",
+            )
+
+        # Add access type
+        secret_doc["access_type"] = (
+            "owner" if secret_doc["owner_id"] == user_id else "shared"
+        )
+
+        # Convert datetime to ISO string
+        for field in ["created_at", "updated_at", "last_accessed_at"]:
+            if field in secret_doc and secret_doc[field]:
+                secret_doc[field] = secret_doc[field].isoformat()
+
+        return secret_doc
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting secret document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ UPDATE CONTENT ============
+
+
+@router.put("/{secret_id}")
+async def update_secret_content(
+    secret_id: str,
+    request: UpdateSecretContentRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Update E2EE secret document content
+    Only owner can update content
+
+    Client flow:
+    1. User edits content in editor
+    2. Encrypt new content with same file key
+    3. Send encrypted content + new IV to server
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Body:
+        {
+            "encryptedContent": "base64_encrypted_html",
+            "encryptionIv": "base64_new_iv"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Secret document updated successfully"
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        success = await asyncio.to_thread(
+            manager.update_secret_document,
+            secret_id=secret_id,
+            user_id=user_id,
+            encrypted_content=request.encryptedContent,
+            encryption_iv=request.encryptionIv,
+        )
+
+        if success:
+            logger.info(f"✅ Updated secret document {secret_id}")
+            return {
+                "success": True,
+                "message": "Secret document updated successfully",
+            }
+        else:
+            raise HTTPException(
+                status_code=400, detail="Failed to update secret document"
+            )
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating secret document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ UPDATE METADATA ============
+
+
+@router.patch("/{secret_id}/metadata")
+async def update_secret_metadata(
+    secret_id: str,
+    request: UpdateSecretMetadataRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Update secret document metadata (title, folder, tags)
+    Only owner can update metadata
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Body:
+        {
+            "title": "New Title" (optional),
+            "folderId": "folder_456" (optional),
+            "tags": ["updated", "tags"] (optional)
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Metadata updated successfully"
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        success = await asyncio.to_thread(
+            manager.update_secret_metadata,
+            secret_id=secret_id,
+            user_id=user_id,
+            title=request.title,
+            folder_id=request.folderId,
+            tags=request.tags,
+        )
+
+        if success:
+            return {
+                "success": True,
+                "message": "Metadata updated successfully",
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Failed to update metadata")
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating metadata: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ LIST ============
+
+
+@router.get("")
+async def list_secret_documents(
+    folderId: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    List user's secret documents (owned or shared)
+    Does NOT return encrypted content (for listing UI)
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Query params:
+        folderId: Filter by folder (optional)
+        skip: Pagination offset (default 0)
+        limit: Page size (default 50, max 100)
+
+    Returns:
+        {
+            "documents": [
+                {
+                    "secret_id": "secret_abc123",
+                    "title": "My Secret Document",
+                    "document_type": "doc",
+                    "source": "created",
+                    "owner_id": "user_123",
+                    "folder_id": "folder_123",
+                    "tags": ["personal"],
+                    "created_at": "2025-10-12T...",
+                    "updated_at": "2025-10-12T...",
+                    "access_type": "owner" | "shared",
+                    "shared_with": ["user_456"]
+                }
+            ],
+            "total": 10,
+            "skip": 0,
+            "limit": 50
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        # Limit max page size
+        limit = min(limit, 100)
+
+        documents = await asyncio.to_thread(
+            manager.list_secret_documents,
+            user_id=user_id,
+            folder_id=folderId,
+            skip=skip,
+            limit=limit,
+        )
+
+        # Convert datetime to ISO string
+        for doc in documents:
+            for field in ["created_at", "updated_at", "last_accessed_at"]:
+                if field in doc and doc[field]:
+                    doc[field] = doc[field].isoformat()
+
+        return {
+            "documents": documents,
+            "total": len(documents),
+            "skip": skip,
+            "limit": limit,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error listing secret documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/shared-with-me")
+async def list_shared_secret_documents(
+    skip: int = 0,
+    limit: int = 50,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    List secret documents shared with me
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Returns: Same format as list_secret_documents
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        limit = min(limit, 100)
+
+        documents = await asyncio.to_thread(
+            manager.list_shared_with_me,
+            user_id=user_id,
+            skip=skip,
+            limit=limit,
+        )
+
+        # Convert datetime
+        for doc in documents:
+            for field in ["created_at", "updated_at", "last_accessed_at"]:
+                if field in doc and doc[field]:
+                    doc[field] = doc[field].isoformat()
+
+        return {
+            "documents": documents,
+            "total": len(documents),
+            "skip": skip,
+            "limit": limit,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error listing shared documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ TRASH ============
+
+
+@router.delete("/{secret_id}/trash")
+async def trash_secret_document(
+    secret_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Move secret document to trash (soft delete)
+    Only owner can trash
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Returns:
+        {
+            "success": true,
+            "message": "Secret document moved to trash"
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        success = await asyncio.to_thread(
+            manager.trash_secret_document,
+            secret_id=secret_id,
+            user_id=user_id,
+        )
+
+        if success:
+            logger.info(f"✅ Trashed secret document {secret_id}")
+            return {
+                "success": True,
+                "message": "Secret document moved to trash",
+            }
+        else:
+            raise HTTPException(
+                status_code=400, detail="Failed to trash secret document"
+            )
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error trashing secret document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ SHARING ============
+
+
+@router.post("/{secret_id}/share")
+async def share_secret_document(
+    secret_id: str,
+    request: ShareSecretDocumentRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Share E2EE secret document with another user
+
+    Client flow:
+    1. User enters recipient email/ID
+    2. Get recipient's public key from server
+    3. Decrypt file key with own private key
+    4. Encrypt file key with recipient's public key
+    5. Send encrypted file key to server
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Body:
+        {
+            "recipientId": "user_456",
+            "encryptedFileKeyForRecipient": "base64_rsa_encrypted_key"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Secret document shared successfully",
+            "recipient_id": "user_456"
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        success = await asyncio.to_thread(
+            manager.share_secret_document,
+            secret_id=secret_id,
+            owner_id=user_id,
+            recipient_id=request.recipientId,
+            encrypted_file_key_for_recipient=request.encryptedFileKeyForRecipient,
+        )
+
+        if success:
+            logger.info(
+                f"✅ Shared secret document {secret_id} with {request.recipientId}"
+            )
+            return {
+                "success": True,
+                "message": "Secret document shared successfully",
+                "recipient_id": request.recipientId,
+            }
+        else:
+            raise HTTPException(
+                status_code=400, detail="Failed to share secret document"
+            )
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error sharing secret document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{secret_id}/revoke-share/{user_id_to_revoke}")
+async def revoke_secret_share(
+    secret_id: str,
+    user_id_to_revoke: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Revoke access to E2EE secret document
+    Only owner can revoke
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Returns:
+        {
+            "success": true,
+            "message": "Access revoked successfully",
+            "revoked_user_id": "user_456"
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        success = await asyncio.to_thread(
+            manager.revoke_secret_share,
+            secret_id=secret_id,
+            owner_id=user_id,
+            user_id_to_revoke=user_id_to_revoke,
+        )
+
+        if success:
+            logger.info(
+                f"✅ Revoked access to {secret_id} from user {user_id_to_revoke}"
+            )
+            return {
+                "success": True,
+                "message": "Access revoked successfully",
+                "revoked_user_id": user_id_to_revoke,
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Failed to revoke access")
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error revoking access: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ AUDIT LOGS ============
+
+
+@router.get("/{secret_id}/access-logs")
+async def get_access_logs(
+    secret_id: str,
+    limit: int = 100,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Get access logs for secret document
+    Only owner can view logs
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Query params:
+        limit: Max logs to return (default 100, max 500)
+
+    Returns:
+        {
+            "logs": [
+                {
+                    "log_id": "log_abc123",
+                    "secret_id": "secret_abc123",
+                    "user_id": "user_123",
+                    "action": "read" | "update" | "share" | "revoke" | "create" | "convert",
+                    "timestamp": "2025-10-12T...",
+                    "ip_address": "192.168.1.1",
+                    "user_agent": "Mozilla/5.0...",
+                    "metadata": {}
+                }
+            ],
+            "total": 10
+        }
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        limit = min(limit, 500)
+
+        logs = await asyncio.to_thread(
+            manager.get_access_logs,
+            secret_id=secret_id,
+            owner_id=user_id,
+            limit=limit,
+        )
+
+        # Convert datetime
+        for log in logs:
+            if "timestamp" in log and log["timestamp"]:
+                log["timestamp"] = log["timestamp"].isoformat()
+
+        return {
+            "logs": logs,
+            "total": len(logs),
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting access logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ INITIALIZE INDEXES ============
+
+
+@router.post("/initialize-indexes")
+async def initialize_indexes(
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Initialize database indexes for secret documents
+    Admin only - called once on first deployment
+    """
+    manager = get_secret_document_manager()
+
+    try:
+        await asyncio.to_thread(manager.create_indexes)
+        return {
+            "success": True,
+            "message": "Secret document indexes created successfully",
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error creating indexes: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

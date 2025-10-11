@@ -79,6 +79,12 @@ from src.api.hybrid_search.hybrid_search_routes import router as hybrid_search_r
 # ✅ ADDED: Firebase Authentication API for user management
 from src.api.auth_routes import router as auth_router
 
+# ✅ ADDED: E2EE Secret Documents - Key Management API
+from src.api.secret_key_routes import router as secret_key_router
+
+# ✅ ADDED: E2EE Secret Documents - CRUD API
+from src.api.secret_document_routes import router as secret_document_router
+
 # Authentication API
 # from src.api.auth_routes import router as auth_router
 
@@ -411,6 +417,12 @@ def create_app() -> FastAPI:
 
     # ✅ Authentication endpoints - Firebase auth for user management
     app.include_router(auth_router, tags=["Firebase Authentication"])
+
+    # ✅ E2EE Secret Documents - Key Management endpoints
+    app.include_router(secret_key_router, tags=["E2EE - Key Management"])
+
+    # ✅ E2EE Secret Documents - CRUD endpoints
+    app.include_router(secret_document_router, tags=["E2EE - Secret Documents"])
 
     # Health and status endpoints
     app.include_router(health_router, tags=["Health"])
