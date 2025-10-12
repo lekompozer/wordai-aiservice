@@ -197,8 +197,7 @@ class KeyManager:
                 {"user_id": user_id},
                 {
                     "$set": {
-                        "encryptedPrivateKeyWithRecoveryKey": encrypted_private_key_with_recovery,
-                        "hasRecoveryKey": True,
+                        "encryptedPrivateKeyWithRecovery": encrypted_private_key_with_recovery,
                         "recoveryKeySetAt": datetime.utcnow(),
                     }
                 },
@@ -234,15 +233,14 @@ class KeyManager:
             user = self.users.find_one(
                 {"user_id": user_id},
                 {
-                    "encryptedPrivateKeyWithRecoveryKey": 1,
-                    "hasRecoveryKey": 1,
+                    "encryptedPrivateKeyWithRecovery": 1,
                 },
             )
 
-            if user and user.get("hasRecoveryKey"):
+            if user and user.get("encryptedPrivateKeyWithRecovery"):
                 return {
                     "encrypted_private_key_with_recovery": user[
-                        "encryptedPrivateKeyWithRecoveryKey"
+                        "encryptedPrivateKeyWithRecovery"
                     ]
                 }
             else:
@@ -282,8 +280,12 @@ class KeyManager:
             bool: True if recovery key exists
         """
         try:
-            user = self.users.find_one({"user_id": user_id}, {"hasRecoveryKey": 1})
-            return user is not None and user.get("hasRecoveryKey", False)
+            user = self.users.find_one(
+                {"user_id": user_id}, {"encryptedPrivateKeyWithRecovery": 1}
+            )
+            return user is not None and bool(
+                user.get("encryptedPrivateKeyWithRecovery")
+            )
 
         except Exception as e:
             logger.error(f"❌ Error checking recovery key status: {e}")

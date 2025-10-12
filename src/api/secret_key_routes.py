@@ -332,6 +332,64 @@ async def setup_recovery_key(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/recovery-key-backup")
+async def get_recovery_key_backup(
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Get private key encrypted with recovery key (for account recovery)
+
+    Used when user forgets Master Password and wants to recover using 24-word mnemonic.
+
+    Flow:
+    1. User enters 24-word recovery mnemonic
+    2. Frontend validates mnemonic (BIP39)
+    3. Call this endpoint to get encrypted backup
+    4. Frontend derives recovery key from mnemonic
+    5. Frontend decrypts Private Key
+    6. User sets new Master Password
+    7. Frontend re-encrypts Private Key with new password
+    8. Call /update-password to update server
+
+    Returns:
+        encryptedPrivateKeyWithRecovery: str (base64)
+
+    Raises:
+        404: No recovery key backup found
+    """
+    user_id = user_data.get("uid")
+    key_manager = get_key_manager()
+
+    try:
+        logger.info(f"🔑 User {user_id} requesting recovery key backup")
+
+        # Get recovery backup from database
+        result = await asyncio.to_thread(
+            key_manager.users.find_one,
+            {"user_id": user_id},
+            {"encryptedPrivateKeyWithRecovery": 1},
+        )
+
+        if not result or "encryptedPrivateKeyWithRecovery" not in result:
+            logger.warning(f"⚠️ No recovery key backup found for user {user_id}")
+            raise HTTPException(
+                status_code=404,
+                detail="No recovery key backup found. Please set up recovery key first or contact support.",
+            )
+
+        logger.info(f"✅ Recovery key backup retrieved for user {user_id}")
+
+        return {
+            "encryptedPrivateKeyWithRecovery": result["encryptedPrivateKeyWithRecovery"]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting recovery backup: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/recovery-status")
 async def get_recovery_status(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
@@ -387,18 +445,22 @@ async def get_key_status(
             )
 
         # Get user data
-        user_data_doc = key_manager.users.find_one(
+        user_data_doc = await asyncio.to_thread(
+            key_manager.users.find_one,
             {"user_id": user_id},
             {
-                "hasRecoveryKey": 1,
+                "encryptedPrivateKeyWithRecovery": 1,
                 "keysRegisteredAt": 1,
                 "lastKeyUpdate": 1,
             },
         )
 
+        # Check if recovery key exists
+        has_recovery_key = bool(user_data_doc.get("encryptedPrivateKeyWithRecovery"))
+
         return KeyStatusResponse(
             hasKeys=True,
-            hasRecoveryKey=user_data_doc.get("hasRecoveryKey", False),
+            hasRecoveryKey=has_recovery_key,
             keysRegisteredAt=(
                 user_data_doc["keysRegisteredAt"].isoformat()
                 if user_data_doc.get("keysRegisteredAt")
