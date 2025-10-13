@@ -222,11 +222,8 @@ if [ "$MIGRATION_NEEDED" -gt 0 ]; then
     echo ""
 
     # Run migration script inside container with production environment
-    # Note: Script will auto-confirm in non-interactive mode
-    docker exec -e ENV=production $SERVICE_NAME python3 migrate_to_12_word_recovery.py <<'MIGRATION_INPUT'
-PRODUCTION
-DELETE ALL KEYS
-MIGRATION_INPUT
+    # Script will auto-confirm in non-interactive mode (no stdin input needed)
+    docker exec -e ENV=production $SERVICE_NAME python3 migrate_to_12_word_recovery.py
 
     MIGRATION_EXIT_CODE=$?
 
