@@ -291,7 +291,7 @@ async def setup_recovery_key(
     Store recovery key backup
 
     Client flow:
-    1. Generate 24-word recovery key
+    1. Generate 12-word recovery key (BIP39 mnemonic, like MetaMask)
     2. Derive encryption key from recovery key
     3. Encrypt private key with recovery key
     4. Send encrypted backup to server
@@ -339,10 +339,10 @@ async def get_recovery_key_backup(
     """
     Get private key encrypted with recovery key (for account recovery)
 
-    Used when user forgets Master Password and wants to recover using 24-word mnemonic.
+    Used when user forgets Master Password and wants to recover using 12-word mnemonic.
 
     Flow:
-    1. User enters 24-word recovery mnemonic
+    1. User enters 12-word recovery mnemonic (BIP39, like MetaMask)
     2. Frontend validates mnemonic (BIP39)
     3. Call this endpoint to get encrypted backup
     4. Frontend derives recovery key from mnemonic

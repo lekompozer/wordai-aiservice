@@ -198,6 +198,65 @@ docker exec mongodb mongosh admin \
 
 echo "✅ MongoDB user check completed"
 
+# --- 5c. RUN E2EE MIGRATION SCRIPT (IF NEEDED) ---
+echo ""
+echo "🔐 Checking E2EE keys migration status..."
+
+# Check if migration is needed
+MIGRATION_NEEDED=$(docker exec mongodb mongosh "$MONGODB_NAME" \
+  --username "$MONGODB_APP_USERNAME" \
+  --password "$MONGODB_APP_PASSWORD" \
+  --quiet \
+  --eval "db.users.countDocuments({publicKey: {\$exists: true}, e2eeKeysMigrated: {\$ne: true}})" 2>/dev/null || echo "0")
+
+if [ "$MIGRATION_NEEDED" -gt 0 ]; then
+    echo "⚠️  Found $MIGRATION_NEEDED users with old E2EE keys (24-word system)"
+    echo "🚀 Running migration to 12-word recovery system..."
+    echo ""
+    echo "📋 Migration will:"
+    echo "   • Create backup of all E2EE keys"
+    echo "   • Clear old keys (24-word system)"
+    echo "   • Mark secret documents as unreadable"
+    echo "   • Set migration flags for tracking"
+    echo ""
+
+    # Run migration script inside container with production environment
+    # Note: Script will auto-confirm in non-interactive mode
+    docker exec -e ENV=production $SERVICE_NAME python3 migrate_to_12_word_recovery.py <<'MIGRATION_INPUT'
+PRODUCTION
+DELETE ALL KEYS
+MIGRATION_INPUT
+
+    MIGRATION_EXIT_CODE=$?
+
+    if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
+        echo ""
+        echo "✅ E2EE keys migration completed successfully"
+        echo ""
+        echo "📂 Backup files created inside container:"
+        docker exec $SERVICE_NAME ls -lh e2ee_keys_backup_*.json 2>/dev/null || echo "   (No backup files found)"
+        echo ""
+        echo "💡 To retrieve backup files:"
+        echo "   docker cp $SERVICE_NAME:/app/e2ee_keys_backup_production_*.json ./backups/"
+        echo ""
+    else
+        echo ""
+        echo "⚠️  Migration script exited with code: $MIGRATION_EXIT_CODE"
+        echo "   Continuing deployment anyway..."
+        echo ""
+        echo "🔧 Troubleshooting:"
+        echo "   • Check migration logs: docker exec $SERVICE_NAME cat migration_log_*.json"
+        echo "   • Run manually: docker exec -it $SERVICE_NAME python3 migrate_to_12_word_recovery.py"
+        echo "   • Check MongoDB connection from container"
+        echo ""
+    fi
+else
+    echo "✅ No E2EE migration needed"
+    echo "   Reason: No users with old keys found"
+    echo "   • Users already migrated: $(docker exec mongodb mongosh "$MONGODB_NAME" -u "$MONGODB_APP_USERNAME" -p "$MONGODB_APP_PASSWORD" --quiet --eval "db.users.countDocuments({e2eeKeysMigrated: true})" 2>/dev/null || echo "N/A")"
+    echo "   • Users with keys: $(docker exec mongodb mongosh "$MONGODB_NAME" -u "$MONGODB_APP_USERNAME" -p "$MONGODB_APP_PASSWORD" --quiet --eval "db.users.countDocuments({publicKey: {\$exists: true}})" 2>/dev/null || echo "N/A")"
+fi
+
 # --- 6. HEALTH CHECK WITH RETRY ---
 echo ""
 echo "🩺 Performing health checks..."
