@@ -202,10 +202,11 @@ echo "✅ MongoDB user check completed"
 echo ""
 echo "🔐 Checking E2EE keys migration status..."
 
-# Check if migration is needed
+# Check if migration is needed (using admin auth for reliability)
 MIGRATION_NEEDED=$(docker exec mongodb mongosh "$MONGODB_NAME" \
-  --username "$MONGODB_APP_USERNAME" \
-  --password "$MONGODB_APP_PASSWORD" \
+  --username "$MONGODB_ROOT_USERNAME" \
+  --password "$MONGODB_ROOT_PASSWORD" \
+  --authenticationDatabase admin \
   --quiet \
   --eval "db.users.countDocuments({publicKey: {\$exists: true}, e2eeKeysMigrated: {\$ne: true}})" 2>/dev/null || echo "0")
 
@@ -253,8 +254,8 @@ MIGRATION_INPUT
 else
     echo "✅ No E2EE migration needed"
     echo "   Reason: No users with old keys found"
-    echo "   • Users already migrated: $(docker exec mongodb mongosh "$MONGODB_NAME" -u "$MONGODB_APP_USERNAME" -p "$MONGODB_APP_PASSWORD" --quiet --eval "db.users.countDocuments({e2eeKeysMigrated: true})" 2>/dev/null || echo "N/A")"
-    echo "   • Users with keys: $(docker exec mongodb mongosh "$MONGODB_NAME" -u "$MONGODB_APP_USERNAME" -p "$MONGODB_APP_PASSWORD" --quiet --eval "db.users.countDocuments({publicKey: {\$exists: true}})" 2>/dev/null || echo "N/A")"
+    echo "   • Users already migrated: $(docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_ROOT_USERNAME" --password "$MONGODB_ROOT_PASSWORD" --authenticationDatabase admin --quiet --eval "db.users.countDocuments({e2eeKeysMigrated: true})" 2>/dev/null || echo "N/A")"
+    echo "   • Users with keys: $(docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_ROOT_USERNAME" --password "$MONGODB_ROOT_PASSWORD" --authenticationDatabase admin --quiet --eval "db.users.countDocuments({publicKey: {\$exists: true}})" 2>/dev/null || echo "N/A")"
 fi
 
 # --- 6. HEALTH CHECK WITH RETRY ---
