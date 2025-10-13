@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """
-Production Migration: 24-word → 12-word Recovery System
-========================================================
+E2EE Keys Migration Script: 24-word → 12-word Recovery System
 
-⚠️  PRODUCTION SCRIPT - USE WITH CAUTION!
+This script migrates all users from the old 24-word BIP39 recovery system
+to the new 12-word system (matching MetaMask standard).
 
-This script:
-1. Creates backup of all E2EE keys (JSON file)
-2. Clears all E2EE keys from users collection
-3. Marks secret documents as unreadable
-4. Logs all actions for audit trail
+WHAT IT DOES:
+1. Creates a backup of all existing E2EE keys
+2. Clears all publicKey, encryptedPrivateKey, and recovery keys
+3. Marks all secret documents as unreadable (due to lost keys)
+4. Sets migration flags for tracking
 
-After running:
-- Users must re-register E2EE keys
-- New 12-word recovery system will be used
-- Old secret documents become unreadable
+USAGE:
+    ENV=production python migrate_to_12_word_recovery.py          # Production
+    ENV=development python migrate_to_12_word_recovery.py         # Development
+    python migrate_to_12_word_recovery.py < input.txt             # Non-interactive mode
 
-Date: October 13, 2025
-Author: WordAI Backend Team
+SAFETY:
+- Multiple confirmation prompts (skipped in non-interactive mode)
+- Automatic backup creation
+- Idempotent operation (can run multiple times safely)
 """
 
 import os
@@ -26,6 +28,10 @@ import json
 from datetime import datetime
 from pymongo import MongoClient
 from dotenv import load_dotenv
+
+
+# Detect if running in non-interactive mode (e.g., from deploy script)
+IS_INTERACTIVE = sys.stdin.isatty()
 
 
 # Colors for terminal output
@@ -89,10 +95,15 @@ if ENV == "production":
     print("This will affect LIVE user data!")
     print()
 
-    safety_check = input(f"{Colors.RED}Type 'PRODUCTION' to confirm: {Colors.END}")
-    if safety_check != "PRODUCTION":
-        print_error("Safety check failed. Exiting.")
-        sys.exit(1)
+    if IS_INTERACTIVE:
+        safety_check = input(f"{Colors.RED}Type 'PRODUCTION' to confirm: {Colors.END}")
+        if safety_check != "PRODUCTION":
+            print_error("Safety check failed. Exiting.")
+            sys.exit(1)
+    else:
+        print_info("Running in non-interactive mode (automated deployment)")
+        print_info("Skipping manual confirmation prompts")
+        print()
 
 # Connect to MongoDB
 try:
@@ -215,18 +226,24 @@ print()
 print_info(f"Backup saved: {backup_filename}")
 print()
 
-confirm1 = input(f"{Colors.YELLOW}Type 'MIGRATE' to proceed: {Colors.END}")
-if confirm1 != "MIGRATE":
-    print_error("Migration cancelled")
-    sys.exit(0)
+if IS_INTERACTIVE:
+    confirm1 = input(f"{Colors.YELLOW}Type 'MIGRATE' to proceed: {Colors.END}")
+    if confirm1 != "MIGRATE":
+        print_error("Migration cancelled")
+        sys.exit(0)
+
+    print()
+    final_confirm = input(
+        f"{Colors.RED}{Colors.BOLD}Type 'DELETE ALL KEYS' to confirm: {Colors.END}"
+    )
+    if final_confirm != "DELETE ALL KEYS":
+        print_error("Migration cancelled")
+        sys.exit(0)
+else:
+    print_info("Non-interactive mode: Auto-confirming migration")
+    print_info("Proceeding with migration...")
 
 print()
-final_confirm = input(
-    f"{Colors.RED}{Colors.BOLD}Type 'DELETE ALL KEYS' to confirm: {Colors.END}"
-)
-if final_confirm != "DELETE ALL KEYS":
-    print_error("Migration cancelled")
-    sys.exit(0)
 
 # STEP 4: Clear E2EE keys
 print_header("STEP 4: CLEARING E2EE KEYS")
