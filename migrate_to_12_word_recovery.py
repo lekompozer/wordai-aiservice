@@ -77,9 +77,12 @@ def print_info(text):
 env_file = "production.env" if os.getenv("ENV") == "production" else "development.env"
 load_dotenv(env_file)
 
-# MongoDB connection
-MONGO_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
-DB_NAME = os.getenv("MONGO_DB_NAME", "wordai")
+# MongoDB connection - use MONGODB_URI_AUTH for authenticated connection
+# This works in both Docker (mongodb hostname) and local (localhost)
+MONGO_URI = os.getenv("MONGODB_URI_AUTH") or os.getenv(
+    "MONGODB_URI", "mongodb://localhost:27017"
+)
+DB_NAME = os.getenv("MONGODB_NAME", "ai_service_db")
 ENV = os.getenv("ENV", "development")
 
 print_header("PRODUCTION MIGRATION: 24-WORD → 12-WORD RECOVERY SYSTEM")
