@@ -36,9 +36,13 @@ def get_secret_document_manager() -> SecretDocumentManager:
 class CreateSecretDocumentRequest(BaseModel):
     title: str
     documentType: str  # "doc" | "slide" | "note"
-    encryptedContent: str  # Base64 AES-256-GCM encrypted HTML
-    encryptionIv: str  # Base64 IV
-    encryptedFileKey: str  # Base64 RSA-OAEP encrypted file key
+    encryptedContent: Optional[str] = (
+        ""  # Base64 AES-256-GCM encrypted HTML (empty for new docs)
+    )
+    encryptionIv: Optional[str] = ""  # Base64 IV (empty for new docs)
+    encryptedFileKey: Optional[str] = (
+        None  # Base64 RSA-OAEP encrypted file key (backend auto-generates if not provided)
+    )
     folderId: Optional[str] = None
     tags: Optional[List[str]] = None
 
@@ -78,12 +82,19 @@ async def create_secret_document(
     """
     Create new E2EE secret document
 
-    Client flow:
+    Client flow for EXISTING content:
     1. User creates content in editor
     2. Generate random AES-256 file key
     3. Encrypt content with file key (AES-256-GCM)
     4. Encrypt file key with user's public RSA key
     5. Send encrypted content + encrypted file key to server
+
+    Client flow for NEW/EMPTY document (RECOMMENDED):
+    1. User clicks "New Secret Document"
+    2. Send only title + documentType (no content, no fileKey)
+    3. Backend auto-generates file_key and encrypts it
+    4. Backend returns userEncryptedFileKey
+    5. Frontend stores userEncryptedFileKey for later use when user saves content
 
     Headers:
         Authorization: Bearer <firebase_token>
@@ -92,9 +103,9 @@ async def create_secret_document(
         {
             "title": "My Secret Document",
             "documentType": "doc" | "slide" | "note",
-            "encryptedContent": "base64_encrypted_html",
-            "encryptionIv": "base64_iv",
-            "encryptedFileKey": "base64_rsa_encrypted_key",
+            "encryptedContent": "" (optional, empty for new docs),
+            "encryptionIv": "" (optional, empty for new docs),
+            "encryptedFileKey": null (optional, backend auto-generates if not provided),
             "folderId": "folder_123" (optional),
             "tags": ["personal", "work"] (optional)
         }
@@ -103,6 +114,7 @@ async def create_secret_document(
         {
             "success": true,
             "secret_id": "secret_abc123",
+            "userEncryptedFileKey": "base64_rsa_encrypted_file_key",
             "message": "Secret document created successfully"
         }
     """
@@ -136,9 +148,13 @@ async def create_secret_document(
             f"✅ Created secret document {secret_doc['secret_id']} for user {user_id}"
         )
 
+        # Return with user_encrypted_file_key for frontend to store
+        user_encrypted_file_key = secret_doc.get("encrypted_file_keys", {}).get(user_id)
+
         return {
             "success": True,
             "secret_id": secret_doc["secret_id"],
+            "userEncryptedFileKey": user_encrypted_file_key,  # 🔑 Frontend needs this to decrypt content later
             "message": "Secret document created successfully",
         }
 

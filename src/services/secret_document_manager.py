@@ -43,9 +43,11 @@ class SecretDocumentManager:
         owner_id: str,
         title: str,
         document_type: str,  # "doc" | "slide" | "note"
-        encrypted_content: str,
-        encryption_iv: str,
-        encrypted_file_key: str,  # Owner's encrypted file key
+        encrypted_content: Optional[str] = "",
+        encryption_iv: Optional[str] = "",
+        encrypted_file_key: Optional[
+            str
+        ] = None,  # Owner's encrypted file key (auto-generated if not provided)
         folder_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
@@ -56,16 +58,65 @@ class SecretDocumentManager:
             owner_id: Firebase UID of document owner
             title: Document title (plaintext for listing)
             document_type: "doc" | "slide" | "note"
-            encrypted_content: AES-256-GCM encrypted HTML content
-            encryption_iv: Initialization Vector for AES
-            encrypted_file_key: File key encrypted with owner's public RSA key
+            encrypted_content: AES-256-GCM encrypted HTML content (empty string for new docs)
+            encryption_iv: Initialization Vector for AES (empty string for new docs)
+            encrypted_file_key: File key encrypted with owner's public RSA key (auto-generated if None)
             folder_id: Optional folder ID
             tags: Optional tags for organization
 
         Returns:
-            Created secret document dict
+            Created secret document dict with user_encrypted_file_key
         """
         try:
+            # If no encrypted_file_key provided, generate it server-side
+            if encrypted_file_key is None:
+                logger.info(
+                    f"🔑 Generating file_key for new secret document (owner: {owner_id})"
+                )
+
+                # Get owner's public key
+                user = self.db.users.find_one({"firebase_uid": owner_id})
+                if not user or "publicKey" not in user:
+                    raise ValueError(
+                        f"User {owner_id} has no public key. E2EE not set up."
+                    )
+
+                owner_public_key = user["publicKey"]
+
+                # Generate random 32-byte AES-256 file key
+                import secrets
+
+                file_key = secrets.token_bytes(32)  # 256 bits
+
+                # Encrypt file_key with owner's RSA public key
+                from cryptography.hazmat.primitives import serialization
+                from cryptography.hazmat.primitives.asymmetric import padding
+                from cryptography.hazmat.primitives import hashes
+                from cryptography.hazmat.backends import default_backend
+                import base64
+
+                # Load public key
+                public_key_obj = serialization.load_pem_public_key(
+                    owner_public_key.encode("utf-8"), backend=default_backend()
+                )
+
+                # Encrypt file_key with RSA-OAEP
+                encrypted_file_key_bytes = public_key_obj.encrypt(
+                    file_key,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None,
+                    ),
+                )
+
+                # Base64 encode
+                encrypted_file_key = base64.b64encode(encrypted_file_key_bytes).decode(
+                    "utf-8"
+                )
+
+                logger.info(f"✅ Generated and encrypted file_key for user {owner_id}")
+
             secret_id = f"secret_{uuid.uuid4().hex[:12]}"
             now = datetime.utcnow()
 
