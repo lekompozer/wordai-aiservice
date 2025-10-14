@@ -281,6 +281,11 @@ class SecretDocumentManager:
 
             # Return with user's encrypted file key
             result = dict(secret_doc)
+
+            # Convert ObjectId to string
+            if "_id" in result:
+                result["_id"] = str(result["_id"])
+
             result["user_encrypted_file_key"] = secret_doc["encrypted_file_keys"].get(
                 user_id
             )
@@ -440,8 +445,12 @@ class SecretDocumentManager:
 
             documents = list(cursor)
 
-            # Add access type
+            # Add access type and convert ObjectId to string
             for doc in documents:
+                # Convert _id to string
+                if "_id" in doc:
+                    doc["_id"] = str(doc["_id"])
+
                 doc["access_type"] = "owner" if doc["owner_id"] == user_id else "shared"
 
             return documents
@@ -471,7 +480,14 @@ class SecretDocumentManager:
                 .limit(limit)
             )
 
-            return list(cursor)
+            documents = list(cursor)
+
+            # Convert ObjectId to string
+            for doc in documents:
+                if "_id" in doc:
+                    doc["_id"] = str(doc["_id"])
+
+            return documents
 
         except Exception as e:
             logger.error(f"❌ Error listing shared documents: {e}")
