@@ -449,9 +449,14 @@ class SecretDocumentManager:
                 "updated_at": datetime.utcnow(),
             }
 
-            # Add title if provided
+            # Add title if provided (not None)
             if title is not None:
+                logger.info(f"🏷️ Updating title to: '{title}'")
                 update_fields["title"] = title
+            else:
+                logger.info(f"ℹ️ No title update requested (title=None)")
+
+            logger.info(f"📝 Update fields: {list(update_fields.keys())}")
 
             result = self.secret_documents.update_one(
                 {"secret_id": secret_id},
