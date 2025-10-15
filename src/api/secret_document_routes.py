@@ -62,7 +62,7 @@ class UpdateSecretContentRequest(BaseModel):
 
 
 class UpdateSecretMetadataRequest(BaseModel):
-    name: Optional[str] = None  # Document name (renamed from 'title')
+    title: Optional[str] = None  # Document title
     folderId: Optional[str] = None
     tags: Optional[List[str]] = None
 
@@ -427,7 +427,7 @@ async def update_secret_metadata(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
-    Update secret document metadata (name, folder, tags)
+    Update secret document metadata (title, folder, tags)
     Only owner can update metadata
 
     Headers:
@@ -435,7 +435,7 @@ async def update_secret_metadata(
 
     Body:
         {
-            "name": "New Name" (optional),
+            "title": "New Title" (optional),
             "folderId": "folder_456" (optional),
             "tags": ["updated", "tags"] (optional)
         }
@@ -454,7 +454,7 @@ async def update_secret_metadata(
             manager.update_secret_metadata,
             secret_id=secret_id,
             user_id=user_id,
-            name=request.name,  # Changed from 'title' to 'name'
+            title=request.title,  # Use 'title' field consistently
             folder_id=request.folderId,
             tags=request.tags,
         )

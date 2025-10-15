@@ -489,7 +489,7 @@ class SecretDocumentManager:
         self,
         secret_id: str,
         user_id: str,
-        name: Optional[str] = None,
+        title: Optional[str] = None,
         folder_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
     ) -> bool:
@@ -508,8 +508,8 @@ class SecretDocumentManager:
 
             update_fields = {"updated_at": datetime.utcnow()}
 
-            if name is not None:
-                update_fields["name"] = name  # Store as 'name' in DB
+            if title is not None:
+                update_fields["title"] = title  # Store as 'title' consistently
             if folder_id is not None:
                 update_fields["folder_id"] = folder_id
             if tags is not None:
