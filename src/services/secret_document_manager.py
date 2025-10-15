@@ -68,8 +68,8 @@ class SecretDocumentManager:
             Created secret document dict with user_encrypted_file_key
         """
         try:
-            # If no encrypted_file_key provided, generate it server-side
-            if encrypted_file_key is None:
+            # If no encrypted_file_key provided (None or empty string), generate it server-side
+            if not encrypted_file_key:  # Handles None, "", and other falsy values
                 logger.info(
                     f"🔑 Generating file_key for new secret document (owner: {owner_id})"
                 )
