@@ -48,7 +48,7 @@ class KeyManager:
             now = datetime.utcnow()
 
             # Check if keys already exist
-            existing = self.users.find_one({"user_id": user_id})
+            existing = self.users.find_one({"firebase_uid": user_id})
 
             if existing and existing.get("publicKey"):
                 logger.warning(
@@ -58,7 +58,7 @@ class KeyManager:
 
             # Store keys in users collection
             result = self.users.update_one(
-                {"user_id": user_id},
+                {"firebase_uid": user_id},
                 {
                     "$set": {
                         "publicKey": public_key,
@@ -95,7 +95,7 @@ class KeyManager:
             Public key (PEM Base64) or None if not found
         """
         try:
-            user = self.users.find_one({"user_id": user_id}, {"publicKey": 1})
+            user = self.users.find_one({"firebase_uid": user_id}, {"publicKey": 1})
 
             if user and user.get("publicKey"):
                 return user["publicKey"]
@@ -120,7 +120,7 @@ class KeyManager:
         """
         try:
             user = self.users.find_one(
-                {"user_id": user_id},
+                {"firebase_uid": user_id},
                 {
                     "encryptedPrivateKey": 1,
                     "keySalt": 1,
@@ -158,7 +158,7 @@ class KeyManager:
         """
         try:
             result = self.users.update_one(
-                {"user_id": user_id},
+                {"firebase_uid": user_id},
                 {
                     "$set": {
                         "encryptedPrivateKey": new_encrypted_private_key,
@@ -194,7 +194,7 @@ class KeyManager:
         """
         try:
             result = self.users.update_one(
-                {"user_id": user_id},
+                {"firebase_uid": user_id},
                 {
                     "$set": {
                         "encryptedPrivateKeyWithRecovery": encrypted_private_key_with_recovery,
@@ -231,7 +231,7 @@ class KeyManager:
         """
         try:
             user = self.users.find_one(
-                {"user_id": user_id},
+                {"firebase_uid": user_id},
                 {
                     "encryptedPrivateKeyWithRecovery": 1,
                 },
@@ -262,7 +262,7 @@ class KeyManager:
             bool: True if keys exist
         """
         try:
-            user = self.users.find_one({"user_id": user_id}, {"publicKey": 1})
+            user = self.users.find_one({"firebase_uid": user_id}, {"publicKey": 1})
             return user is not None and user.get("publicKey") is not None
 
         except Exception as e:
@@ -281,7 +281,7 @@ class KeyManager:
         """
         try:
             user = self.users.find_one(
-                {"user_id": user_id}, {"encryptedPrivateKeyWithRecovery": 1}
+                {"firebase_uid": user_id}, {"encryptedPrivateKeyWithRecovery": 1}
             )
             return user is not None and bool(
                 user.get("encryptedPrivateKeyWithRecovery")
