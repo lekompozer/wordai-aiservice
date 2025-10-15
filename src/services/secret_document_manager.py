@@ -74,9 +74,7 @@ class SecretDocumentManager:
             # Get owner's public key
             user = self.db.users.find_one({"firebase_uid": owner_id})
             if not user or "publicKey" not in user:
-                raise ValueError(
-                    f"User {owner_id} has no public key. E2EE not set up."
-                )
+                raise ValueError(f"User {owner_id} has no public key. E2EE not set up.")
 
             owner_public_key = user["publicKey"]
 
