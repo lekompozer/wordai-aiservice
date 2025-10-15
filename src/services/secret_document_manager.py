@@ -340,60 +340,68 @@ class SecretDocumentManager:
             # Get user's encrypted file key
             encrypted_file_keys = secret_doc.get("encrypted_file_keys", {})
             user_file_key = encrypted_file_keys.get(user_id)
-            
+
             # Auto-fix: If missing file_key for user, generate it
             if not user_file_key:
-                logger.warning(f"⚠️ Document {secret_id} missing file_key for user {user_id}, auto-generating...")
-                
+                logger.warning(
+                    f"⚠️ Document {secret_id} missing file_key for user {user_id}, auto-generating..."
+                )
+
                 # Get user's public key
                 user = self.db.users.find_one({"firebase_uid": user_id})
                 if user and "publicKey" in user:
                     # Generate random 32-byte AES-256 file key
                     import secrets
+
                     file_key = secrets.token_bytes(32)
-                    
+
                     # Encrypt file_key with user's RSA public key
                     from cryptography.hazmat.primitives import serialization
                     from cryptography.hazmat.primitives.asymmetric import padding
                     from cryptography.hazmat.primitives import hashes
                     from cryptography.hazmat.backends import default_backend
                     import base64
-                    
+
                     # Load public key
                     public_key_obj = serialization.load_pem_public_key(
-                        user["publicKey"].encode('utf-8'),
-                        backend=default_backend()
+                        user["publicKey"].encode("utf-8"), backend=default_backend()
                     )
-                    
+
                     # Encrypt file_key with RSA-OAEP
                     encrypted_file_key_bytes = public_key_obj.encrypt(
                         file_key,
                         padding.OAEP(
                             mgf=padding.MGF1(algorithm=hashes.SHA256()),
                             algorithm=hashes.SHA256(),
-                            label=None
-                        )
+                            label=None,
+                        ),
                     )
-                    
+
                     # Base64 encode
-                    user_file_key = base64.b64encode(encrypted_file_key_bytes).decode('utf-8')
-                    
+                    user_file_key = base64.b64encode(encrypted_file_key_bytes).decode(
+                        "utf-8"
+                    )
+
                     # Save to database
                     self.secret_documents.update_one(
                         {"secret_id": secret_id},
                         {
                             "$set": {
                                 f"encrypted_file_keys.{user_id}": user_file_key,
-                                "updated_at": datetime.utcnow()
+                                "updated_at": datetime.utcnow(),
                             }
-                        }
+                        },
                     )
-                    
-                    logger.info(f"✅ Auto-generated file_key for user {user_id} in document {secret_id}")
+
+                    logger.info(
+                        f"✅ Auto-generated file_key for user {user_id} in document {secret_id}"
+                    )
                 else:
-                    logger.error(f"❌ Cannot auto-generate file_key: User {user_id} has no public key")
+                    logger.error(
+                        f"❌ Cannot auto-generate file_key: User {user_id} has no public key"
+                    )
                     user_file_key = ""
-            
+
             result["user_encrypted_file_key"] = user_file_key
 
             # Remove other users' keys for privacy
