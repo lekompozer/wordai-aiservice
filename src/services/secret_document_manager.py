@@ -509,7 +509,7 @@ class SecretDocumentManager:
             update_fields = {"updated_at": datetime.utcnow()}
 
             if name is not None:
-                update_fields["title"] = name  # Store as 'title' in DB for consistency
+                update_fields["name"] = name  # Store as 'name' in DB
             if folder_id is not None:
                 update_fields["folder_id"] = folder_id
             if tags is not None:
