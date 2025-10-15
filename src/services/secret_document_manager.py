@@ -358,9 +358,10 @@ class SecretDocumentManager:
         user_id: str,
         encrypted_content: str,
         encryption_iv: str,
+        title: Optional[str] = None,
     ) -> bool:
         """
-        Update secret document content
+        Update secret document content and optionally title
         Only owner can update
 
         Args:
@@ -368,6 +369,7 @@ class SecretDocumentManager:
             user_id: Firebase UID
             encrypted_content: New encrypted content
             encryption_iv: New IV
+            title: Optional new title
 
         Returns:
             Success boolean
@@ -382,15 +384,20 @@ class SecretDocumentManager:
             if secret_doc["owner_id"] != user_id:
                 raise ValueError("Only owner can update secret document")
 
+            # Build update dict
+            update_fields = {
+                "encrypted_content": encrypted_content,
+                "encryption_iv": encryption_iv,
+                "updated_at": datetime.utcnow(),
+            }
+
+            # Add title if provided
+            if title is not None:
+                update_fields["title"] = title
+
             result = self.secret_documents.update_one(
                 {"secret_id": secret_id},
-                {
-                    "$set": {
-                        "encrypted_content": encrypted_content,
-                        "encryption_iv": encryption_iv,
-                        "updated_at": datetime.utcnow(),
-                    }
-                },
+                {"$set": update_fields},
             )
 
             if result.modified_count > 0:
@@ -419,7 +426,7 @@ class SecretDocumentManager:
         self,
         secret_id: str,
         user_id: str,
-        title: Optional[str] = None,
+        name: Optional[str] = None,
         folder_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
     ) -> bool:
@@ -438,8 +445,8 @@ class SecretDocumentManager:
 
             update_fields = {"updated_at": datetime.utcnow()}
 
-            if title is not None:
-                update_fields["title"] = title
+            if name is not None:
+                update_fields["title"] = name  # Store as 'title' in DB for consistency
             if folder_id is not None:
                 update_fields["folder_id"] = folder_id
             if tags is not None:

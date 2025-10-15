@@ -58,10 +58,11 @@ class ConvertDocumentRequest(BaseModel):
 class UpdateSecretContentRequest(BaseModel):
     encryptedContent: str
     encryptionIv: str
+    title: Optional[str] = None  # Optional title update
 
 
 class UpdateSecretMetadataRequest(BaseModel):
-    title: Optional[str] = None
+    name: Optional[str] = None  # Document name (renamed from 'title')
     folderId: Optional[str] = None
     tags: Optional[List[str]] = None
 
@@ -358,13 +359,14 @@ async def update_secret_content(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
-    Update E2EE secret document content
+    Update E2EE secret document content and title
     Only owner can update content
 
     Client flow:
     1. User edits content in editor
     2. Encrypt new content with same file key
     3. Send encrypted content + new IV to server
+    4. Optionally update title
 
     Headers:
         Authorization: Bearer <firebase_token>
@@ -372,7 +374,8 @@ async def update_secret_content(
     Body:
         {
             "encryptedContent": "base64_encrypted_html",
-            "encryptionIv": "base64_new_iv"
+            "encryptionIv": "base64_new_iv",
+            "title": "New Title" (optional)
         }
 
     Returns:
@@ -391,6 +394,7 @@ async def update_secret_content(
             user_id=user_id,
             encrypted_content=request.encryptedContent,
             encryption_iv=request.encryptionIv,
+            title=request.title,  # Pass optional title
         )
 
         if success:
@@ -423,7 +427,7 @@ async def update_secret_metadata(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
-    Update secret document metadata (title, folder, tags)
+    Update secret document metadata (name, folder, tags)
     Only owner can update metadata
 
     Headers:
@@ -431,7 +435,7 @@ async def update_secret_metadata(
 
     Body:
         {
-            "title": "New Title" (optional),
+            "name": "New Name" (optional),
             "folderId": "folder_456" (optional),
             "tags": ["updated", "tags"] (optional)
         }
@@ -450,7 +454,7 @@ async def update_secret_metadata(
             manager.update_secret_metadata,
             secret_id=secret_id,
             user_id=user_id,
-            title=request.title,
+            name=request.name,  # Changed from 'title' to 'name'
             folder_id=request.folderId,
             tags=request.tags,
         )
