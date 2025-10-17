@@ -502,6 +502,122 @@ async def get_document_by_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/grouped-by-folders", response_model=DocumentsByFolderResponse)
+async def get_documents_by_folders(
+    source_type: Optional[str] = None,
+    document_type: Optional[str] = None,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Lấy toàn bộ Edited Documents nhóm theo folders
+
+    Trả về tất cả documents được tổ chức theo từng folder:
+    - Documents không có folder (ungrouped) sẽ xuất hiện đầu tiên với folder_id = null
+    - Sau đó là documents trong các folders
+
+    Query Parameters:
+    - **source_type**: Lọc theo nguồn: "file" | "created" (optional)
+    - **document_type**: Lọc theo loại: "doc" | "slide" | "note" (optional)
+
+    Response Example:
+    ```json
+    {
+      "folders": [
+        {
+          "folder_id": null,
+          "folder_name": null,
+          "folder_description": null,
+          "document_count": 3,
+          "documents": [
+            {
+              "document_id": "doc_abc123",
+              "title": "Ungrouped Doc",
+              "last_saved_at": "2025-10-17T10:30:00Z",
+              ...
+            }
+          ]
+        },
+        {
+          "folder_id": "folder_abc123",
+          "folder_name": "Work Documents",
+          "folder_description": "Professional docs",
+          "document_count": 5,
+          "documents": [...]
+        }
+      ],
+      "total_documents": 8
+    }
+    ```
+
+    Examples:
+    - GET /api/documents/grouped-by-folders
+    - GET /api/documents/grouped-by-folders?source_type=created
+    - GET /api/documents/grouped-by-folders?source_type=created&document_type=doc
+    """
+    user_id = user_data.get("uid")
+    doc_manager = get_document_manager()
+
+    try:
+        logger.info(
+            f"📁 Getting documents by folders for user {user_id[:8]}... "
+            f"(source_type={source_type}, document_type={document_type})"
+        )
+
+        # Get documents grouped by folders
+        folders_data = await asyncio.to_thread(
+            doc_manager.get_documents_by_folders,
+            user_id=user_id,
+            source_type=source_type,
+            document_type=document_type,
+        )
+
+        # Convert to response model
+        folders_response = []
+        total_documents = 0
+
+        for folder_data in folders_data:
+            documents = [
+                DocumentListItem(
+                    document_id=doc["document_id"],
+                    title=doc["title"],
+                    last_saved_at=doc["last_saved_at"],
+                    last_opened_at=doc.get("last_opened_at"),
+                    version=doc["version"],
+                    file_size_bytes=doc["file_size_bytes"],
+                    source_type=doc.get("source_type", "file"),
+                    document_type=doc.get("document_type"),
+                    folder_id=doc.get("folder_id"),
+                )
+                for doc in folder_data["documents"]
+            ]
+
+            folders_response.append(
+                FolderWithDocuments(
+                    folder_id=folder_data["folder_id"],
+                    folder_name=folder_data["folder_name"],
+                    folder_description=folder_data["folder_description"],
+                    document_count=folder_data["document_count"],
+                    documents=documents,
+                )
+            )
+
+            total_documents += folder_data["document_count"]
+
+        logger.info(
+            f"✅ Grouped {total_documents} documents into {len(folders_response)} folders "
+            f"for user {user_id[:8]}..."
+        )
+
+        return DocumentsByFolderResponse(
+            folders=folders_response,
+            total_documents=total_documents,
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Error getting documents by folders: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{document_id}", response_model=DocumentResponse)
 @router.get(
     "/{document_id}/", response_model=DocumentResponse
@@ -670,122 +786,6 @@ async def move_document_to_folder(
         raise
     except Exception as e:
         logger.error(f"❌ Error moving document: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/grouped-by-folders", response_model=DocumentsByFolderResponse)
-async def get_documents_by_folders(
-    source_type: Optional[str] = None,
-    document_type: Optional[str] = None,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    Lấy toàn bộ Edited Documents nhóm theo folders
-
-    Trả về tất cả documents được tổ chức theo từng folder:
-    - Documents không có folder (ungrouped) sẽ xuất hiện đầu tiên với folder_id = null
-    - Sau đó là documents trong các folders
-
-    Query Parameters:
-    - **source_type**: Lọc theo nguồn: "file" | "created" (optional)
-    - **document_type**: Lọc theo loại: "doc" | "slide" | "note" (optional)
-
-    Response Example:
-    ```json
-    {
-      "folders": [
-        {
-          "folder_id": null,
-          "folder_name": null,
-          "folder_description": null,
-          "document_count": 3,
-          "documents": [
-            {
-              "document_id": "doc_abc123",
-              "title": "Ungrouped Doc",
-              "last_saved_at": "2025-10-17T10:30:00Z",
-              ...
-            }
-          ]
-        },
-        {
-          "folder_id": "folder_abc123",
-          "folder_name": "Work Documents",
-          "folder_description": "Professional docs",
-          "document_count": 5,
-          "documents": [...]
-        }
-      ],
-      "total_documents": 8
-    }
-    ```
-
-    Examples:
-    - GET /api/documents/grouped-by-folders
-    - GET /api/documents/grouped-by-folders?source_type=created
-    - GET /api/documents/grouped-by-folders?source_type=created&document_type=doc
-    """
-    user_id = user_data.get("uid")
-    doc_manager = get_document_manager()
-
-    try:
-        logger.info(
-            f"📁 Getting documents by folders for user {user_id[:8]}... "
-            f"(source_type={source_type}, document_type={document_type})"
-        )
-
-        # Get documents grouped by folders
-        folders_data = await asyncio.to_thread(
-            doc_manager.get_documents_by_folders,
-            user_id=user_id,
-            source_type=source_type,
-            document_type=document_type,
-        )
-
-        # Convert to response model
-        folders_response = []
-        total_documents = 0
-
-        for folder_data in folders_data:
-            documents = [
-                DocumentListItem(
-                    document_id=doc["document_id"],
-                    title=doc["title"],
-                    last_saved_at=doc["last_saved_at"],
-                    last_opened_at=doc.get("last_opened_at"),
-                    version=doc["version"],
-                    file_size_bytes=doc["file_size_bytes"],
-                    source_type=doc.get("source_type", "file"),
-                    document_type=doc.get("document_type"),
-                    folder_id=doc.get("folder_id"),
-                )
-                for doc in folder_data["documents"]
-            ]
-
-            folders_response.append(
-                FolderWithDocuments(
-                    folder_id=folder_data["folder_id"],
-                    folder_name=folder_data["folder_name"],
-                    folder_description=folder_data["folder_description"],
-                    document_count=folder_data["document_count"],
-                    documents=documents,
-                )
-            )
-
-            total_documents += folder_data["document_count"]
-
-        logger.info(
-            f"✅ Grouped {total_documents} documents into {len(folders_response)} folders "
-            f"for user {user_id[:8]}..."
-        )
-
-        return DocumentsByFolderResponse(
-            folders=folders_response,
-            total_documents=total_documents,
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Error getting documents by folders: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
