@@ -283,7 +283,29 @@ async def list_shared_secret_documents(
     Headers:
         Authorization: Bearer <firebase_token>
 
-    Returns: Same format as list_secret_documents
+    Returns:
+        {
+            "documents": [
+                {
+                    "secret_id": "secret_abc123",
+                    "title": "My Secret Document",
+                    "document_type": "doc",
+                    "owner_id": "user_123",
+                    "shared_by": {
+                        "user_id": "user_123",
+                        "email": "owner@example.com",
+                        "name": "Owner Name"
+                    },
+                    "shared_at": "2025-10-17T...",
+                    "created_at": "2025-10-12T...",
+                    "updated_at": "2025-10-12T...",
+                    "access_type": "shared"
+                }
+            ],
+            "total": 10,
+            "skip": 0,
+            "limit": 50
+        }
     """
     user_id = user_data.get("uid")
     logger.info(f"🔍 [shared-with-me] Fetching shared documents for user: {user_id}")
@@ -303,11 +325,14 @@ async def list_shared_secret_documents(
             f"✅ [shared-with-me] Found {len(documents)} shared documents for user {user_id}"
         )
 
-        # Convert datetime
+        # Convert datetime to ISO string
         for doc in documents:
-            for field in ["created_at", "updated_at", "last_accessed_at"]:
+            for field in ["created_at", "updated_at", "last_accessed_at", "shared_at"]:
                 if field in doc and doc[field]:
                     doc[field] = doc[field].isoformat()
+
+            # Add access_type indicator
+            doc["access_type"] = "shared"
 
         return {
             "documents": documents,

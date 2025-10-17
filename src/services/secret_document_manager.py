@@ -611,10 +611,47 @@ class SecretDocumentManager:
                 f"✅ [list_shared_with_me] Found {len(documents)} shared documents for user {user_id}"
             )
 
-            # Convert ObjectId to string
+            # Enrich with owner info and share time
             for doc in documents:
+                # Convert ObjectId to string
                 if "_id" in doc:
                     doc["_id"] = str(doc["_id"])
+
+                # Get owner info
+                owner_id = doc.get("owner_id")
+                if owner_id:
+                    owner = self.db.users.find_one(
+                        {"firebase_uid": owner_id},
+                        {"email": 1, "name": 1, "display_name": 1},
+                    )
+                    if owner:
+                        doc["shared_by"] = {
+                            "user_id": owner_id,
+                            "email": owner.get("email"),
+                            "name": owner.get("name") or owner.get("display_name"),
+                        }
+                    else:
+                        doc["shared_by"] = {
+                            "user_id": owner_id,
+                            "email": "Unknown",
+                            "name": "Unknown User",
+                        }
+
+                # Get share time from access logs
+                share_log = self.db.share_access_logs.find_one(
+                    {
+                        "secret_id": doc.get("secret_id"),
+                        "user_id": owner_id,
+                        "action": "share",
+                        "metadata.recipient_id": user_id,
+                    },
+                    sort=[("timestamp", DESCENDING)],
+                )
+                if share_log:
+                    doc["shared_at"] = share_log.get("timestamp")
+                else:
+                    # Fallback to updated_at if no log found
+                    doc["shared_at"] = doc.get("updated_at")
 
             return documents
 
