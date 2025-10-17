@@ -58,6 +58,13 @@ class DocumentManager:
                 )
                 logger.info("✅ Created index: user_id_1_is_deleted_1")
 
+            # Folder filter index for efficient folder queries
+            if "user_id_1_folder_id_1" not in existing_indexes:
+                self.documents.create_index(
+                    [("user_id", 1), ("folder_id", 1)], name="user_id_1_folder_id_1"
+                )
+                logger.info("✅ Created index: user_id_1_folder_id_1")
+
             logger.info("✅ Document indexes verified/created")
         except Exception as e:
             logger.error(f"❌ Error creating indexes: {e}")
@@ -83,6 +90,7 @@ class DocumentManager:
         file_id: Optional[str] = None,
         original_r2_url: Optional[str] = None,
         original_file_type: Optional[str] = None,
+        folder_id: Optional[str] = None,
     ) -> str:
         """
         Tạo document mới, trả về document_id
@@ -91,6 +99,7 @@ class DocumentManager:
             source_type: "file" (từ upload) hoặc "created" (tạo mới)
             document_type: "doc", "slide", "note" (chỉ cho created documents)
             file_id: Optional - chỉ có khi source_type="file"
+            folder_id: Optional - folder to organize document
         """
         document_id = f"doc_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
@@ -111,6 +120,8 @@ class DocumentManager:
             "file_id": file_id,
             "original_r2_url": original_r2_url,
             "original_file_type": original_file_type,
+            # Organization
+            "folder_id": folder_id,
             "file_size_bytes": len(content_html.encode("utf-8")),
             "created_at": now,
             "last_saved_at": now,
@@ -207,6 +218,7 @@ class DocumentManager:
         offset: int = 0,
         source_type: Optional[str] = None,
         document_type: Optional[str] = None,
+        folder_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         Lấy danh sách documents của user, sắp xếp theo last_opened_at
@@ -214,6 +226,7 @@ class DocumentManager:
         Args:
             source_type: Filter by "file" hoặc "created"
             document_type: Filter by "doc", "slide", "note" (chỉ cho created)
+            folder_id: Filter by folder ID
         """
         query = {"user_id": user_id, "is_deleted": False}
 
@@ -224,6 +237,9 @@ class DocumentManager:
         if document_type:
             query["document_type"] = document_type
 
+        if folder_id is not None:
+            query["folder_id"] = folder_id
+
         documents = list(
             self.documents.find(query)
             .sort("last_opened_at", -1)
@@ -233,7 +249,7 @@ class DocumentManager:
 
         logger.info(
             f"📋 Listed {len(documents)} documents for user {user_id} "
-            f"(source={source_type}, type={document_type})"
+            f"(source={source_type}, type={document_type}, folder={folder_id})"
         )
         return documents
 
@@ -258,6 +274,37 @@ class DocumentManager:
                 logger.info(f"🗑️ Document {document_id} permanently deleted")
 
         return success
+
+    def move_document_to_folder(
+        self, document_id: str, user_id: str, folder_id: Optional[str]
+    ) -> bool:
+        """
+        Di chuyển document sang folder khác
+
+        Args:
+            document_id: ID của document cần move
+            user_id: ID của user sở hữu document
+            folder_id: ID của folder đích (None để move về root)
+
+        Returns:
+            True nếu move thành công, False nếu không tìm thấy document
+        """
+        result = self.documents.update_one(
+            {"document_id": document_id, "user_id": user_id, "is_deleted": False},
+            {"$set": {"folder_id": folder_id}},
+        )
+
+        if result.modified_count > 0:
+            folder_info = (
+                f"to folder {folder_id}" if folder_id else "to root (ungrouped)"
+            )
+            logger.info(f"📁 Document {document_id} moved {folder_info}")
+            return True
+
+        logger.warning(
+            f"⚠️ Document {document_id} not found or already in target folder"
+        )
+        return False
 
     def get_storage_stats(self, user_id: str) -> Dict[str, Any]:
         """Lấy thống kê storage của user"""
@@ -333,3 +380,91 @@ class DocumentManager:
             f"🗑️ Permanently deleted {deleted_count} documents from trash for user {user_id}"
         )
         return deleted_count
+
+    def get_documents_by_folders(
+        self,
+        user_id: str,
+        source_type: Optional[str] = None,
+        document_type: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Lấy tất cả documents của user, nhóm theo folders
+
+        Returns list of folders with their documents:
+        [
+            {
+                "folder_id": None,
+                "folder_name": None,
+                "folder_description": None,
+                "document_count": 3,
+                "documents": [...]
+            },
+            {
+                "folder_id": "folder_abc",
+                "folder_name": "Work Documents",
+                "folder_description": "...",
+                "document_count": 5,
+                "documents": [...]
+            }
+        ]
+        """
+        # Build query
+        query = {"user_id": user_id, "is_deleted": False}
+
+        if source_type:
+            query["source_type"] = source_type
+
+        if document_type:
+            query["document_type"] = document_type
+
+        # Get all documents sorted by last_opened_at
+        all_documents = list(self.documents.find(query).sort("last_opened_at", -1))
+
+        # Get all folders for this user
+        folders_collection = self.db["folders"]
+        user_folders = {
+            folder["folder_id"]: folder
+            for folder in folders_collection.find({"user_id": user_id})
+        }
+
+        # Group documents by folder_id
+        documents_by_folder: Dict[Optional[str], List[Dict[str, Any]]] = {}
+
+        for doc in all_documents:
+            folder_id = doc.get("folder_id")
+            if folder_id not in documents_by_folder:
+                documents_by_folder[folder_id] = []
+            documents_by_folder[folder_id].append(doc)
+
+        # Build response with folder info
+        result = []
+
+        # Sort folder keys: None first, then others
+        sorted_folder_ids = sorted(
+            documents_by_folder.keys(), key=lambda x: (x is not None, x or "")
+        )
+
+        for folder_id in sorted_folder_ids:
+            docs = documents_by_folder[folder_id]
+            folder_info = user_folders.get(folder_id) if folder_id else None
+
+            result.append(
+                {
+                    "folder_id": folder_id,
+                    "folder_name": folder_info["name"] if folder_info else None,
+                    "folder_description": (
+                        folder_info.get("description") if folder_info else None
+                    ),
+                    "document_count": len(docs),
+                    "documents": docs,
+                }
+            )
+
+        total_docs = sum(len(docs) for docs in documents_by_folder.values())
+
+        logger.info(
+            f"📁 Grouped {total_docs} documents into {len(result)} folders "
+            f"for user {user_id} (source={source_type}, type={document_type})"
+        )
+
+        return result

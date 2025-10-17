@@ -32,6 +32,9 @@ class DocumentCreate(BaseModel):
         None, description="Loại document: 'doc', 'slide', 'note' (chỉ cho created)"
     )
 
+    # Folder organization
+    folder_id: Optional[str] = Field(None, description="Folder ID to organize document")
+
 
 class DocumentUpdate(BaseModel):
     """Model để update document"""
@@ -73,3 +76,59 @@ class DocumentListItem(BaseModel):
     file_size_bytes: int
     source_type: str = "file"
     document_type: Optional[str] = None
+    folder_id: Optional[str] = None
+
+
+# ============ FOLDER MODELS ============
+
+
+class FolderCreate(BaseModel):
+    """Model to create new folder"""
+
+    name: str = Field(..., description="Folder name", min_length=1, max_length=255)
+    description: Optional[str] = Field(None, description="Folder description")
+    parent_id: Optional[str] = Field(
+        None, description="Parent folder ID for nested folders"
+    )
+
+
+class FolderUpdate(BaseModel):
+    """Model to update folder"""
+
+    name: Optional[str] = Field(
+        None, description="Folder name", min_length=1, max_length=255
+    )
+    description: Optional[str] = Field(None, description="Folder description")
+
+
+class FolderResponse(BaseModel):
+    """Model for folder response"""
+
+    id: str = Field(..., alias="folder_id")
+    name: str
+    description: Optional[str] = None
+    parent_id: Optional[str] = None
+    user_id: str
+    created_at: datetime
+    updated_at: datetime
+    document_count: int = 0
+
+    class Config:
+        populate_by_name = True
+
+
+class FolderWithDocuments(BaseModel):
+    """Model for folder with its documents"""
+
+    folder_id: Optional[str] = None  # None for root/ungrouped documents
+    folder_name: Optional[str] = None
+    folder_description: Optional[str] = None
+    document_count: int
+    documents: list[DocumentListItem]
+
+
+class DocumentsByFolderResponse(BaseModel):
+    """Model for all documents organized by folders"""
+
+    folders: list[FolderWithDocuments]
+    total_documents: int
