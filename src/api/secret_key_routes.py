@@ -366,7 +366,7 @@ async def get_recovery_key_backup(
         # Get recovery backup from database
         result = await asyncio.to_thread(
             key_manager.users.find_one,
-            {"user_id": user_id},
+            {"firebase_uid": user_id},
             {"encryptedPrivateKeyWithRecovery": 1},
         )
 
@@ -447,13 +447,21 @@ async def get_key_status(
         # Get user data
         user_data_doc = await asyncio.to_thread(
             key_manager.users.find_one,
-            {"user_id": user_id},
+            {"firebase_uid": user_id},
             {
                 "encryptedPrivateKeyWithRecovery": 1,
                 "keysRegisteredAt": 1,
                 "lastKeyUpdate": 1,
             },
         )
+
+        # Check if user data exists (should exist if has_keys is True)
+        if not user_data_doc:
+            logger.error(f"❌ User data not found for {user_id} despite has_keys=True")
+            return KeyStatusResponse(
+                hasKeys=False,
+                hasRecoveryKey=False,
+            )
 
         # Check if recovery key exists
         has_recovery_key = bool(user_data_doc.get("encryptedPrivateKeyWithRecovery"))
