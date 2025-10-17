@@ -764,6 +764,70 @@ class SecretDocumentManager:
             logger.error(f"❌ Error revoking secret share: {e}")
             raise
 
+    def list_shared_users(self, secret_id: str, owner_id: str) -> List[Dict[str, Any]]:
+        """
+        Get list of users who have access to a secret document
+        Only owner can view this list
+
+        Returns:
+            List of user objects with basic info (uid, email, name)
+        """
+        try:
+            # Get secret document
+            secret_doc = self.secret_documents.find_one({"secret_id": secret_id})
+
+            if not secret_doc:
+                raise ValueError("Secret document not found")
+
+            # Verify ownership
+            if secret_doc["owner_id"] != owner_id:
+                raise ValueError("Only owner can view shared users list")
+
+            # Get list of shared user IDs
+            shared_user_ids = secret_doc.get("shared_with", [])
+
+            if not shared_user_ids:
+                return []
+
+            # Fetch user info from users collection
+            users_collection = self.db["users"]
+            shared_users = list(
+                users_collection.find(
+                    {"firebase_uid": {"$in": shared_user_ids}},
+                    {
+                        "firebase_uid": 1,
+                        "email": 1,
+                        "name": 1,
+                        "display_name": 1,
+                        "_id": 0,
+                    },
+                )
+            )
+
+            # Format response
+            result = []
+            for user in shared_users:
+                result.append(
+                    {
+                        "user_id": user.get("firebase_uid"),
+                        "email": user.get("email", ""),
+                        "name": user.get("name", ""),
+                        "display_name": user.get("display_name", ""),
+                    }
+                )
+
+            logger.info(
+                f"📋 Listed {len(result)} shared users for document {secret_id}"
+            )
+            return result
+
+        except ValueError as e:
+            logger.warning(f"⚠️ {e}")
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error listing shared users: {e}")
+            raise
+
     # ============ AUDIT LOGS ============
 
     def get_access_logs(

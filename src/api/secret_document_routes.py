@@ -764,6 +764,51 @@ async def revoke_secret_share(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/{secret_id}/shared-users")
+async def list_shared_users(
+    secret_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Get list of users who have access to a secret document
+    Only the document owner can view this list
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Returns:
+        [
+            {
+                "user_id": "firebase_uid_123",
+                "email": "user@example.com",
+                "name": "John Doe",
+                "display_name": "John"
+            },
+            ...
+        ]
+    """
+    user_id = user_data.get("uid")
+    manager = get_secret_document_manager()
+
+    try:
+        shared_users = await asyncio.to_thread(
+            manager.list_shared_users,
+            secret_id=secret_id,
+            owner_id=user_id,
+        )
+
+        logger.info(f"📋 Returned {len(shared_users)} shared users for {secret_id}")
+        return shared_users
+
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error listing shared users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ AUDIT LOGS ============
 
 
