@@ -48,10 +48,10 @@ class KeyManager:
             now = datetime.utcnow()
 
             logger.info(f"🔐 Registering keys for user_id: {user_id}")
-            
+
             # Check if keys already exist
             existing = self.users.find_one({"firebase_uid": user_id})
-            
+
             logger.info(f"🔍 Existing user data: {existing}")
 
             if existing and existing.get("publicKey"):
@@ -77,8 +77,10 @@ class KeyManager:
                 },
                 upsert=True,
             )
-            
-            logger.info(f"💾 Update result: matched={result.matched_count}, modified={result.modified_count}, upserted_id={result.upserted_id}")
+
+            logger.info(
+                f"💾 Update result: matched={result.matched_count}, modified={result.modified_count}, upserted_id={result.upserted_id}"
+            )
 
             if result.modified_count > 0 or result.upserted_id:
                 logger.info(f"✅ Registered E2EE keys for user {user_id}")
@@ -103,8 +105,10 @@ class KeyManager:
         """
         try:
             logger.info(f"🔍 Querying public key for user_id: {user_id}")
-            user = self.users.find_one({"firebase_uid": user_id}, {"publicKey": 1, "firebase_uid": 1})
-            
+            user = self.users.find_one(
+                {"firebase_uid": user_id}, {"publicKey": 1, "firebase_uid": 1}
+            )
+
             logger.info(f"🔍 Query result: {user}")
 
             if user and user.get("publicKey"):
@@ -112,7 +116,9 @@ class KeyManager:
                 return user["publicKey"]
             else:
                 if user:
-                    logger.warning(f"⚠️ User {user_id} exists but has no publicKey field")
+                    logger.warning(
+                        f"⚠️ User {user_id} exists but has no publicKey field"
+                    )
                 else:
                     logger.warning(f"⚠️ User {user_id} not found in database")
                 return None
