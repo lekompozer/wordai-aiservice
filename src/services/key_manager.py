@@ -47,8 +47,12 @@ class KeyManager:
         try:
             now = datetime.utcnow()
 
+            logger.info(f"🔐 Registering keys for user_id: {user_id}")
+            
             # Check if keys already exist
             existing = self.users.find_one({"firebase_uid": user_id})
+            
+            logger.info(f"🔍 Existing user data: {existing}")
 
             if existing and existing.get("publicKey"):
                 logger.warning(
@@ -57,6 +61,7 @@ class KeyManager:
                 return False
 
             # Store keys in users collection
+            logger.info(f"💾 Saving keys to database for user {user_id}")
             result = self.users.update_one(
                 {"firebase_uid": user_id},
                 {
@@ -72,6 +77,8 @@ class KeyManager:
                 },
                 upsert=True,
             )
+            
+            logger.info(f"💾 Update result: matched={result.matched_count}, modified={result.modified_count}, upserted_id={result.upserted_id}")
 
             if result.modified_count > 0 or result.upserted_id:
                 logger.info(f"✅ Registered E2EE keys for user {user_id}")
@@ -95,12 +102,19 @@ class KeyManager:
             Public key (PEM Base64) or None if not found
         """
         try:
-            user = self.users.find_one({"firebase_uid": user_id}, {"publicKey": 1})
+            logger.info(f"🔍 Querying public key for user_id: {user_id}")
+            user = self.users.find_one({"firebase_uid": user_id}, {"publicKey": 1, "firebase_uid": 1})
+            
+            logger.info(f"🔍 Query result: {user}")
 
             if user and user.get("publicKey"):
+                logger.info(f"✅ Found public key for user {user_id}")
                 return user["publicKey"]
             else:
-                logger.warning(f"⚠️ Public key not found for user {user_id}")
+                if user:
+                    logger.warning(f"⚠️ User {user_id} exists but has no publicKey field")
+                else:
+                    logger.warning(f"⚠️ User {user_id} not found in database")
                 return None
 
         except Exception as e:
