@@ -267,6 +267,59 @@ async def convert_document_to_secret(
 
 # ============ READ ============
 
+# 🔥 IMPORTANT: Specific routes MUST come BEFORE dynamic routes like /{secret_id}
+# Otherwise FastAPI will match "shared-with-me" as a secret_id parameter
+
+
+@router.get("/shared-with-me")
+async def list_shared_secret_documents(
+    skip: int = 0,
+    limit: int = 50,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    List secret documents shared with me
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Returns: Same format as list_secret_documents
+    """
+    user_id = user_data.get("uid")
+    logger.info(f"🔍 [shared-with-me] Fetching shared documents for user: {user_id}")
+    manager = get_secret_document_manager()
+
+    try:
+        limit = min(limit, 100)
+
+        documents = await asyncio.to_thread(
+            manager.list_shared_with_me,
+            user_id=user_id,
+            skip=skip,
+            limit=limit,
+        )
+
+        logger.info(
+            f"✅ [shared-with-me] Found {len(documents)} shared documents for user {user_id}"
+        )
+
+        # Convert datetime
+        for doc in documents:
+            for field in ["created_at", "updated_at", "last_accessed_at"]:
+                if field in doc and doc[field]:
+                    doc[field] = doc[field].isoformat()
+
+        return {
+            "documents": documents,
+            "total": len(documents),
+            "skip": skip,
+            "limit": limit,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Error listing shared documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get("/{secret_id}")
 async def get_secret_document(
@@ -543,51 +596,6 @@ async def list_secret_documents(
 
     except Exception as e:
         logger.error(f"❌ Error listing secret documents: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/shared-with-me")
-async def list_shared_secret_documents(
-    skip: int = 0,
-    limit: int = 50,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    List secret documents shared with me
-
-    Headers:
-        Authorization: Bearer <firebase_token>
-
-    Returns: Same format as list_secret_documents
-    """
-    user_id = user_data.get("uid")
-    manager = get_secret_document_manager()
-
-    try:
-        limit = min(limit, 100)
-
-        documents = await asyncio.to_thread(
-            manager.list_shared_with_me,
-            user_id=user_id,
-            skip=skip,
-            limit=limit,
-        )
-
-        # Convert datetime
-        for doc in documents:
-            for field in ["created_at", "updated_at", "last_accessed_at"]:
-                if field in doc and doc[field]:
-                    doc[field] = doc[field].isoformat()
-
-        return {
-            "documents": documents,
-            "total": len(documents),
-            "skip": skip,
-            "limit": limit,
-        }
-
-    except Exception as e:
-        logger.error(f"❌ Error listing shared documents: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

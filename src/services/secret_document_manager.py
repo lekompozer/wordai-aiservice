@@ -585,6 +585,10 @@ class SecretDocumentManager:
     ) -> List[Dict[str, Any]]:
         """List secret documents shared with user"""
         try:
+            logger.info(
+                f"🔍 [list_shared_with_me] Searching documents shared with user: {user_id}"
+            )
+
             cursor = (
                 self.secret_documents.find(
                     {
@@ -602,6 +606,10 @@ class SecretDocumentManager:
             )
 
             documents = list(cursor)
+
+            logger.info(
+                f"✅ [list_shared_with_me] Found {len(documents)} shared documents for user {user_id}"
+            )
 
             # Convert ObjectId to string
             for doc in documents:
