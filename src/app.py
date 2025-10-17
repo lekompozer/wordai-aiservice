@@ -413,6 +413,46 @@ def create_app() -> FastAPI:
 
         return response
 
+    # ===== REQUEST LOGGING MIDDLEWARE (for debugging suspicious requests) =====
+    @app.middleware("http")
+    async def log_suspicious_requests(request: Request, call_next):
+        """
+        Log detailed info for suspicious requests (404s, non-API paths)
+        Helps track browser extensions, malware, or unwanted injected scripts
+        """
+        response = await call_next(request)
+        
+        # Log suspicious patterns
+        suspicious_paths = [
+            "/js/", "/css/", "/fonts/", "/images/", 
+            "/twint", "/lkk", "/support_parent"
+        ]
+        
+        path = request.url.path
+        is_suspicious = (
+            response.status_code == 404 and 
+            (path == "/" or any(pattern in path for pattern in suspicious_paths))
+        )
+        
+        if is_suspicious:
+            logger = logging.getLogger("chatbot")
+            client_host = request.client.host if request.client else "unknown"
+            user_agent = request.headers.get("user-agent", "unknown")
+            referer = request.headers.get("referer", "none")
+            origin = request.headers.get("origin", "none")
+            
+            logger.warning(
+                f"🚨 SUSPICIOUS REQUEST [404]:\n"
+                f"   Path: {path}\n"
+                f"   Client: {client_host}\n"
+                f"   User-Agent: {user_agent[:100]}...\n"
+                f"   Referer: {referer}\n"
+                f"   Origin: {origin}\n"
+                f"   ⚠️ Possible browser extension/malware injecting scripts"
+            )
+        
+        return response
+
     # ===== REGISTER ROUTERS =====
 
     # ✅ Authentication endpoints - Firebase auth for user management
