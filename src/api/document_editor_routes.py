@@ -502,6 +502,355 @@ async def get_document_by_file(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ FOLDER MANAGEMENT ============
+# NOTE: These routes MUST be before /{document_id} to avoid route conflicts
+
+
+@router.post("/folders", response_model=FolderResponse)
+async def create_folder(
+    folder: FolderCreate,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Create new folder for documents
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Body:
+        {
+            "name": "My Documents",
+            "description": "Folder for important documents",
+            "parent_id": null
+        }
+
+    Returns:
+        {
+            "id": "folder_abc123",
+            "name": "My Documents",
+            "description": "Folder for important documents",
+            "parent_id": null,
+            "user_id": "firebase_uid_123",
+            "created_at": "2025-10-17T10:30:00",
+            "updated_at": "2025-10-17T10:30:00",
+            "document_count": 0
+        }
+    """
+    try:
+        user_id = user_data.get("uid")
+        import uuid
+
+        folder_id = f"folder_{uuid.uuid4().hex[:12]}"
+        user_manager = get_user_manager()
+
+        # Create folder in MongoDB
+        success = await asyncio.to_thread(
+            user_manager.create_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+            name=folder.name,
+            description=folder.description,
+            parent_id=folder.parent_id,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=400, detail="Failed to create folder (may already exist)"
+            )
+
+        # Retrieve the created folder
+        folder_doc = await asyncio.to_thread(
+            user_manager.get_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not folder_doc:
+            raise HTTPException(status_code=500, detail="Folder created but not found")
+
+        logger.info(f"✅ Created folder '{folder.name}' for user {user_id}")
+
+        return FolderResponse(
+            folder_id=folder_doc.get("folder_id"),
+            name=folder_doc.get("name"),
+            description=folder_doc.get("description"),
+            parent_id=folder_doc.get("parent_id"),
+            user_id=folder_doc.get("user_id"),
+            created_at=folder_doc.get("created_at"),
+            updated_at=folder_doc.get("updated_at"),
+            document_count=folder_doc.get("file_count", 0),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to create folder: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create folder")
+
+
+@router.get("/folders", response_model=List[FolderResponse])
+async def list_folders(
+    parent_id: Optional[str] = None,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    List folders for user
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Query Parameters:
+        parent_id: Parent folder ID (null for root folders)
+
+    Example:
+        GET /api/documents/folders
+        GET /api/documents/folders?parent_id=folder_abc123
+
+    Returns:
+        [
+            {
+                "id": "folder_abc123",
+                "name": "My Documents",
+                "description": "Important files",
+                "parent_id": null,
+                "user_id": "firebase_uid_123",
+                "created_at": "2025-10-17T10:30:00",
+                "updated_at": "2025-10-17T10:30:00",
+                "document_count": 5
+            }
+        ]
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        folders_docs = await asyncio.to_thread(
+            user_manager.list_folders,
+            user_id=user_id,
+            parent_id=parent_id,
+        )
+
+        folders = []
+        for doc in folders_docs:
+            folders.append(
+                FolderResponse(
+                    folder_id=doc.get("folder_id"),
+                    name=doc.get("name"),
+                    description=doc.get("description"),
+                    parent_id=doc.get("parent_id"),
+                    user_id=doc.get("user_id"),
+                    created_at=doc.get("created_at"),
+                    updated_at=doc.get("updated_at"),
+                    document_count=doc.get("file_count", 0),
+                )
+            )
+
+        logger.info(
+            f"✅ Found {len(folders)} folders for user {user_id} (parent: {parent_id or 'root'})"
+        )
+        return folders
+
+    except Exception as e:
+        logger.error(f"❌ Failed to list folders: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list folders")
+
+
+@router.get("/folders/{folder_id}", response_model=FolderResponse)
+async def get_folder(
+    folder_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Get folder details
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Path Parameters:
+        folder_id: Folder ID
+
+    Example:
+        GET /api/documents/folders/folder_abc123
+
+    Returns:
+        {
+            "id": "folder_abc123",
+            "name": "My Documents",
+            "description": "Important files",
+            "parent_id": null,
+            "user_id": "firebase_uid_123",
+            "created_at": "2025-10-17T10:30:00",
+            "updated_at": "2025-10-17T10:30:00",
+            "document_count": 5
+        }
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        folder_doc = await asyncio.to_thread(
+            user_manager.get_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not folder_doc:
+            raise HTTPException(status_code=404, detail="Folder not found")
+
+        return FolderResponse(
+            folder_id=folder_doc.get("folder_id"),
+            name=folder_doc.get("name"),
+            description=folder_doc.get("description"),
+            parent_id=folder_doc.get("parent_id"),
+            user_id=folder_doc.get("user_id"),
+            created_at=folder_doc.get("created_at"),
+            updated_at=folder_doc.get("updated_at"),
+            document_count=folder_doc.get("file_count", 0),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get folder: {e}")
+        raise HTTPException(status_code=404, detail="Folder not found")
+
+
+@router.put("/folders/{folder_id}", response_model=FolderResponse)
+async def update_folder(
+    folder_id: str,
+    folder_update: FolderUpdate,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Update folder
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Path Parameters:
+        folder_id: Folder ID
+
+    Body:
+        {
+            "name": "Updated Folder Name",
+            "description": "Updated description"
+        }
+
+    Example:
+        PUT /api/documents/folders/folder_abc123
+
+    Returns:
+        {
+            "id": "folder_abc123",
+            "name": "Updated Folder Name",
+            "description": "Updated description",
+            "parent_id": null,
+            "user_id": "firebase_uid_123",
+            "created_at": "2025-10-17T10:30:00",
+            "updated_at": "2025-10-17T12:45:00",
+            "document_count": 5
+        }
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        success = await asyncio.to_thread(
+            user_manager.update_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+            name=folder_update.name,
+            description=folder_update.description,
+        )
+
+        if not success:
+            raise HTTPException(status_code=404, detail="Folder not found")
+
+        # Get updated folder
+        folder_doc = await asyncio.to_thread(
+            user_manager.get_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not folder_doc:
+            raise HTTPException(status_code=500, detail="Folder updated but not found")
+
+        logger.info(f"✅ Updated folder {folder_id} for user {user_id}")
+
+        return FolderResponse(
+            folder_id=folder_doc.get("folder_id"),
+            name=folder_doc.get("name"),
+            description=folder_doc.get("description"),
+            parent_id=folder_doc.get("parent_id"),
+            user_id=folder_doc.get("user_id"),
+            created_at=folder_doc.get("created_at"),
+            updated_at=folder_doc.get("updated_at"),
+            document_count=folder_doc.get("file_count", 0),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update folder: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update folder")
+
+
+@router.delete("/folders/{folder_id}")
+async def delete_folder(
+    folder_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Delete folder (only if empty)
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Path Parameters:
+        folder_id: Folder ID
+
+    Example:
+        DELETE /api/documents/folders/folder_abc123
+
+    ⚠️ Important: Folder must be empty (no documents and no subfolders)
+
+    Returns:
+        {
+            "success": true,
+            "message": "Folder deleted successfully"
+        }
+    """
+    try:
+        user_id = user_data.get("uid")
+        user_manager = get_user_manager()
+
+        success = await asyncio.to_thread(
+            user_manager.delete_folder,
+            folder_id=folder_id,
+            user_id=user_id,
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete folder: folder not found or contains documents/subfolders",
+            )
+
+        logger.info(f"✅ Deleted folder {folder_id} for user {user_id}")
+
+        return {"success": True, "message": "Folder deleted successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete folder: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete folder")
+
+
+# ============ END FOLDER MANAGEMENT ============
+
+
 @router.get("/grouped-by-folders", response_model=DocumentsByFolderResponse)
 async def get_documents_by_folders(
     source_type: Optional[str] = None,
@@ -1147,350 +1496,3 @@ async def download_document(
     except Exception as e:
         logger.error(f"❌ Error downloading document: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============ FOLDER MANAGEMENT ============
-
-
-@router.post("/folders", response_model=FolderResponse)
-async def create_folder(
-    folder: FolderCreate,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    Create new folder for documents
-
-    Headers:
-        Authorization: Bearer <firebase_token>
-
-    Body:
-        {
-            "name": "My Documents",
-            "description": "Folder for important documents",
-            "parent_id": null
-        }
-
-    Returns:
-        {
-            "id": "folder_abc123",
-            "name": "My Documents",
-            "description": "Folder for important documents",
-            "parent_id": null,
-            "user_id": "firebase_uid_123",
-            "created_at": "2025-10-17T10:30:00",
-            "updated_at": "2025-10-17T10:30:00",
-            "document_count": 0
-        }
-    """
-    try:
-        user_id = user_data.get("uid")
-        import uuid
-
-        folder_id = f"folder_{uuid.uuid4().hex[:12]}"
-        user_manager = get_user_manager()
-
-        # Create folder in MongoDB
-        success = await asyncio.to_thread(
-            user_manager.create_folder,
-            folder_id=folder_id,
-            user_id=user_id,
-            name=folder.name,
-            description=folder.description,
-            parent_id=folder.parent_id,
-        )
-
-        if not success:
-            raise HTTPException(
-                status_code=400, detail="Failed to create folder (may already exist)"
-            )
-
-        # Retrieve the created folder
-        folder_doc = await asyncio.to_thread(
-            user_manager.get_folder,
-            folder_id=folder_id,
-            user_id=user_id,
-        )
-
-        if not folder_doc:
-            raise HTTPException(status_code=500, detail="Folder created but not found")
-
-        logger.info(f"✅ Created folder '{folder.name}' for user {user_id}")
-
-        return FolderResponse(
-            folder_id=folder_doc.get("folder_id"),
-            name=folder_doc.get("name"),
-            description=folder_doc.get("description"),
-            parent_id=folder_doc.get("parent_id"),
-            user_id=folder_doc.get("user_id"),
-            created_at=folder_doc.get("created_at"),
-            updated_at=folder_doc.get("updated_at"),
-            document_count=folder_doc.get(
-                "file_count", 0
-            ),  # Using file_count from UserManager
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to create folder: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create folder")
-
-
-@router.get("/folders", response_model=List[FolderResponse])
-async def list_folders(
-    parent_id: Optional[str] = None,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    List folders for user
-
-    Headers:
-        Authorization: Bearer <firebase_token>
-
-    Query Parameters:
-        parent_id: Parent folder ID (null for root folders)
-
-    Example:
-        GET /api/documents/folders
-        GET /api/documents/folders?parent_id=folder_abc123
-
-    Returns:
-        [
-            {
-                "id": "folder_abc123",
-                "name": "My Documents",
-                "description": "Important files",
-                "parent_id": null,
-                "user_id": "firebase_uid_123",
-                "created_at": "2025-10-17T10:30:00",
-                "updated_at": "2025-10-17T10:30:00",
-                "document_count": 5
-            }
-        ]
-    """
-    try:
-        user_id = user_data.get("uid")
-        user_manager = get_user_manager()
-
-        folders_docs = await asyncio.to_thread(
-            user_manager.list_folders,
-            user_id=user_id,
-            parent_id=parent_id,
-        )
-
-        folders = []
-        for doc in folders_docs:
-            folders.append(
-                FolderResponse(
-                    folder_id=doc.get("folder_id"),
-                    name=doc.get("name"),
-                    description=doc.get("description"),
-                    parent_id=doc.get("parent_id"),
-                    user_id=doc.get("user_id"),
-                    created_at=doc.get("created_at"),
-                    updated_at=doc.get("updated_at"),
-                    document_count=doc.get("file_count", 0),
-                )
-            )
-
-        logger.info(
-            f"✅ Found {len(folders)} folders for user {user_id} (parent: {parent_id or 'root'})"
-        )
-        return folders
-
-    except Exception as e:
-        logger.error(f"❌ Failed to list folders: {e}")
-        raise HTTPException(status_code=500, detail="Failed to list folders")
-
-
-@router.get("/folders/{folder_id}", response_model=FolderResponse)
-async def get_folder(
-    folder_id: str,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    Get folder details
-
-    Headers:
-        Authorization: Bearer <firebase_token>
-
-    Path Parameters:
-        folder_id: Folder ID
-
-    Example:
-        GET /api/documents/folders/folder_abc123
-
-    Returns:
-        {
-            "id": "folder_abc123",
-            "name": "My Documents",
-            "description": "Important files",
-            "parent_id": null,
-            "user_id": "firebase_uid_123",
-            "created_at": "2025-10-17T10:30:00",
-            "updated_at": "2025-10-17T10:30:00",
-            "document_count": 5
-        }
-    """
-    try:
-        user_id = user_data.get("uid")
-        user_manager = get_user_manager()
-
-        folder_doc = await asyncio.to_thread(
-            user_manager.get_folder,
-            folder_id=folder_id,
-            user_id=user_id,
-        )
-
-        if not folder_doc:
-            raise HTTPException(status_code=404, detail="Folder not found")
-
-        return FolderResponse(
-            folder_id=folder_doc.get("folder_id"),
-            name=folder_doc.get("name"),
-            description=folder_doc.get("description"),
-            parent_id=folder_doc.get("parent_id"),
-            user_id=folder_doc.get("user_id"),
-            created_at=folder_doc.get("created_at"),
-            updated_at=folder_doc.get("updated_at"),
-            document_count=folder_doc.get("file_count", 0),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to get folder: {e}")
-        raise HTTPException(status_code=404, detail="Folder not found")
-
-
-@router.put("/folders/{folder_id}", response_model=FolderResponse)
-async def update_folder(
-    folder_id: str,
-    folder_update: FolderUpdate,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    Update folder
-
-    Headers:
-        Authorization: Bearer <firebase_token>
-
-    Path Parameters:
-        folder_id: Folder ID
-
-    Body:
-        {
-            "name": "Updated Folder Name",
-            "description": "Updated description"
-        }
-
-    Example:
-        PUT /api/documents/folders/folder_abc123
-
-    Returns:
-        {
-            "id": "folder_abc123",
-            "name": "Updated Folder Name",
-            "description": "Updated description",
-            "parent_id": null,
-            "user_id": "firebase_uid_123",
-            "created_at": "2025-10-17T10:30:00",
-            "updated_at": "2025-10-17T12:45:00",
-            "document_count": 5
-        }
-    """
-    try:
-        user_id = user_data.get("uid")
-        user_manager = get_user_manager()
-
-        success = await asyncio.to_thread(
-            user_manager.update_folder,
-            folder_id=folder_id,
-            user_id=user_id,
-            name=folder_update.name,
-            description=folder_update.description,
-        )
-
-        if not success:
-            raise HTTPException(status_code=404, detail="Folder not found")
-
-        # Get updated folder
-        folder_doc = await asyncio.to_thread(
-            user_manager.get_folder,
-            folder_id=folder_id,
-            user_id=user_id,
-        )
-
-        if not folder_doc:
-            raise HTTPException(status_code=500, detail="Folder updated but not found")
-
-        logger.info(f"✅ Updated folder {folder_id} for user {user_id}")
-
-        return FolderResponse(
-            folder_id=folder_doc.get("folder_id"),
-            name=folder_doc.get("name"),
-            description=folder_doc.get("description"),
-            parent_id=folder_doc.get("parent_id"),
-            user_id=folder_doc.get("user_id"),
-            created_at=folder_doc.get("created_at"),
-            updated_at=folder_doc.get("updated_at"),
-            document_count=folder_doc.get("file_count", 0),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to update folder: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update folder")
-
-
-@router.delete("/folders/{folder_id}")
-async def delete_folder(
-    folder_id: str,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    Delete folder (only if empty)
-
-    Headers:
-        Authorization: Bearer <firebase_token>
-
-    Path Parameters:
-        folder_id: Folder ID
-
-    Example:
-        DELETE /api/documents/folders/folder_abc123
-
-    ⚠️ Important: Folder must be empty (no documents and no subfolders)
-
-    Returns:
-        {
-            "success": true,
-            "message": "Folder deleted successfully"
-        }
-    """
-    try:
-        user_id = user_data.get("uid")
-        user_manager = get_user_manager()
-
-        success = await asyncio.to_thread(
-            user_manager.delete_folder,
-            folder_id=folder_id,
-            user_id=user_id,
-        )
-
-        if not success:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete folder: folder not found or contains documents/subfolders",
-            )
-
-        logger.info(f"✅ Deleted folder {folder_id} for user {user_id}")
-
-        return {"success": True, "message": "Folder deleted successfully"}
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to delete folder: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete folder")
