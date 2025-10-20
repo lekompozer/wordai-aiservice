@@ -20,7 +20,12 @@ from src.services.user_manager import user_manager
 from src.services.document_manager import document_manager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.utils.logger import setup_logger
-from src.utils.file_converter import FileConverter, extract_text, estimate_tokens, estimate_pdf_tokens
+from src.utils.file_converter import (
+    FileConverter,
+    extract_text,
+    estimate_tokens,
+    estimate_pdf_tokens,
+)
 from src.utils.file_cache import file_cache, is_file_cached, get_cached_file, cache_file
 from src.utils.r2_downloader import r2_downloader, download_r2_file
 
@@ -38,14 +43,26 @@ class DocumentChatMessage(BaseModel):
 
 
 class DocumentChatRequest(BaseModel):
-    provider: str = Field(..., description="AI provider: gemini-pro, gpt-4, deepseek, qwen")
+    provider: str = Field(
+        ..., description="AI provider: gemini-pro, gpt-4, deepseek, qwen"
+    )
     user_query: str = Field(..., description="User's question about the document")
-    selected_text: Optional[str] = Field(None, description="Text selected by user in document")
-    file_id: Optional[str] = Field(None, description="File ID from simple-files or documents")
-    document_id: Optional[str] = Field(None, description="Document ID from edited documents")
+    selected_text: Optional[str] = Field(
+        None, description="Text selected by user in document"
+    )
+    file_id: Optional[str] = Field(
+        None, description="File ID from simple-files or documents"
+    )
+    document_id: Optional[str] = Field(
+        None, description="Document ID from edited documents"
+    )
     conversation_id: Optional[str] = Field(None, description="Existing conversation ID")
-    temperature: float = Field(0.7, ge=0.0, le=2.0, description="Temperature for AI response")
-    max_tokens: int = Field(4000, ge=1, le=8000, description="Maximum tokens in response (max 8k)")
+    temperature: float = Field(
+        0.7, ge=0.0, le=2.0, description="Temperature for AI response"
+    )
+    max_tokens: int = Field(
+        4000, ge=1, le=8000, description="Maximum tokens in response (max 8k)"
+    )
 
 
 # ============ CONSTANTS ============
@@ -53,10 +70,10 @@ class DocumentChatRequest(BaseModel):
 # Context length limits for different providers
 PROVIDER_CONTEXT_LIMITS = {
     "deepseek": 128_000,  # DeepSeek-V3.2 (Non-thinking Mode)
-    "qwen": 32_000,       # Qwen2.5
+    "qwen": 32_000,  # Qwen2.5
     "gemini-pro": 1_000_000,  # Gemini Pro
-    "gpt-4": 1_000_000,   # GPT-4
-    "claude": 200_000,    # Claude (if supported)
+    "gpt-4": 1_000_000,  # GPT-4
+    "claude": 200_000,  # Claude (if supported)
 }
 
 # Providers that support direct file upload
@@ -84,7 +101,7 @@ async def get_file_content(
     file_id: str = None,
     document_id: str = None,
     user_id: str = None,
-    conversation_id: str = None
+    conversation_id: str = None,
 ) -> Dict[str, Any]:
     """
     Get file content and metadata with caching support
@@ -131,12 +148,14 @@ async def get_file_content(
                 # Get R2 key and file info
                 r2_key = file_doc.get("r2_key")
                 file_url = file_doc.get("file_url") or file_doc.get("private_url")
-                filename = file_doc.get("filename") or file_doc.get("original_name", "file")
+                filename = file_doc.get("filename") or file_doc.get(
+                    "original_name", "file"
+                )
 
                 if not r2_key:
                     raise HTTPException(
                         status_code=404,
-                        detail="File R2 key not found - file may not be uploaded yet"
+                        detail="File R2 key not found - file may not be uploaded yet",
                     )
 
                 # Get file extension
@@ -144,33 +163,29 @@ async def get_file_content(
 
                 # Create local cache path
                 cache_path = file_cache._get_cache_path(
-                    file_id,
-                    conversation_id or "temp",
-                    file_ext
+                    file_id, conversation_id or "temp", file_ext
                 )
 
                 logger.info(f"⬇️ Downloading from R2: {r2_key}")
 
                 # Download from R2
                 download_success = await download_r2_file(
-                    r2_key=r2_key,
-                    local_path=str(cache_path),
-                    file_url=file_url
+                    r2_key=r2_key, local_path=str(cache_path), file_url=file_url
                 )
 
                 if not download_success:
                     # Try downloading from public URL as fallback
                     if file_url:
-                        logger.warning(f"⚠️ Trying fallback download from URL: {file_url}")
+                        logger.warning(
+                            f"⚠️ Trying fallback download from URL: {file_url}"
+                        )
                         download_success = await r2_downloader.download_from_url(
-                            url=file_url,
-                            local_path=str(cache_path)
+                            url=file_url, local_path=str(cache_path)
                         )
 
                 if not download_success:
                     raise HTTPException(
-                        status_code=500,
-                        detail="Failed to download file from R2"
+                        status_code=500, detail="Failed to download file from R2"
                     )
 
                 file_path = str(cache_path)
@@ -186,8 +201,8 @@ async def get_file_content(
                         metadata={
                             "filename": filename,
                             "r2_key": r2_key,
-                            "downloaded_at": datetime.utcnow().isoformat()
-                        }
+                            "downloaded_at": datetime.utcnow().isoformat(),
+                        },
                     )
                     logger.info(f"📦 Cached file: {file_id} → {file_path}")
 
@@ -213,11 +228,13 @@ async def get_file_content(
                 "content_text": content_text,
                 "page_count": page_count,
                 "estimated_tokens": estimated_tokens,
-                "from_cache": False
+                "from_cache": False,
             }
 
         else:
-            raise HTTPException(status_code=400, detail="Must provide file_id or document_id")
+            raise HTTPException(
+                status_code=400, detail="Must provide file_id or document_id"
+            )
 
         # ===== STEP 4: Extract Text and Metadata =====
         # Detect file type
@@ -231,7 +248,11 @@ async def get_file_content(
             logger.warning(f"⚠️ No text extracted from file")
 
         # Estimate tokens
-        estimated_tokens = estimate_tokens(content_text) if content_text else estimate_pdf_tokens(page_count)
+        estimated_tokens = (
+            estimate_tokens(content_text)
+            if content_text
+            else estimate_pdf_tokens(page_count)
+        )
 
         logger.info(
             f"📊 File analysis complete:\n"
@@ -248,7 +269,7 @@ async def get_file_content(
             "content_text": content_text,
             "page_count": page_count,
             "estimated_tokens": estimated_tokens,
-            "from_cache": from_cache
+            "from_cache": from_cache,
         }
 
     except HTTPException:
@@ -256,8 +277,7 @@ async def get_file_content(
     except Exception as e:
         logger.error(f"❌ Error getting file content: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get file content: {str(e)}"
+            status_code=500, detail=f"Failed to get file content: {str(e)}"
         )
 
         return {
@@ -265,7 +285,7 @@ async def get_file_content(
             "file_type": file_type,
             "content_text": content_text,
             "page_count": page_count,
-            "estimated_tokens": estimated_tokens
+            "estimated_tokens": estimated_tokens,
         }
 
     except HTTPException:
@@ -273,12 +293,13 @@ async def get_file_content(
     except Exception as e:
         logger.error(f"❌ Error getting file content: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get file content: {str(e)}"
+            status_code=500, detail=f"Failed to get file content: {str(e)}"
         )
 
 
-def calculate_max_history_tokens(provider: str, file_tokens: int, selected_text_tokens: int, output_tokens: int) -> int:
+def calculate_max_history_tokens(
+    provider: str, file_tokens: int, selected_text_tokens: int, output_tokens: int
+) -> int:
     """
     Calculate maximum tokens available for conversation history
 
@@ -288,7 +309,9 @@ def calculate_max_history_tokens(provider: str, file_tokens: int, selected_text_
     provider_limit = PROVIDER_CONTEXT_LIMITS.get(provider, 32_000)
 
     # Reserve tokens
-    reserved = file_tokens + selected_text_tokens + 200 + output_tokens  # 200 for user query
+    reserved = (
+        file_tokens + selected_text_tokens + 200 + output_tokens
+    )  # 200 for user query
 
     # Available for history
     available = provider_limit - reserved
@@ -300,8 +323,7 @@ def calculate_max_history_tokens(provider: str, file_tokens: int, selected_text_
 
 
 def limit_conversation_history(
-    existing_messages: List[Dict[str, str]],
-    max_history_tokens: int
+    existing_messages: List[Dict[str, str]], max_history_tokens: int
 ) -> List[Dict[str, str]]:
     """
     Limit conversation history to fit within token constraints
@@ -354,8 +376,7 @@ async def convert_to_text(file_path: str, file_type: str) -> str:
 
 @router.post("/stream")
 async def document_chat_stream(
-    request: DocumentChatRequest,
-    current_user: dict = Depends(require_auth)
+    request: DocumentChatRequest, current_user: dict = Depends(require_auth)
 ):
     """
     Stream chat response with document context
@@ -385,16 +406,12 @@ async def document_chat_stream(
         except ValueError:
             available = [p.value for p in AIProvider]
             raise HTTPException(
-                status_code=400,
-                detail=f"Invalid provider. Available: {available}"
+                status_code=400, detail=f"Invalid provider. Available: {available}"
             )
 
         # Validate max_tokens
         if request.max_tokens > 8000:
-            raise HTTPException(
-                status_code=400,
-                detail="max_tokens cannot exceed 8000"
-            )
+            raise HTTPException(status_code=400, detail="max_tokens cannot exceed 8000")
 
         # ===== STEP 1: Get/Create Conversation ID First =====
         conversation_id = request.conversation_id
@@ -415,7 +432,7 @@ async def document_chat_stream(
                 file_id=request.file_id,
                 document_id=request.document_id,
                 user_id=user_id,
-                conversation_id=conversation_id  # Pass conversation_id for caching
+                conversation_id=conversation_id,  # Pass conversation_id for caching
             )
             file_tokens = file_info["estimated_tokens"]
 
@@ -432,7 +449,7 @@ async def document_chat_stream(
             provider=request.provider,
             file_tokens=file_tokens,
             selected_text_tokens=selected_text_tokens,
-            output_tokens=request.max_tokens
+            output_tokens=request.max_tokens,
         )
 
         logger.info(
@@ -459,8 +476,7 @@ async def document_chat_stream(
         if conversation_id:
             try:
                 existing_conv = await user_manager.get_conversation_detail(
-                    user_id=user_id,
-                    conversation_id=conversation_id
+                    user_id=user_id, conversation_id=conversation_id
                 )
 
                 if existing_conv and existing_conv.get("messages"):
@@ -469,7 +485,7 @@ async def document_chat_stream(
                     # Limit history based on available tokens
                     history_messages = limit_conversation_history(
                         existing_messages=existing_messages,
-                        max_history_tokens=max_history_tokens
+                        max_history_tokens=max_history_tokens,
                     )
 
                     logger.info(
@@ -482,10 +498,12 @@ async def document_chat_stream(
         messages = []
 
         # System message
-        messages.append({
-            "role": "system",
-            "content": "You are a helpful AI assistant analyzing document content. Provide clear, accurate answers based on the document context provided."
-        })
+        messages.append(
+            {
+                "role": "system",
+                "content": "You are a helpful AI assistant analyzing document content. Provide clear, accurate answers based on the document context provided.",
+            }
+        )
 
         # Add history
         messages.extend(history_messages)
@@ -502,10 +520,7 @@ async def document_chat_stream(
 
         user_message = "\n".join(user_message_parts)
 
-        messages.append({
-            "role": "user",
-            "content": user_message
-        })
+        messages.append({"role": "user", "content": user_message})
 
         logger.info(f"💬 Total messages: {len(messages)}")
         logger.info(f"👤 User query: {request.user_query[:100]}...")
@@ -516,24 +531,28 @@ async def document_chat_stream(
                 full_response = ""
 
                 # Send metadata
-                yield f"data: {json.dumps({
-                    'type': 'metadata',
-                    'conversation_id': conversation_id,
-                    'provider': request.provider,
-                    'tokens': {
-                        'file': file_tokens,
-                        'selected_text': selected_text_tokens,
-                        'history': sum(estimate_tokens(m.get('content', '')) for m in history_messages),
-                        'max_output': request.max_tokens
-                    }
-                })}\n\n"
+                metadata = {
+                    "type": "metadata",
+                    "conversation_id": conversation_id,
+                    "provider": request.provider,
+                    "tokens": {
+                        "file": file_tokens,
+                        "selected_text": selected_text_tokens,
+                        "history": sum(
+                            estimate_tokens(m.get("content", ""))
+                            for m in history_messages
+                        ),
+                        "max_output": request.max_tokens,
+                    },
+                }
+                yield f"data: {json.dumps(metadata)}\n\n"
 
                 # Stream AI response
                 async for chunk in ai_chat_service.chat_stream(
                     provider=provider,
                     messages=messages,
                     temperature=request.temperature,
-                    max_tokens=request.max_tokens
+                    max_tokens=request.max_tokens,
                 ):
                     if chunk:
                         full_response += chunk
@@ -544,7 +563,7 @@ async def document_chat_stream(
                     # Prepare messages to save (exclude system message)
                     messages_to_save = [
                         {"role": "user", "content": request.user_query},
-                        {"role": "assistant", "content": full_response}
+                        {"role": "assistant", "content": full_response},
                     ]
 
                     # Combine with history
@@ -563,24 +582,26 @@ async def document_chat_stream(
                             "temperature": request.temperature,
                             "max_tokens": request.max_tokens,
                             "file_tokens": file_tokens,
-                            "response_tokens": estimate_tokens(full_response)
-                        }
+                            "response_tokens": estimate_tokens(full_response),
+                        },
                     )
 
                     logger.info(f"💾 Conversation saved: {conversation_id}")
 
-                    yield f"data: {json.dumps({
-                        'type': 'complete',
-                        'conversation_id': conversation_id,
-                        'saved': True
-                    })}\n\n"
+                    complete_data = {
+                        "type": "complete",
+                        "conversation_id": conversation_id,
+                        "saved": True,
+                    }
+                    yield f"data: {json.dumps(complete_data)}\n\n"
 
                 except Exception as save_error:
                     logger.error(f"❌ Save error: {save_error}")
-                    yield f"data: {json.dumps({
-                        'type': 'error',
-                        'message': 'Failed to save conversation'
-                    })}\n\n"
+                    error_data = {
+                        "type": "error",
+                        "message": "Failed to save conversation",
+                    }
+                    yield f"data: {json.dumps(error_data)}\n\n"
 
                 # Done
                 yield "data: [DONE]\n\n"
@@ -596,25 +617,20 @@ async def document_chat_stream(
             headers={
                 "Cache-Control": "no-cache",
                 "Connection": "keep-alive",
-                "Content-Type": "text/event-stream"
-            }
+                "Content-Type": "text/event-stream",
+            },
         )
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Document chat error: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Document chat failed: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Document chat failed: {str(e)}")
 
 
 @router.get("/conversations")
 async def get_document_chat_conversations(
-    limit: int = 20,
-    offset: int = 0,
-    current_user: dict = Depends(require_auth)
+    limit: int = 20, offset: int = 0, current_user: dict = Depends(require_auth)
 ):
     """Get document chat conversation history"""
     try:
@@ -622,14 +638,13 @@ async def get_document_chat_conversations(
 
         # Get conversations filtered by type
         conversations = await user_manager.get_user_conversations(
-            user_id=user_id,
-            limit=limit,
-            offset=offset
+            user_id=user_id, limit=limit, offset=offset
         )
 
         # Filter document chat conversations
         doc_chats = [
-            conv for conv in conversations
+            conv
+            for conv in conversations
             if conv.get("metadata", {}).get("type") == "document_chat"
         ]
 
@@ -639,42 +654,35 @@ async def get_document_chat_conversations(
             "conversations": doc_chats,
             "total": len(doc_chats),
             "limit": limit,
-            "offset": offset
+            "offset": offset,
         }
 
     except Exception as e:
         logger.error(f"❌ Error getting conversations: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get conversations: {str(e)}"
+            status_code=500, detail=f"Failed to get conversations: {str(e)}"
         )
 
 
 @router.get("/conversations/{conversation_id}")
 async def get_document_chat_detail(
-    conversation_id: str,
-    current_user: dict = Depends(require_auth)
+    conversation_id: str, current_user: dict = Depends(require_auth)
 ):
     """Get specific document chat conversation detail"""
     try:
         user_id = current_user["uid"]
 
         conversation = await user_manager.get_conversation_detail(
-            user_id=user_id,
-            conversation_id=conversation_id
+            user_id=user_id, conversation_id=conversation_id
         )
 
         if not conversation:
-            raise HTTPException(
-                status_code=404,
-                detail="Conversation not found"
-            )
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Verify it's a document chat
         if conversation.get("metadata", {}).get("type") != "document_chat":
             raise HTTPException(
-                status_code=400,
-                detail="Not a document chat conversation"
+                status_code=400, detail="Not a document chat conversation"
             )
 
         logger.info(f"📄 Retrieved conversation: {conversation_id}")
@@ -686,15 +694,13 @@ async def get_document_chat_detail(
     except Exception as e:
         logger.error(f"❌ Error getting conversation detail: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get conversation: {str(e)}"
+            status_code=500, detail=f"Failed to get conversation: {str(e)}"
         )
 
 
 @router.delete("/conversations/{conversation_id}")
 async def delete_document_chat(
-    conversation_id: str,
-    current_user: dict = Depends(require_auth)
+    conversation_id: str, current_user: dict = Depends(require_auth)
 ):
     """
     Delete document chat conversation and clear cache
@@ -720,21 +726,19 @@ async def delete_document_chat(
         return {
             "success": True,
             "message": "Conversation deleted successfully",
-            "cache_cleared": cache_cleared
+            "cache_cleared": cache_cleared,
         }
 
     except Exception as e:
         logger.error(f"❌ Error deleting conversation: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete conversation: {str(e)}"
+            status_code=500, detail=f"Failed to delete conversation: {str(e)}"
         )
 
 
 @router.post("/conversations/{conversation_id}/clear-cache")
 async def clear_conversation_cache_endpoint(
-    conversation_id: str,
-    current_user: dict = Depends(require_auth)
+    conversation_id: str, current_user: dict = Depends(require_auth)
 ):
     """
     Clear file cache for a conversation without deleting the conversation
@@ -749,15 +753,11 @@ async def clear_conversation_cache_endpoint(
 
         # Verify user owns this conversation
         conversation = await user_manager.get_conversation_detail(
-            user_id=user_id,
-            conversation_id=conversation_id
+            user_id=user_id, conversation_id=conversation_id
         )
 
         if not conversation:
-            raise HTTPException(
-                status_code=404,
-                detail="Conversation not found"
-            )
+            raise HTTPException(status_code=404, detail="Conversation not found")
 
         # Clear cache
         cache_cleared = file_cache.clear_conversation_cache(conversation_id)
@@ -767,23 +767,18 @@ async def clear_conversation_cache_endpoint(
         return {
             "success": True,
             "message": "Cache cleared successfully",
-            "conversation_id": conversation_id
+            "conversation_id": conversation_id,
         }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error clearing cache: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to clear cache: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=f"Failed to clear cache: {str(e)}")
 
 
 @router.get("/cache/stats")
-async def get_cache_stats(
-    current_user: dict = Depends(require_auth)
-):
+async def get_cache_stats(current_user: dict = Depends(require_auth)):
     """
     Get cache statistics
 
@@ -796,14 +791,10 @@ async def get_cache_stats(
         cleaned_count = file_cache.cleanup_expired_cache()
         stats["expired_files_cleaned"] = cleaned_count
 
-        return {
-            "success": True,
-            "cache_stats": stats
-        }
+        return {"success": True, "cache_stats": stats}
 
     except Exception as e:
         logger.error(f"❌ Error getting cache stats: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to get cache stats: {str(e)}"
+            status_code=500, detail=f"Failed to get cache stats: {str(e)}"
         )
