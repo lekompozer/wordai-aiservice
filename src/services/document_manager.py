@@ -468,3 +468,10 @@ class DocumentManager:
         )
 
         return result
+
+
+# Global instance
+from src.config.database import get_db_manager
+
+db_manager = get_db_manager()
+document_manager = DocumentManager(db=db_manager.db)
