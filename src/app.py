@@ -104,6 +104,9 @@ from src.api.ai_content_edit import router as ai_content_edit_router
 # ✅ ADDED: AI Chat API for streaming chat with file context
 from src.api.ai_chat import router as ai_chat_router
 
+# ✅ ADDED: Document Chat API for AI chat with document context and file support
+from src.api.document_chat_routes import router as document_chat_router
+
 # ✅ ADDED: Document Editor API for document management with auto-save
 from src.api.document_editor_routes import router as document_editor_router
 
@@ -421,26 +424,30 @@ def create_app() -> FastAPI:
         Helps track browser extensions, malware, or unwanted injected scripts
         """
         response = await call_next(request)
-        
+
         # Log suspicious patterns
         suspicious_paths = [
-            "/js/", "/css/", "/fonts/", "/images/", 
-            "/twint", "/lkk", "/support_parent"
+            "/js/",
+            "/css/",
+            "/fonts/",
+            "/images/",
+            "/twint",
+            "/lkk",
+            "/support_parent",
         ]
-        
+
         path = request.url.path
-        is_suspicious = (
-            response.status_code == 404 and 
-            (path == "/" or any(pattern in path for pattern in suspicious_paths))
+        is_suspicious = response.status_code == 404 and (
+            path == "/" or any(pattern in path for pattern in suspicious_paths)
         )
-        
+
         if is_suspicious:
             logger = logging.getLogger("chatbot")
             client_host = request.client.host if request.client else "unknown"
             user_agent = request.headers.get("user-agent", "unknown")
             referer = request.headers.get("referer", "none")
             origin = request.headers.get("origin", "none")
-            
+
             logger.warning(
                 f"🚨 SUSPICIOUS REQUEST [404]:\n"
                 f"   Path: {path}\n"
@@ -450,7 +457,7 @@ def create_app() -> FastAPI:
                 f"   Origin: {origin}\n"
                 f"   ⚠️ Possible browser extension/malware injecting scripts"
             )
-        
+
         return response
 
     # ===== REGISTER ROUTERS =====
@@ -556,6 +563,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: AI Chat API - Streaming chat with file context
     app.include_router(ai_chat_router, tags=["AI Chat"])
+
+    # ✅ ADDED: Document Chat API - AI chat with document context
+    app.include_router(document_chat_router, tags=["Document Chat"])
 
     # ✅ ADDED: Document Editor API - Document management with auto-save
     app.include_router(document_editor_router, tags=["Document Editor"])
