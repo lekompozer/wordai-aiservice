@@ -1065,11 +1065,41 @@ async def update_file(
         else:
             logger.info("   ℹ️  No changes to file location/name, skipping copy")
 
-        # Step 6: Generate new signed URL (for immediate use after update)
+        # Step 6: UPDATE MONGODB - Critical fix!
+        logger.info("   💾 Updating file metadata in MongoDB...")
+        user_manager = get_user_manager()
+
+        update_data = {
+            "folder_id": new_folder_id,
+            "filename": new_filename,
+            "original_name": original_name if file_update.filename else None,
+            "r2_key": new_key,
+            "updated_at": datetime.utcnow(),
+        }
+
+        # Remove None values
+        update_data = {k: v for k, v in update_data.items() if v is not None}
+
+        db_updated = await asyncio.to_thread(
+            user_manager.update_file_metadata,
+            file_id=file_id,
+            user_id=user_id,
+            update_data=update_data,
+        )
+
+        if db_updated:
+            logger.info("   ✅ MongoDB updated successfully!")
+            logger.info(f"      - folder_id: {new_folder_id or 'root'}")
+            logger.info(f"      - filename: {new_filename}")
+            logger.info(f"      - r2_key: {new_key}")
+        else:
+            logger.warning("   ⚠️  MongoDB update failed or no changes detected")
+
+        # Step 7: Generate new signed URL (for immediate use after update)
         logger.info("   🔐 Generating signed URL for updated file...")
         download_url = generate_signed_url(new_key, expiration=3600)
 
-        # Step 7: Extract original name (without timestamp)
+        # Step 8: Extract original name (without timestamp)
         original_name = new_filename
         if "_" in new_filename and len(new_filename.split("_", 1)) > 1:
             timestamp_part, name_part = new_filename.split("_", 1)
@@ -1078,7 +1108,7 @@ async def update_file(
 
         file_ext = Path(new_filename).suffix.lower()
 
-        # Step 8: Build response
+        # Step 9: Build response
         now = datetime.utcnow()
         file_data = {
             "id": file_id,

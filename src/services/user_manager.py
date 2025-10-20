@@ -845,6 +845,54 @@ class UserManager:
             logger.error(f"❌ Error saving file metadata {file_id}: {e}")
             return False
 
+    def update_file_metadata(
+        self, file_id: str, user_id: str, update_data: Dict[str, Any]
+    ) -> bool:
+        """
+        Update file metadata in MongoDB
+
+        Args:
+            file_id: Unique file ID
+            user_id: Firebase UID (for verification)
+            update_data: Dictionary with fields to update (folder_id, filename, r2_key, etc.)
+
+        Returns:
+            bool: Success status
+        """
+        try:
+            # Ensure updated_at is set
+            if "updated_at" not in update_data:
+                update_data["updated_at"] = datetime.now(timezone.utc)
+
+            if self.db and self.db.client:
+                result = self.user_files.update_one(
+                    {"file_id": file_id, "user_id": user_id, "is_deleted": False},
+                    {"$set": update_data},
+                )
+
+                if result.modified_count > 0:
+                    logger.info(f"✅ Updated file metadata: {file_id}")
+                    logger.info(f"   Updated fields: {list(update_data.keys())}")
+                    return True
+                else:
+                    logger.warning(
+                        f"⚠️  No changes made to file {file_id} (already up-to-date or not found)"
+                    )
+                    return False
+            else:
+                # Fallback storage
+                if file_id in self.user_files:
+                    self.user_files[file_id].update(update_data)
+                    logger.info(f"✅ Updated file metadata (fallback): {file_id}")
+                    return True
+                else:
+                    logger.warning(f"⚠️  File {file_id} not found in fallback storage")
+                    return False
+
+        except Exception as e:
+            logger.error(f"❌ Error updating file metadata {file_id}: {e}")
+            return False
+
     def list_user_files(
         self,
         user_id: str,
