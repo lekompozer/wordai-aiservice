@@ -511,11 +511,26 @@ async def document_chat_stream(
         # Prepare user message with context
         user_message_parts = []
 
+        # Add file content first (if available)
+        if file_info and file_info.get("content_text"):
+            content_preview = file_info["content_text"][:500]  # Log preview
+            logger.info(
+                f"📄 Adding file content to message ({len(file_info['content_text'])} chars)"
+            )
+            logger.info(f"   Preview: {content_preview}...")
+
+            user_message_parts.append(
+                f"---DOCUMENT CONTENT---\n{file_info['content_text']}\n---END DOCUMENT---\n"
+            )
+
+        # Add selected text (if provided by user)
         if request.selected_text:
+            logger.info(f"✏️  Adding selected text ({len(request.selected_text)} chars)")
             user_message_parts.append(
                 f"---SELECTED TEXT FROM DOCUMENT---\n{request.selected_text}\n---END SELECTED TEXT---\n"
             )
 
+        # Add user question
         user_message_parts.append(f"User Question: {request.user_query}")
 
         user_message = "\n".join(user_message_parts)
@@ -523,6 +538,7 @@ async def document_chat_stream(
         messages.append({"role": "user", "content": user_message})
 
         logger.info(f"💬 Total messages: {len(messages)}")
+        logger.info(f"📊 User message length: {len(user_message):,} chars")
         logger.info(f"👤 User query: {request.user_query[:100]}...")
 
         # ===== STEP 6: Stream Response =====
