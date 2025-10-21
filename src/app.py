@@ -113,6 +113,9 @@ from src.api.document_editor_routes import router as document_editor_router
 # ✅ ADDED: AI Editor Suite for document editing features (Edit, Translate, Format, Bilingual)
 from src.api.ai_editor_routes import router as ai_editor_router
 
+# ✅ ADDED: Document Export API for PDF, DOCX, TXT export with pagination
+from src.api.document_export_routes import router as document_export_router
+
 # ✅ ADDED: Library Files API for Type 3 files (templates, guides, references, resources)
 from src.api.library_routes import router as library_router
 
@@ -575,6 +578,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: AI Editor Suite - Edit, Translate, Format, Bilingual Conversion
     app.include_router(ai_editor_router, tags=["AI Editor Suite"])
+
+    # ✅ ADDED: Document Export API - Export to PDF, DOCX, TXT with pagination
+    app.include_router(document_export_router, tags=["Document Export"])
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)
