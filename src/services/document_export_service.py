@@ -202,7 +202,7 @@ class DocumentExportService:
         self, html_content: str, title: str = "document"
     ) -> Tuple[bytes, str]:
         """
-        Convert HTML to DOCX using python-docx + htmldocx
+        Convert HTML to DOCX using Pandoc (via pypandoc)
 
         Args:
             html_content: HTML content to convert
@@ -212,28 +212,48 @@ class DocumentExportService:
             (docx_bytes, filename)
         """
         try:
-            from docx import Document
-            from htmldocx import HtmlToDocx
+            import pypandoc
 
-            # Create new Document
-            document = Document()
+            # Add proper HTML structure if missing
+            if not html_content.strip().startswith(
+                "<!DOCTYPE"
+            ) and not html_content.strip().startswith("<html"):
+                html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>{title}</title>
+</head>
+<body>
+{html_content}
+</body>
+</html>"""
 
-            # Parse HTML and add to document
-            parser = HtmlToDocx()
-            parser.add_html_to_document(html_content, document)
+            # Convert HTML to DOCX using Pandoc
+            # Pandoc is much more powerful than htmldocx and handles complex HTML better
+            docx_bytes = pypandoc.convert_text(
+                html_content,
+                "docx",
+                format="html",
+                extra_args=[
+                    "--reference-doc=/dev/null",  # Use default template
+                    f"--metadata=title:{title}",  # Set document title
+                ],
+            )
 
-            # Save to BytesIO
-            docx_file = BytesIO()
-            document.save(docx_file)
-            docx_bytes = docx_file.getvalue()
+            # pypandoc.convert_text with outputfile=None returns bytes in Python 3
+            if isinstance(docx_bytes, str):
+                docx_bytes = docx_bytes.encode("utf-8")
 
             filename = f"{self._sanitize_filename(title)}.docx"
 
-            logger.info(f"✅ Generated DOCX: {filename} ({len(docx_bytes)} bytes)")
+            logger.info(
+                f"✅ Generated DOCX with Pandoc: {filename} ({len(docx_bytes)} bytes)"
+            )
             return docx_bytes, filename
 
         except Exception as e:
-            logger.error(f"❌ Error generating DOCX: {e}")
+            logger.error(f"❌ Error generating DOCX with Pandoc: {e}")
             raise Exception(f"DOCX generation failed: {str(e)}")
 
     def export_to_txt(

@@ -11,8 +11,9 @@ from enum import Enum
 from src.middleware.firebase_auth import require_auth
 from src.services.document_manager import document_manager
 from src.services.document_export_service import DocumentExportService
-from src.services.r2_client import r2_client
-from src.core.database import get_database
+from src.storage.r2_client import R2Client
+from src.core.config import APP_CONFIG
+from config.config import get_mongodb
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -124,8 +125,15 @@ async def export_document(
                 status_code=400, detail="TXT export is only supported for notes"
             )
 
-        # Initialize export service
-        db = get_database()
+        # Initialize R2 client and export service
+        r2_client = R2Client(
+            account_id=APP_CONFIG.r2_account_id,
+            access_key_id=APP_CONFIG.r2_access_key_id,
+            secret_access_key=APP_CONFIG.r2_secret_access_key,
+            bucket_name=APP_CONFIG.r2_bucket_name,
+        )
+
+        db = get_mongodb()
         export_service = DocumentExportService(r2_client, db)
 
         # Prepare page range info
