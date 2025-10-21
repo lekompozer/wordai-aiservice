@@ -187,7 +187,9 @@ HTML to translate:
                 ):
                     yield chunk
 
-                logger.info(f"✅ Translation completed for document {request.document_id}")
+                logger.info(
+                    f"✅ Translation completed for document {request.document_id}"
+                )
 
             except Exception as e:
                 logger.error(f"❌ Translation streaming failed: {e}")
