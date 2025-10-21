@@ -410,7 +410,7 @@ class DocumentExportService:
 
                 # Generate presigned URL (1 hour expiry)
                 download_url = await self.r2_client.generate_presigned_url(
-                    key=r2_key, expiration=3600, http_method="GET"
+                    remote_path=r2_key, expiration=3600, method="GET"
                 )
 
                 # Calculate expiry time
