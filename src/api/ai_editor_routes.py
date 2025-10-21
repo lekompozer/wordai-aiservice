@@ -222,7 +222,9 @@ async def format_document(
         if not doc_type:
             # Fallback: Get from database
             try:
-                doc = await document_manager.get_document(request.document_id)
+                doc = document_manager.get_document(
+                    request.document_id, user_info["uid"]
+                )
                 doc_type = doc.get("type", "doc")
             except Exception as e:
                 logger.warning(
@@ -294,7 +296,7 @@ async def bilingual_convert(
 
         # Get full document content
         try:
-            doc = await document_manager.get_document(request.document_id)
+            doc = document_manager.get_document(request.document_id, user_info["uid"])
             content_html = doc.get("content_html", "")
             if not content_html:
                 raise HTTPException(
