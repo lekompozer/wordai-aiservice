@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     build-essential \
     git \
     curl \
+    pandoc \
     libreoffice \
     libreoffice-writer \
     libreoffice-calc \
