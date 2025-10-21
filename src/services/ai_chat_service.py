@@ -221,6 +221,58 @@ class AIChatService:
 
         return providers
 
+    async def chat(
+        self,
+        provider: AIProvider,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 4000,
+    ) -> str:
+        """Get complete chat response from specified AI provider (non-streaming)"""
+
+        if provider not in self.providers:
+            raise ValueError(f"Provider {provider} not available")
+
+        try:
+            if provider in [AIProvider.CHATGPT_4O_LATEST]:
+                # OpenAI providers
+                return await self._chat_openai_compatible(
+                    provider, messages, temperature, max_tokens
+                )
+
+            elif provider in [AIProvider.DEEPSEEK_CHAT, AIProvider.DEEPSEEK_REASONER]:
+                # DeepSeek providers (OpenAI-compatible)
+                return await self._chat_openai_compatible(
+                    provider, messages, temperature, max_tokens
+                )
+
+            elif provider in [
+                AIProvider.QWEN_235B_INSTRUCT,
+                AIProvider.QWEN_235B_THINKING,
+                AIProvider.QWEN_480B_CODER,
+                AIProvider.QWEN_32B,
+                AIProvider.LLAMA_70B,
+                AIProvider.LLAMA_8B,
+            ]:
+                # Cerebras providers (OpenAI-compatible)
+                return await self._chat_openai_compatible(
+                    provider, messages, temperature, max_tokens
+                )
+
+            elif provider in [
+                AIProvider.GEMINI_FLASH_IMAGE,
+                AIProvider.GEMINI_FLASH,
+                AIProvider.GEMINI_PRO,
+            ]:
+                # Gemini models
+                return await self._chat_gemini(
+                    provider, messages, temperature, max_tokens
+                )
+
+        except Exception as e:
+            logger.error(f"❌ Error chatting with {provider}: {e}")
+            raise
+
     async def chat_stream(
         self,
         provider: AIProvider,
@@ -277,6 +329,68 @@ class AIChatService:
         except Exception as e:
             logger.error(f"❌ Error streaming from {provider}: {e}")
             yield f"❌ Error: {str(e)}"
+
+    async def _chat_openai_compatible(
+        self,
+        provider: AIProvider,
+        messages: List[Dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ) -> str:
+        """Get complete response from OpenAI-compatible providers"""
+
+        client = self.providers[provider]
+        model = self.models[provider]
+
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+            return response.choices[0].message.content
+
+        except Exception as e:
+            logger.error(f"❌ OpenAI compatible chat error: {e}")
+            raise
+
+    async def _chat_gemini(
+        self,
+        provider: AIProvider,
+        messages: List[Dict[str, str]],
+        temperature: float,
+        max_tokens: int,
+    ) -> str:
+        """Get complete response from Gemini models"""
+
+        model_name = self.models[provider]
+
+        try:
+            # Convert messages to Gemini format
+            gemini_prompt = self._convert_messages_to_gemini(messages)
+
+            # Get Gemini client for this request
+            genai_client = self.providers[provider]
+
+            # Create Gemini model
+            model = genai_client.GenerativeModel(model_name)
+
+            # Generate response
+            response = model.generate_content(
+                gemini_prompt,
+                generation_config=genai_client.types.GenerationConfig(
+                    temperature=temperature,
+                    max_output_tokens=max_tokens,
+                ),
+            )
+
+            return response.text
+
+        except Exception as e:
+            logger.error(f"❌ Gemini chat error: {e}")
+            raise
 
     async def _stream_openai_compatible(
         self,

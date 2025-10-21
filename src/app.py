@@ -110,6 +110,9 @@ from src.api.document_chat_routes import router as document_chat_router
 # ✅ ADDED: Document Editor API for document management with auto-save
 from src.api.document_editor_routes import router as document_editor_router
 
+# ✅ ADDED: AI Editor Suite for document editing features (Edit, Translate, Format, Bilingual)
+from src.api.ai_editor_routes import router as ai_editor_router
+
 # ✅ ADDED: Library Files API for Type 3 files (templates, guides, references, resources)
 from src.api.library_routes import router as library_router
 
@@ -569,6 +572,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Document Editor API - Document management with auto-save
     app.include_router(document_editor_router, tags=["Document Editor"])
+
+    # ✅ ADDED: AI Editor Suite - Edit, Translate, Format, Bilingual Conversion
+    app.include_router(ai_editor_router, tags=["AI Editor Suite"])
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)
