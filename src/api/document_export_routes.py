@@ -127,16 +127,14 @@ async def export_document(
 
         # Initialize R2 client and export service
         r2_client = R2Client(
-            account_id=APP_CONFIG.r2_account_id,
-            access_key_id=APP_CONFIG.r2_access_key_id,
-            secret_access_key=APP_CONFIG.r2_secret_access_key,
-            bucket_name=APP_CONFIG.r2_bucket_name,
+            account_id=APP_CONFIG["r2_account_id"],
+            access_key_id=APP_CONFIG["r2_access_key_id"],
+            secret_access_key=APP_CONFIG["r2_secret_access_key"],
+            bucket_name=APP_CONFIG["r2_bucket_name"],
         )
 
         db = get_mongodb()
-        export_service = DocumentExportService(r2_client, db)
-
-        # Prepare page range info
+        export_service = DocumentExportService(r2_client, db)  # Prepare page range info
         pages_info = "all"
         if request.start_page or request.end_page:
             if not request.include_full_document:
