@@ -4,6 +4,7 @@ AI-powered document editing features: Edit, Translate, Format, Bilingual Convers
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from enum import Enum
@@ -141,12 +142,12 @@ HTML to edit:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/translate", response_model=AIEditorResponse)
+@router.post("/translate")
 async def translate(
     request: AITranslateRequest, user_info: dict = Depends(require_auth)
 ):
     """
-    Translate document content to target language
+    Translate document content to target language (Streaming)
     Uses Deepseek for fast and cost-effective translation
     """
     try:
@@ -166,7 +167,7 @@ Target Language: '{request.target_language}'
 HTML to translate:
 {request.context_html}"""
 
-        # Call AI service (Deepseek)
+        # Call AI service (Deepseek) - STREAMING
         messages = [
             {
                 "role": "system",
@@ -175,17 +176,27 @@ HTML to translate:
             {"role": "user", "content": prompt},
         ]
 
-        # Get response from AI (non-streaming)
-        translated_html = await ai_chat_service.chat(
-            provider=AIProvider.DEEPSEEK_CHAT,
-            messages=messages,
-            temperature=0.3,
-            max_tokens=8000,
+        async def generate_stream():
+            """Stream translation results"""
+            try:
+                async for chunk in ai_chat_service.chat_stream(
+                    provider=AIProvider.DEEPSEEK_CHAT,
+                    messages=messages,
+                    temperature=0.3,
+                    max_tokens=8000,
+                ):
+                    yield chunk
+
+                logger.info(f"✅ Translation completed for document {request.document_id}")
+
+            except Exception as e:
+                logger.error(f"❌ Translation streaming failed: {e}")
+                yield f"\n\n❌ Error: {str(e)}"
+
+        return StreamingResponse(
+            generate_stream(),
+            media_type="text/plain",
         )
-
-        logger.info(f"✅ Translation completed for document {request.document_id}")
-
-        return AIEditorResponse(success=True, edited_html=translated_html.strip())
 
     except Exception as e:
         logger.error(f"❌ Translation failed: {e}")
