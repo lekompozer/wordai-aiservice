@@ -250,6 +250,10 @@ class DocumentExportService:
                     ],
                 )
 
+                # Post-process DOCX to add table borders
+                # Pandoc doesn't preserve HTML table borders, so we add them manually
+                self._add_table_borders_to_docx(tmp_path)
+
                 # Read the generated DOCX file
                 with open(tmp_path, "rb") as f:
                     docx_bytes = f.read()
@@ -269,6 +273,65 @@ class DocumentExportService:
         except Exception as e:
             logger.error(f"❌ Error generating DOCX with Pandoc: {e}")
             raise Exception(f"DOCX generation failed: {str(e)}")
+
+    def _add_table_borders_to_docx(self, docx_path: str) -> None:
+        """
+        Add borders to all tables in a DOCX file.
+        Pandoc doesn't preserve HTML table borders, so we add them manually.
+
+        Args:
+            docx_path: Path to the DOCX file to modify
+        """
+        try:
+            from docx import Document
+            from docx.oxml import OxmlElement
+            from docx.oxml.ns import qn
+
+            # Open the document
+            doc = Document(docx_path)
+
+            # Process each table
+            for table in doc.tables:
+                # Set table borders
+                tbl = table._element
+                tblPr = tbl.tblPr
+                if tblPr is None:
+                    tblPr = OxmlElement("w:tblPr")
+                    tbl.insert(0, tblPr)
+
+                # Create table borders element
+                tblBorders = OxmlElement("w:tblBorders")
+
+                # Define border style (single line, 1pt, black)
+                border_attrs = {
+                    "w:val": "single",
+                    "w:sz": "4",  # 4/8 = 0.5pt
+                    "w:space": "0",
+                    "w:color": "000000"
+                }
+
+                # Add all borders
+                for border_name in ["top", "left", "bottom", "right", "insideH", "insideV"]:
+                    border = OxmlElement(f"w:{border_name}")
+                    for attr, value in border_attrs.items():
+                        border.set(qn(attr), value)
+                    tblBorders.append(border)
+
+                # Remove existing borders if any
+                existing_borders = tblPr.find(qn("w:tblBorders"))
+                if existing_borders is not None:
+                    tblPr.remove(existing_borders)
+
+                # Add new borders
+                tblPr.append(tblBorders)
+
+            # Save the modified document
+            doc.save(docx_path)
+            logger.debug(f"✅ Added borders to {len(doc.tables)} tables in DOCX")
+
+        except Exception as e:
+            # Don't fail the entire export if border addition fails
+            logger.warning(f"⚠️ Could not add table borders to DOCX: {e}")
 
     def export_to_txt(
         self, html_content: str, title: str = "document"
