@@ -231,19 +231,33 @@ class DocumentExportService:
 
             # Convert HTML to DOCX using Pandoc
             # Pandoc is much more powerful than htmldocx and handles complex HTML better
-            docx_bytes = pypandoc.convert_text(
-                html_content,
-                "docx",
-                format="html",
-                extra_args=[
-                    "--reference-doc=/dev/null",  # Use default template
-                    f"--metadata=title:{title}",  # Set document title
-                ],
-            )
+            # For docx format, we need to write to a temporary file
+            import tempfile
+            import os
 
-            # pypandoc.convert_text with outputfile=None returns bytes in Python 3
-            if isinstance(docx_bytes, str):
-                docx_bytes = docx_bytes.encode("utf-8")
+            with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp_file:
+                tmp_path = tmp_file.name
+
+            try:
+                # Convert HTML to DOCX file
+                pypandoc.convert_text(
+                    html_content,
+                    "docx",
+                    format="html",
+                    outputfile=tmp_path,
+                    extra_args=[
+                        f"--metadata=title:{title}",  # Set document title
+                    ],
+                )
+
+                # Read the generated DOCX file
+                with open(tmp_path, "rb") as f:
+                    docx_bytes = f.read()
+
+            finally:
+                # Clean up temporary file
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
 
             filename = f"{self._sanitize_filename(title)}.docx"
 
