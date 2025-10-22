@@ -263,7 +263,7 @@ async def create_folder(
         folder_id = f"folder_{uuid.uuid4().hex[:12]}"
         user_manager = get_user_manager()
 
-        # Create folder in MongoDB
+        # Create folder in MongoDB (upload_files collection)
         success = await asyncio.to_thread(
             user_manager.create_folder,
             folder_id=folder_id,
@@ -325,7 +325,7 @@ async def list_folders(
         user_id = user_data.get("uid")
         user_manager = get_user_manager()
 
-        # Query folders from MongoDB
+        # Query folders from MongoDB (upload_files folders collection)
         folders_docs = await asyncio.to_thread(
             user_manager.list_folders,
             user_id=user_id,

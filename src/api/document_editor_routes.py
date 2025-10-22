@@ -543,9 +543,9 @@ async def create_folder(
         folder_id = f"folder_{uuid.uuid4().hex[:12]}"
         user_manager = get_user_manager()
 
-        # Create folder in MongoDB
+        # Create folder in MongoDB (document_folders collection)
         success = await asyncio.to_thread(
-            user_manager.create_folder,
+            user_manager.create_document_folder,
             folder_id=folder_id,
             user_id=user_id,
             name=folder.name,
@@ -558,9 +558,9 @@ async def create_folder(
                 status_code=400, detail="Failed to create folder (may already exist)"
             )
 
-        # Retrieve the created folder
+        # Retrieve the created folder (from document_folders collection)
         folder_doc = await asyncio.to_thread(
-            user_manager.get_folder,
+            user_manager.get_document_folder,
             folder_id=folder_id,
             user_id=user_id,
         )
@@ -625,7 +625,7 @@ async def list_folders(
         user_manager = get_user_manager()
 
         folders_docs = await asyncio.to_thread(
-            user_manager.list_folders,
+            user_manager.list_document_folders,
             user_id=user_id,
             parent_id=parent_id,
         )

@@ -24,7 +24,8 @@ class UserManager:
             self.users = self.db.db["users"]
             self.conversations = self.db.db["conversations"]
             self.user_files = self.db.db["user_files"]
-            self.folders = self.db.db["folders"]  # NEW: Folder management
+            self.folders = self.db.db["folders"]  # For Upload Files (simple_files)
+            self.document_folders = self.db.db["document_folders"]  # For Edited Documents (document_editor)
 
             # Create indexes for better performance
             self._create_indexes()
@@ -34,7 +35,8 @@ class UserManager:
             self.users = {}
             self.conversations = {}
             self.user_files = {}
-            self.folders = {}  # NEW: Folder management
+            self.folders = {}  # For Upload Files
+            self.document_folders = {}  # For Edited Documents
             logger.warning(
                 "⚠️ UserManager initialized with fallback storage (no MongoDB)"
             )
@@ -42,7 +44,8 @@ class UserManager:
             self.users = {}
             self.conversations = {}
             self.user_files = {}
-            self.folders = {}  # NEW: Folder management
+            self.folders = {}  # For Upload Files
+            self.document_folders = {}  # For Edited Documents
 
     def _create_indexes(self):
         """Create database indexes for better performance"""
@@ -60,6 +63,9 @@ class UserManager:
             ]
             existing_folder_indexes = [
                 idx["name"] for idx in self.folders.list_indexes()
+            ]
+            existing_doc_folder_indexes = [
+                idx["name"] for idx in self.document_folders.list_indexes()
             ]
 
             # User indexes - use unique names with sparse=True
@@ -119,7 +125,7 @@ class UserManager:
                     name="user_files_user_id_1_uploaded_at_-1",
                 )
 
-            # Folder indexes
+            # Folder indexes (for Upload Files)
             if (
                 "folder_id_1_sparse" not in existing_folder_indexes
                 and "folder_id_1" not in existing_folder_indexes
@@ -138,6 +144,27 @@ class UserManager:
                 self.folders.create_index(
                     [("user_id", 1), ("created_at", -1)],
                     name="folders_user_id_1_created_at_-1",
+                )
+
+            # Document Folder indexes (for Edited Documents)
+            if (
+                "folder_id_1_sparse" not in existing_doc_folder_indexes
+                and "folder_id_1" not in existing_doc_folder_indexes
+            ):
+                self.document_folders.create_index(
+                    "folder_id", unique=True, sparse=True, name="folder_id_1_sparse"
+                )
+
+            if "doc_folders_user_id_1" not in existing_doc_folder_indexes:
+                self.document_folders.create_index("user_id", name="doc_folders_user_id_1")
+
+            if (
+                "doc_folders_user_id_1_created_at_-1" not in existing_doc_folder_indexes
+                and "user_id_1_created_at_-1" not in existing_doc_folder_indexes
+            ):
+                self.document_folders.create_index(
+                    [("user_id", 1), ("created_at", -1)],
+                    name="doc_folders_user_id_1_created_at_-1",
                 )
 
             logger.info("✅ Database indexes created successfully")
@@ -1283,7 +1310,7 @@ class UserManager:
             return 0
 
     # ============================================================================
-    # FOLDER MANAGEMENT
+    # FOLDER MANAGEMENT - UPLOAD FILES (simple_files)
     # ============================================================================
 
     def create_folder(
@@ -1295,7 +1322,7 @@ class UserManager:
         parent_id: Optional[str] = None,
     ) -> bool:
         """
-        Create a new folder in MongoDB
+        Create a new folder for Upload Files (simple_files)
 
         Args:
             folder_id: Unique folder identifier
@@ -1321,16 +1348,16 @@ class UserManager:
             }
 
             if self.db and self.db.client:
-                # MongoDB
+                # MongoDB - use folders collection
                 self.folders.insert_one(folder_doc)
                 logger.info(
-                    f"✅ Created folder '{name}' (ID: {folder_id}) for user {user_id}"
+                    f"✅ Created upload folder '{name}' (ID: {folder_id}) for user {user_id}"
                 )
             else:
                 # Fallback storage
                 self.folders[folder_id] = folder_doc
                 logger.info(
-                    f"✅ Created folder '{name}' in fallback storage (ID: {folder_id})"
+                    f"✅ Created upload folder '{name}' in fallback storage (ID: {folder_id})"
                 )
 
             return True
@@ -1346,7 +1373,7 @@ class UserManager:
         self, user_id: str, parent_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        List folders for a user
+        List folders for Upload Files (simple_files)
 
         Args:
             user_id: User's Firebase UID
@@ -1357,7 +1384,7 @@ class UserManager:
         """
         try:
             if self.db and self.db.client:
-                # MongoDB query
+                # MongoDB query - use folders collection
                 query = {"user_id": user_id, "parent_id": parent_id}
                 folders = list(self.folders.find(query).sort("created_at", -1))
 
@@ -1373,7 +1400,7 @@ class UserManager:
                     folder["file_count"] = file_count
 
                 logger.info(
-                    f"✅ Found {len(folders)} folders for user {user_id} (parent: {parent_id or 'root'})"
+                    f"✅ Found {len(folders)} upload folders for user {user_id} (parent: {parent_id or 'root'})"
                 )
                 return folders
             else:
@@ -1381,7 +1408,8 @@ class UserManager:
                 folders = [
                     f
                     for f in self.folders.values()
-                    if f.get("user_id") == user_id and f.get("parent_id") == parent_id
+                    if f.get("user_id") == user_id 
+                    and f.get("parent_id") == parent_id
                 ]
 
                 # Count files in each folder
@@ -1402,8 +1430,160 @@ class UserManager:
                 )
 
         except Exception as e:
-            logger.error(f"❌ Error listing folders for user {user_id}: {e}")
+            logger.error(f"❌ Error listing upload folders for user {user_id}: {e}")
             return []
+
+    # ============================================================================
+    # DOCUMENT FOLDER MANAGEMENT - EDITED DOCUMENTS (document_editor)
+    # ============================================================================
+
+    def create_document_folder(
+        self,
+        folder_id: str,
+        user_id: str,
+        name: str,
+        description: Optional[str] = None,
+        parent_id: Optional[str] = None,
+    ) -> bool:
+        """
+        Create a new folder for Edited Documents (document_editor)
+
+        Args:
+            folder_id: Unique folder identifier
+            user_id: Owner's Firebase UID
+            name: Folder name
+            description: Optional folder description
+            parent_id: Optional parent folder ID (for nested folders)
+
+        Returns:
+            bool: True if created successfully
+        """
+        try:
+            now = datetime.now(timezone.utc)
+
+            folder_doc = {
+                "folder_id": folder_id,
+                "user_id": user_id,
+                "name": name,
+                "description": description,
+                "parent_id": parent_id,
+                "created_at": now,
+                "updated_at": now,
+            }
+
+            if self.db and self.db.client:
+                # MongoDB - use document_folders collection
+                self.document_folders.insert_one(folder_doc)
+                logger.info(
+                    f"✅ Created document folder '{name}' (ID: {folder_id}) for user {user_id}"
+                )
+            else:
+                # Fallback storage
+                self.document_folders[folder_id] = folder_doc
+                logger.info(
+                    f"✅ Created document folder '{name}' in fallback storage (ID: {folder_id})"
+                )
+
+            return True
+
+        except DuplicateKeyError:
+            logger.error(f"❌ Document folder {folder_id} already exists")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Error creating document folder: {e}")
+            return False
+
+    def list_document_folders(
+        self, user_id: str, parent_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        List folders for Edited Documents (document_editor)
+
+        Args:
+            user_id: User's Firebase UID
+            parent_id: Optional parent folder ID (None for root folders)
+
+        Returns:
+            List of folder documents
+        """
+        try:
+            if self.db and self.db.client:
+                # MongoDB query - use document_folders collection
+                query = {"user_id": user_id, "parent_id": parent_id}
+                folders = list(self.document_folders.find(query).sort("created_at", -1))
+
+                # Count documents in each folder (from document_manager collection)
+                # Note: This needs to be updated to count from 'documents' collection
+                for folder in folders:
+                    # TODO: Count from documents collection when document_manager is available
+                    folder["document_count"] = 0  # Placeholder, will be updated by document_manager
+
+                logger.info(
+                    f"✅ Found {len(folders)} document folders for user {user_id} (parent: {parent_id or 'root'})"
+                )
+                return folders
+            else:
+                # Fallback storage
+                folders = [
+                    f
+                    for f in self.document_folders.values()
+                    if f.get("user_id") == user_id 
+                    and f.get("parent_id") == parent_id
+                ]
+
+                # Count documents in each folder
+                for folder in folders:
+                    folder["document_count"] = 0  # Placeholder
+
+                return sorted(
+                    folders,
+                    key=lambda x: x.get("created_at", datetime.min),
+                    reverse=True,
+                )
+
+        except Exception as e:
+            logger.error(f"❌ Error listing document folders for user {user_id}: {e}")
+            return []
+
+    def get_document_folder(self, folder_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get document folder details by ID
+
+        Args:
+            folder_id: Folder ID
+            user_id: User's Firebase UID (for security check)
+
+        Returns:
+            Folder document or None if not found
+        """
+        try:
+            if self.db and self.db.client:
+                # MongoDB - use document_folders collection
+                folder = self.document_folders.find_one(
+                    {"folder_id": folder_id, "user_id": user_id}
+                )
+
+                if folder:
+                    # Count documents in folder (placeholder)
+                    folder["document_count"] = 0  # TODO: Count from documents collection
+                    logger.info(f"✅ Found document folder {folder_id}")
+                    return folder
+                else:
+                    logger.warning(
+                        f"❌ Document folder {folder_id} not found for user {user_id}"
+                    )
+                    return None
+            else:
+                # Fallback storage
+                folder = self.document_folders.get(folder_id)
+                if folder and folder.get("user_id") == user_id:
+                    folder["document_count"] = 0  # Placeholder
+                    return folder
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ Error getting document folder {folder_id}: {e}")
+            return None
 
     def get_folder(self, folder_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """
