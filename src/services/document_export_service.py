@@ -307,11 +307,18 @@ class DocumentExportService:
                     "w:val": "single",
                     "w:sz": "4",  # 4/8 = 0.5pt
                     "w:space": "0",
-                    "w:color": "000000"
+                    "w:color": "000000",
                 }
 
                 # Add all borders
-                for border_name in ["top", "left", "bottom", "right", "insideH", "insideV"]:
+                for border_name in [
+                    "top",
+                    "left",
+                    "bottom",
+                    "right",
+                    "insideH",
+                    "insideV",
+                ]:
                     border = OxmlElement(f"w:{border_name}")
                     for attr, value in border_attrs.items():
                         border.set(qn(attr), value)
@@ -348,15 +355,38 @@ class DocumentExportService:
         """
         try:
             from bs4 import BeautifulSoup
+            import re
 
             # Parse HTML
             soup = BeautifulSoup(html_content, "html.parser")
 
-            # Extract text with proper line breaks
-            text = soup.get_text(separator="\n", strip=True)
+            # Remove script and style tags
+            for tag in soup(["script", "style"]):
+                tag.decompose()
 
-            # Convert to bytes
-            txt_bytes = text.encode("utf-8")
+            # Handle line breaks and paragraphs
+            for br in soup.find_all("br"):
+                br.replace_with("\n")
+
+            for p in soup.find_all("p"):
+                p.append("\n\n")
+
+            # Extract text with proper formatting
+            text = soup.get_text()
+
+            # Clean up whitespace
+            # Replace multiple spaces with single space
+            text = re.sub(r" +", " ", text)
+            # Replace multiple newlines with double newline (paragraph break)
+            text = re.sub(r"\n\s*\n+", "\n\n", text)
+            # Remove leading/trailing whitespace on each line
+            text = "\n".join(line.strip() for line in text.split("\n"))
+            # Remove empty lines at start/end
+            text = text.strip()
+
+            # Add UTF-8 BOM for better compatibility with Windows/Notepad
+            # BOM helps Windows recognize the file as UTF-8
+            txt_bytes = "\ufeff".encode("utf-8") + text.encode("utf-8")
 
             filename = f"{self._sanitize_filename(title)}.txt"
 
