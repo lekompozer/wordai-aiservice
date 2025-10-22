@@ -507,9 +507,13 @@ class DocumentExportService:
                 tmp_path = tmp.name
 
             try:
-                # Upload to R2
+                # Upload to R2 with Content-Disposition header for download
+                content_disposition = f'attachment; filename="{filename}"'
                 upload_success = await self.r2_client.upload_file(
-                    local_path=tmp_path, remote_path=r2_key
+                    local_path=tmp_path,
+                    remote_path=r2_key,
+                    content_type=content_type,
+                    content_disposition=content_disposition,
                 )
 
                 if not upload_success:
