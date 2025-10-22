@@ -25,7 +25,9 @@ class UserManager:
             self.conversations = self.db.db["conversations"]
             self.user_files = self.db.db["user_files"]
             self.folders = self.db.db["folders"]  # For Upload Files (simple_files)
-            self.document_folders = self.db.db["document_folders"]  # For Edited Documents (document_editor)
+            self.document_folders = self.db.db[
+                "document_folders"
+            ]  # For Edited Documents (document_editor)
 
             # Create indexes for better performance
             self._create_indexes()
@@ -156,7 +158,9 @@ class UserManager:
                 )
 
             if "doc_folders_user_id_1" not in existing_doc_folder_indexes:
-                self.document_folders.create_index("user_id", name="doc_folders_user_id_1")
+                self.document_folders.create_index(
+                    "user_id", name="doc_folders_user_id_1"
+                )
 
             if (
                 "doc_folders_user_id_1_created_at_-1" not in existing_doc_folder_indexes
@@ -1408,8 +1412,7 @@ class UserManager:
                 folders = [
                     f
                     for f in self.folders.values()
-                    if f.get("user_id") == user_id 
-                    and f.get("parent_id") == parent_id
+                    if f.get("user_id") == user_id and f.get("parent_id") == parent_id
                 ]
 
                 # Count files in each folder
@@ -1516,7 +1519,9 @@ class UserManager:
                 # Note: This needs to be updated to count from 'documents' collection
                 for folder in folders:
                     # TODO: Count from documents collection when document_manager is available
-                    folder["document_count"] = 0  # Placeholder, will be updated by document_manager
+                    folder["document_count"] = (
+                        0  # Placeholder, will be updated by document_manager
+                    )
 
                 logger.info(
                     f"✅ Found {len(folders)} document folders for user {user_id} (parent: {parent_id or 'root'})"
@@ -1527,8 +1532,7 @@ class UserManager:
                 folders = [
                     f
                     for f in self.document_folders.values()
-                    if f.get("user_id") == user_id 
-                    and f.get("parent_id") == parent_id
+                    if f.get("user_id") == user_id and f.get("parent_id") == parent_id
                 ]
 
                 # Count documents in each folder
@@ -1545,7 +1549,9 @@ class UserManager:
             logger.error(f"❌ Error listing document folders for user {user_id}: {e}")
             return []
 
-    def get_document_folder(self, folder_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_document_folder(
+        self, folder_id: str, user_id: str
+    ) -> Optional[Dict[str, Any]]:
         """
         Get document folder details by ID
 
@@ -1565,7 +1571,9 @@ class UserManager:
 
                 if folder:
                     # Count documents in folder (placeholder)
-                    folder["document_count"] = 0  # TODO: Count from documents collection
+                    folder["document_count"] = (
+                        0  # TODO: Count from documents collection
+                    )
                     logger.info(f"✅ Found document folder {folder_id}")
                     return folder
                 else:

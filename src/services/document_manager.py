@@ -420,12 +420,12 @@ class DocumentManager:
         # Get all documents sorted by last_opened_at
         all_documents = list(self.documents.find(query).sort("last_opened_at", -1))
 
-        # Get all folders for this user
-        folders_collection = self.db["folders"]
-        user_folders = {
-            folder["folder_id"]: folder
-            for folder in folders_collection.find({"user_id": user_id})
-        }
+        # Get all folders for this user from document_folders collection
+        folders_collection = self.db[
+            "document_folders"
+        ]  # ✅ Dùng document_folders thay vì folders
+        all_user_folders = list(folders_collection.find({"user_id": user_id}))
+        user_folders = {folder["folder_id"]: folder for folder in all_user_folders}
 
         # Group documents by folder_id
         documents_by_folder: Dict[Optional[str], List[Dict[str, Any]]] = {}
@@ -436,10 +436,16 @@ class DocumentManager:
                 documents_by_folder[folder_id] = []
             documents_by_folder[folder_id].append(doc)
 
+        # Add empty folders (folders with no documents)
+        for folder in all_user_folders:
+            folder_id = folder["folder_id"]
+            if folder_id not in documents_by_folder:
+                documents_by_folder[folder_id] = []  # Empty folder
+
         # Build response with folder info
         result = []
 
-        # Sort folder keys: None first, then others
+        # Sort folder keys: None first (ungrouped), then others alphabetically
         sorted_folder_ids = sorted(
             documents_by_folder.keys(), key=lambda x: (x is not None, x or "")
         )
