@@ -404,20 +404,31 @@ async def get_document_by_file(
                 prev_html = previous_doc.get("content_html")
                 prev_text = previous_doc.get("content_text")
 
-                # Only use cache if content exists and is not empty
+                # Only use cache if content exists and has actual text content
+                # Check both HTML length and stripped text content
                 if prev_html and prev_html.strip():
-                    cached_content = {
-                        "html": prev_html,
-                        "text": prev_text,
-                        "type": previous_doc.get("document_type", "doc"),
-                    }
-                    logger.info(
-                        f"♻️ Reusing cached content from previous document (fast path!)"
-                    )
-                    logger.info(f"♻️ Cached HTML length: {len(prev_html)} chars")
+                    # Additional check: HTML should have meaningful content, not just empty tags
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(prev_html, 'html.parser')
+                    text_content = soup.get_text(strip=True)
+
+                    if text_content and len(text_content) > 10:  # At least 10 chars of actual text
+                        cached_content = {
+                            "html": prev_html,
+                            "text": prev_text,
+                            "type": previous_doc.get("document_type", "doc"),
+                        }
+                        logger.info(
+                            f"♻️ Reusing cached content from previous document (fast path!)"
+                        )
+                        logger.info(f"♻️ Cached HTML length: {len(prev_html)} chars, Text length: {len(text_content)} chars")
+                    else:
+                        logger.warning(
+                            f"⚠️ Previous document has empty text content (HTML: {len(prev_html)} chars, Text: {len(text_content if text_content else 0)} chars), will re-parse file"
+                        )
                 else:
                     logger.warning(
-                        f"⚠️ Previous document has empty content, will re-parse file"
+                        f"⚠️ Previous document has empty or no content_html, will re-parse file"
                     )
 
         # Step 4: Get content (from cache or parse file)
