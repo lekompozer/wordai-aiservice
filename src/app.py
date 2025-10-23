@@ -122,6 +122,9 @@ from src.api.library_routes import router as library_router
 # ✅ ADDED: Encrypted Library Images API for E2EE images (Zero-Knowledge)
 from src.api.encrypted_library_routes import router as encrypted_library_router
 
+# ✅ ADDED: Encrypted Library Folders API for folder management
+from src.api.encrypted_folder_routes import router as encrypted_folder_router
+
 # ✅ ADDED: Share API for File Sharing System (Phase 2)
 from src.api.share_routes import router as share_router
 
@@ -607,6 +610,11 @@ def create_app() -> FastAPI:
     # ✅ NEW: Encrypted Library Images API - E2EE images with Zero-Knowledge
     app.include_router(
         encrypted_library_router, tags=["Encrypted Library Images - E2EE"]
+    )
+
+    # ✅ NEW: Encrypted Library Folders API - Folder management for E2EE images
+    app.include_router(
+        encrypted_folder_router, tags=["Encrypted Library Folders - E2EE"]
     )
 
     # ✅ NEW: Share API - File Sharing System (Phase 2 complete)

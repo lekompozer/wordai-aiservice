@@ -445,3 +445,55 @@ class EncryptedLibraryManager:
         except Exception as e:
             logger.error(f"❌ Error restoring image {image_id}: {e}")
             return False
+
+    def update_image_metadata(
+        self,
+        image_id: str,
+        owner_id: str,
+        updates: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update image metadata (filename, description, tags, folder_id)
+        
+        Args:
+            image_id: Image ID
+            owner_id: Owner user ID (for verification)
+            updates: Dictionary of fields to update
+            
+        Returns:
+            Updated image document or None if not found
+        """
+        try:
+            # Validate folder exists if updating folder_id
+            if "folder_id" in updates and updates["folder_id"]:
+                from config.config import get_mongodb
+                db = get_mongodb()
+                folder_collection = db["library_folders"]
+                
+                folder = folder_collection.find_one({
+                    "folder_id": updates["folder_id"],
+                    "owner_id": owner_id,
+                    "is_deleted": False
+                })
+                
+                if not folder:
+                    raise ValueError("Folder not found or you don't have access")
+            
+            # Add updated_at timestamp
+            updates["updated_at"] = datetime.now(timezone.utc)
+            
+            # Update the document
+            result = self.library_images.find_one_and_update(
+                {"image_id": image_id, "owner_id": owner_id},
+                {"$set": updates},
+                return_document=True
+            )
+            
+            if result:
+                logger.info(f"✅ Image metadata updated: {image_id}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Error updating image metadata {image_id}: {e}")
+            raise

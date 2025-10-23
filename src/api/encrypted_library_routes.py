@@ -75,6 +75,15 @@ class ShareImageRequest(BaseModel):
     )
 
 
+class UpdateImageMetadataRequest(BaseModel):
+    """Request to update image metadata"""
+
+    filename: Optional[str] = Field(None, min_length=1, max_length=255)
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+    folder_id: Optional[str] = None
+
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -525,4 +534,67 @@ async def restore_encrypted_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error restoring image {image_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# METADATA UPDATE OPERATIONS
+# ============================================================================
+
+
+@router.put("/{image_id}/metadata", response_model=EncryptedImageResponse)
+async def update_image_metadata(
+    image_id: str,
+    request: UpdateImageMetadataRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Update encrypted image metadata
+    
+    Only owner can update metadata
+    
+    - **filename**: New filename (optional)
+    - **description**: New description (optional)
+    - **tags**: New tags array (optional, replaces existing tags)
+    - **folder_id**: Move to different folder (optional, null = move to root)
+    """
+    try:
+        owner_id = user_data.get("uid")
+        manager = get_encrypted_library_manager()
+        
+        # Build updates dict (only include non-None values)
+        updates = {}
+        if request.filename is not None:
+            updates["filename"] = request.filename
+        if request.description is not None:
+            updates["description"] = request.description
+        if request.tags is not None:
+            updates["tags"] = request.tags
+        if request.folder_id is not None:
+            updates["folder_id"] = request.folder_id
+        
+        if not updates:
+            raise HTTPException(status_code=400, detail="No updates provided")
+        
+        # Update metadata
+        updated_image = await asyncio.to_thread(
+            manager.update_image_metadata,
+            image_id=image_id,
+            owner_id=owner_id,
+            updates=updates,
+        )
+        
+        if not updated_image:
+            raise HTTPException(
+                status_code=404, detail="Image not found or you are not the owner"
+            )
+        
+        logger.info(f"✅ Image metadata updated: {image_id} by {owner_id}")
+        
+        return EncryptedImageResponse(**updated_image)
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating image metadata {image_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
