@@ -377,7 +377,8 @@ async def get_document_by_file(
         if not file_info:
             raise HTTPException(status_code=404, detail="File not found in user_files")
 
-        original_filename = file_info.get("file_name", "Untitled Document")
+        # Get original filename (not the safe filename with timestamp)
+        original_filename = file_info.get("original_name") or file_info.get("filename", "Untitled Document")
         logger.info(f"📥 File: {original_filename}")
 
         # Step 2: Count existing documents from this file_id to generate copy number
@@ -400,14 +401,24 @@ async def get_document_by_file(
                 doc_manager.get_latest_document_by_file_id, file_id, user_id
             )
             if previous_doc:
-                cached_content = {
-                    "html": previous_doc.get("content_html"),
-                    "text": previous_doc.get("content_text"),
-                    "type": previous_doc.get("document_type", "doc"),
-                }
-                logger.info(
-                    f"♻️ Reusing cached content from previous document (fast path!)"
-                )
+                prev_html = previous_doc.get("content_html")
+                prev_text = previous_doc.get("content_text")
+
+                # Only use cache if content exists and is not empty
+                if prev_html and prev_html.strip():
+                    cached_content = {
+                        "html": prev_html,
+                        "text": prev_text,
+                        "type": previous_doc.get("document_type", "doc"),
+                    }
+                    logger.info(
+                        f"♻️ Reusing cached content from previous document (fast path!)"
+                    )
+                    logger.info(f"♻️ Cached HTML length: {len(prev_html)} chars")
+                else:
+                    logger.warning(
+                        f"⚠️ Previous document has empty content, will re-parse file"
+                    )
 
         # Step 4: Get content (from cache or parse file)
         if cached_content:
