@@ -73,10 +73,32 @@ class DocumentManager:
     def get_document_by_file_id(
         self, file_id: str, user_id: str
     ) -> Optional[Dict[str, Any]]:
-        """Lấy document theo file_id"""
+        """Lấy document theo file_id (deprecated - use count/get_latest instead)"""
         document = self.documents.find_one(
             {"file_id": file_id, "user_id": user_id, "is_deleted": False}
         )
+        return document
+
+    def count_documents_by_file_id(self, file_id: str, user_id: str) -> int:
+        """Đếm số lượng documents đã tạo từ file_id này"""
+        count = self.documents.count_documents(
+            {"file_id": file_id, "user_id": user_id, "is_deleted": False}
+        )
+        logger.info(f"📊 Found {count} existing documents for file {file_id}")
+        return count
+
+    def get_latest_document_by_file_id(
+        self, file_id: str, user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """Lấy document mới nhất từ file_id (để reuse content)"""
+        document = self.documents.find_one(
+            {"file_id": file_id, "user_id": user_id, "is_deleted": False},
+            sort=[("created_at", -1)],  # Sort by newest first
+        )
+        if document:
+            logger.info(
+                f"📄 Found latest document {document['document_id']} for content reuse"
+            )
         return document
 
     def create_document(

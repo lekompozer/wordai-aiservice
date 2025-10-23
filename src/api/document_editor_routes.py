@@ -339,65 +339,37 @@ async def get_document_by_file(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
-    Lấy hoặc tạo document từ file_id
+    Tạo document mới từ file_id mỗi lần gọi (như "Make a Copy")
 
-    - **Nếu document đã tồn tại**: Trả về HTML từ MongoDB (fast!)
-    - **Nếu document chưa tồn tại**: Download từ R2, parse, tạo mới
+    **EVERY EDIT = NEW DOCUMENT**
+    - Lần 1 Edit: "Contract.pdf (Copy 1)"
+    - Lần 2 Edit: "Contract.pdf (Copy 2)"
+    - Lần 3 Edit: "Contract.pdf (Copy 3)"
+
+    **Frontend mở mỗi document trong tab riêng biệt**
 
     Query Parameters:
     - document_type: Optional - "doc", "slide", or "note" (default: "doc")
                      Frontend can specify preferred document type
 
     Flow:
-    1. Check if document exists in MongoDB by file_id
-    2. If exists → return from MongoDB
-    3. If not exists:
-       - Get file info from user_files
-       - Download from R2
-       - Parse to HTML
-       - Create document in MongoDB
-       - Return new document
+    1. Get file info from user_files
+    2. Count existing copies of this file
+    3. Download from R2 and parse (or reuse cached content)
+    4. Create NEW document with incremented copy number
+    5. Return new document
     """
     user_id = user_data.get("uid")
     doc_manager = get_document_manager()
     user_manager = get_user_manager()
 
     try:
-        # Step 1: Try to get existing document by file_id
-        document = await asyncio.to_thread(
-            doc_manager.get_document_by_file_id, file_id, user_id
-        )
+        # Step 1: Get file info from user_files collection
+        logger.info(f"� Creating NEW document copy from file {file_id}...")
 
-        if document:
-            logger.info(f"📄 Loaded existing document for file {file_id} from MongoDB")
-            response = DocumentResponse(
-                document_id=document["document_id"],
-                title=document["title"],
-                content_html=document["content_html"],
-                version=document["version"],
-                last_saved_at=document["last_saved_at"],
-                file_size_bytes=document["file_size_bytes"],
-                auto_save_count=document["auto_save_count"],
-                manual_save_count=document["manual_save_count"],
-                source_type=document.get("source_type", "file"),
-                document_type=document.get("document_type"),
-                file_id=document.get("file_id"),
-            )
+        # Step 1: Get file info from user_files collection
+        logger.info(f"📥 Creating NEW document copy from file {file_id}...")
 
-            logger.warning(
-                f"🔍 FRONTEND DEBUG: File {file_id} → Document ID is: {response.document_id}"
-            )
-            logger.warning(
-                f"🔍 FRONTEND MUST SAVE TO: PUT /api/documents/{response.document_id}/"
-            )
-            logger.warning(f"🔍 NOT: PUT /api/documents/{file_id}/")
-
-            return response
-
-        # Step 2: Document doesn't exist - this is first time opening
-        logger.info(f"📥 First time opening file {file_id}, creating new document...")
-
-        # Get file info from user_files collection
         file_info = await asyncio.to_thread(
             user_manager.get_file_by_id, file_id, user_id
         )
@@ -405,65 +377,114 @@ async def get_document_by_file(
         if not file_info:
             raise HTTPException(status_code=404, detail="File not found in user_files")
 
-        logger.info(
-            f"📥 Downloading file from R2: {file_info.get('file_name', 'unknown')}"
-        )
+        original_filename = file_info.get("file_name", "Untitled Document")
+        logger.info(f"📥 File: {original_filename}")
 
-        # Get r2_key to download directly using boto3 (server has credentials)
-        r2_key = file_info.get("r2_key")
-        if not r2_key:
-            raise HTTPException(
-                status_code=500, detail="File R2 key not found in database"
+        # Step 2: Count existing documents from this file_id to generate copy number
+        existing_count = await asyncio.to_thread(
+            doc_manager.count_documents_by_file_id, file_id, user_id
+        )
+        copy_number = existing_count + 1
+
+        # Generate title with copy number
+        # "Contract.pdf" → "Contract.pdf (Copy 1)"
+        # "Contract.pdf" → "Contract.pdf (Copy 2)" on second edit
+        new_title = f"{original_filename} (Copy {copy_number})"
+        logger.info(f"📝 Creating document copy #{copy_number}: {new_title}")
+
+        # Step 3: Try to reuse cached content from previous document for speed
+        cached_content = None
+        if existing_count > 0:
+            # Try to get the most recent document's content
+            previous_doc = await asyncio.to_thread(
+                doc_manager.get_latest_document_by_file_id, file_id, user_id
+            )
+            if previous_doc:
+                cached_content = {
+                    "html": previous_doc.get("content_html"),
+                    "text": previous_doc.get("content_text"),
+                    "type": previous_doc.get("document_type", "doc"),
+                }
+                logger.info(
+                    f"♻️ Reusing cached content from previous document (fast path!)"
+                )
+
+        # Step 4: Get content (from cache or parse file)
+        if cached_content:
+            # Fast path: Reuse content from previous copy
+            content_html = cached_content["html"]
+            content_text = cached_content["text"]
+            final_document_type = (
+                document_type
+                if document_type in ["doc", "slide", "note"]
+                else cached_content["type"]
+            )
+            logger.info(f"✅ Reused cached content ({len(content_html)} chars)")
+        else:
+            # Slow path: Download and parse from R2 (first edit)
+            logger.info(
+                f"📥 Downloading file from R2: {file_info.get('file_name', 'unknown')}"
             )
 
-        logger.info(
-            f"🔐 Downloading from R2 using boto3 with credentials (key: {r2_key})"
-        )
+            # Get r2_key to download directly using boto3 (server has credentials)
+            r2_key = file_info.get("r2_key")
+            if not r2_key:
+                raise HTTPException(
+                    status_code=500, detail="File R2 key not found in database"
+                )
 
-        # Download and parse file from R2 using r2_key (not URL)
-        text_content, temp_file_path = (
-            await FileDownloadService.download_and_parse_file_from_r2(
-                r2_key=r2_key,
-                file_type=file_info["file_type"],
-                user_id=user_id,
+            logger.info(
+                f"🔐 Downloading from R2 using boto3 with credentials (key: {r2_key})"
             )
-        )
 
-        if not text_content:
-            raise HTTPException(status_code=500, detail="Failed to parse file content")
+            # Download and parse file from R2 using r2_key (not URL)
+            text_content, temp_file_path = (
+                await FileDownloadService.download_and_parse_file_from_r2(
+                    r2_key=r2_key,
+                    file_type=file_info["file_type"],
+                    user_id=user_id,
+                )
+            )
 
-        # Determine document_type: Use frontend value or default to "doc"
-        final_document_type = (
-            document_type if document_type in ["doc", "slide", "note"] else "doc"
-        )
+            if not text_content:
+                raise HTTPException(
+                    status_code=500, detail="Failed to parse file content"
+                )
 
-        # Convert text to HTML with document-type-specific formatting
-        logger.info(f"📝 Formatting content for document type: {final_document_type}")
-        content_html = format_content_for_document_type(
-            text_content, final_document_type
-        )
-        content_text = text_content
+            # Determine document_type: Use frontend value or default to "doc"
+            final_document_type = (
+                document_type if document_type in ["doc", "slide", "note"] else "doc"
+            )
 
-        logger.info(
-            f"✅ Generated HTML: {len(content_html)} chars for {final_document_type}"
-        )
+            # Convert text to HTML with document-type-specific formatting
+            logger.info(
+                f"📝 Formatting content for document type: {final_document_type}"
+            )
+            content_html = format_content_for_document_type(
+                text_content, final_document_type
+            )
+            content_text = text_content
 
-        # Create new document in MongoDB
+            logger.info(
+                f"✅ Generated HTML: {len(content_html)} chars for {final_document_type}"
+            )
+
+        # Step 5: Create NEW document in MongoDB with unique title
         new_doc_id = await asyncio.to_thread(
             doc_manager.create_document,
             user_id=user_id,
             file_id=file_id,
-            title=file_info.get("file_name", "Untitled Document"),
+            title=new_title,  # "Contract.pdf (Copy 1)"
             content_html=content_html,
             content_text=content_text,
-            original_r2_url=file_info["file_url"],
-            original_file_type=file_info["file_type"],
+            original_r2_url=file_info.get("file_url"),
+            original_file_type=file_info.get("file_type"),
             source_type="file",  # This is a file-based document
             document_type=final_document_type,  # Frontend specified or default "doc"
         )
 
         logger.info(
-            f"✅ Created new document {new_doc_id} for file {file_id} (type: {final_document_type})"
+            f"✅ Created NEW document {new_doc_id} (Copy #{copy_number}) from file {file_id}"
         )
 
         # Get the newly created document
@@ -486,12 +507,17 @@ async def get_document_by_file(
         )
 
         logger.warning(
-            f"🔍 FRONTEND DEBUG: File {file_id} → Document ID is: {response.document_id}"
+            f"🔍 FRONTEND: Created NEW document copy #{copy_number}"
         )
         logger.warning(
-            f"🔍 FRONTEND MUST SAVE TO: PUT /api/documents/{response.document_id}/"
+            f"🔍 FRONTEND: File {file_id} → Document ID: {response.document_id}"
         )
-        logger.warning(f"🔍 NOT: PUT /api/documents/{file_id}/")
+        logger.warning(
+            f"🔍 FRONTEND: Title: {response.title}"
+        )
+        logger.warning(
+            f"🔍 FRONTEND: Open in NEW TAB - each Edit = new tab!"
+        )
 
         return response
 
