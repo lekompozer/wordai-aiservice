@@ -56,6 +56,10 @@ class EncryptedImageResponse(BaseModel):
     r2_image_path: str
     r2_thumbnail_path: str
 
+    # Presigned download URLs (generated on-demand, not stored)
+    image_download_url: Optional[str] = None
+    thumbnail_download_url: Optional[str] = None
+
     # Sharing
     shared_with: List[str] = []
 
@@ -225,6 +229,18 @@ async def upload_encrypted_image(
 
         logger.info(f"🔐 Encrypted image saved: {image_doc['image_id']}")
 
+        # Generate presigned URLs for immediate use (optional for upload response)
+        image_doc["image_download_url"] = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": r2_image_path},
+            ExpiresIn=3600,
+        )
+        image_doc["thumbnail_download_url"] = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": r2_thumbnail_path},
+            ExpiresIn=3600,
+        )
+
         return EncryptedImageResponse(**image_doc)
 
     except HTTPException:
@@ -302,17 +318,21 @@ async def list_encrypted_images_with_folders(
             include_deleted=includeDeleted,
         )
 
-        # Generate presigned URLs for encrypted thumbnails only
+        # Generate presigned URLs for both thumbnail AND full image
         s3_client = get_r2_client()
         for img in images:
-            # Only thumbnail URL (full image URL generated on-demand)
+            # Thumbnail URL
             img["thumbnail_download_url"] = s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": R2_BUCKET_NAME, "Key": img["r2_thumbnail_path"]},
                 ExpiresIn=3600,
             )
-            # Remove full image path from list response for security
-            img.pop("image_download_url", None)
+            # Full image URL (include in list for better performance)
+            img["image_download_url"] = s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": R2_BUCKET_NAME, "Key": img["r2_image_path"]},
+                ExpiresIn=3600,
+            )
 
         logger.info(
             f"📚 Listed {len(folders)} folders and {len(images)} images for {owner_id}"

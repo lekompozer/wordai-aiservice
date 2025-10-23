@@ -847,6 +847,18 @@ async def convert_regular_image_to_secret(
 
         logger.info(f"✅ Converted library image {library_id} to encrypted")
 
+        # Generate presigned URLs for immediate access
+        image_download_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": r2_image_path},
+            ExpiresIn=3600,
+        )
+        thumbnail_download_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": r2_thumbnail_path},
+            ExpiresIn=3600,
+        )
+
         return {
             "success": True,
             "message": "Image successfully converted to secret",
@@ -855,6 +867,8 @@ async def convert_regular_image_to_secret(
             "r2_image_path": r2_image_path,
             "r2_thumbnail_path": r2_thumbnail_path,
             "is_encrypted": True,
+            "image_download_url": image_download_url,
+            "thumbnail_download_url": thumbnail_download_url,
         }
 
     except HTTPException:
