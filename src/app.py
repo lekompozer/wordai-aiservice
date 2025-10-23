@@ -204,9 +204,12 @@ async def load_documents():
         try:
             print("🔐 Creating encrypted library images indexes...")
             from src.services.encrypted_library_manager import EncryptedLibraryManager
+            from config.config import get_mongodb, get_r2_client
 
-            encrypted_manager = EncryptedLibraryManager()
-            await encrypted_manager.create_indexes()
+            db = get_mongodb()
+            s3_client = get_r2_client()
+            encrypted_manager = EncryptedLibraryManager(db=db, s3_client=s3_client)
+            await asyncio.to_thread(encrypted_manager.create_indexes)
             print("✅ Encrypted library images indexes created")
         except Exception as e:
             print(f"⚠️ Warning: Failed to create encrypted library images indexes: {e}")
