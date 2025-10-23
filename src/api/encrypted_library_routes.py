@@ -88,38 +88,10 @@ def get_encrypted_library_manager() -> EncryptedLibraryManager:
 
 
 # ============================================================================
-# INITIALIZATION ENDPOINT
-# ============================================================================
-
-
-@router.post("/initialize")
-async def initialize_encrypted_library_indexes(
-    user_data: Dict[str, Any] = Depends(verify_firebase_token),
-):
-    """
-    Initialize library_images collection indexes
-    Run this once during setup
-    """
-    try:
-        manager = get_encrypted_library_manager()
-        success = await asyncio.to_thread(manager.create_indexes)
-
-        if success:
-            return {
-                "success": True,
-                "message": "Encrypted library images indexes created successfully",
-            }
-        else:
-            raise HTTPException(status_code=500, detail="Failed to create indexes")
-
-    except Exception as e:
-        logger.error(f"❌ Error initializing encrypted library indexes: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================================================
 # PHASE 1: UPLOAD & LIST OPERATIONS
 # ============================================================================
+# NOTE: Indexes are now auto-created on app startup (see src/app.py)
+# No need for manual initialization endpoint
 
 
 @router.post("/upload", response_model=EncryptedImageResponse)

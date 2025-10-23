@@ -200,6 +200,17 @@ async def load_documents():
         # Firebase is now initialized in serve.py before app import
         # No need to initialize it here anymore
 
+        # ✅ AUTO-CREATE ENCRYPTED LIBRARY IMAGES INDEXES
+        try:
+            print("🔐 Creating encrypted library images indexes...")
+            from src.services.encrypted_library_manager import EncryptedLibraryManager
+
+            encrypted_manager = EncryptedLibraryManager()
+            await encrypted_manager.create_indexes()
+            print("✅ Encrypted library images indexes created")
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to create encrypted library images indexes: {e}")
+
         # Add any other initialization logic here
         # For example: load vector store, initialize AI providers, etc.
 

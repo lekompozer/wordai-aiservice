@@ -694,37 +694,41 @@ async def generate_library_download_url(
 async def convert_regular_image_to_secret(
     library_id: str,
     # Encrypted files (same as upload endpoint in encrypted_library_routes.py)
-    encryptedImage: UploadFile = File(..., description="Encrypted original image binary"),
-    encryptedThumbnail: UploadFile = File(..., description="Encrypted thumbnail binary"),
-    
+    encryptedImage: UploadFile = File(
+        ..., description="Encrypted original image binary"
+    ),
+    encryptedThumbnail: UploadFile = File(
+        ..., description="Encrypted thumbnail binary"
+    ),
     # Encryption metadata
-    encryptedFileKey: str = Form(..., description="RSA-OAEP encrypted AES file key (base64)"),
+    encryptedFileKey: str = Form(
+        ..., description="RSA-OAEP encrypted AES file key (base64)"
+    ),
     ivOriginal: str = Form(..., description="IV for original image (base64, 12 bytes)"),
     ivThumbnail: str = Form(..., description="IV for thumbnail (base64, 12 bytes)"),
-    
     # Optional EXIF encryption
-    encryptedExif: Optional[str] = Form(None, description="Encrypted EXIF JSON (base64)"),
+    encryptedExif: Optional[str] = Form(
+        None, description="Encrypted EXIF JSON (base64)"
+    ),
     ivExif: Optional[str] = Form(None, description="IV for EXIF (base64, 12 bytes)"),
-    
     # Image metadata
     imageWidth: Optional[int] = Form(None, description="Original image width"),
     imageHeight: Optional[int] = Form(None, description="Original image height"),
     thumbnailWidth: Optional[int] = Form(None, description="Thumbnail width"),
     thumbnailHeight: Optional[int] = Form(None, description="Thumbnail height"),
-    
     # Auth
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
     Convert an existing regular (unencrypted) library image to E2EE secret image
-    
+
     Flow:
     1. Client downloads the regular image from library
     2. Client encrypts it using E2EE flow (AES-256-GCM + RSA-OAEP)
     3. Client calls this endpoint with encrypted blobs
     4. Server OVERWRITES the regular file on R2 with encrypted version
     5. Server updates MongoDB document with encryption metadata
-    
+
     This ensures no unencrypted copy remains on the server!
     """
     try:
@@ -742,37 +746,44 @@ async def convert_regular_image_to_secret(
         if not existing_file:
             raise HTTPException(
                 status_code=404,
-                detail="Library file not found or you don't have permission"
+                detail="Library file not found or you don't have permission",
             )
 
         # 2. Check if already encrypted
         if existing_file.get("is_encrypted", False):
             raise HTTPException(
-                status_code=400,
-                detail="This image is already encrypted"
+                status_code=400, detail="This image is already encrypted"
             )
 
         # 3. Verify it's an image
         if existing_file["category"] != "images":
             raise HTTPException(
                 status_code=400,
-                detail="Only images can be converted to secret. This file is a " + existing_file["category"]
+                detail="Only images can be converted to secret. This file is a "
+                + existing_file["category"],
             )
 
         # 4. Read encrypted files
         encrypted_image_content = await encryptedImage.read()
         encrypted_thumbnail_content = await encryptedThumbnail.read()
-        
+
         file_size = len(encrypted_image_content)
 
         # 5. Generate NEW R2 keys with .enc extension
         import uuid
+
         unique_id = uuid.uuid4().hex[:12]
-        file_extension = existing_file["filename"].split(".")[-1] if "." in existing_file["filename"] else "jpg"
-        
+        file_extension = (
+            existing_file["filename"].split(".")[-1]
+            if "." in existing_file["filename"]
+            else "jpg"
+        )
+
         # Use encrypted-library prefix to separate from regular files
         r2_image_path = f"encrypted-library/{user_id}/{unique_id}.{file_extension}.enc"
-        r2_thumbnail_path = f"encrypted-library/{user_id}/{unique_id}_thumb.{file_extension}.enc"
+        r2_thumbnail_path = (
+            f"encrypted-library/{user_id}/{unique_id}_thumb.{file_extension}.enc"
+        )
 
         # 6. Upload encrypted files to R2 (NEW paths)
         s3_client.put_object(
@@ -793,22 +804,19 @@ async def convert_regular_image_to_secret(
 
         # 7. DELETE old unencrypted file from R2
         try:
-            s3_client.delete_object(
-                Bucket=R2_BUCKET_NAME,
-                Key=existing_file["r2_key"]
-            )
+            s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=existing_file["r2_key"])
             logger.info(f"🗑️ Deleted old unencrypted file: {existing_file['r2_key']}")
         except Exception as e:
-            logger.warning(f"⚠️ Could not delete old file {existing_file['r2_key']}: {e}")
+            logger.warning(
+                f"⚠️ Could not delete old file {existing_file['r2_key']}: {e}"
+            )
 
         # 8. Update MongoDB document with encryption metadata
         from datetime import datetime, timezone
-        
+
         update_data = {
             "is_encrypted": True,
-            "encrypted_file_keys": {
-                user_id: encryptedFileKey
-            },
+            "encrypted_file_keys": {user_id: encryptedFileKey},
             "encryption_iv_original": ivOriginal,
             "encryption_iv_thumbnail": ivThumbnail,
             "encryption_iv_exif": ivExif if encryptedExif else None,
@@ -828,14 +836,13 @@ async def convert_regular_image_to_secret(
         # Update the document
         db = get_mongodb()
         result = db["library_files"].update_one(
-            {"library_id": library_id, "user_id": user_id},
-            {"$set": update_data}
+            {"library_id": library_id, "user_id": user_id}, {"$set": update_data}
         )
 
         if result.modified_count == 0:
             raise HTTPException(
                 status_code=500,
-                detail="Failed to update document with encryption metadata"
+                detail="Failed to update document with encryption metadata",
             )
 
         logger.info(f"✅ Converted library image {library_id} to encrypted")
@@ -847,7 +854,7 @@ async def convert_regular_image_to_secret(
             "image_id": library_id,  # Can use same ID
             "r2_image_path": r2_image_path,
             "r2_thumbnail_path": r2_thumbnail_path,
-            "is_encrypted": True
+            "is_encrypted": True,
         }
 
     except HTTPException:
