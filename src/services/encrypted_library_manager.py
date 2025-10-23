@@ -247,7 +247,7 @@ class EncryptedLibraryManager:
             # Tags filter (OR)
             if tags and len(tags) > 0:
                 query["tags"] = {"$in": tags}
-            
+
             # Filename search (case-insensitive)
             if search_filename:
                 query["filename"] = {"$regex": search_filename, "$options": "i"}
@@ -287,7 +287,7 @@ class EncryptedLibraryManager:
     ) -> int:
         """
         Count encrypted images for pagination
-        
+
         Args:
             owner_id: User ID
             folder_id: Filter by folder
@@ -295,7 +295,7 @@ class EncryptedLibraryManager:
             search_filename: Search by filename
             include_shared: Include images shared with user
             include_deleted: Include soft-deleted images
-            
+
         Returns:
             Total count of images matching filters
         """
@@ -311,7 +311,7 @@ class EncryptedLibraryManager:
 
             if tags and len(tags) > 0:
                 query["tags"] = {"$in": tags}
-            
+
             if search_filename:
                 query["filename"] = {"$regex": search_filename, "$options": "i"}
 
@@ -319,7 +319,7 @@ class EncryptedLibraryManager:
                 query["is_deleted"] = False
 
             count = self.library_images.count_documents(query)
-            
+
             return count
 
         except Exception as e:

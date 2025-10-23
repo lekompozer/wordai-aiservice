@@ -247,21 +247,22 @@ async def list_encrypted_images_with_folders(
 ):
     """
     List encrypted images AND folders for current user
-    
+
     Returns:
     - folders: List of folders (filtered by folderId if provided)
     - images: List of images with thumbnail URLs
     - pagination: Total count and pagination info
-    
+
     Returns metadata only (no full image data)
     Client downloads thumbnails and decrypts on-demand
     """
     try:
         owner_id = user_data.get("uid")
         manager = get_encrypted_library_manager()
-        
+
         # Get folder manager
         from src.services.encrypted_folder_manager import EncryptedFolderManager
+
         folder_manager = EncryptedFolderManager(db=get_mongodb())
 
         # Parse tags
@@ -289,7 +290,7 @@ async def list_encrypted_images_with_folders(
             limit=limit,
             offset=offset,
         )
-        
+
         # Get total count for pagination
         total_count = await asyncio.to_thread(
             manager.count_encrypted_images,
