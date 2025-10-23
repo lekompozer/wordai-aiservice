@@ -25,7 +25,9 @@ def mock_firebase_auth():
 @pytest.fixture
 def mock_library_manager():
     """Mock EncryptedLibraryManager"""
-    with patch("src.api.encrypted_library_routes.get_encrypted_library_manager") as mock_get:
+    with patch(
+        "src.api.encrypted_library_routes.get_encrypted_library_manager"
+    ) as mock_get:
         mock_manager = MagicMock()
         mock_get.return_value = mock_manager
         yield mock_manager
@@ -59,15 +61,13 @@ def test_update_image_filename(mock_firebase_auth, mock_library_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.put(
         "/api/library/encrypted-images/img_abc123/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={
-            "filename": "new_vacation_photo.jpg"
-        }
+        json={"filename": "new_vacation_photo.jpg"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["filename"] == "new_vacation_photo.jpg"
@@ -102,15 +102,13 @@ def test_update_image_description(mock_firebase_auth, mock_library_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.put(
         "/api/library/encrypted-images/img_abc123/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={
-            "description": "Updated: Beautiful sunset at the beach"
-        }
+        json={"description": "Updated: Beautiful sunset at the beach"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["description"] == "Updated: Beautiful sunset at the beach"
@@ -144,15 +142,13 @@ def test_update_image_tags(mock_firebase_auth, mock_library_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.put(
         "/api/library/encrypted-images/img_abc123/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={
-            "tags": ["vacation", "beach", "2025", "family"]
-        }
+        json={"tags": ["vacation", "beach", "2025", "family"]},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert len(data["tags"]) == 4
@@ -187,15 +183,13 @@ def test_move_image_to_folder(mock_firebase_auth, mock_library_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.put(
         "/api/library/encrypted-images/img_abc123/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={
-            "folder_id": "folder_xyz456"
-        }
+        json={"folder_id": "folder_xyz456"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["folder_id"] == "folder_xyz456"
@@ -229,7 +223,7 @@ def test_update_multiple_fields(mock_firebase_auth, mock_library_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.put(
         "/api/library/encrypted-images/img_abc123/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
@@ -237,10 +231,10 @@ def test_update_multiple_fields(mock_firebase_auth, mock_library_manager):
             "filename": "renamed_photo.jpg",
             "description": "New description",
             "tags": ["new", "tags"],
-            "folder_id": "folder_new"
-        }
+            "folder_id": "folder_new",
+        },
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["filename"] == "renamed_photo.jpg"
@@ -254,9 +248,9 @@ def test_update_no_fields(mock_firebase_auth, mock_library_manager):
     response = client.put(
         "/api/library/encrypted-images/img_abc123/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={}
+        json={},
     )
-    
+
     assert response.status_code == 400
     assert "No updates provided" in response.json()["detail"]
 
@@ -264,15 +258,13 @@ def test_update_no_fields(mock_firebase_auth, mock_library_manager):
 def test_update_image_not_found(mock_firebase_auth, mock_library_manager):
     """Test update non-existent image"""
     mock_library_manager.update_image_metadata.return_value = None
-    
+
     response = client.put(
         "/api/library/encrypted-images/nonexistent/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={
-            "filename": "newname.jpg"
-        }
+        json={"filename": "newname.jpg"},
     )
-    
+
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -280,14 +272,12 @@ def test_update_image_not_found(mock_firebase_auth, mock_library_manager):
 def test_update_not_owner(mock_firebase_auth, mock_library_manager):
     """Test update image not owned by user"""
     mock_library_manager.update_image_metadata.return_value = None
-    
+
     response = client.put(
         "/api/library/encrypted-images/img_abc123/metadata",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={
-            "filename": "newname.jpg"
-        }
+        json={"filename": "newname.jpg"},
     )
-    
+
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()

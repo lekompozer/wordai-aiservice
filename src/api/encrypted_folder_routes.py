@@ -16,8 +16,7 @@ from config.config import get_mongodb
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
-    prefix="/api/library/encrypted-folders",
-    tags=["Encrypted Library Folders"]
+    prefix="/api/library/encrypted-folders", tags=["Encrypted Library Folders"]
 )
 
 
@@ -28,6 +27,7 @@ router = APIRouter(
 
 class CreateFolderRequest(BaseModel):
     """Request to create a new folder"""
+
     name: str = Field(..., min_length=1, max_length=255)
     parent_folder_id: Optional[str] = None
     description: Optional[str] = None
@@ -35,6 +35,7 @@ class CreateFolderRequest(BaseModel):
 
 class UpdateFolderRequest(BaseModel):
     """Request to update folder metadata"""
+
     name: Optional[str] = Field(None, min_length=1, max_length=255)
     parent_folder_id: Optional[str] = None
     description: Optional[str] = None
@@ -42,13 +43,14 @@ class UpdateFolderRequest(BaseModel):
 
 class FolderResponse(BaseModel):
     """Folder metadata response"""
+
     folder_id: str
     owner_id: str
     name: str
     description: Optional[str] = None
     parent_folder_id: Optional[str] = None
     path: List[str]  # Full path of folder IDs from root
-    
+
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None
@@ -78,7 +80,7 @@ async def create_folder(
 ):
     """
     Create a new folder for encrypted images
-    
+
     - **name**: Folder name (required, 1-255 chars)
     - **parent_folder_id**: Parent folder ID (optional, null = root level)
     - **description**: Folder description (optional)
@@ -86,16 +88,16 @@ async def create_folder(
     try:
         user_id = user_data["uid"]
         manager = get_folder_manager()
-        
+
         folder = manager.create_folder(
             owner_id=user_id,
             name=request.name,
             parent_folder_id=request.parent_folder_id,
-            description=request.description
+            description=request.description,
         )
-        
+
         return FolderResponse(**folder)
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -111,22 +113,22 @@ async def list_folders(
 ):
     """
     List all folders owned by current user
-    
+
     - **parent_folder_id**: Filter by parent folder (null = root level folders)
     - **include_deleted**: Include soft-deleted folders (default: false)
     """
     try:
         user_id = user_data["uid"]
         manager = get_folder_manager()
-        
+
         folders = manager.list_folders(
             owner_id=user_id,
             parent_folder_id=parent_folder_id,
-            include_deleted=include_deleted
+            include_deleted=include_deleted,
         )
-        
+
         return [FolderResponse(**folder) for folder in folders]
-        
+
     except Exception as e:
         logger.error(f"❌ Error listing folders: {e}")
         raise HTTPException(status_code=500, detail=f"Error listing folders: {str(e)}")
@@ -143,14 +145,16 @@ async def get_folder(
     try:
         user_id = user_data["uid"]
         manager = get_folder_manager()
-        
+
         folder = manager.get_folder(folder_id=folder_id, owner_id=user_id)
-        
+
         if not folder:
-            raise HTTPException(status_code=404, detail="Folder not found or you don't have access")
-        
+            raise HTTPException(
+                status_code=404, detail="Folder not found or you don't have access"
+            )
+
         return FolderResponse(**folder)
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -166,7 +170,7 @@ async def update_folder(
 ):
     """
     Update folder metadata
-    
+
     - **name**: New folder name (optional)
     - **parent_folder_id**: Move to different parent (optional, null = move to root)
     - **description**: Update description (optional)
@@ -174,7 +178,7 @@ async def update_folder(
     try:
         user_id = user_data["uid"]
         manager = get_folder_manager()
-        
+
         # Build updates dict (only include non-None values)
         updates = {}
         if request.name is not None:
@@ -183,21 +187,21 @@ async def update_folder(
             updates["parent_folder_id"] = request.parent_folder_id
         if request.description is not None:
             updates["description"] = request.description
-        
+
         if not updates:
             raise HTTPException(status_code=400, detail="No updates provided")
-        
+
         folder = manager.update_folder(
-            folder_id=folder_id,
-            owner_id=user_id,
-            updates=updates
+            folder_id=folder_id, owner_id=user_id, updates=updates
         )
-        
+
         if not folder:
-            raise HTTPException(status_code=404, detail="Folder not found or you don't have access")
-        
+            raise HTTPException(
+                status_code=404, detail="Folder not found or you don't have access"
+            )
+
         return FolderResponse(**folder)
-        
+
     except HTTPException:
         raise
     except ValueError as e:
@@ -215,7 +219,7 @@ async def delete_folder(
 ):
     """
     Delete a folder (soft delete by default)
-    
+
     - **permanent**: If true, permanently delete. If false, soft delete (can be restored)
     - Soft delete: marks folder as deleted, can be restored
     - Permanent delete: removes folder and all subfolders (images remain, just lose folder reference)
@@ -223,23 +227,23 @@ async def delete_folder(
     try:
         user_id = user_data["uid"]
         manager = get_folder_manager()
-        
+
         if permanent:
-            success = manager.delete_folder_permanent(folder_id=folder_id, owner_id=user_id)
+            success = manager.delete_folder_permanent(
+                folder_id=folder_id, owner_id=user_id
+            )
             message = "Folder permanently deleted"
         else:
             success = manager.soft_delete_folder(folder_id=folder_id, owner_id=user_id)
             message = "Folder moved to trash"
-        
+
         if not success:
-            raise HTTPException(status_code=404, detail="Folder not found or you don't have access")
-        
-        return {
-            "success": True,
-            "message": message,
-            "folder_id": folder_id
-        }
-        
+            raise HTTPException(
+                status_code=404, detail="Folder not found or you don't have access"
+            )
+
+        return {"success": True, "message": message, "folder_id": folder_id}
+
     except HTTPException:
         raise
     except Exception as e:
@@ -258,18 +262,20 @@ async def restore_folder(
     try:
         user_id = user_data["uid"]
         manager = get_folder_manager()
-        
+
         success = manager.restore_folder(folder_id=folder_id, owner_id=user_id)
-        
+
         if not success:
-            raise HTTPException(status_code=404, detail="Folder not found or you don't have access")
-        
+            raise HTTPException(
+                status_code=404, detail="Folder not found or you don't have access"
+            )
+
         return {
             "success": True,
             "message": "Folder restored from trash",
-            "folder_id": folder_id
+            "folder_id": folder_id,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

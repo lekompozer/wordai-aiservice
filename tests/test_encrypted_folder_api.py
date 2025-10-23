@@ -46,16 +46,16 @@ def test_create_folder(mock_firebase_auth, mock_folder_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.post(
         "/api/library/encrypted-folders/",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
         json={
             "name": "My Secret Photos",
             "description": "Personal photos",
-        }
+        },
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["folder_id"] == "folder_abc123"
@@ -77,16 +77,16 @@ def test_create_subfolder(mock_firebase_auth, mock_folder_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.post(
         "/api/library/encrypted-folders/",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
         json={
             "name": "Vacation 2025",
             "parent_folder_id": "folder_abc123",
-        }
+        },
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["folder_id"] == "folder_xyz456"
@@ -120,14 +120,14 @@ def test_list_folders(mock_firebase_auth, mock_folder_manager):
             "updated_at": "2025-10-23T11:00:00Z",
             "deleted_at": None,
             "is_deleted": False,
-        }
+        },
     ]
-    
+
     response = client.get(
         "/api/library/encrypted-folders/",
-        headers={"Authorization": f"Bearer {MOCK_TOKEN}"}
+        headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
@@ -149,12 +149,12 @@ def test_get_folder(mock_firebase_auth, mock_folder_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.get(
         "/api/library/encrypted-folders/folder_abc123",
-        headers={"Authorization": f"Bearer {MOCK_TOKEN}"}
+        headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["folder_id"] == "folder_abc123"
@@ -175,16 +175,16 @@ def test_update_folder(mock_firebase_auth, mock_folder_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.put(
         "/api/library/encrypted-folders/folder_abc123",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
         json={
             "name": "Updated Folder Name",
             "description": "Updated description",
-        }
+        },
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["name"] == "Updated Folder Name"
@@ -205,15 +205,15 @@ def test_move_folder(mock_firebase_auth, mock_folder_manager):
         "deleted_at": None,
         "is_deleted": False,
     }
-    
+
     response = client.put(
         "/api/library/encrypted-folders/folder_xyz456",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
         json={
             "parent_folder_id": "folder_new_parent",
-        }
+        },
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["parent_folder_id"] == "folder_new_parent"
@@ -223,12 +223,12 @@ def test_move_folder(mock_firebase_auth, mock_folder_manager):
 def test_soft_delete_folder(mock_firebase_auth, mock_folder_manager):
     """Test soft delete folder"""
     mock_folder_manager.soft_delete_folder.return_value = True
-    
+
     response = client.delete(
         "/api/library/encrypted-folders/folder_abc123",
-        headers={"Authorization": f"Bearer {MOCK_TOKEN}"}
+        headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
@@ -238,12 +238,12 @@ def test_soft_delete_folder(mock_firebase_auth, mock_folder_manager):
 def test_permanent_delete_folder(mock_firebase_auth, mock_folder_manager):
     """Test permanent delete folder"""
     mock_folder_manager.delete_folder_permanent.return_value = True
-    
+
     response = client.delete(
         "/api/library/encrypted-folders/folder_abc123?permanent=true",
-        headers={"Authorization": f"Bearer {MOCK_TOKEN}"}
+        headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
@@ -253,12 +253,12 @@ def test_permanent_delete_folder(mock_firebase_auth, mock_folder_manager):
 def test_restore_folder(mock_firebase_auth, mock_folder_manager):
     """Test restore folder from trash"""
     mock_folder_manager.restore_folder.return_value = True
-    
+
     response = client.post(
         "/api/library/encrypted-folders/folder_abc123/restore",
-        headers={"Authorization": f"Bearer {MOCK_TOKEN}"}
+        headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
     )
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
@@ -268,12 +268,12 @@ def test_restore_folder(mock_firebase_auth, mock_folder_manager):
 def test_folder_not_found(mock_firebase_auth, mock_folder_manager):
     """Test folder not found error"""
     mock_folder_manager.get_folder.return_value = None
-    
+
     response = client.get(
         "/api/library/encrypted-folders/nonexistent",
-        headers={"Authorization": f"Bearer {MOCK_TOKEN}"}
+        headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
     )
-    
+
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -283,7 +283,7 @@ def test_create_folder_without_name(mock_firebase_auth, mock_folder_manager):
     response = client.post(
         "/api/library/encrypted-folders/",
         headers={"Authorization": f"Bearer {MOCK_TOKEN}"},
-        json={}
+        json={},
     )
-    
+
     assert response.status_code == 422  # Validation error

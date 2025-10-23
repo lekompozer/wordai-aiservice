@@ -209,6 +209,7 @@ class EncryptedLibraryManager:
         owner_id: str,
         folder_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        search_filename: Optional[str] = None,
         include_shared: bool = False,
         include_deleted: bool = False,
         limit: int = 50,
@@ -221,6 +222,7 @@ class EncryptedLibraryManager:
             owner_id: User ID
             folder_id: Filter by folder
             tags: Filter by tags (OR condition)
+            search_filename: Search by filename (case-insensitive regex)
             include_shared: Include images shared with user
             include_deleted: Include soft-deleted images
             limit: Max results
@@ -245,6 +247,10 @@ class EncryptedLibraryManager:
             # Tags filter (OR)
             if tags and len(tags) > 0:
                 query["tags"] = {"$in": tags}
+            
+            # Filename search (case-insensitive)
+            if search_filename:
+                query["filename"] = {"$regex": search_filename, "$options": "i"}
 
             # Deleted filter
             if not include_deleted:
@@ -269,6 +275,56 @@ class EncryptedLibraryManager:
         except Exception as e:
             logger.error(f"❌ Error listing encrypted images: {e}")
             return []
+
+    def count_encrypted_images(
+        self,
+        owner_id: str,
+        folder_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        search_filename: Optional[str] = None,
+        include_shared: bool = False,
+        include_deleted: bool = False,
+    ) -> int:
+        """
+        Count encrypted images for pagination
+        
+        Args:
+            owner_id: User ID
+            folder_id: Filter by folder
+            tags: Filter by tags (OR condition)
+            search_filename: Search by filename
+            include_shared: Include images shared with user
+            include_deleted: Include soft-deleted images
+            
+        Returns:
+            Total count of images matching filters
+        """
+        try:
+            # Build same query as list_encrypted_images
+            if include_shared:
+                query = {"$or": [{"owner_id": owner_id}, {"shared_with": owner_id}]}
+            else:
+                query = {"owner_id": owner_id}
+
+            if folder_id:
+                query["folder_id"] = folder_id
+
+            if tags and len(tags) > 0:
+                query["tags"] = {"$in": tags}
+            
+            if search_filename:
+                query["filename"] = {"$regex": search_filename, "$options": "i"}
+
+            if not include_deleted:
+                query["is_deleted"] = False
+
+            count = self.library_images.count_documents(query)
+            
+            return count
+
+        except Exception as e:
+            logger.error(f"❌ Error counting encrypted images: {e}")
+            return 0
 
     def add_share_access(
         self,
@@ -454,12 +510,12 @@ class EncryptedLibraryManager:
     ) -> Optional[Dict[str, Any]]:
         """
         Update image metadata (filename, description, tags, folder_id)
-        
+
         Args:
             image_id: Image ID
             owner_id: Owner user ID (for verification)
             updates: Dictionary of fields to update
-            
+
         Returns:
             Updated image document or None if not found
         """
@@ -467,33 +523,36 @@ class EncryptedLibraryManager:
             # Validate folder exists if updating folder_id
             if "folder_id" in updates and updates["folder_id"]:
                 from config.config import get_mongodb
+
                 db = get_mongodb()
                 folder_collection = db["library_folders"]
-                
-                folder = folder_collection.find_one({
-                    "folder_id": updates["folder_id"],
-                    "owner_id": owner_id,
-                    "is_deleted": False
-                })
-                
+
+                folder = folder_collection.find_one(
+                    {
+                        "folder_id": updates["folder_id"],
+                        "owner_id": owner_id,
+                        "is_deleted": False,
+                    }
+                )
+
                 if not folder:
                     raise ValueError("Folder not found or you don't have access")
-            
+
             # Add updated_at timestamp
             updates["updated_at"] = datetime.now(timezone.utc)
-            
+
             # Update the document
             result = self.library_images.find_one_and_update(
                 {"image_id": image_id, "owner_id": owner_id},
                 {"$set": updates},
-                return_document=True
+                return_document=True,
             )
-            
+
             if result:
                 logger.info(f"✅ Image metadata updated: {image_id}")
-            
+
             return result
-            
+
         except Exception as e:
             logger.error(f"❌ Error updating image metadata {image_id}: {e}")
             raise

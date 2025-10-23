@@ -234,10 +234,11 @@ async def upload_encrypted_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("", response_model=List[EncryptedImageResponse])
-async def list_encrypted_images(
+@router.get("")
+async def list_encrypted_images_with_folders(
     folderId: Optional[str] = Query(None, description="Filter by folder ID"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
+    search: Optional[str] = Query(None, description="Search by filename"),
     includeShared: bool = Query(False, description="Include images shared with you"),
     includeDeleted: bool = Query(False, description="Include soft-deleted images"),
     limit: int = Query(50, ge=1, le=100),
@@ -245,53 +246,90 @@ async def list_encrypted_images(
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
-    List encrypted images for current user
-
-    Returns metadata only (no image data)
-    Client must download and decrypt separately
+    List encrypted images AND folders for current user
+    
+    Returns:
+    - folders: List of folders (filtered by folderId if provided)
+    - images: List of images with thumbnail URLs
+    - pagination: Total count and pagination info
+    
+    Returns metadata only (no full image data)
+    Client downloads thumbnails and decrypts on-demand
     """
     try:
         owner_id = user_data.get("uid")
         manager = get_encrypted_library_manager()
+        
+        # Get folder manager
+        from src.services.encrypted_folder_manager import EncryptedFolderManager
+        folder_manager = EncryptedFolderManager(db=get_mongodb())
 
         # Parse tags
         tags_list = None
         if tags:
             tags_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
 
-        # Get list from database
+        # Get folders (if no specific folder filter, get root level folders)
+        folders = await asyncio.to_thread(
+            folder_manager.list_folders,
+            owner_id=owner_id,
+            parent_folder_id=folderId,
+            include_deleted=includeDeleted,
+        )
+
+        # Get images
         images = await asyncio.to_thread(
             manager.list_encrypted_images,
             owner_id=owner_id,
             folder_id=folderId,
             tags=tags_list,
+            search_filename=search,
             include_shared=includeShared,
             include_deleted=includeDeleted,
             limit=limit,
             offset=offset,
         )
+        
+        # Get total count for pagination
+        total_count = await asyncio.to_thread(
+            manager.count_encrypted_images,
+            owner_id=owner_id,
+            folder_id=folderId,
+            tags=tags_list,
+            search_filename=search,
+            include_shared=includeShared,
+            include_deleted=includeDeleted,
+        )
 
-        # Generate presigned URLs for encrypted files
+        # Generate presigned URLs for encrypted thumbnails only
         s3_client = get_r2_client()
         for img in images:
-            # Generate 1-hour presigned URLs for download
-            img["image_download_url"] = s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": R2_BUCKET_NAME, "Key": img["r2_image_path"]},
-                ExpiresIn=3600,
-            )
+            # Only thumbnail URL (full image URL generated on-demand)
             img["thumbnail_download_url"] = s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": R2_BUCKET_NAME, "Key": img["r2_thumbnail_path"]},
                 ExpiresIn=3600,
             )
+            # Remove full image path from list response for security
+            img.pop("image_download_url", None)
 
-        logger.info(f"📚 Listed {len(images)} encrypted images for {owner_id}")
+        logger.info(
+            f"📚 Listed {len(folders)} folders and {len(images)} images for {owner_id}"
+        )
 
-        return [EncryptedImageResponse(**img) for img in images]
+        return {
+            "folders": folders,
+            "images": [EncryptedImageResponse(**img) for img in images],
+            "pagination": {
+                "total": total_count,
+                "limit": limit,
+                "offset": offset,
+                "has_more": (offset + limit) < total_count,
+            },
+        }
 
     except Exception as e:
-        logger.error(f"❌ Error listing encrypted images: {e}")
+        logger.error(f"❌ Error listing encrypted images with folders: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -550,9 +588,9 @@ async def update_image_metadata(
 ):
     """
     Update encrypted image metadata
-    
+
     Only owner can update metadata
-    
+
     - **filename**: New filename (optional)
     - **description**: New description (optional)
     - **tags**: New tags array (optional, replaces existing tags)
@@ -561,7 +599,7 @@ async def update_image_metadata(
     try:
         owner_id = user_data.get("uid")
         manager = get_encrypted_library_manager()
-        
+
         # Build updates dict (only include non-None values)
         updates = {}
         if request.filename is not None:
@@ -572,10 +610,10 @@ async def update_image_metadata(
             updates["tags"] = request.tags
         if request.folder_id is not None:
             updates["folder_id"] = request.folder_id
-        
+
         if not updates:
             raise HTTPException(status_code=400, detail="No updates provided")
-        
+
         # Update metadata
         updated_image = await asyncio.to_thread(
             manager.update_image_metadata,
@@ -583,16 +621,16 @@ async def update_image_metadata(
             owner_id=owner_id,
             updates=updates,
         )
-        
+
         if not updated_image:
             raise HTTPException(
                 status_code=404, detail="Image not found or you are not the owner"
             )
-        
+
         logger.info(f"✅ Image metadata updated: {image_id} by {owner_id}")
-        
+
         return EncryptedImageResponse(**updated_image)
-        
+
     except HTTPException:
         raise
     except Exception as e:
