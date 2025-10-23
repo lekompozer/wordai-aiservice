@@ -106,6 +106,9 @@ class EncryptedFolderManager:
 
             self.collection.insert_one(folder_doc)
 
+            # Remove _id before returning
+            folder_doc.pop("_id", None)
+
             logger.info(f"✅ Folder created: {folder_id} by {owner_id}")
             return folder_doc
 
@@ -149,6 +152,10 @@ class EncryptedFolderManager:
 
             folders = list(self.collection.find(query).sort("name", 1))
 
+            # Remove MongoDB _id field
+            for folder in folders:
+                folder.pop("_id", None)
+
             logger.info(f"📂 Listed {len(folders)} folders for {owner_id}")
             return folders
 
@@ -171,6 +178,9 @@ class EncryptedFolderManager:
             folder = self.collection.find_one(
                 {"folder_id": folder_id, "owner_id": owner_id}
             )
+
+            if folder:
+                folder.pop("_id", None)
 
             return folder
 
@@ -235,6 +245,7 @@ class EncryptedFolderManager:
             )
 
             if result:
+                result.pop("_id", None)
                 logger.info(f"✅ Folder updated: {folder_id}")
 
             return result
