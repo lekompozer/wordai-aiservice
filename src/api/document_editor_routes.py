@@ -423,8 +423,9 @@ async def get_document_by_file(
                         )
                         logger.info(f"♻️ Cached HTML length: {len(prev_html)} chars, Text length: {len(text_content)} chars")
                     else:
+                        text_len = len(text_content) if text_content else 0
                         logger.warning(
-                            f"⚠️ Previous document has empty text content (HTML: {len(prev_html)} chars, Text: {len(text_content if text_content else 0)} chars), will re-parse file"
+                            f"⚠️ Previous document has empty text content (HTML: {len(prev_html)} chars, Text: {text_len} chars), will re-parse file"
                         )
                 else:
                     logger.warning(
