@@ -290,7 +290,8 @@ async def parse_slides_from_file(
 
         file_info = user_manager.get_file_by_id(file_id, user_id)
         if not file_info:
-            raise HTTPException(status_code=404, detail="File not found")
+            logger.error(f"❌ File {file_id} not found in database for user {user_id}")
+            raise HTTPException(status_code=404, detail=f"File {file_id} not found in user_files collection")
 
         file_name = file_info.get("original_name", "Unknown")
         file_type = file_info.get("file_type", "")
