@@ -134,6 +134,9 @@ from src.api.notification_routes import router as notification_router
 # ✅ ADDED: Document Editor API for document management with auto-save
 from src.api.document_editor_routes import router as document_editor_router
 
+# ✅ ADDED: Gemini Slide Parser API for presentation slides with native PDF support
+from src.api.gemini_slide_parser_routes import router as gemini_slide_parser_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -625,6 +628,9 @@ def create_app() -> FastAPI:
 
     # ✅ NEW: AI Content Edit API for Tiptap editor with AI providers
     app.include_router(ai_content_edit_router, tags=["AI Content Editing"])
+
+    # ✅ NEW: Gemini Slide Parser API - Native PDF support for presentations
+    app.include_router(gemini_slide_parser_router, tags=["Gemini Slide Parser", "AI Document Processing"])
 
     # ✅ ADDED: Internal CORS management for chat-plugin
     app.include_router(internal_cors_router, tags=["Internal CORS"])
