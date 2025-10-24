@@ -73,7 +73,8 @@ def upload_pdf_to_gemini(pdf_path: str) -> str:
         uploaded_file = genai.upload_file(pdf_path)
         logger.info(f"✅ PDF uploaded: {uploaded_file.uri}")
 
-        return uploaded_file.uri
+        # Return the file name (files/xxx format) for get_file()
+        return uploaded_file.name
 
     except Exception as e:
         logger.error(f"❌ Failed to upload PDF to Gemini: {e}")
