@@ -1048,11 +1048,11 @@ async def export_slides_to_pptx(
 
         # Generate presigned URL (valid for 1 hour)
         presigned_url = await r2_client.generate_presigned_url(
-            file_key=file_key, expiration=3600  # 1 hour
+            remote_path=file_key, expiration=3600  # 1 hour
         )
 
         logger.info(f"🔗 Generated presigned URL (expires in 1 hour)")
-
+        
         return SlideExportResponse(
             success=True,
             download_url=presigned_url,
