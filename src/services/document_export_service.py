@@ -496,7 +496,9 @@ class DocumentExportService:
         try:
             # Generate file based on format
             if format == "pdf":
-                file_bytes, filename = self.export_to_pdf(html_content, title, document_type)
+                file_bytes, filename = self.export_to_pdf(
+                    html_content, title, document_type
+                )
                 content_type = "application/pdf"
             elif format == "docx":
                 file_bytes, filename = self.export_to_docx(html_content, title)

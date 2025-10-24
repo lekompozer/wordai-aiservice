@@ -117,7 +117,9 @@ async def export_document(
             raise HTTPException(status_code=400, detail="Document has no content")
 
         title = doc.get("title", "Untitled")
-        document_type = doc.get("document_type", "doc")  # Get document_type (doc/slide/note)
+        document_type = doc.get(
+            "document_type", "doc"
+        )  # Get document_type (doc/slide/note)
 
         # Validate format for document type
         if request.format == ExportFormat.TXT and document_type != "note":
