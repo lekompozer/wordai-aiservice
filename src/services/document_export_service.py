@@ -146,7 +146,7 @@ class DocumentExportService:
         return f"{filename}_{timestamp}"
 
     def export_to_pdf(
-        self, html_content: str, title: str = "document"
+        self, html_content: str, title: str = "document", document_type: str = "doc"
     ) -> Tuple[bytes, str]:
         """
         Convert HTML to PDF using weasyprint
@@ -154,6 +154,7 @@ class DocumentExportService:
         Args:
             html_content: HTML content to convert
             title: Document title for filename
+            document_type: Document type ("doc", "slide", "note") for page sizing
 
         Returns:
             (pdf_bytes, filename)
@@ -161,25 +162,37 @@ class DocumentExportService:
         try:
             from weasyprint import HTML, CSS
 
+            # Choose page size based on document type
+            if document_type == "slide":
+                # FullHD 1920x1080 (16:9 landscape) for slides
+                page_size = "1920px 1080px"
+                page_margin = "0"  # No margin for slides (full bleed)
+                logger.info(f"📄 Using FullHD (1920x1080) page size for slide document")
+            else:
+                # A4 portrait for docs and notes
+                page_size = "A4"
+                page_margin = "20mm"
+                logger.info(f"📄 Using A4 page size for {document_type} document")
+
             # Add CSS for better PDF rendering
-            css = """
-            @page {
-                size: A4;
-                margin: 20mm;
-            }
-            body {
+            css = f"""
+            @page {{
+                size: {page_size};
+                margin: {page_margin};
+            }}
+            body {{
                 font-family: Arial, sans-serif;
                 font-size: 12pt;
                 line-height: 1.6;
                 color: #333;
-            }
-            h1 { font-size: 24pt; margin-bottom: 12pt; }
-            h2 { font-size: 20pt; margin-bottom: 10pt; }
-            h3 { font-size: 16pt; margin-bottom: 8pt; }
-            p { margin-bottom: 8pt; }
-            img { max-width: 100%; height: auto; }
-            table { border-collapse: collapse; width: 100%; }
-            th, td { border: 1px solid #ddd; padding: 8px; }
+            }}
+            h1 {{ font-size: 24pt; margin-bottom: 12pt; }}
+            h2 {{ font-size: 20pt; margin-bottom: 10pt; }}
+            h3 {{ font-size: 16pt; margin-bottom: 8pt; }}
+            p {{ margin-bottom: 8pt; }}
+            img {{ max-width: 100%; height: auto; }}
+            table {{ border-collapse: collapse; width: 100%; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; }}
             """
 
             html_with_style = f"<style>{css}</style>{html_content}"
@@ -458,6 +471,7 @@ class DocumentExportService:
         html_content: str,
         title: str,
         format: str,
+        document_type: str = "doc",  # Add document_type parameter
     ) -> dict:
         """
         Export document to specified format and upload to R2
@@ -468,6 +482,7 @@ class DocumentExportService:
             html_content: HTML content to export
             title: Document title
             format: Export format ("pdf", "docx", "txt", "html")
+            document_type: Document type ("doc", "slide", "note") for proper page sizing
 
         Returns:
             {
@@ -481,7 +496,7 @@ class DocumentExportService:
         try:
             # Generate file based on format
             if format == "pdf":
-                file_bytes, filename = self.export_to_pdf(html_content, title)
+                file_bytes, filename = self.export_to_pdf(html_content, title, document_type)
                 content_type = "application/pdf"
             elif format == "docx":
                 file_bytes, filename = self.export_to_docx(html_content, title)

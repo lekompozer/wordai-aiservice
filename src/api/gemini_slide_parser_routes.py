@@ -1052,7 +1052,7 @@ async def export_slides_to_pptx(
         )
 
         logger.info(f"🔗 Generated presigned URL (expires in 1 hour)")
-        
+
         return SlideExportResponse(
             success=True,
             download_url=presigned_url,
