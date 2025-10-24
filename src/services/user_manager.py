@@ -19,7 +19,7 @@ class UserManager:
     def __init__(self, db_manager: Optional[DBManager]):
         self.db = db_manager
 
-        if self.db and self.db.client:
+        if self.db is not None and self.db.client is not None:
             # MongoDB collections
             self.users = self.db.db["users"]
             self.conversations = self.db.db["conversations"]
@@ -211,7 +211,7 @@ class UserManager:
                 },
             }
 
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB update
                 result = self.users.update_one(
                     {"firebase_uid": firebase_uid},
@@ -798,7 +798,7 @@ class UserManager:
             File document or None
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 file_doc = self.user_files.find_one(
                     {"file_id": file_id, "user_id": user_id, "is_deleted": False}
                 )
@@ -862,7 +862,7 @@ class UserManager:
                 "updated_at": now,
             }
 
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 self.user_files.insert_one(file_doc)
                 logger.info(f"✅ Saved file metadata: {file_id}")
             else:
@@ -895,7 +895,7 @@ class UserManager:
             if "updated_at" not in update_data:
                 update_data["updated_at"] = datetime.now(timezone.utc)
 
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 result = self.user_files.update_one(
                     {"file_id": file_id, "user_id": user_id, "is_deleted": False},
                     {"$set": update_data},
@@ -945,7 +945,7 @@ class UserManager:
             List of file documents
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 query = {"user_id": user_id, "is_deleted": False}
 
                 # Filter by folder
@@ -1014,7 +1014,7 @@ class UserManager:
         try:
             now = datetime.now(timezone.utc)
 
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 result = self.user_files.update_one(
                     {"file_id": file_id, "user_id": user_id},
                     {"$set": {"is_deleted": True, "deleted_at": now}},
@@ -1054,7 +1054,7 @@ class UserManager:
             bool: Success status
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # Try restore from Upload Files (user_files) first
                 result = self.user_files.update_one(
                     {"file_id": file_id, "user_id": user_id, "is_deleted": True},
@@ -1113,7 +1113,7 @@ class UserManager:
             List of deleted file documents (merged from both collections)
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # Query Upload Files (Type 1)
                 upload_files = list(
                     self.user_files.find({"user_id": user_id, "is_deleted": True})
@@ -1233,7 +1233,7 @@ class UserManager:
         """
         try:
             # 1. Get file info first
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 file_doc = self.user_files.find_one(
                     {"file_id": file_id, "user_id": user_id}
                 )
@@ -1263,7 +1263,7 @@ class UserManager:
             # - User may have created documents from this file (e.g., via Edit button)
             # - Those documents belong to the user, not the file
             # - Cache will auto-invalidate since file_id won't be found in user_files anymore
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 result = self.user_files.delete_one(
                     {"file_id": file_id, "user_id": user_id}
                 )
@@ -1355,7 +1355,7 @@ class UserManager:
                 "updated_at": now,
             }
 
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB - use folders collection
                 self.folders.insert_one(folder_doc)
                 logger.info(
@@ -1391,7 +1391,7 @@ class UserManager:
             List of folder documents
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB query - use folders collection
                 query = {"user_id": user_id, "parent_id": parent_id}
                 folders = list(self.folders.find(query).sort("created_at", -1))
@@ -1478,7 +1478,7 @@ class UserManager:
                 "updated_at": now,
             }
 
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB - use document_folders collection
                 self.document_folders.insert_one(folder_doc)
                 logger.info(
@@ -1514,7 +1514,7 @@ class UserManager:
             List of folder documents
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB query - use document_folders collection
                 query = {"user_id": user_id, "parent_id": parent_id}
                 folders = list(self.document_folders.find(query).sort("created_at", -1))
@@ -1567,7 +1567,7 @@ class UserManager:
             Folder document or None if not found
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB - use document_folders collection
                 folder = self.document_folders.find_one(
                     {"folder_id": folder_id, "user_id": user_id}
@@ -1609,7 +1609,7 @@ class UserManager:
             Folder document or None if not found
         """
         try:
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB
                 folder = self.folders.find_one(
                     {"folder_id": folder_id, "user_id": user_id}
@@ -1680,7 +1680,7 @@ class UserManager:
             if description is not None:
                 update_fields["description"] = description
 
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 # MongoDB
                 result = self.folders.update_one(
                     {"folder_id": folder_id, "user_id": user_id},
@@ -1719,7 +1719,7 @@ class UserManager:
         """
         try:
             # Check if folder has files
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 file_count = self.user_files.count_documents(
                     {"user_id": user_id, "folder_id": folder_id, "is_deleted": False}
                 )
@@ -1739,7 +1739,7 @@ class UserManager:
                 return False
 
             # Check if folder has subfolders
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 subfolder_count = self.folders.count_documents(
                     {"user_id": user_id, "parent_id": folder_id}
                 )
@@ -1757,7 +1757,7 @@ class UserManager:
                 return False
 
             # Delete folder
-            if self.db and self.db.client:
+            if self.db is not None and self.db.client is not None:
                 result = self.folders.delete_one(
                     {"folder_id": folder_id, "user_id": user_id}
                 )
