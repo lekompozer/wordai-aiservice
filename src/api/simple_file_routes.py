@@ -1235,6 +1235,11 @@ async def delete_file(
                 logger.warning(f"❌ File {file_id} not found for deletion")
                 raise HTTPException(status_code=404, detail="File not found")
 
+            # Note: We do NOT delete related documents because:
+            # - User may have created documents from this file
+            # - Those documents belong to the user, not the file
+            # - Cache will auto-invalidate since file won't exist
+
             # Delete the file from R2
             s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=file_key)
 

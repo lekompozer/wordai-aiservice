@@ -1258,7 +1258,11 @@ class UserManager:
                     logger.error(f"❌ Error deleting R2 file {r2_key}: {e}")
                     # Continue to delete MongoDB record anyway
 
-            # 3. Delete from MongoDB
+            # 3. Delete from MongoDB user_files
+            # Note: We do NOT delete related documents because:
+            # - User may have created documents from this file (e.g., via Edit button)
+            # - Those documents belong to the user, not the file
+            # - Cache will auto-invalidate since file_id won't be found in user_files anymore
             if self.db and self.db.client:
                 result = self.user_files.delete_one(
                     {"file_id": file_id, "user_id": user_id}
