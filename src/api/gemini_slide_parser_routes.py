@@ -449,6 +449,32 @@ async def parse_slides_from_file(
 
             logger.info(f"✅ Successfully parsed {len(slides)} slides with Gemini")
 
+            # Save slides as document in database for caching and editing
+            # Combine all slides into one HTML document
+            combined_html = "\n\n".join([slide.html_content for slide in slides])
+
+            # Extract text content from HTML for search
+            from bs4 import BeautifulSoup
+
+            soup = BeautifulSoup(combined_html, "html.parser")
+            combined_text = soup.get_text(separator="\n", strip=True)
+
+            # Create document in database
+            document_id = doc_manager.create_document(
+                user_id=user_id,
+                title=file_name,
+                content_html=combined_html,
+                content_text=combined_text,
+                source_type="file",
+                document_type="slide",
+                file_id=file_id,
+                original_r2_url=file_info.get("file_url"),
+                original_file_type=file_type,
+                folder_id=None,
+            )
+
+            logger.info(f"💾 Saved {len(slides)} slides to document {document_id}")
+
         return SlideParseResponse(
             success=True,
             total_slides=len(slides),
