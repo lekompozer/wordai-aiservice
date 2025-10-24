@@ -67,7 +67,7 @@ def upload_pdf_to_gemini(pdf_path: str) -> str:
         logger.info(f"📄 Uploading PDF to Gemini: {pdf_path}")
 
         # Configure Gemini
-        genai.configure(api_key=APP_CONFIG.gemini_api_key)
+        genai.configure(api_key=APP_CONFIG["gemini_api_key"])
 
         # Upload PDF file
         uploaded_file = genai.upload_file(pdf_path)
@@ -100,7 +100,7 @@ async def parse_pdf_with_gemini(
         logger.info(f"🤖 Parsing PDF with Gemini 2.5 Pro: {file_name}")
 
         # Configure Gemini
-        genai.configure(api_key=APP_CONFIG.gemini_api_key)
+        genai.configure(api_key=APP_CONFIG["gemini_api_key"])
 
         # Enhanced prompt for slide analysis
         prompt = f"""Analyze this presentation PDF file and convert each slide to HTML.
