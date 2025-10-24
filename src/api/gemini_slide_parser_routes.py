@@ -207,6 +207,8 @@ Analyze all slides and return the JSON array:"""
             logger.info(
                 f"  Slide {slide.slide_number}: {len(slide.html_content)} chars HTML"
             )
+            # Log first 500 chars of HTML for debugging
+            logger.info(f"  HTML preview: {slide.html_content[:500]}...")
 
         logger.info(f"✅ Parsed {len(slides)} slides from PDF")
         return slides
