@@ -283,10 +283,10 @@ async def parse_slides_from_file(
 
         # Step 1: Get file info from database
         from src.services.user_manager import UserManager
-        from config.config import get_mongodb
+        from src.database.db_manager import DBManager
 
-        db = get_mongodb()
-        user_manager = UserManager(db)
+        db_manager = DBManager()
+        user_manager = UserManager(db_manager)
 
         file_info = user_manager.get_file_by_id(file_id, user_id)
         if not file_info:
@@ -315,7 +315,7 @@ async def parse_slides_from_file(
         # Step 2: Check if we already have parsed slides for this file (caching)
         from src.services.document_manager import DocumentManager
 
-        doc_manager = DocumentManager(db)
+        doc_manager = DocumentManager(db_manager)
 
         # Count existing slide documents from this file
         existing_count = doc_manager.count_documents_by_file_id(file_id, user_id)
