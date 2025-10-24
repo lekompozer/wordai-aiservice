@@ -51,7 +51,7 @@ class UserManager:
 
     def _create_indexes(self):
         """Create database indexes for better performance"""
-        if not self.db or not self.db.client:
+        if self.db is None or self.db.client is None:
             return
 
         try:
