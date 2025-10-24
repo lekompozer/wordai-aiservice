@@ -408,8 +408,8 @@ async def parse_slides_from_file(
 
                 r2_client = R2Client(
                     endpoint=APP_CONFIG["r2_endpoint"],
-                    access_key=APP_CONFIG["r2_access_key"],
-                    secret_key=APP_CONFIG["r2_secret_key"],
+                    access_key=APP_CONFIG["r2_access_key_id"],
+                    secret_key=APP_CONFIG["r2_secret_access_key"],
                     bucket_name=APP_CONFIG["r2_bucket_name"],
                 )
 
