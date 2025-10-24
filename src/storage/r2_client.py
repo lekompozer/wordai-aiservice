@@ -210,6 +210,33 @@ class R2Client:
         """Synchronous head object (runs in thread pool)"""
         self.s3_client.head_object(Bucket=self.bucket_name, Key=remote_path)
 
+    def get_file(self, remote_path: str) -> Optional[Dict[str, Any]]:
+        """
+        Get file object from R2 (synchronous).
+        Returns boto3 GetObject response with 'Body' StreamingBody.
+
+        Args:
+            remote_path: Path to file in R2 bucket
+
+        Returns:
+            Dictionary with 'Body', 'ContentLength', 'ContentType', etc. or None
+        """
+        try:
+            response = self.s3_client.get_object(
+                Bucket=self.bucket_name, Key=remote_path
+            )
+            return response
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "NoSuchKey":
+                logger.error(f"File not found in R2: {remote_path}")
+                return None
+            else:
+                logger.error(f"Error getting file from R2 {remote_path}: {e}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting file from R2 {remote_path}: {e}")
+            return None
+
     async def get_file_info(self, remote_path: str) -> Optional[Dict[str, Any]]:
         """
         Get metadata about a file in R2.
