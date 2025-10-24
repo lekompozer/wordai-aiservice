@@ -407,10 +407,10 @@ async def parse_slides_from_file(
                 from src.core.config import APP_CONFIG
 
                 r2_client = R2Client(
-                    endpoint=APP_CONFIG.r2_endpoint,
-                    access_key=APP_CONFIG.r2_access_key,
-                    secret_key=APP_CONFIG.r2_secret_key,
-                    bucket_name=APP_CONFIG.r2_bucket_name,
+                    endpoint=APP_CONFIG["r2_endpoint"],
+                    access_key=APP_CONFIG["r2_access_key"],
+                    secret_key=APP_CONFIG["r2_secret_key"],
+                    bucket_name=APP_CONFIG["r2_bucket_name"],
                 )
 
                 file_obj = r2_client.get_file(r2_key)
