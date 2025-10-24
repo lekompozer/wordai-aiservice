@@ -713,7 +713,7 @@ def html_slides_to_pptx(html_content: str, title: str = "Presentation") -> bytes
                             color_str = style_dict["color"]
                             # Parse hex color
                             if color_str.startswith("#"):
-                                from pptx.util import RGBColor
+                                from pptx.dml.color import RGBColor
 
                                 color_hex = color_str.lstrip("#")
                                 if len(color_hex) == 6:
