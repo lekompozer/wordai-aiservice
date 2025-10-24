@@ -583,3 +583,307 @@ async def parse_slides_from_upload(
             file_name=file.filename if file else "",
             error=str(e),
         )
+
+
+# ============ SLIDE EXPORT MODELS ============
+
+
+class SlideExportRequest(BaseModel):
+    """Request to export slides as PPTX/PPT"""
+
+    document_id: str = Field(..., description="Document ID containing slide HTML")
+    format: str = Field(..., description="Export format: pptx or ppt")
+
+
+class SlideExportResponse(BaseModel):
+    """Response with presigned download URL"""
+
+    success: bool = Field(..., description="Whether export succeeded")
+    download_url: str = Field(None, description="Presigned URL to download file")
+    file_name: str = Field(None, description="Generated filename")
+    file_size: int = Field(None, description="File size in bytes")
+    expires_in: int = Field(3600, description="URL expiration time in seconds")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+
+# ============ SLIDE EXPORT HELPER FUNCTIONS ============
+
+
+def html_slides_to_pptx(html_content: str, title: str = "Presentation") -> bytes:
+    """
+    Convert HTML slides to PPTX file
+
+    Args:
+        html_content: Combined HTML containing all slides (each in a div.slide)
+        title: Presentation title
+
+    Returns:
+        PPTX file bytes
+    """
+    try:
+        from pptx import Presentation
+        from pptx.util import Inches, Pt
+        from bs4 import BeautifulSoup
+        import re
+
+        logger.info(f"🎨 Converting HTML to PPTX: {title}")
+
+        # Parse HTML to extract individual slides
+        soup = BeautifulSoup(html_content, "html.parser")
+        slide_divs = soup.find_all("div", class_="slide")
+
+        if not slide_divs:
+            # Fallback: split by slide number divs or any div with style containing width/height
+            slide_divs = soup.find_all("div", style=re.compile(r"width.*height"))
+
+        logger.info(f"📊 Found {len(slide_divs)} slides in HTML")
+
+        # Create presentation
+        prs = Presentation()
+        prs.slide_width = Inches(10)  # 16:9 aspect ratio
+        prs.slide_height = Inches(5.625)
+
+        for idx, slide_div in enumerate(slide_divs, 1):
+            logger.info(f"  Processing slide {idx}/{len(slide_divs)}")
+
+            # Add blank slide
+            blank_slide_layout = prs.slide_layouts[6]  # Blank layout
+            slide = prs.slides.add_slide(blank_slide_layout)
+
+            # Extract text content from slide
+            slide_text = slide_div.get_text(separator="\n", strip=True)
+
+            # Parse inline styles to extract positioning and styling
+            elements = slide_div.find_all(style=True)
+
+            for element in elements:
+                element_text = element.get_text(strip=True)
+                if not element_text:
+                    continue
+
+                # Parse style attributes
+                style_str = element.get("style", "")
+                style_dict = {}
+                for style_item in style_str.split(";"):
+                    if ":" in style_item:
+                        key, value = style_item.split(":", 1)
+                        style_dict[key.strip()] = value.strip()
+
+                # Extract position and size
+                try:
+                    # Get position (convert px to inches, assuming 96 DPI)
+                    left = (
+                        float(re.search(r"(\d+)", style_dict.get("left", "0")).group(1))
+                        / 96
+                        if "left" in style_dict
+                        else 0.5
+                    )
+                    top = (
+                        float(re.search(r"(\d+)", style_dict.get("top", "0")).group(1))
+                        / 96
+                        if "top" in style_dict
+                        else 0.5
+                    )
+
+                    # Get font size
+                    font_size_match = re.search(
+                        r"(\d+)", style_dict.get("font-size", "18")
+                    )
+                    font_size = int(font_size_match.group(1)) if font_size_match else 18
+
+                    # Add text box
+                    width = Inches(8)  # Default width
+                    height = Inches(1)  # Default height
+
+                    txBox = slide.shapes.add_textbox(
+                        Inches(left), Inches(top), width, height
+                    )
+                    tf = txBox.text_frame
+                    tf.text = element_text
+                    tf.word_wrap = True
+
+                    # Apply formatting
+                    for paragraph in tf.paragraphs:
+                        paragraph.font.size = Pt(font_size)
+
+                        # Apply color if specified
+                        if "color" in style_dict:
+                            color_str = style_dict["color"]
+                            # Parse hex color
+                            if color_str.startswith("#"):
+                                from pptx.util import RGBColor
+
+                                color_hex = color_str.lstrip("#")
+                                if len(color_hex) == 6:
+                                    r = int(color_hex[0:2], 16)
+                                    g = int(color_hex[2:4], 16)
+                                    b = int(color_hex[4:6], 16)
+                                    paragraph.font.color.rgb = RGBColor(r, g, b)
+
+                        # Apply bold if specified
+                        if (
+                            "font-weight" in style_dict
+                            and "bold" in style_dict["font-weight"]
+                        ):
+                            paragraph.font.bold = True
+
+                except (ValueError, AttributeError) as e:
+                    logger.warning(f"⚠️ Failed to parse element style: {e}")
+                    continue
+
+        # Save to bytes
+        pptx_buffer = io.BytesIO()
+        prs.save(pptx_buffer)
+        pptx_buffer.seek(0)
+
+        logger.info(f"✅ Created PPTX with {len(slide_divs)} slides")
+        return pptx_buffer.getvalue()
+
+    except Exception as e:
+        logger.error(f"❌ Failed to convert HTML to PPTX: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+        raise
+
+
+# ============ SLIDE EXPORT ENDPOINT ============
+
+
+@router.post("/export", response_model=SlideExportResponse)
+async def export_slides_to_pptx(
+    request: SlideExportRequest, user_info: dict = Depends(require_auth)
+):
+    """
+    Export slide document as PPTX or PPT file
+
+    **Flow:**
+    1. Get document from MongoDB by document_id
+    2. Extract HTML content and split into individual slides
+    3. Convert each slide HTML to PPTX slide with preserved styling
+    4. Upload PPTX file to R2 storage
+    5. Generate presigned URL (valid for 1 hour)
+    6. Return download URL to frontend
+
+    **Supported Formats:**
+    - `.pptx` - PowerPoint 2007+ (recommended)
+    - `.ppt` - PowerPoint 97-2003 (converted from .pptx)
+
+    **Note:** HTML styling is approximated in PowerPoint format.
+    Complex CSS may not be perfectly preserved.
+    """
+    try:
+        user_id = user_info["uid"]
+
+        logger.info(
+            f"📥 Export slides request: document_id={request.document_id}, "
+            f"format={request.format}, user={user_id}"
+        )
+
+        # Validate format
+        if request.format.lower() not in ["pptx", "ppt"]:
+            raise HTTPException(
+                status_code=400, detail="Invalid format. Must be 'pptx' or 'ppt'"
+            )
+
+        # Initialize managers
+        from src.db.mongodb import DBManager
+        from src.services.document_manager import DocumentManager
+        from src.storage.r2_client import R2Client
+        from src.core.config import APP_CONFIG
+
+        db_manager = DBManager()
+        doc_manager = DocumentManager(db_manager.db)
+
+        r2_client = R2Client(
+            account_id=APP_CONFIG["r2_account_id"],
+            access_key_id=APP_CONFIG["r2_access_key_id"],
+            secret_access_key=APP_CONFIG["r2_secret_access_key"],
+            bucket_name=APP_CONFIG["r2_bucket_name"],
+            region=APP_CONFIG["r2_region"],
+        )
+
+        # Get document from database
+        document = doc_manager.get_document(request.document_id, user_id)
+
+        if not document:
+            raise HTTPException(
+                status_code=404, detail=f"Document not found: {request.document_id}"
+            )
+
+        # Check if document is slide type
+        if document.get("document_type") != "slide":
+            raise HTTPException(
+                status_code=400,
+                detail="Document is not a slide presentation. Only slide documents can be exported to PPTX.",
+            )
+
+        # Get HTML content
+        html_content = document.get("content_html", "")
+        if not html_content:
+            raise HTTPException(
+                status_code=400, detail="Document has no HTML content to export"
+            )
+
+        title = document.get("title", "Presentation")
+
+        # Convert HTML to PPTX
+        logger.info(f"🎨 Converting slides to PPTX...")
+        pptx_bytes = html_slides_to_pptx(html_content, title)
+
+        # Generate filename
+        from datetime import datetime
+
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        safe_title = "".join(c if c.isalnum() or c in "-_" else "_" for c in title)
+        file_name = f"{safe_title}_{timestamp}.{request.format}"
+
+        # Upload to R2
+        logger.info(f"☁️ Uploading to R2: {file_name}")
+        file_key = f"exports/{user_id}/slides/{file_name}"
+
+        upload_result = r2_client.upload_file_from_memory(
+            file_content=pptx_bytes,
+            file_key=file_key,
+            content_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        )
+
+        if not upload_result.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to upload file to storage: {upload_result.get('error')}",
+            )
+
+        logger.info(f"✅ File uploaded to R2: {file_key}")
+
+        # Generate presigned URL (valid for 1 hour)
+        presigned_url = r2_client.generate_presigned_url(
+            file_key=file_key, expiration=3600  # 1 hour
+        )
+
+        logger.info(f"🔗 Generated presigned URL (expires in 1 hour)")
+
+        return SlideExportResponse(
+            success=True,
+            download_url=presigned_url,
+            file_name=file_name,
+            file_size=len(pptx_bytes),
+            expires_in=3600,
+            error=None,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to export slides: {e}")
+        import traceback
+
+        logger.error(traceback.format_exc())
+
+        return SlideExportResponse(
+            success=False,
+            download_url=None,
+            file_name=None,
+            file_size=None,
+            error=str(e),
+        )
