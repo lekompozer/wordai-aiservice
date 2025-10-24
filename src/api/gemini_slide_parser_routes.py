@@ -308,57 +308,110 @@ async def parse_slides_from_file(
         if not r2_key:
             raise HTTPException(status_code=500, detail="File R2 key not found")
 
-        # Step 2: Download file from R2
-        from src.services.file_download_service import FileDownloadService
+        # Step 2: Check if we already have parsed slides for this file (caching)
+        from src.services.document_manager import DocumentManager
+        
+        doc_manager = DocumentManager(db)
+        
+        # Count existing slide documents from this file
+        existing_count = doc_manager.count_documents_by_file_id(file_id, user_id)
+        logger.info(f"📊 Found {existing_count} existing document(s) from file {file_id}")
+        
+        # Try to reuse cached slides from previous parse
+        cached_slides = None
+        if existing_count > 0:
+            # Get the most recent document for this file
+            previous_doc = doc_manager.get_latest_document_by_file_id(file_id, user_id)
+            
+            if previous_doc:
+                prev_html = previous_doc.get("content_html")
+                
+                # Validate cached content has actual data
+                if prev_html and prev_html.strip():
+                    from bs4 import BeautifulSoup
+                    soup = BeautifulSoup(prev_html, 'html.parser')
+                    text_content = soup.get_text(strip=True)
+                    
+                    if text_content and len(text_content) > 50:  # At least 50 chars for slides
+                        # Cache is valid! Extract slides from cached HTML
+                        # Format: Multiple <div> tags, one per slide
+                        slide_divs = soup.find_all('div', style=lambda s: s and 'width:1920px' in s or 'width: 1920px' in s)
+                        
+                        if slide_divs and len(slide_divs) > 0:
+                            cached_slides = []
+                            for idx, slide_div in enumerate(slide_divs):
+                                cached_slides.append(SlideContent(
+                                    slide_number=idx + 1,
+                                    html_content=str(slide_div),
+                                    notes=None
+                                ))
+                            
+                            logger.info(f"♻️ Reusing cached slides from previous parse (fast path!)")
+                            logger.info(f"♻️ Cached {len(cached_slides)} slides, HTML: {len(prev_html)} chars, Text: {len(text_content)} chars")
+                        else:
+                            logger.warning(f"⚠️ Previous document HTML doesn't contain slide divs, will re-parse")
+                    else:
+                        text_len = len(text_content) if text_content else 0
+                        logger.warning(f"⚠️ Previous document has empty text content (HTML: {len(prev_html)} chars, Text: {text_len} chars), will re-parse file")
+                else:
+                    logger.warning(f"⚠️ Previous document has empty or no content_html, will re-parse file")
+        
+        # Step 3: Get slides (from cache or parse with Gemini)
+        if cached_slides:
+            # Fast path: Return cached slides immediately
+            slides = cached_slides
+            logger.info(f"✅ Returned {len(slides)} cached slides (no Gemini call needed)")
+            
+        else:
+            # Slow path: Download from R2 and parse with Gemini (first time or cache invalid)
+            logger.info(f"📥 Downloading file from R2: {r2_key}")
 
-        logger.info(f"📥 Downloading file from R2: {r2_key}")
+            # Download file to temp location
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_type) as tmp_file:
+                tmp_path = tmp_file.name
 
-        # Download file to temp location
-        with tempfile.NamedTemporaryFile(delete=False, suffix=file_type) as tmp_file:
-            tmp_path = tmp_file.name
+                # Download file content
+                from src.storage.r2_client import R2Client
+                from src.core.config import APP_CONFIG
 
-            # Download file content
-            from src.storage.r2_client import R2Client
-            from src.core.config import APP_CONFIG
-
-            r2_client = R2Client(
-                endpoint=APP_CONFIG.r2_endpoint,
-                access_key=APP_CONFIG.r2_access_key,
-                secret_key=APP_CONFIG.r2_secret_key,
-                bucket_name=APP_CONFIG.r2_bucket_name,
-            )
-
-            file_obj = r2_client.get_file(r2_key)
-            if not file_obj:
-                raise HTTPException(
-                    status_code=500, detail="Failed to download file from R2"
+                r2_client = R2Client(
+                    endpoint=APP_CONFIG.r2_endpoint,
+                    access_key=APP_CONFIG.r2_access_key,
+                    secret_key=APP_CONFIG.r2_secret_key,
+                    bucket_name=APP_CONFIG.r2_bucket_name,
                 )
 
-            # Write to temp file
-            file_content = file_obj["Body"].read()
-            tmp_file.write(file_content)
-            logger.info(f"✅ Downloaded {len(file_content)} bytes to {tmp_path}")
+                file_obj = r2_client.get_file(r2_key)
+                if not file_obj:
+                    raise HTTPException(
+                        status_code=500, detail="Failed to download file from R2"
+                    )
 
-        # Step 3: Upload PDF to Gemini and parse
-        try:
-            if file_type == ".pdf":
-                # Upload PDF to Gemini Files API
-                pdf_uri = upload_pdf_to_gemini(tmp_path)
+                # Write to temp file
+                file_content = file_obj["Body"].read()
+                tmp_file.write(file_content)
+                logger.info(f"✅ Downloaded {len(file_content)} bytes to {tmp_path}")
 
-                # Parse entire PDF with Gemini 2.5 Pro (one call for all slides)
-                slides = await parse_pdf_with_gemini(pdf_uri, file_name)
+            # Parse with Gemini
+            try:
+                if file_type == ".pdf":
+                    # Upload PDF to Gemini Files API
+                    pdf_uri = upload_pdf_to_gemini(tmp_path)
 
-            else:  # .pptx
-                # TODO: Implement PPTX parsing
-                raise HTTPException(
-                    status_code=501, detail="PPTX parsing not yet implemented"
-                )
+                    # Parse entire PDF with Gemini 2.5 Pro (one call for all slides)
+                    slides = await parse_pdf_with_gemini(pdf_uri, file_name)
 
-        finally:
-            # Clean up temp file
-            Path(tmp_path).unlink(missing_ok=True)
+                else:  # .pptx
+                    # TODO: Implement PPTX parsing
+                    raise HTTPException(
+                        status_code=501, detail="PPTX parsing not yet implemented"
+                    )
 
-        logger.info(f"✅ Successfully parsed {len(slides)} slides")
+            finally:
+                # Clean up temp file
+                Path(tmp_path).unlink(missing_ok=True)
+
+            logger.info(f"✅ Successfully parsed {len(slides)} slides with Gemini")
 
         return SlideParseResponse(
             success=True,

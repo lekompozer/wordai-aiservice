@@ -630,7 +630,10 @@ def create_app() -> FastAPI:
     app.include_router(ai_content_edit_router, tags=["AI Content Editing"])
 
     # ✅ NEW: Gemini Slide Parser API - Native PDF support for presentations
-    app.include_router(gemini_slide_parser_router, tags=["Gemini Slide Parser", "AI Document Processing"])
+    app.include_router(
+        gemini_slide_parser_router,
+        tags=["Gemini Slide Parser", "AI Document Processing"],
+    )
 
     # ✅ ADDED: Internal CORS management for chat-plugin
     app.include_router(internal_cors_router, tags=["Internal CORS"])
