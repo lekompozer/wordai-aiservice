@@ -611,9 +611,273 @@ class SlideExportResponse(BaseModel):
 # ============ SLIDE EXPORT HELPER FUNCTIONS ============
 
 
+def parse_style_dict(style_str: str) -> Dict[str, str]:
+    """Parse inline CSS style string to dictionary"""
+    style_dict = {}
+    for style_item in style_str.split(";"):
+        if ":" in style_item:
+            key, value = style_item.split(":", 1)
+            style_dict[key.strip()] = value.strip()
+    return style_dict
+
+
+def extract_rgb_color(color_str: str):
+    """Extract RGB color from hex string"""
+    from pptx.dml.color import RGBColor
+
+    if color_str.startswith("#"):
+        color_hex = color_str.lstrip("#")
+        if len(color_hex) == 6:
+            r = int(color_hex[0:2], 16)
+            g = int(color_hex[2:4], 16)
+            b = int(color_hex[4:6], 16)
+            return RGBColor(r, g, b)
+    return None
+
+
+def px_to_inches(px_str: str, default: float = 0.5) -> float:
+    """Convert px value to inches (96 DPI)"""
+    import re
+
+    match = re.search(r"(\d+(?:\.\d+)?)", px_str)
+    if match:
+        return float(match.group(1)) / 96
+    return default
+
+
+def add_text_element(slide, element, style_dict: Dict[str, str]):
+    """Add a text element to slide with styling from HTML"""
+    from pptx.util import Inches, Pt
+    import re
+
+    element_text = element.get_text(strip=True)
+    if not element_text:
+        return
+
+    # Get position from style
+    left = px_to_inches(style_dict.get("left", "48"), 0.5)
+    top = px_to_inches(style_dict.get("top", "48"), 0.5)
+
+    # Get size from style or calculate from font
+    font_size_match = re.search(r"(\d+)", style_dict.get("font-size", "18"))
+    font_size = int(font_size_match.group(1)) if font_size_match else 18
+
+    # Calculate text box dimensions
+    width = Inches(9)  # Default width (leave margins)
+    height = Inches(0.8)  # Default height (auto-adjust)
+
+    # Create text box
+    txBox = slide.shapes.add_textbox(Inches(left), Inches(top), width, height)
+    tf = txBox.text_frame
+    tf.text = element_text
+    tf.word_wrap = True
+
+    # Apply formatting to all paragraphs
+    for paragraph in tf.paragraphs:
+        paragraph.font.size = Pt(font_size)
+
+        # Apply color
+        if "color" in style_dict:
+            color = extract_rgb_color(style_dict["color"])
+            if color:
+                paragraph.font.color.rgb = color
+
+        # Apply bold
+        if "font-weight" in style_dict and "bold" in style_dict["font-weight"]:
+            paragraph.font.bold = True
+
+        # Apply italic
+        if "font-style" in style_dict and "italic" in style_dict["font-style"]:
+            paragraph.font.italic = True
+
+        # Apply underline
+        if (
+            "text-decoration" in style_dict
+            and "underline" in style_dict["text-decoration"]
+        ):
+            paragraph.font.underline = True
+
+
+def process_slide_content(slide, slide_div):
+    """
+    Process slide content with semantic HTML understanding
+
+    Rules:
+    - <h1>: Title (large, centered)
+    - <h2>, <h3>: Subtitles
+    - <p>: Body text
+    - <ul>, <ol>: Bullet/numbered lists
+    - <img>: Images (future)
+    - Styled divs: Positioned elements
+    """
+    from pptx.util import Inches, Pt
+    from pptx.enum.text import PP_ALIGN
+
+    # Check if this is a structured slide (with h1, h2, p tags)
+    has_headings = slide_div.find(["h1", "h2", "h3"]) is not None
+    has_lists = slide_div.find(["ul", "ol"]) is not None
+
+    if has_headings or has_lists:
+        # Semantic HTML approach
+        logger.info(f"    Using semantic HTML approach (headings/lists detected)")
+
+        current_top = 0.5  # Start position
+
+        # Process h1 (Main title)
+        for h1 in slide_div.find_all("h1"):
+            text = h1.get_text(strip=True)
+            if text:
+                txBox = slide.shapes.add_textbox(
+                    Inches(0.5), Inches(current_top), Inches(9), Inches(1)
+                )
+                tf = txBox.text_frame
+                tf.text = text
+                p = tf.paragraphs[0]
+                p.font.size = Pt(44)
+                p.font.bold = True
+                p.alignment = PP_ALIGN.CENTER
+
+                # Apply color if specified
+                style_dict = parse_style_dict(h1.get("style", ""))
+                if "color" in style_dict:
+                    color = extract_rgb_color(style_dict["color"])
+                    if color:
+                        p.font.color.rgb = color
+
+                current_top += 1.2
+
+        # Process h2 (Subtitle)
+        for h2 in slide_div.find_all("h2"):
+            text = h2.get_text(strip=True)
+            if text:
+                txBox = slide.shapes.add_textbox(
+                    Inches(0.5), Inches(current_top), Inches(9), Inches(0.8)
+                )
+                tf = txBox.text_frame
+                tf.text = text
+                p = tf.paragraphs[0]
+                p.font.size = Pt(32)
+                p.font.bold = True
+
+                # Apply color if specified
+                style_dict = parse_style_dict(h2.get("style", ""))
+                if "color" in style_dict:
+                    color = extract_rgb_color(style_dict["color"])
+                    if color:
+                        p.font.color.rgb = color
+
+                current_top += 1.0
+
+        # Process h3 (Sub-subtitle)
+        for h3 in slide_div.find_all("h3"):
+            text = h3.get_text(strip=True)
+            if text:
+                txBox = slide.shapes.add_textbox(
+                    Inches(0.5), Inches(current_top), Inches(9), Inches(0.6)
+                )
+                tf = txBox.text_frame
+                tf.text = text
+                p = tf.paragraphs[0]
+                p.font.size = Pt(24)
+                p.font.bold = True
+
+                # Apply color if specified
+                style_dict = parse_style_dict(h3.get("style", ""))
+                if "color" in style_dict:
+                    color = extract_rgb_color(style_dict["color"])
+                    if color:
+                        p.font.color.rgb = color
+
+                current_top += 0.8
+
+        # Process paragraphs
+        for p_tag in slide_div.find_all("p"):
+            text = p_tag.get_text(strip=True)
+            if text:
+                txBox = slide.shapes.add_textbox(
+                    Inches(0.8), Inches(current_top), Inches(8.4), Inches(0.5)
+                )
+                tf = txBox.text_frame
+                tf.text = text
+                tf.word_wrap = True
+                p = tf.paragraphs[0]
+                p.font.size = Pt(18)
+
+                # Apply color if specified
+                style_dict = parse_style_dict(p_tag.get("style", ""))
+                if "color" in style_dict:
+                    color = extract_rgb_color(style_dict["color"])
+                    if color:
+                        p.font.color.rgb = color
+
+                current_top += 0.6
+
+        # Process unordered lists (bullets)
+        for ul in slide_div.find_all("ul"):
+            for li in ul.find_all("li"):
+                text = li.get_text(strip=True)
+                if text:
+                    txBox = slide.shapes.add_textbox(
+                        Inches(1.0), Inches(current_top), Inches(8), Inches(0.4)
+                    )
+                    tf = txBox.text_frame
+                    tf.text = f"• {text}"
+                    p = tf.paragraphs[0]
+                    p.font.size = Pt(16)
+
+                    # Apply color if specified
+                    style_dict = parse_style_dict(li.get("style", ""))
+                    if "color" in style_dict:
+                        color = extract_rgb_color(style_dict["color"])
+                        if color:
+                            p.font.color.rgb = color
+
+                    current_top += 0.4
+            current_top += 0.2  # Extra space after list
+
+        # Process ordered lists (numbers)
+        for ol in slide_div.find_all("ol"):
+            for idx, li in enumerate(ol.find_all("li"), 1):
+                text = li.get_text(strip=True)
+                if text:
+                    txBox = slide.shapes.add_textbox(
+                        Inches(1.0), Inches(current_top), Inches(8), Inches(0.4)
+                    )
+                    tf = txBox.text_frame
+                    tf.text = f"{idx}. {text}"
+                    p = tf.paragraphs[0]
+                    p.font.size = Pt(16)
+
+                    # Apply color if specified
+                    style_dict = parse_style_dict(li.get("style", ""))
+                    if "color" in style_dict:
+                        color = extract_rgb_color(style_dict["color"])
+                        if color:
+                            p.font.color.rgb = color
+
+                    current_top += 0.4
+            current_top += 0.2  # Extra space after list
+
+    else:
+        # Fallback: Positioned elements approach (original logic)
+        logger.info(f"    Using positioned elements approach (inline styles)")
+
+        elements = slide_div.find_all(style=True)
+        for element in elements:
+            try:
+                style_dict = parse_style_dict(element.get("style", ""))
+                add_text_element(slide, element, style_dict)
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"    ⚠️ Failed to process element: {e}")
+
+
 def html_slides_to_pptx(html_content: str, title: str = "Presentation") -> bytes:
     """
-    Convert HTML slides to PPTX file
+    Convert HTML slides to PPTX file with intelligent HTML structure parsing
+
+    Supports two modes:
+    1. Semantic HTML: Uses h1, h2, h3, p, ul, ol tags to build structured slides
+    2. Positioned Elements: Uses inline CSS positioning for pixel-perfect layouts
 
     Args:
         html_content: Combined HTML containing all slides (each in a div.slide)
@@ -624,7 +888,7 @@ def html_slides_to_pptx(html_content: str, title: str = "Presentation") -> bytes
     """
     try:
         from pptx import Presentation
-        from pptx.util import Inches, Pt
+        from pptx.util import Inches
         from bs4 import BeautifulSoup
         import re
 
@@ -652,86 +916,8 @@ def html_slides_to_pptx(html_content: str, title: str = "Presentation") -> bytes
             blank_slide_layout = prs.slide_layouts[6]  # Blank layout
             slide = prs.slides.add_slide(blank_slide_layout)
 
-            # Extract text content from slide
-            slide_text = slide_div.get_text(separator="\n", strip=True)
-
-            # Parse inline styles to extract positioning and styling
-            elements = slide_div.find_all(style=True)
-
-            for element in elements:
-                element_text = element.get_text(strip=True)
-                if not element_text:
-                    continue
-
-                # Parse style attributes
-                style_str = element.get("style", "")
-                style_dict = {}
-                for style_item in style_str.split(";"):
-                    if ":" in style_item:
-                        key, value = style_item.split(":", 1)
-                        style_dict[key.strip()] = value.strip()
-
-                # Extract position and size
-                try:
-                    # Get position (convert px to inches, assuming 96 DPI)
-                    left = (
-                        float(re.search(r"(\d+)", style_dict.get("left", "0")).group(1))
-                        / 96
-                        if "left" in style_dict
-                        else 0.5
-                    )
-                    top = (
-                        float(re.search(r"(\d+)", style_dict.get("top", "0")).group(1))
-                        / 96
-                        if "top" in style_dict
-                        else 0.5
-                    )
-
-                    # Get font size
-                    font_size_match = re.search(
-                        r"(\d+)", style_dict.get("font-size", "18")
-                    )
-                    font_size = int(font_size_match.group(1)) if font_size_match else 18
-
-                    # Add text box
-                    width = Inches(8)  # Default width
-                    height = Inches(1)  # Default height
-
-                    txBox = slide.shapes.add_textbox(
-                        Inches(left), Inches(top), width, height
-                    )
-                    tf = txBox.text_frame
-                    tf.text = element_text
-                    tf.word_wrap = True
-
-                    # Apply formatting
-                    for paragraph in tf.paragraphs:
-                        paragraph.font.size = Pt(font_size)
-
-                        # Apply color if specified
-                        if "color" in style_dict:
-                            color_str = style_dict["color"]
-                            # Parse hex color
-                            if color_str.startswith("#"):
-                                from pptx.dml.color import RGBColor
-
-                                color_hex = color_str.lstrip("#")
-                                if len(color_hex) == 6:
-                                    r = int(color_hex[0:2], 16)
-                                    g = int(color_hex[2:4], 16)
-                                    b = int(color_hex[4:6], 16)
-                                    paragraph.font.color.rgb = RGBColor(r, g, b)
-
-                        # Apply bold if specified
-                        if (
-                            "font-weight" in style_dict
-                            and "bold" in style_dict["font-weight"]
-                        ):
-                            paragraph.font.bold = True
-
-                except (ValueError, AttributeError) as e:
-                    logger.warning(f"⚠️ Failed to parse element style: {e}")
-                    continue
+            # Process slide content with semantic understanding
+            process_slide_content(slide, slide_div)
 
         # Save to bytes
         pptx_buffer = io.BytesIO()
