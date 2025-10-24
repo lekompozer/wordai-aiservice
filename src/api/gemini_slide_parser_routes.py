@@ -599,9 +599,11 @@ class SlideExportResponse(BaseModel):
     """Response with presigned download URL"""
 
     success: bool = Field(..., description="Whether export succeeded")
-    download_url: str = Field(None, description="Presigned URL to download file")
-    file_name: str = Field(None, description="Generated filename")
-    file_size: int = Field(None, description="File size in bytes")
+    download_url: Optional[str] = Field(
+        None, description="Presigned URL to download file"
+    )
+    file_name: Optional[str] = Field(None, description="Generated filename")
+    file_size: Optional[int] = Field(None, description="File size in bytes")
     expires_in: int = Field(3600, description="URL expiration time in seconds")
     error: Optional[str] = Field(None, description="Error message if failed")
 
@@ -787,7 +789,7 @@ async def export_slides_to_pptx(
             )
 
         # Initialize managers
-        from src.db.mongodb import DBManager
+        from src.database.db_manager import DBManager
         from src.services.document_manager import DocumentManager
         from src.storage.r2_client import R2Client
         from src.core.config import APP_CONFIG
