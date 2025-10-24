@@ -315,7 +315,9 @@ async def parse_slides_from_file(
         # Step 2: Check if we already have parsed slides for this file (caching)
         from src.services.document_manager import DocumentManager
 
-        doc_manager = DocumentManager(db_manager)
+        doc_manager = DocumentManager(
+            db_manager.db
+        )  # DocumentManager expects raw Database
 
         # Count existing slide documents from this file
         existing_count = doc_manager.count_documents_by_file_id(file_id, user_id)
