@@ -1030,22 +1030,24 @@ async def export_slides_to_pptx(
         logger.info(f"☁️ Uploading to R2: {file_name}")
         file_key = f"exports/{user_id}/slides/{file_name}"
 
-        upload_result = r2_client.upload_file_from_memory(
-            file_content=pptx_bytes,
-            file_key=file_key,
-            content_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        )
-
-        if not upload_result.get("success"):
+        # Upload bytes directly using put_object
+        try:
+            r2_client.s3_client.put_object(
+                Bucket=r2_client.bucket_name,
+                Key=file_key,
+                Body=pptx_bytes,
+                ContentType="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            )
+            logger.info(f"✅ File uploaded to R2: {file_key}")
+        except Exception as e:
+            logger.error(f"❌ R2 upload failed: {e}")
             raise HTTPException(
                 status_code=500,
-                detail=f"Failed to upload file to storage: {upload_result.get('error')}",
+                detail=f"Failed to upload file to storage: {str(e)}",
             )
 
-        logger.info(f"✅ File uploaded to R2: {file_key}")
-
         # Generate presigned URL (valid for 1 hour)
-        presigned_url = r2_client.generate_presigned_url(
+        presigned_url = await r2_client.generate_presigned_url(
             file_key=file_key, expiration=3600  # 1 hour
         )
 
