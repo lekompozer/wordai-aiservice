@@ -3,7 +3,8 @@
 Debug script to check if file exists in user_files collection
 """
 import sys
-sys.path.insert(0, '/app')
+
+sys.path.insert(0, "/app")
 
 from config.config import get_mongodb
 from src.services.user_manager import UserManager
@@ -32,7 +33,7 @@ if file_info:
         print(f"   {key}: {value}")
 else:
     print(f"\n❌ File NOT FOUND in database!")
-    
+
     # Check if file exists for any user
     print(f"\n🔍 Checking if file exists for ANY user...")
     all_files = user_manager.user_files.find({"file_id": file_id})
@@ -43,13 +44,15 @@ else:
         print(f"   is_deleted: {f.get('is_deleted')}")
         print(f"   original_name: {f.get('original_name')}")
         print(f"   r2_key: {f.get('r2_key')}")
-    
+
     if count == 0:
         print(f"   ❌ No files found with file_id={file_id}")
-    
+
     # Check files for this user
     print(f"\n🔍 Checking ALL files for user {user_id}...")
-    user_files = user_manager.user_files.find({"user_id": user_id, "is_deleted": False}).limit(5)
+    user_files = user_manager.user_files.find(
+        {"user_id": user_id, "is_deleted": False}
+    ).limit(5)
     count = 0
     for f in user_files:
         count += 1
@@ -57,7 +60,7 @@ else:
         print(f"      file_id: {f.get('file_id')}")
         print(f"      original_name: {f.get('original_name')}")
         print(f"      file_type: {f.get('file_type')}")
-    
+
     if count == 0:
         print(f"   ❌ No files found for user {user_id}")
 
