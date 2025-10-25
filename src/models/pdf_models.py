@@ -157,6 +157,19 @@ class SplitDocumentResponse(BaseModel):
 # ===== Convert with AI =====
 
 
+class PageRangeSelection(BaseModel):
+    """Page range selection for partial conversion"""
+
+    start_page: int = Field(..., ge=1, description="Starting page number (1-indexed)")
+    end_page: int = Field(..., ge=1, description="Ending page number (1-indexed)")
+
+    @validator("end_page")
+    def validate_end_page(cls, v, values):
+        if "start_page" in values and v < values["start_page"]:
+            raise ValueError("end_page must be >= start_page")
+        return v
+
+
 class ConvertWithAIRequest(BaseModel):
     """Request for converting document with Gemini AI"""
 
@@ -164,10 +177,14 @@ class ConvertWithAIRequest(BaseModel):
         ..., description="Target document type"
     )
     chunk_size: int = Field(
-        default=10, ge=1, le=10, description="Pages per AI processing chunk (max 10)"
+        default=5, ge=1, le=10, description="Pages per AI processing chunk (default: 5)"
     )
     force_reprocess: bool = Field(
         default=False, description="Force reprocessing even if already AI-processed"
+    )
+    page_range: Optional[PageRangeSelection] = Field(
+        None,
+        description="Optional: Convert only specific pages (e.g., pages 1-20). If not provided, converts entire PDF",
     )
 
 
@@ -181,6 +198,7 @@ class ConvertWithAIResponse(BaseModel):
     ai_provider: str = "gemini"
     chunks_processed: int
     total_pages: int
+    pages_converted: Optional[str] = None  # e.g., "1-20" or "all"
     processing_time_seconds: float
     reprocessed: bool
     updated_at: str
