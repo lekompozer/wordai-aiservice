@@ -656,9 +656,39 @@ async def convert_document_with_ai(
         )
 
         # Get document from database
-        document = db_manager.db.documents.find_one(
-            {"document_id": document_id, "user_id": user_id}
+        # Try document_templates first (this is where uploads are stored)
+        document = db_manager.db.document_templates.find_one(
+            {"_id": document_id, "user_id": user_id}
         )
+
+        is_from_template = False
+        if document:
+            logger.info(f"✅ Found in 'document_templates' collection")
+            is_from_template = True
+            # Normalize old structure to new format
+            document["document_id"] = document["_id"]
+
+            # Extract PDF path from old structure: files.pdf_url
+            if "files" in document and "pdf_url" in document["files"]:
+                pdf_url = document["files"]["pdf_url"]
+                # Extract R2 path from URL (remove bucket domain)
+                # Example: https://r2.domain.com/path/file.pdf -> path/file.pdf
+                if "://" in pdf_url:
+                    document["pdf_r2_path"] = pdf_url.split("/", 3)[-1]
+                else:
+                    document["pdf_r2_path"] = pdf_url
+
+            # Extract total_pages from ai_analysis if available
+            if "ai_analysis" in document:
+                doc_struct = document["ai_analysis"].get("document_structure", {})
+                document["total_pages"] = doc_struct.get("total_pages", 0)
+        else:
+            # Fallback: try new documents collection
+            document = db_manager.db.documents.find_one(
+                {"document_id": document_id, "user_id": user_id}
+            )
+            if document:
+                logger.info(f"✅ Found in 'documents' collection")
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
@@ -749,11 +779,19 @@ async def convert_document_with_ai(
                     "end_page": request.page_range.end_page,
                 }
 
-            db_manager.db.documents.update_one(
-                {"document_id": document_id}, {"$set": update_data}
-            )
-
-            logger.info(f"💾 Updated document: {document_id}")
+            # Update in correct collection
+            if is_from_template:
+                # Update document_templates collection
+                db_manager.db.document_templates.update_one(
+                    {"_id": document_id, "user_id": user_id}, {"$set": update_data}
+                )
+                logger.info(f"💾 Updated in document_templates: {document_id}")
+            else:
+                # Update documents collection
+                db_manager.db.documents.update_one(
+                    {"document_id": document_id}, {"$set": update_data}
+                )
+                logger.info(f"💾 Updated in documents: {document_id}")
 
             # Calculate total time
             total_time = (datetime.now() - start_time).total_seconds()
