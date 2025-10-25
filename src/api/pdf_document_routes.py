@@ -32,7 +32,7 @@ from src.services.pdf_ai_processor import get_pdf_ai_processor
 from src.services.document_manager import DocumentManager
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
-from config.config import get_r2_client, R2_BUCKET_NAME
+from config.config import R2_BUCKET_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,21 @@ pdf_split_service = get_pdf_split_service()
 pdf_ai_processor = get_pdf_ai_processor()
 db_manager = DBManager()
 document_manager = DocumentManager(db=db_manager.db)
-r2_client = get_r2_client()
+
+
+# Helper function to get R2 client (same pattern as gemini_slide_parser)
+def _get_r2_client():
+    """Initialize R2Client with full config"""
+    from src.storage.r2_client import R2Client
+    from src.core.config import APP_CONFIG
+
+    return R2Client(
+        account_id=APP_CONFIG["r2_account_id"],
+        access_key_id=APP_CONFIG["r2_access_key_id"],
+        secret_access_key=APP_CONFIG["r2_secret_access_key"],
+        bucket_name=APP_CONFIG["r2_bucket_name"],
+        region=APP_CONFIG["r2_region"],
+    )
 
 
 # ❌ ENDPOINT REMOVED: /upload-pdf-ai
@@ -91,6 +105,7 @@ async def preview_document_split(
 
         # Download PDF from R2
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+            r2_client = _get_r2_client()
             pdf_content = r2_client.download_file(pdf_r2_path)
             temp_pdf.write(pdf_content)
             temp_pdf_path = temp_pdf.name
@@ -185,6 +200,7 @@ async def split_document(
 
         # Download PDF from R2
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+            r2_client = _get_r2_client()
             pdf_content = r2_client.download_file(pdf_r2_path)
             temp_pdf.write(pdf_content)
             temp_pdf_path = temp_pdf.name
@@ -219,6 +235,7 @@ async def split_document(
                         chunk_content = f.read()
 
                     part_r2_path = f"documents/{user_id}/{part_doc_id}.pdf"
+                    r2_client = _get_r2_client()
                     r2_client.upload_file_object(
                         file_obj=chunk_content,
                         remote_path=part_r2_path,
@@ -316,6 +333,7 @@ async def split_document(
                         part_content = f.read()
 
                     part_r2_path = f"documents/{user_id}/{part_doc_id}.pdf"
+                    r2_client = _get_r2_client()
                     r2_client.upload_file_object(
                         file_obj=part_content,
                         remote_path=part_r2_path,
@@ -509,20 +527,28 @@ async def convert_document_with_ai(
                 detail="Document already AI-processed. Use force_reprocess=true to reprocess.",
             )
 
-        # Download PDF from R2
-        file_obj = r2_client.get_file(r2_key)
-        if not file_obj:
-            raise HTTPException(
-                status_code=500, detail="Failed to download PDF from R2"
-            )
+        # Download PDF from R2 (exact pattern from gemini_slide_parser)
+        logger.info(f"📥 Downloading file from R2: {r2_key}")
 
-        # Write to temp file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-            pdf_content = file_obj["Body"].read()
-            temp_pdf.write(pdf_content)
-            temp_pdf_path = temp_pdf.name
+        # Download file to temp location
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+            tmp_path = tmp_file.name
 
-        logger.info(f"📥 Downloaded {len(pdf_content)} bytes from R2")
+            # Initialize R2Client
+            r2_client = _get_r2_client()
+
+            file_obj = r2_client.get_file(r2_key)
+            if not file_obj:
+                raise HTTPException(
+                    status_code=500, detail="Failed to download file from R2"
+                )
+
+            # Write to temp file
+            file_content = file_obj["Body"].read()
+            tmp_file.write(file_content)
+            logger.info(f"✅ Downloaded {len(file_content)} bytes to {tmp_path}")
+
+        temp_pdf_path = tmp_path
 
         # Get PDF info
         pdf_info = pdf_split_service.get_pdf_info(temp_pdf_path)
@@ -824,6 +850,7 @@ async def merge_documents(
 
         # Download all PDFs to temp files
         temp_pdf_files = []
+        r2_client = _get_r2_client()
         for pdf_r2_path in pdf_paths:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
                 pdf_content = r2_client.download_file(pdf_r2_path)
@@ -852,6 +879,7 @@ async def merge_documents(
             merged_doc_id = f"doc_{uuid.uuid4().hex[:12]}"
             merged_r2_path = f"documents/{user_id}/{merged_doc_id}.pdf"
 
+            r2_client = _get_r2_client()
             r2_client.upload_file_object(
                 file_obj=merged_content,
                 remote_path=merged_r2_path,
