@@ -140,6 +140,9 @@ from src.api.gemini_slide_parser_routes import router as gemini_slide_parser_rou
 # ✅ ADDED: Slide Share API for public presentation sharing with analytics
 from src.api.slide_share_routes import router as slide_share_router
 
+# ✅ ADDED: PDF Document API - Upload, Split, Merge, and AI Conversion
+from src.api.pdf_document_routes import router as pdf_document_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -642,6 +645,12 @@ def create_app() -> FastAPI:
     app.include_router(
         slide_share_router,
         tags=["Slide Sharing", "Public Presentations"],
+    )
+
+    # ✅ NEW: PDF Document API - Upload, Split, Merge, and AI Conversion
+    app.include_router(
+        pdf_document_router,
+        tags=["PDF Documents", "AI Conversion", "Document Management"],
     )
 
     # ✅ ADDED: Internal CORS management for chat-plugin
