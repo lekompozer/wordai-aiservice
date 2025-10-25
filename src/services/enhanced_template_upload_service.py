@@ -127,9 +127,9 @@ class EnhancedTemplateUploadService:
         if not file.filename.endswith(".docx"):
             errors.append("Only DOCX files are supported")
 
-        # Check file size (max 10MB)
-        if file.size and file.size > 10 * 1024 * 1024:
-            errors.append("File size must be less than 10MB")
+        # Check file size (max 100MB)
+        if file.size and file.size > 100 * 1024 * 1024:
+            errors.append("File size must be less than 100MB")
 
         # Check if file is valid DOCX
         try:
