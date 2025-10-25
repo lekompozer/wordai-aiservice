@@ -30,10 +30,9 @@ from src.models.pdf_models import (
 from src.services.pdf_split_service import get_pdf_split_service
 from src.services.pdf_ai_processor import get_pdf_ai_processor
 from src.services.document_manager import DocumentManager
-from src.database.db_manager import get_db_manager
-from src.utils.r2_client import R2Client
+from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
-from config.config import R2_BUCKET_NAME
+from config.config import get_r2_client, R2_BUCKET_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +41,9 @@ router = APIRouter(prefix="/api/documents", tags=["PDF Documents"])
 # Initialize services
 pdf_split_service = get_pdf_split_service()
 pdf_ai_processor = get_pdf_ai_processor()
-db_manager = get_db_manager()
-document_manager = DocumentManager()
-r2_client = R2Client()
+db_manager = DBManager()
+document_manager = DocumentManager(db=db_manager.db)
+r2_client = get_r2_client()
 
 
 @router.post("/upload-pdf-ai", response_model=UploadPDFResponse)
