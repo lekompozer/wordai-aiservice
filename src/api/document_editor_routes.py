@@ -1425,6 +1425,7 @@ async def empty_trash(
 async def download_document(
     document_id: str,
     format: str,
+    document_type: Optional[str] = None,  # Query parameter for page sizing
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
@@ -1442,9 +1443,16 @@ async def download_document(
     - `txt` - Strip HTML tags → Plain text
     - `html` - Raw HTML with styling
 
+    **Query Parameters:**
+    - `document_type` (optional): Override document type for PDF page sizing
+      - `doc` - A4 portrait (210×297mm) with 20mm margins
+      - `slide` - FullHD landscape (1920×1080px, 16:9) with 0 margin
+      - `note` - A4 portrait (210×297mm) with 20mm margins
+      - If not provided, auto-detects from MongoDB document_type field
+
     **Example:**
     - GET `/api/documents/doc_abc123/download/pdf`
-    - GET `/api/documents/doc_abc123/download/docx`
+    - GET `/api/documents/slide_123/download/pdf?document_type=slide`
 
     **Response:**
     ```json
@@ -1487,6 +1495,14 @@ async def download_document(
         html_content = document["content_html"]
         title = document["title"]
 
+        # Determine document type: Use query param if provided, otherwise fallback to MongoDB field
+        detected_document_type = document_type or document.get("document_type", "doc")
+
+        logger.info(
+            f"📄 Document type: {detected_document_type} "
+            f"(query param: {document_type}, MongoDB: {document.get('document_type', 'N/A')})"
+        )
+
         if not html_content or html_content.strip() == "":
             raise HTTPException(
                 status_code=400, detail="Document content is empty, cannot export"
@@ -1528,6 +1544,7 @@ async def download_document(
             html_content=html_content,
             title=title,
             format=format.lower(),
+            document_type=detected_document_type,  # Pass document_type for PDF page sizing
         )
 
         logger.info(
