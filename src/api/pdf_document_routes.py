@@ -51,7 +51,6 @@ r2_client = get_r2_client()
 # Then convert using /api/documents/{document_id}/convert-with-ai
 
 
-
 @router.get("/{document_id}/preview-split", response_model=PreviewSplitResponse)
 async def preview_document_split(
     document_id: str,
@@ -511,10 +510,19 @@ async def convert_document_with_ai(
             )
 
         # Download PDF from R2
+        file_obj = r2_client.get_file(r2_key)
+        if not file_obj:
+            raise HTTPException(
+                status_code=500, detail="Failed to download PDF from R2"
+            )
+
+        # Write to temp file
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-            pdf_content = r2_client.download_file(r2_key)
+            pdf_content = file_obj["Body"].read()
             temp_pdf.write(pdf_content)
             temp_pdf_path = temp_pdf.name
+
+        logger.info(f"📥 Downloaded {len(pdf_content)} bytes from R2")
 
         # Get PDF info
         pdf_info = pdf_split_service.get_pdf_info(temp_pdf_path)
