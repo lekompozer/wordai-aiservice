@@ -209,30 +209,6 @@ async def load_documents():
         # Firebase is now initialized in serve.py before app import
         # No need to initialize it here anymore
 
-        # ✅ AUTO-CREATE SLIDE SHARES INDEXES (run once on startup, then remove)
-        try:
-            print("🎯 Creating slide shares indexes...")
-            from config.config import get_mongodb
-
-            db = get_mongodb()
-            slide_shares_collection = db["slide_shares"]
-
-            # Create indexes
-            slide_shares_collection.create_index("share_id", unique=True)
-            slide_shares_collection.create_index([("owner_id", 1), ("created_at", -1)])
-            slide_shares_collection.create_index("document_id")
-            slide_shares_collection.create_index(
-                [("is_active", 1), ("revoked", 1), ("expires_at", 1)]
-            )
-            slide_shares_collection.create_index("view_count")
-            slide_shares_collection.create_index(
-                [("owner_id", 1), ("is_active", 1), ("revoked", 1)]
-            )
-
-            print("✅ Slide shares indexes created successfully")
-        except Exception as e:
-            print(f"⚠️ Warning: Failed to create slide shares indexes: {e}")
-
         # Add any other initialization logic here
         # For example: load vector store, initialize AI providers, etc.
 
