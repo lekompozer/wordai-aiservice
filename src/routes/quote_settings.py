@@ -45,7 +45,7 @@ async def get_quote_settings(
             ],
             "is_active": True,
         }
-        templates_cursor = db.user_upload_files.find(templates_query)
+        templates_cursor = db.document_templates.find(templates_query)
         templates_list = await templates_cursor.to_list(length=None)
 
         # Convert ObjectId to string và tạo DocumentTemplate objects

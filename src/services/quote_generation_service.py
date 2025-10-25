@@ -168,7 +168,7 @@ class QuoteGenerationService:
             recent_quotes = [QuoteRecord(**doc) async for doc in recent_quotes_cursor]
 
             # Lấy available templates
-            templates_cursor = self.db.user_upload_files.find(
+            templates_cursor = self.db.document_templates.find(
                 {"type": "quote", "is_active": True}, sort=[("created_at", -1)]
             )
             templates = [DocumentTemplate(**doc) async for doc in templates_cursor]
@@ -225,7 +225,7 @@ class QuoteGenerationService:
                 await self.initialize()
 
             templates = []
-            cursor = self.db.user_upload_files.find({"is_active": True})
+            cursor = self.db.document_templates.find({"is_active": True})
 
             async for doc in cursor:
                 template_data = {
@@ -1160,7 +1160,7 @@ Hãy chỉnh sửa báo giá theo yêu cầu và trả về định dạng JSON 
                 # Sử dụng template mặc định
                 template_id = "template_quote_001"
 
-            template = await self.db.user_upload_files.find_one(
+            template = await self.db.document_templates.find_one(
                 {"_id": template_id, "is_active": True}
             )
 

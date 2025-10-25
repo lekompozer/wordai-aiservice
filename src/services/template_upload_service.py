@@ -556,7 +556,7 @@ class TemplateUploadService:
                 "validation": {"is_valid": True, "errors": [], "warnings": []},
             }
 
-            result = await db.user_upload_files.insert_one(template_doc)
+            result = await db.document_templates.insert_one(template_doc)
 
             logger.info(f"✅ Template saved to database: {template_id}")
 

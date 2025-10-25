@@ -345,7 +345,7 @@ def create_default_templates():
     for template in templates:
         try:
             # Check if template already exists
-            existing = db.user_upload_files.find_one(
+            existing = db.document_templates.find_one(
                 {
                     "type": template.type,
                     "subtype": template.subtype,
@@ -354,7 +354,7 @@ def create_default_templates():
             )
 
             if not existing:
-                result = db.user_upload_files.insert_one(template.dict(by_alias=True))
+                result = db.document_templates.insert_one(template.dict(by_alias=True))
                 print(
                     f"✅ Created template: {template.name} - ID: {result.inserted_id}"
                 )

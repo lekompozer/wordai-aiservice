@@ -181,7 +181,7 @@ async def create_template(
 
         db = get_database()
 
-        result = await db.user_upload_files.insert_one(
+        result = await db.document_templates.insert_one(
             template_data.dict(by_alias=True)
         )
         template_data.id = result.inserted_id
@@ -223,7 +223,7 @@ async def update_template(
         template_dict = template_data.dict(by_alias=True, exclude={"id"})
         template_dict["updated_at"] = datetime.utcnow()
 
-        result = await db.user_upload_files.update_one(
+        result = await db.document_templates.update_one(
             {"_id": ObjectId(template_id)}, {"$set": template_dict}
         )
 
@@ -259,7 +259,7 @@ async def delete_template(
         db = get_database()
 
         # Soft delete - mark as inactive
-        result = await db.user_upload_files.update_one(
+        result = await db.document_templates.update_one(
             {"_id": ObjectId(template_id)},
             {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
         )
@@ -314,7 +314,7 @@ async def upload_template_file(
 
         db = get_database()
 
-        await db.user_upload_files.update_one(
+        await db.document_templates.update_one(
             {"_id": ObjectId(template_id)},
             {"$set": {"file_path": str(file_path), "updated_at": datetime.utcnow()}},
         )
