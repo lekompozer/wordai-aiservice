@@ -32,8 +32,8 @@ async def migrate_collection_name():
     print("=" * 80)
 
     # Connect to MongoDB using config values
-    mongo_uri = config.MONGO_URI
-    db_name = config.MONGO_DB_NAME
+    mongo_uri = config.MONGODB_URI_AUTH
+    db_name = config.MONGODB_NAME
 
     print(f"\n📡 Connecting to MongoDB: {mongo_uri[:50]}...")
     client = AsyncIOMotorClient(mongo_uri)
@@ -145,8 +145,8 @@ async def verify_indexes():
     """Verify that indexes were preserved after rename"""
 
     # Connect to MongoDB using config values
-    mongo_uri = config.MONGO_URI
-    db_name = config.MONGO_DB_NAME
+    mongo_uri = config.MONGODB_URI_AUTH
+    db_name = config.MONGODB_NAME
 
     client = AsyncIOMotorClient(mongo_uri)
     db = client[db_name]
