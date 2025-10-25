@@ -46,202 +46,10 @@ document_manager = DocumentManager(db=db_manager.db)
 r2_client = get_r2_client()
 
 
-@router.post("/upload-pdf-ai", response_model=UploadPDFResponse)
-async def upload_pdf_with_ai(
-    file: UploadFile = File(...),
-    title: Optional[str] = Form(None),
-    document_type: str = Form(...),
-    use_ai: bool = Form(True),
-    chunk_size: int = Form(10),
-    description: Optional[str] = Form(None),
-    user_data: dict = Depends(get_current_user),
-):
-    """
-    Upload PDF and convert with Gemini AI
+# ❌ ENDPOINT REMOVED: /upload-pdf-ai
+# This endpoint was redundant - users should upload via /api/simple-files/upload
+# Then convert using /api/documents/{document_id}/convert-with-ai
 
-    Args:
-        file: PDF file to upload
-        title: Document title (optional, uses filename if not provided)
-        document_type: "doc" or "slide"
-        use_ai: Whether to use Gemini AI for conversion (default: True)
-        chunk_size: Pages per AI processing chunk (1-10, default: 10)
-        description: Document description (optional)
-
-    Returns:
-        UploadPDFResponse with document info and processing metadata
-    """
-    try:
-        start_time = datetime.now()
-        user_id = user_data["uid"]
-
-        logger.info(
-            f"📄 Upload PDF request: user={user_id}, type={document_type}, "
-            f"use_ai={use_ai}, chunk_size={chunk_size}"
-        )
-
-        # Validate file type
-        if not file.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Only PDF files are supported")
-
-        # Validate file size (100MB limit)
-        file_content = await file.read()
-        file_size_mb = len(file_content) / (1024 * 1024)
-
-        if file_size_mb > 100:
-            raise HTTPException(
-                status_code=400,
-                detail=f"PDF must be less than 100MB (uploaded: {file_size_mb:.1f}MB)",
-            )
-
-        # Validate document type
-        if document_type not in ["doc", "slide"]:
-            raise HTTPException(
-                status_code=400, detail="document_type must be 'doc' or 'slide'"
-            )
-
-        # Validate chunk size
-        if not (1 <= chunk_size <= 10):
-            raise HTTPException(
-                status_code=400, detail="chunk_size must be between 1 and 10"
-            )
-
-        # Generate document ID
-        document_id = f"{document_type}_{uuid.uuid4().hex[:12]}"
-
-        # Use filename as title if not provided
-        if not title:
-            title = os.path.splitext(file.filename)[0]
-
-        # Save PDF to temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-            temp_pdf.write(file_content)
-            temp_pdf_path = temp_pdf.name
-
-        try:
-            # Get PDF info
-            pdf_info = pdf_split_service.get_pdf_info(temp_pdf_path)
-            total_pages = pdf_info["total_pages"]
-
-            logger.info(f"📊 PDF info: {total_pages} pages, {file_size_mb:.1f}MB")
-
-            # Check page count
-            if total_pages == 0:
-                raise HTTPException(status_code=400, detail="PDF has no pages")
-
-            # Process with AI if requested
-            html_content = None
-            chunks_processed = 0
-            processing_time = 0.0
-
-            if use_ai:
-                logger.info(f"🤖 Processing with Gemini AI (chunks: {chunk_size})")
-
-                # Process PDF with AI
-                html_content, metadata = (
-                    await pdf_ai_processor.convert_existing_document(
-                        pdf_path=temp_pdf_path,
-                        target_type=document_type,
-                        chunk_size=chunk_size,
-                    )
-                )
-
-                chunks_processed = metadata["total_chunks"]
-                processing_time = metadata["total_processing_time"]
-
-                logger.info(
-                    f"✅ AI processing complete: {chunks_processed} chunks, "
-                    f"{processing_time:.2f}s"
-                )
-            else:
-                # No AI processing, just create placeholder
-                html_content = f"<p>PDF uploaded: {title} ({total_pages} pages)</p>"
-                logger.info("⏭️ Skipping AI processing (use_ai=False)")
-
-            # Upload PDF to R2
-            r2_path = f"documents/{user_id}/{document_id}.pdf"
-            r2_client.upload_file_object(
-                file_obj=file_content,
-                remote_path=r2_path,
-                content_type="application/pdf",
-            )
-
-            logger.info(f"☁️ Uploaded to R2: {r2_path}")
-
-            # Save to database
-            document_data = {
-                "document_id": document_id,
-                "user_id": user_id,
-                "title": title,
-                "description": description or "",
-                "document_type": document_type,
-                "content_html": html_content,
-                "created_at": datetime.now(),
-                "updated_at": datetime.now(),
-                # PDF specific fields
-                "total_pages": total_pages,
-                "pdf_r2_path": r2_path,
-                "pdf_file_size": len(file_content),
-                "pdf_version": pdf_info.get("version", "unknown"),
-                # AI processing metadata
-                "ai_processed": use_ai,
-                "ai_provider": "gemini" if use_ai else None,
-                "ai_chunks_count": chunks_processed if use_ai else 0,
-                "ai_processing_time": processing_time if use_ai else 0,
-                "ai_chunk_size": chunk_size if use_ai else None,
-                "ai_processed_at": datetime.now() if use_ai else None,
-                # Split info (not split yet)
-                "is_split_part": False,
-                "original_document_id": None,
-                "split_info": None,
-                "parent_document_id": None,
-                "child_document_ids": [],
-            }
-
-            db_manager.db.documents.insert_one(document_data)
-
-            logger.info(f"💾 Saved to database: {document_id}")
-
-            # Calculate total processing time
-            total_time = (datetime.now() - start_time).total_seconds()
-
-            # Prepare response
-            content_preview = None
-            if html_content:
-                # Extract first 500 characters
-                content_preview = html_content[:500]
-                if len(html_content) > 500:
-                    content_preview += "..."
-
-            response = UploadPDFResponse(
-                success=True,
-                document_id=document_id,
-                document_type=document_type,
-                title=title,
-                total_pages=total_pages,
-                chunks_processed=chunks_processed,
-                ai_used=use_ai,
-                ai_provider="gemini" if use_ai else "none",
-                processing_time_seconds=round(total_time, 2),
-                created_at=datetime.now().isoformat(),
-                content_preview=content_preview,
-            )
-
-            logger.info(f"✅ Upload complete: {document_id} ({total_time:.2f}s total)")
-
-            return response
-
-        finally:
-            # Cleanup temp file
-            try:
-                os.remove(temp_pdf_path)
-            except Exception as e:
-                logger.warning(f"Failed to cleanup temp file: {e}")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Upload failed: {str(e)}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
 @router.get("/{document_id}/preview-split", response_model=PreviewSplitResponse)
@@ -655,60 +463,64 @@ async def convert_document_with_ai(
             f"chunk_size={request.chunk_size}, force={request.force_reprocess}"
         )
 
-        # Get document from database
-        # Try document_templates first (this is where uploads are stored)
-        document = db_manager.db.document_templates.find_one(
-            {"_id": document_id, "user_id": user_id}
+        # Get file from database
+        # Try user_files first (where simple file uploads are stored)
+        file_doc = db_manager.db.user_files.find_one(
+            {"file_id": document_id, "user_id": user_id}
         )
 
-        is_from_template = False
-        if document:
-            logger.info(f"✅ Found in 'document_templates' collection")
-            is_from_template = True
-            # Normalize old structure to new format
-            document["document_id"] = document["_id"]
-
-            # Extract PDF path from old structure: files.pdf_url
-            if "files" in document and "pdf_url" in document["files"]:
-                pdf_url = document["files"]["pdf_url"]
-                # Extract R2 path from URL (remove bucket domain)
-                # Example: https://r2.domain.com/path/file.pdf -> path/file.pdf
-                if "://" in pdf_url:
-                    document["pdf_r2_path"] = pdf_url.split("/", 3)[-1]
-                else:
-                    document["pdf_r2_path"] = pdf_url
-
-            # Extract total_pages from ai_analysis if available
-            if "ai_analysis" in document:
-                doc_struct = document["ai_analysis"].get("document_structure", {})
-                document["total_pages"] = doc_struct.get("total_pages", 0)
-        else:
-            # Fallback: try new documents collection
-            document = db_manager.db.documents.find_one(
-                {"document_id": document_id, "user_id": user_id}
+        if not file_doc:
+            # Also try using _id field for backward compatibility
+            file_doc = db_manager.db.user_files.find_one(
+                {"_id": document_id, "user_id": user_id}
             )
-            if document:
-                logger.info(f"✅ Found in 'documents' collection")
 
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+        if not file_doc:
+            raise HTTPException(status_code=404, detail="File not found in user_files")
 
-        # Check if already AI processed
-        if document.get("ai_processed") and not request.force_reprocess:
+        logger.info(
+            f"✅ Found file in 'user_files' collection: {file_doc.get('filename')}"
+        )
+
+        # Get PDF path from R2
+        r2_key = file_doc.get("r2_key")
+        if not r2_key:
+            raise HTTPException(status_code=400, detail="File does not have R2 key")
+
+        # Check if file is PDF
+        file_type = file_doc.get("file_type", "")
+        if file_type.lower() != ".pdf":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Only PDF files supported for AI conversion, got: {file_type}",
+            )
+
+        # Check if document already exists for this file
+        existing_doc = db_manager.db.documents.find_one(
+            {"file_id": document_id, "user_id": user_id}
+        )
+
+        if (
+            existing_doc
+            and existing_doc.get("ai_processed")
+            and not request.force_reprocess
+        ):
             raise HTTPException(
                 status_code=400,
                 detail="Document already AI-processed. Use force_reprocess=true to reprocess.",
             )
 
-        # Check if document has PDF
-        pdf_r2_path = document.get("pdf_r2_path")
-        if not pdf_r2_path:
-            raise HTTPException(
-                status_code=400, detail="Document does not have PDF file"
-            )
+        # Download PDF from R2
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+            pdf_content = r2_client.download_file(r2_key)
+            temp_pdf.write(pdf_content)
+            temp_pdf_path = temp_pdf.name
+
+        # Get PDF info
+        pdf_info = pdf_split_service.get_pdf_info(temp_pdf_path)
+        total_pages = pdf_info["total_pages"]
 
         # Validate page_range if provided
-        total_pages = document.get("total_pages", 0)
         if request.page_range:
             if request.page_range.start_page < 1:
                 raise HTTPException(status_code=400, detail="start_page must be >= 1")
@@ -717,12 +529,6 @@ async def convert_document_with_ai(
                     status_code=400,
                     detail=f"end_page ({request.page_range.end_page}) exceeds total pages ({total_pages})",
                 )
-
-        # Download PDF from R2
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-            pdf_content = r2_client.download_file(pdf_r2_path)
-            temp_pdf.write(pdf_content)
-            temp_pdf_path = temp_pdf.name
 
         try:
             # Extract page range if specified
@@ -759,54 +565,72 @@ async def convert_document_with_ai(
                 f"{processing_time:.2f}s"
             )
 
-            # Update document in database
-            update_data = {
-                "content_html": html_content,
+            # Generate document ID if creating new, or use existing
+            if existing_doc:
+                doc_id = existing_doc["document_id"]
+                is_update = True
+            else:
+                doc_id = f"{request.target_type}_{uuid.uuid4().hex[:12]}"
+                is_update = False
+
+            # Prepare document data
+            document_data = {
+                "document_id": doc_id,
+                "user_id": user_id,
+                "file_id": document_id,  # Link to user_files
+                "title": file_doc.get("filename", "Untitled"),
                 "document_type": request.target_type,
+                "content_html": html_content,
+                "created_at": (
+                    existing_doc["created_at"] if existing_doc else datetime.now()
+                ),
+                "updated_at": datetime.now(),
+                "last_opened_at": datetime.now(),
+                # PDF specific
+                "total_pages": total_pages,
+                # AI processing metadata
                 "ai_processed": True,
                 "ai_provider": "gemini",
                 "ai_chunks_count": chunks_processed,
                 "ai_processing_time": processing_time,
                 "ai_chunk_size": request.chunk_size,
                 "ai_processed_at": datetime.now(),
-                "updated_at": datetime.now(),
+                # Other fields
+                "is_deleted": False,
+                "folder_id": None,
             }
 
             # Store page range info if partial conversion
             if request.page_range:
-                update_data["ai_page_range"] = {
+                document_data["ai_page_range"] = {
                     "start_page": request.page_range.start_page,
                     "end_page": request.page_range.end_page,
                 }
 
-            # Update in correct collection
-            if is_from_template:
-                # Update document_templates collection
-                db_manager.db.document_templates.update_one(
-                    {"_id": document_id, "user_id": user_id}, {"$set": update_data}
-                )
-                logger.info(f"💾 Updated in document_templates: {document_id}")
-            else:
-                # Update documents collection
+            # Save or update document
+            if is_update:
                 db_manager.db.documents.update_one(
-                    {"document_id": document_id}, {"$set": update_data}
+                    {"document_id": doc_id}, {"$set": document_data}
                 )
-                logger.info(f"💾 Updated in documents: {document_id}")
+                logger.info(f"💾 Updated document: {doc_id}")
+            else:
+                db_manager.db.documents.insert_one(document_data)
+                logger.info(f"💾 Created new document: {doc_id}")
 
             # Calculate total time
             total_time = (datetime.now() - start_time).total_seconds()
 
             response = ConvertWithAIResponse(
                 success=True,
-                document_id=document_id,
+                document_id=doc_id,
                 document_type=request.target_type,
                 ai_processed=True,
                 ai_provider="gemini",
                 chunks_processed=chunks_processed,
-                total_pages=document.get("total_pages", 0),
+                total_pages=total_pages,
                 pages_converted=page_range_str,
                 processing_time_seconds=round(total_time, 2),
-                reprocessed=document.get("ai_processed", False),
+                reprocessed=is_update,
                 updated_at=datetime.now().isoformat(),
             )
 

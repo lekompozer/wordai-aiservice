@@ -29,14 +29,14 @@ from src.api.document_processing_routes import router as document_processing_rou
 # ✅ ADDED: Document Generation API for AI-powered document creation - KEEP (uses WordAI credentials)
 from src.api.document_generation import router as document_generation_router
 
-# ✅ ADDED: Quote Generation API with AI Gemini Pro 2.5
-from src.api.quote_generation import router as quote_generation_router
+# ❌ REMOVED: Quote Generation API - Not used
+# from src.api.quote_generation import router as quote_generation_router
 
-# ✅ ADDED: Quote Settings API for managing user quote preferences
-from src.routes.quote_settings import router as quote_settings_router
+# ❌ REMOVED: Quote Settings API - Not used
+# from src.routes.quote_settings import router as quote_settings_router
 
-# ✅ ADDED: Enhanced Template Upload API for DOCX template processing with AI
-from src.routes.enhanced_template_routes import router as enhanced_template_router
+# ❌ REMOVED: Enhanced Template Upload API - Not used
+# from src.routes.enhanced_template_routes import router as enhanced_template_router
 
 # ✅ ADDED: AI Sales Agent for loan consultation
 from src.ai_sales_agent.api.routes import router as ai_sales_agent_router
@@ -54,8 +54,8 @@ from src.api.admin.products_services_routes import router as products_services_r
 from src.api.admin.image_routes import router as image_router
 from src.api.admin.task_status_routes import router as task_status_router
 
-# ✅ ADDED: Admin Template Management for System Templates
-from src.routes.admin_template_routes import router as admin_template_router
+# ❌ REMOVED: Admin Template Management - Not used
+# from src.routes.admin_template_routes import router as admin_template_router
 
 # ✅ ADDED: Company Context and User History APIs for Optimized Chat
 from src.api.admin.company_context_routes import router as company_context_router
@@ -522,22 +522,20 @@ def create_app() -> FastAPI:
     # Document processing endpoints
     app.include_router(document_processing_router, tags=["Document Processing"])
 
-    # Quote generation endpoints - New workflow with AI Gemini Pro 2.5
-    app.include_router(quote_generation_router, tags=["Quote Generation", "Gemini AI"])
+    # ❌ REMOVED: Quote generation endpoints - Not used
+    # app.include_router(quote_generation_router, tags=["Quote Generation", "Gemini AI"])
 
-    # Quote settings endpoints - User preferences and configuration
-    app.include_router(
-        quote_settings_router, tags=["Quote Settings", "User Preferences"]
-    )
+    # ❌ REMOVED: Quote settings endpoints - Not used
+    # app.include_router(
+    #     quote_settings_router, tags=["Quote Settings", "User Preferences"]
+    # )
 
-    # Template upload endpoints - DOCX template processing with AI
-    # ✅ Enhanced Template Management API with PDF processing và metadata editing
-    app.include_router(
-        enhanced_template_router,
-        tags=["Template Management", "AI Analysis", "PDF Processing"],
-    )
+    # ❌ REMOVED: Template upload endpoints - Not used
+    # app.include_router(
+    #     enhanced_template_router,
+    #     tags=["Template Management", "AI Analysis", "PDF Processing"],
+    # )
 
-    # ✅ Legacy Template Upload API (kept for backward compatibility)
     # AI Sales Agent endpoints for loan consultation
     app.include_router(
         ai_sales_agent_router,
@@ -569,8 +567,8 @@ def create_app() -> FastAPI:
     )
     app.include_router(task_status_router)
 
-    # ✅ ADDED: Admin Template Management for System Templates
-    app.include_router(admin_template_router, tags=["Admin - System Templates"])
+    # ❌ REMOVED: Admin Template Management - Not used
+    # app.include_router(admin_template_router, tags=["Admin - System Templates"])
 
     # ✅ COMMENTED: HTML to DOCX Conversion API - Firebase auth dependency
     # app.include_router(conversion_router, tags=["Document Conversion"])
