@@ -105,7 +105,7 @@ async def list_system_templates(
             query["category"] = category
 
         # Get system templates
-        cursor = db.document_templates.find(query).sort("created_at", -1)
+        cursor = db.user_upload_files.find(query).sort("created_at", -1)
         templates = await cursor.to_list(length=None)
 
         # Format response

@@ -152,7 +152,7 @@ async def get_templates(
     try:
         # Get templates from database
         await service.initialize()
-        templates_cursor = service.db.document_templates.find({"is_active": True})
+        templates_cursor = service.db.user_upload_files.find({"is_active": True})
         templates_docs = await templates_cursor.to_list(None)
 
         # Convert to API response format

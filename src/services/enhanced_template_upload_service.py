@@ -1151,7 +1151,7 @@ class EnhancedTemplateUploadService:
                 "validation": {"is_valid": True, "errors": [], "warnings": []},
             }
 
-            result = await db.document_templates.insert_one(template_doc)
+            result = await db.user_upload_files.insert_one(template_doc)
 
             logger.info(f"✅ Template saved to database: {template_id}")
 
@@ -1368,7 +1368,7 @@ class EnhancedTemplateUploadService:
                     "access_method": "authenticated",
                 },
                 "database_info": {
-                    "collection": "document_templates",
+                    "collection": "user_upload_files",
                     "inserted_id": str(db_result.get("database_id", "")),
                 },
                 "full_response": final_response,

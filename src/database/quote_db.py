@@ -81,9 +81,9 @@ class QuoteDatabase:
             )
 
             # Document templates indexes
-            await self.db.document_templates.create_index("type")
-            await self.db.document_templates.create_index("is_active")
-            await self.db.document_templates.create_index(
+            await self.db.user_upload_files.create_index("type")
+            await self.db.user_upload_files.create_index("is_active")
+            await self.db.user_upload_files.create_index(
                 [("type", 1), ("is_active", 1)]
             )
 

@@ -740,7 +740,7 @@ class DocumentGenerationService:
         try:
             from bson import ObjectId
 
-            template_data = self.db.document_templates.find_one(
+            template_data = self.db.user_upload_files.find_one(
                 {"_id": ObjectId(template_id), "type": doc_type, "is_active": True}
             )
 
@@ -761,7 +761,7 @@ class DocumentGenerationService:
             if doc_type:
                 query["type"] = doc_type
 
-            cursor = self.db.document_templates.find(query).sort("name", 1)
+            cursor = self.db.user_upload_files.find(query).sort("name", 1)
             templates = []
 
             for template_data in cursor:  # Use regular for loop, not async for

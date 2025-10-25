@@ -78,7 +78,7 @@ async def create_production_system_templates():
         print("✅ Connected to production MongoDB")
 
         # Check if system template already exists
-        existing = await db.document_templates.find_one({"_id": "template_quote_001"})
+        existing = await db.user_upload_files.find_one({"_id": "template_quote_001"})
         if existing:
             print(
                 f"⚠️  System template already exists: {existing.get('name', 'Unknown')}"
@@ -90,7 +90,7 @@ async def create_production_system_templates():
                     "🐳 Docker environment detected - auto-overwriting existing template"
                 )
                 # Delete existing template
-                await db.document_templates.delete_one({"_id": "template_quote_001"})
+                await db.user_upload_files.delete_one({"_id": "template_quote_001"})
                 print("🗑️  Deleted existing template")
             else:
                 # Ask for confirmation in local environment
@@ -100,7 +100,7 @@ async def create_production_system_templates():
                     return
 
                 # Delete existing template
-                await db.document_templates.delete_one({"_id": "template_quote_001"})
+                await db.user_upload_files.delete_one({"_id": "template_quote_001"})
                 print("🗑️  Deleted existing template")
 
         # Production system template data with REAL file URLs
@@ -192,7 +192,7 @@ async def create_production_system_templates():
         }
 
         # Insert system template
-        result = await db.document_templates.insert_one(system_template)
+        result = await db.user_upload_files.insert_one(system_template)
 
         if result.inserted_id:
             print("✅ Production system template created successfully!")

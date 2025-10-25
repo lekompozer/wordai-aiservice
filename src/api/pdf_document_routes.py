@@ -656,14 +656,14 @@ async def convert_document_with_ai(
         )
 
         # Get document from database
-        # Try document_templates first (this is where uploads are stored)
-        document = db_manager.db.document_templates.find_one(
+        # Try user_upload_files first (this is where uploads are stored)
+        document = db_manager.db.user_upload_files.find_one(
             {"_id": document_id, "user_id": user_id}
         )
 
         is_from_template = False
         if document:
-            logger.info(f"✅ Found in 'document_templates' collection")
+            logger.info(f"✅ Found in 'user_upload_files' collection")
             is_from_template = True
             # Normalize old structure to new format
             document["document_id"] = document["_id"]
@@ -781,11 +781,11 @@ async def convert_document_with_ai(
 
             # Update in correct collection
             if is_from_template:
-                # Update document_templates collection
-                db_manager.db.document_templates.update_one(
+                # Update user_upload_files collection
+                db_manager.db.user_upload_files.update_one(
                     {"_id": document_id, "user_id": user_id}, {"$set": update_data}
                 )
-                logger.info(f"💾 Updated in document_templates: {document_id}")
+                logger.info(f"💾 Updated in user_upload_files: {document_id}")
             else:
                 # Update documents collection
                 db_manager.db.documents.update_one(

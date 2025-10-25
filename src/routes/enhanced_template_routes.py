@@ -140,7 +140,7 @@ async def view_template_content(
     """
     try:
         # Get template from database
-        template = await db.document_templates.find_one({"_id": template_id})
+        template = await db.user_upload_files.find_one({"_id": template_id})
 
         if not template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -193,7 +193,7 @@ async def get_template_metadata(
     """
     try:
         # Get template from database
-        template = await db.document_templates.find_one({"_id": template_id})
+        template = await db.user_upload_files.find_one({"_id": template_id})
 
         if not template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -248,7 +248,7 @@ async def update_template_metadata(
     """
     try:
         # Get template from database
-        template = await db.document_templates.find_one({"_id": template_id})
+        template = await db.user_upload_files.find_one({"_id": template_id})
 
         if not template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -294,7 +294,7 @@ async def update_template_metadata(
             ] = update_request.business_logic
 
         # Perform update
-        result = await db.document_templates.update_one(
+        result = await db.user_upload_files.update_one(
             {"_id": template_id}, update_doc
         )
 
@@ -304,7 +304,7 @@ async def update_template_metadata(
             )
 
         # Get updated template
-        updated_template = await db.document_templates.find_one({"_id": template_id})
+        updated_template = await db.user_upload_files.find_one({"_id": template_id})
 
         return {
             "success": True,
@@ -339,7 +339,7 @@ async def preview_template_with_data(
     """
     try:
         # Get template from database
-        template = await db.document_templates.find_one({"_id": template_id})
+        template = await db.user_upload_files.find_one({"_id": template_id})
 
         if not template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -434,7 +434,7 @@ async def duplicate_template(
     """
     try:
         # Get original template
-        original_template = await db.document_templates.find_one({"_id": template_id})
+        original_template = await db.user_upload_files.find_one({"_id": template_id})
 
         if not original_template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -480,7 +480,7 @@ async def duplicate_template(
         }
 
         # Insert duplicate
-        result = await db.document_templates.insert_one(duplicate_template)
+        result = await db.user_upload_files.insert_one(duplicate_template)
 
         return {
             "success": True,
@@ -535,12 +535,12 @@ async def list_user_templates(
             ]
 
         # Count total documents
-        total = await db.document_templates.count_documents(query)
+        total = await db.user_upload_files.count_documents(query)
 
         # Get templates with pagination
         skip = (page - 1) * limit
         cursor = (
-            db.document_templates.find(query)
+            db.user_upload_files.find(query)
             .sort("created_at", -1)
             .skip(skip)
             .limit(limit)
@@ -606,7 +606,7 @@ async def delete_template(
     """
     try:
         # Get template
-        template = await db.document_templates.find_one({"_id": template_id})
+        template = await db.user_upload_files.find_one({"_id": template_id})
 
         if not template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -621,7 +621,7 @@ async def delete_template(
         usage_count = template.get("usage_count", 0)
         if usage_count > 0:
             # Soft delete to preserve quote generation history
-            result = await db.document_templates.update_one(
+            result = await db.user_upload_files.update_one(
                 {"_id": template_id},
                 {
                     "$set": {
@@ -634,7 +634,7 @@ async def delete_template(
             message = f"Template archived (was used {usage_count} times)"
         else:
             # Can safely mark as inactive
-            result = await db.document_templates.update_one(
+            result = await db.user_upload_files.update_one(
                 {"_id": template_id},
                 {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
             )
