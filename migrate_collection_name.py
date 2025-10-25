@@ -21,23 +21,23 @@ All data, indexes, and references remain intact.
 import asyncio
 import sys
 from motor.motor_asyncio import AsyncIOMotorClient
-from config.config import Config
+from config import config
 
 
 async def migrate_collection_name():
     """Migrate collection name from document_templates to user_upload_files"""
 
-    print("=" * 80)
+    print("="*80)
     print("Collection Migration: document_templates → user_upload_files")
-    print("=" * 80)
+    print("="*80)
 
-    # Initialize config
-    config = Config()
+    # Connect to MongoDB using config values
+    mongo_uri = config.MONGO_URI
+    db_name = config.MONGO_DB_NAME
 
-    # Connect to MongoDB
-    print(f"\n📡 Connecting to MongoDB: {config.MONGO_URI[:50]}...")
-    client = AsyncIOMotorClient(config.MONGO_URI)
-    db = client[config.MONGO_DB_NAME]
+    print(f"\n📡 Connecting to MongoDB: {mongo_uri[:50]}...")
+    client = AsyncIOMotorClient(mongo_uri)
+    db = client[db_name]
 
     try:
         # Check if old collection exists
@@ -135,9 +135,13 @@ async def migrate_collection_name():
 
 async def verify_indexes():
     """Verify that indexes were preserved after rename"""
-    config = Config()
-    client = AsyncIOMotorClient(config.MONGO_URI)
-    db = client[config.MONGO_DB_NAME]
+
+    # Connect to MongoDB using config values
+    mongo_uri = config.MONGO_URI
+    db_name = config.MONGO_DB_NAME
+
+    client = AsyncIOMotorClient(mongo_uri)
+    db = client[db_name]
 
     try:
         print("\n" + "=" * 80)
