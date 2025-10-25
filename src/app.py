@@ -137,6 +137,9 @@ from src.api.document_editor_routes import router as document_editor_router
 # ✅ ADDED: Gemini Slide Parser API for presentation slides with native PDF support
 from src.api.gemini_slide_parser_routes import router as gemini_slide_parser_router
 
+# ✅ ADDED: Slide Share API for public presentation sharing with analytics
+from src.api.slide_share_routes import router as slide_share_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -205,6 +208,30 @@ async def load_documents():
 
         # Firebase is now initialized in serve.py before app import
         # No need to initialize it here anymore
+
+        # ✅ AUTO-CREATE SLIDE SHARES INDEXES (run once on startup, then remove)
+        try:
+            print("🎯 Creating slide shares indexes...")
+            from config.config import get_mongodb
+
+            db = get_mongodb()
+            slide_shares_collection = db["slide_shares"]
+
+            # Create indexes
+            slide_shares_collection.create_index("share_id", unique=True)
+            slide_shares_collection.create_index([("owner_id", 1), ("created_at", -1)])
+            slide_shares_collection.create_index("document_id")
+            slide_shares_collection.create_index(
+                [("is_active", 1), ("revoked", 1), ("expires_at", 1)]
+            )
+            slide_shares_collection.create_index("view_count")
+            slide_shares_collection.create_index(
+                [("owner_id", 1), ("is_active", 1), ("revoked", 1)]
+            )
+
+            print("✅ Slide shares indexes created successfully")
+        except Exception as e:
+            print(f"⚠️ Warning: Failed to create slide shares indexes: {e}")
 
         # Add any other initialization logic here
         # For example: load vector store, initialize AI providers, etc.
@@ -633,6 +660,12 @@ def create_app() -> FastAPI:
     app.include_router(
         gemini_slide_parser_router,
         tags=["Gemini Slide Parser", "AI Document Processing"],
+    )
+
+    # ✅ NEW: Slide Share API - Public presentation sharing with password & analytics
+    app.include_router(
+        slide_share_router,
+        tags=["Slide Sharing", "Public Presentations"],
     )
 
     # ✅ ADDED: Internal CORS management for chat-plugin
