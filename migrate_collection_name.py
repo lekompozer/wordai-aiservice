@@ -27,9 +27,9 @@ from config import config
 async def migrate_collection_name():
     """Migrate collection name from document_templates to user_upload_files"""
 
-    print("="*80)
+    print("=" * 80)
     print("Collection Migration: document_templates → user_upload_files")
-    print("="*80)
+    print("=" * 80)
 
     # Connect to MongoDB using config values
     mongo_uri = config.MONGO_URI
@@ -58,12 +58,20 @@ async def migrate_collection_name():
             print(f"   - document_templates: {old_count} documents")
             print(f"   - user_upload_files: {new_count} documents")
 
-            response = input(
-                "\nDo you want to DROP 'user_upload_files' and proceed? (yes/no): "
-            )
-            if response.lower() != "yes":
-                print("❌ Migration cancelled by user")
-                return False
+            # Check for auto-yes flag
+            import sys
+
+            if "--auto-yes" not in sys.argv:
+                response = input(
+                    "\nDo you want to DROP 'user_upload_files' and proceed? (yes/no): "
+                )
+                if response.lower() != "yes":
+                    print("❌ Migration cancelled by user")
+                    return False
+            else:
+                print(
+                    "\n✅ Auto-confirmation: Will DROP 'user_upload_files' and proceed"
+                )
 
             print(f"\n🗑️  Dropping existing 'user_upload_files' collection...")
             await db.user_upload_files.drop()
@@ -183,10 +191,16 @@ async def main():
     print("   - Application MUST be updated to use new collection name")
     print("   - Code already updated in this deployment")
 
-    response = input("\nProceed with migration? (yes/no): ")
-    if response.lower() != "yes":
-        print("❌ Migration cancelled by user")
-        return
+    # Check for --auto-yes flag
+    import sys
+
+    if "--auto-yes" not in sys.argv:
+        response = input("\nProceed with migration? (yes/no): ")
+        if response.lower() != "yes":
+            print("❌ Migration cancelled by user")
+            return
+    else:
+        print("\n✅ Auto-confirmation enabled (--auto-yes flag)")
 
     # Perform migration
     success = await migrate_collection_name()
