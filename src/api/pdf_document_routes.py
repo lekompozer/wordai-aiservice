@@ -512,22 +512,69 @@ async def convert_document_with_ai(
                 detail=f"Only PDF files supported for AI conversion, got: {file_type}",
             )
 
-        # Check if document already exists for this file
+        # Check if document already exists for this file (caching logic from slide parser)
         existing_doc = db_manager.db.documents.find_one(
             {"file_id": document_id, "user_id": user_id}
         )
 
-        if (
-            existing_doc
-            and existing_doc.get("ai_processed")
-            and not request.force_reprocess
-        ):
-            raise HTTPException(
-                status_code=400,
-                detail="Document already AI-processed. Use force_reprocess=true to reprocess.",
-            )
+        # Try to use cached content (fast path)
+        cached_html = None
+        if existing_doc and existing_doc.get("ai_processed"):
+            prev_html = existing_doc.get("content_html")
 
-        # Download PDF from R2 (exact pattern from gemini_slide_parser)
+            # Validate cached content has actual data (same as slide parser)
+            if prev_html and prev_html.strip():
+                from bs4 import BeautifulSoup
+
+                soup = BeautifulSoup(prev_html, "html.parser")
+                text_content = soup.get_text(strip=True)
+
+                if text_content and len(text_content) > 100:  # At least 100 chars
+                    if not request.force_reprocess:
+                        # Cache is valid! Return cached document
+                        logger.info(
+                            f"♻️ Reusing cached document (fast path - no Gemini call needed!)"
+                        )
+                        logger.info(
+                            f"♻️ Cached HTML: {len(prev_html)} chars, Text: {len(text_content)} chars"
+                        )
+
+                        # Return existing document info
+                        return ConvertWithAIResponse(
+                            success=True,
+                            document_id=existing_doc["document_id"],
+                            document_type=existing_doc.get(
+                                "document_type", request.target_type
+                            ),
+                            ai_processed=True,
+                            ai_provider=existing_doc.get("ai_provider", "gemini"),
+                            chunks_processed=existing_doc.get("ai_chunks_count", 0),
+                            total_pages=existing_doc.get("total_pages", 0),
+                            pages_converted=(
+                                existing_doc.get("ai_page_range", {}).get(
+                                    "start_page", 1
+                                )
+                                if existing_doc.get("ai_page_range")
+                                else "all"
+                            ),
+                            processing_time_seconds=0.0,  # Cached, no processing time
+                            message="Using cached document (already AI-processed)",
+                        )
+                    else:
+                        logger.info(
+                            f"⚠️ Cached content exists but force_reprocess=true, will re-parse"
+                        )
+                else:
+                    text_len = len(text_content) if text_content else 0
+                    logger.warning(
+                        f"⚠️ Previous document has empty text content (HTML: {len(prev_html)} chars, Text: {text_len} chars), will re-process"
+                    )
+            else:
+                logger.warning(
+                    f"⚠️ Previous document has empty or no content_html, will re-process"
+                )
+
+        # Slow path: Download from R2 and process with Gemini (first time or cache invalid)
         logger.info(f"📥 Downloading file from R2: {r2_key}")
 
         # Download file to temp location
