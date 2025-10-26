@@ -24,6 +24,10 @@ You are an expert document converter. Convert this PDF content into clean, struc
 
 **TARGET FORMAT: A4 Document (210mm x 297mm)**
 
+**CRITICAL: SEPARATE PAGES**
+This PDF chunk contains multiple pages. You MUST create a SEPARATE `<div class="a4-page">` for EACH PDF page.
+If the chunk has 10 PDF pages, output 10 separate `<div class="a4-page">` containers.
+
 **REQUIREMENTS:**
 1. Maintain document structure (headings, paragraphs, lists)
 2. Preserve text formatting (bold, italic, underline)
@@ -31,17 +35,22 @@ You are an expert document converter. Convert this PDF content into clean, struc
 4. Extract images and reference them with proper sizing
 5. Maintain reading order and flow
 6. Use A4-appropriate styling (margins, font sizes)
+7. **Each PDF page = One `<div class="a4-page">` container**
 
 **OUTPUT FORMAT:**
-Return valid HTML with proper semantic tags wrapped in A4 page container:
+Return valid HTML with ONE `<div class="a4-page">` per PDF page:
 
 ```html
-<div class="a4-page" style="width:210mm; height:297mm; padding:20mm; background:white; box-sizing:border-box;">
+<div class="a4-page" data-page-number="1" style="width:210mm; height:297mm; padding:20mm; background:white; box-sizing:border-box; margin-bottom:10mm; page-break-after:always;">
   <h1 style="font-size:24pt; margin-bottom:12pt;">Document Title</h1>
   <p style="font-size:11pt; line-height:1.5; text-align:justify;">Introduction paragraph with <strong>bold</strong> and <em>italic</em> text. This is standard A4 body text with proper spacing.</p>
 
   <h2 style="font-size:18pt; margin-top:18pt; margin-bottom:10pt;">Section 1</h2>
-  <p style="font-size:11pt; line-height:1.5; text-align:justify;">Content here with proper A4 formatting...</p>
+  <p style="font-size:11pt; line-height:1.5; text-align:justify;">Content from first page...</p>
+</div>
+
+<div class="a4-page" data-page-number="2" style="width:210mm; height:297mm; padding:20mm; background:white; box-sizing:border-box; margin-bottom:10mm; page-break-after:always;">
+  <p style="font-size:11pt; line-height:1.5; text-align:justify;">Content continuing on second page...</p>
 
   <ul style="margin-left:20pt; font-size:11pt;">
     <li>Item 1</li>
@@ -58,8 +67,11 @@ Return valid HTML with proper semantic tags wrapped in A4 page container:
       <td style="border:1pt solid #ccc; padding:6pt;">Data 2</td>
     </tr>
   </table>
+</div>
 
+<div class="a4-page" data-page-number="3" style="width:210mm; height:297mm; padding:20mm; background:white; box-sizing:border-box; margin-bottom:10mm; page-break-after:always;">
   <img src="image1.jpg" alt="Chart" style="max-width:170mm; height:auto; margin:10pt 0;">
+  <p style="font-size:11pt; line-height:1.5; text-align:justify;">Content from third page...</p>
 </div>
 ```
 
@@ -70,7 +82,10 @@ Return valid HTML with proper semantic tags wrapped in A4 page container:
 - H1: 24pt, H2: 18pt, H3: 14pt
 - Tables: Full width with borders, 10pt font
 - Images: Max width 170mm (fit in printable area)
+- Page spacing: 10mm margin-bottom between pages
 - Use millimeters (mm) and points (pt) for measurements
+- Add `page-break-after:always` for print support
+- Add `data-page-number` attribute for page tracking
 
 **RULES:**
 - NO markdown formatting (use HTML only)
@@ -78,9 +93,10 @@ Return valid HTML with proper semantic tags wrapped in A4 page container:
 - Keep ALL content from the PDF
 - Maintain visual hierarchy appropriate for A4 printing
 - Clean, semantic HTML with inline styles
-- Each chunk should be a complete A4 page or section
+- **CRITICAL**: Create separate `<div class="a4-page">` for each PDF page in this chunk
+- Number pages sequentially with `data-page-number` attribute
 
-Convert the following PDF chunk into A4-formatted HTML:
+Convert the following PDF chunk into A4-formatted HTML (remember: one PDF page = one `<div class="a4-page">`):
 """
 
 SLIDE_EXTRACTION_PROMPT = """
@@ -243,6 +259,9 @@ class PDFAIProcessor:
             # Merge results for document
             merged_html = self._merge_document_chunks(chunk_results)
 
+            # Count A4 pages in output
+            total_a4_pages = merged_html.count('class="a4-page"')
+
             # Metadata
             successful_chunks = sum(1 for r in chunk_results if r["success"])
             avg_processing_time = (
@@ -253,6 +272,7 @@ class PDFAIProcessor:
                 "total_chunks": total_chunks,
                 "successful_chunks": successful_chunks,
                 "failed_chunks": total_chunks - successful_chunks,
+                "total_a4_pages": total_a4_pages,
                 "ai_provider": "gemini",
                 "document_type": "doc",
                 "format": "A4",
@@ -263,7 +283,8 @@ class PDFAIProcessor:
             }
 
             logger.info(
-                f"✅ All document chunks processed: {successful_chunks}/{total_chunks} successful"
+                f"✅ All document chunks processed: {successful_chunks}/{total_chunks} successful, "
+                f"{total_a4_pages} A4 pages created"
             )
 
             return merged_html, metadata
@@ -447,7 +468,7 @@ class PDFAIProcessor:
         ]
 
         if not successful_results:
-            return '<div class="a4-page" style="width:210mm; height:297mm; padding:20mm;"><p>Error: No content could be extracted</p></div>'
+            return '<div class="a4-page" data-page-number="1" style="width:210mm; height:297mm; padding:20mm; background:white; box-sizing:border-box;"><p>Error: No content could be extracted</p></div>'
 
         # For documents, wrap all chunks in a document container
         html_parts = [r["html_content"] for r in successful_results]
@@ -457,8 +478,11 @@ class PDFAIProcessor:
             + "\n</div>"
         )
 
+        # Count total A4 pages
+        page_count = merged.count('class="a4-page"')
+
         logger.info(
-            f"📄 Merged {len(successful_results)} document chunks into A4 format"
+            f"📄 Merged {len(successful_results)} document chunks into {page_count} A4 pages"
         )
         return merged
 
