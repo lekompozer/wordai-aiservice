@@ -37,6 +37,13 @@ If the chunk has 10 PDF pages, output 10 separate `<div class="a4-page">` contai
 6. Use A4-appropriate styling (margins, font sizes)
 7. **Each PDF page = One `<div class="a4-page">` container**
 
+**⚠️ CRITICAL OUTPUT RULES:**
+- Return ONLY the `<div class="a4-page">` elements
+- DO NOT include `<!DOCTYPE html>`, `<html>`, `<head>`, or `<body>` tags
+- DO NOT wrap in any outer container except the a4-page divs themselves
+- Start directly with first `<div class="a4-page" data-page-number="1">`
+- All styles must be INLINE (no `<style>` tags)
+
 **OUTPUT FORMAT:**
 Return valid HTML with ONE `<div class="a4-page">` per PDF page:
 
@@ -444,7 +451,9 @@ class PDFAIProcessor:
             raise
 
     def _clean_html_response(self, html: str) -> str:
-        """Clean AI response to extract pure HTML"""
+        """Clean AI response to extract pure HTML (strip unwanted wrappers)"""
+        import re
+
         # Remove markdown code blocks
         html = html.strip()
 
@@ -458,6 +467,32 @@ class PDFAIProcessor:
             html = html[:-3]
 
         html = html.strip()
+
+        # ⚠️ CRITICAL: Strip full HTML document wrappers if AI returns them
+        # We only want the content inside <body>, not <!DOCTYPE>, <html>, <head>, etc.
+
+        # Remove <!DOCTYPE ...>
+        html = re.sub(r'<!DOCTYPE[^>]*>', '', html, flags=re.IGNORECASE)
+
+        # If wrapped in <html>...</html>, extract body content
+        html_match = re.search(r'<html[^>]*>(.*?)</html>', html, flags=re.IGNORECASE | re.DOTALL)
+        if html_match:
+            html = html_match.group(1)
+
+        # Remove <head>...</head> entirely
+        html = re.sub(r'<head[^>]*>.*?</head>', '', html, flags=re.IGNORECASE | re.DOTALL)
+
+        # If wrapped in <body>...</body>, extract body content
+        body_match = re.search(r'<body[^>]*>(.*?)</body>', html, flags=re.IGNORECASE | re.DOTALL)
+        if body_match:
+            html = body_match.group(1)
+
+        # Remove any remaining <html> or </html> tags
+        html = re.sub(r'</?html[^>]*>', '', html, flags=re.IGNORECASE)
+
+        html = html.strip()
+
+        logger.info(f"🧹 Cleaned HTML: {len(html)} chars (removed DOCTYPE/html/head/body wrappers)")
 
         return html
 
