@@ -802,6 +802,10 @@ async def convert_document_with_ai_async(
     Returns:
         ConvertJobStartResponse with result (if cached) OR job_id (if processing)
     """
+    # Log IMMEDIATELY at function entry (before try block)
+    print(f"🔥🔥🔥 ASYNC ENDPOINT CALLED: document={document_id}")
+    logger.info(f"🔥🔥🔥 ASYNC ENDPOINT CALLED: document={document_id}")
+
     try:
         user_id = user_data["uid"]
 
@@ -886,7 +890,10 @@ async def convert_document_with_ai_async(
         task = asyncio.create_task(
             _run_conversion_job(job_id, document_id, request, user_id)
         )
-        logger.info(f"✅ Background task created: {task}")
+
+        # CRITICAL: Store task reference to prevent garbage collection
+        job.task = task
+        logger.info(f"✅ Background task created and stored: {task}")
 
         # Return job info for polling
         response = ConvertJobStartResponse(
