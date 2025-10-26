@@ -1028,6 +1028,13 @@ async def _run_conversion_job(
             updated_at=datetime.now().isoformat(),
         )
 
+        # Log content size for debugging
+        logger.info(
+            f"📊 Job {job_id} result: content_html={len(html_content)} chars, "
+            f"chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}, "
+            f"pages={metadata.get('total_a4_pages', 0)}"
+        )
+
         # Cleanup
         try:
             os.remove(temp_pdf_path)
