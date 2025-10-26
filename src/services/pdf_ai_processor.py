@@ -20,89 +20,131 @@ logger = logging.getLogger(__name__)
 # ===== AI PROMPTS =====
 
 DOCUMENT_EXTRACTION_PROMPT = """
-You are an expert document converter. Convert this PDF content into clean, structured HTML for a document editor.
+You are an expert document converter. Convert this PDF content into clean, structured HTML for an A4 document editor.
+
+**TARGET FORMAT: A4 Document (210mm x 297mm)**
 
 **REQUIREMENTS:**
 1. Maintain document structure (headings, paragraphs, lists)
 2. Preserve text formatting (bold, italic, underline)
-3. Keep tables structured
-4. Extract images and reference them
-5. Maintain reading order
+3. Keep tables structured with proper borders
+4. Extract images and reference them with proper sizing
+5. Maintain reading order and flow
+6. Use A4-appropriate styling (margins, font sizes)
 
 **OUTPUT FORMAT:**
-Return valid HTML with proper semantic tags:
-- <h1>, <h2>, <h3> for headings
-- <p> for paragraphs
-- <ul>/<ol> for lists
-- <table> for tables
-- <strong>, <em> for emphasis
-- <img> for images (with alt text)
+Return valid HTML with proper semantic tags wrapped in A4 page container:
 
-**EXAMPLE OUTPUT:**
 ```html
-<h1>Document Title</h1>
-<p>Introduction paragraph with <strong>bold</strong> and <em>italic</em> text.</p>
-<h2>Section 1</h2>
-<p>Content here...</p>
-<ul>
-  <li>Item 1</li>
-  <li>Item 2</li>
-</ul>
-<table>
-  <tr><th>Header 1</th><th>Header 2</th></tr>
-  <tr><td>Data 1</td><td>Data 2</td></tr>
-</table>
+<div class="a4-page" style="width:210mm; height:297mm; padding:20mm; background:white; box-sizing:border-box;">
+  <h1 style="font-size:24pt; margin-bottom:12pt;">Document Title</h1>
+  <p style="font-size:11pt; line-height:1.5; text-align:justify;">Introduction paragraph with <strong>bold</strong> and <em>italic</em> text. This is standard A4 body text with proper spacing.</p>
+
+  <h2 style="font-size:18pt; margin-top:18pt; margin-bottom:10pt;">Section 1</h2>
+  <p style="font-size:11pt; line-height:1.5; text-align:justify;">Content here with proper A4 formatting...</p>
+
+  <ul style="margin-left:20pt; font-size:11pt;">
+    <li>Item 1</li>
+    <li>Item 2</li>
+  </ul>
+
+  <table style="width:100%; border-collapse:collapse; margin:10pt 0; font-size:10pt;">
+    <tr style="background:#f0f0f0;">
+      <th style="border:1pt solid #ccc; padding:6pt;">Header 1</th>
+      <th style="border:1pt solid #ccc; padding:6pt;">Header 2</th>
+    </tr>
+    <tr>
+      <td style="border:1pt solid #ccc; padding:6pt;">Data 1</td>
+      <td style="border:1pt solid #ccc; padding:6pt;">Data 2</td>
+    </tr>
+  </table>
+
+  <img src="image1.jpg" alt="Chart" style="max-width:170mm; height:auto; margin:10pt 0;">
+</div>
 ```
+
+**A4 STYLING RULES:**
+- Page container: 210mm x 297mm (A4 standard)
+- Margins: 20mm all sides (printable area: 170mm x 257mm)
+- Body text: 11pt, line-height 1.5, justified
+- H1: 24pt, H2: 18pt, H3: 14pt
+- Tables: Full width with borders, 10pt font
+- Images: Max width 170mm (fit in printable area)
+- Use millimeters (mm) and points (pt) for measurements
 
 **RULES:**
 - NO markdown formatting (use HTML only)
-- NO code blocks or backticks
+- NO code blocks or backticks in output
 - Keep ALL content from the PDF
-- Maintain visual hierarchy
-- Clean, semantic HTML only
+- Maintain visual hierarchy appropriate for A4 printing
+- Clean, semantic HTML with inline styles
+- Each chunk should be a complete A4 page or section
 
-Convert the following PDF content:
+Convert the following PDF chunk into A4-formatted HTML:
 """
 
 SLIDE_EXTRACTION_PROMPT = """
-You are an expert presentation converter. Convert this PDF slide content into clean HTML slides.
+You are an expert presentation converter. Convert this PDF presentation into clean HTML slides in FullHD format.
 
-**REQUIREMENTS:**
-1. Each slide is a separate <div> with class="slide"
-2. Maintain slide layout and structure
-3. Preserve visual hierarchy
-4. Extract images and position them correctly
-5. Keep bullet points and lists
+**TARGET FORMAT: FullHD Slides (1920px x 1080px, 16:9 aspect ratio)**
+
+**CRITICAL REQUIREMENT:**
+Each PDF page = ONE slide. Process ALL pages in this PDF as individual slides.
 
 **OUTPUT FORMAT:**
-Return valid HTML with one slide per <div>:
+Return valid HTML with one slide per PDF page:
 
 ```html
-<div class="slide" style="width:1920px;height:1080px;">
-  <h1>Slide Title</h1>
-  <p>Subtitle or content</p>
-  <ul>
-    <li>Bullet point 1</li>
-    <li>Bullet point 2</li>
-  </ul>
-  <img src="image1.jpg" alt="Chart" style="width:800px;height:600px;">
+<div class="slide" style="width:1920px; height:1080px; position:relative; background:white; padding:60px; box-sizing:border-box; page-break-after:always;">
+  <h1 style="font-size:64px; font-weight:bold; margin-bottom:40px; color:#1a1a1a;">Slide Title</h1>
+  <h2 style="font-size:36px; color:#666; margin-bottom:50px;">Subtitle or tagline</h2>
+
+  <div style="font-size:28px; line-height:1.6;">
+    <ul style="list-style-type:disc; margin-left:60px;">
+      <li style="margin-bottom:20px;">Bullet point 1 with adequate spacing</li>
+      <li style="margin-bottom:20px;">Bullet point 2 with clear hierarchy</li>
+      <li style="margin-bottom:20px;">Bullet point 3 with readable text</li>
+    </ul>
+  </div>
+
+  <img src="image1.jpg" alt="Chart" style="max-width:1200px; max-height:600px; margin:30px auto; display:block;">
 </div>
 
-<div class="slide" style="width:1920px;height:1080px;">
-  <h1>Next Slide</h1>
-  <p>Content...</p>
+<div class="slide" style="width:1920px; height:1080px; position:relative; background:white; padding:60px; box-sizing:border-box; page-break-after:always;">
+  <h1 style="font-size:64px; font-weight:bold; margin-bottom:40px;">Next Slide Title</h1>
+  <p style="font-size:32px; line-height:1.5; color:#333;">Content for second slide goes here...</p>
 </div>
 ```
 
+**FULLHD STYLING RULES:**
+- Slide container: 1920px x 1080px (FullHD 16:9)
+- Padding: 60px all sides (safe area: 1800px x 960px)
+- Slide title (H1): 64px, bold, high contrast
+- Subtitle (H2): 36px, medium weight
+- Body text: 28-32px, line-height 1.5-1.6
+- Bullet points: 28px with 20px spacing
+- Images: Max 1200px wide or 600px tall
+- Use pixels (px) for all measurements
+- High contrast colors for projection
+
+**LAYOUT PATTERNS:**
+- Title slide: Centered title + subtitle
+- Content slide: Title at top + content below
+- Image slide: Title + large image
+- Bullet slide: Title + bulleted list
+- Split slide: Title + two columns
+
 **RULES:**
 - Each slide MUST have class="slide"
-- Use inline styles for positioning
-- Standard slide size: 1920x1080 (FullHD 16:9)
-- NO markdown formatting
-- Clean, semantic HTML only
+- Each slide MUST be 1920x1080 px exactly
+- NO markdown formatting (use HTML only)
+- NO code blocks or backticks in output
+- Maintain visual hierarchy from original
+- Use inline styles for all formatting
 - Separate slides with blank lines
+- Extract ALL slides from the PDF (one PDF page = one HTML slide)
 
-Convert the following PDF slides:
+Convert ALL pages from this PDF presentation into FullHD slides:
 """
 
 
@@ -125,28 +167,30 @@ class PDFAIProcessor:
         self, pdf_chunks: List[str], document_type: str = "doc", progress_callback=None
     ) -> Tuple[str, Dict]:
         """
-        Process multiple PDF chunks with Gemini AI
+        Process multiple PDF chunks with Gemini AI (FOR DOCUMENTS ONLY)
+        This method splits large documents into chunks for processing.
 
         Args:
             pdf_chunks: List of PDF file paths (chunks)
-            document_type: "doc" or "slide"
+            document_type: Must be "doc" (use process_pdf_slides for slides)
             progress_callback: Optional callback(current, total, chunk_result)
 
         Returns:
             Tuple of (merged_html_content, metadata)
         """
+        if document_type == "slide":
+            raise ValueError(
+                "Use process_pdf_slides() for slide conversion, not process_pdf_chunks()"
+            )
+
         try:
             total_chunks = len(pdf_chunks)
             logger.info(
-                f"Processing {total_chunks} PDF chunks with Gemini 2.5 Pro "
-                f"(type: {document_type})"
+                f"📄 Processing {total_chunks} DOCUMENT chunks with Gemini 2.5 Pro "
+                f"(A4 format, chunked processing)"
             )
 
-            # Select prompt based on document type
-            if document_type == "slide":
-                system_prompt = SLIDE_EXTRACTION_PROMPT
-            else:
-                system_prompt = DOCUMENT_EXTRACTION_PROMPT
+            system_prompt = DOCUMENT_EXTRACTION_PROMPT
 
             # Process chunks
             chunk_results = []
@@ -196,8 +240,8 @@ class PDFAIProcessor:
                 if progress_callback:
                     progress_callback(idx + 1, total_chunks, chunk_results[-1])
 
-            # Merge results
-            merged_html = self._merge_chunk_results(chunk_results, document_type)
+            # Merge results for document
+            merged_html = self._merge_document_chunks(chunk_results)
 
             # Metadata
             successful_chunks = sum(1 for r in chunk_results if r["success"])
@@ -210,7 +254,8 @@ class PDFAIProcessor:
                 "successful_chunks": successful_chunks,
                 "failed_chunks": total_chunks - successful_chunks,
                 "ai_provider": "gemini",
-                "document_type": document_type,
+                "document_type": "doc",
+                "format": "A4",
                 "total_processing_time": sum(processing_times),
                 "avg_chunk_time": avg_processing_time,
                 "processed_at": datetime.now().isoformat(),
@@ -218,13 +263,88 @@ class PDFAIProcessor:
             }
 
             logger.info(
-                f"✅ All chunks processed: {successful_chunks}/{total_chunks} successful"
+                f"✅ All document chunks processed: {successful_chunks}/{total_chunks} successful"
             )
 
             return merged_html, metadata
 
         except Exception as e:
-            logger.error(f"Error processing PDF chunks: {str(e)}")
+            logger.error(f"Error processing document chunks: {str(e)}")
+            raise
+
+    async def process_pdf_slides(
+        self, pdf_path: str, progress_callback=None
+    ) -> Tuple[str, Dict]:
+        """
+        Process entire PDF as slides with Gemini AI (FOR PRESENTATIONS ONLY)
+        This method processes the ENTIRE PDF at once, with each page becoming a slide.
+        NO CHUNKING - all slides in one API call.
+
+        Args:
+            pdf_path: Path to PDF presentation file (complete, not chunked)
+            progress_callback: Optional callback(status_message)
+
+        Returns:
+            Tuple of (html_slides_content, metadata)
+        """
+        try:
+            logger.info(
+                f"🎬 Processing PRESENTATION with Gemini 2.5 Pro "
+                f"(FullHD slides, entire PDF at once)"
+            )
+
+            start_time = datetime.now()
+
+            # Get PDF info
+            from src.services.pdf_split_service import get_pdf_split_service
+
+            pdf_service = get_pdf_split_service()
+            pdf_info = pdf_service.get_pdf_info(pdf_path)
+            total_pages = pdf_info["total_pages"]
+
+            logger.info(
+                f"📊 PDF has {total_pages} pages → will create {total_pages} slides"
+            )
+
+            if progress_callback:
+                progress_callback(f"Processing {total_pages} slides with AI...")
+
+            # Process entire PDF as slides (no chunking)
+            html_content = await self._process_single_chunk(
+                pdf_path, SLIDE_EXTRACTION_PROMPT
+            )
+
+            processing_time = (datetime.now() - start_time).total_seconds()
+
+            # Count slides in output
+            slide_count = html_content.count('class="slide"')
+
+            # Metadata
+            metadata = {
+                "total_pages": total_pages,
+                "total_slides": slide_count,
+                "ai_provider": "gemini",
+                "document_type": "slide",
+                "format": "FullHD_1920x1080",
+                "processing_method": "entire_pdf_at_once",
+                "processing_time_seconds": processing_time,
+                "processed_at": datetime.now().isoformat(),
+                "success": True,
+            }
+
+            logger.info(
+                f"✅ Presentation processed: {slide_count} slides created in {processing_time:.2f}s"
+            )
+
+            if slide_count != total_pages:
+                logger.warning(
+                    f"⚠️ Slide count mismatch: PDF has {total_pages} pages but output has {slide_count} slides"
+                )
+
+            return html_content, metadata
+
+        except Exception as e:
+            logger.error(f"Error processing slides: {str(e)}")
             raise
 
     async def _process_single_chunk(self, pdf_path: str, system_prompt: str) -> str:
@@ -320,30 +440,26 @@ class PDFAIProcessor:
 
         return html
 
-    def _merge_chunk_results(
-        self, chunk_results: List[Dict], document_type: str
-    ) -> str:
-        """Merge chunk results into single HTML"""
+    def _merge_document_chunks(self, chunk_results: List[Dict]) -> str:
+        """Merge document chunk results into single A4 document"""
         successful_results = [
             r for r in chunk_results if r["success"] and r["html_content"]
         ]
 
         if not successful_results:
-            return "<p>Error: No content could be extracted</p>"
+            return '<div class="a4-page" style="width:210mm; height:297mm; padding:20mm;"><p>Error: No content could be extracted</p></div>'
 
-        if document_type == "slide":
-            # For slides, just concatenate
-            html_parts = [r["html_content"] for r in successful_results]
-            merged = "\n\n".join(html_parts)
-        else:
-            # For docs, wrap in container
-            html_parts = [r["html_content"] for r in successful_results]
-            merged = (
-                '<div class="document-content">\n'
-                + "\n\n".join(html_parts)
-                + "\n</div>"
-            )
+        # For documents, wrap all chunks in a document container
+        html_parts = [r["html_content"] for r in successful_results]
+        merged = (
+            '<div class="a4-document" style="background:#f5f5f5; padding:20px;">\n'
+            + "\n\n".join(html_parts)
+            + "\n</div>"
+        )
 
+        logger.info(
+            f"📄 Merged {len(successful_results)} document chunks into A4 format"
+        )
         return merged
 
     async def convert_existing_document(
@@ -354,34 +470,48 @@ class PDFAIProcessor:
 
         Args:
             pdf_path: Path to PDF file
-            target_type: "doc" or "slide"
-            chunk_size: Pages per chunk
+            target_type: "doc" (A4 document) or "slide" (FullHD presentation)
+            chunk_size: Pages per chunk (only used for "doc", ignored for "slide")
 
         Returns:
             Tuple of (html_content, metadata)
         """
         try:
-            # Split PDF into chunks
-            from src.services.pdf_split_service import get_pdf_split_service
+            if target_type == "slide":
+                # SLIDE: Process entire PDF at once (no chunking)
+                logger.info(f"🎬 Converting to SLIDES: {pdf_path} (no chunking)")
+                html_content, metadata = await self.process_pdf_slides(pdf_path)
+                return html_content, metadata
 
-            pdf_service = get_pdf_split_service()
+            elif target_type == "doc":
+                # DOCUMENT: Split into chunks for processing
+                from src.services.pdf_split_service import get_pdf_split_service
 
-            logger.info(f"Splitting PDF: {pdf_path} (chunk_size: {chunk_size})")
-            chunks = pdf_service.split_pdf_to_chunks(pdf_path, chunk_size)
+                pdf_service = get_pdf_split_service()
 
-            # Process chunks with Gemini
-            html_content, metadata = await self.process_pdf_chunks(
-                chunks, document_type=target_type
-            )
+                logger.info(
+                    f"📄 Converting to DOCUMENT: {pdf_path} (chunk_size: {chunk_size})"
+                )
+                chunks = pdf_service.split_pdf_to_chunks(pdf_path, chunk_size)
 
-            # Cleanup chunks
-            for chunk_path in chunks:
-                try:
-                    os.remove(chunk_path)
-                except Exception as e:
-                    logger.warning(f"Failed to cleanup chunk {chunk_path}: {e}")
+                # Process chunks with Gemini
+                html_content, metadata = await self.process_pdf_chunks(
+                    chunks, document_type="doc"
+                )
 
-            return html_content, metadata
+                # Cleanup chunks
+                for chunk_path in chunks:
+                    try:
+                        os.remove(chunk_path)
+                    except Exception as e:
+                        logger.warning(f"Failed to cleanup chunk {chunk_path}: {e}")
+
+                return html_content, metadata
+
+            else:
+                raise ValueError(
+                    f"Invalid target_type: {target_type}. Must be 'doc' or 'slide'"
+                )
 
         except Exception as e:
             logger.error(f"Error converting document: {str(e)}")

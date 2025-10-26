@@ -193,7 +193,9 @@ class ConvertWithAIResponse(BaseModel):
 
     success: bool
     document_id: str
+    title: str  # Document title (filename)
     document_type: str
+    content_html: str  # HTML content for immediate use
     ai_processed: bool
     ai_provider: str = "gemini"
     chunks_processed: int

@@ -566,9 +566,13 @@ async def convert_document_with_ai(
                         return ConvertWithAIResponse(
                             success=True,
                             document_id=existing_doc["document_id"],
+                            title=existing_doc.get(
+                                "title", file_doc.get("filename", "Untitled")
+                            ),
                             document_type=existing_doc.get(
                                 "document_type", request.target_type
                             ),
+                            content_html=existing_doc.get("content_html", ""),
                             ai_processed=True,
                             ai_provider=existing_doc.get("ai_provider", "gemini"),
                             chunks_processed=existing_doc.get("ai_chunks_count", 0),
@@ -663,6 +667,8 @@ async def convert_document_with_ai(
                 f"✅ AI processing complete: {chunks_processed} chunks, "
                 f"{processing_time:.2f}s"
             )
+            logger.info(f"📄 HTML content length: {len(html_content)} characters")
+            logger.info(f"📄 HTML preview (first 200 chars): {html_content[:200]}")
 
             # Generate document ID if creating new, or use existing
             if existing_doc:
@@ -728,7 +734,9 @@ async def convert_document_with_ai(
             response = ConvertWithAIResponse(
                 success=True,
                 document_id=doc_id,
+                title=file_doc.get("filename", "Untitled"),
                 document_type=request.target_type,
+                content_html=html_content,
                 ai_processed=True,
                 ai_provider="gemini",
                 chunks_processed=chunks_processed,
