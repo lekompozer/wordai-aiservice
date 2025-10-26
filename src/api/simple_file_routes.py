@@ -1015,7 +1015,7 @@ async def update_file(
         # Structure: files/{user_id}/{folder_id}/{file_id}/{filename}
         if file_update.filename:
             # Use new filename directly (replace spaces with underscores)
-            new_filename = file_update.filename.replace(' ', '_')
+            new_filename = file_update.filename.replace(" ", "_")
             logger.info(f"   ✏️  Renaming to: {new_filename}")
         else:
             # Keep old filename (strip timestamp if exists from old system)
