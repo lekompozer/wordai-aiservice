@@ -464,6 +464,10 @@ async def convert_document_with_ai(
     Returns:
         ConvertWithAIResponse with processing results
     """
+    logger.info(
+        f"🚀 CONVERT ENDPOINT CALLED: document_id={document_id}, user={user_data.get('uid', 'unknown')}"
+    )
+
     try:
         start_time = datetime.now()
         user_id = user_data["uid"]
@@ -540,6 +544,25 @@ async def convert_document_with_ai(
                         )
 
                         # Return existing document info
+                        # Format pages_converted properly
+                        if existing_doc.get("ai_page_range"):
+                            page_range = existing_doc.get("ai_page_range", {})
+                            start = page_range.get("start_page")
+                            end = page_range.get("end_page")
+                            if start and end:
+                                pages_converted_str = f"{start}-{end}"
+                            else:
+                                pages_converted_str = "all"
+                        else:
+                            pages_converted_str = "all"
+
+                        # Format updated_at properly
+                        updated_at_val = existing_doc.get("updated_at", datetime.now())
+                        if isinstance(updated_at_val, datetime):
+                            updated_at_str = updated_at_val.isoformat()
+                        else:
+                            updated_at_str = str(updated_at_val)
+
                         return ConvertWithAIResponse(
                             success=True,
                             document_id=existing_doc["document_id"],
@@ -550,24 +573,10 @@ async def convert_document_with_ai(
                             ai_provider=existing_doc.get("ai_provider", "gemini"),
                             chunks_processed=existing_doc.get("ai_chunks_count", 0),
                             total_pages=existing_doc.get("total_pages", 0),
-                            pages_converted=(
-                                f"{existing_doc.get('ai_page_range', {}).get('start_page', 1)}-{existing_doc.get('ai_page_range', {}).get('end_page', existing_doc.get('total_pages', 0))}"
-                                if existing_doc.get("ai_page_range")
-                                else "all"
-                            ),
+                            pages_converted=pages_converted_str,
                             processing_time_seconds=0.0,  # Cached, no processing time
                             reprocessed=False,  # Using cached content
-                            updated_at=(
-                                existing_doc.get(
-                                    "updated_at", datetime.now()
-                                ).isoformat()
-                                if isinstance(existing_doc.get("updated_at"), datetime)
-                                else str(
-                                    existing_doc.get(
-                                        "updated_at", datetime.now().isoformat()
-                                    )
-                                )
-                            ),
+                            updated_at=updated_at_str,
                         )
                     else:
                         logger.info(
@@ -676,6 +685,10 @@ async def convert_document_with_ai(
                 ),
                 "updated_at": datetime.now(),
                 "last_opened_at": datetime.now(),
+                "last_saved_at": datetime.now(),  # Required by document_editor
+                "version": existing_doc.get("version", 1) if existing_doc else 1,
+                "file_size_bytes": len(html_content.encode("utf-8")),
+                "source_type": "ai_conversion",  # Mark as AI-converted
                 # PDF specific
                 "total_pages": total_pages,
                 # AI processing metadata
