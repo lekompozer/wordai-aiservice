@@ -20,6 +20,8 @@ from src.models.pdf_models import (
     SplitDocumentPart,
     ConvertWithAIRequest,
     ConvertWithAIResponse,
+    ConvertJobStartResponse,
+    ConvertJobStatusResponse,
     SplitInfoResponse,
     SplitInfoDetail,
     SplitInfoSibling,
@@ -30,6 +32,7 @@ from src.models.pdf_models import (
 from src.services.pdf_split_service import get_pdf_split_service
 from src.services.pdf_ai_processor import get_pdf_ai_processor
 from src.services.document_manager import DocumentManager
+from src.services.background_job_manager import get_job_manager, JobStatus
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
 from config.config import R2_BUCKET_NAME
@@ -451,7 +454,10 @@ async def convert_document_with_ai(
     user_data: dict = Depends(get_current_user),
 ):
     """
-    Convert existing document with Gemini AI
+    Convert existing document with Gemini AI (SYNCHRONOUS - may timeout)
+
+    ⚠️ WARNING: This endpoint waits for AI processing to complete.
+    For large PDFs, use /convert-with-ai-async instead.
 
     Supports:
     - Full PDF conversion (no page_range specified)
@@ -767,6 +773,292 @@ async def convert_document_with_ai(
     except Exception as e:
         logger.error(f"❌ Convert failed: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Convert failed: {str(e)}")
+
+
+@router.post(
+    "/{document_id}/convert-with-ai-async", response_model=ConvertJobStartResponse
+)
+async def convert_document_with_ai_async(
+    document_id: str,
+    request: ConvertWithAIRequest,
+    user_data: dict = Depends(get_current_user),
+):
+    """
+    Start background AI conversion job (RECOMMENDED for large PDFs)
+
+    This endpoint starts the conversion process in the background and returns immediately.
+    Frontend should:
+    1. Wait ~60 seconds (estimated_wait_seconds)
+    2. Then poll /api/documents/jobs/{job_id}/status every 5 seconds
+
+    Args:
+        document_id: Document ID to convert
+        request: Conversion configuration
+
+    Returns:
+        ConvertJobStartResponse with job_id and status_endpoint
+    """
+    try:
+        user_id = user_data["uid"]
+        job_id = f"convert_{document_id}_{int(datetime.now().timestamp())}"
+
+        logger.info(
+            f"🚀 Starting ASYNC conversion job: {job_id} for document {document_id}"
+        )
+
+        # Get file metadata
+        file_doc = db_manager.db.user_files.find_one(
+            {"file_id": document_id, "user_id": user_id}
+        )
+
+        if not file_doc:
+            raise HTTPException(status_code=404, detail=f"File {document_id} not found")
+
+        # Create background job
+        job_manager = get_job_manager()
+        job = job_manager.create_job(
+            job_id=job_id,
+            job_type="pdf_ai_conversion",
+            user_id=user_id,
+            params={
+                "document_id": document_id,
+                "target_type": request.target_type,
+                "chunk_size": request.chunk_size,
+                "force_reprocess": request.force_reprocess,
+                "page_range": request.page_range.dict() if request.page_range else None,
+            },
+        )
+
+        # Start background task (fire and forget)
+        import asyncio
+
+        asyncio.create_task(_run_conversion_job(job_id, document_id, request, user_id))
+
+        # Return immediately
+        response = ConvertJobStartResponse(
+            success=True,
+            job_id=job_id,
+            file_id=document_id,
+            title=file_doc.get("filename", "Unknown"),
+            message="AI conversion started in background. Check status after 60 seconds.",
+            estimated_wait_seconds=60,
+            status_endpoint=f"/api/documents/jobs/{job_id}/status",
+            created_at=datetime.now().isoformat(),
+        )
+
+        logger.info(f"✅ Job {job_id} started, returning to client")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to start conversion job: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to start job: {str(e)}")
+
+
+@router.get("/jobs/{job_id}/status", response_model=ConvertJobStatusResponse)
+async def get_conversion_job_status(
+    job_id: str,
+    user_data: dict = Depends(get_current_user),
+):
+    """
+    Check status of background conversion job
+
+    Args:
+        job_id: Job ID returned from /convert-with-ai-async
+
+    Returns:
+        ConvertJobStatusResponse with current status and result (if completed)
+    """
+    try:
+        user_id = user_data["uid"]
+        job_manager = get_job_manager()
+        job = job_manager.get_job(job_id)
+
+        if not job:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+        # Security check: ensure user owns this job
+        if job.user_id != user_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+        job_dict = job.to_dict()
+
+        # Estimate remaining time based on progress
+        estimated_remaining = None
+        if job.status == JobStatus.PROCESSING and job.progress > 0:
+            elapsed = job_dict["elapsed_seconds"]
+            estimated_total = (elapsed / job.progress) * 100
+            estimated_remaining = int(estimated_total - elapsed)
+
+        response = ConvertJobStatusResponse(
+            job_id=job_id,
+            status=job.status,
+            progress=job.progress,
+            message=_get_status_message(job),
+            result=job.result if job.status == JobStatus.COMPLETED else None,
+            error=job.error,
+            elapsed_seconds=job_dict["elapsed_seconds"],
+            created_at=job_dict["created_at"],
+            estimated_remaining_seconds=estimated_remaining,
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to get status: {str(e)}")
+
+
+async def _run_conversion_job(
+    job_id: str,
+    document_id: str,
+    request: ConvertWithAIRequest,
+    user_id: str,
+):
+    """Background task to run AI conversion"""
+    job_manager = get_job_manager()
+
+    try:
+        logger.info(f"🔄 Job {job_id}: Starting AI processing...")
+
+        # Update progress
+        job_manager.update_progress(job_id, 10, JobStatus.PROCESSING)
+
+        # Run the actual conversion logic (reuse from sync endpoint)
+        # Get file
+        file_doc = db_manager.db.user_files.find_one(
+            {"file_id": document_id, "user_id": user_id}
+        )
+
+        if not file_doc:
+            raise Exception(f"File {document_id} not found")
+
+        job_manager.update_progress(job_id, 20)
+
+        # Check cache
+        existing_doc = db_manager.db.documents.find_one(
+            {"file_id": document_id, "user_id": user_id}
+        )
+
+        if existing_doc and not request.force_reprocess:
+            logger.info(f"📦 Job {job_id}: Using cached content")
+            job_manager.update_progress(job_id, 90)
+
+            # Return cached result
+            result = ConvertWithAIResponse(
+                success=True,
+                document_id=existing_doc["document_id"],
+                title=existing_doc["title"],
+                document_type=existing_doc.get("document_type", "doc"),
+                content_html=existing_doc["content_html"],
+                ai_processed=True,
+                ai_provider="gemini",
+                chunks_processed=0,
+                total_pages=existing_doc.get("total_pages", 0),
+                pages_converted="all",
+                processing_time_seconds=0,
+                reprocessed=False,
+                updated_at=existing_doc.get(
+                    "last_saved_at", datetime.now()
+                ).isoformat(),
+            )
+
+            job_manager.complete_job(job_id, result.dict())
+            return
+
+        # Process with AI (slow path)
+        job_manager.update_progress(job_id, 30)
+
+        # Download PDF from R2
+        r2_client = _get_r2_client()
+        r2_key = file_doc.get("r2_key")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
+            temp_pdf_path = temp_pdf.name
+            r2_client.download_file(r2_key, temp_pdf_path)
+
+        job_manager.update_progress(job_id, 40)
+
+        # Process with Gemini AI
+        logger.info(f"🤖 Job {job_id}: Processing with Gemini AI...")
+        html_content, metadata = await pdf_ai_processor.convert_existing_document(
+            pdf_path=temp_pdf_path,
+            target_type=request.target_type,
+            chunk_size=request.chunk_size,
+        )
+
+        job_manager.update_progress(job_id, 80)
+
+        # Create document
+        doc_id = document_manager.create_document(
+            user_id=user_id,
+            title=file_doc.get("filename", "Untitled"),
+            content_html=html_content,
+            content_text="",
+            source_type="file",
+            document_type=request.target_type,
+            file_id=document_id,
+            original_r2_url=file_doc.get("r2_key"),
+            original_file_type=file_doc.get("file_type"),
+        )
+
+        job_manager.update_progress(job_id, 95)
+
+        # Build result
+        result = ConvertWithAIResponse(
+            success=True,
+            document_id=doc_id,
+            title=file_doc.get("filename", "Untitled"),
+            document_type=request.target_type,
+            content_html=html_content,
+            ai_processed=True,
+            ai_provider=metadata.get("ai_provider", "gemini"),
+            chunks_processed=metadata.get(
+                "successful_chunks", metadata.get("total_chunks", 1)
+            ),
+            total_pages=metadata.get("total_pages", metadata.get("total_a4_pages", 0)),
+            pages_converted="all",
+            processing_time_seconds=metadata.get(
+                "total_processing_time", metadata.get("processing_time_seconds", 0)
+            ),
+            reprocessed=True,
+            updated_at=datetime.now().isoformat(),
+        )
+
+        # Cleanup
+        try:
+            os.remove(temp_pdf_path)
+        except:
+            pass
+
+        # Complete job
+        job_manager.complete_job(job_id, result.dict())
+        logger.info(f"✅ Job {job_id}: Completed successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Job {job_id} failed: {str(e)}", exc_info=True)
+        job_manager.fail_job(job_id, str(e))
+
+
+def _get_status_message(job) -> str:
+    """Generate human-readable status message"""
+    if job.status == JobStatus.PENDING:
+        return "Job is queued and waiting to start"
+    elif job.status == JobStatus.PROCESSING:
+        if job.progress < 30:
+            return "Preparing PDF file..."
+        elif job.progress < 80:
+            return "Processing with Gemini AI..."
+        else:
+            return "Finalizing document..."
+    elif job.status == JobStatus.COMPLETED:
+        return "Conversion completed successfully!"
+    elif job.status == JobStatus.FAILED:
+        return f"Conversion failed: {job.error}"
+    return "Unknown status"
 
 
 @router.get("/{document_id}/split-info", response_model=SplitInfoResponse)

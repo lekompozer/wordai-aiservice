@@ -206,6 +206,35 @@ class ConvertWithAIResponse(BaseModel):
     updated_at: str
 
 
+class ConvertJobStartResponse(BaseModel):
+    """Response when starting a background conversion job"""
+
+    success: bool
+    job_id: str
+    file_id: str
+    title: str
+    message: str
+    estimated_wait_seconds: int = Field(
+        default=60, description="Estimated time before checking status"
+    )
+    status_endpoint: str
+    created_at: str
+
+
+class ConvertJobStatusResponse(BaseModel):
+    """Response for job status check"""
+
+    job_id: str
+    status: str  # "pending", "processing", "completed", "failed"
+    progress: int  # 0-100
+    message: Optional[str] = None
+    result: Optional[ConvertWithAIResponse] = None
+    error: Optional[str] = None
+    elapsed_seconds: float
+    created_at: str
+    estimated_remaining_seconds: Optional[int] = None
+
+
 # ===== Split Info =====
 
 

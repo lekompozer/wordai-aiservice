@@ -1065,7 +1065,16 @@ async def update_file(
         else:
             logger.info("   ℹ️  No changes to file location/name, skipping copy")
 
-        # Step 6: UPDATE MONGODB - Critical fix!
+        # Step 6: Extract original name (without timestamp) - MUST DO BEFORE UPDATE!
+        original_name = new_filename
+        if "_" in new_filename and len(new_filename.split("_", 1)) > 1:
+            timestamp_part, name_part = new_filename.split("_", 1)
+            if len(timestamp_part) == 15:
+                original_name = name_part
+        
+        logger.info(f"   📝 Extracted original name: {original_name}")
+
+        # Step 7: UPDATE MONGODB - Critical fix!
         logger.info("   💾 Updating file metadata in MongoDB...")
         user_manager = get_user_manager()
 
@@ -1095,16 +1104,9 @@ async def update_file(
         else:
             logger.warning("   ⚠️  MongoDB update failed or no changes detected")
 
-        # Step 7: Generate new signed URL (for immediate use after update)
+        # Step 8: Generate new signed URL (for immediate use after update)
         logger.info("   🔐 Generating signed URL for updated file...")
         download_url = generate_signed_url(new_key, expiration=3600)
-
-        # Step 8: Extract original name (without timestamp)
-        original_name = new_filename
-        if "_" in new_filename and len(new_filename.split("_", 1)) > 1:
-            timestamp_part, name_part = new_filename.split("_", 1)
-            if len(timestamp_part) == 15:
-                original_name = name_part
 
         file_ext = Path(new_filename).suffix.lower()
 
