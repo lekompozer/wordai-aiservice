@@ -978,7 +978,7 @@ async def _run_conversion_job(
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf_path = temp_pdf.name
-            r2_client.download_file(r2_key, temp_pdf_path)
+            await r2_client.download_file(r2_key, temp_pdf_path)
 
         job_manager.update_progress(job_id, 40)
 
