@@ -807,27 +807,35 @@ async def convert_document_with_ai_async(
     logger.info(f"🔥🔥🔥 ASYNC ENDPOINT CALLED: document={document_id}")
 
     try:
+        print(f"🔥 Step 1: Get user_id")
         user_id = user_data["uid"]
+        print(f"🔥 user_id={user_id}")
 
         logger.info(
             f"🚀 ASYNC conversion request: document={document_id}, user={user_id}"
         )
 
+        print(f"🔥 Step 2: Query file metadata from DB")
         # Get file metadata
         file_doc = db_manager.db.user_files.find_one(
             {"file_id": document_id, "user_id": user_id}
         )
+        print(f"🔥 file_doc found: {bool(file_doc)}")
 
         if not file_doc:
             raise HTTPException(status_code=404, detail=f"File {document_id} not found")
 
+        print(f"🔥 Step 3: Check cache (force_reprocess={request.force_reprocess})")
         # ⚡ STEP 1: Check cache FIRST (avoid unnecessary job creation)
         if not request.force_reprocess:
+            print(f"🔥 Querying documents collection for cache...")
             existing_doc = db_manager.db.documents.find_one(
                 {"file_id": document_id, "user_id": user_id}
             )
+            print(f"🔥 Cache result: {bool(existing_doc)}")
 
             if existing_doc:
+                print(f"🔥 CACHE HIT! Returning cached result")
                 logger.info(
                     f"📦 CACHE HIT! Returning result immediately (no job, no polling)"
                 )
@@ -865,11 +873,17 @@ async def convert_document_with_ai_async(
                 )
 
         # ⚡ STEP 2: No cache → Create background job
+        print(f"🔥 Step 4: NO CACHE - Creating background job")
         job_id = f"convert_{document_id}_{int(datetime.now().timestamp())}"
+        print(f"🔥 job_id={job_id}")
 
         logger.info(f"🔄 NO CACHE: Creating background job {job_id}")
 
+        print(f"🔥 Step 5: Get job_manager")
         job_manager = get_job_manager()
+        print(f"🔥 job_manager={job_manager}")
+
+        print(f"🔥 Step 6: Create job in manager")
         job = job_manager.create_job(
             job_id=job_id,
             job_type="pdf_ai_conversion",
@@ -882,20 +896,22 @@ async def convert_document_with_ai_async(
                 "page_range": request.page_range.dict() if request.page_range else None,
             },
         )
+        print(f"🔥 Job created: {job}")
 
         # Start background task (fire and forget)
         import asyncio
 
+        print(f"🔥 Step 7: Create asyncio task")
         logger.info(f"🚀 Starting background task for job {job_id}...")
         task = asyncio.create_task(
             _run_conversion_job(job_id, document_id, request, user_id)
         )
+        print(f"🔥 Task created: {task}")
 
         # CRITICAL: Store task reference to prevent garbage collection
         job.task = task
-        logger.info(f"✅ Background task created and stored: {task}")
-
-        # Return job info for polling
+        print(f"🔥 Task stored in job.task")
+        logger.info(f"✅ Background task created and stored: {task}")        # Return job info for polling
         response = ConvertJobStartResponse(
             success=True,
             job_id=job_id,
