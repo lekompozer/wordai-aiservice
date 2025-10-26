@@ -1011,30 +1011,25 @@ async def update_file(
             logger.info(f"   📂 Moving to folder: {new_folder_id or 'root'}")
 
         # Step 3: Determine new filename
+        # NO TIMESTAMP NEEDED: Each file has unique file_id folder in R2
+        # Structure: files/{user_id}/{folder_id}/{file_id}/{filename}
         if file_update.filename:
-            # Use new filename but keep the timestamp prefix from old filename
+            # Use new filename directly (replace spaces with underscores)
+            new_filename = file_update.filename.replace(' ', '_')
+            logger.info(f"   ✏️  Renaming to: {new_filename}")
+        else:
+            # Keep old filename (strip timestamp if exists from old system)
             old_filename = old_metadata["old_filename"]
+            # Remove timestamp prefix if exists (legacy format: 20251026_101810_filename.pdf)
             if "_" in old_filename and len(old_filename.split("_", 1)) > 1:
                 timestamp_part = old_filename.split("_", 1)[0]
                 if len(timestamp_part) == 15:  # YYYYMMDD_HHMMSS format
-                    new_filename = (
-                        f"{timestamp_part}_{file_update.filename.replace(' ', '_')}"
-                    )
+                    # Strip timestamp, keep only actual filename
+                    new_filename = old_filename.split("_", 1)[1]
                 else:
-                    # No valid timestamp, add new one
-                    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-                    new_filename = (
-                        f"{timestamp}_{file_update.filename.replace(' ', '_')}"
-                    )
+                    new_filename = old_filename
             else:
-                # No timestamp prefix, add new one
-                timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-                new_filename = f"{timestamp}_{file_update.filename.replace(' ', '_')}"
-
-            logger.info(f"   ✏️  Renaming to: {new_filename}")
-        else:
-            # Keep old filename
-            new_filename = old_metadata["old_filename"]
+                new_filename = old_filename
             logger.info(f"   ✏️  Keeping filename: {new_filename}")
 
         # Step 4: Build new R2 key
@@ -1065,14 +1060,9 @@ async def update_file(
         else:
             logger.info("   ℹ️  No changes to file location/name, skipping copy")
 
-        # Step 6: Extract original name (without timestamp) - MUST DO BEFORE UPDATE!
+        # Step 6: Extract original name (same as filename now, no timestamp prefix)
         original_name = new_filename
-        if "_" in new_filename and len(new_filename.split("_", 1)) > 1:
-            timestamp_part, name_part = new_filename.split("_", 1)
-            if len(timestamp_part) == 15:
-                original_name = name_part
-        
-        logger.info(f"   📝 Extracted original name: {original_name}")
+        logger.info(f"   📝 Original name: {original_name}")
 
         # Step 7: UPDATE MONGODB - Critical fix!
         logger.info("   💾 Updating file metadata in MongoDB...")
