@@ -689,6 +689,8 @@ async def convert_document_with_ai(
                 "version": existing_doc.get("version", 1) if existing_doc else 1,
                 "file_size_bytes": len(html_content.encode("utf-8")),
                 "source_type": "ai_conversion",  # Mark as AI-converted
+                "auto_save_count": 0,  # No auto-saves yet
+                "manual_save_count": 0,  # No manual saves yet
                 # PDF specific
                 "total_pages": total_pages,
                 # AI processing metadata
