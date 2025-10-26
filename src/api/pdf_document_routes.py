@@ -882,7 +882,11 @@ async def convert_document_with_ai_async(
         # Start background task (fire and forget)
         import asyncio
 
-        asyncio.create_task(_run_conversion_job(job_id, document_id, request, user_id))
+        logger.info(f"🚀 Starting background task for job {job_id}...")
+        task = asyncio.create_task(
+            _run_conversion_job(job_id, document_id, request, user_id)
+        )
+        logger.info(f"✅ Background task created: {task}")
 
         # Return job info for polling
         response = ConvertJobStartResponse(
@@ -923,15 +927,25 @@ async def get_conversion_job_status(
     """
     try:
         user_id = user_data["uid"]
+
+        # Log every status check (to see if frontend is polling)
+        logger.info(f"🔍 STATUS CHECK: job={job_id}, user={user_id}")
+
         job_manager = get_job_manager()
         job = job_manager.get_job(job_id)
 
         if not job:
+            logger.warning(f"❌ Job {job_id} NOT FOUND")
             raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
 
         # Security check: ensure user owns this job
         if job.user_id != user_id:
+            logger.warning(
+                f"❌ Access denied: job owner={job.user_id}, requester={user_id}"
+            )
             raise HTTPException(status_code=403, detail="Access denied")
+
+        logger.info(f"📊 Job status: {job.status}, progress: {job.progress}%")
 
         job_dict = job.to_dict()
 
@@ -970,6 +984,12 @@ async def _run_conversion_job(
     user_id: str,
 ):
     """Background task to run AI conversion"""
+    logger.info(f"🔥 === BACKGROUND JOB STARTED ===")
+    logger.info(f"🆔 Job ID: {job_id}")
+    logger.info(f"📄 Document: {document_id}")
+    logger.info(f"👤 User: {user_id}")
+    logger.info(f"🎯 Target: {request.target_type}")
+
     job_manager = get_job_manager()
 
     try:
@@ -1035,11 +1055,19 @@ async def _run_conversion_job(
 
         # Process with Gemini AI
         logger.info(f"🤖 Job {job_id}: Processing with Gemini AI...")
+        logger.info(
+            f"   Target type: {request.target_type}, Chunk size: {request.chunk_size}"
+        )
+
         html_content, metadata = await pdf_ai_processor.convert_existing_document(
             pdf_path=temp_pdf_path,
             target_type=request.target_type,
             chunk_size=request.chunk_size,
         )
+
+        logger.info(f"✅ Job {job_id}: Gemini processing complete!")
+        logger.info(f"   HTML size: {len(html_content)} chars")
+        logger.info(f"   Metadata: {metadata}")
 
         job_manager.update_progress(job_id, 80)
 
