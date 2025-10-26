@@ -551,14 +551,23 @@ async def convert_document_with_ai(
                             chunks_processed=existing_doc.get("ai_chunks_count", 0),
                             total_pages=existing_doc.get("total_pages", 0),
                             pages_converted=(
-                                existing_doc.get("ai_page_range", {}).get(
-                                    "start_page", 1
-                                )
+                                f"{existing_doc.get('ai_page_range', {}).get('start_page', 1)}-{existing_doc.get('ai_page_range', {}).get('end_page', existing_doc.get('total_pages', 0))}"
                                 if existing_doc.get("ai_page_range")
                                 else "all"
                             ),
                             processing_time_seconds=0.0,  # Cached, no processing time
-                            message="Using cached document (already AI-processed)",
+                            reprocessed=False,  # Using cached content
+                            updated_at=(
+                                existing_doc.get(
+                                    "updated_at", datetime.now()
+                                ).isoformat()
+                                if isinstance(existing_doc.get("updated_at"), datetime)
+                                else str(
+                                    existing_doc.get(
+                                        "updated_at", datetime.now().isoformat()
+                                    )
+                                )
+                            ),
                         )
                     else:
                         logger.info(
