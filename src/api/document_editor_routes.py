@@ -6,6 +6,7 @@ Using asyncio.to_thread to wrap synchronous PyMongo calls
 
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Dict, Any, List, Optional
+from datetime import datetime
 import logging
 import asyncio
 
@@ -978,10 +979,10 @@ async def get_documents_by_folders(
                 DocumentListItem(
                     document_id=doc["document_id"],
                     title=doc["title"],
-                    last_saved_at=doc["last_saved_at"],
+                    last_saved_at=doc.get("last_saved_at", doc.get("updated_at", datetime.now())),
                     last_opened_at=doc.get("last_opened_at"),
-                    version=doc["version"],
-                    file_size_bytes=doc["file_size_bytes"],
+                    version=doc.get("version", 1),
+                    file_size_bytes=doc.get("file_size_bytes", 0),
                     source_type=doc.get("source_type", "file"),
                     document_type=doc.get("document_type"),
                     folder_id=doc.get("folder_id"),
@@ -1237,10 +1238,10 @@ async def list_documents(
             DocumentListItem(
                 document_id=doc["document_id"],
                 title=doc["title"],
-                last_saved_at=doc["last_saved_at"],
+                last_saved_at=doc.get("last_saved_at", doc.get("updated_at", datetime.now())),
                 last_opened_at=doc.get("last_opened_at"),
-                version=doc["version"],
-                file_size_bytes=doc["file_size_bytes"],
+                version=doc.get("version", 1),
+                file_size_bytes=doc.get("file_size_bytes", 0),
                 source_type=doc.get("source_type", "file"),
                 document_type=doc.get("document_type"),
                 folder_id=doc.get("folder_id"),
