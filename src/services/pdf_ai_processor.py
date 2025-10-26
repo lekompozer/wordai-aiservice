@@ -470,6 +470,13 @@ class PDFAIProcessor:
         if not successful_results:
             return '<div class="a4-page" data-page-number="1" style="width:210mm; height:297mm; padding:20mm; background:white; box-sizing:border-box;"><p>Error: No content could be extracted</p></div>'
 
+        # Debug: Log individual chunk sizes BEFORE merge
+        for idx, r in enumerate(successful_results):
+            chunk_size = len(r["html_content"])
+            logger.info(
+                f"  📦 Chunk {idx + 1}: {chunk_size} chars, " f"success={r['success']}"
+            )
+
         # For documents, wrap all chunks in a document container
         html_parts = [r["html_content"] for r in successful_results]
         merged = (
@@ -482,7 +489,8 @@ class PDFAIProcessor:
         page_count = merged.count('class="a4-page"')
 
         logger.info(
-            f"📄 Merged {len(successful_results)} document chunks into {page_count} A4 pages"
+            f"📄 Merged {len(successful_results)} chunks into {page_count} A4 pages, "
+            f"total size: {len(merged)} chars"
         )
         return merged
 
