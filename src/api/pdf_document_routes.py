@@ -786,24 +786,27 @@ async def convert_document_with_ai_async(
     """
     Start background AI conversion job (RECOMMENDED for large PDFs)
 
-    This endpoint starts the conversion process in the background and returns immediately.
+    **SMART FLOW:**
+    - Checks cache FIRST before creating job
+    - If cached → Returns result immediately (no polling needed)
+    - If not cached → Creates background job, returns job_id for polling
+
     Frontend should:
-    1. Wait ~60 seconds (estimated_wait_seconds)
-    2. Then poll /api/documents/jobs/{job_id}/status every 5 seconds
+    1. Check response: if has 'result' field → use directly (cache hit)
+    2. If has 'job_id' only → wait 15s, then poll status every 5s
 
     Args:
         document_id: Document ID to convert
         request: Conversion configuration
 
     Returns:
-        ConvertJobStartResponse with job_id and status_endpoint
+        ConvertJobStartResponse with result (if cached) OR job_id (if processing)
     """
     try:
         user_id = user_data["uid"]
-        job_id = f"convert_{document_id}_{int(datetime.now().timestamp())}"
 
         logger.info(
-            f"🚀 Starting ASYNC conversion job: {job_id} for document {document_id}"
+            f"🚀 ASYNC conversion request: document={document_id}, user={user_id}"
         )
 
         # Get file metadata
@@ -814,7 +817,54 @@ async def convert_document_with_ai_async(
         if not file_doc:
             raise HTTPException(status_code=404, detail=f"File {document_id} not found")
 
-        # Create background job
+        # ⚡ STEP 1: Check cache FIRST (avoid unnecessary job creation)
+        if not request.force_reprocess:
+            existing_doc = db_manager.db.documents.find_one(
+                {"file_id": document_id, "user_id": user_id}
+            )
+
+            if existing_doc:
+                logger.info(
+                    f"📦 CACHE HIT! Returning result immediately (no job, no polling)"
+                )
+
+                # Build cached result
+                cached_result = ConvertWithAIResponse(
+                    success=True,
+                    document_id=existing_doc["document_id"],
+                    title=existing_doc["title"],
+                    document_type=existing_doc.get("document_type", "doc"),
+                    content_html=existing_doc["content_html"],
+                    ai_processed=True,
+                    ai_provider="gemini",
+                    chunks_processed=0,
+                    total_pages=existing_doc.get("total_pages", 0),
+                    pages_converted="all",
+                    processing_time_seconds=0,
+                    reprocessed=False,
+                    updated_at=existing_doc.get(
+                        "last_saved_at", datetime.now()
+                    ).isoformat(),
+                )
+
+                # Return with result embedded (no polling needed!)
+                return ConvertJobStartResponse(
+                    success=True,
+                    job_id=None,  # No job created
+                    file_id=document_id,
+                    title=file_doc.get("filename", "Unknown"),
+                    message="Using cached result (instant response, no processing)",
+                    estimated_wait_seconds=0,  # No wait!
+                    status_endpoint="",  # No endpoint needed
+                    created_at=datetime.now().isoformat(),
+                    result=cached_result,  # Result included directly
+                )
+
+        # ⚡ STEP 2: No cache → Create background job
+        job_id = f"convert_{document_id}_{int(datetime.now().timestamp())}"
+
+        logger.info(f"🔄 NO CACHE: Creating background job {job_id}")
+
         job_manager = get_job_manager()
         job = job_manager.create_job(
             job_id=job_id,
@@ -834,19 +884,20 @@ async def convert_document_with_ai_async(
 
         asyncio.create_task(_run_conversion_job(job_id, document_id, request, user_id))
 
-        # Return immediately
+        # Return job info for polling
         response = ConvertJobStartResponse(
             success=True,
             job_id=job_id,
             file_id=document_id,
             title=file_doc.get("filename", "Unknown"),
-            message="AI conversion started in background. Check status after 60 seconds.",
-            estimated_wait_seconds=60,
+            message="AI conversion started in background. Check status after 15 seconds.",
+            estimated_wait_seconds=15,  # Small docs: 20-30s, Large docs: 60-120s
             status_endpoint=f"/api/documents/jobs/{job_id}/status",
             created_at=datetime.now().isoformat(),
+            result=None,  # No result yet, must poll
         )
 
-        logger.info(f"✅ Job {job_id} started, returning to client")
+        logger.info(f"✅ Job {job_id} started, client should poll after 15s")
         return response
 
     except HTTPException:

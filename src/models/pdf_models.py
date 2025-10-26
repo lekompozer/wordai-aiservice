@@ -207,18 +207,30 @@ class ConvertWithAIResponse(BaseModel):
 
 
 class ConvertJobStartResponse(BaseModel):
-    """Response when starting a background conversion job"""
+    """Response when starting a background conversion job
+
+    Two possible scenarios:
+    1. Cache hit: result is populated, job_id is None, no polling needed
+    2. Processing: job_id is populated, result is None, client should poll
+    """
 
     success: bool
-    job_id: str
+    job_id: Optional[str] = Field(
+        None, description="Job ID for polling (None if cached result)"
+    )
     file_id: str
     title: str
     message: str
     estimated_wait_seconds: int = Field(
-        default=60, description="Estimated time before checking status"
+        default=15, description="Estimated time before checking status (0 if cached)"
     )
-    status_endpoint: str
+    status_endpoint: str = Field(
+        default="", description="Status endpoint URL (empty if cached)"
+    )
     created_at: str
+    result: Optional[ConvertWithAIResponse] = Field(
+        None, description="Conversion result (populated immediately if cached)"
+    )
 
 
 class ConvertJobStatusResponse(BaseModel):

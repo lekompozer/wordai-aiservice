@@ -4,14 +4,20 @@
 
 This API provides asynchronous PDF conversion using Gemini AI to avoid timeout issues. The conversion process runs in the background while the client polls for status updates.
 
+**Smart Flow:**
+- **Step 1:** API checks cache first
+- **If cached:** Returns result immediately (no job, no polling)
+- **If not cached:** Creates background job, client polls for status
+
 **Problem Solved:**
 - Cloudflare free tier has 100-second timeout limit
 - Gemini AI conversion can take >100 seconds for multi-page PDFs
 - Synchronous endpoint causes connection timeout before response returns
 
 **Solution:**
-- Start job in background, return immediately with `job_id`
-- Client polls status endpoint every 5 seconds after 60-second wait
+- Check cache before processing (instant response if available)
+- Start job in background if needed, return immediately with `job_id`
+- Client polls status endpoint every 5 seconds after 15-second wait
 - No timeout issues, progress visibility, better UX
 
 ---
@@ -61,31 +67,62 @@ Content-Type: application/json
 
 **Status Code:** `200 OK`
 
-**Body:** `application/json`
+**Body (Cache Hit - Instant Response):**
+```json
+{
+  "success": true,
+  "job_id": null,
+  "file_id": "file_abc123",
+  "title": "Annual Report 2024.pdf",
+  "message": "Using cached result (instant response, no processing)",
+  "estimated_wait_seconds": 0,
+  "status_endpoint": "",
+  "created_at": "2025-10-26T10:30:00.000000",
+  "result": {
+    "success": true,
+    "document_id": "doc_xyz789",
+    "title": "Annual Report 2024.pdf",
+    "document_type": "doc",
+    "content_html": "<div>...</div>",
+    "ai_processed": true,
+    "ai_provider": "gemini",
+    "chunks_processed": 0,
+    "total_pages": 15,
+    "pages_converted": "all",
+    "processing_time_seconds": 0,
+    "reprocessed": false,
+    "updated_at": "2025-10-25T15:20:00.000000"
+  }
+}
+```
+
+**Body (No Cache - Background Job Created):**
 ```json
 {
   "success": true,
   "job_id": "convert_file_abc123_1729900000",
   "file_id": "file_abc123",
   "title": "Annual Report 2024.pdf",
-  "message": "AI conversion started in background. Check status after 60 seconds.",
-  "estimated_wait_seconds": 60,
+  "message": "AI conversion started in background. Check status after 15 seconds.",
+  "estimated_wait_seconds": 15,
   "status_endpoint": "/api/documents/jobs/convert_file_abc123_1729900000/status",
-  "created_at": "2025-10-26T10:30:00.000000"
+  "created_at": "2025-10-26T10:30:00.000000",
+  "result": null
 }
 ```
 
 **Response Fields:**
 | Field | Type | Description |
 |-------|------|-------------|
-| `success` | boolean | Always `true` on successful job creation |
-| `job_id` | string | Unique job identifier for status polling |
+| `success` | boolean | Always `true` on successful request |
+| `job_id` | string\|null | Job ID for polling (null if cached result) |
 | `file_id` | string | Original file ID (same as path param) |
 | `title` | string | Original filename |
 | `message` | string | Human-readable instruction message |
-| `estimated_wait_seconds` | integer | Recommended wait time before polling (60s) |
-| `status_endpoint` | string | Relative URL for status checking |
-| `created_at` | string | ISO 8601 timestamp when job started |
+| `estimated_wait_seconds` | integer | Wait time before polling (0 if cached, 15 if processing) |
+| `status_endpoint` | string | URL for status checking (empty if cached) |
+| `created_at` | string | ISO 8601 timestamp |
+| `result` | object\|null | **Conversion result (populated if cached, null if processing)** |
 
 #### Error Responses
 
@@ -250,21 +287,33 @@ Authorization: Bearer {firebase_jwt_token}
 
 ```
 ┌─────────┐
-│ pending │ Job created, queued for processing
+│ Request │ Call /convert-with-ai-async
 └────┬────┘
      │
      v
-┌────────────┐
-│ processing │ AI conversion in progress (can take 60-120s)
-└────┬───────┘
+┌─────────────┐
+│ Check Cache │
+└────┬────┬───┘
+     │    │
+     │    └─ Cache Hit ──> Return result immediately ✅
+     │                     (result field populated, no polling)
      │
-     ├─ Success ──> ┌───────────┐
-     │              │ completed │ Result available in "result" field
-     │              └───────────┘
-     │
-     └─ Error ────> ┌────────┐
-                    │ failed │ Error details in "error" field
-                    └────────┘
+     └─ No Cache ──> ┌─────────┐
+                     │ pending │ Job created, queued for processing
+                     └────┬────┘
+                          │
+                          v
+                     ┌────────────┐
+                     │ processing │ AI conversion in progress (20-120s)
+                     └────┬───────┘
+                          │
+                          ├─ Success ──> ┌───────────┐
+                          │              │ completed │ Result in "result" field
+                          │              └───────────┘
+                          │
+                          └─ Error ────> ┌────────┐
+                                        │ failed │ Error in "error" field
+                                        └────────┘
 ```
 
 ---
@@ -300,7 +349,7 @@ async function convertPdfAsync(
   config: ConvertConfig
 ): Promise<ConversionResult> {
 
-  // 1. Start conversion job
+  // 1. Start conversion job (or get cached result)
   const startResponse = await fetch(
     `/api/documents/${documentId}/convert-with-ai-async`,
     {
@@ -318,13 +367,20 @@ async function convertPdfAsync(
   }
 
   const jobData = await startResponse.json();
+
+  // 2. Check if cached result (instant response)
+  if (jobData.result) {
+    console.log('✅ Cache hit! Using cached result');
+    return jobData.result;  // Return immediately!
+  }
+
+  // 3. No cache → Must poll for status
   const { job_id, estimated_wait_seconds } = jobData;
 
-  // 2. Wait recommended time (60 seconds)
-  console.log(`Waiting ${estimated_wait_seconds}s before polling...`);
+  console.log(`⏳ Job ${job_id} created, waiting ${estimated_wait_seconds}s...`);
   await sleep(estimated_wait_seconds * 1000);
 
-  // 3. Poll status every 5 seconds
+  // 4. Poll status every 5 seconds
   const maxAttempts = 60; // 5 minutes max (60 * 5s)
   let attempts = 0;
 
@@ -541,6 +597,12 @@ function PdfConverter({ fileId }: { fileId: string }) {
 - **Cloudflare Free:** 100-second hard limit
 - **Nginx:** 300-second timeout (backend configured)
 - **Solution:** Use async endpoints to avoid all timeout issues
+
+### Processing Time Estimates
+- **Small documents (1-5 pages):** 20-30 seconds
+- **Medium documents (10-20 pages):** 40-60 seconds
+- **Large documents (50+ pages):** 90-120 seconds
+- **Polling strategy:** Wait 15s, then check every 5s
 
 ### Cache Behavior
 - First conversion: Full AI processing (60-120s)
