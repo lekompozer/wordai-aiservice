@@ -913,7 +913,7 @@ async def convert_document_with_ai_async(
         # This ensures task runs AFTER response is sent and won't be cancelled
         print(f"🔥 Step 7: Add task to FastAPI BackgroundTasks")
         logger.info(f"🚀 Starting background task for job {job_id}...")
-        
+
         try:
             print(f"🔥 Calling background_tasks.add_task()...")
             background_tasks.add_task(
@@ -924,7 +924,7 @@ async def convert_document_with_ai_async(
             print(f"❌ ERROR in add_task: {e}")
             logger.error(f"❌ Failed to add background task: {e}", exc_info=True)
             raise
-        
+
         print(f"🔥 Task added to BackgroundTasks")
         logger.info(f"✅ Background task added to FastAPI BackgroundTasks")
 
@@ -1028,7 +1028,7 @@ async def _run_conversion_job(
     print(f"🆔 Job ID: {job_id}")
     print(f"📄 Document: {document_id}")
     print(f"👤 User: {user_id}")
-    
+
     logger.info(f"🔥 === BACKGROUND JOB STARTED ===")
     logger.info(f"🆔 Job ID: {job_id}")
     logger.info(f"📄 Document: {document_id}")
@@ -1102,7 +1102,7 @@ async def _run_conversion_job(
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf_path = temp_pdf.name
             await r2_client.download_file(r2_key, temp_pdf_path)
-        
+
         print(f"🔥 Job {job_id}: PDF downloaded to {temp_pdf_path}")
 
         job_manager.update_progress(job_id, 40)
@@ -1169,9 +1169,11 @@ async def _run_conversion_job(
         # Log content size for debugging
         print(f"📊 Job {job_id} completed!")
         print(f"   content_html={len(html_content)} chars")
-        print(f"   chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}")
+        print(
+            f"   chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}"
+        )
         print(f"   pages={metadata.get('total_a4_pages', 0)}")
-        
+
         logger.info(
             f"📊 Job {job_id} result: content_html={len(html_content)} chars, "
             f"chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}, "

@@ -472,32 +472,42 @@ class PDFAIProcessor:
         # We only want the content inside <body>, not <!DOCTYPE>, <html>, <head>, etc.
 
         # Remove <!DOCTYPE ...>
-        html = re.sub(r'<!DOCTYPE[^>]*>', '', html, flags=re.IGNORECASE)
+        html = re.sub(r"<!DOCTYPE[^>]*>", "", html, flags=re.IGNORECASE)
 
         # If wrapped in <html>...</html>, extract body content
-        html_match = re.search(r'<html[^>]*>(.*?)</html>', html, flags=re.IGNORECASE | re.DOTALL)
+        html_match = re.search(
+            r"<html[^>]*>(.*?)</html>", html, flags=re.IGNORECASE | re.DOTALL
+        )
         if html_match:
             html = html_match.group(1)
 
         # Remove <head>...</head> entirely
-        html = re.sub(r'<head[^>]*>.*?</head>', '', html, flags=re.IGNORECASE | re.DOTALL)
+        html = re.sub(
+            r"<head[^>]*>.*?</head>", "", html, flags=re.IGNORECASE | re.DOTALL
+        )
 
         # If wrapped in <body>...</body>, extract body content
-        body_match = re.search(r'<body[^>]*>(.*?)</body>', html, flags=re.IGNORECASE | re.DOTALL)
+        body_match = re.search(
+            r"<body[^>]*>(.*?)</body>", html, flags=re.IGNORECASE | re.DOTALL
+        )
         if body_match:
             html = body_match.group(1)
 
         # Remove any remaining <html> or </html> tags
-        html = re.sub(r'</?html[^>]*>', '', html, flags=re.IGNORECASE)
+        html = re.sub(r"</?html[^>]*>", "", html, flags=re.IGNORECASE)
 
         html = html.strip()
 
-        logger.info(f"🧹 Cleaned HTML: {len(html)} chars (removed DOCTYPE/html/head/body wrappers)")
+        logger.info(
+            f"🧹 Cleaned HTML: {len(html)} chars (removed DOCTYPE/html/head/body wrappers)"
+        )
 
         return html
 
     def _merge_document_chunks(self, chunk_results: List[Dict]) -> str:
-        """Merge document chunk results into single A4 document"""
+        """Merge document chunk results into single A4 document with continuous page numbering"""
+        import re
+
         successful_results = [
             r for r in chunk_results if r["success"] and r["html_content"]
         ]
@@ -512,20 +522,42 @@ class PDFAIProcessor:
                 f"  📦 Chunk {idx + 1}: {chunk_size} chars, " f"success={r['success']}"
             )
 
-        # For documents, wrap all chunks in a document container
-        html_parts = [r["html_content"] for r in successful_results]
+        # Renumber pages continuously across chunks
+        html_parts = []
+        current_page_number = 1
+
+        for chunk_result in successful_results:
+            chunk_html = chunk_result["html_content"]
+
+            # Find all page divs and renumber them
+            # Pattern matches: data-page-number="X" where X is any number
+            def replace_page_number(match):
+                nonlocal current_page_number
+                replacement = f'data-page-number="{current_page_number}"'
+                current_page_number += 1
+                return replacement
+
+            # Replace page numbers in this chunk
+            renumbered_chunk = re.sub(
+                r'data-page-number="\d+"', replace_page_number, chunk_html
+            )
+
+            html_parts.append(renumbered_chunk)
+
+        # Wrap all chunks in document container
         merged = (
             '<div class="a4-document" style="background:#f5f5f5; padding:20px;">\n'
             + "\n\n".join(html_parts)
             + "\n</div>"
         )
 
-        # Count total A4 pages
+        # Count total A4 pages (should equal current_page_number - 1)
         page_count = merged.count('class="a4-page"')
+        total_pages = current_page_number - 1
 
         logger.info(
-            f"📄 Merged {len(successful_results)} chunks into {page_count} A4 pages, "
-            f"total size: {len(merged)} chars"
+            f"📄 Merged {len(successful_results)} chunks into {total_pages} A4 pages "
+            f"(verified: {page_count} page divs), total size: {len(merged)} chars"
         )
         return merged
 
