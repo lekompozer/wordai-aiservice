@@ -1121,11 +1121,20 @@ async def _run_conversion_job(
             chunk_size=request.chunk_size,
         )
 
+        # Extract page numbers from final HTML (to verify merge worked)
+        import re
+
+        page_numbers = re.findall(r'data-page-number="(\d+)"', html_content)
+
         print(f"✅ Job {job_id}: Gemini returned!")
         print(f"   HTML size: {len(html_content)} chars")
+        print(f"   Pages in final HTML: {page_numbers}")
+        print(f"   Total pages: {len(page_numbers)}")
         print(f"   Metadata: {metadata}")
+
         logger.info(f"✅ Job {job_id}: Gemini processing complete!")
         logger.info(f"   HTML size: {len(html_content)} chars")
+        logger.info(f"   Pages: {page_numbers} (total: {len(page_numbers)})")
         logger.info(f"   Metadata: {metadata}")
 
         job_manager.update_progress(job_id, 80)

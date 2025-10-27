@@ -518,16 +518,23 @@ class PDFAIProcessor:
         # Debug: Log individual chunk sizes BEFORE merge
         for idx, r in enumerate(successful_results):
             chunk_size = len(r["html_content"])
+            # Extract original page numbers from this chunk (before renumbering)
+            original_pages = re.findall(r'data-page-number="(\d+)"', r["html_content"])
             logger.info(
-                f"  📦 Chunk {idx + 1}: {chunk_size} chars, " f"success={r['success']}"
+                f"  📦 Chunk {idx + 1}: {chunk_size} chars, "
+                f"{len(original_pages)} pages (original numbers: {original_pages})"
             )
 
         # Renumber pages continuously across chunks
         html_parts = []
         current_page_number = 1
 
-        for chunk_result in successful_results:
+        for chunk_idx, chunk_result in enumerate(successful_results):
             chunk_html = chunk_result["html_content"]
+
+            # Track page numbers BEFORE and AFTER renumbering for this chunk
+            old_page_numbers = re.findall(r'data-page-number="(\d+)"', chunk_html)
+            chunk_start_page = current_page_number
 
             # Find all page divs and renumber them
             # Pattern matches: data-page-number="X" where X is any number
@@ -540,6 +547,13 @@ class PDFAIProcessor:
             # Replace page numbers in this chunk
             renumbered_chunk = re.sub(
                 r'data-page-number="\d+"', replace_page_number, chunk_html
+            )
+
+            chunk_end_page = current_page_number - 1
+            new_page_numbers = list(range(chunk_start_page, current_page_number))
+
+            logger.info(
+                f"  🔢 Chunk {chunk_idx + 1} renumbered: {old_page_numbers} → {new_page_numbers}"
             )
 
             html_parts.append(renumbered_chunk)
