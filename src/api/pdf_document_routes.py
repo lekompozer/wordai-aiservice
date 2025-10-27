@@ -913,11 +913,18 @@ async def convert_document_with_ai_async(
         # This ensures task runs AFTER response is sent and won't be cancelled
         print(f"🔥 Step 7: Add task to FastAPI BackgroundTasks")
         logger.info(f"🚀 Starting background task for job {job_id}...")
-
-        background_tasks.add_task(
-            _run_conversion_job, job_id, document_id, request, user_id
-        )
-
+        
+        try:
+            print(f"🔥 Calling background_tasks.add_task()...")
+            background_tasks.add_task(
+                _run_conversion_job, job_id, document_id, request, user_id
+            )
+            print(f"🔥 background_tasks.add_task() completed successfully")
+        except Exception as e:
+            print(f"❌ ERROR in add_task: {e}")
+            logger.error(f"❌ Failed to add background task: {e}", exc_info=True)
+            raise
+        
         print(f"🔥 Task added to BackgroundTasks")
         logger.info(f"✅ Background task added to FastAPI BackgroundTasks")
 
@@ -1017,6 +1024,11 @@ async def _run_conversion_job(
     user_id: str,
 ):
     """Background task to run AI conversion"""
+    print(f"🔥🔥🔥 === BACKGROUND JOB STARTED ===")
+    print(f"🆔 Job ID: {job_id}")
+    print(f"📄 Document: {document_id}")
+    print(f"👤 User: {user_id}")
+    
     logger.info(f"🔥 === BACKGROUND JOB STARTED ===")
     logger.info(f"🆔 Job ID: {job_id}")
     logger.info(f"📄 Document: {document_id}")
@@ -1026,6 +1038,7 @@ async def _run_conversion_job(
     job_manager = get_job_manager()
 
     try:
+        print(f"🔥 Job {job_id}: Starting AI processing...")
         logger.info(f"🔄 Job {job_id}: Starting AI processing...")
 
         # Update progress
@@ -1043,11 +1056,14 @@ async def _run_conversion_job(
         job_manager.update_progress(job_id, 20)
 
         # Check cache
+        print(f"🔥 Job {job_id}: Checking cache in background job...")
         existing_doc = db_manager.db.documents.find_one(
             {"file_id": document_id, "user_id": user_id}
         )
+        print(f"🔥 Job {job_id}: Cache found={bool(existing_doc)}")
 
         if existing_doc and not request.force_reprocess:
+            print(f"📦 Job {job_id}: Using cached content, skipping AI processing")
             logger.info(f"📦 Job {job_id}: Using cached content")
             job_manager.update_progress(job_id, 90)
 
@@ -1074,19 +1090,26 @@ async def _run_conversion_job(
             return
 
         # Process with AI (slow path)
+        print(f"🔥 Job {job_id}: NO CACHE - Starting AI processing...")
         job_manager.update_progress(job_id, 30)
 
         # Download PDF from R2
+        print(f"🔥 Job {job_id}: Downloading PDF from R2...")
         r2_client = _get_r2_client()
         r2_key = file_doc.get("r2_key")
+        print(f"🔥 R2 key: {r2_key}")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf_path = temp_pdf.name
             await r2_client.download_file(r2_key, temp_pdf_path)
+        
+        print(f"🔥 Job {job_id}: PDF downloaded to {temp_pdf_path}")
 
         job_manager.update_progress(job_id, 40)
 
         # Process with Gemini AI
+        print(f"🤖 Job {job_id}: Calling Gemini AI...")
+        print(f"   Target: {request.target_type}, Chunk size: {request.chunk_size}")
         logger.info(f"🤖 Job {job_id}: Processing with Gemini AI...")
         logger.info(
             f"   Target type: {request.target_type}, Chunk size: {request.chunk_size}"
@@ -1098,6 +1121,9 @@ async def _run_conversion_job(
             chunk_size=request.chunk_size,
         )
 
+        print(f"✅ Job {job_id}: Gemini returned!")
+        print(f"   HTML size: {len(html_content)} chars")
+        print(f"   Metadata: {metadata}")
         logger.info(f"✅ Job {job_id}: Gemini processing complete!")
         logger.info(f"   HTML size: {len(html_content)} chars")
         logger.info(f"   Metadata: {metadata}")
@@ -1141,6 +1167,11 @@ async def _run_conversion_job(
         )
 
         # Log content size for debugging
+        print(f"📊 Job {job_id} completed!")
+        print(f"   content_html={len(html_content)} chars")
+        print(f"   chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}")
+        print(f"   pages={metadata.get('total_a4_pages', 0)}")
+        
         logger.info(
             f"📊 Job {job_id} result: content_html={len(html_content)} chars, "
             f"chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}, "
@@ -1148,16 +1179,22 @@ async def _run_conversion_job(
         )
 
         # Cleanup
+        print(f"🔥 Job {job_id}: Cleaning up temp file...")
         try:
             os.remove(temp_pdf_path)
-        except:
-            pass
+            print(f"✅ Temp file removed")
+        except Exception as e:
+            print(f"⚠️ Failed to remove temp file: {e}")
 
         # Complete job
+        print(f"🔥 Job {job_id}: Calling job_manager.complete_job()...")
         job_manager.complete_job(job_id, result.dict())
+        print(f"✅ Job {job_id}: Job marked as COMPLETED in manager")
         logger.info(f"✅ Job {job_id}: Completed successfully")
 
     except Exception as e:
+        print(f"❌ Job {job_id} EXCEPTION: {str(e)}")
+        print(f"   Exception type: {type(e).__name__}")
         logger.error(f"❌ Job {job_id} failed: {str(e)}", exc_info=True)
         job_manager.fail_job(job_id, str(e))
 
