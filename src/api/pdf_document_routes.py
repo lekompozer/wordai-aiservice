@@ -8,7 +8,16 @@ import tempfile
 import uuid
 from datetime import datetime
 from typing import Optional
-from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, Form, Query
+from fastapi import (
+    APIRouter,
+    File,
+    UploadFile,
+    HTTPException,
+    Depends,
+    Form,
+    Query,
+    BackgroundTasks,
+)
 from fastapi.responses import JSONResponse
 
 from src.models.pdf_models import (
@@ -781,6 +790,7 @@ async def convert_document_with_ai(
 async def convert_document_with_ai_async(
     document_id: str,
     request: ConvertWithAIRequest,
+    background_tasks: BackgroundTasks,  # ADD THIS!
     user_data: dict = Depends(get_current_user),
 ):
     """
@@ -798,6 +808,7 @@ async def convert_document_with_ai_async(
     Args:
         document_id: Document ID to convert
         request: Conversion configuration
+        background_tasks: FastAPI background task manager
 
     Returns:
         ConvertJobStartResponse with result (if cached) OR job_id (if processing)
@@ -898,20 +909,19 @@ async def convert_document_with_ai_async(
         )
         print(f"🔥 Job created: {job}")
 
-        # Start background task (fire and forget)
-        import asyncio
-
-        print(f"🔥 Step 7: Create asyncio task")
+        # Start background task using FastAPI's BackgroundTasks
+        # This ensures task runs AFTER response is sent and won't be cancelled
+        print(f"🔥 Step 7: Add task to FastAPI BackgroundTasks")
         logger.info(f"🚀 Starting background task for job {job_id}...")
-        task = asyncio.create_task(
-            _run_conversion_job(job_id, document_id, request, user_id)
-        )
-        print(f"🔥 Task created: {task}")
 
-        # CRITICAL: Store task reference to prevent garbage collection
-        job.task = task
-        print(f"🔥 Task stored in job.task")
-        logger.info(f"✅ Background task created and stored: {task}")        # Return job info for polling
+        background_tasks.add_task(
+            _run_conversion_job, job_id, document_id, request, user_id
+        )
+
+        print(f"🔥 Task added to BackgroundTasks")
+        logger.info(f"✅ Background task added to FastAPI BackgroundTasks")
+
+        # Return job info for polling
         response = ConvertJobStartResponse(
             success=True,
             job_id=job_id,
