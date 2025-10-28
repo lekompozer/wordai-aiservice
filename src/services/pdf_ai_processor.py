@@ -114,11 +114,18 @@ You are an expert presentation converter. Convert this PDF presentation into cle
 **CRITICAL REQUIREMENT:**
 Each PDF page = ONE slide. Process ALL pages in this PDF as individual slides.
 
+**⚠️ CRITICAL OUTPUT STRUCTURE:**
+- Each slide MUST use class="slide-page" (NOT "slide")
+- Add data-slide-number attribute for easy parsing
+- Return ONLY the slide-page divs
+- DO NOT include DOCTYPE, html, head, or body tags
+- All styles MUST be inline (no style tags or external CSS)
+
 **OUTPUT FORMAT:**
-Return valid HTML with one slide per PDF page:
+Return valid HTML with one slide per PDF page using the slide-page class:
 
 ```html
-<div class="slide" style="width:1920px; height:1080px; position:relative; background:white; padding:60px; box-sizing:border-box; page-break-after:always;">
+<div class="slide-page" data-slide-number="1" style="width:1920px; height:1080px; position:relative; background:white; padding:60px; box-sizing:border-box; page-break-after:always;">
   <h1 style="font-size:64px; font-weight:bold; margin-bottom:40px; color:#1a1a1a;">Slide Title</h1>
   <h2 style="font-size:36px; color:#666; margin-bottom:50px;">Subtitle or tagline</h2>
 
@@ -133,9 +140,23 @@ Return valid HTML with one slide per PDF page:
   <img src="image1.jpg" alt="Chart" style="max-width:1200px; max-height:600px; margin:30px auto; display:block;">
 </div>
 
-<div class="slide" style="width:1920px; height:1080px; position:relative; background:white; padding:60px; box-sizing:border-box; page-break-after:always;">
+<div class="slide-page" data-slide-number="2" style="width:1920px; height:1080px; position:relative; background:white; padding:60px; box-sizing:border-box; page-break-after:always;">
   <h1 style="font-size:64px; font-weight:bold; margin-bottom:40px;">Next Slide Title</h1>
   <p style="font-size:32px; line-height:1.5; color:#333;">Content for second slide goes here...</p>
+</div>
+
+<div class="slide-page" data-slide-number="3" style="width:1920px; height:1080px; position:relative; background:#f5f5f5; padding:60px; box-sizing:border-box; page-break-after:always;">
+  <h1 style="font-size:64px; font-weight:bold; margin-bottom:40px;">Another Slide</h1>
+  <table style="width:100%; border-collapse:collapse; font-size:24px;">
+    <tr style="background:#333; color:white;">
+      <th style="padding:15px; border:1px solid #ccc;">Header 1</th>
+      <th style="padding:15px; border:1px solid #ccc;">Header 2</th>
+    </tr>
+    <tr>
+      <td style="padding:15px; border:1px solid #ccc;">Data 1</td>
+      <td style="padding:15px; border:1px solid #ccc;">Data 2</td>
+    </tr>
+  </table>
 </div>
 ```
 
@@ -147,6 +168,7 @@ Return valid HTML with one slide per PDF page:
 - Body text: 28-32px, line-height 1.5-1.6
 - Bullet points: 28px with 20px spacing
 - Images: Max 1200px wide or 600px tall
+- Tables: 24px font, proper borders and padding
 - Use pixels (px) for all measurements
 - High contrast colors for projection
 
@@ -156,18 +178,21 @@ Return valid HTML with one slide per PDF page:
 - Image slide: Title + large image
 - Bullet slide: Title + bulleted list
 - Split slide: Title + two columns
+- Table slide: Title + data table
 
 **RULES:**
-- Each slide MUST have class="slide"
+- Each slide MUST have class="slide-page" (this makes frontend parsing easier)
+- Each slide MUST have data-slide-number attribute starting from 1
 - Each slide MUST be 1920x1080 px exactly
 - NO markdown formatting (use HTML only)
 - NO code blocks or backticks in output
+- NO DOCTYPE, html, head, body tags (output starts directly with first slide-page div)
 - Maintain visual hierarchy from original
-- Use inline styles for all formatting
-- Separate slides with blank lines
-- Extract ALL slides from the PDF (one PDF page = one HTML slide)
+- Use inline styles for ALL formatting (no external CSS or style tags)
+- Preserve colors, fonts, and layouts from original PDF
+- Extract ALL slides from the PDF (one PDF page = one HTML slide-page)
 
-Convert ALL pages from this PDF presentation into FullHD slides:
+Convert ALL pages from this PDF presentation into FullHD slides with slide-page class:
 """
 
 
@@ -344,13 +369,23 @@ class PDFAIProcessor:
 
             processing_time = (datetime.now() - start_time).total_seconds()
 
-            # Count slides in output
-            slide_count = html_content.count('class="slide"')
+            # Count slides in output (support both old "slide" and new "slide-page" classes)
+            slide_count = html_content.count('class="slide-page"')
+            if slide_count == 0:
+                # Fallback to old class name for backward compatibility
+                slide_count = html_content.count('class="slide"')
+
+            # Extract slide numbers for verification (new format)
+            import re
+            slide_numbers = re.findall(r'data-slide-number="(\d+)"', html_content)
+            if slide_numbers:
+                logger.info(f"  📊 Extracted slide numbers: {slide_numbers}")
 
             # Metadata
             metadata = {
                 "total_pages": total_pages,
                 "total_slides": slide_count,
+                "slide_numbers": slide_numbers if slide_numbers else None,
                 "ai_provider": "gemini",
                 "document_type": "slide",
                 "format": "FullHD_1920x1080",
