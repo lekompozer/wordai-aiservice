@@ -98,6 +98,7 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
     """
     Edit document content based on user's natural language instruction
     Uses Claude Haiku 4.5 for fast and accurate content editing
+    Context-aware: automatically adapts for A4 documents vs Slides
     """
     try:
         logger.info(f"🎨 Edit by AI request from user {user_info['uid']}")
@@ -105,15 +106,27 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
             f"Document ID: {request.document_id}, Prompt: {request.user_prompt}"
         )
 
-        # Use Claude service for HTML editing
+        # Determine document type from database
+        doc_type = "doc"  # default
+        try:
+            doc = document_manager.get_document(request.document_id, user_info["uid"])
+            doc_type = doc.get("type", "doc")  # "doc" or "slide"
+            logger.info(f"📄 Document type: {doc_type}")
+        except Exception as e:
+            logger.warning(
+                f"Could not get document type from DB: {e}, using default 'doc'"
+            )
+
+        # Use Claude service for HTML editing with document type context
         from src.services.claude_service import get_claude_service
 
         claude = get_claude_service()
 
-        # Call Claude with optimized edit_html method
+        # Call Claude with document type awareness
         edited_html = await claude.edit_html(
             html_content=request.context_html,
             user_instruction=request.user_prompt,
+            document_type=doc_type,  # Pass document type for context-aware editing
         )
 
         logger.info(f"✅ Edit by AI completed for document {request.document_id}")

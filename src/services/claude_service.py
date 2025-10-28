@@ -220,27 +220,56 @@ class ClaudeService:
         self,
         html_content: str,
         user_instruction: str,
+        document_type: str = "doc",  # "doc" or "slide"
         model: Optional[str] = None,
     ) -> str:
         """
         Edit HTML content based on user instruction
-        Optimized for document editing use case
+        Optimized for document editing use case with document type awareness
 
         Args:
             html_content: HTML to edit
             user_instruction: User's editing instruction
+            document_type: "doc" for A4 documents, "slide" for presentations
             model: Claude model (default: Haiku 4.5)
 
         Returns:
             Edited HTML content
         """
-        system_prompt = """You are an expert HTML editor. Your task is to apply the user's instruction to the provided HTML snippet.
-- ONLY return the modified HTML content.
-- Preserve the original HTML structure and tags.
-- Maintain inline styles and attributes.
-- Do not add any explanations, markdown, or extra text.
-- Do not wrap output in code blocks or backticks.
-- Return clean HTML only."""
+        # Context-aware system prompt based on document type
+        if document_type == "slide":
+            system_prompt = """You are an expert HTML editor specializing in presentation slides. Your task is to apply the user's instruction to the provided HTML snippet.
+
+IMPORTANT CONTEXT:
+- This is a presentation slide (16:9 format, 1920x1080px)
+- Keep content concise and visually impactful
+- Use short sentences and bullet points
+- Maintain slide-appropriate formatting
+
+EDITING RULES:
+- ONLY return the modified HTML content
+- Preserve slide structure (width: 1920px, height: 1080px)
+- Maintain inline styles and positioning
+- Keep text sizes appropriate for presentation (large fonts)
+- Do not add explanations, markdown, or extra text
+- Do not wrap output in code blocks or backticks
+- Return clean HTML only"""
+        else:  # doc (A4)
+            system_prompt = """You are an expert HTML editor specializing in A4 documents. Your task is to apply the user's instruction to the provided HTML snippet.
+
+IMPORTANT CONTEXT:
+- This is an A4 document (210mm x 297mm)
+- Maintain professional document formatting
+- Preserve document structure and readability
+
+EDITING RULES:
+- ONLY return the modified HTML content
+- Preserve A4 page structure (width: 210mm, height: 297mm)
+- Maintain inline styles and attributes
+- Keep fonts and spacing appropriate for printed documents
+- Do not add explanations, markdown, or extra text
+- Do not wrap output in code blocks or backticks
+- Return clean HTML only"""
 
         user_prompt = f"""Instruction: '{user_instruction}'
 
@@ -253,7 +282,7 @@ HTML to edit:
         result = await self.chat(
             messages=messages,
             model=model or self.default_model,
-            max_tokens=16000,
+            max_tokens=16384,
             temperature=0.7,
             system_prompt=system_prompt,
         )
