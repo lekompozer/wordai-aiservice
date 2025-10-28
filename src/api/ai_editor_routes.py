@@ -97,7 +97,7 @@ class AIEditorResponse(BaseModel):
 async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_auth)):
     """
     Edit document content based on user's natural language instruction
-    Uses Gemini 2.5 Pro for intelligent content editing
+    Uses Claude Haiku 4.5 for fast and accurate content editing
     """
     try:
         logger.info(f"🎨 Edit by AI request from user {user_info['uid']}")
@@ -105,32 +105,15 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
             f"Document ID: {request.document_id}, Prompt: {request.user_prompt}"
         )
 
-        # Build prompt for AI
-        prompt = f"""You are an expert HTML editor. Your task is to apply the user's instruction to the provided HTML snippet.
-- ONLY return the modified HTML content.
-- Preserve the original HTML structure and tags.
-- Do not add any explanations, markdown, or extra text.
+        # Use Claude service for HTML editing
+        from src.services.claude_service import get_claude_service
 
-Instruction: '{request.user_prompt}'
+        claude = get_claude_service()
 
-HTML to edit:
-{request.context_html}"""
-
-        # Call AI service (Gemini Pro)
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an expert HTML editor. You only return clean HTML without any markdown or explanations.",
-            },
-            {"role": "user", "content": prompt},
-        ]
-
-        # Get response from AI (non-streaming)
-        edited_html = await ai_chat_service.chat(
-            provider=AIProvider.GEMINI_PRO,
-            messages=messages,
-            temperature=0.7,
-            max_tokens=8000,
+        # Call Claude with optimized edit_html method
+        edited_html = await claude.edit_html(
+            html_content=request.context_html,
+            user_instruction=request.user_prompt,
         )
 
         logger.info(f"✅ Edit by AI completed for document {request.document_id}")
