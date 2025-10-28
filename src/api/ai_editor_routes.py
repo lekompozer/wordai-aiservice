@@ -105,6 +105,19 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
         logger.info(
             f"Document ID: {request.document_id}, Prompt: {request.user_prompt}"
         )
+        
+        # Log content size for debugging
+        content_length = len(request.context_html)
+        logger.info(f"📊 Content HTML length: {content_length:,} chars")
+        
+        # Check content size (Claude Haiku supports 200K tokens ≈ 800K chars)
+        MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
+        if content_length > MAX_CONTENT_SIZE:
+            logger.error(f"❌ Content too large: {content_length:,} chars")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Content too large ({content_length:,} chars). Please edit in smaller chunks or use selection mode."
+            )
 
         # Determine document type from database
         doc_type = "doc"  # default
@@ -133,6 +146,9 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
 
         return AIEditorResponse(success=True, edited_html=edited_html.strip())
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"❌ Edit by AI failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -213,6 +229,19 @@ async def format_document(
     try:
         logger.info(f"✨ Format request from user {user_info['uid']}")
         logger.info(f"Document ID: {request.document_id}, Scope: {request.scope}")
+        
+        # Log content size for debugging
+        content_length = len(request.context_html)
+        logger.info(f"📊 Content HTML length: {content_length:,} chars")
+        
+        # Check content size (Claude Haiku supports 200K tokens ≈ 800K chars)
+        MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
+        if content_length > MAX_CONTENT_SIZE:
+            logger.error(f"❌ Content too large: {content_length:,} chars (max: {MAX_CONTENT_SIZE:,})")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Content too large ({content_length:,} chars). Please format in smaller chunks or use selection mode."
+            )
 
         # Determine document type
         doc_type = request.document_type
@@ -228,6 +257,8 @@ async def format_document(
                     f"Could not get document type from DB: {e}, using default 'doc'"
                 )
                 doc_type = "doc"
+
+        logger.info(f"📝 Document type detected: {doc_type}")
 
         # Use Claude service with appropriate formatting method
         from src.services.claude_service import get_claude_service
@@ -252,6 +283,9 @@ async def format_document(
 
         return AIEditorResponse(success=True, edited_html=formatted_html.strip())
 
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"❌ Formatting failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

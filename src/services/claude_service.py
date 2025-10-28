@@ -35,9 +35,10 @@ class ClaudeService:
         max_tokens: int = 16000,
         temperature: float = 0.7,
         system_prompt: Optional[str] = None,
+        max_retries: int = 3,
     ) -> str:
         """
-        Send chat request to Claude (non-streaming)
+        Send chat request to Claude (non-streaming) with retry logic
 
         Args:
             messages: List of message dicts with 'role' and 'content'
@@ -45,6 +46,7 @@ class ClaudeService:
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (0-1)
             system_prompt: Optional system prompt
+            max_retries: Maximum number of retries for transient errors
 
         Returns:
             Response text from Claude
@@ -80,39 +82,61 @@ class ClaudeService:
 
         logger.info(f"🤖 Calling Claude API: {model}, {len(claude_messages)} messages")
 
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    self.api_url,
-                    headers={
-                        "x-api-key": self.api_key,
-                        "anthropic-version": self.api_version,
-                        "content-type": "application/json",
-                    },
-                    json=payload,
-                )
+        # Retry logic for transient errors (429, 529, 500, 503)
+        import asyncio
+        
+        for attempt in range(max_retries):
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(
+                        self.api_url,
+                        headers={
+                            "x-api-key": self.api_key,
+                            "anthropic-version": self.api_version,
+                            "content-type": "application/json",
+                        },
+                        json=payload,
+                    )
 
-                response.raise_for_status()
-                result = response.json()
+                    response.raise_for_status()
+                    result = response.json()
 
-                # Extract text from response
-                content = result.get("content", [])
-                if content and len(content) > 0:
-                    text = content[0].get("text", "")
-                    logger.info(f"✅ Claude response: {len(text)} chars")
-                    return text
+                    # Extract text from response
+                    content = result.get("content", [])
+                    if content and len(content) > 0:
+                        text = content[0].get("text", "")
+                        logger.info(f"✅ Claude response: {len(text)} chars")
+                        return text
+                    else:
+                        logger.error("❌ No content in Claude response")
+                        return ""
+
+            except httpx.HTTPStatusError as e:
+                status_code = e.response.status_code
+                error_text = e.response.text
+                
+                # Retryable errors: 429 (rate limit), 500 (server error), 503 (unavailable), 529 (overloaded)
+                if status_code in [429, 500, 503, 529] and attempt < max_retries - 1:
+                    wait_time = (2 ** attempt) + 1  # Exponential backoff: 2s, 5s, 9s
+                    logger.warning(
+                        f"⚠️ Claude API error {status_code} (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {wait_time}s... Error: {error_text}"
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
                 else:
-                    logger.error("❌ No content in Claude response")
-                    return ""
-
-        except httpx.HTTPStatusError as e:
-            logger.error(
-                f"❌ Claude API error: {e.response.status_code} - {e.response.text}"
-            )
-            raise
-        except Exception as e:
-            logger.error(f"❌ Claude request failed: {e}")
-            raise
+                    # Non-retryable error or max retries reached
+                    logger.error(
+                        f"❌ Claude API error: {status_code} - {error_text}"
+                    )
+                    raise
+                    
+            except Exception as e:
+                logger.error(f"❌ Claude request failed: {e}")
+                raise
+        
+        # Should not reach here
+        raise Exception("Claude API failed after max retries")
 
     async def chat_stream(
         self,
