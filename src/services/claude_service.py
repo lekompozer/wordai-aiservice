@@ -260,6 +260,123 @@ HTML to edit:
 
         return result.strip()
 
+    async def format_document_html(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> str:
+        """
+        Format and beautify document (A4) HTML content
+        Optimized for standard document formatting
+
+        Args:
+            html_content: HTML to format
+            user_query: Optional additional user instruction
+            model: Claude model (default: Haiku 4.5)
+
+        Returns:
+            Formatted HTML content
+        """
+        system_prompt = """You are an expert document formatter. Your task is to format and beautify document content.
+
+FORMATTING RULES FOR DOCUMENTS:
+- Correct grammar, spelling, and punctuation
+- Ensure consistent spacing and capitalization
+- Fix paragraph alignment and indentation
+- Standardize heading hierarchy (H1, H2, H3)
+- Improve sentence structure for clarity and readability
+- Format lists with proper numbering/bullets
+- Maintain professional document styling
+- Ensure consistent font styles and sizes
+- Clean up extra whitespace and line breaks
+- Preserve the original meaning and intent
+- Keep inline styles intact
+
+OUTPUT REQUIREMENTS:
+- Return ONLY the formatted HTML
+- Preserve all HTML structure, tags, and inline styles
+- Do not add explanations or markdown
+- Do not wrap in code blocks or backticks
+- Return clean, well-formatted HTML only"""
+
+        user_prompt = "Format and beautify this document content"
+        if user_query:
+            user_prompt += f". Additional instruction: {user_query}"
+
+        user_prompt += f":\n\n{html_content}"
+
+        messages = [{"role": "user", "content": user_prompt}]
+
+        result = await self.chat(
+            messages=messages,
+            model=model or self.default_model,
+            max_tokens=16384,
+            temperature=0.3,  # Lower temp for consistent formatting
+            system_prompt=system_prompt,
+        )
+
+        return result.strip()
+
+    async def format_slide_html(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> str:
+        """
+        Format and beautify presentation slide HTML content
+        Optimized for slide formatting (concise, visual)
+
+        Args:
+            html_content: Slide HTML to format
+            user_query: Optional additional user instruction
+            model: Claude model (default: Haiku 4.5)
+
+        Returns:
+            Formatted slide HTML content
+        """
+        system_prompt = """You are an expert presentation formatter. Your task is to format and beautify slide content.
+
+FORMATTING RULES FOR SLIDES:
+- Keep content concise and impactful
+- Use short, punchy sentences (avoid long paragraphs)
+- Create clear bullet points with proper hierarchy
+- Ensure consistent font sizes and styling for visual appeal
+- Optimize text placement for 16:9 slide layout (1920x1080)
+- Use appropriate spacing and margins
+- Bold important keywords and headings
+- Maintain professional slide aesthetics
+- Remove unnecessary words (slides should be scannable)
+- Use parallel structure in bullet points
+- Keep inline styles for positioning and colors
+
+OUTPUT REQUIREMENTS:
+- Return ONLY the formatted HTML
+- Preserve all HTML structure, positioning styles, and attributes
+- Maintain width/height/position styles critical for slide layout
+- Do not add explanations or markdown
+- Do not wrap in code blocks or backticks
+- Return clean, well-formatted slide HTML only"""
+
+        user_prompt = "Format and beautify this presentation slide content"
+        if user_query:
+            user_prompt += f". Additional instruction: {user_query}"
+
+        user_prompt += f":\n\n{html_content}"
+
+        messages = [{"role": "user", "content": user_prompt}]
+
+        result = await self.chat(
+            messages=messages,
+            model=model or self.default_model,
+            max_tokens=16384,
+            temperature=0.3,  # Lower temp for consistent formatting
+            system_prompt=system_prompt,
+        )
+
+        return result.strip()
+
 
 # Singleton instance
 _claude_service = None

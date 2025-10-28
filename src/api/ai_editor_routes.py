@@ -193,8 +193,9 @@ async def format_document(
     request: AIFormatRequest, user_info: dict = Depends(require_auth)
 ):
     """
-    Format and clean up document content with context-aware instructions
-    Uses Gemini 2.5 Pro for intelligent formatting
+    Format and clean up document/slide content with context-aware instructions
+    Uses Claude Haiku 4.5 for fast and intelligent formatting
+    Supports both A4 documents and presentation slides
     """
     try:
         logger.info(f"✨ Format request from user {user_info['uid']}")
@@ -215,44 +216,24 @@ async def format_document(
                 )
                 doc_type = "doc"
 
-        # Build dynamic prompt based on document type
+        # Use Claude service with appropriate formatting method
+        from src.services.claude_service import get_claude_service
+
+        claude = get_claude_service()
+
+        # Call appropriate formatting method based on document type
         if doc_type == DocumentType.SLIDE:
-            base_instruction = "You are formatting content for a presentation slide. Be concise and visually structured. Use short sentences and bullet points. The output must fit within a standard 16:9 slide."
-        elif doc_type == DocumentType.NOTE:
-            base_instruction = "You are formatting notes. Use bullet points, bolding, and lists to organize information clearly and hierarchically."
-        else:  # doc (default)
-            base_instruction = "You are formatting a standard document. Correct grammar, spelling, and punctuation. Ensure consistent spacing and capitalization. Improve sentence structure for clarity."
-
-        # Add user query if provided
-        user_instruction = ""
-        if request.user_query:
-            user_instruction = f"\n\nAdditional user instruction: {request.user_query}"
-
-        # Build final prompt
-        prompt = f"""{base_instruction}{user_instruction}
-
-- ONLY return the cleaned-up HTML content.
-- Preserve the original meaning and essential HTML structure.
-
-HTML to format:
-{request.context_html}"""
-
-        # Call AI service (Gemini Pro)
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an expert document formatter. You only return clean HTML without any markdown or explanations.",
-            },
-            {"role": "user", "content": prompt},
-        ]
-
-        # Get response from AI (non-streaming)
-        formatted_html = await ai_chat_service.chat(
-            provider=AIProvider.GEMINI_PRO,
-            messages=messages,
-            temperature=0.5,
-            max_tokens=8000,
-        )
+            logger.info("📊 Formatting as SLIDE (presentation)")
+            formatted_html = await claude.format_slide_html(
+                html_content=request.context_html,
+                user_query=request.user_query,
+            )
+        else:  # doc or note
+            logger.info(f"📄 Formatting as DOCUMENT (type: {doc_type})")
+            formatted_html = await claude.format_document_html(
+                html_content=request.context_html,
+                user_query=request.user_query,
+            )
 
         logger.info(f"✅ Formatting completed for document {request.document_id}")
 
