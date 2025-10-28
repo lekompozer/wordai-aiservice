@@ -377,6 +377,7 @@ class PDFAIProcessor:
 
             # Extract slide numbers for verification (new format)
             import re
+
             slide_numbers = re.findall(r'data-slide-number="(\d+)"', html_content)
             if slide_numbers:
                 logger.info(f"  📊 Extracted slide numbers: {slide_numbers}")
