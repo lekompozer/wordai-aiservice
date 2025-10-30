@@ -155,7 +155,7 @@ Tài liệu này mô tả lộ trình triển khai chi tiết cho hệ thống O
 **📝 Documentation:**
 - ✅ API Technical Specs: `docs/ONLINE_TEST_API_PHASE1.md` (comprehensive, no code)
 - ✅ Roadmap Updated: This document with checkmarks
-- ✅ Git Commits: 
+- ✅ Git Commits:
   - `569ef65` - Database initialization script
   - `0f4ca4f` - Phase 1 complete backend implementation
 

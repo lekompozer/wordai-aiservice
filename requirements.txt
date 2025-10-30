@@ -22,6 +22,10 @@ qdrant-client==1.15.0
 # Redis for caching and sessions
 redis==5.0.1
 
+# WebSocket support for real-time features (Phase 2)
+python-socketio==5.11.0
+python-engineio==4.9.0
+
 # Firebase Admin SDK for authentication
 firebase-admin==6.2.0
 

@@ -576,3 +576,565 @@ async def get_submission_detail(
     except Exception as e:
         logger.error(f"❌ Failed to get submission detail: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Phase 2: HTTP Fallback Endpoints for Real-time Progress ==========
+
+
+class SaveProgressRequest(BaseModel):
+    """Request model for saving progress (HTTP fallback)"""
+
+    session_id: str = Field(..., description="Session ID from /start endpoint")
+    answers: dict = Field(..., description="Current answers dict (question_id -> answer_key)")
+    time_remaining_seconds: Optional[int] = Field(
+        None, description="Time remaining in seconds"
+    )
+
+
+class ProgressResponse(BaseModel):
+    """Response model for progress retrieval"""
+
+    session_id: str
+    current_answers: dict
+    time_remaining_seconds: Optional[int]
+    started_at: str
+    last_saved_at: str
+    is_completed: bool
+
+
+@router.post("/{test_id}/progress/save", response_model=dict, tags=["Phase 2 - Auto-save"])
+async def save_test_progress(
+    test_id: str,
+    request: SaveProgressRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    HTTP fallback for saving test progress (for clients without WebSocket)
+    Saves current answers and time remaining to database
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Verify test exists
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Verify session exists and belongs to user
+        session = await mongo.test_progress.find_one(
+            {"session_id": request.session_id}
+        )
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if session["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Session does not belong to user"
+            )
+
+        if str(session["test_id"]) != test_id:
+            raise HTTPException(
+                status_code=400, detail="Session does not belong to this test"
+            )
+
+        if session.get("is_completed"):
+            raise HTTPException(status_code=409, detail="Session already completed")
+
+        # Update progress in database
+        update_data = {
+            "current_answers": request.answers,
+            "last_saved_at": datetime.utcnow(),
+        }
+
+        if request.time_remaining_seconds is not None:
+            update_data["time_remaining_seconds"] = request.time_remaining_seconds
+
+        result = await mongo.test_progress.update_one(
+            {"session_id": request.session_id}, {"$set": update_data}
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to save progress")
+
+        logger.info(
+            f"💾 Saved progress for session {request.session_id}: "
+            f"{len(request.answers)} answers"
+        )
+
+        return {
+            "success": True,
+            "session_id": request.session_id,
+            "saved_at": datetime.utcnow().isoformat(),
+            "answers_count": len(request.answers),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to save progress: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{test_id}/progress", response_model=ProgressResponse, tags=["Phase 2 - Auto-save"])
+async def get_test_progress(
+    test_id: str,
+    session_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get current test progress (HTTP fallback)
+    Useful for resuming tests after reconnection or page refresh
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Verify test exists
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Get session progress
+        session = await mongo.test_progress.find_one({"session_id": session_id})
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        if session["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Session does not belong to user"
+            )
+
+        if str(session["test_id"]) != test_id:
+            raise HTTPException(
+                status_code=400, detail="Session does not belong to this test"
+            )
+
+        return ProgressResponse(
+            session_id=session["session_id"],
+            current_answers=session.get("current_answers", {}),
+            time_remaining_seconds=session.get("time_remaining_seconds"),
+            started_at=session["started_at"].isoformat(),
+            last_saved_at=session.get("last_saved_at", session["started_at"]).isoformat(),
+            is_completed=session.get("is_completed", False),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get progress: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{test_id}/resume", response_model=dict, tags=["Phase 2 - Auto-save"])
+async def resume_test_session(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Resume an incomplete test session
+    Returns the most recent session if one exists
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Verify test exists
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Find most recent incomplete session for this user and test
+        session = await mongo.test_progress.find_one(
+            {"user_id": user_id, "test_id": ObjectId(test_id), "is_completed": False},
+            sort=[("started_at", -1)],
+        )
+
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail="No incomplete session found. Please start a new test.",
+            )
+
+        # Calculate elapsed time
+        elapsed_seconds = int(
+            (datetime.utcnow() - session["started_at"]).total_seconds()
+        )
+        time_limit_seconds = test_doc["time_limit_minutes"] * 60
+        time_remaining = max(0, time_limit_seconds - elapsed_seconds)
+
+        # If time ran out, mark session as completed and return error
+        if time_remaining == 0:
+            await mongo.test_progress.update_one(
+                {"_id": session["_id"]}, {"$set": {"is_completed": True}}
+            )
+            raise HTTPException(
+                status_code=410,
+                detail="Session expired due to time limit. Please start a new test.",
+            )
+
+        # Update time remaining in database
+        await mongo.test_progress.update_one(
+            {"_id": session["_id"]},
+            {"$set": {"time_remaining_seconds": time_remaining}},
+        )
+
+        return {
+            "session_id": session["session_id"],
+            "current_answers": session.get("current_answers", {}),
+            "time_remaining_seconds": time_remaining,
+            "started_at": session["started_at"].isoformat(),
+            "last_saved_at": session.get("last_saved_at", session["started_at"]).isoformat(),
+            "message": "Session resumed successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to resume session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Phase 3: Test Configuration & Editing ==========
+
+
+class UpdateTestConfigRequest(BaseModel):
+    """Request model for updating test configuration"""
+
+    max_retries: Optional[int] = Field(None, description="Max retry attempts", ge=1, le=20)
+    time_limit_minutes: Optional[int] = Field(
+        None, description="Time limit in minutes", ge=1, le=300
+    )
+    is_active: Optional[bool] = Field(None, description="Active status")
+    title: Optional[str] = Field(None, description="Test title", max_length=200)
+
+
+class UpdateTestQuestionsRequest(BaseModel):
+    """Request model for updating test questions"""
+
+    questions: list = Field(..., description="Updated questions array")
+
+
+class TestPreviewResponse(BaseModel):
+    """Response model for test preview (including correct answers)"""
+
+    test_id: str
+    title: str
+    time_limit_minutes: int
+    max_retries: int
+    is_active: bool
+    total_questions: int
+    questions: list
+    created_at: str
+    updated_at: str
+
+
+@router.patch("/{test_id}/config", response_model=dict, tags=["Phase 3 - Editing"])
+async def update_test_config(
+    test_id: str,
+    request: UpdateTestConfigRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Update test configuration (max_retries, time_limit, status, title)
+    Only the test creator can update configuration
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Verify test exists and user is creator
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only the test creator can update configuration",
+            )
+
+        # Build update data
+        update_data = {"updated_at": datetime.utcnow()}
+
+        if request.max_retries is not None:
+            update_data["max_retries"] = request.max_retries
+
+        if request.time_limit_minutes is not None:
+            update_data["time_limit_minutes"] = request.time_limit_minutes
+
+        if request.is_active is not None:
+            update_data["is_active"] = request.is_active
+
+        if request.title is not None:
+            update_data["title"] = request.title
+
+        # Update in database
+        result = await mongo.online_tests.update_one(
+            {"_id": ObjectId(test_id)}, {"$set": update_data}
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to update configuration")
+
+        logger.info(f"✅ Updated configuration for test {test_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "updated_fields": list(update_data.keys()),
+            "updated_at": update_data["updated_at"].isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update test config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{test_id}/questions", response_model=dict, tags=["Phase 3 - Editing"])
+async def update_test_questions(
+    test_id: str,
+    request: UpdateTestQuestionsRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Update test questions and answers
+    Only the test creator can edit questions
+    Validates question structure before saving
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Verify test exists and user is creator
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only the test creator can edit questions"
+            )
+
+        # Validate questions structure
+        if not request.questions or len(request.questions) == 0:
+            raise HTTPException(
+                status_code=400, detail="At least one question is required"
+            )
+
+        if len(request.questions) > 100:
+            raise HTTPException(
+                status_code=400, detail="Maximum 100 questions allowed"
+            )
+
+        for idx, q in enumerate(request.questions):
+            # Validate required fields
+            if not q.get("question_text"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {idx + 1}: question_text is required",
+                )
+
+            if not q.get("options") or len(q["options"]) < 2:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {idx + 1}: At least 2 options are required",
+                )
+
+            if not q.get("correct_answer_key"):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {idx + 1}: correct_answer_key is required",
+                )
+
+            # Validate correct_answer_key exists in options
+            option_keys = [opt.get("key") for opt in q["options"]]
+            if q["correct_answer_key"] not in option_keys:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
+                    f"not found in options {option_keys}",
+                )
+
+            # Ensure question_id exists (generate if missing)
+            if not q.get("question_id"):
+                q["question_id"] = str(ObjectId())
+
+        # Update questions in database
+        result = await mongo.online_tests.update_one(
+            {"_id": ObjectId(test_id)},
+            {"$set": {"questions": request.questions, "updated_at": datetime.utcnow()}},
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to update questions")
+
+        logger.info(
+            f"✅ Updated {len(request.questions)} questions for test {test_id}"
+        )
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "questions_updated": len(request.questions),
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update questions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{test_id}/preview", response_model=TestPreviewResponse, tags=["Phase 3 - Editing"])
+async def preview_test(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Preview test with all details including correct answers
+    Only the test creator can preview with answers
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Get test document
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only the test creator can preview with answers"
+            )
+
+        return TestPreviewResponse(
+            test_id=str(test_doc["_id"]),
+            title=test_doc["title"],
+            time_limit_minutes=test_doc["time_limit_minutes"],
+            max_retries=test_doc["max_retries"],
+            is_active=test_doc.get("is_active", True),
+            total_questions=len(test_doc["questions"]),
+            questions=test_doc["questions"],  # Includes correct_answer_key
+            created_at=test_doc["created_at"].isoformat(),
+            updated_at=test_doc.get("updated_at", test_doc["created_at"]).isoformat(),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to preview test: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{test_id}", response_model=dict, tags=["Phase 3 - Editing"])
+async def delete_test(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Delete a test (soft delete by setting is_active=false)
+    Only the test creator can delete
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Verify test exists and user is creator
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only the test creator can delete"
+            )
+
+        # Soft delete by setting is_active=false
+        result = await mongo.online_tests.update_one(
+            {"_id": ObjectId(test_id)},
+            {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to delete test")
+
+        logger.info(f"🗑️ Soft deleted test {test_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "message": "Test deactivated successfully",
+            "deleted_at": datetime.utcnow().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete test: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{test_id}/attempts", response_model=dict, tags=["Phase 3 - Editing"])
+async def get_test_attempts(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get user's attempt history for a specific test
+    Shows how many times attempted and remaining attempts
+    """
+    try:
+        user_id = user_info["user_id"]
+        mongo = get_mongodb_service()
+
+        # Verify test exists
+        test_doc = await mongo.online_tests.find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Count submissions for this user and test
+        submissions = await mongo.test_submissions.find(
+            {"test_id": ObjectId(test_id), "user_id": user_id}
+        ).sort("submitted_at", -1).to_list(length=None)
+
+        attempts_used = len(submissions)
+        max_retries = test_doc.get("max_retries", 3)
+        attempts_remaining = max(0, max_retries - attempts_used)
+
+        # Get best score
+        best_score = 0
+        if submissions:
+            best_score = max(sub.get("score", 0) for sub in submissions)
+
+        return {
+            "test_id": test_id,
+            "test_title": test_doc["title"],
+            "max_retries": max_retries,
+            "attempts_used": attempts_used,
+            "attempts_remaining": attempts_remaining,
+            "best_score": best_score,
+            "can_retake": attempts_remaining > 0,
+            "submissions": [
+                {
+                    "submission_id": str(sub["_id"]),
+                    "score": sub.get("score", 0),
+                    "is_passed": sub.get("is_passed", False),
+                    "attempt_number": sub.get("attempt_number", 0),
+                    "submitted_at": sub["submitted_at"].isoformat(),
+                }
+                for sub in submissions
+            ],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get attempts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

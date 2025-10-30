@@ -131,6 +131,9 @@ from src.api.encrypted_library_folder_routes import (
 from src.api.online_test_routes import router as online_test_router
 from src.api.encrypted_folder_routes import router as encrypted_folder_router
 
+# ✅ ADDED: WebSocket service for Online Test Phase 2 (Real-time auto-save)
+from src.services.test_websocket_service import get_websocket_service
+
 # ✅ ADDED: Share API for File Sharing System (Phase 2)
 from src.api.share_routes import router as share_router
 
@@ -603,6 +606,11 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Online Test API - Test generation and taking (Phase 1)
     app.include_router(online_test_router, tags=["Online Tests - Phase 1"])
+
+    # ✅ ADDED: WebSocket support for Online Test Phase 2 (Real-time auto-save)
+    websocket_service = get_websocket_service()
+    app.mount("/ws", websocket_service.get_asgi_app())
+    print("🔌 WebSocket mounted at /ws for Online Test real-time features")
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)
