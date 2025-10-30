@@ -27,19 +27,19 @@ class TestWebSocketService:
             logger=False,
             engineio_logger=False,
         )
-        
+
         # Track active sessions: {session_id: {sid: str, user_id: str, test_id: str}}
         self.active_sessions: Dict[str, Dict] = {}
-        
+
         # Track which socket IDs belong to which sessions
         self.sid_to_session: Dict[str, str] = {}
-        
+
         self._register_event_handlers()
         logger.info("🔌 WebSocket Service initialized (Socket.IO)")
 
     def _register_event_handlers(self):
         """Register all WebSocket event handlers"""
-        
+
         @self.sio.event
         async def connect(sid, environ, auth):
             """Handle client connection"""
@@ -57,7 +57,7 @@ class TestWebSocketService:
                     f"❌ Client {sid} disconnected from session {session_id} "
                     f"(user: {session_info.get('user_id')}, test: {session_info.get('test_id')})"
                 )
-                
+
                 # Update connection status in database
                 try:
                     mongo = get_mongodb_service()
@@ -72,7 +72,7 @@ class TestWebSocketService:
                     )
                 except Exception as e:
                     logger.error(f"Error updating disconnect status: {e}")
-                
+
                 # Remove from active sessions (but keep in DB for reconnection)
                 del self.active_sessions[session_id]
             else:
@@ -92,7 +92,9 @@ class TestWebSocketService:
                 if not all([session_id, user_id, test_id]):
                     await self.sio.emit(
                         "error",
-                        {"message": "Missing required fields: session_id, user_id, test_id"},
+                        {
+                            "message": "Missing required fields: session_id, user_id, test_id"
+                        },
                         to=sid,
                     )
                     return
@@ -154,9 +156,11 @@ class TestWebSocketService:
                         "session_id": session_id,
                         "current_answers": session.get("current_answers", {}),
                         "time_remaining_seconds": session.get("time_remaining_seconds"),
-                        "started_at": session.get("started_at").isoformat()
-                        if session.get("started_at")
-                        else None,
+                        "started_at": (
+                            session.get("started_at").isoformat()
+                            if session.get("started_at")
+                            else None
+                        ),
                     },
                     to=sid,
                 )
@@ -203,7 +207,9 @@ class TestWebSocketService:
                 if self.active_sessions[session_id]["sid"] != sid:
                     await self.sio.emit(
                         "error",
-                        {"message": "Unauthorized: Session belongs to different client"},
+                        {
+                            "message": "Unauthorized: Session belongs to different client"
+                        },
                         to=sid,
                     )
                     return
@@ -277,7 +283,7 @@ class TestWebSocketService:
                     "last_heartbeat_at": datetime.utcnow(),
                     "connection_status": "active",
                 }
-                
+
                 if time_remaining is not None:
                     update_data["time_remaining_seconds"] = time_remaining
 
@@ -288,7 +294,10 @@ class TestWebSocketService:
                 # Send acknowledgment
                 await self.sio.emit(
                     "heartbeat_ack",
-                    {"session_id": session_id, "timestamp": datetime.utcnow().isoformat()},
+                    {
+                        "session_id": session_id,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    },
                     to=sid,
                 )
 
@@ -315,10 +324,10 @@ class TestWebSocketService:
             """
             try:
                 session_id = data.get("session_id")
-                
+
                 if session_id in self.active_sessions:
                     session_info = self.active_sessions[session_id]
-                    
+
                     # Update status in database
                     mongo = get_mongodb_service()
                     await mongo.test_progress.update_one(
@@ -330,18 +339,21 @@ class TestWebSocketService:
                             }
                         },
                     )
-                    
+
                     # Remove from tracking
                     del self.active_sessions[session_id]
                     if sid in self.sid_to_session:
                         del self.sid_to_session[sid]
-                    
+
                     logger.info(f"👋 Client {sid} left session {session_id}")
-                    
+
                     # Acknowledge leave
                     await self.sio.emit(
                         "session_left",
-                        {"session_id": session_id, "message": "Session left successfully"},
+                        {
+                            "session_id": session_id,
+                            "message": "Session left successfully",
+                        },
                         to=sid,
                     )
 
@@ -378,7 +390,7 @@ class TestWebSocketService:
                 # Merge answers with existing data
                 mongo = get_mongodb_service()
                 session = await mongo.test_progress.find_one({"session_id": session_id})
-                
+
                 if not session:
                     await self.sio.emit(
                         "error",
@@ -414,7 +426,9 @@ class TestWebSocketService:
                     to=sid,
                 )
 
-                logger.info(f"🔄 Synced progress for session {session_id} ({len(answers)} answers)")
+                logger.info(
+                    f"🔄 Synced progress for session {session_id} ({len(answers)} answers)"
+                )
 
             except Exception as e:
                 logger.error(f"Error in sync_progress: {e}", exc_info=True)

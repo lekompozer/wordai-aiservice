@@ -585,7 +585,9 @@ class SaveProgressRequest(BaseModel):
     """Request model for saving progress (HTTP fallback)"""
 
     session_id: str = Field(..., description="Session ID from /start endpoint")
-    answers: dict = Field(..., description="Current answers dict (question_id -> answer_key)")
+    answers: dict = Field(
+        ..., description="Current answers dict (question_id -> answer_key)"
+    )
     time_remaining_seconds: Optional[int] = Field(
         None, description="Time remaining in seconds"
     )
@@ -602,7 +604,9 @@ class ProgressResponse(BaseModel):
     is_completed: bool
 
 
-@router.post("/{test_id}/progress/save", response_model=dict, tags=["Phase 2 - Auto-save"])
+@router.post(
+    "/{test_id}/progress/save", response_model=dict, tags=["Phase 2 - Auto-save"]
+)
 async def save_test_progress(
     test_id: str,
     request: SaveProgressRequest,
@@ -622,9 +626,7 @@ async def save_test_progress(
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Verify session exists and belongs to user
-        session = await mongo.test_progress.find_one(
-            {"session_id": request.session_id}
-        )
+        session = await mongo.test_progress.find_one({"session_id": request.session_id})
 
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -677,7 +679,9 @@ async def save_test_progress(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{test_id}/progress", response_model=ProgressResponse, tags=["Phase 2 - Auto-save"])
+@router.get(
+    "/{test_id}/progress", response_model=ProgressResponse, tags=["Phase 2 - Auto-save"]
+)
 async def get_test_progress(
     test_id: str,
     session_id: str,
@@ -717,7 +721,9 @@ async def get_test_progress(
             current_answers=session.get("current_answers", {}),
             time_remaining_seconds=session.get("time_remaining_seconds"),
             started_at=session["started_at"].isoformat(),
-            last_saved_at=session.get("last_saved_at", session["started_at"]).isoformat(),
+            last_saved_at=session.get(
+                "last_saved_at", session["started_at"]
+            ).isoformat(),
             is_completed=session.get("is_completed", False),
         )
 
@@ -786,7 +792,9 @@ async def resume_test_session(
             "current_answers": session.get("current_answers", {}),
             "time_remaining_seconds": time_remaining,
             "started_at": session["started_at"].isoformat(),
-            "last_saved_at": session.get("last_saved_at", session["started_at"]).isoformat(),
+            "last_saved_at": session.get(
+                "last_saved_at", session["started_at"]
+            ).isoformat(),
             "message": "Session resumed successfully",
         }
 
@@ -803,7 +811,9 @@ async def resume_test_session(
 class UpdateTestConfigRequest(BaseModel):
     """Request model for updating test configuration"""
 
-    max_retries: Optional[int] = Field(None, description="Max retry attempts", ge=1, le=20)
+    max_retries: Optional[int] = Field(
+        None, description="Max retry attempts", ge=1, le=20
+    )
     time_limit_minutes: Optional[int] = Field(
         None, description="Time limit in minutes", ge=1, le=300
     )
@@ -877,7 +887,9 @@ async def update_test_config(
         )
 
         if result.modified_count == 0:
-            raise HTTPException(status_code=500, detail="Failed to update configuration")
+            raise HTTPException(
+                status_code=500, detail="Failed to update configuration"
+            )
 
         logger.info(f"✅ Updated configuration for test {test_id}")
 
@@ -927,9 +939,7 @@ async def update_test_questions(
             )
 
         if len(request.questions) > 100:
-            raise HTTPException(
-                status_code=400, detail="Maximum 100 questions allowed"
-            )
+            raise HTTPException(status_code=400, detail="Maximum 100 questions allowed")
 
         for idx, q in enumerate(request.questions):
             # Validate required fields
@@ -973,9 +983,7 @@ async def update_test_questions(
         if result.modified_count == 0:
             raise HTTPException(status_code=500, detail="Failed to update questions")
 
-        logger.info(
-            f"✅ Updated {len(request.questions)} questions for test {test_id}"
-        )
+        logger.info(f"✅ Updated {len(request.questions)} questions for test {test_id}")
 
         return {
             "success": True,
@@ -991,7 +999,9 @@ async def update_test_questions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{test_id}/preview", response_model=TestPreviewResponse, tags=["Phase 3 - Editing"])
+@router.get(
+    "/{test_id}/preview", response_model=TestPreviewResponse, tags=["Phase 3 - Editing"]
+)
 async def preview_test(
     test_id: str,
     user_info: dict = Depends(require_auth),
@@ -1100,9 +1110,13 @@ async def get_test_attempts(
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Count submissions for this user and test
-        submissions = await mongo.test_submissions.find(
-            {"test_id": ObjectId(test_id), "user_id": user_id}
-        ).sort("submitted_at", -1).to_list(length=None)
+        submissions = (
+            await mongo.test_submissions.find(
+                {"test_id": ObjectId(test_id), "user_id": user_id}
+            )
+            .sort("submitted_at", -1)
+            .to_list(length=None)
+        )
 
         attempts_used = len(submissions)
         max_retries = test_doc.get("max_retries", 3)
