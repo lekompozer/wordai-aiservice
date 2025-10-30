@@ -336,25 +336,62 @@ class AIChatService:
         messages: List[Dict[str, str]],
         temperature: float,
         max_tokens: int,
+        max_retries: int = 3,
     ) -> str:
-        """Get complete response from OpenAI-compatible providers"""
+        """Get complete response from OpenAI-compatible providers with retry logic"""
 
         client = self.providers[provider]
         model = self.models[provider]
 
-        try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+        # Retry logic for transient errors
+        for attempt in range(max_retries):
+            try:
+                response = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
 
-            return response.choices[0].message.content
+                return response.choices[0].message.content
 
-        except Exception as e:
-            logger.error(f"❌ OpenAI compatible chat error: {e}")
-            raise
+            except Exception as e:
+                error_str = str(e).lower()
+
+                # Check if error is retryable (rate limit, server error, timeout, overload)
+                is_retryable = any(
+                    keyword in error_str
+                    for keyword in [
+                        "rate limit",
+                        "429",
+                        "too many requests",
+                        "server error",
+                        "500",
+                        "502",
+                        "503",
+                        "504",
+                        "timeout",
+                        "connection",
+                        "overload",
+                        "529",
+                    ]
+                )
+
+                if is_retryable and attempt < max_retries - 1:
+                    wait_time = (2**attempt) + 1  # Exponential backoff: 2s, 5s, 9s
+                    logger.warning(
+                        f"⚠️ {provider} error (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {wait_time}s... Error: {e}"
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    # Non-retryable or max retries reached
+                    logger.error(f"❌ {provider} chat error: {e}")
+                    raise
+
+        # Should not reach here
+        raise Exception(f"{provider} failed after {max_retries} retries")
 
     async def _chat_gemini(
         self,
@@ -362,35 +399,74 @@ class AIChatService:
         messages: List[Dict[str, str]],
         temperature: float,
         max_tokens: int,
+        max_retries: int = 3,
     ) -> str:
-        """Get complete response from Gemini models"""
+        """Get complete response from Gemini models with retry logic"""
 
         model_name = self.models[provider]
 
-        try:
-            # Convert messages to Gemini format
-            gemini_prompt = self._convert_messages_to_gemini(messages)
+        # Retry logic for transient errors
+        for attempt in range(max_retries):
+            try:
+                # Convert messages to Gemini format
+                gemini_prompt = self._convert_messages_to_gemini(messages)
 
-            # Get Gemini client for this request
-            genai_client = self.providers[provider]
+                # Get Gemini client for this request
+                genai_client = self.providers[provider]
 
-            # Create Gemini model
-            model = genai_client.GenerativeModel(model_name)
+                # Create Gemini model
+                model = genai_client.GenerativeModel(model_name)
 
-            # Generate response
-            response = model.generate_content(
-                gemini_prompt,
-                generation_config=genai_client.types.GenerationConfig(
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                ),
-            )
+                # Generate response
+                response = model.generate_content(
+                    gemini_prompt,
+                    generation_config=genai_client.types.GenerationConfig(
+                        temperature=temperature,
+                        max_output_tokens=max_tokens,
+                    ),
+                )
 
-            return response.text
+                return response.text
 
-        except Exception as e:
-            logger.error(f"❌ Gemini chat error: {e}")
-            raise
+            except Exception as e:
+                error_str = str(e).lower()
+
+                # Check if error is retryable
+                is_retryable = any(
+                    keyword in error_str
+                    for keyword in [
+                        "rate limit",
+                        "429",
+                        "quota",
+                        "server error",
+                        "500",
+                        "502",
+                        "503",
+                        "504",
+                        "timeout",
+                        "deadline",
+                        "unavailable",
+                        "overload",
+                        "529",
+                        "resource_exhausted",
+                    ]
+                )
+
+                if is_retryable and attempt < max_retries - 1:
+                    wait_time = (2**attempt) + 1  # Exponential backoff: 2s, 5s, 9s
+                    logger.warning(
+                        f"⚠️ Gemini {provider} error (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {wait_time}s... Error: {e}"
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    # Non-retryable or max retries reached
+                    logger.error(f"❌ Gemini chat error: {e}")
+                    raise
+
+        # Should not reach here
+        raise Exception(f"Gemini {provider} failed after {max_retries} retries")
 
     async def _stream_openai_compatible(
         self,
@@ -399,27 +475,70 @@ class AIChatService:
         temperature: float,
         max_tokens: int,
     ) -> AsyncGenerator[str, None]:
-        """Stream from OpenAI-compatible providers"""
+        """Stream from OpenAI-compatible providers with retry logic"""
 
         client = self.providers[provider]
         model = self.models[provider]
+        max_retries = 3
 
-        try:
-            stream = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=True,
-                temperature=temperature,
-                max_tokens=max_tokens,
-            )
+        # Retry logic for establishing the stream
+        for attempt in range(max_retries):
+            try:
+                stream = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    stream=True,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                )
 
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+                # Once stream is established, yield chunks
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
 
-        except Exception as e:
-            logger.error(f"❌ OpenAI compatible streaming error: {e}")
-            yield f"❌ Streaming error: {str(e)}"
+                # Success, exit retry loop
+                break
+
+            except Exception as e:
+                error_str = str(e).lower()
+                provider_name = (
+                    provider.value if hasattr(provider, "value") else str(provider)
+                )
+
+                # Check if error is retryable
+                is_retryable = any(
+                    keyword in error_str
+                    for keyword in [
+                        "rate limit",
+                        "429",
+                        "too many requests",
+                        "server error",
+                        "500",
+                        "502",
+                        "503",
+                        "504",
+                        "timeout",
+                        "connection",
+                        "overload",
+                        "529",
+                    ]
+                )
+
+                if is_retryable and attempt < max_retries - 1:
+                    wait_time = (2**attempt) + 1  # 2s, 5s, 9s
+                    logger.warning(
+                        f"⚠️ {provider_name} streaming error (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(
+                        f"❌ {provider_name} streaming error after {attempt + 1} attempts: {e}"
+                    )
+                    yield f"❌ Streaming error: {str(e)}"
+                    break
 
     async def _stream_gemini(
         self,
@@ -428,37 +547,79 @@ class AIChatService:
         temperature: float,
         max_tokens: int,
     ) -> AsyncGenerator[str, None]:
-        """Stream from Gemini models"""
+        """Stream from Gemini models with retry logic"""
 
         model_name = self.models[provider]
+        max_retries = 3
 
-        try:
-            # Convert messages to Gemini format
-            gemini_prompt = self._convert_messages_to_gemini(messages)
+        # Retry logic for establishing the stream
+        for attempt in range(max_retries):
+            try:
+                # Convert messages to Gemini format
+                gemini_prompt = self._convert_messages_to_gemini(messages)
 
-            # Get Gemini client for this request
-            genai_client = self.providers[provider]
+                # Get Gemini client for this request
+                genai_client = self.providers[provider]
 
-            # Create Gemini model
-            model = genai_client.GenerativeModel(model_name)
+                # Create Gemini model
+                model = genai_client.GenerativeModel(model_name)
 
-            # Generate streaming response
-            response = model.generate_content(
-                gemini_prompt,
-                generation_config=genai_client.types.GenerationConfig(
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                ),
-                stream=True,
-            )
+                # Generate streaming response
+                response = model.generate_content(
+                    gemini_prompt,
+                    generation_config=genai_client.types.GenerationConfig(
+                        temperature=temperature,
+                        max_output_tokens=max_tokens,
+                    ),
+                    stream=True,
+                )
 
-            for chunk in response:
-                if chunk.text:
-                    yield chunk.text
+                # Once stream is established, yield chunks
+                for chunk in response:
+                    if chunk.text:
+                        yield chunk.text
 
-        except Exception as e:
-            logger.error(f"❌ Gemini streaming error: {e}")
-            yield f"❌ Streaming error: {str(e)}"
+                # Success, exit retry loop
+                break
+
+            except Exception as e:
+                error_str = str(e).lower()
+
+                # Check if error is retryable
+                is_retryable = any(
+                    keyword in error_str
+                    for keyword in [
+                        "rate limit",
+                        "429",
+                        "too many requests",
+                        "server error",
+                        "500",
+                        "502",
+                        "503",
+                        "504",
+                        "timeout",
+                        "connection",
+                        "overload",
+                        "529",
+                        "resource exhausted",
+                        "deadline exceeded",
+                    ]
+                )
+
+                if is_retryable and attempt < max_retries - 1:
+                    wait_time = (2**attempt) + 1  # 2s, 5s, 9s
+                    logger.warning(
+                        f"⚠️ Gemini streaming error (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(
+                        f"❌ Gemini streaming error after {attempt + 1} attempts: {e}"
+                    )
+                    yield f"❌ Streaming error: {str(e)}"
+                    break
 
     def _convert_messages_to_gemini(self, messages: List[Dict[str, str]]) -> str:
         """Convert OpenAI format messages to Gemini format"""

@@ -123,6 +123,10 @@ from src.api.library_routes import router as library_router
 from src.api.encrypted_library_routes import router as encrypted_library_router
 
 # ✅ ADDED: Encrypted Library Folders API for folder management
+from src.api.encrypted_library_folder_routes import router as encrypted_library_folder_router
+
+# ✅ ADDED: Online Test API for test generation and taking (Phase 1)
+from src.api.online_test_routes import router as online_test_router
 from src.api.encrypted_folder_routes import router as encrypted_folder_router
 
 # ✅ ADDED: Share API for File Sharing System (Phase 2)
@@ -594,6 +598,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Document Export API - Export to PDF, DOCX, TXT with pagination
     app.include_router(document_export_router, tags=["Document Export"])
+
+    # ✅ ADDED: Online Test API - Test generation and taking (Phase 1)
+    app.include_router(online_test_router, tags=["Online Tests - Phase 1"])
 
     # ✅ ADDED: Company Context and User History APIs
     app.include_router(company_context_router)

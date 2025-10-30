@@ -439,52 +439,91 @@ class PDFAIProcessor:
                     raise
 
     async def _process_with_gemini(self, pdf_path: str, system_prompt: str) -> str:
-        """Process PDF with Gemini 2.5 Pro (native PDF support)"""
-        try:
-            logger.info(f"Processing {pdf_path} with Gemini 2.5 Pro...")
+        """Process PDF with Gemini 2.5 Pro (native PDF support) with retry logic"""
+        max_retries = 3
 
-            # Read PDF content
-            with open(pdf_path, "rb") as f:
-                pdf_content = f.read()
-
-            # Create PDF part from bytes
-            pdf_part = types.Part.from_bytes(
-                data=pdf_content, mime_type="application/pdf"
-            )
-
-            # Generate response with inline PDF
-            response = self.client.models.generate_content(
-                model="gemini-2.5-pro",
-                contents=[pdf_part, system_prompt],
-                config=types.GenerateContentConfig(
-                    max_output_tokens=8000,
-                    temperature=0.1,  # Low temperature for accurate conversion
-                    response_mime_type="text/plain",
-                ),
-            )
-
-            # Get response text
-            if hasattr(response, "text") and response.text:
-                html_content = response.text
-                logger.info(f"✅ Gemini response: {len(html_content)} characters")
-            else:
-                raise Exception("No text response from Gemini API")
-
-            # Log token usage
-            if hasattr(response, "usage_metadata") and response.usage_metadata:
+        for attempt in range(max_retries):
+            try:
                 logger.info(
-                    f"📊 Tokens - Prompt: {response.usage_metadata.prompt_token_count}, "
-                    f"Response: {response.usage_metadata.candidates_token_count}"
+                    f"Processing {pdf_path} with Gemini 2.5 Pro (attempt {attempt + 1}/{max_retries})..."
                 )
 
-            # Clean HTML
-            html_content = self._clean_html_response(html_content)
+                # Read PDF content
+                with open(pdf_path, "rb") as f:
+                    pdf_content = f.read()
 
-            return html_content
+                # Create PDF part from bytes
+                pdf_part = types.Part.from_bytes(
+                    data=pdf_content, mime_type="application/pdf"
+                )
 
-        except Exception as e:
-            logger.error(f"Gemini processing error: {str(e)}")
-            raise
+                # Generate response with inline PDF
+                response = self.client.models.generate_content(
+                    model="gemini-2.5-pro",
+                    contents=[pdf_part, system_prompt],
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=8000,
+                        temperature=0.1,  # Low temperature for accurate conversion
+                        response_mime_type="text/plain",
+                    ),
+                )
+
+                # Get response text
+                if hasattr(response, "text") and response.text:
+                    html_content = response.text
+                    logger.info(f"✅ Gemini response: {len(html_content)} characters")
+                else:
+                    raise Exception("No text response from Gemini API")
+
+                # Log token usage
+                if hasattr(response, "usage_metadata") and response.usage_metadata:
+                    logger.info(
+                        f"📊 Tokens - Prompt: {response.usage_metadata.prompt_token_count}, "
+                        f"Response: {response.usage_metadata.candidates_token_count}"
+                    )
+
+                # Clean HTML
+                html_content = self._clean_html_response(html_content)
+
+                return html_content
+
+            except Exception as e:
+                error_str = str(e).lower()
+
+                # Check if error is retryable (rate limit, server error, timeout, overload)
+                is_retryable = any(
+                    keyword in error_str
+                    for keyword in [
+                        "rate limit",
+                        "429",
+                        "too many requests",
+                        "server error",
+                        "500",
+                        "502",
+                        "503",
+                        "504",
+                        "timeout",
+                        "connection",
+                        "overload",
+                        "529",
+                        "resource exhausted",
+                        "deadline exceeded",
+                    ]
+                )
+
+                if is_retryable and attempt < max_retries - 1:
+                    wait_time = (2**attempt) + 1  # 2s, 5s, 9s
+                    logger.warning(
+                        f"⚠️ Gemini PDF processing error (attempt {attempt + 1}/{max_retries}): {e}. "
+                        f"Retrying in {wait_time}s..."
+                    )
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(
+                        f"❌ Gemini PDF processing failed after {attempt + 1} attempts: {e}"
+                    )
+                    raise
 
     def _clean_html_response(self, html: str) -> str:
         """Clean AI response to extract pure HTML (strip unwanted wrappers)"""

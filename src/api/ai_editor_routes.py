@@ -105,18 +105,18 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
         logger.info(
             f"Document ID: {request.document_id}, Prompt: {request.user_prompt}"
         )
-        
+
         # Log content size for debugging
         content_length = len(request.context_html)
         logger.info(f"📊 Content HTML length: {content_length:,} chars")
-        
+
         # Check content size (Claude Haiku supports 200K tokens ≈ 800K chars)
         MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
         if content_length > MAX_CONTENT_SIZE:
             logger.error(f"❌ Content too large: {content_length:,} chars")
             raise HTTPException(
                 status_code=400,
-                detail=f"Content too large ({content_length:,} chars). Please edit in smaller chunks or use selection mode."
+                detail=f"Content too large ({content_length:,} chars). Please edit in smaller chunks or use selection mode.",
             )
 
         # Determine document type from database
@@ -229,18 +229,20 @@ async def format_document(
     try:
         logger.info(f"✨ Format request from user {user_info['uid']}")
         logger.info(f"Document ID: {request.document_id}, Scope: {request.scope}")
-        
+
         # Log content size for debugging
         content_length = len(request.context_html)
         logger.info(f"📊 Content HTML length: {content_length:,} chars")
-        
+
         # Check content size (Claude Haiku supports 200K tokens ≈ 800K chars)
         MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
         if content_length > MAX_CONTENT_SIZE:
-            logger.error(f"❌ Content too large: {content_length:,} chars (max: {MAX_CONTENT_SIZE:,})")
+            logger.error(
+                f"❌ Content too large: {content_length:,} chars (max: {MAX_CONTENT_SIZE:,})"
+            )
             raise HTTPException(
-                status_code=400, 
-                detail=f"Content too large ({content_length:,} chars). Please format in smaller chunks or use selection mode."
+                status_code=400,
+                detail=f"Content too large ({content_length:,} chars). Please format in smaller chunks or use selection mode.",
             )
 
         # Determine document type
