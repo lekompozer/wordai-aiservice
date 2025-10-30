@@ -32,15 +32,28 @@ class TestGeneratorService:
         )
 
     def _build_generation_prompt(
-        self, user_query: str, num_questions: int, document_content: str
+        self,
+        user_query: str,
+        num_questions: int,
+        document_content: str,
+        language: str = "vi",
     ) -> str:
-        """Build prompt for test generation"""
+        """Build prompt for test generation with language support"""
+
+        # Language instructions
+        language_map = {
+            "vi": "Generate all questions, options, and explanations in Vietnamese.",
+            "en": "Generate all questions, options, and explanations in English.",
+            "zh": "Generate all questions, options, and explanations in Chinese (Simplified).",
+        }
+        lang_instruction = language_map.get(language, language_map["vi"])
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
 
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
-2. The JSON object must conform to the following structure:
+2. {lang_instruction}
+3. The JSON object must conform to the following structure:
    {{
      "questions": [
        {{
@@ -56,12 +69,12 @@ class TestGeneratorService:
        }}
      ]
    }}
-3. Generate exactly {num_questions} questions.
-4. The questions must be relevant to the user's query: "{user_query}".
-5. All information used to create questions, answers, and explanations must come directly from the provided document.
-6. Each question must have exactly 4 options (A, B, C, D).
-7. Only ONE option should be correct per question.
-8. Explanations should be clear and reference specific information from the document.
+4. Generate exactly {num_questions} questions.
+5. The questions must be relevant to the user's query: "{user_query}".
+6. All information used to create questions, answers, and explanations must come directly from the provided document.
+7. Each question must have exactly 4 options (A, B, C, D).
+8. Only ONE option should be correct per question.
+9. Explanations should be clear and reference specific information from the document.
 
 **DOCUMENT CONTENT:**
 ---
@@ -75,7 +88,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
     async def generate_test_from_content(
         self,
         content: str,
+        title: str,
         user_query: str,
+        language: str,
         num_questions: int,
         creator_id: str,
         source_type: str,
@@ -87,7 +102,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
         Args:
             content: Text content to generate questions from
+            title: Test title
             user_query: User's description of what to test
+            language: Language code (vi/en/zh)
             num_questions: Number of questions to generate (1-100)
             creator_id: User ID of test creator
             source_type: "document" or "file"
@@ -120,10 +137,14 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             logger.info(
                 f"📝 Generating {num_questions} questions from {len(content)} chars content"
             )
+            logger.info(f"   Title: {title}")
             logger.info(f"   User query: {user_query}")
+            logger.info(f"   Language: {language}")
 
-            # Build prompt
-            prompt = self._build_generation_prompt(user_query, num_questions, content)
+            # Build prompt with language parameter
+            prompt = self._build_generation_prompt(
+                user_query, num_questions, content, language
+            )
 
             # Generate with retry logic
             questions_json = None
@@ -249,7 +270,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             # Save to database
             test_id = await self._save_test_to_db(
                 questions=questions_json["questions"],
+                title=title,
                 user_query=user_query,
+                language=language,
                 creator_id=creator_id,
                 source_type=source_type,
                 source_id=source_id,
@@ -258,8 +281,10 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
             metadata = {
                 "test_id": test_id,
+                "title": title,
                 "num_questions": len(questions_json["questions"]),
                 "time_limit_minutes": time_limit_minutes,
+                "language": language,
                 "created_at": datetime.now().isoformat(),
                 "source_type": source_type,
             }
@@ -274,7 +299,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
     async def _save_test_to_db(
         self,
         questions: List[Dict],
+        title: str,
         user_query: str,
+        language: str,
         creator_id: str,
         source_type: str,
         source_id: str,
@@ -288,7 +315,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
         # Prepare document
         test_doc = {
-            "title": user_query[:200],  # Use user query as title (truncated)
+            "title": title,
+            "user_query": user_query,  # Store original query for reference
+            "language": language,  # Store language for future filtering
             "source_type": source_type,  # "document" or "file"
             "source_document_id": source_id if source_type == "document" else None,
             "source_file_r2_key": source_id if source_type == "file" else None,

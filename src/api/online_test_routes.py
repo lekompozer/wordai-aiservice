@@ -48,6 +48,7 @@ def get_document_manager():
     """Get document manager instance"""
     return document_manager
 
+
 router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 1"])
 
 
@@ -59,8 +60,16 @@ class GenerateTestRequest(BaseModel):
 
     source_type: str = Field(..., description="Source type: 'document' or 'file'")
     source_id: str = Field(..., description="Document ID or R2 file key")
+    title: str = Field(..., description="Test title", min_length=5, max_length=200)
     user_query: str = Field(
-        ..., description="Description of what to test", min_length=10, max_length=500
+        ...,
+        description="What topics/concepts to test (e.g., 'Kiến thức về bất động sản', 'Python programming basics')",
+        min_length=10,
+        max_length=500,
+    )
+    language: str = Field(
+        default="vi",
+        description="Language for questions and answers: 'vi' (Vietnamese), 'en' (English), 'zh' (Chinese)",
     )
     num_questions: int = Field(..., description="Number of questions", ge=1, le=100)
     time_limit_minutes: int = Field(
@@ -127,10 +136,20 @@ async def generate_test(
     try:
         logger.info(f"📝 Test generation request from user {user_info['uid']}")
         logger.info(f"   Source: {request.source_type}/{request.source_id}")
+        logger.info(f"   Title: {request.title}")
         logger.info(f"   Query: {request.user_query}")
+        logger.info(f"   Language: {request.language}")
         logger.info(
             f"   Questions: {request.num_questions}, Time: {request.time_limit_minutes}min"
         )
+
+        # Validate language
+        supported_languages = {"vi", "en", "zh"}
+        if request.language not in supported_languages:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid language: {request.language}. Must be one of: {supported_languages}",
+            )
 
         # Get content based on source type
         if request.source_type == "document":
@@ -138,18 +157,31 @@ async def generate_test(
             doc_manager = get_document_manager()
             try:
                 doc = doc_manager.get_document(request.source_id, user_info["uid"])
-                content = doc.get("content_html", "")
+                content_html = doc.get("content_html", "")
 
-                if not content:
+                if not content_html:
                     raise HTTPException(
                         status_code=400, detail="Document has no content"
                     )
 
-                # Strip HTML tags to get plain text
+                # Parse HTML to plain text (remove tags but preserve structure)
+                from bs4 import BeautifulSoup
+
+                soup = BeautifulSoup(content_html, "html.parser")
+
+                # Remove script and style tags completely
+                for script in soup(["script", "style"]):
+                    script.decompose()
+
+                # Get text with some structure preserved
+                content = soup.get_text(separator=" ", strip=True)
+
+                # Clean up excessive whitespace
                 import re
 
-                content = re.sub(r"<[^>]+>", " ", content)
                 content = re.sub(r"\s+", " ", content).strip()
+
+                logger.info(f"📄 Parsed HTML document: {len(content)} characters")
 
             except Exception as e:
                 logger.error(f"❌ Failed to get document: {e}")
@@ -160,11 +192,18 @@ async def generate_test(
 
         elif request.source_type == "file":
             # Get file from R2
-            # TODO: Implement R2 file fetching
-            # For now, return error
+            # Only PDF files are supported for Gemini
+            if not request.source_id.lower().endswith(".pdf"):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only PDF files are supported. For other formats, please convert to document first.",
+                )
+
+            # TODO: Implement R2 PDF file fetching for Gemini
+            # Gemini can directly process PDF files via File API
             raise HTTPException(
                 status_code=501,
-                detail="File source not yet implemented. Use 'document' source type.",
+                detail="PDF file source not yet implemented. Use 'document' source type for now.",
             )
 
         else:
@@ -173,12 +212,14 @@ async def generate_test(
                 detail=f"Invalid source_type: {request.source_type}. Must be 'document' or 'file'",
             )
 
-        # Generate test
+        # Generate test with language parameter
         test_generator = get_test_generator_service()
 
         test_id, metadata = await test_generator.generate_test_from_content(
             content=content,
+            title=request.title,
             user_query=request.user_query,
+            language=request.language,
             num_questions=request.num_questions,
             creator_id=user_info["uid"],
             source_type=request.source_type,
