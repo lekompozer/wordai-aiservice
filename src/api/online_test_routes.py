@@ -1,22 +1,52 @@
 """
-Online Test API Routes - Phase 1
-Endpoints for test generation, taking tests, and submission
+Online Test API Routes - Phase 1, 2, 3
+Endpoints for test generation, taking tests, submission, WebSocket auto-save, and test editing
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
+from pymongo import MongoClient
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
-from src.utils.auth import require_auth
+from src.middleware.auth import verify_firebase_token as require_auth
 from src.services.test_generator_service import get_test_generator_service
-from src.services.mongodb_service import get_mongodb_service
-from src.services.document_manager import get_document_manager
+from src.services.document_manager import document_manager
+import config.config as config
 
 logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 1-3"])
+
+# MongoDB connection helper
+_mongo_client = None
+
+
+def get_mongodb_service():
+    """Get MongoDB database instance (helper for compatibility)"""
+    global _mongo_client
+    if _mongo_client is None:
+        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
+            config, "MONGODB_URI", "mongodb://localhost:27017"
+        )
+        _mongo_client = MongoClient(mongo_uri)
+    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
+    db = _mongo_client[db_name]
+
+    # Return a simple object that mimics the service interface
+    class MongoDBService:
+        def __init__(self, database):
+            self.db = database
+
+    return MongoDBService(db)
+
+
+def get_document_manager():
+    """Get document manager instance"""
+    return document_manager
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 1"])
 
