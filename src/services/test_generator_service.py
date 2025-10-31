@@ -5,6 +5,7 @@ Generate multiple-choice tests from documents or files using Gemini AI with JSON
 
 import logging
 import asyncio
+import json
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from bson import ObjectId
@@ -193,8 +194,6 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         raise Exception("No text response from Gemini API")
 
                     # Parse JSON
-                    import json
-
                     questions_json = json.loads(response_text)
 
                     # Validate structure
