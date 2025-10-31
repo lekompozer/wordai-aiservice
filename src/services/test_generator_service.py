@@ -167,12 +167,13 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     # Prepare content for API call
                     if gemini_pdf_bytes:
                         # Use PDF bytes directly with NEW API
-                        logger.info(f"   Using PDF bytes: {len(gemini_pdf_bytes)} bytes")
+                        logger.info(
+                            f"   Using PDF bytes: {len(gemini_pdf_bytes)} bytes"
+                        )
 
                         # Create Part from PDF bytes
                         pdf_part = types.Part.from_bytes(
-                            data=gemini_pdf_bytes,
-                            mime_type="application/pdf"
+                            data=gemini_pdf_bytes, mime_type="application/pdf"
                         )
                         contents = [pdf_part, prompt]
                     else:

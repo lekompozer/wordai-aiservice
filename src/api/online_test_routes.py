@@ -242,16 +242,16 @@ async def generate_test(
 
             # Read PDF content as bytes (NEW API approach)
             logger.info(f"� Reading PDF content for Gemini...")
-            
+
             try:
                 with open(temp_pdf_path, "rb") as f:
                     pdf_content = f.read()
-                
+
                 logger.info(f"✅ PDF content read: {len(pdf_content)} bytes")
-                
+
                 # Store PDF bytes for Gemini (will be passed directly to model)
                 gemini_pdf_bytes = pdf_content
-                
+
                 # Use placeholder content
                 content = f"[PDF file ready for Gemini: {len(pdf_content)} bytes]"
 
