@@ -96,12 +96,13 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         source_type: str,
         source_id: str,
         time_limit_minutes: int = 30,
+        gemini_file_name: Optional[str] = None,  # NEW: For PDF uploads
     ) -> Tuple[str, Dict]:
         """
-        Generate test from text content using Gemini AI with JSON Mode
+        Generate test from text content OR Gemini uploaded file using Gemini AI with JSON Mode
 
         Args:
-            content: Text content to generate questions from
+            content: Text content to generate questions from (or placeholder for file)
             title: Test title
             user_query: User's description of what to test
             language: Language code (vi/en/zh)
@@ -110,6 +111,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             source_type: "document" or "file"
             source_id: Document ID or R2 file key
             time_limit_minutes: Time limit for test (1-300 minutes)
+            gemini_file_name: Gemini file name (for PDF files)
 
         Returns:
             Tuple of (test_id, metadata)
@@ -120,22 +122,28 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 raise ValueError("num_questions must be between 1 and 100")
             if not 1 <= time_limit_minutes <= 300:
                 raise ValueError("time_limit_minutes must be between 1 and 300")
-            if len(content) < 100:
-                raise ValueError("Content too short (minimum 100 characters)")
+            
+            # For PDF files, use Gemini file upload
+            if gemini_file_name:
+                logger.info(f"📄 Using Gemini uploaded file: {gemini_file_name}")
+            else:
+                # Text content validation
+                if len(content) < 100:
+                    raise ValueError("Content too short (minimum 100 characters)")
 
-            # Truncate content if too long (max ~1M characters / ~250K tokens)
-            max_content_length = 1_000_000
-            if len(content) > max_content_length:
-                logger.warning(
-                    f"⚠️ Content truncated from {len(content)} to {max_content_length} chars"
-                )
-                content = (
-                    content[:max_content_length]
-                    + "\n\n[Content truncated for processing]"
-                )
+                # Truncate content if too long (max ~1M characters / ~250K tokens)
+                max_content_length = 1_000_000
+                if len(content) > max_content_length:
+                    logger.warning(
+                        f"⚠️ Content truncated from {len(content)} to {max_content_length} chars"
+                    )
+                    content = (
+                        content[:max_content_length]
+                        + "\n\n[Content truncated for processing]"
+                    )
 
             logger.info(
-                f"📝 Generating {num_questions} questions from {len(content)} chars content"
+                f"📝 Generating {num_questions} questions"
             )
             logger.info(f"   Title: {title}")
             logger.info(f"   User query: {user_query}")
@@ -143,7 +151,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
             # Build prompt with language parameter
             prompt = self._build_generation_prompt(
-                user_query, num_questions, content, language
+                user_query, num_questions, content if not gemini_file_name else "", language
             )
 
             # Generate with retry logic
@@ -154,10 +162,20 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         f"   Attempt {attempt + 1}/{self.max_retries}: Calling Gemini..."
                     )
 
+                    # Prepare content for API call
+                    if gemini_file_name:
+                        # Use Gemini uploaded file + prompt
+                        logger.info(f"   Using uploaded PDF file: {gemini_file_name}")
+                        gemini_file = genai.get_file(name=gemini_file_name)
+                        contents = [gemini_file, prompt]
+                    else:
+                        # Use text prompt only
+                        contents = [prompt]
+
                     # Call Gemini with JSON Mode
                     response = self.client.models.generate_content(
                         model="gemini-2.5-pro",
-                        contents=[prompt],
+                        contents=contents,
                         config=types.GenerateContentConfig(
                             max_output_tokens=8000,
                             temperature=0.3,  # Low temperature for consistent output

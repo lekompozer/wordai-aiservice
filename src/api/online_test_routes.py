@@ -4,6 +4,7 @@ Endpoints for test generation, taking tests, submission, WebSocket auto-save, an
 """
 
 import logging
+import os
 from typing import Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
@@ -151,6 +152,10 @@ async def generate_test(
                 detail=f"Invalid language: {request.language}. Must be one of: {supported_languages}",
             )
 
+        # Initialize variables
+        content = ""
+        gemini_file_name = None
+
         # Get content based on source type
         if request.source_type == "document":
             # Get document from MongoDB
@@ -193,6 +198,8 @@ async def generate_test(
         elif request.source_type == "file":
             # Get file metadata from MongoDB to check file type
             from src.services.user_manager import get_user_manager
+            from src.services.file_download_service import FileDownloadService
+            import google.generativeai as genai
             
             user_manager = get_user_manager()
             file_info = user_manager.get_file_by_id(request.source_id, user_info["uid"])
@@ -211,12 +218,72 @@ async def generate_test(
                     detail=f"Only PDF files are supported for direct file processing. Your file is {file_type}. Please convert to document first."
                 )
             
-            # TODO: Implement R2 PDF file fetching for Gemini
-            # Gemini can directly process PDF files via File API
-            raise HTTPException(
-                status_code=501,
-                detail="PDF file processing not yet implemented. Use 'document' source type for now."
+            # Download PDF from R2
+            r2_key = file_info.get("r2_key")
+            if not r2_key:
+                raise HTTPException(
+                    status_code=500,
+                    detail="File R2 key not found in database"
+                )
+            
+            logger.info(f"📥 Downloading PDF from R2: {r2_key}")
+            
+            # Download PDF to temp file (returns None for text_content since PDF doesn't need parsing)
+            _, temp_pdf_path = await FileDownloadService.download_and_parse_file_from_r2(
+                r2_key=r2_key,
+                file_type="pdf",
+                user_id=user_info["uid"]
             )
+            
+            if not temp_pdf_path:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to download PDF from R2"
+                )
+            
+            logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
+            
+            # Upload PDF to Gemini File API
+            logger.info(f"📤 Uploading PDF to Gemini File API...")
+            
+            gemini_file_name = None
+            try:
+                # Configure Gemini
+                import google.generativeai as genai_config
+                
+                api_key = os.getenv("GEMINI_API_KEY")
+                if not api_key:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="GEMINI_API_KEY not configured"
+                    )
+                
+                genai_config.configure(api_key=api_key)
+                
+                # Upload PDF
+                uploaded_file = genai_config.upload_file(temp_pdf_path)
+                gemini_file_name = uploaded_file.name  # Store file name for Gemini API
+                logger.info(f"✅ PDF uploaded to Gemini: {uploaded_file.uri}")
+                logger.info(f"   File name: {gemini_file_name}")
+                
+                # Use placeholder content (actual content is in Gemini)
+                content = f"[PDF file uploaded to Gemini: {gemini_file_name}]"
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to upload PDF to Gemini: {e}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to process PDF with Gemini: {str(e)}"
+                )
+            
+            finally:
+                # Cleanup temp file
+                if temp_pdf_path and os.path.exists(temp_pdf_path):
+                    try:
+                        os.unlink(temp_pdf_path)
+                        logger.info(f"🗑️ Cleaned up temp file: {temp_pdf_path}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Failed to cleanup temp file: {e}")
 
         else:
             raise HTTPException(
@@ -224,7 +291,7 @@ async def generate_test(
                 detail=f"Invalid source_type: {request.source_type}. Must be 'document' or 'file'",
             )
 
-        # Generate test with language parameter
+        # Generate test with language parameter and optional Gemini file
         test_generator = get_test_generator_service()
 
         test_id, metadata = await test_generator.generate_test_from_content(
@@ -237,6 +304,7 @@ async def generate_test(
             source_type=request.source_type,
             source_id=request.source_id,
             time_limit_minutes=request.time_limit_minutes,
+            gemini_file_name=gemini_file_name if request.source_type == "file" else None,
         )
 
         logger.info(f"✅ Test generated: {test_id}")
