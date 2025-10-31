@@ -200,82 +200,78 @@ async def generate_test(
             from src.services.user_manager import get_user_manager
             from src.services.file_download_service import FileDownloadService
             import google.generativeai as genai
-            
+
             user_manager = get_user_manager()
             file_info = user_manager.get_file_by_id(request.source_id, user_info["uid"])
-            
+
             if not file_info:
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"File not found: {request.source_id}"
+                    status_code=404, detail=f"File not found: {request.source_id}"
                 )
-            
+
             # Check if file is PDF (required for Gemini File API)
             file_type = file_info.get("file_type", "").lower()
             if file_type != ".pdf":
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Only PDF files are supported for direct file processing. Your file is {file_type}. Please convert to document first."
+                    detail=f"Only PDF files are supported for direct file processing. Your file is {file_type}. Please convert to document first.",
                 )
-            
+
             # Download PDF from R2
             r2_key = file_info.get("r2_key")
             if not r2_key:
                 raise HTTPException(
-                    status_code=500,
-                    detail="File R2 key not found in database"
+                    status_code=500, detail="File R2 key not found in database"
                 )
-            
+
             logger.info(f"📥 Downloading PDF from R2: {r2_key}")
-            
+
             # Download PDF to temp file (returns None for text_content since PDF doesn't need parsing)
-            _, temp_pdf_path = await FileDownloadService.download_and_parse_file_from_r2(
-                r2_key=r2_key,
-                file_type="pdf",
-                user_id=user_info["uid"]
+            _, temp_pdf_path = (
+                await FileDownloadService.download_and_parse_file_from_r2(
+                    r2_key=r2_key, file_type="pdf", user_id=user_info["uid"]
+                )
             )
-            
+
             if not temp_pdf_path:
                 raise HTTPException(
-                    status_code=500,
-                    detail="Failed to download PDF from R2"
+                    status_code=500, detail="Failed to download PDF from R2"
                 )
-            
+
             logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
-            
+
             # Upload PDF to Gemini File API
             logger.info(f"📤 Uploading PDF to Gemini File API...")
-            
+
             gemini_file_name = None
             try:
                 # Configure Gemini
                 import google.generativeai as genai_config
-                
+
                 api_key = os.getenv("GEMINI_API_KEY")
                 if not api_key:
                     raise HTTPException(
-                        status_code=500,
-                        detail="GEMINI_API_KEY not configured"
+                        status_code=500, detail="GEMINI_API_KEY not configured"
                     )
-                
+
                 genai_config.configure(api_key=api_key)
-                
+
                 # Upload PDF
                 uploaded_file = genai_config.upload_file(temp_pdf_path)
                 gemini_file_name = uploaded_file.name  # Store file name for Gemini API
                 logger.info(f"✅ PDF uploaded to Gemini: {uploaded_file.uri}")
                 logger.info(f"   File name: {gemini_file_name}")
-                
+
                 # Use placeholder content (actual content is in Gemini)
                 content = f"[PDF file uploaded to Gemini: {gemini_file_name}]"
-                
+
             except Exception as e:
                 logger.error(f"❌ Failed to upload PDF to Gemini: {e}")
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Failed to process PDF with Gemini: {str(e)}"
+                    detail=f"Failed to process PDF with Gemini: {str(e)}",
                 )
-            
+
             finally:
                 # Cleanup temp file
                 if temp_pdf_path and os.path.exists(temp_pdf_path):
@@ -304,7 +300,9 @@ async def generate_test(
             source_type=request.source_type,
             source_id=request.source_id,
             time_limit_minutes=request.time_limit_minutes,
-            gemini_file_name=gemini_file_name if request.source_type == "file" else None,
+            gemini_file_name=(
+                gemini_file_name if request.source_type == "file" else None
+            ),
         )
 
         logger.info(f"✅ Test generated: {test_id}")

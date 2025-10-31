@@ -123,7 +123,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 raise ValueError("num_questions must be between 1 and 100")
             if not 1 <= time_limit_minutes <= 300:
                 raise ValueError("time_limit_minutes must be between 1 and 300")
-            
+
             # For PDF files, use Gemini file upload
             if gemini_file_name:
                 logger.info(f"📄 Using Gemini uploaded file: {gemini_file_name}")
@@ -143,16 +143,17 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         + "\n\n[Content truncated for processing]"
                     )
 
-            logger.info(
-                f"📝 Generating {num_questions} questions"
-            )
+            logger.info(f"📝 Generating {num_questions} questions")
             logger.info(f"   Title: {title}")
             logger.info(f"   User query: {user_query}")
             logger.info(f"   Language: {language}")
 
             # Build prompt with language parameter
             prompt = self._build_generation_prompt(
-                user_query, num_questions, content if not gemini_file_name else "", language
+                user_query,
+                num_questions,
+                content if not gemini_file_name else "",
+                language,
             )
 
             # Generate with retry logic
@@ -167,8 +168,15 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     if gemini_file_name:
                         # Use Gemini uploaded file + prompt
                         logger.info(f"   Using uploaded PDF file: {gemini_file_name}")
-                        gemini_file = genai.get_file(name=gemini_file_name)
-                        contents = [gemini_file, prompt]
+
+                        # Get file from Gemini using client.files.get()
+                        gemini_file = self.client.files.get(name=gemini_file_name)
+
+                        # Create Part from file URI
+                        file_part = types.Part.from_uri(
+                            file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
+                        )
+                        contents = [file_part, prompt]
                     else:
                         # Use text prompt only
                         contents = [prompt]
