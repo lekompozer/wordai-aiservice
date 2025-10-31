@@ -97,13 +97,13 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         source_type: str,
         source_id: str,
         time_limit_minutes: int = 30,
-        gemini_file_name: Optional[str] = None,  # NEW: For PDF uploads
+        gemini_pdf_bytes: Optional[bytes] = None,  # NEW: PDF content as bytes
     ) -> Tuple[str, Dict]:
         """
-        Generate test from text content OR Gemini uploaded file using Gemini AI with JSON Mode
+        Generate test from text content OR PDF bytes using Gemini AI with JSON Mode
 
         Args:
-            content: Text content to generate questions from (or placeholder for file)
+            content: Text content to generate questions from (or placeholder for PDF)
             title: Test title
             user_query: User's description of what to test
             language: Language code (vi/en/zh)
@@ -112,7 +112,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             source_type: "document" or "file"
             source_id: Document ID or R2 file key
             time_limit_minutes: Time limit for test (1-300 minutes)
-            gemini_file_name: Gemini file name (for PDF files)
+            gemini_pdf_bytes: PDF content as bytes (for NEW API)
 
         Returns:
             Tuple of (test_id, metadata)
@@ -124,9 +124,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             if not 1 <= time_limit_minutes <= 300:
                 raise ValueError("time_limit_minutes must be between 1 and 300")
 
-            # For PDF files, use Gemini file upload
-            if gemini_file_name:
-                logger.info(f"📄 Using Gemini uploaded file: {gemini_file_name}")
+            # For PDF files, use Gemini with PDF bytes
+            if gemini_pdf_bytes:
+                logger.info(f"📄 Using PDF bytes: {len(gemini_pdf_bytes)} bytes")
             else:
                 # Text content validation
                 if len(content) < 100:
@@ -152,7 +152,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             prompt = self._build_generation_prompt(
                 user_query,
                 num_questions,
-                content if not gemini_file_name else "",
+                content if not gemini_pdf_bytes else "",
                 language,
             )
 
@@ -165,18 +165,16 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     )
 
                     # Prepare content for API call
-                    if gemini_file_name:
-                        # Use Gemini uploaded file + prompt
-                        logger.info(f"   Using uploaded PDF file: {gemini_file_name}")
+                    if gemini_pdf_bytes:
+                        # Use PDF bytes directly with NEW API
+                        logger.info(f"   Using PDF bytes: {len(gemini_pdf_bytes)} bytes")
 
-                        # Get file from Gemini using client.files.get()
-                        gemini_file = self.client.files.get(name=gemini_file_name)
-
-                        # Create Part from file URI
-                        file_part = types.Part.from_uri(
-                            file_uri=gemini_file.uri, mime_type=gemini_file.mime_type
+                        # Create Part from PDF bytes
+                        pdf_part = types.Part.from_bytes(
+                            data=gemini_pdf_bytes,
+                            mime_type="application/pdf"
                         )
-                        contents = [file_part, prompt]
+                        contents = [pdf_part, prompt]
                     else:
                         # Use text prompt only
                         contents = [prompt]

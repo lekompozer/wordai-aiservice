@@ -154,7 +154,7 @@ async def generate_test(
 
         # Initialize variables
         content = ""
-        gemini_file_name = None
+        gemini_pdf_bytes = None  # For PDF files
 
         # Get content based on source type
         if request.source_type == "document":
@@ -226,7 +226,7 @@ async def generate_test(
 
             logger.info(f"📥 Downloading PDF from R2: {r2_key}")
 
-            # Download PDF to temp file (returns None for text_content since PDF doesn't need parsing)
+            # Download PDF to temp file
             _, temp_pdf_path = (
                 await FileDownloadService.download_and_parse_file_from_r2(
                     r2_key=r2_key, file_type="pdf", user_id=user_info["uid"]
@@ -240,36 +240,26 @@ async def generate_test(
 
             logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
 
-            # Upload PDF to Gemini File API
-            logger.info(f"📤 Uploading PDF to Gemini File API...")
-
-            gemini_file_name = None
+            # Read PDF content as bytes (NEW API approach)
+            logger.info(f"� Reading PDF content for Gemini...")
+            
             try:
-                # Configure Gemini
-                import google.generativeai as genai_config
-
-                api_key = os.getenv("GEMINI_API_KEY")
-                if not api_key:
-                    raise HTTPException(
-                        status_code=500, detail="GEMINI_API_KEY not configured"
-                    )
-
-                genai_config.configure(api_key=api_key)
-
-                # Upload PDF
-                uploaded_file = genai_config.upload_file(temp_pdf_path)
-                gemini_file_name = uploaded_file.name  # Store file name for Gemini API
-                logger.info(f"✅ PDF uploaded to Gemini: {uploaded_file.uri}")
-                logger.info(f"   File name: {gemini_file_name}")
-
-                # Use placeholder content (actual content is in Gemini)
-                content = f"[PDF file uploaded to Gemini: {gemini_file_name}]"
+                with open(temp_pdf_path, "rb") as f:
+                    pdf_content = f.read()
+                
+                logger.info(f"✅ PDF content read: {len(pdf_content)} bytes")
+                
+                # Store PDF bytes for Gemini (will be passed directly to model)
+                gemini_pdf_bytes = pdf_content
+                
+                # Use placeholder content
+                content = f"[PDF file ready for Gemini: {len(pdf_content)} bytes]"
 
             except Exception as e:
-                logger.error(f"❌ Failed to upload PDF to Gemini: {e}")
+                logger.error(f"❌ Failed to read PDF: {e}")
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Failed to process PDF with Gemini: {str(e)}",
+                    detail=f"Failed to process PDF: {str(e)}",
                 )
 
             finally:
@@ -287,7 +277,7 @@ async def generate_test(
                 detail=f"Invalid source_type: {request.source_type}. Must be 'document' or 'file'",
             )
 
-        # Generate test with language parameter and optional Gemini file
+        # Generate test with language parameter and optional Gemini PDF bytes
         test_generator = get_test_generator_service()
 
         test_id, metadata = await test_generator.generate_test_from_content(
@@ -300,8 +290,8 @@ async def generate_test(
             source_type=request.source_type,
             source_id=request.source_id,
             time_limit_minutes=request.time_limit_minutes,
-            gemini_file_name=(
-                gemini_file_name if request.source_type == "file" else None
+            gemini_pdf_bytes=(
+                gemini_pdf_bytes if request.source_type == "file" else None
             ),
         )
 
