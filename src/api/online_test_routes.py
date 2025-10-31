@@ -191,19 +191,31 @@ async def generate_test(
                 )
 
         elif request.source_type == "file":
-            # Get file from R2
-            # Only PDF files are supported for Gemini
-            if not request.source_id.lower().endswith(".pdf"):
+            # Get file metadata from MongoDB to check file type
+            from src.services.user_manager import get_user_manager
+            
+            user_manager = get_user_manager()
+            file_info = user_manager.get_file_by_id(request.source_id, user_info["uid"])
+            
+            if not file_info:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"File not found: {request.source_id}"
+                )
+            
+            # Check if file is PDF (required for Gemini File API)
+            file_type = file_info.get("file_type", "").lower()
+            if file_type != ".pdf":
                 raise HTTPException(
                     status_code=400,
-                    detail="Only PDF files are supported. For other formats, please convert to document first.",
+                    detail=f"Only PDF files are supported for direct file processing. Your file is {file_type}. Please convert to document first."
                 )
-
+            
             # TODO: Implement R2 PDF file fetching for Gemini
             # Gemini can directly process PDF files via File API
             raise HTTPException(
                 status_code=501,
-                detail="PDF file source not yet implemented. Use 'document' source type for now.",
+                detail="PDF file processing not yet implemented. Use 'document' source type for now."
             )
 
         else:
