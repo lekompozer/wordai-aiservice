@@ -96,14 +96,14 @@ class GenerateTestRequest(BaseModel):
 
 
 class ManualTestQuestion(BaseModel):
-    """Manual question model"""
+    """Manual question model - flexible validation for user-created tests"""
 
-    question_text: str = Field(..., min_length=5, max_length=1000)
+    question_text: str = Field(..., min_length=1, max_length=1000)
     options: list = Field(
         ..., description="List of options with 'key' and 'text'", min_length=2
     )
-    correct_answer_key: str = Field(..., description="Correct answer key (A, B, C, D)")
-    explanation: str = Field(..., min_length=10, max_length=500)
+    correct_answer_key: str = Field(..., description="Correct answer key (A, B, C, D, etc.)")
+    explanation: Optional[str] = Field(None, description="Optional explanation", max_length=500)
 
 
 class CreateManualTestRequest(BaseModel):
@@ -1143,28 +1143,50 @@ async def submit_test(
 
 @router.get("/me/tests")
 async def get_my_tests(
+    limit: int = 10,
+    offset: int = 0,
     user_info: dict = Depends(require_auth),
 ):
     """
-    Get list of tests created by the current user
+    Get paginated list of tests created by the current user
+
+    **IMPORTANT:** With router prefix, this becomes /api/v1/tests/me/tests
+    But documentation says it should be /api/v1/me/tests
+    Use the user_router version below for correct path.
 
     **Phase 1 Feature**
+
+    Args:
+        limit: Number of tests to return (default 10, max 100)
+        offset: Number of tests to skip (default 0)
     """
     try:
-        logger.info(f"📋 Get my tests for user {user_info['uid']}")
+        logger.info(f"📋 Get my tests for user {user_info['uid']} (limit={limit}, offset={offset})")
+
+        # Validate pagination params
+        if limit > 100:
+            limit = 100
+        if offset < 0:
+            offset = 0
 
         mongo_service = get_mongodb_service()
         test_collection = mongo_service.db["online_tests"]
         submissions_collection = mongo_service.db["test_submissions"]
 
-        # Get user's created tests
+        # Get total count
+        total_count = test_collection.count_documents({"creator_id": user_info["uid"]})
+
+        # Get user's created tests with pagination, sorted by updated_at (latest first)
         tests = list(
             test_collection.find(
-                {"creator_id": user_info["uid"]}, sort=[("created_at", -1)]
+                {"creator_id": user_info["uid"]}
             )
+            .sort([("updated_at", -1), ("created_at", -1)])  # Latest edited/created first
+            .skip(offset)
+            .limit(limit)
         )
 
-        # Add attempt counts
+        # Build result with minimal info for list view
         result = []
         for test in tests:
             test_id = str(test["_id"])
@@ -1176,14 +1198,24 @@ async def get_my_tests(
                 {
                     "test_id": test_id,
                     "title": test["title"],
-                    "num_questions": len(test["questions"]),
+                    "description": test.get("description"),  # Optional field
+                    "num_questions": len(test.get("questions", [])),
                     "time_limit_minutes": test["time_limit_minutes"],
+                    "status": test.get("status", "ready"),  # pending, generating, ready, failed, draft
+                    "is_active": test.get("is_active", True),
                     "created_at": test["created_at"].isoformat(),
+                    "updated_at": test.get("updated_at", test["created_at"]).isoformat(),
                     "total_submissions": attempts_count,
                 }
             )
 
-        return {"tests": result}
+        return {
+            "tests": result,
+            "total": total_count,
+            "limit": limit,
+            "offset": offset,
+            "has_more": offset + limit < total_count,
+        }
 
     except Exception as e:
         logger.error(f"❌ Failed to get tests: {e}")
@@ -1355,7 +1387,7 @@ async def save_test_progress(
     Saves current answers and time remaining to database
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Verify test exists
@@ -1430,7 +1462,7 @@ async def get_test_progress(
     Useful for resuming tests after reconnection or page refresh
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Verify test exists
@@ -1482,7 +1514,7 @@ async def resume_test_session(
     Returns the most recent session if one exists
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Verify test exists
@@ -1593,7 +1625,7 @@ async def update_test_config(
     Only the test creator can update configuration
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Verify test exists and user is creator
@@ -1663,7 +1695,7 @@ async def update_test_questions(
     Validates question structure before saving
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Verify test exists and user is creator
@@ -1782,7 +1814,7 @@ async def preview_test(
     Only the test creator can preview with answers
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Get test document
@@ -1824,7 +1856,7 @@ async def delete_test(
     Only the test creator can delete
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Verify test exists and user is creator
@@ -1872,7 +1904,7 @@ async def get_test_attempts(
     Shows how many times attempted and remaining attempts
     """
     try:
-        user_id = user_info["user_id"]
+        user_id = user_info["uid"]
         mongo = get_mongodb_service()
 
         # Verify test exists
