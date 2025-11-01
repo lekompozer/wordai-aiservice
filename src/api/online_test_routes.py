@@ -113,8 +113,19 @@ class CreateManualTestRequest(BaseModel):
     max_retries: int = Field(
         3, description="Maximum number of attempts", ge=1, le=10
     )
-    questions: list[ManualTestQuestion] = Field(
-        ..., description="List of questions", min_length=1
+    questions: Optional[list[ManualTestQuestion]] = Field(
+        default=[],
+        description="List of questions (optional, can be empty to create draft test)",
+    )
+
+
+class DuplicateTestRequest(BaseModel):
+    """Request model for duplicating a test"""
+
+    new_title: Optional[str] = Field(
+        None,
+        description="New title for duplicated test (optional, will auto-generate if not provided)",
+        max_length=200,
     )
 
 
@@ -530,39 +541,41 @@ async def create_manual_test(
     """
     Create a test with manually entered questions
 
-    **NEW Endpoint**
+    **UPDATED**: Questions are now optional - can create empty draft test
 
-    User manually enters:
-    - Title, description
-    - Each question with options, correct answer, explanation
+    User can:
+    1. Create empty test with just title → Add questions later
+    2. Create test with initial questions → Continue editing
+    3. Duplicate existing test → Modify copy
 
     Test is immediately set to status='ready' (no AI generation needed).
 
     **Use Cases:**
-    - Teacher creates custom quiz
+    - Teacher creates draft quiz, adds questions gradually
     - Import questions from existing material
     - Quick test without AI
     """
     try:
         logger.info(f"📝 Manual test creation from user {user_info['uid']}")
         logger.info(f"   Title: {request.title}")
-        logger.info(f"   Questions: {len(request.questions)}")
+        logger.info(f"   Questions: {len(request.questions or [])}")
 
-        # Validate questions
-        for idx, q in enumerate(request.questions):
-            if len(q.options) < 2:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Question {idx+1}: Must have at least 2 options",
-                )
+        # Validate questions if provided
+        if request.questions:
+            for idx, q in enumerate(request.questions):
+                if len(q.options) < 2:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx+1}: Must have at least 2 options",
+                    )
 
-            # Validate correct_answer_key exists in options
-            option_keys = [opt["key"] for opt in q.options]
-            if q.correct_answer_key not in option_keys:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Question {idx+1}: correct_answer_key '{q.correct_answer_key}' not found in options",
-                )
+                # Validate correct_answer_key exists in options
+                option_keys = [opt["key"] for opt in q.options]
+                if q.correct_answer_key not in option_keys:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx+1}: correct_answer_key '{q.correct_answer_key}' not found in options",
+                    )
 
         # Create test record
         mongo_service = get_mongodb_service()
@@ -572,16 +585,20 @@ async def create_manual_test(
         import uuid
 
         formatted_questions = []
-        for q in request.questions:
-            formatted_questions.append(
-                {
-                    "question_id": str(uuid.uuid4())[:8],
-                    "question_text": q.question_text,
-                    "options": q.options,
-                    "correct_answer_key": q.correct_answer_key,
-                    "explanation": q.explanation,
-                }
-            )
+        if request.questions:
+            for q in request.questions:
+                formatted_questions.append(
+                    {
+                        "question_id": str(uuid.uuid4())[:8],
+                        "question_text": q.question_text,
+                        "options": q.options,
+                        "correct_answer_key": q.correct_answer_key,
+                        "explanation": q.explanation,
+                    }
+                )
+
+        # Determine status based on whether test has questions
+        status = "ready" if len(formatted_questions) > 0 else "draft"
 
         test_doc = {
             "title": request.title,
@@ -593,11 +610,11 @@ async def create_manual_test(
             "source_file_r2_key": None,
             "creator_id": user_info["uid"],
             "time_limit_minutes": request.time_limit_minutes,
-            "num_questions": len(request.questions),
+            "num_questions": len(formatted_questions),
             "max_retries": request.max_retries,
             "creation_type": "manual",
-            "status": "ready",  # Immediately ready
-            "progress_percent": 100,
+            "status": status,  # "draft" if no questions, "ready" if has questions
+            "progress_percent": 100 if len(formatted_questions) > 0 else 0,
             "questions": formatted_questions,
             "is_active": True,
             "created_at": datetime.now(),
@@ -607,24 +624,156 @@ async def create_manual_test(
         result = collection.insert_one(test_doc)
         test_id = str(result.inserted_id)
 
-        logger.info(f"✅ Manual test created: {test_id}")
+        logger.info(f"✅ Manual test created: {test_id} (status: {status})")
+
+        message = (
+            "Manual test created successfully!"
+            if status == "ready"
+            else "Draft test created. Add questions to make it ready."
+        )
 
         return {
             "success": True,
             "test_id": test_id,
-            "status": "ready",
+            "status": status,
             "title": request.title,
             "description": request.description,
-            "num_questions": len(request.questions),
+            "num_questions": len(formatted_questions),
             "time_limit_minutes": request.time_limit_minutes,
             "created_at": test_doc["created_at"].isoformat(),
-            "message": "Manual test created successfully!",
+            "message": message,
         }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Manual test creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Duplicate Test Endpoint ==========
+
+
+@router.post("/{test_id}/duplicate")
+async def duplicate_test(
+    test_id: str,
+    request: DuplicateTestRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Duplicate an existing test
+
+    **NEW Endpoint**
+
+    Creates a copy of existing test with auto-generated title suffix:
+    - "Test ABC" → "Test ABC copy1"
+    - "Test ABC copy1" → "Test ABC copy2"
+    - etc.
+
+    **Use Cases:**
+    - Create variations of same test
+    - Modify copy without affecting original
+    - Template-based test creation
+
+    **Response:**
+    - Returns new test_id with duplicated content
+    - Questions are deep-copied with new question_ids
+    - Status = "ready" (or "draft" if original was draft)
+    """
+    try:
+        logger.info(
+            f"📋 Duplicate test request: {test_id} from user {user_info['uid']}"
+        )
+
+        # Get original test
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
+
+        original_test = collection.find_one({"_id": ObjectId(test_id)})
+
+        if not original_test:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Only creator can duplicate
+        if original_test.get("creator_id") != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="You don't have permission to duplicate this test"
+            )
+
+        # Generate new title with copy suffix
+        import re
+
+        original_title = original_test.get("title", "Untitled Test")
+
+        if request.new_title:
+            new_title = request.new_title
+        else:
+            # Check for existing copies
+            match = re.search(r" copy(\d+)$", original_title)
+            if match:
+                # Increment copy number
+                copy_num = int(match.group(1)) + 1
+                base_title = original_title[: match.start()]
+                new_title = f"{base_title} copy{copy_num}"
+            else:
+                # First copy
+                new_title = f"{original_title} copy1"
+
+        # Deep copy questions with new question_ids
+        import uuid
+
+        new_questions = []
+        for q in original_test.get("questions", []):
+            new_q = q.copy()
+            new_q["question_id"] = str(uuid.uuid4())[:8]
+            new_questions.append(new_q)
+
+        # Create duplicated test document
+        duplicated_doc = {
+            "title": new_title,
+            "description": original_test.get("description"),
+            "user_query": original_test.get("user_query"),
+            "language": original_test.get("language", "vi"),
+            "source_type": original_test.get("source_type", "manual"),
+            "source_document_id": original_test.get("source_document_id"),
+            "source_file_r2_key": original_test.get("source_file_r2_key"),
+            "creator_id": user_info["uid"],
+            "time_limit_minutes": original_test.get("time_limit_minutes", 30),
+            "num_questions": len(new_questions),
+            "max_retries": original_test.get("max_retries", 3),
+            "creation_type": original_test.get("creation_type", "manual"),
+            "status": original_test.get("status", "ready"),
+            "progress_percent": original_test.get("progress_percent", 100),
+            "questions": new_questions,
+            "is_active": True,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+            # Add metadata to track duplication
+            "duplicated_from": test_id,
+            "is_duplicate": True,
+        }
+
+        result = collection.insert_one(duplicated_doc)
+        new_test_id = str(result.inserted_id)
+
+        logger.info(f"✅ Test duplicated: {test_id} → {new_test_id}")
+
+        return {
+            "success": True,
+            "test_id": new_test_id,
+            "original_test_id": test_id,
+            "title": new_title,
+            "description": duplicated_doc["description"],
+            "num_questions": len(new_questions),
+            "status": duplicated_doc["status"],
+            "created_at": duplicated_doc["created_at"].isoformat(),
+            "message": f"Test duplicated successfully as '{new_title}'",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Test duplication failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

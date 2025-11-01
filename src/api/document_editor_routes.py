@@ -379,7 +379,9 @@ async def get_document_by_file(
             raise HTTPException(status_code=404, detail="File not found in user_files")
 
         # Get original filename (not the safe filename with timestamp)
-        original_filename = file_info.get("original_name") or file_info.get("filename", "Untitled Document")
+        original_filename = file_info.get("original_name") or file_info.get(
+            "filename", "Untitled Document"
+        )
         logger.info(f"📥 File: {original_filename}")
 
         # Step 2: Count existing documents from this file_id to generate copy number
@@ -388,11 +390,17 @@ async def get_document_by_file(
         )
         copy_number = existing_count + 1
 
-        # Generate title with copy number
-        # "Contract.pdf" → "Contract.pdf (Copy 1)"
-        # "Contract.pdf" → "Contract.pdf (Copy 2)" on second edit
-        new_title = f"{original_filename} (Copy {copy_number})"
-        logger.info(f"📝 Creating document copy #{copy_number}: {new_title}")
+        # Generate title with "Doc{N}" suffix and remove file extension
+        # "Contract.pdf" → "Contract Doc1"
+        # "Contract.pdf" → "Contract Doc2" on second edit
+        # Remove file extensions like .pdf, .docx, .pptx, etc.
+        import os
+
+        base_name, ext = os.path.splitext(original_filename)
+        new_title = f"{base_name} Doc{copy_number}"
+        logger.info(
+            f"📝 Creating document copy #{copy_number}: {new_title} (removed extension: {ext})"
+        )
 
         # Step 3: Try to reuse cached content from previous document for speed
         cached_content = None
@@ -410,10 +418,13 @@ async def get_document_by_file(
                 if prev_html and prev_html.strip():
                     # Additional check: HTML should have meaningful content, not just empty tags
                     from bs4 import BeautifulSoup
-                    soup = BeautifulSoup(prev_html, 'html.parser')
+
+                    soup = BeautifulSoup(prev_html, "html.parser")
                     text_content = soup.get_text(strip=True)
 
-                    if text_content and len(text_content) > 10:  # At least 10 chars of actual text
+                    if (
+                        text_content and len(text_content) > 10
+                    ):  # At least 10 chars of actual text
                         cached_content = {
                             "html": prev_html,
                             "text": prev_text,
@@ -422,7 +433,9 @@ async def get_document_by_file(
                         logger.info(
                             f"♻️ Reusing cached content from previous document (fast path!)"
                         )
-                        logger.info(f"♻️ Cached HTML length: {len(prev_html)} chars, Text length: {len(text_content)} chars")
+                        logger.info(
+                            f"♻️ Cached HTML length: {len(prev_html)} chars, Text length: {len(text_content)} chars"
+                        )
                     else:
                         text_len = len(text_content) if text_content else 0
                         logger.warning(
@@ -530,18 +543,12 @@ async def get_document_by_file(
             file_id=document.get("file_id"),
         )
 
-        logger.warning(
-            f"🔍 FRONTEND: Created NEW document copy #{copy_number}"
-        )
+        logger.warning(f"🔍 FRONTEND: Created NEW document copy #{copy_number}")
         logger.warning(
             f"🔍 FRONTEND: File {file_id} → Document ID: {response.document_id}"
         )
-        logger.warning(
-            f"🔍 FRONTEND: Title: {response.title}"
-        )
-        logger.warning(
-            f"🔍 FRONTEND: Open in NEW TAB - each Edit = new tab!"
-        )
+        logger.warning(f"🔍 FRONTEND: Title: {response.title}")
+        logger.warning(f"🔍 FRONTEND: Open in NEW TAB - each Edit = new tab!")
 
         return response
 
@@ -979,7 +986,9 @@ async def get_documents_by_folders(
                 DocumentListItem(
                     document_id=doc["document_id"],
                     title=doc["title"],
-                    last_saved_at=doc.get("last_saved_at", doc.get("updated_at", datetime.now())),
+                    last_saved_at=doc.get(
+                        "last_saved_at", doc.get("updated_at", datetime.now())
+                    ),
                     last_opened_at=doc.get("last_opened_at"),
                     version=doc.get("version", 1),
                     file_size_bytes=doc.get("file_size_bytes", 0),
@@ -1044,7 +1053,9 @@ async def get_document(
             title=document.get("title", "Untitled"),
             content_html=document.get("content_html", ""),
             version=document.get("version", 1),
-            last_saved_at=document.get("last_saved_at", document.get("updated_at", datetime.now())),
+            last_saved_at=document.get(
+                "last_saved_at", document.get("updated_at", datetime.now())
+            ),
             file_size_bytes=document.get("file_size_bytes", 0),
             auto_save_count=document.get("auto_save_count", 0),
             manual_save_count=document.get("manual_save_count", 0),
@@ -1238,7 +1249,9 @@ async def list_documents(
             DocumentListItem(
                 document_id=doc["document_id"],
                 title=doc["title"],
-                last_saved_at=doc.get("last_saved_at", doc.get("updated_at", datetime.now())),
+                last_saved_at=doc.get(
+                    "last_saved_at", doc.get("updated_at", datetime.now())
+                ),
                 last_opened_at=doc.get("last_opened_at"),
                 version=doc.get("version", 1),
                 file_size_bytes=doc.get("file_size_bytes", 0),
