@@ -1391,12 +1391,12 @@ async def save_test_progress(
         mongo_service = get_mongodb_service()
 
         # Verify test exists
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Verify session exists and belongs to user
-        session = await mongo_service.db["test_progress"].find_one({"session_id": request.session_id})
+        session = mongo_service.db["test_progress"].find_one({"session_id": request.session_id})
 
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1423,7 +1423,7 @@ async def save_test_progress(
         if request.time_remaining_seconds is not None:
             update_data["time_remaining_seconds"] = request.time_remaining_seconds
 
-        result = await mongo_service.db["test_progress"].update_one(
+        result = mongo_service.db["test_progress"].update_one(
             {"session_id": request.session_id}, {"$set": update_data}
         )
 
@@ -1466,12 +1466,12 @@ async def get_test_progress(
         mongo_service = get_mongodb_service()
 
         # Verify test exists
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Get session progress
-        session = await mongo_service.db["test_progress"].find_one({"session_id": session_id})
+        session = mongo_service.db["test_progress"].find_one({"session_id": session_id})
 
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1518,12 +1518,12 @@ async def resume_test_session(
         mongo_service = get_mongodb_service()
 
         # Verify test exists
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Find most recent incomplete session for this user and test
-        session = await mongo_service.db["test_progress"].find_one(
+        session = mongo_service.db["test_progress"].find_one(
             {"user_id": user_id, "test_id": ObjectId(test_id), "is_completed": False},
             sort=[("started_at", -1)],
         )
@@ -1543,7 +1543,7 @@ async def resume_test_session(
 
         # If time ran out, mark session as completed and return error
         if time_remaining == 0:
-            await mongo_service.db["test_progress"].update_one(
+            mongo_service.db["test_progress"].update_one(
                 {"_id": session["_id"]}, {"$set": {"is_completed": True}}
             )
             raise HTTPException(
@@ -1552,7 +1552,7 @@ async def resume_test_session(
             )
 
         # Update time remaining in database
-        await mongo_service.db["test_progress"].update_one(
+        mongo_service.db["test_progress"].update_one(
             {"_id": session["_id"]},
             {"$set": {"time_remaining_seconds": time_remaining}},
         )
@@ -1629,7 +1629,7 @@ async def update_test_config(
         mongo_service = get_mongodb_service()
 
         # Verify test exists and user is creator
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -1658,7 +1658,7 @@ async def update_test_config(
             update_data["description"] = request.description
 
         # Update in database
-        result = await mongo_service.db["online_tests"].update_one(
+        result = mongo_service.db["online_tests"].update_one(
             {"_id": ObjectId(test_id)}, {"$set": update_data}
         )
 
@@ -1699,7 +1699,7 @@ async def update_test_questions(
         mongo_service = get_mongodb_service()
 
         # Verify test exists and user is creator
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -1778,7 +1778,7 @@ async def update_test_questions(
                 q["question_id"] = str(ObjectId())
 
         # Update questions in database
-        result = await mongo_service.db["online_tests"].update_one(
+        result = mongo_service.db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {"$set": {"questions": request.questions, "updated_at": datetime.utcnow()}},
         )
@@ -1818,7 +1818,7 @@ async def preview_test(
         mongo_service = get_mongodb_service()
 
         # Get test document
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -1860,7 +1860,7 @@ async def delete_test(
         mongo_service = get_mongodb_service()
 
         # Verify test exists and user is creator
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -1870,7 +1870,7 @@ async def delete_test(
             )
 
         # Soft delete by setting is_active=false
-        result = await mongo_service.db["online_tests"].update_one(
+        result = mongo_service.db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
         )
@@ -1908,13 +1908,13 @@ async def get_test_attempts(
         mongo_service = get_mongodb_service()
 
         # Verify test exists
-        test_doc = await mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Count submissions for this user and test
         submissions = (
-            await mongo_service.db["test_submissions"].find(
+            mongo_service.db["test_submissions"].find(
                 {"test_id": ObjectId(test_id), "user_id": user_id}
             )
             .sort("submitted_at", -1)
