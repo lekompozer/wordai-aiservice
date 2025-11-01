@@ -50,9 +50,6 @@ def get_document_manager():
     return document_manager
 
 
-router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 1"])
-
-
 # ========== Request/Response Models ==========
 
 
@@ -83,6 +80,18 @@ class GenerateTestRequest(BaseModel):
     )
     max_retries: int = Field(
         3, description="Maximum number of attempts", ge=1, le=10
+    )
+    num_options: int = Field(
+        4,
+        description="Number of answer options per question (e.g., 4 for A-D, 6 for A-F). Set to 0 or 'auto' to let AI decide.",
+        ge=0,
+        le=10,
+    )
+    num_correct_answers: int = Field(
+        1,
+        description="Number of correct answers per question. Set to 0 or 'auto' to let AI decide based on question complexity.",
+        ge=0,
+        le=10,
     )
 
 
@@ -205,6 +214,8 @@ async def generate_test_background(
     source_id: str,
     time_limit_minutes: int,
     gemini_pdf_bytes: Optional[bytes],
+    num_options: int = 4,
+    num_correct_answers: int = 1,
 ):
     """
     Background job to generate test questions with AI
@@ -245,6 +256,8 @@ async def generate_test_background(
             language=language,
             num_questions=num_questions,
             gemini_pdf_bytes=gemini_pdf_bytes,
+            num_options=num_options,
+            num_correct_answers=num_correct_answers,
         )
 
         # Update progress
@@ -506,6 +519,8 @@ async def generate_test(
             gemini_pdf_bytes=(
                 gemini_pdf_bytes if request.source_type == "file" else None
             ),
+            num_options=request.num_options if request.num_options > 0 else 4,
+            num_correct_answers=request.num_correct_answers if request.num_correct_answers > 0 else 1,
         )
 
         logger.info(f"🚀 Background job queued for test {test_id}")
@@ -1542,6 +1557,9 @@ class UpdateTestConfigRequest(BaseModel):
     )
     is_active: Optional[bool] = Field(None, description="Active status")
     title: Optional[str] = Field(None, description="Test title", max_length=200)
+    description: Optional[str] = Field(
+        None, description="Test description", max_length=1000
+    )
 
 
 class UpdateTestQuestionsRequest(BaseModel):
@@ -1571,7 +1589,7 @@ async def update_test_config(
     user_info: dict = Depends(require_auth),
 ):
     """
-    Update test configuration (max_retries, time_limit, status, title)
+    Update test configuration (max_retries, time_limit, status, title, description)
     Only the test creator can update configuration
     """
     try:
@@ -1603,6 +1621,9 @@ async def update_test_config(
 
         if request.title is not None:
             update_data["title"] = request.title
+
+        if request.description is not None:
+            update_data["description"] = request.description
 
         # Update in database
         result = await mongo.online_tests.update_one(
@@ -1678,20 +1699,47 @@ async def update_test_questions(
                     detail=f"Question {idx + 1}: At least 2 options are required",
                 )
 
-            if not q.get("correct_answer_key"):
+            # Support both correct_answer_key (string) and correct_answer_keys (array)
+            has_correct_answer_key = q.get("correct_answer_key")
+            has_correct_answer_keys = q.get("correct_answer_keys")
+
+            if not has_correct_answer_key and not has_correct_answer_keys:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Question {idx + 1}: correct_answer_key is required",
+                    detail=f"Question {idx + 1}: correct_answer_key or correct_answer_keys is required",
                 )
 
-            # Validate correct_answer_key exists in options
+            # Get option keys for validation
             option_keys = [opt.get("key") for opt in q["options"]]
-            if q["correct_answer_key"] not in option_keys:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
-                    f"not found in options {option_keys}",
-                )
+
+            # Normalize to correct_answer_keys array format
+            if has_correct_answer_keys:
+                # Ensure it's an array
+                if isinstance(q["correct_answer_keys"], str):
+                    q["correct_answer_keys"] = [q["correct_answer_keys"]]
+
+                # Validate all correct answers exist in options
+                for ans in q["correct_answer_keys"]:
+                    if ans not in option_keys:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: correct answer '{ans}' not found in options {option_keys}",
+                        )
+
+                # Also set correct_answer_key for backwards compatibility (first correct answer)
+                q["correct_answer_key"] = q["correct_answer_keys"][0]
+
+            elif has_correct_answer_key:
+                # Old format: single correct answer
+                if q["correct_answer_key"] not in option_keys:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
+                        f"not found in options {option_keys}",
+                    )
+
+                # Convert to new format
+                q["correct_answer_keys"] = [q["correct_answer_key"]]
 
             # Ensure question_id exists (generate if missing)
             if not q.get("question_id"):
