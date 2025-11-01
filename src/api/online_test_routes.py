@@ -57,14 +57,19 @@ router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 1"])
 
 
 class GenerateTestRequest(BaseModel):
-    """Request model for test generation"""
+    """Request model for AI-generated test"""
 
     source_type: str = Field(..., description="Source type: 'document' or 'file'")
     source_id: str = Field(..., description="Document ID or R2 file key")
     title: str = Field(..., description="Test title", min_length=5, max_length=200)
+    description: Optional[str] = Field(
+        None,
+        description="Test description for test takers (optional, user-facing)",
+        max_length=1000,
+    )
     user_query: str = Field(
         ...,
-        description="What topics/concepts to test (e.g., 'Kiến thức về bất động sản', 'Python programming basics')",
+        description="Instructions to AI: what topics/concepts to test (e.g., 'Kiến thức về bất động sản', 'Python programming basics')",
         min_length=10,
         max_length=500,
     )
@@ -76,16 +81,69 @@ class GenerateTestRequest(BaseModel):
     time_limit_minutes: int = Field(
         30, description="Time limit in minutes", ge=1, le=300
     )
+    max_retries: int = Field(
+        3, description="Maximum number of attempts", ge=1, le=10
+    )
+
+
+class ManualTestQuestion(BaseModel):
+    """Manual question model"""
+
+    question_text: str = Field(..., min_length=5, max_length=1000)
+    options: list = Field(
+        ..., description="List of options with 'key' and 'text'", min_length=2
+    )
+    correct_answer_key: str = Field(..., description="Correct answer key (A, B, C, D)")
+    explanation: str = Field(..., min_length=10, max_length=500)
+
+
+class CreateManualTestRequest(BaseModel):
+    """Request model for manual test creation"""
+
+    title: str = Field(..., description="Test title", min_length=5, max_length=200)
+    description: Optional[str] = Field(
+        None, description="Test description (optional)", max_length=1000
+    )
+    language: str = Field(
+        default="vi", description="Language: 'vi', 'en', or 'zh'"
+    )
+    time_limit_minutes: int = Field(
+        30, description="Time limit in minutes", ge=1, le=300
+    )
+    max_retries: int = Field(
+        3, description="Maximum number of attempts", ge=1, le=10
+    )
+    questions: list[ManualTestQuestion] = Field(
+        ..., description="List of questions", min_length=1
+    )
 
 
 class TestQuestionsResponse(BaseModel):
     """Response model for test questions (for taking)"""
 
     test_id: str
+    status: str
     title: str
+    description: Optional[str]
     time_limit_minutes: int
     num_questions: int
     questions: list
+
+
+class TestStatusResponse(BaseModel):
+    """Response model for test status polling"""
+
+    test_id: str
+    status: str  # pending, generating, ready, failed
+    progress_percent: int
+    message: str
+    error_message: Optional[str] = None
+    # Include these when ready
+    title: Optional[str] = None
+    description: Optional[str] = None
+    num_questions: Optional[int] = None
+    created_at: Optional[str] = None
+    generated_at: Optional[str] = None
 
 
 class SubmitTestRequest(BaseModel):
@@ -121,6 +179,104 @@ class TestSummary(BaseModel):
 # ========== Endpoints ==========
 
 
+# ========== Background Job for AI Generation ==========
+
+
+async def generate_test_background(
+    test_id: str,
+    content: str,
+    title: str,
+    user_query: str,
+    language: str,
+    num_questions: int,
+    creator_id: str,
+    source_type: str,
+    source_id: str,
+    time_limit_minutes: int,
+    gemini_pdf_bytes: Optional[bytes],
+):
+    """
+    Background job to generate test questions with AI
+    Updates status: pending → generating → ready/failed
+    """
+    from pymongo import MongoClient
+    import config.config as config
+
+    mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
+        config, "MONGODB_URI", "mongodb://localhost:27017"
+    )
+    client = MongoClient(mongo_uri)
+    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
+    db = client[db_name]
+    collection = db["online_tests"]
+
+    try:
+        # Update status to generating
+        collection.update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "status": "generating",
+                    "progress_percent": 10,
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+        logger.info(f"🔄 Test {test_id}: Status updated to 'generating'")
+
+        # Generate test with AI
+        test_generator = get_test_generator_service()
+
+        logger.info(f"🤖 Calling AI to generate {num_questions} questions...")
+        questions = await test_generator._generate_questions_with_ai(
+            content=content,
+            user_query=user_query,
+            language=language,
+            num_questions=num_questions,
+            gemini_pdf_bytes=gemini_pdf_bytes,
+        )
+
+        # Update progress
+        collection.update_one(
+            {"_id": ObjectId(test_id)},
+            {"$set": {"progress_percent": 80, "updated_at": datetime.now()}},
+        )
+
+        # Save questions
+        collection.update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "questions": questions,
+                    "status": "ready",
+                    "progress_percent": 100,
+                    "generated_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+
+        logger.info(f"✅ Test {test_id}: Generation completed successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Test {test_id}: Generation failed: {e}")
+        collection.update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "status": "failed",
+                    "error_message": str(e),
+                    "progress_percent": 0,
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+
+    finally:
+        client.close()
+
+
+
 @router.post("/generate")
 async def generate_test(
     request: GenerateTestRequest,
@@ -128,16 +284,28 @@ async def generate_test(
     user_info: dict = Depends(require_auth),
 ):
     """
-    Generate a new test from document or file
+    Generate a new test from document or file (AI-powered)
 
-    **Phase 1 Feature**
+    **NEW Async Pattern**: Returns immediately with test_id and status='pending'.
+    Background job generates questions. Frontend polls /tests/{test_id}/status.
 
-    Uses Gemini 2.5 Pro with JSON Mode to generate multiple-choice questions.
+    **Flow:**
+    1. Create test record with status='pending'
+    2. Return test_id immediately (< 500ms)
+    3. Start background AI generation
+    4. Frontend polls status endpoint
+    5. When ready, frontend renders questions
+
+    **Benefits:**
+    - Fast response time
+    - User can close browser, come back later
+    - No data loss on network errors
     """
     try:
         logger.info(f"📝 Test generation request from user {user_info['uid']}")
         logger.info(f"   Source: {request.source_type}/{request.source_id}")
         logger.info(f"   Title: {request.title}")
+        logger.info(f"   Description: {request.description or '(none)'}")
         logger.info(f"   Query: {request.user_query}")
         logger.info(f"   Language: {request.language}")
         logger.info(
@@ -277,10 +445,44 @@ async def generate_test(
                 detail=f"Invalid source_type: {request.source_type}. Must be 'document' or 'file'",
             )
 
-        # Generate test with language parameter and optional Gemini PDF bytes
-        test_generator = get_test_generator_service()
+        # ========== NEW: Create test record immediately with status='pending' ==========
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
 
-        test_id, metadata = await test_generator.generate_test_from_content(
+        test_doc = {
+            "title": request.title,
+            "description": request.description,
+            "user_query": request.user_query,
+            "language": request.language,
+            "source_type": request.source_type,
+            "source_document_id": (
+                request.source_id if request.source_type == "document" else None
+            ),
+            "source_file_r2_key": (
+                request.source_id if request.source_type == "file" else None
+            ),
+            "creator_id": user_info["uid"],
+            "time_limit_minutes": request.time_limit_minutes,
+            "num_questions": request.num_questions,
+            "max_retries": request.max_retries,
+            "creation_type": "ai_generated",
+            "status": "pending",
+            "progress_percent": 0,
+            "questions": [],  # Will be populated by background job
+            "is_active": True,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        result = collection.insert_one(test_doc)
+        test_id = str(result.inserted_id)
+
+        logger.info(f"✅ Test record created: {test_id} with status='pending'")
+
+        # ========== Start background job for AI generation ==========
+        background_tasks.add_task(
+            generate_test_background,
+            test_id=test_id,
             content=content,
             title=request.title,
             user_query=request.user_query,
@@ -295,19 +497,222 @@ async def generate_test(
             ),
         )
 
-        logger.info(f"✅ Test generated: {test_id}")
+        logger.info(f"🚀 Background job queued for test {test_id}")
 
+        # ========== Return immediately ==========
         return {
             "success": True,
             "test_id": test_id,
-            "message": "Test generated successfully",
-            **metadata,
+            "status": "pending",
+            "title": request.title,
+            "description": request.description,
+            "num_questions": request.num_questions,
+            "time_limit_minutes": request.time_limit_minutes,
+            "created_at": test_doc["created_at"].isoformat(),
+            "message": "Test created successfully. AI is generating questions...",
         }
 
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Test generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== NEW: Manual Test Creation Endpoint ==========
+
+
+@router.post("/manual")
+async def create_manual_test(
+    request: CreateManualTestRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Create a test with manually entered questions
+
+    **NEW Endpoint**
+
+    User manually enters:
+    - Title, description
+    - Each question with options, correct answer, explanation
+
+    Test is immediately set to status='ready' (no AI generation needed).
+
+    **Use Cases:**
+    - Teacher creates custom quiz
+    - Import questions from existing material
+    - Quick test without AI
+    """
+    try:
+        logger.info(f"📝 Manual test creation from user {user_info['uid']}")
+        logger.info(f"   Title: {request.title}")
+        logger.info(f"   Questions: {len(request.questions)}")
+
+        # Validate questions
+        for idx, q in enumerate(request.questions):
+            if len(q.options) < 2:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {idx+1}: Must have at least 2 options",
+                )
+
+            # Validate correct_answer_key exists in options
+            option_keys = [opt["key"] for opt in q.options]
+            if q.correct_answer_key not in option_keys:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {idx+1}: correct_answer_key '{q.correct_answer_key}' not found in options",
+                )
+
+        # Create test record
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
+
+        # Format questions with question_id
+        import uuid
+
+        formatted_questions = []
+        for q in request.questions:
+            formatted_questions.append(
+                {
+                    "question_id": str(uuid.uuid4())[:8],
+                    "question_text": q.question_text,
+                    "options": q.options,
+                    "correct_answer_key": q.correct_answer_key,
+                    "explanation": q.explanation,
+                }
+            )
+
+        test_doc = {
+            "title": request.title,
+            "description": request.description,
+            "user_query": None,  # N/A for manual tests
+            "language": request.language,
+            "source_type": "manual",
+            "source_document_id": None,
+            "source_file_r2_key": None,
+            "creator_id": user_info["uid"],
+            "time_limit_minutes": request.time_limit_minutes,
+            "num_questions": len(request.questions),
+            "max_retries": request.max_retries,
+            "creation_type": "manual",
+            "status": "ready",  # Immediately ready
+            "progress_percent": 100,
+            "questions": formatted_questions,
+            "is_active": True,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        result = collection.insert_one(test_doc)
+        test_id = str(result.inserted_id)
+
+        logger.info(f"✅ Manual test created: {test_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "status": "ready",
+            "title": request.title,
+            "description": request.description,
+            "num_questions": len(request.questions),
+            "time_limit_minutes": request.time_limit_minutes,
+            "created_at": test_doc["created_at"].isoformat(),
+            "message": "Manual test created successfully!",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Manual test creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{test_id}/status")
+async def get_test_status(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get test generation status (for polling)
+
+    **NEW Endpoint for async pattern**
+
+    Frontend polls this endpoint every 3 seconds to check if AI generation is complete.
+
+    **Status Values:**
+    - `pending`: Test queued, AI generation not started
+    - `generating`: AI is generating questions
+    - `ready`: Questions generated, test ready to take
+    - `failed`: AI generation failed
+
+    **Usage:**
+    ```javascript
+    const interval = setInterval(async () => {
+      const status = await fetch(`/api/v1/tests/${testId}/status`);
+      if (status.status === 'ready') {
+        clearInterval(interval);
+        loadQuestions();
+      }
+    }, 3000);
+    ```
+    """
+    try:
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
+
+        test = collection.find_one({"_id": ObjectId(test_id)})
+
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Only creator can check status
+        if test.get("creator_id") != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="You don't have permission to view this test"
+            )
+
+        status = test.get("status", "pending")
+        progress = test.get("progress_percent", 0)
+
+        response = {
+            "test_id": test_id,
+            "status": status,
+            "progress_percent": progress,
+        }
+
+        if status == "pending":
+            response["message"] = "Test is queued for generation..."
+        elif status == "generating":
+            response["message"] = f"AI is generating questions... ({progress}%)"
+        elif status == "ready":
+            response.update(
+                {
+                    "message": "Test is ready to take!",
+                    "title": test.get("title"),
+                    "description": test.get("description"),
+                    "num_questions": test.get("num_questions"),
+                    "time_limit_minutes": test.get("time_limit_minutes"),
+                    "created_at": test.get("created_at").isoformat(),
+                    "generated_at": test.get("generated_at").isoformat()
+                    if test.get("generated_at")
+                    else None,
+                }
+            )
+        elif status == "failed":
+            response.update(
+                {
+                    "message": "Test generation failed. Please try again.",
+                    "error_message": test.get("error_message"),
+                }
+            )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get test status: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -319,16 +724,46 @@ async def get_test(
     """
     Get test details for taking (questions without correct answers)
 
-    **Phase 1 Feature**
+    **UPDATED**: Now checks if test is ready before returning questions
 
-    Returns test questions for the user to answer. Does NOT include correct answers.
+    **Status Check:**
+    - If status != 'ready': Returns error with current status
+    - If status = 'ready': Returns questions (without correct answers)
     """
     try:
         logger.info(f"📖 Get test request: {test_id} from user {user_info['uid']}")
 
         # Get test
+        mongo_service = get_mongodb_service()
+        test = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if not test.get("is_active", False):
+            raise HTTPException(status_code=403, detail="Test is not active")
+
+        # ========== NEW: Check if test is ready ==========
+        status = test.get("status", "ready")
+        if status != "ready":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "TEST_NOT_READY",
+                    "message": f"Test is not ready yet. Current status: {status}",
+                    "current_status": status,
+                    "progress_percent": test.get("progress_percent", 0),
+                    "tip": f"Poll GET /api/v1/tests/{test_id}/status to check when ready",
+                },
+            )
+
+        # Test is ready, return questions
         test_generator = get_test_generator_service()
         test_data = await test_generator.get_test_for_taking(test_id, user_info["uid"])
+
+        # Add status to response
+        test_data["status"] = "ready"
+        test_data["description"] = test.get("description")
 
         return test_data
 
