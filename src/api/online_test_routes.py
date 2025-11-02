@@ -971,17 +971,38 @@ async def start_test(
 
         max_retries = test_doc.get("max_retries", 1)
 
-        # Count user's attempts
-        attempts_count = submissions_collection.count_documents(
+        # Count user's attempts from BOTH submissions AND active sessions
+        # This prevents users from starting multiple sessions to bypass retry limit
+        progress_collection = mongo_service.db["test_progress"]
+
+        # Count completed submissions
+        completed_submissions = submissions_collection.count_documents(
             {
                 "test_id": test_id,
                 "user_id": user_info["uid"],
             }
         )
 
-        if max_retries != "unlimited" and attempts_count >= max_retries:
+        # Count existing sessions (completed or not)
+        existing_sessions = progress_collection.count_documents(
+            {
+                "test_id": test_id,
+                "user_id": user_info["uid"],
+            }
+        )
+
+        # Total attempts = max of submissions or sessions
+        # (in case of orphaned sessions without submissions)
+        attempts_used = max(completed_submissions, existing_sessions)
+
+        # Current attempt number (this new session)
+        current_attempt = attempts_used + 1
+
+        # Check if exceeds limit BEFORE creating new session
+        if max_retries != "unlimited" and current_attempt > max_retries:
             raise HTTPException(
-                status_code=429, detail=f"Maximum attempts ({max_retries}) exceeded"
+                status_code=429,
+                detail=f"Maximum attempts ({max_retries}) exceeded. You have used {attempts_used} attempts.",
             )
 
         # Create session in test_progress (Phase 2 feature, but prepare now)
@@ -989,7 +1010,6 @@ async def start_test(
 
         session_id = str(uuid.uuid4())
 
-        progress_collection = mongo_service.db["test_progress"]
         progress_collection.insert_one(
             {
                 "session_id": session_id,
@@ -1000,10 +1020,13 @@ async def start_test(
                 "last_saved_at": datetime.now(),
                 "time_remaining_seconds": test_data["time_limit_minutes"] * 60,
                 "is_completed": False,
+                "attempt_number": current_attempt,  # Track which attempt this is
             }
         )
 
-        logger.info(f"   ✅ Session created: {session_id}")
+        logger.info(
+            f"   ✅ Session created: {session_id} (Attempt {current_attempt}/{max_retries})"
+        )
 
         # Calculate time values for frontend
         time_limit_seconds = test_data["time_limit_minutes"] * 60
@@ -1013,13 +1036,15 @@ async def start_test(
             "success": True,
             "session_id": session_id,
             "test": test_data,
-            "attempts_used": attempts_count,
+            # Attempt tracking
+            "current_attempt": current_attempt,  # NEW: Lần thử hiện tại (1, 2, 3...)
+            "max_attempts": max_retries,  # NEW: Tổng số lần được thử
             "attempts_remaining": (
-                max_retries - attempts_count
+                max_retries - current_attempt
                 if max_retries != "unlimited"
                 else "unlimited"
             ),
-            # Add time values for frontend timer
+            # Time tracking
             "time_limit_seconds": time_limit_seconds,
             "time_remaining_seconds": time_remaining_seconds,
             "is_completed": False,

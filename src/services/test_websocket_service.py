@@ -66,7 +66,7 @@ class TestWebSocketService:
                 # Update connection status in database
                 try:
                     mongo = get_mongodb_service()
-                    await mongo.test_progress.update_one(
+                    await mongo.db["test_progress"].update_one(
                         {"session_id": session_id},
                         {
                             "$set": {
@@ -106,7 +106,9 @@ class TestWebSocketService:
 
                 # Verify session exists in database
                 mongo = get_mongodb_service()
-                session = await mongo.test_progress.find_one({"session_id": session_id})
+                session = await mongo.db["test_progress"].find_one(
+                    {"session_id": session_id}
+                )
 
                 if not session:
                     await self.sio.emit(
@@ -144,7 +146,7 @@ class TestWebSocketService:
                 self.sid_to_session[sid] = session_id
 
                 # Update connection status in database
-                await mongo.test_progress.update_one(
+                await mongo.db["test_progress"].update_one(
                     {"session_id": session_id},
                     {
                         "$set": {
@@ -221,7 +223,7 @@ class TestWebSocketService:
 
                 # Update answer in database
                 mongo = get_mongodb_service()
-                result = await mongo.test_progress.update_one(
+                result = await mongo.db["test_progress"].update_one(
                     {"session_id": session_id, "is_completed": False},
                     {
                         "$set": {
@@ -292,7 +294,7 @@ class TestWebSocketService:
                 if time_remaining is not None:
                     update_data["time_remaining_seconds"] = time_remaining
 
-                await mongo.test_progress.update_one(
+                await mongo.db["test_progress"].update_one(
                     {"session_id": session_id}, {"$set": update_data}
                 )
 
@@ -335,7 +337,7 @@ class TestWebSocketService:
 
                     # Update status in database
                     mongo = get_mongodb_service()
-                    await mongo.test_progress.update_one(
+                    await mongo.db["test_progress"].update_one(
                         {"session_id": session_id},
                         {
                             "$set": {
@@ -394,7 +396,9 @@ class TestWebSocketService:
 
                 # Merge answers with existing data
                 mongo = get_mongodb_service()
-                session = await mongo.test_progress.find_one({"session_id": session_id})
+                session = await mongo.db["test_progress"].find_one(
+                    {"session_id": session_id}
+                )
 
                 if not session:
                     await self.sio.emit(
@@ -410,7 +414,7 @@ class TestWebSocketService:
                     current_answers[question_id] = answer_key
 
                 # Update in database
-                await mongo.test_progress.update_one(
+                await mongo.db["test_progress"].update_one(
                     {"session_id": session_id},
                     {
                         "$set": {
