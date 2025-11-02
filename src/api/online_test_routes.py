@@ -78,9 +78,7 @@ class GenerateTestRequest(BaseModel):
     time_limit_minutes: int = Field(
         30, description="Time limit in minutes", ge=1, le=300
     )
-    max_retries: int = Field(
-        3, description="Maximum number of attempts", ge=1, le=10
-    )
+    max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
     num_options: int = Field(
         4,
         description="Number of answer options per question (e.g., 4 for A-D, 6 for A-F). Set to 0 or 'auto' to let AI decide.",
@@ -102,8 +100,12 @@ class ManualTestQuestion(BaseModel):
     options: list = Field(
         ..., description="List of options with 'key' and 'text'", min_length=2
     )
-    correct_answer_key: str = Field(..., description="Correct answer key (A, B, C, D, etc.)")
-    explanation: Optional[str] = Field(None, description="Optional explanation", max_length=500)
+    correct_answer_key: str = Field(
+        ..., description="Correct answer key (A, B, C, D, etc.)"
+    )
+    explanation: Optional[str] = Field(
+        None, description="Optional explanation", max_length=500
+    )
 
 
 class CreateManualTestRequest(BaseModel):
@@ -113,15 +115,11 @@ class CreateManualTestRequest(BaseModel):
     description: Optional[str] = Field(
         None, description="Test description (optional)", max_length=1000
     )
-    language: str = Field(
-        default="vi", description="Language: 'vi', 'en', or 'zh'"
-    )
+    language: str = Field(default="vi", description="Language: 'vi', 'en', or 'zh'")
     time_limit_minutes: int = Field(
         30, description="Time limit in minutes", ge=1, le=300
     )
-    max_retries: int = Field(
-        3, description="Maximum number of attempts", ge=1, le=10
-    )
+    max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
     questions: Optional[list[ManualTestQuestion]] = Field(
         default=[],
         description="List of questions (optional, can be empty to create draft test)",
@@ -298,7 +296,6 @@ async def generate_test_background(
 
     finally:
         client.close()
-
 
 
 @router.post("/generate")
@@ -520,7 +517,9 @@ async def generate_test(
                 gemini_pdf_bytes if request.source_type == "file" else None
             ),
             num_options=request.num_options if request.num_options > 0 else 4,
-            num_correct_answers=request.num_correct_answers if request.num_correct_answers > 0 else 1,
+            num_correct_answers=(
+                request.num_correct_answers if request.num_correct_answers > 0 else 1
+            ),
         )
 
         logger.info(f"🚀 Background job queued for test {test_id}")
@@ -712,7 +711,8 @@ async def duplicate_test(
         # Only creator can duplicate
         if original_test.get("creator_id") != user_info["uid"]:
             raise HTTPException(
-                status_code=403, detail="You don't have permission to duplicate this test"
+                status_code=403,
+                detail="You don't have permission to duplicate this test",
             )
 
         # Generate new title with copy suffix
@@ -858,9 +858,11 @@ async def get_test_status(
                     "num_questions": test.get("num_questions"),
                     "time_limit_minutes": test.get("time_limit_minutes"),
                     "created_at": test.get("created_at").isoformat(),
-                    "generated_at": test.get("generated_at").isoformat()
-                    if test.get("generated_at")
-                    else None,
+                    "generated_at": (
+                        test.get("generated_at").isoformat()
+                        if test.get("generated_at")
+                        else None
+                    ),
                 }
             )
         elif status == "failed":
@@ -1003,6 +1005,10 @@ async def start_test(
 
         logger.info(f"   ✅ Session created: {session_id}")
 
+        # Calculate time values for frontend
+        time_limit_seconds = test_data["time_limit_minutes"] * 60
+        time_remaining_seconds = time_limit_seconds  # Full time at start
+
         return {
             "success": True,
             "session_id": session_id,
@@ -1013,6 +1019,10 @@ async def start_test(
                 if max_retries != "unlimited"
                 else "unlimited"
             ),
+            # Add time values for frontend timer
+            "time_limit_seconds": time_limit_seconds,
+            "time_remaining_seconds": time_remaining_seconds,
+            "is_completed": False,
         }
 
     except HTTPException:
@@ -1161,7 +1171,9 @@ async def get_my_tests(
         offset: Number of tests to skip (default 0)
     """
     try:
-        logger.info(f"📋 Get my tests for user {user_info['uid']} (limit={limit}, offset={offset})")
+        logger.info(
+            f"📋 Get my tests for user {user_info['uid']} (limit={limit}, offset={offset})"
+        )
 
         # Validate pagination params
         if limit > 100:
@@ -1178,10 +1190,10 @@ async def get_my_tests(
 
         # Get user's created tests with pagination, sorted by updated_at (latest first)
         tests = list(
-            test_collection.find(
-                {"creator_id": user_info["uid"]}
-            )
-            .sort([("updated_at", -1), ("created_at", -1)])  # Latest edited/created first
+            test_collection.find({"creator_id": user_info["uid"]})
+            .sort(
+                [("updated_at", -1), ("created_at", -1)]
+            )  # Latest edited/created first
             .skip(offset)
             .limit(limit)
         )
@@ -1201,10 +1213,14 @@ async def get_my_tests(
                     "description": test.get("description"),  # Optional field
                     "num_questions": len(test.get("questions", [])),
                     "time_limit_minutes": test["time_limit_minutes"],
-                    "status": test.get("status", "ready"),  # pending, generating, ready, failed, draft
+                    "status": test.get(
+                        "status", "ready"
+                    ),  # pending, generating, ready, failed, draft
                     "is_active": test.get("is_active", True),
                     "created_at": test["created_at"].isoformat(),
-                    "updated_at": test.get("updated_at", test["created_at"]).isoformat(),
+                    "updated_at": test.get(
+                        "updated_at", test["created_at"]
+                    ).isoformat(),
                     "total_submissions": attempts_count,
                 }
             )
@@ -1396,7 +1412,9 @@ async def save_test_progress(
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Verify session exists and belongs to user
-        session = mongo_service.db["test_progress"].find_one({"session_id": request.session_id})
+        session = mongo_service.db["test_progress"].find_one(
+            {"session_id": request.session_id}
+        )
 
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -1560,7 +1578,9 @@ async def resume_test_session(
         return {
             "session_id": session["session_id"],
             "current_answers": session.get("current_answers", {}),
+            "time_limit_seconds": time_limit_seconds,
             "time_remaining_seconds": time_remaining,
+            "is_completed": False,
             "started_at": session["started_at"].isoformat(),
             "last_saved_at": session.get(
                 "last_saved_at", session["started_at"]
@@ -1914,9 +1934,8 @@ async def get_test_attempts(
 
         # Count submissions for this user and test
         submissions = (
-            mongo_service.db["test_submissions"].find(
-                {"test_id": ObjectId(test_id), "user_id": user_id}
-            )
+            mongo_service.db["test_submissions"]
+            .find({"test_id": ObjectId(test_id), "user_id": user_id})
             .sort("submitted_at", -1)
             .to_list(length=None)
         )
