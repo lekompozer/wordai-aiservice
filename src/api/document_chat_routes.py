@@ -541,23 +541,51 @@ async def document_chat_stream(
         # Prepare user message with context
         user_message_parts = []
 
-        # Add file content first (if available)
-        if file_info and file_info.get("content_text"):
-            content_preview = file_info["content_text"][:500]  # Log preview
+        # Smart context strategy:
+        # - If no selection: Send full document
+        # - If selection + small doc (<5k tokens): Send both (document as reference, selection as focus)
+        # - If selection + large doc (>=5k tokens): Send only selection (avoid token overflow)
+
+        DOCUMENT_TOKEN_THRESHOLD = 5000
+
+        if request.selected_text:
+            # User selected text - this is the PRIMARY focus
+            logger.info(f"✏️  Selected text: {len(request.selected_text)} chars ({selected_text_tokens} tokens)")
+
+            # Check if we should include full document as reference
+            if file_info and file_info.get("content_text"):
+                if file_tokens < DOCUMENT_TOKEN_THRESHOLD:
+                    # Document is small enough - include as reference context
+                    logger.info(
+                        f"📄 Including full document as reference ({file_tokens} tokens < {DOCUMENT_TOKEN_THRESHOLD})"
+                    )
+                    user_message_parts.append(
+                        f"---FULL DOCUMENT (Reference Context)---\n{file_info['content_text']}\n---END DOCUMENT---\n"
+                    )
+                else:
+                    # Document too large - skip to save tokens
+                    logger.info(
+                        f"⚠️  Skipping full document (too large: {file_tokens} tokens >= {DOCUMENT_TOKEN_THRESHOLD})"
+                    )
+
+            # Add selected text (PRIMARY FOCUS)
+            user_message_parts.append(
+                f"---SELECTED TEXT (Main Focus)---\n{request.selected_text}\n---END SELECTED TEXT---\n"
+            )
+            user_message_parts.append(
+                "Please focus your answer on the SELECTED TEXT above, using the document context if provided."
+            )
+
+        elif file_info and file_info.get("content_text"):
+            # No selection - use full document
+            content_preview = file_info["content_text"][:500]
             logger.info(
-                f"📄 Adding file content to message ({len(file_info['content_text'])} chars)"
+                f"📄 Using full document content ({len(file_info['content_text'])} chars, {file_tokens} tokens)"
             )
             logger.info(f"   Preview: {content_preview}...")
 
             user_message_parts.append(
                 f"---DOCUMENT CONTENT---\n{file_info['content_text']}\n---END DOCUMENT---\n"
-            )
-
-        # Add selected text (if provided by user)
-        if request.selected_text:
-            logger.info(f"✏️  Adding selected text ({len(request.selected_text)} chars)")
-            user_message_parts.append(
-                f"---SELECTED TEXT FROM DOCUMENT---\n{request.selected_text}\n---END SELECTED TEXT---\n"
             )
 
         # Add user question
