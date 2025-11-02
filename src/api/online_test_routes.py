@@ -1135,8 +1135,13 @@ async def submit_test(
                 }
             )
 
-        # Calculate score
-        score = (correct_count / total_questions * 100) if total_questions > 0 else 0
+        # Calculate score (thang điểm 10)
+        score_percentage = (
+            (correct_count / total_questions * 100) if total_questions > 0 else 0
+        )
+        score_out_of_10 = (
+            round(correct_count / total_questions * 10, 2) if total_questions > 0 else 0
+        )
 
         # Count attempt number
         submissions_collection = mongo_service.db["test_submissions"]
@@ -1155,12 +1160,13 @@ async def submit_test(
             "test_id": test_id,
             "user_id": user_info["uid"],
             "user_answers": request.user_answers,
-            "score": score,
+            "score": score_out_of_10,  # Thang điểm 10
+            "score_percentage": score_percentage,  # Phần trăm (for reference)
             "total_questions": total_questions,
             "correct_answers": correct_count,
             "time_taken_seconds": 0,  # TODO: Calculate from session start time (Phase 2)
             "attempt_number": attempt_number,
-            "is_passed": score >= 70,  # 70% pass threshold
+            "is_passed": score_out_of_10 >= 5.0,  # Pass threshold: 5/10
             "submitted_at": datetime.now(),
         }
 
@@ -1174,16 +1180,20 @@ async def submit_test(
             {"$set": {"is_completed": True, "last_saved_at": datetime.now()}},
         )
 
-        logger.info(f"✅ Test submitted: score={score:.1f}%, attempt={attempt_number}")
+        logger.info(
+            f"✅ Test submitted: score={score_out_of_10:.2f}/10 "
+            f"({score_percentage:.1f}%), attempt={attempt_number}"
+        )
 
         return {
             "success": True,
             "submission_id": submission_id,
-            "score": score,
+            "score": score_out_of_10,  # Thang điểm 10
+            "score_percentage": score_percentage,  # Phần trăm
             "total_questions": total_questions,
             "correct_answers": correct_count,
             "attempt_number": attempt_number,
-            "is_passed": score >= 70,
+            "is_passed": score_out_of_10 >= 5.0,  # Pass: >= 5/10
             "results": results,
         }
 
@@ -1392,7 +1402,10 @@ async def get_submission_detail(
         return {
             "submission_id": submission_id,
             "test_title": test_doc["title"],
-            "score": submission["score"],
+            "score": submission["score"],  # Thang điểm 10
+            "score_percentage": submission.get(
+                "score_percentage", submission["score"] * 10
+            ),  # Fallback for old data
             "total_questions": submission["total_questions"],
             "correct_answers": submission["correct_answers"],
             "time_taken_seconds": submission.get("time_taken_seconds", 0),
