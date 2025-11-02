@@ -1026,7 +1026,7 @@ async def start_test(
                 "session_id": session_id,
                 "test_id": test_id,
                 "user_id": user_info["uid"],
-                "current_answers": [],
+                "current_answers": {},  # ✅ Dict/object, not array
                 "started_at": datetime.now(),
                 "last_saved_at": datetime.now(),
                 "time_remaining_seconds": test_data["time_limit_minutes"] * 60,
