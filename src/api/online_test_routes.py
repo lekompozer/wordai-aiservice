@@ -1346,7 +1346,9 @@ async def get_submission_detail(
         logger.info(f"🔍 Get submission detail: {submission_id}")
 
         mongo_service = get_mongodb_service()
-        submissions_collection = mongo_service.db["online_tests"]
+        submissions_collection = mongo_service.db[
+            "test_submissions"
+        ]  # ✅ Correct collection
 
         submission = submissions_collection.find_one({"_id": ObjectId(submission_id)})
 
