@@ -1979,7 +1979,17 @@ async def get_test_attempts(
 ):
     """
     Get user's attempt history for a specific test
-    Shows how many times attempted and remaining attempts
+
+    Returns:
+    - Summary: total attempts, remaining attempts, best score
+    - List of all submissions with basic info
+    - Click on submission_id to get full details via GET /me/submissions/{submission_id}
+
+    **Example:**
+    User A làm test XX 3 lần:
+    - Attempt 1: score 5.0/10 (50%) - PASS
+    - Attempt 2: score 7.0/10 (70%) - PASS
+    - Attempt 3: score 8.0/10 (80%) - PASS
     """
     try:
         user_id = user_info["uid"]
@@ -1990,41 +2000,66 @@ async def get_test_attempts(
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        # Count submissions for this user and test
-        submissions = (
+        # Check if user is creator (unlimited attempts)
+        is_creator = test_doc.get("creator_id") == user_id
+
+        # Get all submissions for this user and test (sorted newest first)
+        submissions = list(
             mongo_service.db["test_submissions"]
-            .find({"test_id": ObjectId(test_id), "user_id": user_id})
+            .find({"test_id": test_id, "user_id": user_id})
             .sort("submitted_at", -1)
-            .to_list(length=None)
         )
 
         attempts_used = len(submissions)
         max_retries = test_doc.get("max_retries", 3)
-        attempts_remaining = max(0, max_retries - attempts_used)
+
+        # Creator has unlimited attempts
+        if is_creator:
+            attempts_remaining = float("inf")  # Unlimited
+            can_retake = True
+        else:
+            attempts_remaining = max(0, max_retries - attempts_used)
+            can_retake = attempts_remaining > 0
 
         # Get best score
         best_score = 0
         if submissions:
             best_score = max(sub.get("score", 0) for sub in submissions)
 
+        # Build submission list with more details
+        submission_list = []
+        for sub in submissions:
+            submission_list.append(
+                {
+                    "submission_id": str(sub["_id"]),
+                    "score": sub.get("score", 0),  # Thang điểm 10
+                    "score_percentage": sub.get(
+                        "score_percentage", sub.get("score", 0) * 10
+                    ),
+                    "correct_answers": sub.get("correct_answers", 0),
+                    "total_questions": sub.get("total_questions", 0),
+                    "is_passed": sub.get("is_passed", False),
+                    "attempt_number": sub.get("attempt_number", 0),
+                    "time_taken_seconds": sub.get("time_taken_seconds", 0),
+                    "submitted_at": sub["submitted_at"].isoformat(),
+                }
+            )
+
+        logger.info(
+            f"📊 Get attempts for test {test_id}: user={user_id}, "
+            f"attempts={attempts_used}/{max_retries}, best_score={best_score}/10"
+        )
+
         return {
             "test_id": test_id,
             "test_title": test_doc["title"],
-            "max_retries": max_retries,
+            "is_creator": is_creator,
+            "max_retries": max_retries if not is_creator else None,  # None = unlimited
             "attempts_used": attempts_used,
-            "attempts_remaining": attempts_remaining,
+            "attempts_remaining": "unlimited" if is_creator else attempts_remaining,
             "best_score": best_score,
-            "can_retake": attempts_remaining > 0,
-            "submissions": [
-                {
-                    "submission_id": str(sub["_id"]),
-                    "score": sub.get("score", 0),
-                    "is_passed": sub.get("is_passed", False),
-                    "attempt_number": sub.get("attempt_number", 0),
-                    "submitted_at": sub["submitted_at"].isoformat(),
-                }
-                for sub in submissions
-            ],
+            "can_retake": can_retake,
+            "submissions": submission_list,
         }
 
     except HTTPException:
