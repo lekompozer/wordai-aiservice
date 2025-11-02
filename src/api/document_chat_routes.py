@@ -128,22 +128,28 @@ async def get_file_content(
 
         # Get file from simple-files or edited documents
         if file_id:
-            logger.info(f"📁 Getting file from simple-files: {file_id}")
+            # Auto-detect if this is actually a document_id (starts with "doc_")
+            if file_id.startswith("doc_") and not document_id:
+                logger.info(f"� Detected document_id in file_id field: {file_id}")
+                document_id = file_id
+                file_id = None
+            else:
+                logger.info(f"�📁 Getting file from simple-files: {file_id}")
 
-            # ===== STEP 1: Check Cache =====
-            if conversation_id:
-                cached_path = get_cached_file(file_id, conversation_id)
-                if cached_path:
-                    logger.info(f"🎯 Using cached file: {cached_path}")
-                    file_path = cached_path
-                    from_cache = True
+                # ===== STEP 1: Check Cache =====
+                if conversation_id:
+                    cached_path = get_cached_file(file_id, conversation_id)
+                    if cached_path:
+                        logger.info(f"🎯 Using cached file: {cached_path}")
+                        file_path = cached_path
+                        from_cache = True
 
-            # ===== STEP 2: Download from R2 if not cached =====
-            if not file_path:
-                file_doc = user_manager.get_file_by_id(file_id, user_id)
+                # ===== STEP 2: Download from R2 if not cached =====
+                if not file_path:
+                    file_doc = user_manager.get_file_by_id(file_id, user_id)
 
-                if not file_doc:
-                    raise HTTPException(status_code=404, detail="File not found")
+                    if not file_doc:
+                        raise HTTPException(status_code=404, detail="File not found")
 
                 # Get R2 key and file info
                 r2_key = file_doc.get("r2_key")
@@ -214,9 +220,33 @@ async def get_file_content(
                 raise HTTPException(status_code=404, detail="Document not found")
 
             # For edited documents, we have HTML/text content directly
-            # No file path needed - will use content_text or content_html
             file_type = "txt"  # Treat as text
-            content_text = doc.get("content_text") or doc.get("content_html", "")
+
+            # Try to get content_text first, fallback to parsing HTML
+            content_text = doc.get("content_text")
+
+            if not content_text:
+                # Parse HTML to clean text (remove tags, scripts, styles)
+                content_html = doc.get("content_html", "")
+                if content_html:
+                    from bs4 import BeautifulSoup
+                    import re
+
+                    logger.info(f"📝 Parsing HTML to clean text...")
+                    soup = BeautifulSoup(content_html, "html.parser")
+
+                    # Remove script and style elements
+                    for script in soup(["script", "style"]):
+                        script.decompose()
+
+                    # Get text and clean up whitespace
+                    content_text = soup.get_text(separator=" ", strip=True)
+                    content_text = re.sub(r"\s+", " ", content_text).strip()
+
+                    logger.info(f"✅ Extracted {len(content_text)} chars from HTML")
+                else:
+                    content_text = ""
+                    logger.warning(f"⚠️ No content found in document")
 
             # Estimate tokens
             estimated_tokens = estimate_tokens(content_text)
