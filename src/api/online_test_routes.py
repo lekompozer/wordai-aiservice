@@ -413,13 +413,12 @@ async def generate_test(
                     status_code=500, detail="File R2 key not found in database"
                 )
 
-            logger.info(f"📥 Downloading PDF from R2: {r2_key}")
+            logger.info(f"📥 Downloading PDF from R2 for Gemini File API: {r2_key}")
 
-            # Download PDF to temp file
-            _, temp_pdf_path = (
-                await FileDownloadService.download_and_parse_file_from_r2(
-                    r2_key=r2_key, file_type="pdf", user_id=user_info["uid"]
-                )
+            # Download PDF to temp file (ONLY download, no need to parse)
+            # Gemini File API will handle PDF directly
+            temp_pdf_path = await FileDownloadService._download_file_from_r2_with_boto3(
+                r2_key=r2_key, file_type="pdf"
             )
 
             if not temp_pdf_path:
