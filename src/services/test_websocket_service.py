@@ -159,12 +159,18 @@ class TestWebSocketService:
                 )
 
                 # Send current progress to client
+                time_remaining = session.get("time_remaining_seconds")
+                logger.info(
+                    f"📊 Session data: time_remaining={time_remaining}s, "
+                    f"started_at={session.get('started_at')}"
+                )
+
                 await self.sio.emit(
                     "session_joined",
                     {
                         "session_id": session_id,
                         "current_answers": session.get("current_answers", {}),
-                        "time_remaining_seconds": session.get("time_remaining_seconds"),
+                        "time_remaining_seconds": time_remaining,
                         "started_at": (
                             session.get("started_at").isoformat()
                             if session.get("started_at")
@@ -315,12 +321,20 @@ class TestWebSocketService:
 
                 # Check if time is running out (< 5 minutes)
                 if time_remaining is not None and time_remaining < 300:
+                    logger.warning(
+                        f"⏰ Time warning for session {session_id}: "
+                        f"{time_remaining}s remaining ({time_remaining // 60} min {time_remaining % 60} sec)"
+                    )
                     await self.sio.emit(
                         "time_warning",
                         {
                             "session_id": session_id,
                             "time_remaining_seconds": time_remaining,
-                            "message": f"Chỉ còn {time_remaining // 60} phút!",
+                            "message": (
+                                f"Chỉ còn {time_remaining} giây!"
+                                if time_remaining < 60
+                                else f"Chỉ còn {time_remaining // 60} phút!"
+                            ),
                         },
                         to=sid,
                     )
