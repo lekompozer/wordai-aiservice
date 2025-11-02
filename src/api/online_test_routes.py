@@ -969,6 +969,12 @@ async def start_test(
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
+        # Check if user is the creator/owner
+        is_creator = test_doc.get("creator_id") == user_info["uid"]
+
+        if is_creator:
+            logger.info(f"   👤 User is test creator - unlimited attempts allowed")
+
         max_retries = test_doc.get("max_retries", 1)
 
         # Count user's attempts from BOTH submissions AND active sessions
@@ -999,7 +1005,12 @@ async def start_test(
         current_attempt = attempts_used + 1
 
         # Check if exceeds limit BEFORE creating new session
-        if max_retries != "unlimited" and current_attempt > max_retries:
+        # BUT skip check if user is the creator (owner has unlimited attempts)
+        if (
+            not is_creator
+            and max_retries != "unlimited"
+            and current_attempt > max_retries
+        ):
             raise HTTPException(
                 status_code=429,
                 detail=f"Maximum attempts ({max_retries}) exceeded. You have used {attempts_used} attempts.",
@@ -1025,7 +1036,7 @@ async def start_test(
         )
 
         logger.info(
-            f"   ✅ Session created: {session_id} (Attempt {current_attempt}/{max_retries})"
+            f"   ✅ Session created: {session_id} (Attempt {current_attempt}/{max_retries if not is_creator else 'unlimited'})"
         )
 
         # Calculate time values for frontend
@@ -1037,13 +1048,20 @@ async def start_test(
             "session_id": session_id,
             "test": test_data,
             # Attempt tracking
-            "current_attempt": current_attempt,  # NEW: Lần thử hiện tại (1, 2, 3...)
-            "max_attempts": max_retries,  # NEW: Tổng số lần được thử
+            "current_attempt": current_attempt,  # Lần thử hiện tại (1, 2, 3...)
+            "max_attempts": (
+                "unlimited" if is_creator else max_retries
+            ),  # Creator = unlimited
             "attempts_remaining": (
-                max_retries - current_attempt
-                if max_retries != "unlimited"
-                else "unlimited"
+                "unlimited"
+                if is_creator
+                else (
+                    max_retries - current_attempt
+                    if max_retries != "unlimited"
+                    else "unlimited"
+                )
             ),
+            "is_creator": is_creator,  # NEW: Frontend biết user có phải creator
             # Time tracking
             "time_limit_seconds": time_limit_seconds,
             "time_remaining_seconds": time_remaining_seconds,

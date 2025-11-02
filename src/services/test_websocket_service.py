@@ -66,7 +66,8 @@ class TestWebSocketService:
                 # Update connection status in database
                 try:
                     mongo = get_mongodb_service()
-                    await mongo.db["test_progress"].update_one(
+                    await asyncio.to_thread(
+                        mongo.db["test_progress"].update_one,
                         {"session_id": session_id},
                         {
                             "$set": {
@@ -106,8 +107,8 @@ class TestWebSocketService:
 
                 # Verify session exists in database
                 mongo = get_mongodb_service()
-                session = await mongo.db["test_progress"].find_one(
-                    {"session_id": session_id}
+                session = await asyncio.to_thread(
+                    mongo.db["test_progress"].find_one, {"session_id": session_id}
                 )
 
                 if not session:
@@ -146,7 +147,8 @@ class TestWebSocketService:
                 self.sid_to_session[sid] = session_id
 
                 # Update connection status in database
-                await mongo.db["test_progress"].update_one(
+                await asyncio.to_thread(
+                    mongo.db["test_progress"].update_one,
                     {"session_id": session_id},
                     {
                         "$set": {
@@ -223,7 +225,8 @@ class TestWebSocketService:
 
                 # Update answer in database
                 mongo = get_mongodb_service()
-                result = await mongo.db["test_progress"].update_one(
+                result = await asyncio.to_thread(
+                    mongo.db["test_progress"].update_one,
                     {"session_id": session_id, "is_completed": False},
                     {
                         "$set": {
@@ -294,8 +297,10 @@ class TestWebSocketService:
                 if time_remaining is not None:
                     update_data["time_remaining_seconds"] = time_remaining
 
-                await mongo.db["test_progress"].update_one(
-                    {"session_id": session_id}, {"$set": update_data}
+                await asyncio.to_thread(
+                    mongo.db["test_progress"].update_one,
+                    {"session_id": session_id},
+                    {"$set": update_data},
                 )
 
                 # Send acknowledgment
@@ -337,7 +342,8 @@ class TestWebSocketService:
 
                     # Update status in database
                     mongo = get_mongodb_service()
-                    await mongo.db["test_progress"].update_one(
+                    await asyncio.to_thread(
+                        mongo.db["test_progress"].update_one,
                         {"session_id": session_id},
                         {
                             "$set": {
@@ -396,8 +402,8 @@ class TestWebSocketService:
 
                 # Merge answers with existing data
                 mongo = get_mongodb_service()
-                session = await mongo.db["test_progress"].find_one(
-                    {"session_id": session_id}
+                session = await asyncio.to_thread(
+                    mongo.db["test_progress"].find_one, {"session_id": session_id}
                 )
 
                 if not session:
@@ -414,7 +420,8 @@ class TestWebSocketService:
                     current_answers[question_id] = answer_key
 
                 # Update in database
-                await mongo.db["test_progress"].update_one(
+                await asyncio.to_thread(
+                    mongo.db["test_progress"].update_one,
                     {"session_id": session_id},
                     {
                         "$set": {
