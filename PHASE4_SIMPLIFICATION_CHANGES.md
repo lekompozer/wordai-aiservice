@@ -205,21 +205,21 @@ def send_test_invitation(
 ## 7. Benefits of Simplification
 
 ### User Experience:
-✅ **Fewer steps**: No accept/decline flow - test appears immediately  
-✅ **Simpler interface**: Direct access, less cognitive load  
-✅ **Familiar pattern**: Similar to Google Docs/Drive sharing  
-✅ **Control retained**: Users can delete if unwanted  
+✅ **Fewer steps**: No accept/decline flow - test appears immediately
+✅ **Simpler interface**: Direct access, less cognitive load
+✅ **Familiar pattern**: Similar to Google Docs/Drive sharing
+✅ **Control retained**: Users can delete if unwanted
 
 ### Code Quality:
-✅ **Less code**: -160 lines from service, -147 lines from routes  
-✅ **Fewer endpoints**: 8 instead of 10 (20% reduction)  
-✅ **Simpler state machine**: 1 fewer status transition  
-✅ **No token management**: No invitation token generation/validation  
+✅ **Less code**: -160 lines from service, -147 lines from routes
+✅ **Fewer endpoints**: 8 instead of 10 (20% reduction)
+✅ **Simpler state machine**: 1 fewer status transition
+✅ **No token management**: No invitation token generation/validation
 
 ### Performance:
-✅ **Fewer API calls**: No preview → accept flow  
-✅ **Simpler queries**: No token lookups  
-✅ **Less database writes**: One write instead of two (create + accept)  
+✅ **Fewer API calls**: No preview → accept flow
+✅ **Simpler queries**: No token lookups
+✅ **Less database writes**: One write instead of two (create + accept)
 
 ---
 
@@ -359,6 +359,6 @@ After deployment, monitor:
 
 ## Questions?
 
-Contact: Development Team  
-Document Version: 1.0  
+Contact: Development Team
+Document Version: 1.0
 Last Updated: 2025-01-03

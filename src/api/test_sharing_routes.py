@@ -296,7 +296,6 @@ async def list_my_invitations(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/{test_id}/shares")
 async def list_test_shares(
     test_id: str, user_data: Dict[str, Any] = Depends(require_auth)
@@ -545,7 +544,7 @@ async def delete_shared_test(
     }
     ```
 
-    **Note:** 
+    **Note:**
     - User can only delete tests shared WITH them (not tests they own)
     - Owner won't see deleted shares in their share list
     - This cannot be undone - owner must re-share if needed

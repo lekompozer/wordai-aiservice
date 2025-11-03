@@ -127,7 +127,9 @@ class TestSharingService:
 
                 # Insert share
                 self.test_shares.insert_one(share_doc)
-                logger.info(f"✅ Created test share {share_id} for {email} (auto-accepted)")
+                logger.info(
+                    f"✅ Created test share {share_id} for {email} (auto-accepted)"
+                )
 
                 # Convert ObjectId to string for response
                 share_doc["_id"] = str(share_doc["_id"])
@@ -156,19 +158,20 @@ class TestSharingService:
         """
         try:
             # Find share for this user
-            share = self.test_shares.find_one({
-                "test_id": test_id,
-                "sharee_id": user_id,
-                "status": {"$nin": ["declined", "expired"]}
-            })
+            share = self.test_shares.find_one(
+                {
+                    "test_id": test_id,
+                    "sharee_id": user_id,
+                    "status": {"$nin": ["declined", "expired"]},
+                }
+            )
 
             if not share:
                 raise ValueError("Shared test not found")
 
             # Soft delete by setting status to 'declined'
             result = self.test_shares.update_one(
-                {"share_id": share["share_id"]},
-                {"$set": {"status": "declined"}}
+                {"share_id": share["share_id"]}, {"$set": {"status": "declined"}}
             )
 
             if result.modified_count > 0:

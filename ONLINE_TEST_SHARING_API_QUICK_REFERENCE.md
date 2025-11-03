@@ -96,7 +96,7 @@ Tests shared with users appear immediately in their list (no accept/decline need
 }
 ```
 
-**Note:** 
+**Note:**
 - User removes test from their list (soft delete)
 - Share status becomes `"declined"`
 - Owner won't see this share anymore
@@ -296,7 +296,7 @@ async function deleteSharedTest(testId) {
     method: 'DELETE',
     headers: { 'Authorization': `Bearer ${token}` }
   });
-  
+
   if (response.ok) {
     // Remove from UI
     alert('Test removed from your list');
@@ -331,7 +331,7 @@ shares.forEach(share => {
 These endpoints no longer exist:
 
 - ~~GET `/invitations/{token}`~~ - Preview invitation
-- ~~POST `/invitations/{token}/accept`~~ - Accept invitation  
+- ~~POST `/invitations/{token}/accept`~~ - Accept invitation
 - ~~POST `/invitations/{token}/decline`~~ - Decline invitation
 
 **Reason:** Auto-accept model doesn't need preview/accept/decline.
@@ -372,22 +372,22 @@ These endpoints no longer exist:
 ## Best Practices
 
 ### Sharing:
-✅ Always set a deadline for time-sensitive tests  
-✅ Add personal message to explain test purpose  
-✅ Check sharee email is correct before sending  
-✅ Use `send_email=true` to notify users  
+✅ Always set a deadline for time-sensitive tests
+✅ Add personal message to explain test purpose
+✅ Check sharee email is correct before sending
+✅ Use `send_email=true` to notify users
 
 ### User Experience:
-✅ Show deadline prominently in UI  
-✅ Allow users to delete unwanted shares  
-✅ Show "shared by {name}" for context  
-✅ Indicate test completion status  
+✅ Show deadline prominently in UI
+✅ Allow users to delete unwanted shares
+✅ Show "shared by {name}" for context
+✅ Indicate test completion status
 
 ### Owner Management:
-✅ Regularly review share list  
-✅ Revoke access after deadline  
-✅ Extend deadline if needed  
-✅ Monitor completion rates  
+✅ Regularly review share list
+✅ Revoke access after deadline
+✅ Extend deadline if needed
+✅ Monitor completion rates
 
 ---
 
@@ -434,7 +434,7 @@ curl -X DELETE https://api.wordai.pro/api/v1/tests/shared/test_123 \
 **A:** Yes, share by email. They'll receive notification email and can sign up.
 
 ### Q: What's the difference between "revoke" and "delete"?
-**A:** 
+**A:**
 - **Revoke** (owner): Owner removes user's access
 - **Delete** (user): User removes test from their list
 
@@ -442,11 +442,11 @@ curl -X DELETE https://api.wordai.pro/api/v1/tests/shared/test_123 \
 
 ## Support
 
-**Documentation:** See `ONLINE_TEST_IMPLEMENTATION_ROADMAP.md`  
-**Changes:** See `PHASE4_SIMPLIFICATION_CHANGES.md`  
+**Documentation:** See `ONLINE_TEST_IMPLEMENTATION_ROADMAP.md`
+**Changes:** See `PHASE4_SIMPLIFICATION_CHANGES.md`
 **Issues:** Contact development team
 
 ---
 
-Last Updated: 2025-01-03  
+Last Updated: 2025-01-03
 Version: 2.0 (Simplified)
