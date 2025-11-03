@@ -604,11 +604,12 @@ def create_app() -> FastAPI:
     # ✅ ADDED: Document Export API - Export to PDF, DOCX, TXT with pagination
     app.include_router(document_export_router, tags=["Document Export"])
 
+    # ✅ ADDED: Test Sharing API - Online Test Phase 4 (Sharing & Collaboration)
+    # IMPORTANT: Mount BEFORE online_test_router to prioritize specific routes like /shared-with-me
+    app.include_router(test_sharing_router, tags=["Online Tests - Phase 4: Sharing"])
+
     # ✅ ADDED: Online Test API - Test generation and taking (Phase 1-3)
     app.include_router(online_test_router, tags=["Online Tests - Phase 1-3"])
-
-    # ✅ ADDED: Test Sharing API - Online Test Phase 4 (Sharing & Collaboration)
-    app.include_router(test_sharing_router, tags=["Online Tests - Phase 4: Sharing"])
 
     # ✅ ADDED: WebSocket support for Online Test Phase 2 (Real-time auto-save)
     websocket_service = get_websocket_service()
