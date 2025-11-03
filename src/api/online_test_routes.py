@@ -168,6 +168,9 @@ class GenerateTestRequest(BaseModel):
         30, description="Time limit in minutes", ge=1, le=300
     )
     max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
+    passing_score: int = Field(
+        70, description="Minimum score percentage to pass (0-100)", ge=0, le=100
+    )
     deadline: Optional[datetime] = Field(
         None, description="Global deadline for all users (ISO 8601 format)"
     )
@@ -212,6 +215,9 @@ class CreateManualTestRequest(BaseModel):
         30, description="Time limit in minutes", ge=1, le=300
     )
     max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
+    passing_score: int = Field(
+        70, description="Minimum score percentage to pass (0-100)", ge=0, le=100
+    )
     deadline: Optional[datetime] = Field(
         None, description="Global deadline for all users (ISO 8601 format)"
     )
@@ -580,6 +586,7 @@ async def generate_test(
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": request.num_questions,
             "max_retries": request.max_retries,
+            "passing_score": request.passing_score,
             "deadline": request.deadline,  # Global deadline for all shared users
             "creation_type": "ai_generated",
             "status": "pending",
@@ -721,6 +728,7 @@ async def create_manual_test(
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": len(formatted_questions),
             "max_retries": request.max_retries,
+            "passing_score": request.passing_score,
             "deadline": request.deadline,  # Global deadline for all shared users
             "creation_type": "manual",
             "status": status,  # "draft" if no questions, "ready" if has questions
@@ -1273,6 +1281,10 @@ async def submit_test(
             round(correct_count / total_questions * 10, 2) if total_questions > 0 else 0
         )
 
+        # Check if passed based on test's passing_score setting
+        passing_score = test_doc.get("passing_score", 70)  # Default 70%
+        is_passed = score_percentage >= passing_score
+
         # Count attempt number
         submissions_collection = mongo_service.db["test_submissions"]
         attempt_number = (
@@ -1296,7 +1308,7 @@ async def submit_test(
             "correct_answers": correct_count,
             "time_taken_seconds": 0,  # TODO: Calculate from session start time (Phase 2)
             "attempt_number": attempt_number,
-            "is_passed": score_out_of_10 >= 5.0,  # Pass threshold: 5/10
+            "is_passed": is_passed,  # ✅ Fixed: Use test's passing_score
             "submitted_at": datetime.now(),
         }
 
@@ -1850,6 +1862,9 @@ class UpdateTestConfigRequest(BaseModel):
     time_limit_minutes: Optional[int] = Field(
         None, description="Time limit in minutes", ge=1, le=300
     )
+    passing_score: Optional[int] = Field(
+        None, description="Minimum score percentage to pass (0-100)", ge=0, le=100
+    )
     deadline: Optional[datetime] = Field(
         None, description="Global deadline for all users (ISO 8601 format)"
     )
@@ -1913,6 +1928,9 @@ async def update_test_config(
 
         if request.time_limit_minutes is not None:
             update_data["time_limit_minutes"] = request.time_limit_minutes
+
+        if request.passing_score is not None:
+            update_data["passing_score"] = request.passing_score
 
         if request.deadline is not None:
             update_data["deadline"] = request.deadline
