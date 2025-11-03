@@ -8,6 +8,7 @@ import asyncio
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
+from bson import ObjectId  # ✅ Added for MongoDB queries
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, EmailStr
 
@@ -151,8 +152,8 @@ async def share_test(
             brevo = get_brevo_service()
             db = get_mongodb()  # ✅ Use standard config function
 
-            # Get test info
-            test = db.online_tests.find_one({"test_id": test_id})
+            # Get test info - ✅ Fixed: Use _id with ObjectId
+            test = db.online_tests.find_one({"_id": ObjectId(test_id)})
             if not test:
                 raise HTTPException(status_code=404, detail="Test not found")
 

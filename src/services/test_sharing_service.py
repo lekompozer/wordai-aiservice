@@ -258,7 +258,9 @@ class TestSharingService:
                         ),
                         "message": share.get("message"),
                         "test": {
-                            "test_id": test["test_id"],
+                            "test_id": str(
+                                test["_id"]
+                            ),  # ✅ Fixed: Use _id, not test_id
                             "title": test["title"],
                             "num_questions": len(test.get("questions", [])),
                             "time_limit_minutes": test.get("time_limit_minutes"),
