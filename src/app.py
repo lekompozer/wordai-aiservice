@@ -128,6 +128,9 @@ from src.api.encrypted_folder_routes import router as encrypted_folder_router
 # ✅ ADDED: Online Test API for test generation and taking (Phase 1-3)
 from src.api.online_test_routes import router as online_test_router
 
+# ✅ ADDED: Test Sharing API for Online Test Phase 4 (Sharing & Collaboration)
+from src.api.test_sharing_routes import router as test_sharing_router
+
 # ✅ ADDED: WebSocket service for Online Test Phase 2 (Real-time auto-save)
 from src.services.test_websocket_service import get_websocket_service
 
@@ -601,8 +604,11 @@ def create_app() -> FastAPI:
     # ✅ ADDED: Document Export API - Export to PDF, DOCX, TXT with pagination
     app.include_router(document_export_router, tags=["Document Export"])
 
-    # ✅ ADDED: Online Test API - Test generation and taking (Phase 1)
-    app.include_router(online_test_router, tags=["Online Tests - Phase 1"])
+    # ✅ ADDED: Online Test API - Test generation and taking (Phase 1-3)
+    app.include_router(online_test_router, tags=["Online Tests - Phase 1-3"])
+
+    # ✅ ADDED: Test Sharing API - Online Test Phase 4 (Sharing & Collaboration)
+    app.include_router(test_sharing_router, tags=["Online Tests - Phase 4: Sharing"])
 
     # ✅ ADDED: WebSocket support for Online Test Phase 2 (Real-time auto-save)
     websocket_service = get_websocket_service()

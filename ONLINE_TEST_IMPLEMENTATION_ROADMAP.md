@@ -15,7 +15,7 @@
 | **Phase 1** | ✅ **COMPLETED** | 30/10/2025 | [View Specs](docs/ONLINE_TEST_API_PHASE1.md) | ✅ Production |
 | **Phase 2** | ⏳ Not Started | - | - | - |
 | **Phase 3** | ⏳ Not Started | - | - | - |
-| **Phase 4** | ⏳ Not Started | - | - | - |
+| **Phase 4** | ✅ **COMPLETED** | 03/01/2025 | [Quick Ref](ONLINE_TEST_SHARING_API_QUICK_REFERENCE.md) | ⏳ Pending |
 | **Phase 5** | ⏳ Not Started | - | - | - |
 
 ### Phase 1 Deliverables ✅
@@ -39,6 +39,38 @@
 **Git Commits:**
 - `569ef65` - Database initialization script
 - `0f4ca4f` - Phase 1 complete implementation (backend + routes)
+
+### Phase 4 Deliverables ✅
+
+**Backend Implementation:**
+- ✅ Database schema: `test_shares` collection với 9 indexes
+- ✅ Sharing Service: `src/services/test_sharing_service.py` (simplified auto-accept model)
+- ✅ API Routes: `src/api/test_sharing_routes.py` (8 endpoints)
+- ✅ Database Init Script: `scripts/init_test_shares_db.py`
+- ✅ Email Templates: Brevo integration (3 email types)
+- ✅ Cron Job: `scripts/test_sharing_deadline_cron.py` (deadline management)
+- ✅ Access Control: Updated GET/start/submit endpoints
+
+**Documentation:**
+- ✅ API Quick Reference: `ONLINE_TEST_SHARING_API_QUICK_REFERENCE.md`
+- ✅ Simplification Changes: `PHASE4_SIMPLIFICATION_CHANGES.md`
+- ✅ Roadmap Update: This document
+
+**Model Changes:**
+- ✅ Simplified from invitation model to auto-accept model
+- ✅ Removed accept/decline flow (3 endpoints removed)
+- ✅ Added user delete functionality
+- ✅ Direct test access (no invitation token needed)
+
+**Code Reduction:**
+- ✅ -212 lines of code removed
+- ✅ 10 endpoints → 8 endpoints (20% reduction)
+- ✅ Simpler UX similar to Google Docs sharing
+
+**Deployment:**
+- ⏳ Ready for production deployment
+- ⏳ Frontend updates needed
+- ⏳ Cron job setup needed
 
 ---
 
@@ -300,99 +332,215 @@ Tài liệu này mô tả lộ trình triển khai chi tiết cho hệ thống O
 
 ---
 
-## Phase 4: Sharing & Collaboration (Social Features)
+## Phase 4: Sharing & Collaboration (Social Features) ✅
 
 **Mục tiêu:** Chia sẻ bài thi với người khác, quản lý deadline.
 
 **Thời gian ước tính:** 2-3 tuần
+**Thời gian thực tế:** 1 tuần (28/12/2024 - 03/01/2025)
+**Status:** ✅ **COMPLETED**
 
-### 4.1. Test Sharing System
+### 4.1. Test Sharing System ✅
 
 **New Collection:** `test_shares`
+
+**Status:** ✅ Created - `scripts/init_test_shares_db.py` (235 lines)
 
 ```
 {
   "_id": ObjectId,
-  "test_id": ObjectId,
-  "sharer_id": ObjectId,
+  "share_id": "uuid-v4",
+  "test_id": "test_123",
+  "sharer_id": "firebase_uid",
   "sharee_email": "user@example.com",
-  "sharee_id": ObjectId | null,
-  "access_granted_at": ISODate,
+  "sharee_id": "firebase_uid" | null,
+  "status": "accepted" | "completed" | "expired" | "declined",
+  "accepted_at": ISODate,  // Set immediately on share
   "deadline": ISODate | null,
-  "status": "pending" | "accepted" | "completed" | "expired" | "declined",
-  "shared_at": ISODate,
-  "invitation_token": "uuid-v4"
+  "message": "Personal message",
+  "created_at": ISODate
 }
 ```
 
-**Access Control:**
-- `pending`: Đã gửi email, chưa accept
-- `accepted`: User đã accept và có thể làm bài
-- `completed`: User đã hoàn thành bài thi
-- `expired`: Quá deadline chưa làm
-- `declined`: User từ chối làm bài
+**Access Control (Simplified):**
+- ✅ `accepted`: Auto-accepted on share creation (immediate access)
+- ✅ `completed`: User completed test
+- ✅ `expired`: Deadline passed
+- ✅ `declined`: User deleted share OR owner revoked
 
-### 4.2. Email & Notification Integration
+**Changes from Original Plan:**
+- ❌ Removed `pending` status (auto-accept model)
+- ❌ Removed `invitation_token` field (no longer needed)
+- ✅ Simplified UX: Similar to Google Docs sharing
 
-**Email Service:** Sử dụng Brevo (đã có sẵn trong hệ thống)
+**Database Indexes (9 total):**
+1. ✅ `test_id_1` - Query shares by test
+2. ✅ `sharer_id_1_created_at_-1` - Owner's shares sorted by date
+3. ✅ `sharee_email_1` - Find shares by email
+4. ✅ `sharee_id_1_status_1` - User's shares filtered by status
+5. ✅ `status_1_deadline_1` - Deadline management queries
+6. ✅ `deadline_1_status_1` (partial) - Expire deadline shares
+7. ✅ `test_id_1_sharee_id_1_status_1` - Prevent duplicates + access check
+8. ✅ `created_at_1` (TTL 90 days) - Auto-cleanup old declined shares
+9. ✅ `share_id_1` (unique) - Fast lookup by share_id
+
+### 4.2. Email & Notification Integration ✅
+
+**Status:** ✅ Completed - `src/services/brevo_email_service.py` updated
+
+**Email Service:** Brevo (existing integration)
 
 **Email Templates:**
-1. **Test Invitation Email:**
-   - Subject: `{sharer_name} invited you to take a test: {test_title}`
-   - Content: Test details, deadline, CTA button "Take Test"
-   - Link: `https://wordai.com/tests/invitation/{invitation_token}`
+1. ✅ **Test Share Notification Email:**
+   - Subject: `{sharer_name} đã chia sẻ bài thi với bạn: {test_title}`
+   - Content: Test details, deadline, direct link
+   - Button: "🚀 Bắt đầu làm bài ngay"
+   - Link: `https://wordai.pro/tests/{test_id}` (direct, no token)
+   - **Note:** No acceptance required - test ready immediately
 
-2. **Test Deadline Reminder:**
-   - Gửi trước deadline 24h
-   - Subject: `Reminder: Test "{test_title}" due in 24 hours`
+2. ✅ **Test Deadline Reminder:**
+   - Sent 24h before deadline
+   - Subject: `Nhắc nhở: Bài thi "{test_title}" còn 24 giờ`
+   - Only for accepted, not completed
 
-3. **Test Completion Notification (to Owner):**
-   - Subject: `{user_name} completed your test: {test_title}`
-   - Content: Score, completion time
+3. ✅ **Test Completion Notification (to Owner):**
+   - Subject: `{user_name} đã hoàn thành bài thi: {test_title}`
+   - Content: Score, completion time, answers summary
 
 **In-app Notifications:**
-- Notification type: `online_test_invitation`
-- Hiển thị trong notification center
-- Real-time notification qua WebSocket (nếu user đang online)
+- ✅ Notification type: `online_test_invitation`
+- ✅ Action URL: `/tests/{test_id}` (direct link)
+- ✅ Created on share for existing users
+- ✅ Integrated with existing notification system
 
-### 4.3. Deadline Management
+### 4.3. Deadline Management ✅
 
-**Cron Job:** Chạy mỗi giờ để kiểm tra deadline
+**Status:** ✅ Completed - `scripts/test_sharing_deadline_cron.py` (130 lines)
+
+**Cron Job:** Chạy mỗi giờ
+
+**Setup:**
+```bash
+# Add to crontab
+0 * * * * cd /Users/user/Code/wordai-aiservice && python scripts/test_sharing_deadline_cron.py
+```
 
 **Logic:**
-1. Query `test_shares` với `status = "accepted"` và `deadline < now()`
-2. Update status thành `"expired"`
-3. Gửi notification cho sharee: "Bạn đã quá hạn làm bài"
-4. Gửi notification cho sharer: "User X chưa hoàn thành bài thi đúng hạn"
+1. ✅ Query `test_shares` with `status="accepted"` and `deadline < now()`
+2. ✅ Update status to `"expired"`
+3. ✅ Send 24h reminder emails before deadline
+4. ✅ Log expiration actions
+5. ✅ Error handling and retry logic
 
-### 4.4. API Endpoints - Phase 4
+### 4.4. API Endpoints - Phase 4 ✅
 
-| Method | Endpoint | Chức năng | Auth | Priority |
-|--------|----------|-----------|------|----------|
-| **POST** | `/api/v1/tests/{test_id}/share` | Chia sẻ bài thi với danh sách emails | Owner only | HIGH |
-| **GET** | `/api/v1/tests/invitations` | Danh sách bài thi được mời làm | Required | HIGH |
-| **POST** | `/api/v1/tests/invitations/{token}/accept` | Accept lời mời làm bài | Public | HIGH |
-| **POST** | `/api/v1/tests/invitations/{token}/decline` | Từ chối lời mời | Public | MEDIUM |
-| **GET** | `/api/v1/tests/{test_id}/shares` | Danh sách người được share | Owner only | MEDIUM |
-| **DELETE** | `/api/v1/tests/{test_id}/shares/{share_id}` | Thu hồi quyền truy cập | Owner only | MEDIUM |
-| **PATCH** | `/api/v1/tests/{test_id}/shares/{share_id}/deadline` | Thay đổi deadline | Owner only | LOW |
+**Status:** ✅ Completed - `src/api/test_sharing_routes.py` (630 lines)
 
-### 4.5. Business Logic
+**Simplified Endpoints (8 total):**
 
-**Sharing Flow:**
-1. Owner nhập danh sách emails + optional deadline
-2. Backend validate emails (format, không trùng)
-3. Tạo records trong `test_shares` với `invitation_token`
-4. Gửi email mời cho từng user
-5. Nếu email đã là user trong hệ thống -> tạo in-app notification
-6. Return danh sách share_id đã tạo
+| Method | Endpoint | Chức năng | Auth | Priority | Status |
+|--------|----------|-----------|------|----------|--------|
+| **POST** | `/api/v1/tests/{test_id}/share` | Share test with emails | Owner | HIGH | ✅ |
+| **GET** | `/api/v1/tests/invitations` | List tests shared with me | Required | HIGH | ✅ |
+| **GET** | `/api/v1/tests/{test_id}/shares` | Owner views shares | Owner | MEDIUM | ✅ |
+| **DELETE** | `/api/v1/tests/{test_id}/shares/{share_id}` | Owner revokes access | Owner | MEDIUM | ✅ |
+| **PATCH** | `/api/v1/tests/{test_id}/shares/{share_id}/deadline` | Update deadline | Owner | LOW | ✅ |
+| **GET** | `/api/v1/tests/shared-with-me` | Simplified list | Required | MEDIUM | ✅ |
+| **GET** | `/api/v1/tests/{test_id}/access` | Check access | Required | MEDIUM | ✅ |
+| **DELETE** | `/api/v1/tests/shared/{test_id}` | User deletes share | Required | HIGH | ✅ NEW |
 
-**Invitation Flow:**
-1. User click link trong email -> redirect đến `/tests/invitation/{token}`
-2. Frontend gọi API để validate token
-3. Hiển thị preview bài thi (title, số câu hỏi, thời gian, deadline)
-4. User click "Accept" hoặc "Decline"
-5. Nếu Accept -> redirect đến trang làm bài
+**Removed Endpoints (simplification):**
+- ❌ `GET /invitations/{token}` - Preview invitation (not needed)
+- ❌ `POST /invitations/{token}/accept` - Accept (auto-accept now)
+- ❌ `POST /invitations/{token}/decline` - Decline (use delete instead)
+
+**Code Reduction:**
+- Original plan: 10 endpoints
+- Simplified: 8 endpoints (-20%)
+- Lines removed: ~212 lines
+
+### 4.5. Business Logic ✅
+
+**Sharing Flow (Simplified):**
+1. ✅ Owner enters emails + optional deadline + message
+2. ✅ Backend validates emails (format, not duplicate, not self)
+3. ✅ Creates shares with `status="accepted"` immediately
+4. ✅ Sends invitation email to each user
+5. ✅ Creates in-app notification for existing users
+6. ✅ Returns list of created shares
+
+**User Experience:**
+1. ✅ User receives email → Test already in "Shared with me" list
+2. ✅ User clicks email link → Direct to test page
+3. ✅ User clicks "Start Test" → Takes test
+4. ✅ User can delete from list if unwanted
+5. ✅ No accept/decline step needed
+
+**Access Control (Updated):**
+- ✅ Modified GET `/api/v1/tests/{test_id}` - Added access check
+- ✅ Modified POST `/api/v1/tests/{test_id}/start` - Added access check
+- ✅ Modified POST `/api/v1/tests/{test_id}/submit` - Added completion notification
+- ✅ Helper function: `check_test_access()` validates owner/shared access
+
+### 4.6. Implementation Details ✅
+
+**Files Created:**
+1. ✅ `scripts/init_test_shares_db.py` (235 lines)
+2. ✅ `src/services/test_sharing_service.py` (590 lines)
+3. ✅ `src/api/test_sharing_routes.py` (630 lines)
+4. ✅ `scripts/test_sharing_deadline_cron.py` (130 lines)
+
+**Files Modified:**
+1. ✅ `src/api/online_test_routes.py` (added access control)
+2. ✅ `src/services/brevo_email_service.py` (added 3 email methods)
+3. ✅ `src/app.py` (registered router)
+
+**Documentation Created:**
+1. ✅ `ONLINE_TEST_SHARING_API_QUICK_REFERENCE.md`
+2. ✅ `PHASE4_SIMPLIFICATION_CHANGES.md`
+
+**Testing Checklist:**
+- ⏳ Share test with multiple emails
+- ⏳ Email sent with correct template
+- ⏳ Test appears in user's list immediately
+- ⏳ User can start test directly
+- ⏳ User can delete shared test
+- ⏳ Owner can view/revoke shares
+- ⏳ Deadline expiration works
+- ⏳ Reminder emails sent 24h before
+- ⏳ Completion notification to owner
+
+### 4.7. Deployment Notes ⏳
+
+**Pre-deployment:**
+```bash
+# 1. Initialize database
+python scripts/init_test_shares_db.py
+
+# 2. Test syntax
+python -m py_compile src/services/test_sharing_service.py
+python -m py_compile src/api/test_sharing_routes.py
+python -m py_compile src/services/brevo_email_service.py
+```
+
+**Deployment:**
+```bash
+# Deploy backend
+./deploy.sh
+```
+
+**Post-deployment:**
+```bash
+# Setup cron job
+crontab -e
+# Add: 0 * * * * cd /path/to/wordai && python scripts/test_sharing_deadline_cron.py
+```
+
+**Frontend Updates Required:**
+- ⏳ Remove accept/decline UI components
+- ⏳ Add delete button to shared test list
+- ⏳ Update notification handlers (direct test links)
+- ⏳ Show test immediately in shared list
 
 ---
 

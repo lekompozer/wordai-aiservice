@@ -5,6 +5,7 @@ Endpoints for test generation, taking tests, submission, WebSocket auto-save, an
 
 import logging
 import os
+import asyncio
 from typing import Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
@@ -16,6 +17,7 @@ from pydantic import BaseModel, Field
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.services.test_generator_service import get_test_generator_service
 from src.services.document_manager import document_manager
+from src.services.test_sharing_service import get_test_sharing_service
 import config.config as config
 
 logger = logging.getLogger(__name__)
@@ -48,6 +50,93 @@ def get_mongodb_service():
 def get_document_manager():
     """Get document manager instance"""
     return document_manager
+
+
+# ========== Phase 4: Access Control Helper ==========
+
+
+def check_test_access(
+    test_id: str, user_id: str, test_doc: Optional[Dict] = None
+) -> Dict[str, Any]:
+    """
+    Check if user has access to test (owner or shared)
+
+    Args:
+        test_id: Test ID
+        user_id: Firebase UID
+        test_doc: Optional test document (to avoid extra query)
+
+    Returns:
+        Dict with access_type ("owner" or "shared") and test document
+
+    Raises:
+        HTTPException: If no access
+    """
+    try:
+        # Get test if not provided
+        if not test_doc:
+            mongo_service = get_mongodb_service()
+            test_doc = mongo_service.db["online_tests"].find_one(
+                {"_id": ObjectId(test_id)}
+            )
+
+            if not test_doc:
+                raise HTTPException(status_code=404, detail="Test not found")
+
+        # Check if user is owner
+        if test_doc.get("creator_id") == user_id:
+            return {
+                "access_type": "owner",
+                "test": test_doc,
+                "is_owner": True,
+            }
+
+        # Check if test is shared with user
+        sharing_service = get_test_sharing_service()
+        share = sharing_service.db.test_shares.find_one(
+            {
+                "test_id": str(test_doc["_id"]),
+                "sharee_id": user_id,
+                "status": "accepted",
+            }
+        )
+
+        if not share:
+            raise HTTPException(
+                status_code=403,
+                detail="Access denied: You don't own this test and it hasn't been shared with you",
+            )
+
+        # Check deadline
+        deadline = share.get("deadline")
+        if deadline:
+            if deadline.tzinfo is None:
+                from datetime import timezone
+
+                deadline = deadline.replace(tzinfo=timezone.utc)
+
+            if deadline < datetime.now(deadline.tzinfo):
+                # Auto-expire
+                sharing_service.db.test_shares.update_one(
+                    {"share_id": share["share_id"]}, {"$set": {"status": "expired"}}
+                )
+                raise HTTPException(
+                    status_code=403,
+                    detail="Access denied: Deadline has passed for this shared test",
+                )
+
+        return {
+            "access_type": "shared",
+            "test": test_doc,
+            "is_owner": False,
+            "share": share,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error checking test access: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check test access")
 
 
 # ========== Request/Response Models ==========
@@ -889,11 +978,15 @@ async def get_test(
     """
     Get test details for taking (questions without correct answers)
 
-    **UPDATED**: Now checks if test is ready before returning questions
+    **UPDATED Phase 4**: Now supports shared access (owner OR shared users can access)
 
     **Status Check:**
     - If status != 'ready': Returns error with current status
     - If status = 'ready': Returns questions (without correct answers)
+
+    **Access Control:**
+    - Owner: Can always access
+    - Shared: Must have accepted invitation, deadline not passed
     """
     try:
         logger.info(f"📖 Get test request: {test_id} from user {user_info['uid']}")
@@ -908,7 +1001,11 @@ async def get_test(
         if not test.get("is_active", False):
             raise HTTPException(status_code=403, detail="Test is not active")
 
-        # ========== NEW: Check if test is ready ==========
+        # ========== Phase 4: Check access (owner or shared) ==========
+        access_info = check_test_access(test_id, user_info["uid"], test)
+        logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
+
+        # ========== Check if test is ready ==========
         status = test.get("status", "ready")
         if status != "ready":
             raise HTTPException(
@@ -926,14 +1023,18 @@ async def get_test(
         test_generator = get_test_generator_service()
         test_data = await test_generator.get_test_for_taking(test_id, user_info["uid"])
 
-        # Add status to response
+        # Add status and access info to response
         test_data["status"] = "ready"
         test_data["description"] = test.get("description")
+        test_data["access_type"] = access_info["access_type"]
+        test_data["is_owner"] = access_info["is_owner"]
 
         return test_data
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to get test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -947,17 +1048,17 @@ async def start_test(
     """
     Start a new test session
 
-    **Phase 1 Feature**
+    **UPDATED Phase 4**: Now supports shared access (owner OR shared users)
 
     Creates a session record and returns test questions.
-    Phase 2 will add WebSocket support for real-time progress.
+    Phase 2 WebSocket support for real-time progress.
+
+    **Access Control:**
+    - Owner: Unlimited attempts
+    - Shared: Subject to max_retries limit
     """
     try:
         logger.info(f"🚀 Start test: {test_id} for user {user_info['uid']}")
-
-        # Get test to verify it exists
-        test_generator = get_test_generator_service()
-        test_data = await test_generator.get_test_for_taking(test_id, user_info["uid"])
 
         # Check if user has already exceeded max attempts
         mongo_service = get_mongodb_service()
@@ -968,11 +1069,18 @@ async def start_test(
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        # Check if user is the creator/owner
-        is_creator = test_doc.get("creator_id") == user_info["uid"]
+        # ========== Phase 4: Check access (owner or shared) ==========
+        access_info = check_test_access(test_id, user_info["uid"], test_doc)
+        is_creator = access_info["is_owner"]
+
+        logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
 
         if is_creator:
             logger.info(f"   👤 User is test creator - unlimited attempts allowed")
+
+        # Get test data
+        test_generator = get_test_generator_service()
+        test_data = await test_generator.get_test_for_taking(test_id, user_info["uid"])
 
         max_retries = test_doc.get("max_retries", 1)
 
@@ -1078,14 +1186,23 @@ async def start_test(
 async def submit_test(
     test_id: str,
     request: SubmitTestRequest,
+    background_tasks: BackgroundTasks,
     user_info: dict = Depends(require_auth),
 ):
     """
     Submit test answers and get results
 
-    **Phase 1 Feature**
+    **UPDATED Phase 4**: Now supports shared access and sends completion notifications
 
     Scores the test and returns detailed results with explanations.
+
+    **Access Control:**
+    - Owner: Can submit (for testing purposes)
+    - Shared: Can submit according to max_retries limit
+
+    **Phase 4 Features:**
+    - Marks shared test as "completed" status
+    - Sends email notification to test owner when shared user completes
     """
     try:
         logger.info(f"📤 Submit test: {test_id} from user {user_info['uid']}")
@@ -1101,6 +1218,12 @@ async def submit_test(
 
         if not test_doc.get("is_active", False):
             raise HTTPException(status_code=410, detail="Test is no longer active")
+
+        # ========== Phase 4: Check access (owner or shared) ==========
+        access_info = check_test_access(test_id, user_info["uid"], test_doc)
+        is_owner = access_info["is_owner"]
+
+        logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
 
         # Score the test
         questions = test_doc["questions"]
@@ -1178,6 +1301,61 @@ async def submit_test(
             {"test_id": test_id, "user_id": user_info["uid"], "is_completed": False},
             {"$set": {"is_completed": True, "last_saved_at": datetime.now()}},
         )
+
+        # ========== Phase 4: Mark shared test as completed ==========
+        if not is_owner:
+            sharing_service = get_test_sharing_service()
+            sharing_service.mark_test_completed(test_id, user_info["uid"])
+            logger.info(f"   ✅ Marked shared test as completed")
+
+            # Send completion notification to owner (background task)
+            async def send_completion_notification():
+                try:
+                    from src.services.brevo_email_service import get_brevo_service
+
+                    # Get owner info
+                    owner_id = test_doc.get("creator_id")
+                    owner = mongo_service.db.users.find_one({"firebase_uid": owner_id})
+
+                    # Get user info
+                    user = mongo_service.db.users.find_one(
+                        {"firebase_uid": user_info["uid"]}
+                    )
+
+                    if owner and user:
+                        owner_email = owner.get("email")
+                        owner_name = (
+                            owner.get("name") or owner.get("display_name") or "Owner"
+                        )
+                        user_name = (
+                            user.get("name")
+                            or user.get("display_name")
+                            or user.get("email", "Someone")
+                        )
+
+                        # Calculate time taken (placeholder for now)
+                        time_taken_minutes = (
+                            submission_doc.get("time_taken_seconds", 0) // 60
+                        )
+
+                        brevo = get_brevo_service()
+                        await asyncio.to_thread(
+                            brevo.send_test_completion_notification,
+                            to_email=owner_email,
+                            owner_name=owner_name,
+                            user_name=user_name,
+                            test_title=test_doc["title"],
+                            score=score_out_of_10,
+                            is_passed=submission_doc["is_passed"],
+                            time_taken_minutes=max(1, time_taken_minutes),
+                        )
+                        logger.info(
+                            f"   📧 Sent completion email to owner {owner_email}"
+                        )
+                except Exception as e:
+                    logger.error(f"   ⚠️ Failed to send completion notification: {e}")
+
+            background_tasks.add_task(send_completion_notification)
 
         logger.info(
             f"✅ Test submitted: score={score_out_of_10:.2f}/10 "
