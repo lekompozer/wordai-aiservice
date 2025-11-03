@@ -32,11 +32,14 @@ def get_mongo_db():
     """Get MongoDB database instance"""
     global _mongo_client
     if _mongo_client is None:
-        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-            config, "MONGODB_URI", "mongodb://localhost:27017"
+        import os
+
+        # Try to get authenticated URI first, fallback to basic URI
+        mongo_uri = os.getenv("MONGODB_URI_AUTH") or os.getenv(
+            "MONGODB_URI", "mongodb://mongodb:27017"
         )
         _mongo_client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
+    db_name = os.getenv("MONGO_DB_NAME") or os.getenv("MONGODB_NAME", "ai_service_db")
     return _mongo_client[db_name]
 
 
@@ -55,19 +58,34 @@ def get_notification_manager() -> NotificationManager:
 class ShareTestRequest(BaseModel):
     """Request to share test with users"""
 
-    emails: List[EmailStr] = Field(
-        ...,
+    emails: Optional[List[EmailStr]] = Field(
+        None,
         description="List of recipient email addresses",
         min_items=1,
         max_items=50,
     )
+    sharee_emails: Optional[List[EmailStr]] = Field(
+        None,
+        description="Legacy field name (use 'emails' instead)",
+        min_items=1,
+        max_items=50,
+    )
     deadline: Optional[datetime] = Field(
-        None, description="Optional deadline for completing test"
+        None,
+        description="Optional deadline for completing test (inherits test's deadline if null)",
     )
     message: Optional[str] = Field(
         None, description="Optional personal message", max_length=500
     )
     send_email: bool = Field(True, description="Send email notification to recipients")
+
+    def get_emails(self) -> List[EmailStr]:
+        """Get emails from either field"""
+        if self.emails:
+            return self.emails
+        if self.sharee_emails:
+            return self.sharee_emails
+        raise ValueError("Either 'emails' or 'sharee_emails' must be provided")
 
 
 class UpdateDeadlineRequest(BaseModel):
@@ -134,8 +152,11 @@ async def share_test(
         user_id = user_data.get("uid")
         sharing_service = get_test_sharing_service()
 
+        # Get emails from either field (backward compatibility)
+        emails = request.get_emails()
+
         logger.info(
-            f"📤 User {user_id} sharing test {test_id} with {len(request.emails)} users"
+            f"📤 User {user_id} sharing test {test_id} with {len(emails)} users"
         )
 
         # Create shares
@@ -143,7 +164,7 @@ async def share_test(
             sharing_service.share_test,
             test_id=test_id,
             sharer_id=user_id,
-            sharee_emails=request.emails,
+            sharee_emails=emails,
             deadline=request.deadline,
             message=request.message,
         )
