@@ -239,13 +239,31 @@ class TestSharingService:
                     )
                     sharer_email = sharer.get("email")
 
-                # Check if user has completed this test
+                # Get user's attempt statistics
+                test_id_str = share["test_id"]
+                my_attempts = 0
+                my_best_score = None
                 has_completed = False
+
                 if share["status"] == "accepted":
-                    submission = self.test_submissions.find_one(
-                        {"test_id": share["test_id"], "user_id": user_id}
+                    # Get all user's submissions for this test
+                    submissions = list(
+                        self.test_submissions.find(
+                            {"test_id": test_id_str, "user_id": user_id}
+                        ).sort("submitted_at", -1)
                     )
-                    has_completed = submission is not None
+
+                    my_attempts = len(submissions)
+                    has_completed = my_attempts > 0
+
+                    if submissions:
+                        # Get best score
+                        my_best_score = max(sub.get("score", 0) for sub in submissions)
+
+                # Get total number of participants (unique users who submitted)
+                total_participants = len(
+                    self.test_submissions.distinct("user_id", {"test_id": test_id_str})
+                )
 
                 result.append(
                     {
@@ -262,8 +280,12 @@ class TestSharingService:
                                 test["_id"]
                             ),  # ✅ Fixed: Use _id, not test_id
                             "title": test["title"],
+                            "description": test.get("description", ""),
                             "num_questions": len(test.get("questions", [])),
                             "time_limit_minutes": test.get("time_limit_minutes"),
+                            "max_retries": test.get("max_retries", -1),
+                            "passing_score": test.get("passing_score", 0),
+                            "total_participants": total_participants,
                         },
                         "sharer": {
                             "name": sharer_name,
@@ -276,6 +298,8 @@ class TestSharingService:
                             else None
                         ),
                         "has_completed": has_completed,
+                        "my_attempts": my_attempts,
+                        "my_best_score": my_best_score,
                     }
                 )
 

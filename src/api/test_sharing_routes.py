@@ -483,9 +483,9 @@ async def list_shared_tests(
     user_data: Dict[str, Any] = Depends(require_auth),
 ):
     """
-    **[BONUS] List all tests shared with me (simplified view)**
+    **[HIGH PRIORITY] List all tests shared with me (detailed view)**
 
-    Alternative to /invitations - returns just the tests without full invitation details.
+    Returns full test information for users to review before taking the test.
 
     **Auth:** Required
 
@@ -498,17 +498,25 @@ async def list_shared_tests(
         {
             "test_id": "test_123",
             "title": "JavaScript Basics",
+            "description": "Test your JavaScript knowledge",
             "num_questions": 10,
             "time_limit_minutes": 30,
+            "max_retries": 3,
+            "passing_score": 70,
+            "total_participants": 15,
+            "my_attempts": 2,
+            "my_best_score": 8.5,
             "sharer_name": "John Doe",
             "status": "accepted",
             "deadline": "2025-12-31T23:59:59Z",
-            "has_completed": false
+            "has_completed": false,
+            "share_id": "uuid",
+            "created_at": "2025-11-03T..."
         }
     ]
     ```
 
-    **Note:** This is a simplified version of /invitations for UI convenience
+    **Use Case:** User views list of tests shared with them, sees full details to decide whether to take the test
     """
     try:
         user_id = user_data.get("uid")
@@ -520,24 +528,31 @@ async def list_shared_tests(
             sharing_service.list_my_invitations, user_id=user_id, status=status
         )
 
-        # Simplify response
-        simplified = [
+        # Return full detailed response
+        detailed = [
             {
                 "test_id": inv["test"]["test_id"],
                 "title": inv["test"]["title"],
+                "description": inv["test"].get("description", ""),
                 "num_questions": inv["test"]["num_questions"],
                 "time_limit_minutes": inv["test"].get("time_limit_minutes"),
+                "max_retries": inv["test"].get("max_retries", -1),
+                "passing_score": inv["test"].get("passing_score", 0),
+                "total_participants": inv["test"].get("total_participants", 0),
+                "my_attempts": inv.get("my_attempts", 0),
+                "my_best_score": inv.get("my_best_score"),
                 "sharer_name": inv["sharer"]["name"],
                 "status": inv["status"],
                 "deadline": inv.get("deadline"),
                 "has_completed": inv.get("has_completed", False),
                 "share_id": inv["share_id"],
                 "created_at": inv["created_at"],
+                "message": inv.get("message"),
             }
             for inv in invitations
         ]
 
-        return simplified
+        return detailed
 
     except Exception as e:
         logger.error(f"❌ Failed to list shared tests: {e}")
