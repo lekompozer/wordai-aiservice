@@ -588,8 +588,8 @@ def get_test_sharing_service() -> TestSharingService:
     """Get singleton instance of TestSharingService"""
     global _test_sharing_service
     if _test_sharing_service is None:
-        from config.config import get_mongo_db
+        from config.config import get_mongodb  # ✅ Correct function name
 
-        db = get_mongo_db()
+        db = get_mongodb()
         _test_sharing_service = TestSharingService(db)
     return _test_sharing_service
