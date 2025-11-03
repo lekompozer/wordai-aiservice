@@ -13,6 +13,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timezone
 from pymongo.database import Database
+from bson import ObjectId  # ✅ Add ObjectId import
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ class TestSharingService:
         """
         try:
             # Validate test exists and user is owner
-            test = self.online_tests.find_one({"test_id": test_id})
+            test = self.online_tests.find_one({"_id": ObjectId(test_id)})
             if not test:
                 raise ValueError("Test not found")
 
@@ -221,8 +222,8 @@ class TestSharingService:
             # Enrich with test and sharer info
             result = []
             for share in shares:
-                # Get test
-                test = self.online_tests.find_one({"test_id": share["test_id"]})
+                # Get test (share["test_id"] is ObjectId string)
+                test = self.online_tests.find_one({"_id": ObjectId(share["test_id"])})
                 if not test:
                     continue
 
@@ -298,7 +299,7 @@ class TestSharingService:
         """
         try:
             # Validate ownership
-            test = self.online_tests.find_one({"test_id": test_id})
+            test = self.online_tests.find_one({"_id": ObjectId(test_id)})
             if not test:
                 raise ValueError("Test not found")
 
@@ -401,7 +402,7 @@ class TestSharingService:
                 raise ValueError("Share not found")
 
             # Validate ownership
-            test = self.online_tests.find_one({"test_id": share["test_id"]})
+            test = self.online_tests.find_one({"_id": ObjectId(share["test_id"])})
             if not test or test.get("creator_id") != owner_id:
                 raise ValueError("Only test owner can revoke shares")
 
@@ -444,7 +445,7 @@ class TestSharingService:
                 raise ValueError("Share not found")
 
             # Validate ownership
-            test = self.online_tests.find_one({"test_id": share["test_id"]})
+            test = self.online_tests.find_one({"_id": ObjectId(share["test_id"])})
             if not test or test.get("creator_id") != owner_id:
                 raise ValueError("Only test owner can update deadline")
 
@@ -485,7 +486,7 @@ class TestSharingService:
         """
         try:
             # Check if user is owner
-            test = self.online_tests.find_one({"test_id": test_id})
+            test = self.online_tests.find_one({"_id": ObjectId(test_id)})
             if not test:
                 raise ValueError("Test not found")
 
