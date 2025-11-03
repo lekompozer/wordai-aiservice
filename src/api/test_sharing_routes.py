@@ -10,46 +10,16 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field, EmailStr
-from pymongo import MongoClient
 
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.services.test_sharing_service import get_test_sharing_service
 from src.services.brevo_email_service import get_brevo_service
 from src.services.notification_manager import NotificationManager
-import config.config as config
+from config.config import get_mongodb  # ✅ Use standard config function
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 4: Sharing"])
-
-
-# ========== MongoDB Helper ==========
-
-_mongo_client = None
-
-
-def get_mongo_db():
-    """Get MongoDB database instance"""
-    global _mongo_client
-    if _mongo_client is None:
-        import os
-
-        # Try to get authenticated URI first, fallback to basic URI
-        mongo_uri = os.getenv("MONGODB_URI_AUTH") or os.getenv(
-            "MONGODB_URI", "mongodb://mongodb:27017"
-        )
-        _mongo_client = MongoClient(mongo_uri)
-    db_name = os.getenv("MONGO_DB_NAME") or os.getenv("MONGODB_NAME", "ai_service_db")
-    return _mongo_client[db_name]
-
-
-# ========== Helper Functions ==========
-
-
-def get_notification_manager() -> NotificationManager:
-    """Get NotificationManager instance"""
-    db = get_mongo_db()
-    return NotificationManager(db=db)
 
 
 # ========== Request/Response Models ==========
@@ -179,7 +149,7 @@ async def share_test(
         # Send email invitations
         if request.send_email:
             brevo = get_brevo_service()
-            db = get_mongo_db()
+            db = get_mongodb()  # ✅ Use standard config function
 
             # Get test info
             test = db.online_tests.find_one({"test_id": test_id})
@@ -212,7 +182,8 @@ async def share_test(
 
                     # Create in-app notification
                     try:
-                        notification_manager = get_notification_manager()
+                        # ✅ Create NotificationManager instance inline
+                        notification_manager = NotificationManager(db=db)
                         await asyncio.to_thread(
                             notification_manager.create_notification,
                             user_id=recipient.get("firebase_uid"),
