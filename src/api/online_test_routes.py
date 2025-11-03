@@ -107,8 +107,8 @@ def check_test_access(
                 detail="Access denied: You don't own this test and it hasn't been shared with you",
             )
 
-        # Check deadline
-        deadline = share.get("deadline")
+        # Check deadline (priority: test's global deadline, then share-specific override)
+        deadline = test_doc.get("deadline") or share.get("deadline")
         if deadline:
             if deadline.tzinfo is None:
                 from datetime import timezone
@@ -168,6 +168,9 @@ class GenerateTestRequest(BaseModel):
         30, description="Time limit in minutes", ge=1, le=300
     )
     max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
+    deadline: Optional[datetime] = Field(
+        None, description="Global deadline for all users (ISO 8601 format)"
+    )
     num_options: int = Field(
         4,
         description="Number of answer options per question (e.g., 4 for A-D, 6 for A-F). Set to 0 or 'auto' to let AI decide.",
@@ -209,6 +212,9 @@ class CreateManualTestRequest(BaseModel):
         30, description="Time limit in minutes", ge=1, le=300
     )
     max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
+    deadline: Optional[datetime] = Field(
+        None, description="Global deadline for all users (ISO 8601 format)"
+    )
     questions: Optional[list[ManualTestQuestion]] = Field(
         default=[],
         description="List of questions (optional, can be empty to create draft test)",
@@ -574,6 +580,7 @@ async def generate_test(
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": request.num_questions,
             "max_retries": request.max_retries,
+            "deadline": request.deadline,  # Global deadline for all shared users
             "creation_type": "ai_generated",
             "status": "pending",
             "progress_percent": 0,
@@ -714,6 +721,7 @@ async def create_manual_test(
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": len(formatted_questions),
             "max_retries": request.max_retries,
+            "deadline": request.deadline,  # Global deadline for all shared users
             "creation_type": "manual",
             "status": status,  # "draft" if no questions, "ready" if has questions
             "progress_percent": 100 if len(formatted_questions) > 0 else 0,
@@ -1842,6 +1850,9 @@ class UpdateTestConfigRequest(BaseModel):
     time_limit_minutes: Optional[int] = Field(
         None, description="Time limit in minutes", ge=1, le=300
     )
+    deadline: Optional[datetime] = Field(
+        None, description="Global deadline for all users (ISO 8601 format)"
+    )
     is_active: Optional[bool] = Field(None, description="Active status")
     title: Optional[str] = Field(None, description="Test title", max_length=200)
     description: Optional[str] = Field(
@@ -1902,6 +1913,9 @@ async def update_test_config(
 
         if request.time_limit_minutes is not None:
             update_data["time_limit_minutes"] = request.time_limit_minutes
+
+        if request.deadline is not None:
+            update_data["deadline"] = request.deadline
 
         if request.is_active is not None:
             update_data["is_active"] = request.is_active

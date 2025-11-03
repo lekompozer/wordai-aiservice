@@ -46,7 +46,7 @@ if deadline:
     if deadline < datetime.now(deadline.tzinfo):
         # Auto-expire
         sharing_service.db.test_shares.update_one(
-            {"share_id": share["share_id"]}, 
+            {"share_id": share["share_id"]},
             {"$set": {"status": "expired"}}
         )
         raise HTTPException(
@@ -327,6 +327,6 @@ ssh root@server "deploy script"
 
 ---
 
-**Last Updated:** November 3, 2025  
-**Author:** Development Team  
+**Last Updated:** November 3, 2025
+**Author:** Development Team
 **Status:** ✅ Implemented and Deployed

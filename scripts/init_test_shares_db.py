@@ -26,7 +26,9 @@ def init_test_shares_collection():
     # MongoDB connection - Support production environment
     MONGO_URI = os.getenv(
         "MONGODB_URI_AUTH",
-        os.getenv("MONGO_URI", "mongodb://mongodb:27017")  # Default to 'mongodb' hostname for Docker
+        os.getenv(
+            "MONGO_URI", "mongodb://mongodb:27017"
+        ),  # Default to 'mongodb' hostname for Docker
     )
     DB_NAME = os.getenv("MONGO_DB_NAME", os.getenv("MONGODB_NAME", "ai_service_db"))
 

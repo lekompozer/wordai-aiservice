@@ -54,7 +54,7 @@ class TestSharingService:
             test_id: Test ID to share
             sharer_id: Firebase UID of test owner
             sharee_emails: List of recipient emails
-            deadline: Optional deadline for completing test
+            deadline: Optional deadline override (if None, uses test's global deadline)
             message: Optional message from sharer
 
         Returns:
@@ -74,6 +74,10 @@ class TestSharingService:
 
             if not test.get("is_active", True):
                 raise ValueError("Cannot share inactive test")
+
+            # Use test's global deadline if no override provided
+            if deadline is None:
+                deadline = test.get("deadline")
 
             # Validate deadline is in future
             if deadline:
