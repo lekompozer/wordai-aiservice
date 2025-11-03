@@ -23,9 +23,12 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def init_test_shares_collection():
     """Initialize test_shares collection with indexes"""
 
-    # MongoDB connection
-    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-    DB_NAME = os.getenv("MONGO_DB_NAME", "wordai")
+    # MongoDB connection - Support production environment
+    MONGO_URI = os.getenv(
+        "MONGODB_URI_AUTH",
+        os.getenv("MONGO_URI", "mongodb://mongodb:27017")  # Default to 'mongodb' hostname for Docker
+    )
+    DB_NAME = os.getenv("MONGO_DB_NAME", os.getenv("MONGODB_NAME", "ai_service_db"))
 
     print(f"🔗 Connecting to MongoDB: {MONGO_URI}")
     client = MongoClient(MONGO_URI)
