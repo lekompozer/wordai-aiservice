@@ -119,11 +119,12 @@ def migrate_test_shares():
     print("✅ Created index: idx_ttl_cleanup (TTL 90 days)")
 
     # Index 9: Compound unique index to prevent duplicate shares
+    # Note: Only applies to active shares (not declined/expired)
     collection.create_index(
         [("test_id", ASCENDING), ("sharee_email", ASCENDING)],
         unique=True,
         name="idx_test_sharee_unique",
-        partialFilterExpression={"status": {"$nin": ["declined", "expired"]}},
+        partialFilterExpression={"status": {"$in": ["pending", "accepted", "completed"]}},
     )
     print("✅ Created index: idx_test_sharee_unique (prevents duplicate active shares)")
 
