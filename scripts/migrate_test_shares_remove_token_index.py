@@ -124,7 +124,9 @@ def migrate_test_shares():
         [("test_id", ASCENDING), ("sharee_email", ASCENDING)],
         unique=True,
         name="idx_test_sharee_unique",
-        partialFilterExpression={"status": {"$in": ["pending", "accepted", "completed"]}},
+        partialFilterExpression={
+            "status": {"$in": ["pending", "accepted", "completed"]}
+        },
     )
     print("✅ Created index: idx_test_sharee_unique (prevents duplicate active shares)")
 

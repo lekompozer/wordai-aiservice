@@ -249,7 +249,7 @@ class TestSharingService:
                 my_best_score = None
                 has_completed = False
 
-                if share["status"] == "accepted":
+                if share["status"] in ["accepted", "completed"]:
                     # Get all user's submissions for this test
                     submissions = list(
                         self.test_submissions.find(
