@@ -114,10 +114,14 @@ class TestSharingService:
 
                 # Generate unique tokens
                 share_id = str(uuid.uuid4())
+                invitation_token = str(
+                    uuid.uuid4()
+                )  # ✅ Generate token for DB schema compatibility
 
                 # ✅ AUTO-ACCEPT: No need for invitation flow, directly accepted
                 share_doc = {
                     "share_id": share_id,
+                    "invitation_token": invitation_token,  # ✅ Required by unique index
                     "test_id": test_id,
                     "sharer_id": sharer_id,
                     "sharee_email": email,
