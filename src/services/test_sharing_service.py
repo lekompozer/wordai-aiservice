@@ -288,7 +288,9 @@ class TestSharingService:
                             "num_questions": len(test.get("questions", [])),
                             "time_limit_minutes": test.get("time_limit_minutes"),
                             "max_retries": test.get("max_retries", -1),
-                            "passing_score": test.get("passing_score", 0),
+                            "passing_score": test.get(
+                                "passing_score", 50
+                            ),  # Default 50% for old tests
                             "total_participants": total_participants,
                         },
                         "sharer": {

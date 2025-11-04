@@ -537,7 +537,9 @@ async def list_shared_tests(
                 "num_questions": inv["test"]["num_questions"],
                 "time_limit_minutes": inv["test"].get("time_limit_minutes"),
                 "max_retries": inv["test"].get("max_retries", -1),
-                "passing_score": inv["test"].get("passing_score", 0),
+                "passing_score": inv["test"].get(
+                    "passing_score", 50
+                ),  # Default 50% for old tests
                 "total_participants": inv["test"].get("total_participants", 0),
                 "my_attempts": inv.get("my_attempts", 0),
                 "my_best_score": inv.get("my_best_score"),
