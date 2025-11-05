@@ -7,15 +7,16 @@ const router = express.Router();
 const { asyncHandler } = require('../middleware/errorHandler');
 const webhookController = require('../controllers/webhookController');
 
-// SePay webhook callback
+// SePay IPN (Instant Payment Notification)
+// Mounted at /sepay in index.js, so this becomes /sepay/ipn
 router.post(
-    '/sepay/callback',
+    '/ipn',
     asyncHandler(webhookController.handleWebhook)
 );
 
 // Return URL (after payment)
 router.get(
-    '/sepay/return',
+    '/return',
     asyncHandler(webhookController.handleReturn)
 );
 

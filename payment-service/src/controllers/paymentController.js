@@ -37,7 +37,46 @@ function generateOrderInvoiceNumber(user_id) {
 }
 
 /**
+ * Generate SePay signature according to documentation
+ * Uses HMAC-SHA256 with specific field order
+ */
+function generateSignature(fields, secretKey) {
+    // Fields that must be included in signature (in this exact order)
+    const signedFields = [
+        'merchant',
+        'operation',
+        'payment_method',
+        'order_amount',
+        'currency',
+        'order_invoice_number',
+        'order_description',
+        'customer_id',
+        'success_url',
+        'error_url',
+        'cancel_url'
+    ];
+
+    // Build signed string: field1=value1,field2=value2,...
+    const signedString = signedFields
+        .filter(field => fields[field] !== undefined && fields[field] !== null)
+        .map(field => `${field}=${fields[field]}`)
+        .join(',');
+
+    logger.debug(`Signature string: ${signedString}`);
+
+    // Create HMAC-SHA256 signature
+    const hmac = crypto.createHmac('sha256', secretKey);
+    hmac.update(signedString);
+    const signature = hmac.digest('base64');
+
+    logger.debug(`Generated signature: ${signature}`);
+
+    return signature;
+}
+
+/**
  * Create SePay checkout
+ * Returns form fields for frontend to submit to SePay
  */
 async function createCheckout(req, res) {
     const { user_id, plan, duration, user_email, user_name } = req.body;
@@ -48,6 +87,9 @@ async function createCheckout(req, res) {
         if (!price) {
             throw new AppError('Invalid plan or duration', 400);
         }
+
+        // Parse duration for display
+        const durationMonths = duration === '3_months' ? 3 : 12;
 
         // Generate order invoice number
         const orderInvoiceNumber = generateOrderInvoiceNumber(user_id);
@@ -61,14 +103,13 @@ async function createCheckout(req, res) {
             order_invoice_number: orderInvoiceNumber,
             plan,
             duration,
+            duration_months: durationMonths,
             price,
             status: 'pending',
-            payment_method: 'sepay_qr',
+            payment_method: 'sepay_bank_transfer',
             user_email: user_email || null,
             user_name: user_name || null,
-            sepay_order_id: null,
             sepay_transaction_id: null,
-            sepay_response: null,
             created_at: new Date(),
             updated_at: new Date(),
         };
@@ -78,82 +119,42 @@ async function createCheckout(req, res) {
 
         logger.info(`Created payment record: ${paymentId} for user: ${user_id}`);
 
-        // Prepare SePay request
-        const sepayPayload = {
-            merchant_code: config.sepay.merchantCode,
+        // Prepare form fields for SePay checkout
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: price.toString(),
+            currency: 'VND',
             order_invoice_number: orderInvoiceNumber,
-            amount: price,
-            description: `WordAI ${plan.toUpperCase()} - ${duration.replace('_', ' ')}`,
-            customer_name: user_name || 'WordAI Customer',
-            customer_email: user_email || '',
-            return_url: `${config.webhook.url}/return`,
-            callback_url: `${config.webhook.url}/callback`,
-            sandbox: config.sepay.sandbox,
+            order_description: `WordAI ${plan.toUpperCase()} - ${durationMonths} tháng`,
+            customer_id: user_id,
+            success_url: `https://ai.wordai.pro/payment/success`,
+            error_url: `https://ai.wordai.pro/payment/error`,
+            cancel_url: `https://ai.wordai.pro/payment/cancel`,
         };
 
         // Generate signature
-        const signatureString = `${sepayPayload.merchant_code}|${sepayPayload.order_invoice_number}|${sepayPayload.amount}|${config.sepay.secretKey}`;
-        const signature = crypto
-            .createHash('sha256')
-            .update(signatureString)
-            .digest('hex');
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
 
-        sepayPayload.signature = signature;
+        logger.info(`Generated checkout form for order: ${orderInvoiceNumber}`);
 
-        logger.info(`Creating SePay order: ${orderInvoiceNumber}`);
-
-        // Call SePay API
-        const sepayResponse = await axios.post(
-            `${config.sepay.apiUrl}/checkout`,
-            sepayPayload,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${config.sepay.apiKey}`,
-                },
-                timeout: 10000,
-            }
-        );
-
-        const { order_id, qr_code_url, payment_url } = sepayResponse.data;
-
-        // Update payment with SePay response
-        await paymentsCollection.updateOne(
-            { _id: result.insertedId },
-            {
-                $set: {
-                    sepay_order_id: order_id,
-                    sepay_response: sepayResponse.data,
-                    updated_at: new Date(),
-                },
-            }
-        );
-
-        logger.info(`SePay order created: ${order_id} for payment: ${paymentId}`);
-
-        // Return response
+        // Return form fields for frontend to submit
         res.status(201).json({
             success: true,
             data: {
                 payment_id: paymentId,
                 order_invoice_number: orderInvoiceNumber,
-                sepay_order_id: order_id,
-                qr_code_url,
-                payment_url,
+                checkout_url: config.sepay.checkoutUrl,
+                form_fields: formFields,
                 amount: price,
                 plan,
                 duration,
+                duration_months: durationMonths,
             },
         });
     } catch (error) {
         logger.error(`Checkout error: ${error.message}`);
-
-        if (error.response) {
-            // SePay API error
-            logger.error(`SePay API error: ${JSON.stringify(error.response.data)}`);
-            throw new AppError(`Payment gateway error: ${error.response.data.message || 'Unknown error'}`, 502);
-        }
-
         throw error;
     }
 }

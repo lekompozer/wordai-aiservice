@@ -66,7 +66,7 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api/v1/payments', paymentRoutes);
-app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/sepay', webhookRoutes);  // IPN endpoint: /sepay/ipn
 
 // 404 handler
 app.use(notFoundHandler);

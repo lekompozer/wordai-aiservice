@@ -15,10 +15,10 @@ const config = {
 
     // SePay
     sepay: {
-        apiKey: process.env.SEPAY_API_KEY,
-        merchantCode: process.env.SEPAY_MERCHANT_CODE,
+        merchantId: process.env.SEPAY_API_MERCHANT_ID,
         secretKey: process.env.SEPAY_SECRET_KEY,
-        apiUrl: process.env.SEPAY_API_URL || 'https://api.sepay.vn/v1',
+        checkoutUrl: process.env.SEPAY_CHECKOUT_URL || 'https://pay-sandbox.sepay.vn/v1/checkout/init',
+        apiUrl: process.env.SEPAY_API_URL || 'https://pgapi-sandbox.sepay.vn',
         sandbox: process.env.SEPAY_SANDBOX === 'true',
     },
 
@@ -61,8 +61,7 @@ const config = {
 
 // Validate required configuration
 const requiredConfigs = [
-    { key: 'sepay.apiKey', value: config.sepay.apiKey, name: 'SEPAY_API_KEY' },
-    { key: 'sepay.merchantCode', value: config.sepay.merchantCode, name: 'SEPAY_MERCHANT_CODE' },
+    { key: 'sepay.merchantId', value: config.sepay.merchantId, name: 'SEPAY_API_MERCHANT_ID' },
     { key: 'sepay.secretKey', value: config.sepay.secretKey, name: 'SEPAY_SECRET_KEY' },
     { key: 'mongodb.uri', value: config.mongodb.uri, name: 'MONGODB_URI' },
 ];
@@ -74,7 +73,7 @@ const missingConfigs = requiredConfigs.filter(c => !c.value);
 if (missingConfigs.length > 0) {
     console.warn('⚠️  Warning: Missing environment variables:');
     missingConfigs.forEach(c => console.warn(`  - ${c.name}`));
-    
+
     if (process.env.NODE_ENV === 'production') {
         console.warn('⚠️  Running in production mode without full configuration');
         console.warn('⚠️  Payment features will not work until SePay credentials are configured');

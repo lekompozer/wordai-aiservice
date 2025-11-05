@@ -1,6 +1,6 @@
 /**
  * Webhook Controller
- * Handles SePay webhook callbacks and activates subscriptions
+ * Handles SePay IPN (Instant Payment Notification) callbacks
  */
 
 const crypto = require('crypto');
@@ -11,42 +11,48 @@ const logger = require('../utils/logger');
 const { AppError } = require('../middleware/errorHandler');
 
 /**
- * Verify SePay webhook signature
+ * Verify SePay IPN using X-Secret-Key header
+ * According to SePay docs, IPN uses secret key verification, not signature
  */
-function verifySignature(payload, signature) {
-    const signatureString = `${payload.merchant_code}|${payload.order_invoice_number}|${payload.amount}|${payload.status}|${config.sepay.secretKey}`;
+function verifySecretKey(req) {
+    const secretKey = req.headers['x-secret-key'];
 
-    const expectedSignature = crypto
-        .createHash('sha256')
-        .update(signatureString)
-        .digest('hex');
+    if (!secretKey) {
+        logger.error('Missing X-Secret-Key header in IPN request');
+        throw new AppError('Missing X-Secret-Key header', 401);
+    }
 
-    return expectedSignature === signature;
+    if (secretKey !== config.sepay.secretKey) {
+        logger.error('Invalid X-Secret-Key in IPN request');
+        throw new AppError('Invalid secret key', 401);
+    }
+
+    return true;
 }
 
 /**
- * Handle SePay webhook callback
+ * Handle SePay IPN callback
+ * IPN format: { timestamp, notification_type, order, transaction, customer }
  */
 async function handleWebhook(req, res) {
     try {
         const payload = req.body;
-        const signature = req.headers['x-sepay-signature'];
 
-        logger.info(`Received webhook: ${JSON.stringify(payload)}`);
+        logger.info(`Received IPN: ${JSON.stringify(payload)}`);
 
-        // Verify signature
-        if (!verifySignature(payload, signature)) {
-            logger.error('Invalid webhook signature');
-            throw new AppError('Invalid signature', 401);
+        // Verify secret key
+        verifySecretKey(req);
+
+        const { timestamp, notification_type, order, transaction, customer } = payload;
+
+        if (!order || !order.order_invoice_number) {
+            logger.error('Invalid IPN payload: missing order information');
+            return res.status(200).json({ success: false, error: 'Invalid payload' });
         }
 
-        const {
-            order_invoice_number,
-            sepay_order_id,
-            sepay_transaction_id,
-            status,
-            amount,
-        } = payload;
+        const { order_invoice_number } = order;
+
+        logger.info(`Processing IPN: ${notification_type} for order ${order_invoice_number}`);
 
         // Get payment from database
         const db = getDb();
@@ -56,34 +62,36 @@ async function handleWebhook(req, res) {
 
         if (!payment) {
             logger.error(`Payment not found: ${order_invoice_number}`);
-            throw new AppError('Payment not found', 404);
+            // Still return 200 to acknowledge receipt
+            return res.status(200).json({ success: false, error: 'Payment not found' });
         }
 
         // Check if already processed
-        if (payment.status === 'completed') {
-            logger.info(`Payment already processed: ${order_invoice_number}`);
-            return res.json({ success: true, message: 'Already processed' });
+        if (payment.status === 'completed' && payment.subscription_activated) {
+            logger.info(`Payment already processed and subscription activated: ${order_invoice_number}`);
+            return res.status(200).json({ success: true, message: 'Already processed' });
         }
 
-        // Update payment status
-        await paymentsCollection.updateOne(
-            { order_invoice_number },
-            {
-                $set: {
-                    status: status.toLowerCase(),
-                    sepay_transaction_id,
-                    completed_at: status === 'SUCCESS' ? new Date() : null,
-                    webhook_received_at: new Date(),
-                    webhook_payload: payload,
-                    updated_at: new Date(),
-                },
-            }
-        );
+        // Handle different notification types
+        if (notification_type === 'ORDER_PAID') {
+            // Payment successful - update payment status
+            await paymentsCollection.updateOne(
+                { order_invoice_number },
+                {
+                    $set: {
+                        status: 'completed',
+                        sepay_transaction_id: transaction?.transaction_id || null,
+                        completed_at: new Date(),
+                        ipn_received_at: new Date(),
+                        ipn_payload: payload,
+                        updated_at: new Date(),
+                    },
+                }
+            );
 
-        logger.info(`Updated payment status: ${order_invoice_number} -> ${status}`);
+            logger.info(`Payment marked as completed: ${order_invoice_number}`);
 
-        // If payment successful, activate subscription via Python service
-        if (status === 'SUCCESS') {
+            // Activate subscription via Python service
             try {
                 logger.info(`Activating subscription for user: ${payment.user_id}`);
 
@@ -92,10 +100,11 @@ async function handleWebhook(req, res) {
                     {
                         user_id: payment.user_id,
                         plan: payment.plan,
-                        duration: payment.duration,
+                        duration_months: payment.duration_months,
                         payment_id: payment._id.toString(),
                         order_invoice_number,
-                        payment_method: 'sepay_qr',
+                        payment_method: 'sepay_bank_transfer',
+                        amount: payment.price,
                     },
                     {
                         headers: {
@@ -115,12 +124,18 @@ async function handleWebhook(req, res) {
                         $set: {
                             subscription_activated: true,
                             subscription_id: activationResponse.data.subscription_id,
+                            activation_response: activationResponse.data,
                             updated_at: new Date(),
                         },
                     }
                 );
+
+                logger.info(`Subscription activation completed for order: ${order_invoice_number}`);
             } catch (error) {
                 logger.error(`Failed to activate subscription: ${error.message}`);
+                if (error.response) {
+                    logger.error(`Python service error: ${JSON.stringify(error.response.data)}`);
+                }
 
                 // Don't fail webhook response, we can retry activation later
                 await paymentsCollection.updateOne(
@@ -129,20 +144,54 @@ async function handleWebhook(req, res) {
                         $set: {
                             subscription_activated: false,
                             activation_error: error.message,
+                            activation_error_details: error.response?.data || null,
                             updated_at: new Date(),
                         },
                     }
                 );
+
+                // Still return success to SePay to prevent retries
+                return res.status(200).json({
+                    success: true,
+                    message: 'Payment completed, subscription activation pending retry',
+                });
             }
+
+            // Success response to SePay
+            return res.status(200).json({
+                success: true,
+                message: 'Payment and subscription processed successfully',
+            });
+        } else {
+            // Other notification types (ORDER_CANCELLED, ORDER_EXPIRED, etc.)
+            logger.info(`Unhandled notification type: ${notification_type}`);
+
+            // Update payment with IPN info
+            await paymentsCollection.updateOne(
+                { order_invoice_number },
+                {
+                    $set: {
+                        ipn_received_at: new Date(),
+                        ipn_payload: payload,
+                        updated_at: new Date(),
+                    },
+                }
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'IPN received',
+            });
         }
-
-        // Respond to SePay
-        res.json({ success: true, message: 'Webhook processed' });
     } catch (error) {
-        logger.error(`Webhook error: ${error.message}`);
+        logger.error(`IPN processing error: ${error.message}`);
 
-        // Still respond with 200 to prevent SePay retries
-        res.json({ success: false, error: error.message });
+        // IMPORTANT: Always return 200 to SePay to prevent endless retries
+        // Log error but acknowledge receipt
+        return res.status(200).json({
+            success: false,
+            error: error.message,
+        });
     }
 }
 
@@ -204,10 +253,11 @@ async function retryActivation(req, res) {
             {
                 user_id: payment.user_id,
                 plan: payment.plan,
-                duration: payment.duration,
+                duration_months: payment.duration_months,
                 payment_id: payment._id.toString(),
                 order_invoice_number,
-                payment_method: 'sepay_qr',
+                payment_method: 'sepay_bank_transfer',
+                amount: payment.price,
             },
             {
                 headers: {
@@ -224,6 +274,7 @@ async function retryActivation(req, res) {
                 $set: {
                     subscription_activated: true,
                     subscription_id: activationResponse.data.subscription_id,
+                    activation_response: activationResponse.data,
                     activation_retry_at: new Date(),
                     updated_at: new Date(),
                 },
