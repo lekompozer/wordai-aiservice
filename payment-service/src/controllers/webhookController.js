@@ -208,17 +208,17 @@ async function handleReturn(req, res) {
         const payment = await paymentsCollection.findOne({ order_invoice_number });
 
         if (!payment) {
-            return res.redirect(`https://ai.wordai.pro/payment/error?message=Payment not found`);
+            return res.redirect(`https://wordai.pro/payment/error?message=Payment not found`);
         }
 
         if (payment.status === 'completed') {
-            return res.redirect(`https://ai.wordai.pro/payment/success?order=${order_invoice_number}`);
+            return res.redirect(`https://wordai.pro/payment/success?order=${order_invoice_number}`);
         } else {
-            return res.redirect(`https://ai.wordai.pro/payment/pending?order=${order_invoice_number}`);
+            return res.redirect(`https://wordai.pro/payment/pending?order=${order_invoice_number}`);
         }
     } catch (error) {
         logger.error(`Return URL error: ${error.message}`);
-        return res.redirect(`https://ai.wordai.pro/payment/error?message=System error`);
+        return res.redirect(`https://wordai.pro/payment/error?message=System error`);
     }
 }
 

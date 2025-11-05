@@ -4,6 +4,126 @@
 
 Tài liệu này hướng dẫn Frontend team tích hợp luồng thanh toán SePay vào WordAI. Luồng thanh toán sử dụng phương thức **HTML form submission** (không phải REST API).
 
+> **⚠️ QUAN TRỌNG:** Phase đầu tiên cần **tích hợp và test luồng thanh toán** trước khi implement UI hoàn chỉnh. Đảm bảo luồng thanh toán hoạt động đúng trước khi làm UI.
+>
+> **📌 LƯU Ý:** Test trực tiếp trên **production** vì sản phẩm chưa ra mắt. Sau khi test xong và luồng hoạt động ổn định, sẽ bắt đầu thực hiện nâng cấp thật cho các user thật.
+
+---
+
+## 🎯 Implementation Phases
+
+### ✅ Phase 1: Production Integration & Testing (PRIORITY - BẮT ĐẦU ĐÂY)
+
+**Mục tiêu:** Tích hợp và test đầy đủ luồng thanh toán SePay trên production trước khi build UI.
+
+**Timeline:** 2-3 ngày
+
+**Tasks:**
+
+1. **Setup Test Environment** (0.5 ngày)
+   - [ ] Clone project và setup local
+   - [ ] Cấu hình API base URL: `https://ai.wordai.pro`
+   - [ ] Tạo test user accounts thật trên production
+   - [ ] Document test credentials
+
+2. **Integrate Checkout API** (1 ngày)
+   - [ ] Implement `POST /api/v1/payments/checkout` call
+   - [ ] Implement form submission với form_fields
+   - [ ] Test redirect đến SePay production
+   - [ ] Verify signature generation từ backend
+
+3. **Test Payment Flow End-to-End** (1 ngày)
+   - [ ] Test thanh toán thành công (success flow)
+   - [ ] Test thanh toán thất bại (error flow)
+   - [ ] Test user cancel payment (cancel flow)
+   - [ ] Verify IPN callback hoạt động
+   - [ ] Verify subscription activation
+
+4. **Integrate Status Check APIs** (0.5 ngày)
+   - [ ] Implement `GET /api/v1/payments/status/:order_invoice_number`
+   - [ ] Implement `GET /api/v1/payments/user/:user_id`
+   - [ ] Test status polling sau khi redirect về
+
+**Deliverables Phase 1:**
+- ✅ Working production integration code
+- ✅ Test script/page để test luồng thanh toán
+- ✅ Documentation của test cases và results
+- ✅ List các edge cases cần handle
+
+**Production Test Configuration:**
+```javascript
+// Production Test Configuration
+const PRODUCTION_CONFIG = {
+  baseURL: 'https://ai.wordai.pro',
+  sepayCheckoutURL: 'https://pay.sepay.vn/v1/checkout/init', // Production SePay
+  testUsers: [
+    {
+      user_id: 'test_user_001',
+      email: 'test1@wordai.pro',
+      name: 'Test User 1'
+    }
+  ],
+  testPlans: [
+    { plan: 'premium', duration: '3_months', price: 279000 },
+    { plan: 'pro', duration: '3_months', price: 447000 },
+    { plan: 'vip', duration: '12_months', price: 2799000 }
+  ]
+};
+```
+
+**Test Cases để Verify:**
+1. ✅ Checkout API trả về đúng form_fields với signature
+2. ✅ Form submit redirect đến SePay production
+3. ✅ Thanh toán thành công → redirect về success_url
+4. ✅ IPN được gọi và subscription được activate
+5. ✅ Status API trả về đúng trạng thái payment
+6. ✅ Payment history API trả về đúng lịch sử
+
+---
+
+### 📝 Phase 2: UI/UX Implementation (SAU KHI PHASE 1 XONG)
+
+**Mục tiêu:** Build UI hoàn chỉnh cho pricing page và payment flows.
+
+**Timeline:** 3-4 ngày
+
+**Tasks:**
+- [ ] Design và implement pricing page
+- [ ] Design payment success/error/cancel pages
+- [ ] Implement payment history page
+- [ ] Add loading states và animations
+- [ ] Responsive design
+- [ ] Error handling UI
+
+---
+
+### 🧪 Phase 3: Testing & Refinement
+
+**Mục tiêu:** Test toàn bộ flow với nhiều scenarios trên production.
+
+**Timeline:** 2 ngày
+
+**Tasks:**
+- [ ] Cross-browser testing
+- [ ] Mobile responsive testing
+- [ ] Edge cases testing
+- [ ] Performance testing
+- [ ] Security review
+
+---
+
+### 🚀 Phase 4: Launch & User Onboarding
+
+**Mục tiêu:** Ra mắt tính năng upgrade plans cho user thật.
+
+**Timeline:** 1 ngày
+
+**Tasks:**
+- [ ] Announce tính năng mới
+- [ ] Monitor real user payments
+- [ ] Customer support preparation
+- [ ] Documentation cho users
+
 ---
 
 ## 🔄 Luồng Thanh Toán (Payment Flow)
@@ -53,7 +173,171 @@ Tài liệu này hướng dẫn Frontend team tích hợp luồng thanh toán Se
                          │    kết quả thanh toán    │
                          └──────────────────────────┘
 ```
+## 2. User Plans Structure
 
+### 2.1 Pricing Table
+
+| Feature | Free | Premium | Pro | VIP |
+|---------|------|---------|-----|-----|
+| **Price** | **0đ** (miễn phí vĩnh viễn) | 279k/3mo - 990k/12mo | 447k/3mo - 1,699k/12mo | 747k/3mo - 2,799k/12mo |
+| **Storage** | **50MB** | 2GB | 15GB | 50GB |
+| **AI Chat** | **Deepseek (15 chats/ngày)** | 300pts/3mo - 1200pts/12mo | 500pts/3mo - 2000pts/12mo | 1000pts/3mo - 4000pts/12mo |
+| **Upload Files** | **10 files** | 100 files | Unlimited | Unlimited |
+| **Library Files** | **Unlimited** (không giới hạn) | 100 files | Unlimited | Unlimited |
+| **Documents** | **10 files** | 100 files | 1000 files | Unlimited |
+| **Secret Files** | **1 doc** (không share được) | 100 docs+images | 1000 docs+images | Unlimited |
+| **AI Edit/Translate** | **❌** (không có) | ✅ 150 uses (300pts) | ✅ 250 uses (500pts) | ✅ 500 uses (1000pts) |
+| **Online Tests** | **Tham gia only** (không tạo được) | ✅ 150 tests (300pts) | ✅ 250 tests (500pts) | ✅ 500 tests (1000pts) |
+| **AI Model** | **Deepseek R1** (free model) | Sonnet 3.5 + Deepseek | Sonnet 3.5 + Deepseek | Sonnet 3.5 + Deepseek |
+| **Priority Support** | ❌ | ❌ | ✅ | ✅✅ (cao nhất) |
+| **Feature Access** | Cơ bản | Đầy đủ | Đầy đủ + Ưu tiên | Tất cả + VIP |
+
+### 2.2 Chi Tiết Bản Free (Miễn Phí)
+
+**🎯 Mục đích:** Cho phép người dùng trải nghiệm đầy đủ các tính năng cơ bản của WordAI để hiểu giá trị của sản phẩm trước khi nâng cấp.
+
+**✅ Có gì trong bản Free:**
+
+1. **💬 AI Chat với Deepseek R1:**
+   - Model AI miễn phí: Deepseek R1 (mạnh nhất trong các free model)
+   - Giới hạn: 15 cuộc trò chuyện/ngày (reset lúc 00:00 UTC+7)
+   - Có thể chat về bất kỳ chủ đề nào
+   - Truy cập document chat (chat với file đã upload)
+
+2. **📁 File Management:**
+   - Upload Files: 10 files (để xử lý và chat)
+   - Library Files: **Không giới hạn** (lưu trữ file thư viện)
+   - Documents: 10 files (tạo document từ AI)
+   - Secret Files: 1 document (encrypted, không share được)
+   - Storage: 50MB tổng dung lượng
+
+3. **📝 Document Features:**
+   - Xem và đọc documents
+   - Download documents
+   - Basic document management
+   - **KHÔNG** chỉnh sửa bằng AI
+   - **KHÔNG** dịch tự động
+
+4. **🎓 Online Testing:**
+   - Tham gia làm bài test (không giới hạn)
+   - Xem kết quả và điểm số
+   - **KHÔNG** tạo được test
+   - **KHÔNG** tạo câu hỏi tự động
+
+**❌ Không có trong bản Free:**
+- AI Edit/Translate (cần Premium trở lên)
+- Tạo Online Test (cần Premium trở lên)
+- Claude Sonnet 3.5 (model cao cấp)
+- Priority support
+- Chia sẻ Secret Documents
+- Storage > 50MB
+
+### 2.3 So Sánh 4 Tiers: Phù Hợp Với Ai?
+
+#### 🆓 **FREE - Người Dùng Cá Nhân/Học Sinh:**
+**Phù hợp cho:**
+- Sinh viên, học sinh muốn thử nghiệm AI
+- Người dùng cá nhân với nhu cầu cơ bản
+- Ai muốn chat với AI về các vấn đề hàng ngày
+
+**Giới hạn chính:**
+- 15 chats/ngày với Deepseek R1 (đủ cho người dùng thường xuyên)
+- 50MB storage (khoảng 10-20 files văn bản)
+- Không tạo được test hoặc edit bằng AI
+
+**Use case điển hình:**
+- "Tôi cần AI giúp trả lời thắc mắc về học tập"
+- "Tôi muốn chat với document của mình"
+- "Tôi cần lưu trữ vài file và tham gia test online"
+
+---
+
+#### 💎 **PREMIUM - Sinh Viên/Giáo Viên:**
+**Phù hợp cho:**
+- Sinh viên cần AI để học tập và làm bài
+- Giáo viên tạo test cho lớp nhỏ (10-30 học sinh)
+- Người làm việc với documents thường xuyên
+
+**Nâng cấp từ Free:**
+- ✅ Claude Sonnet 3.5 (AI model mạnh nhất hiện tại)
+- ✅ 300-1200 points cho AI operations (150-600 uses)
+- ✅ 2GB storage (40x so với Free)
+- ✅ Tạo được 150 online tests
+- ✅ AI Edit/Translate 150 lần
+
+**Giá trị:**
+- 279k/3 tháng = **93k/tháng** = 3k/ngày
+- 990k/12 tháng = **82.5k/tháng** = 2.75k/ngày (rẻ hơn 11%)
+
+**Use case điển hình:**
+- "Tôi cần AI chỉnh sửa và dịch documents chuyên nghiệp"
+- "Tôi muốn tạo test online cho lớp học của mình"
+- "Tôi cần lưu trữ nhiều file hơn và dùng AI model tốt nhất"
+
+---
+
+#### 🚀 **PRO - Chuyên Gia/Doanh Nghiệp Nhỏ:**
+**Phù hợp cho:**
+- Nhà tạo nội dung (content creators)
+- Doanh nghiệp nhỏ (5-20 nhân viên)
+- Giáo viên/trường học với nhiều lớp
+
+**Nâng cấp từ Premium:**
+- ✅ 500-2000 points (250-1000 uses) - 67% nhiều hơn Premium
+- ✅ 15GB storage (7.5x so với Premium)
+- ✅ Upload unlimited files
+- ✅ Tạo 1000 documents
+- ✅ 250 AI operations (edit/translate/test)
+- ✅ Priority Support
+
+**Giá trị:**
+- 447k/3 tháng = **149k/tháng** = 5k/ngày
+- 1,699k/12 tháng = **141.5k/tháng** = 4.7k/ngày (rẻ hơn 5%)
+
+**Use case điển hình:**
+- "Tôi tạo content hàng ngày và cần AI mạnh mẽ"
+- "Team của tôi cần share và xử lý nhiều documents"
+- "Tôi tạo test cho nhiều lớp học (100+ tests/tháng)"
+
+---
+
+#### 👑 **VIP - Enterprise/Tổ Chức Lớn:**
+**Phù hợp cho:**
+- Công ty/tổ chức lớn (20+ nhân viên)
+- Trường đại học/trung tâm đào tạo
+- Agency marketing/content
+
+**Nâng cấp từ Pro:**
+- ✅ 1000-4000 points (500-2000 uses) - 100% nhiều hơn Pro
+- ✅ 50GB storage (3.3x so với Pro)
+- ✅ **UNLIMITED** documents
+- ✅ **UNLIMITED** secret files + sharing
+- ✅ **500 AI operations** (2x so với Pro)
+- ✅✅ **Highest Priority Support** (24/7)
+- ✅ Feature access sớm nhất
+
+**Giá trị:**
+- 747k/3 tháng = **249k/tháng** = 8.3k/ngày
+- 2,799k/12 tháng = **233k/tháng** = 7.8k/ngày (rẻ hơn 6%)
+
+**Use case điển hình:**
+- "Team của tôi có 50+ người cần dùng AI"
+- "Chúng tôi xử lý hàng trăm documents mỗi ngày"
+- "Chúng tôi cần support nhanh nhất và unlimited storage"
+
+---
+
+### 2.4 Points System Logic
+
+**AI Points Usage:**
+- 1 AI Chat = 2 points
+- 1 AI Edit/Translate = 2 points
+- 1 Online Test Creation = 2 points
+
+**Examples:**
+- Premium 300 points = 150 AI operations
+- Pro 500 points = 250 AI operations
+- VIP 1000 points = 500 AI operations
 ---
 
 ## 🎯 API Endpoints
@@ -137,319 +421,68 @@ Content-Type: application/json
 ## 🚀 Frontend Implementation - Checkout Flow
 
 ### Step 1: User chọn gói
-```javascript
-// User click button "Thanh toán"
-async function handlePayment(plan, duration) {
-  try {
-    // Get user info from your state/context
-    const userId = getCurrentUserId();
-    const userEmail = getCurrentUserEmail();
-    const userName = getCurrentUserName();
 
-    // Call checkout API
-    const response = await fetch('https://ai.wordai.pro/api/v1/payments/checkout', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // Add your auth token if needed
-        // 'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        user_id: userId,
-        plan: plan,           // "premium", "pro", or "vip"
-        duration: duration,   // "3_months" or "12_months"
-        user_email: userEmail,
-        user_name: userName,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (result.success) {
-      // Save payment_id to localStorage for later reference
-      localStorage.setItem('current_payment_id', result.data.payment_id);
-      localStorage.setItem('current_order_number', result.data.order_invoice_number);
-
-      // Submit form to SePay
-      submitFormToSePay(result.data.checkout_url, result.data.form_fields);
-    } else {
-      // Handle error
-      showError(result.error);
-    }
-  } catch (error) {
-    console.error('Checkout error:', error);
-    showError('Có lỗi xảy ra, vui lòng thử lại');
-  }
-}
-```
 
 ### Step 2: Submit form to SePay
-```javascript
-/**
- * Submit form to SePay checkout page
- * This will redirect user to SePay
- */
-function submitFormToSePay(checkoutUrl, formFields) {
-  // Create a hidden form
-  const form = document.createElement('form');
-  form.method = 'POST';
-  form.action = checkoutUrl;
-  form.style.display = 'none';
-
-  // Add all form fields as hidden inputs
-  Object.keys(formFields).forEach(key => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = formFields[key];
-    form.appendChild(input);
-  });
-
-  // Add form to body and submit
-  document.body.appendChild(form);
-  form.submit();
-  
-  // User will be redirected to SePay
-  // Show loading message
-  showMessage('Đang chuyển đến trang thanh toán...');
-}
-```
-
-### Step 3: React Example (Complete Component)
-```jsx
-import React, { useState } from 'react';
-import { useAuth } from './hooks/useAuth';
-
-function PricingCard({ plan, price3Months, price12Months }) {
-  const { user } = useAuth();
-  const [loading, setLoading] = useState(false);
-
-  const handleCheckout = async (duration) => {
-    if (!user) {
-      alert('Vui lòng đăng nhập để thanh toán');
-      return;
-    }
-
-    setLoading(true);
-
-    try {
-      const response = await fetch('https://ai.wordai.pro/api/v1/payments/checkout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          user_id: user.id,
-          plan: plan,
-          duration: duration,
-          user_email: user.email,
-          user_name: user.name,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Save for later reference
-        localStorage.setItem('current_payment_id', result.data.payment_id);
-        localStorage.setItem('current_order_number', result.data.order_invoice_number);
-
-        // Submit form
-        submitFormToSePay(result.data.checkout_url, result.data.form_fields);
-      } else {
-        alert(`Lỗi: ${result.error}`);
-        setLoading(false);
-      }
-    } catch (error) {
-      console.error('Checkout error:', error);
-      alert('Có lỗi xảy ra, vui lòng thử lại');
-      setLoading(false);
-    }
-  };
-
-  const submitFormToSePay = (checkoutUrl, formFields) => {
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = checkoutUrl;
-    form.style.display = 'none';
-
-    Object.keys(formFields).forEach(key => {
-      const input = document.createElement('input');
-      input.type = 'hidden';
-      input.name = key;
-      input.value = formFields[key];
-      form.appendChild(input);
-    });
-
-    document.body.appendChild(form);
-    form.submit();
-  };
-
-  return (
-    <div className="pricing-card">
-      <h3>{plan.toUpperCase()}</h3>
-      <div className="prices">
-        <div>
-          <p>3 tháng: {price3Months.toLocaleString('vi-VN')}đ</p>
-          <button 
-            onClick={() => handleCheckout('3_months')}
-            disabled={loading}
-          >
-            {loading ? 'Đang xử lý...' : 'Thanh toán 3 tháng'}
-          </button>
-        </div>
-        <div>
-          <p>12 tháng: {price12Months.toLocaleString('vi-VN')}đ</p>
-          <button 
-            onClick={() => handleCheckout('12_months')}
-            disabled={loading}
-          >
-            {loading ? 'Đang xử lý...' : 'Thanh toán 12 tháng'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default PricingCard;
-```
 
 ---
 
 ## 📄 Callback Pages - Success/Error/Cancel
 
+### ✅ Domain Đã Được Fix
+
+**Frontend domain:** `https://wordai.pro/`  
+**Backend API:** `https://ai.wordai.pro/api/...`
+
+Payment service đã được cập nhật để redirect về đúng frontend domain.
+
 ### URL Patterns
-Sau khi user thanh toán hoặc hủy, SePay sẽ redirect về các URL:
+
+Sau khi user thanh toán hoặc hủy, SePay sẽ redirect về các URL frontend:
 
 ```
-✅ Success: https://ai.wordai.pro/payment/success?order=WA-xxx
-❌ Error:   https://ai.wordai.pro/payment/error?order=WA-xxx
-🚫 Cancel:  https://ai.wordai.pro/payment/cancel?order=WA-xxx
+✅ Success: https://wordai.pro/payment/success?order=WA-xxx
+❌ Error:   https://wordai.pro/payment/error?order=WA-xxx&message=xxx
+🚫 Cancel:  https://wordai.pro/payment/cancel?order=WA-xxx
+⏳ Pending: https://wordai.pro/payment/pending?order=WA-xxx
 ```
 
-### Các trang cần tạo:
+### Các trang cần tạo trong Next.js:
 
 #### 1. Success Page (`/payment/success`)
-```jsx
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-
-function PaymentSuccessPage() {
-  const router = useRouter();
-  const { order } = router.query;
-  const [paymentStatus, setPaymentStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (order) {
-      checkPaymentStatus(order);
-    }
-  }, [order]);
-
-  const checkPaymentStatus = async (orderNumber) => {
-    try {
-      const response = await fetch(
-        `https://ai.wordai.pro/api/v1/payments/status/${orderNumber}`
-      );
-      const result = await response.json();
-
-      if (result.success) {
-        setPaymentStatus(result.data);
-      }
-    } catch (error) {
-      console.error('Error checking payment status:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return <div>Đang kiểm tra thanh toán...</div>;
-  }
-
-  if (!paymentStatus) {
-    return <div>Không tìm thấy thông tin thanh toán</div>;
-  }
-
-  return (
-    <div className="payment-success">
-      <h1>✅ Thanh toán thành công!</h1>
-      <div className="payment-details">
-        <p>Mã đơn hàng: <strong>{paymentStatus.order_invoice_number}</strong></p>
-        <p>Gói: <strong>{paymentStatus.plan.toUpperCase()}</strong></p>
-        <p>Thời hạn: <strong>{paymentStatus.duration}</strong></p>
-        <p>Số tiền: <strong>{paymentStatus.price.toLocaleString('vi-VN')}đ</strong></p>
-        <p>Trạng thái: <strong>{paymentStatus.status}</strong></p>
-      </div>
-      <button onClick={() => router.push('/dashboard')}>
-        Về trang chủ
-      </button>
-    </div>
-  );
-}
-
-export default PaymentSuccessPage;
-```
+- **File:** `pages/payment/success.tsx` hoặc `app/payment/success/page.tsx`
+- **Query params:** `?order=WA-xxx`
+- **Tasks:**
+  1. Lấy `order` từ query params
+  2. Gọi API `GET https://ai.wordai.pro/api/v1/payments/status/:order` để check trạng thái
+  3. Hiển thị success message với thông tin plan, amount
+  4. Auto redirect về dashboard sau 3-5 giây
 
 #### 2. Error Page (`/payment/error`)
-```jsx
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/router';
-
-function PaymentErrorPage() {
-  const router = useRouter();
-  const { order } = router.query;
-
-  return (
-    <div className="payment-error">
-      <h1>❌ Thanh toán thất bại</h1>
-      <p>Mã đơn hàng: {order}</p>
-      <p>Đã có lỗi xảy ra trong quá trình thanh toán.</p>
-      <div className="actions">
-        <button onClick={() => router.push('/pricing')}>
-          Thử lại
-        </button>
-        <button onClick={() => router.push('/support')}>
-          Liên hệ hỗ trợ
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export default PaymentErrorPage;
-```
+- **File:** `pages/payment/error.tsx` hoặc `app/payment/error/page.tsx`
+- **Query params:** `?order=WA-xxx&message=xxx`
+- **Tasks:**
+  1. Lấy `order` và `message` từ query params
+  2. Hiển thị error message
+  3. Button "Thử lại" → redirect về pricing page
+  4. Button "Liên hệ support" (optional)
 
 #### 3. Cancel Page (`/payment/cancel`)
-```jsx
-import React from 'react';
-import { useRouter } from 'next/router';
+- **File:** `pages/payment/cancel.tsx` hoặc `app/payment/cancel/page.tsx`
+- **Query params:** `?order=WA-xxx`
+- **Tasks:**
+  1. Lấy `order` từ query params
+  2. Hiển thị "Bạn đã hủy thanh toán"
+  3. Auto redirect về pricing page sau 3 giây
+  4. Button "Quay lại chọn gói"
 
-function PaymentCancelPage() {
-  const router = useRouter();
-  const { order } = router.query;
-
-  return (
-    <div className="payment-cancel">
-      <h1>🚫 Thanh toán đã bị hủy</h1>
-      <p>Mã đơn hàng: {order}</p>
-      <p>Bạn đã hủy thanh toán.</p>
-      <div className="actions">
-        <button onClick={() => router.push('/pricing')}>
-          Quay lại trang giá
-        </button>
-        <button onClick={() => router.push('/dashboard')}>
-          Về trang chủ
-        </button>
-      </div>
-    </div>
-  );
-}
-
-export default PaymentCancelPage;
-```
-
+#### 4. Pending Page (Optional - `/payment/pending`)
+- **File:** `pages/payment/pending.tsx` hoặc `app/payment/pending/page.tsx`
+- **Query params:** `?order=WA-xxx`
+- **Tasks:**
+  1. Hiển thị loading/processing message
+  2. Poll status API every 3 seconds
+  3. Redirect khi status thay đổi (completed → success, failed → error)
 ---
 
 ## 📊 API 2: Kiểm tra trạng thái thanh toán
@@ -547,6 +580,236 @@ const result = await response.json();
 
 ---
 
+## 🧪 PHASE 1: PRODUCTION TESTING GUIDE (BẮT ĐẦU Ở ĐÂY)
+
+> **📌 Ưu tiên cao nhất:** Integrate và test các endpoints này trước khi làm UI. Test trực tiếp trên **production** vì sản phẩm chưa ra mắt.
+>
+> **💡 Chiến lược:** Sau khi test xong và confirm luồng hoạt động ổn định, sẽ bắt đầu thực hiện nâng cấp thật cho các user thật.
+
+### Step 1: Setup Test Environment
+
+**1.1. Tạo test HTML file đơn giản:**
+
+
+**1.2. Save file trên và mở trong browser:**
+```bash
+# Save as: test-sepay-sandbox.html
+# Open in browser: file:///path/to/test-sepay-sandbox.html
+```
+
+---
+
+### Step 2: Test Checkout Flow
+
+**2.1. Test Checkout API chỉ (không submit):**
+1. Chọn plan: Premium
+2. Chọn duration: 3 tháng
+3. Click "Test Checkout API"
+4. **Verify response có:**
+   - ✅ `success: true`
+   - ✅ `payment_id` (MongoDB ObjectId)
+   - ✅ `order_invoice_number` (format: WA-timestamp-userId)
+   - ✅ `checkout_url` (https://pay-sandbox.sepay.vn/v1/checkout/init)
+   - ✅ `form_fields` object với signature
+
+**2.2. Test Full Payment Flow:**
+1. Click "Test Checkout + Submit Form"
+2. **Verify redirect đến SePay sandbox**
+3. Trên SePay sandbox page:
+   - Thấy thông tin order (amount, description)
+   - Có các payment methods (BANK_TRANSFER, VISA, etc.)
+4. **Test Success Flow:**
+   - Chọn payment method
+   - Click "Thanh toán"
+   - SePay sẽ redirect về `success_url`
+   - **Verify:** URL có `order_invoice_number` parameter
+5. **Test Cancel Flow:**
+   - Click "Hủy" trên SePay
+   - **Verify:** Redirect về `cancel_url`
+
+---
+
+### Step 3: Verify IPN Callback
+
+**3.1. Check Backend Logs:**
+```bash
+# SSH vào server
+ssh root@104.248.147.155
+
+# Check payment service logs
+docker logs payment-service --tail 50 -f
+```
+
+**3.2. Verify IPN được gọi:**
+Sau khi thanh toán thành công, trong logs phải thấy:
+```
+[IPN] Received webhook: ORDER_PAID
+[IPN] Order: WA-1730886543210-user123
+[IPN] Status: completed
+[IPN] Subscription activated successfully
+```
+
+**3.3. Nếu không thấy IPN:**
+- Check NGINX routing: `/sepay/ipn` → payment-service
+- Check SePay dashboard có gửi IPN không
+- Check firewall có block không
+
+---
+
+### Step 4: Test Payment Status API
+
+**4.1. Test ngay sau khi checkout:**
+1. Copy `order_invoice_number` từ checkout response
+2. Paste vào "Order Invoice Number" field
+3. Click "Check Payment Status"
+4. **Verify response:**
+   - Status: `pending` (nếu chưa thanh toán)
+   - Status: `completed` (nếu đã thanh toán)
+   - Có đầy đủ thông tin: plan, duration, price, created_at
+
+**4.2. Test polling (auto-refresh):**
+```javascript
+// Test trong console
+let count = 0;
+const interval = setInterval(async () => {
+    count++;
+    console.log(`[${count}] Checking status...`);
+
+    const response = await fetch(
+        'https://ai.wordai.pro/api/v1/payments/status/WA-xxx'
+    );
+    const result = await response.json();
+    console.log('Status:', result.data?.status);
+
+    if (result.data?.status === 'completed') {
+        console.log('✅ Payment completed!');
+        clearInterval(interval);
+    }
+
+    if (count >= 20) {
+        console.log('⏰ Timeout after 20 attempts');
+        clearInterval(interval);
+    }
+}, 3000); // Check every 3 seconds
+```
+
+---
+
+### Step 5: Test Payment History API
+
+**5.1. Test với user có payments:**
+1. Nhập `user_id` (ví dụ: `test_user_001`)
+2. Click "Get Payment History"
+3. **Verify response:**
+   - Trả về array các payments
+   - Mỗi payment có: payment_id, status, plan, duration, price
+   - Sorted by created_at (mới nhất trước)
+
+**5.2. Test với user không có payments:**
+1. Nhập `user_id` random (ví dụ: `user_no_payments`)
+2. **Verify:** Trả về empty array `[]`
+
+---
+
+### Step 6: Test Error Cases
+
+**6.1. Test invalid plan:**
+```javascript
+// Test trong console
+const response = await fetch('https://ai.wordai.pro/api/v1/payments/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        user_id: 'test_user',
+        plan: 'invalid_plan',  // ❌ Invalid
+        duration: '3_months'
+    })
+});
+const result = await response.json();
+console.log(result);
+// Expected: { success: false, error: "Invalid plan" }
+```
+
+**6.2. Test missing user_id:**
+```javascript
+const response = await fetch('https://ai.wordai.pro/api/v1/payments/checkout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+        plan: 'premium',
+        duration: '3_months'
+        // ❌ Missing user_id
+    })
+});
+const result = await response.json();
+console.log(result);
+// Expected: { success: false, error: "Missing required fields" }
+```
+
+**6.3. Test invalid order number:**
+```javascript
+const response = await fetch(
+    'https://ai.wordai.pro/api/v1/payments/status/INVALID-ORDER-123'
+);
+const result = await response.json();
+console.log(result);
+// Expected: { success: false, error: "Payment not found" }
+```
+
+---
+
+### Step 7: Document Test Results
+
+**7.1. Tạo test report:**
+```markdown
+# SePay Sandbox Test Report
+
+## Test Date: [Date]
+## Tester: [Your Name]
+
+### ✅ Passed Tests:
+- [x] Checkout API trả về đúng response
+- [x] Form submit redirect đến SePay sandbox
+- [x] Thanh toán thành công redirect về success_url
+- [x] IPN callback được gọi và log đúng
+- [x] Status API trả về đúng trạng thái
+- [x] History API trả về đúng danh sách payments
+- [x] Error handling cho invalid inputs
+
+### ❌ Failed Tests:
+- [ ] [If any]
+
+### 🐛 Issues Found:
+1. [Issue description]
+2. [Issue description]
+
+### 📝 Notes:
+- [Any observations or recommendations]
+```
+
+---
+
+### Step 8: Checklist trước khi qua Phase 2 (UI Implementation)
+
+**Phase 1 Completion Checklist:**
+
+- [ ] ✅ Test file HTML hoạt động và call được API
+- [ ] ✅ Checkout API trả về đầy đủ form_fields + signature
+- [ ] ✅ Form submit redirect đến SePay sandbox
+- [ ] ✅ Có thể thanh toán thành công trên SePay sandbox
+- [ ] ✅ Success redirect hoạt động (có order_invoice_number)
+- [ ] ✅ Cancel redirect hoạt động
+- [ ] ✅ IPN callback được gọi (verify trong logs)
+- [ ] ✅ Payment status API trả về đúng trạng thái
+- [ ] ✅ Payment history API trả về đúng danh sách
+- [ ] ✅ Error handling hoạt động đúng
+- [ ] ✅ Test report được document đầy đủ
+- [ ] ✅ Hiểu rõ flow và có thể giải thích cho team
+
+**Nếu tất cả checklist trên ✅ → Sang Phase 2: UI Implementation**
+
+---
+
 ## 🔄 Auto-refresh Payment Status
 
 Sau khi user quay về success page, bạn có thể tự động refresh status để cập nhật:
@@ -624,7 +887,7 @@ function PaymentSuccessPage() {
   "error": "Invalid plan or duration"
 }
 ```
-→ Check plan is one of: `premium`, `pro`, `vip`  
+→ Check plan is one of: `premium`, `pro`, `vip`
 → Check duration is one of: `3_months`, `12_months`
 
 2. **Missing user_id**
@@ -708,223 +971,6 @@ docker logs nginx-gateway -f
 
 ---
 
-## 📦 Complete Example - Vue.js
-
-```vue
-<template>
-  <div class="payment-flow">
-    <!-- Pricing Cards -->
-    <div v-if="!isProcessing" class="pricing-cards">
-      <div v-for="plan in plans" :key="plan.name" class="pricing-card">
-        <h3>{{ plan.name.toUpperCase() }}</h3>
-        <div class="price-options">
-          <div class="price-option">
-            <p>3 tháng</p>
-            <p class="price">{{ formatPrice(plan.price3Months) }}</p>
-            <button @click="handleCheckout(plan.name, '3_months')">
-              Thanh toán
-            </button>
-          </div>
-          <div class="price-option">
-            <p>12 tháng</p>
-            <p class="price">{{ formatPrice(plan.price12Months) }}</p>
-            <button @click="handleCheckout(plan.name, '12_months')">
-              Thanh toán
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Processing State -->
-    <div v-else class="processing">
-      <div class="spinner"></div>
-      <p>Đang chuyển đến trang thanh toán...</p>
-    </div>
-  </div>
-</template>
-
-<script>
-export default {
-  name: 'PaymentFlow',
-  data() {
-    return {
-      isProcessing: false,
-      plans: [
-        {
-          name: 'premium',
-          price3Months: 279000,
-          price12Months: 990000,
-        },
-        {
-          name: 'pro',
-          price3Months: 447000,
-          price12Months: 1699000,
-        },
-        {
-          name: 'vip',
-          price3Months: 747000,
-          price12Months: 2799000,
-        },
-      ],
-    };
-  },
-  methods: {
-    formatPrice(price) {
-      return price.toLocaleString('vi-VN') + 'đ';
-    },
-
-    async handleCheckout(plan, duration) {
-      // Check if user is logged in
-      const user = this.$store.state.user;
-      if (!user) {
-        this.$router.push('/login');
-        return;
-      }
-
-      this.isProcessing = true;
-
-      try {
-        // Call checkout API
-        const response = await fetch(
-          'https://ai.wordai.pro/api/v1/payments/checkout',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              user_id: user.id,
-              plan: plan,
-              duration: duration,
-              user_email: user.email,
-              user_name: user.name,
-            }),
-          }
-        );
-
-        const result = await response.json();
-
-        if (result.success) {
-          // Save payment info
-          localStorage.setItem('current_payment_id', result.data.payment_id);
-          localStorage.setItem(
-            'current_order_number',
-            result.data.order_invoice_number
-          );
-
-          // Submit form to SePay
-          this.submitFormToSePay(
-            result.data.checkout_url,
-            result.data.form_fields
-          );
-        } else {
-          this.$notify.error({
-            title: 'Lỗi',
-            message: result.error || 'Có lỗi xảy ra',
-          });
-          this.isProcessing = false;
-        }
-      } catch (error) {
-        console.error('Checkout error:', error);
-        this.$notify.error({
-          title: 'Lỗi',
-          message: 'Không thể kết nối đến server',
-        });
-        this.isProcessing = false;
-      }
-    },
-
-    submitFormToSePay(checkoutUrl, formFields) {
-      // Create hidden form
-      const form = document.createElement('form');
-      form.method = 'POST';
-      form.action = checkoutUrl;
-      form.style.display = 'none';
-
-      // Add form fields
-      Object.keys(formFields).forEach((key) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = key;
-        input.value = formFields[key];
-        form.appendChild(input);
-      });
-
-      // Submit
-      document.body.appendChild(form);
-      form.submit();
-    },
-  },
-};
-</script>
-
-<style scoped>
-.pricing-cards {
-  display: flex;
-  gap: 20px;
-  justify-content: center;
-  padding: 40px;
-}
-
-.pricing-card {
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  padding: 30px;
-  min-width: 250px;
-}
-
-.price-options {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.price {
-  font-size: 24px;
-  font-weight: bold;
-  color: #4CAF50;
-}
-
-button {
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  padding: 12px 24px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 16px;
-}
-
-button:hover {
-  background-color: #45a049;
-}
-
-.processing {
-  text-align: center;
-  padding: 60px;
-}
-
-.spinner {
-  width: 50px;
-  height: 50px;
-  border: 5px solid #f3f3f3;
-  border-top: 5px solid #4CAF50;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 20px;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-</style>
-```
-
----
-
 ## 🔐 Security Notes
 
 ### IMPORTANT
@@ -986,7 +1032,7 @@ docker exec nginx-gateway tail -f /var/log/nginx/access.log
 - [ ] Implement checkout function gọi API
 - [ ] Implement form submission to SePay
 - [ ] Tạo `/payment/success` page
-- [ ] Tạo `/payment/error` page  
+- [ ] Tạo `/payment/error` page
 - [ ] Tạo `/payment/cancel` page
 - [ ] Implement payment status checking
 - [ ] Implement payment history page
@@ -996,9 +1042,9 @@ docker exec nginx-gateway tail -f /var/log/nginx/access.log
 
 ### API Endpoints Cần Dùng
 
-✅ `POST /api/v1/payments/checkout` - Tạo checkout  
-✅ `GET /api/v1/payments/status/:order_invoice_number` - Check status  
-✅ `GET /api/v1/payments/user/:user_id` - Payment history  
+✅ `POST /api/v1/payments/checkout` - Tạo checkout
+✅ `GET /api/v1/payments/status/:order_invoice_number` - Check status
+✅ `GET /api/v1/payments/user/:user_id` - Payment history
 
 ---
 
@@ -1010,7 +1056,7 @@ docker exec nginx-gateway tail -f /var/log/nginx/access.log
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** November 5, 2025  
-**Author:** AI Assistant  
+**Document Version:** 1.0
+**Last Updated:** November 5, 2025
+**Author:** AI Assistant
 **Status:** Ready for Implementation

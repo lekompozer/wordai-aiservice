@@ -129,9 +129,9 @@ async function createCheckout(req, res) {
             order_invoice_number: orderInvoiceNumber,
             order_description: `WordAI ${plan.toUpperCase()} - ${durationMonths} tháng`,
             customer_id: user_id,
-            success_url: `https://ai.wordai.pro/payment/success`,
-            error_url: `https://ai.wordai.pro/payment/error`,
-            cancel_url: `https://ai.wordai.pro/payment/cancel`,
+            success_url: `https://wordai.pro/payment/success`,
+            error_url: `https://wordai.pro/payment/error`,
+            cancel_url: `https://wordai.pro/payment/cancel`,
         };
 
         // Generate signature
