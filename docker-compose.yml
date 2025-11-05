@@ -125,12 +125,12 @@ services:
       - PORT=3000
       - SERVICE_NAME=wordai-payment-service
 
-      # SePay Configuration
-      - SEPAY_API_KEY=${SEPAY_API_KEY}
-      - SEPAY_MERCHANT_CODE=${SEPAY_MERCHANT_CODE}
+      # SePay Configuration (only 2 fields needed)
+      - SEPAY_API_MERCHANT_ID=${SEPAY_API_MERCHANT_ID}
       - SEPAY_SECRET_KEY=${SEPAY_SECRET_KEY}
-      - SEPAY_API_URL=${SEPAY_API_URL:-https://api.sepay.vn/v1}
-      - SEPAY_SANDBOX=${SEPAY_SANDBOX:-false}
+      - SEPAY_API_URL=${SEPAY_API_URL:-https://pgapi-sandbox.sepay.vn}
+      - SEPAY_CHECKOUT_URL=${SEPAY_CHECKOUT_URL:-https://pay-sandbox.sepay.vn/v1/checkout/init}
+      - SEPAY_SANDBOX=${SEPAY_SANDBOX:-true}
 
       # MongoDB (shared with Python service)
       - MONGODB_URI=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017
