@@ -208,7 +208,7 @@ curl -I https://ai.wordai.pro/health
   ```bash
   curl -I https://ai.wordai.pro
   # Check for valid SSL certificate, no warnings
-  
+
   # OR use SSL Labs
   # https://www.ssllabs.com/ssltest/analyze.html?d=ai.wordai.pro
   ```
@@ -406,5 +406,5 @@ docker exec nginx-gateway cat /etc/nginx/conf.d/ai-wordai.conf | grep "real_ip"
 
 ---
 
-**Last Updated:** 2025-11-05  
+**Last Updated:** 2025-11-05
 **Status:** ✅ Ready for local testing → ⏳ Waiting for production deployment
