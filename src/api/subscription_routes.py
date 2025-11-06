@@ -153,6 +153,16 @@ async def get_subscription_info(
             firebase_uid
         )
 
+        # Calculate subscription status
+        if subscription.cancelled_at:
+            status = "cancelled"
+        elif subscription.expires_at and subscription.expires_at < datetime.utcnow():
+            status = "expired"
+        elif subscription.is_active:
+            status = "active"
+        else:
+            status = "inactive"
+
         # Calculate remaining values
         storage_remaining = max(
             0, subscription.storage_limit_mb - subscription.storage_used_mb
@@ -170,7 +180,7 @@ async def get_subscription_info(
         return SubscriptionInfoResponse(
             # Plan info
             plan=subscription.plan,
-            status=subscription.status,
+            status=status,
             # Points
             points_total=subscription.points_total,
             points_remaining=subscription.points_remaining,
@@ -192,10 +202,10 @@ async def get_subscription_info(
             upload_files_count=subscription.upload_files_count,
             upload_files_remaining=upload_files_remaining,
             # Dates
-            start_date=subscription.start_date,
-            end_date=subscription.end_date,
+            start_date=subscription.started_at or subscription.created_at,
+            end_date=subscription.expires_at,
             auto_renew=subscription.auto_renew,
-            last_reset_date=subscription.last_reset_date,
+            last_reset_date=subscription.last_chat_reset or subscription.created_at,
             updated_at=subscription.updated_at,
         )
 
