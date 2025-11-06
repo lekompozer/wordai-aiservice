@@ -19,6 +19,8 @@ from src.middleware.firebase_auth import require_auth
 from src.services.user_manager import user_manager
 from src.services.document_manager import document_manager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
+from src.services.subscription_service import get_subscription_service
+from src.services.points_service import get_points_service
 from src.utils.logger import setup_logger
 from src.utils.file_converter import (
     FileConverter,
@@ -443,6 +445,90 @@ async def document_chat_stream(
         if request.max_tokens > 8000:
             raise HTTPException(status_code=400, detail="max_tokens cannot exceed 8000")
 
+        # ===== POINTS CHECKING & DEDUCTION =====
+        subscription_service = get_subscription_service()
+        points_service = get_points_service()
+
+        # Get subscription info
+        subscription = await subscription_service.get_or_create_subscription(user_id)
+        balance = await points_service.get_points_balance(user_id)
+
+        # Determine points cost based on provider (VARIABLE PRICING)
+        provider_name = request.provider.lower()
+        points_cost = points_service.get_chat_points_cost(provider_name)
+        should_deduct_points = False
+
+        logger.info(
+            f"💰 Document Chat - User {user_id} - Plan: {subscription.plan}, Provider: {provider_name}, Cost: {points_cost} points"
+        )
+
+        # === FREE USER LOGIC ===
+        if subscription.plan == "free":
+            if provider_name == "deepseek":
+                # Check daily limit (10 chats/day)
+                if not await subscription_service.check_daily_chat_limit(user_id):
+                    raise HTTPException(
+                        status_code=403,
+                        detail={
+                            "error": "daily_chat_limit_exceeded",
+                            "message": "Bạn đã hết 10 lượt chat miễn phí hôm nay với Deepseek. Quay lại vào ngày mai hoặc nâng cấp để chat không giới hạn!",
+                            "daily_limit": 10,
+                            "current_count": subscription.daily_chat_count,
+                            "upgrade_url": "/pricing",
+                        },
+                    )
+                # Daily Deepseek chat = COMPLETELY FREE (0 points)
+                should_deduct_points = False
+                logger.info(
+                    f"✅ FREE user - Daily Deepseek doc chat ({subscription.daily_chat_count + 1}/10) - No points deduction"
+                )
+            else:
+                # Other providers (Gemini, ChatGPT, Claude, Gwen): use bonus points (2 points each)
+                if balance["points_remaining"] < 2:
+                    raise HTTPException(
+                        status_code=403,
+                        detail={
+                            "error": "insufficient_bonus_points",
+                            "message": f"Bản FREE chỉ chat miễn phí với Deepseek. Bạn còn {balance['points_remaining']} điểm thưởng, cần 2 điểm để chat với {request.provider}. Nâng cấp để dùng Claude/ChatGPT/Gemini/Gwen không giới hạn!",
+                            "allowed_free_provider": "deepseek",
+                            "requested_provider": request.provider,
+                            "bonus_points_remaining": balance["points_remaining"],
+                            "points_needed": 2,
+                            "upgrade_url": "/pricing",
+                        },
+                    )
+                should_deduct_points = True
+                points_cost = 2
+                logger.info(
+                    f"💵 FREE user using bonus points for doc chat - {request.provider} ({balance['points_remaining']} points available)"
+                )
+
+        # === PAID USER LOGIC ===
+        else:
+            # Check sufficient points (1 for Deepseek, 2 for others)
+            check_result = await points_service.check_sufficient_points(
+                user_id=user_id,
+                points_needed=points_cost,
+                service=f"ai_document_chat_{provider_name}",
+            )
+
+            if not check_result["has_points"]:
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "insufficient_points",
+                        "message": f"Không đủ points để chat với {request.provider}. Cần: {points_cost}, Còn: {check_result['points_available']}",
+                        "points_needed": points_cost,
+                        "points_available": check_result["points_available"],
+                        "upgrade_url": "/pricing",
+                    },
+                )
+
+            should_deduct_points = True
+            logger.info(
+                f"💰 PAID user - Document chat with {request.provider} will cost {points_cost} points ({balance['points_remaining']} available)"
+            )
+
         # ===== STEP 1: Get/Create Conversation ID First =====
         conversation_id = request.conversation_id
 
@@ -662,10 +748,41 @@ async def document_chat_stream(
 
                     logger.info(f"💾 Conversation saved: {conversation_id}")
 
+                    # ===== STEP 8: Deduct Points (if needed) =====
+                    if should_deduct_points:
+                        try:
+                            await points_service.deduct_points(
+                                user_id=user_id,
+                                points=points_cost,
+                                transaction_type="spend",
+                                service=f"ai_document_chat_{provider_name}",
+                                description=f"Document chat with {request.provider}",
+                            )
+                            logger.info(
+                                f"💰 Deducted {points_cost} points for document chat with {request.provider}"
+                            )
+                        except Exception as points_error:
+                            logger.error(f"❌ Points deduction failed: {points_error}")
+                            # Don't fail the request, just log the error
+
+                    # ===== STEP 9: Update Daily Chat Counter (FREE + Deepseek) =====
+                    if subscription.plan == "free" and provider_name == "deepseek":
+                        try:
+                            await subscription_service.increment_daily_chat(user_id)
+                            logger.info(
+                                f"📊 Daily chat count incremented: {subscription.daily_chat_count + 1}/10"
+                            )
+                        except Exception as counter_error:
+                            logger.error(
+                                f"❌ Failed to increment daily counter: {counter_error}"
+                            )
+                            # Don't fail the request
+
                     complete_data = {
                         "type": "complete",
                         "conversation_id": conversation_id,
                         "saved": True,
+                        "points_deducted": points_cost if should_deduct_points else 0,
                     }
                     yield f"data: {json.dumps(complete_data)}\n\n"
 
