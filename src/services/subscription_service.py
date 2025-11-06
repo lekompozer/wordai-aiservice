@@ -47,7 +47,24 @@ class SubscriptionService:
         if mongodb_client:
             self.client = mongodb_client
         else:
-            mongodb_uri = os.getenv("MONGODB_URI")
+            # Use authenticated URI if available, fallback to basic URI
+            mongodb_uri = os.getenv("MONGODB_URI_AUTH")
+            if not mongodb_uri:
+                # Fallback: build authenticated URI from components
+                mongo_user = os.getenv("MONGODB_APP_USERNAME")
+                mongo_pass = os.getenv("MONGODB_APP_PASSWORD")
+                mongo_host = (
+                    os.getenv("MONGODB_URI", "mongodb://localhost:27017/")
+                    .replace("mongodb://", "")
+                    .rstrip("/")
+                )
+                db_name = os.getenv("MONGODB_NAME", "ai_service_db")
+
+                if mongo_user and mongo_pass:
+                    mongodb_uri = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}/{db_name}?authSource=admin"
+                else:
+                    mongodb_uri = os.getenv("MONGODB_URI")
+
             self.client = MongoClient(mongodb_uri)
 
         self.db: Database = self.client[os.getenv("MONGODB_DATABASE", "ai_service_db")]

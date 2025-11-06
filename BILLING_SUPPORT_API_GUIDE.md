@@ -594,11 +594,11 @@ function BillingHistoryPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [stats, setStats] = useState({ total_spent: 0, completed: 0, pending: 0 });
   const [page, setPage] = useState(1);
-  
+
   useEffect(() => {
     fetchHistory();
   }, [page]);
-  
+
   const fetchHistory = async () => {
     const token = await getFirebaseToken();
     const response = await fetch(`/api/billing/history?page=${page}&limit=20`, {
@@ -612,11 +612,11 @@ function BillingHistoryPage() {
       pending: data.pending_payments
     });
   };
-  
+
   return (
     <div className="billing-page">
       <h1>Billing History</h1>
-      
+
       {/* Statistics */}
       <div className="stats-grid">
         <div className="stat-card">
@@ -632,7 +632,7 @@ function BillingHistoryPage() {
           <p>{stats.pending}</p>
         </div>
       </div>
-      
+
       {/* Payments Table */}
       <table className="payments-table">
         <thead>
@@ -681,11 +681,11 @@ function CreateTicketForm({ onSuccess }: { onSuccess: () => void }) {
     priority: 'medium'
   });
   const [submitting, setSubmitting] = useState(false);
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    
+
     try {
       const token = await getFirebaseToken();
       const response = await fetch('/api/support/tickets', {
@@ -696,9 +696,9 @@ function CreateTicketForm({ onSuccess }: { onSuccess: () => void }) {
         },
         body: JSON.stringify(formData)
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         alert('Ticket submitted successfully! Our team will respond shortly.');
         onSuccess();
@@ -709,11 +709,11 @@ function CreateTicketForm({ onSuccess }: { onSuccess: () => void }) {
       setSubmitting(false);
     }
   };
-  
+
   return (
     <form onSubmit={handleSubmit} className="ticket-form">
       <h2>Create Support Ticket</h2>
-      
+
       <div className="form-group">
         <label>Subject *</label>
         <input
@@ -725,7 +725,7 @@ function CreateTicketForm({ onSuccess }: { onSuccess: () => void }) {
           placeholder="Brief description of your issue"
         />
       </div>
-      
+
       <div className="form-group">
         <label>Category *</label>
         <select
@@ -739,7 +739,7 @@ function CreateTicketForm({ onSuccess }: { onSuccess: () => void }) {
           <option value="bug_report">Bug Report</option>
         </select>
       </div>
-      
+
       <div className="form-group">
         <label>Priority</label>
         <select
@@ -752,7 +752,7 @@ function CreateTicketForm({ onSuccess }: { onSuccess: () => void }) {
           <option value="urgent">Urgent</option>
         </select>
       </div>
-      
+
       <div className="form-group">
         <label>Message *</label>
         <textarea
@@ -764,7 +764,7 @@ function CreateTicketForm({ onSuccess }: { onSuccess: () => void }) {
           placeholder="Please provide as much detail as possible..."
         />
       </div>
-      
+
       <button type="submit" disabled={submitting}>
         {submitting ? 'Submitting...' : 'Submit Ticket'}
       </button>
@@ -783,17 +783,17 @@ function UserTicketsPage() {
   const [tickets, setTickets] = useState([]);
   const [stats, setStats] = useState({ open: 0, resolved: 0 });
   const [filter, setFilter] = useState('all');
-  
+
   useEffect(() => {
     fetchTickets();
   }, [filter]);
-  
+
   const fetchTickets = async () => {
     const token = await getFirebaseToken();
-    const url = filter === 'all' 
+    const url = filter === 'all'
       ? '/api/support/tickets'
       : `/api/support/tickets?status_filter=${filter}`;
-      
+
     const response = await fetch(url, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
@@ -804,17 +804,17 @@ function UserTicketsPage() {
       resolved: data.resolved_count
     });
   };
-  
+
   return (
     <div className="tickets-page">
       <h1>My Support Tickets</h1>
-      
+
       {/* Statistics */}
       <div className="stats">
         <div>Open: {stats.open}</div>
         <div>Resolved: {stats.resolved}</div>
       </div>
-      
+
       {/* Filter */}
       <div className="filter-bar">
         <button onClick={() => setFilter('all')}>All</button>
@@ -822,7 +822,7 @@ function UserTicketsPage() {
         <button onClick={() => setFilter('resolved')}>Resolved</button>
         <button onClick={() => setFilter('closed')}>Closed</button>
       </div>
-      
+
       {/* Tickets List */}
       <div className="tickets-list">
         {tickets.map(ticket => (

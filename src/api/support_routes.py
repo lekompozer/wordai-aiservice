@@ -38,7 +38,9 @@ ADMIN_NAME = "WordAI Support Team"
 class SupportTicketCreate(BaseModel):
     """Request to create a support ticket"""
 
-    subject: str = Field(..., min_length=5, max_length=200, description="Ticket subject")
+    subject: str = Field(
+        ..., min_length=5, max_length=200, description="Ticket subject"
+    )
     message: str = Field(..., min_length=10, description="Detailed message")
     category: str = Field(
         default="general",
@@ -84,7 +86,7 @@ class SupportTicketSummary(BaseModel):
     last_reply_at: Optional[datetime] = None
     last_reply_by: Optional[str] = Field(description="user or admin")
     unread_count: int = Field(description="Number of unread messages for current user")
-    
+
     # User info (for admin view)
     user_id: Optional[str] = None
     user_email: Optional[str] = None
@@ -99,21 +101,21 @@ class SupportTicketDetail(BaseModel):
     category: str
     priority: str
     status: str
-    
+
     # User info
     user_id: str
     user_email: Optional[str] = None
     user_name: Optional[str] = None
-    
+
     # Timestamps
     created_at: datetime
     updated_at: datetime
     resolved_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
-    
+
     # Messages thread
     messages: List[SupportTicketMessage]
-    
+
     # Metadata
     tags: List[str] = Field(default_factory=list)
     assigned_to: Optional[str] = Field(description="Admin ID assigned to ticket")
@@ -127,7 +129,7 @@ class TicketListResponse(BaseModel):
     page: int
     limit: int
     has_more: bool
-    
+
     # Statistics
     open_count: int = 0
     resolved_count: int = 0
@@ -148,7 +150,7 @@ async def send_email_notification(
 ):
     """
     Send email notification for support tickets.
-    
+
     Note: This is a simplified version. In production, use a proper email service
     like SendGrid, AWS SES, or Brevo (which you already have configured).
     """
@@ -158,11 +160,11 @@ async def send_email_notification(
         logger.info(
             f"📧 Email notification: to={to_email}, subject={subject}, is_admin={is_admin}"
         )
-        
+
         # In production, use your existing email service:
         # from src.services.brevo_service import brevo_service
         # await brevo_service.send_support_notification(to_email, to_name, subject, message)
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to send email notification: {e}")
         # Don't raise exception - email failure shouldn't break the API
@@ -202,7 +204,7 @@ async def create_support_ticket(
 ):
     """
     Submit a new support ticket.
-    
+
     **Request Body:**
     ```json
     {
@@ -212,20 +214,20 @@ async def create_support_ticket(
         "priority": "high"
     }
     ```
-    
+
     **Categories:**
     - `general` - General inquiries
     - `technical` - Technical issues
     - `billing` - Billing and payment questions
     - `feature_request` - Feature requests
     - `bug_report` - Bug reports
-    
+
     **Priority:**
     - `low` - Not urgent
     - `medium` - Normal priority (default)
     - `high` - Important
     - `urgent` - Critical issue
-    
+
     **Notifications:**
     - Admin will receive email notification at hoilht89@gmail.com
     """
@@ -233,10 +235,10 @@ async def create_support_ticket(
         firebase_uid = user_data["firebase_uid"]
         user_email = user_data.get("email", "")
         user_name = user_data.get("display_name", user_data.get("name", "User"))
-        
+
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         # Create ticket document
         ticket_doc = {
             "user_id": firebase_uid,
@@ -268,10 +270,10 @@ async def create_support_ticket(
             "resolved_at": None,
             "closed_at": None,
         }
-        
+
         result = await tickets_collection.insert_one(ticket_doc)
         ticket_id = str(result.inserted_id)
-        
+
         # Send email to admin in background
         background_tasks.add_task(
             send_email_notification,
@@ -285,18 +287,18 @@ async def create_support_ticket(
             f"View ticket: https://your-domain.com/admin/support/{ticket_id}",
             is_admin=True,
         )
-        
+
         logger.info(
             f"✅ Support ticket created: {ticket_id} by user {firebase_uid} ({user_email})"
         )
-        
+
         return {
             "success": True,
             "ticket_id": ticket_id,
             "message": "Support ticket submitted successfully. Our team will respond shortly.",
             "status": "open",
         }
-    
+
     except Exception as e:
         logger.error(f"❌ Error creating support ticket: {e}")
         raise HTTPException(
@@ -314,12 +316,12 @@ async def get_user_tickets(
 ):
     """
     Get list of support tickets for current user.
-    
+
     **Query Parameters:**
     - `page`: Page number
     - `limit`: Items per page
     - `status_filter`: Filter by status (open, in_progress, resolved, closed)
-    
+
     **Returns:**
     - List of tickets with summary info
     - Pagination and statistics
@@ -328,22 +330,25 @@ async def get_user_tickets(
         firebase_uid = user_data["firebase_uid"]
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         # Build query
         query = {"user_id": firebase_uid}
         if status_filter:
             query["status"] = status_filter
-        
+
         # Get total count
         total = await tickets_collection.count_documents(query)
-        
+
         # Get paginated results
         skip = (page - 1) * limit
         cursor = (
-            tickets_collection.find(query).sort("updated_at", -1).skip(skip).limit(limit)
+            tickets_collection.find(query)
+            .sort("updated_at", -1)
+            .skip(skip)
+            .limit(limit)
         )
         tickets = await cursor.to_list(length=limit)
-        
+
         # Convert to response format
         ticket_summaries = []
         for ticket in tickets:
@@ -355,7 +360,7 @@ async def get_user_tickets(
                 and msg.get("created_at", datetime.min)
                 > ticket.get("user_last_read", datetime.min)
             )
-            
+
             ticket_summaries.append(
                 SupportTicketSummary(
                     ticket_id=str(ticket["_id"]),
@@ -370,7 +375,7 @@ async def get_user_tickets(
                     unread_count=unread_count,
                 )
             )
-        
+
         # Get statistics
         stats_pipeline = [
             {"$match": {"user_id": firebase_uid}},
@@ -378,7 +383,7 @@ async def get_user_tickets(
         ]
         stats = await tickets_collection.aggregate(stats_pipeline).to_list(None)
         stats_dict = {item["_id"]: item["count"] for item in stats}
-        
+
         return TicketListResponse(
             tickets=ticket_summaries,
             total=total,
@@ -389,7 +394,7 @@ async def get_user_tickets(
             resolved_count=stats_dict.get("resolved", 0),
             closed_count=stats_dict.get("closed", 0),
         )
-    
+
     except Exception as e:
         logger.error(f"❌ Error fetching user tickets: {e}")
         raise HTTPException(
@@ -405,13 +410,13 @@ async def get_ticket_detail(
 ):
     """
     Get complete details and message thread for a specific ticket.
-    
+
     **Path Parameters:**
     - `ticket_id`: Support ticket ID
-    
+
     **Returns:**
     - Complete ticket information with all messages
-    
+
     **Security:**
     - Users can only view their own tickets
     - Marks messages as read
@@ -420,7 +425,7 @@ async def get_ticket_detail(
         firebase_uid = user_data["firebase_uid"]
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         # Convert to ObjectId
         try:
             ticket_obj_id = ObjectId(ticket_id)
@@ -429,24 +434,24 @@ async def get_ticket_detail(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid ticket ID format",
             )
-        
+
         # Find ticket and verify ownership
         ticket = await tickets_collection.find_one(
             {"_id": ticket_obj_id, "user_id": firebase_uid}
         )
-        
+
         if not ticket:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Ticket not found or access denied",
             )
-        
+
         # Mark as read by user
         await tickets_collection.update_one(
             {"_id": ticket_obj_id},
             {"$set": {"user_last_read": datetime.utcnow(), "unread_by_user": False}},
         )
-        
+
         # Convert messages to response format
         messages = [
             SupportTicketMessage(
@@ -461,7 +466,7 @@ async def get_ticket_detail(
             for msg in ticket["messages"]
             if not msg.get("is_internal_note", False)  # Hide internal notes from users
         ]
-        
+
         return SupportTicketDetail(
             ticket_id=str(ticket["_id"]),
             subject=ticket["subject"],
@@ -479,7 +484,7 @@ async def get_ticket_detail(
             tags=ticket.get("tags", []),
             assigned_to=ticket.get("assigned_to"),
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -499,17 +504,17 @@ async def user_reply_to_ticket(
 ):
     """
     User adds a reply to their support ticket.
-    
+
     **Path Parameters:**
     - `ticket_id`: Support ticket ID
-    
+
     **Request Body:**
     ```json
     {
         "message": "Thank you for your help! The issue is now resolved."
     }
     ```
-    
+
     **Notifications:**
     - Admin receives email notification
     """
@@ -517,10 +522,10 @@ async def user_reply_to_ticket(
         firebase_uid = user_data["firebase_uid"]
         user_name = user_data.get("display_name", user_data.get("name", "User"))
         user_email = user_data.get("email", "")
-        
+
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         # Convert to ObjectId
         try:
             ticket_obj_id = ObjectId(ticket_id)
@@ -529,18 +534,18 @@ async def user_reply_to_ticket(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid ticket ID format",
             )
-        
+
         # Verify ownership
         ticket = await tickets_collection.find_one(
             {"_id": ticket_obj_id, "user_id": firebase_uid}
         )
-        
+
         if not ticket:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Ticket not found or access denied",
             )
-        
+
         # Add reply message
         new_message = {
             "message_id": str(ObjectId()),
@@ -551,7 +556,7 @@ async def user_reply_to_ticket(
             "created_at": datetime.utcnow(),
             "is_internal_note": False,
         }
-        
+
         # Update ticket
         await tickets_collection.update_one(
             {"_id": ticket_obj_id},
@@ -562,13 +567,13 @@ async def user_reply_to_ticket(
                     "last_reply_at": datetime.utcnow(),
                     "last_reply_by": "user",
                     "unread_by_admin": True,
-                    "status": "waiting_admin"
-                    if ticket["status"] != "closed"
-                    else "closed",
+                    "status": (
+                        "waiting_admin" if ticket["status"] != "closed" else "closed"
+                    ),
                 },
             },
         )
-        
+
         # Send email to admin
         background_tasks.add_task(
             send_email_notification,
@@ -580,15 +585,15 @@ async def user_reply_to_ticket(
             f"View ticket: https://your-domain.com/admin/support/{ticket_id}",
             is_admin=True,
         )
-        
+
         logger.info(f"✅ User reply added to ticket {ticket_id}")
-        
+
         return {
             "success": True,
             "message": "Reply added successfully",
             "ticket_id": ticket_id,
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -616,7 +621,7 @@ async def get_all_tickets_admin(
 ):
     """
     **[ADMIN ONLY]** Get list of all support tickets across all users.
-    
+
     **Query Parameters:**
     - `page`: Page number
     - `limit`: Items per page
@@ -624,11 +629,11 @@ async def get_all_tickets_admin(
     - `priority_filter`: Filter by priority
     - `category_filter`: Filter by category
     - `search`: Search in subject or user email
-    
+
     **Returns:**
     - List of all tickets with user information
     - Statistics
-    
+
     **Access:**
     - Requires admin role (TODO: Add admin role check)
     """
@@ -636,10 +641,10 @@ async def get_all_tickets_admin(
         # TODO: Add admin role verification
         # For now, we'll implement basic access control
         # You should add proper admin role checking here
-        
+
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         # Build query
         query = {}
         if status_filter:
@@ -653,23 +658,26 @@ async def get_all_tickets_admin(
                 {"subject": {"$regex": search, "$options": "i"}},
                 {"user_email": {"$regex": search, "$options": "i"}},
             ]
-        
+
         # Get total count
         total = await tickets_collection.count_documents(query)
-        
+
         # Get paginated results
         skip = (page - 1) * limit
         cursor = (
-            tickets_collection.find(query).sort("updated_at", -1).skip(skip).limit(limit)
+            tickets_collection.find(query)
+            .sort("updated_at", -1)
+            .skip(skip)
+            .limit(limit)
         )
         tickets = await cursor.to_list(length=limit)
-        
+
         # Convert to response format
         ticket_summaries = []
         for ticket in tickets:
             # Count unread by admin
             unread_count = 1 if ticket.get("unread_by_admin", False) else 0
-            
+
             ticket_summaries.append(
                 SupportTicketSummary(
                     ticket_id=str(ticket["_id"]),
@@ -687,7 +695,7 @@ async def get_all_tickets_admin(
                     user_name=ticket.get("user_name"),
                 )
             )
-        
+
         # Get statistics
         stats_pipeline = [
             {"$match": query} if query else {"$match": {}},
@@ -695,7 +703,7 @@ async def get_all_tickets_admin(
         ]
         stats = await tickets_collection.aggregate(stats_pipeline).to_list(None)
         stats_dict = {item["_id"]: item["count"] for item in stats}
-        
+
         return TicketListResponse(
             tickets=ticket_summaries,
             total=total,
@@ -706,7 +714,7 @@ async def get_all_tickets_admin(
             resolved_count=stats_dict.get("resolved", 0),
             closed_count=stats_dict.get("closed", 0),
         )
-    
+
     except Exception as e:
         logger.error(f"❌ Error fetching admin tickets: {e}")
         raise HTTPException(
@@ -722,23 +730,23 @@ async def get_ticket_detail_admin(
 ):
     """
     **[ADMIN ONLY]** Get complete ticket details including internal notes.
-    
+
     **Path Parameters:**
     - `ticket_id`: Support ticket ID
-    
+
     **Returns:**
     - Complete ticket with all messages including internal notes
-    
+
     **Access:**
     - Requires admin role
     - Marks ticket as read by admin
     """
     try:
         # TODO: Add admin role verification
-        
+
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         # Convert to ObjectId
         try:
             ticket_obj_id = ObjectId(ticket_id)
@@ -747,20 +755,20 @@ async def get_ticket_detail_admin(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid ticket ID format",
             )
-        
+
         ticket = await tickets_collection.find_one({"_id": ticket_obj_id})
-        
+
         if not ticket:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found"
             )
-        
+
         # Mark as read by admin
         await tickets_collection.update_one(
             {"_id": ticket_obj_id},
             {"$set": {"admin_last_read": datetime.utcnow(), "unread_by_admin": False}},
         )
-        
+
         # Convert all messages (including internal notes for admin)
         messages = [
             SupportTicketMessage(
@@ -774,7 +782,7 @@ async def get_ticket_detail_admin(
             )
             for msg in ticket["messages"]
         ]
-        
+
         return SupportTicketDetail(
             ticket_id=str(ticket["_id"]),
             subject=ticket["subject"],
@@ -792,7 +800,7 @@ async def get_ticket_detail_admin(
             tags=ticket.get("tags", []),
             assigned_to=ticket.get("assigned_to"),
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -812,22 +820,22 @@ async def admin_reply_to_ticket(
 ):
     """
     **[ADMIN ONLY]** Admin replies to a support ticket.
-    
+
     **Path Parameters:**
     - `ticket_id`: Support ticket ID
-    
+
     **Request Body:**
     ```json
     {
         "message": "Thank you for reporting this issue. We've investigated and..."
     }
     ```
-    
+
     **Notifications:**
     - User receives in-app notification
     - User receives email notification
     - Ticket status automatically updated to "waiting_user"
-    
+
     **Access:**
     - Requires admin role
     """
@@ -835,10 +843,10 @@ async def admin_reply_to_ticket(
         # TODO: Add admin role verification
         admin_id = user_data["firebase_uid"]
         admin_name = user_data.get("display_name", "Support Team")
-        
+
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         # Convert to ObjectId
         try:
             ticket_obj_id = ObjectId(ticket_id)
@@ -847,14 +855,14 @@ async def admin_reply_to_ticket(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid ticket ID format",
             )
-        
+
         ticket = await tickets_collection.find_one({"_id": ticket_obj_id})
-        
+
         if not ticket:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found"
             )
-        
+
         # Add reply message
         new_message = {
             "message_id": str(ObjectId()),
@@ -865,7 +873,7 @@ async def admin_reply_to_ticket(
             "created_at": datetime.utcnow(),
             "is_internal_note": False,
         }
-        
+
         # Update ticket
         await tickets_collection.update_one(
             {"_id": ticket_obj_id},
@@ -881,7 +889,7 @@ async def admin_reply_to_ticket(
                 },
             },
         )
-        
+
         # Create in-app notification for user
         background_tasks.add_task(
             create_in_app_notification,
@@ -890,7 +898,7 @@ async def admin_reply_to_ticket(
             message=f"Support team has replied to your ticket. {reply.message[:100]}...",
             ticket_id=ticket_id,
         )
-        
+
         # Send email to user
         if ticket.get("user_email"):
             background_tasks.add_task(
@@ -905,9 +913,9 @@ async def admin_reply_to_ticket(
                 f"Best regards,\nWordAI Support Team",
                 is_admin=False,
             )
-        
+
         logger.info(f"✅ Admin reply added to ticket {ticket_id} by {admin_name}")
-        
+
         return {
             "success": True,
             "message": "Reply sent successfully. User has been notified.",
@@ -917,7 +925,7 @@ async def admin_reply_to_ticket(
                 "email": bool(ticket.get("user_email")),
             },
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -938,29 +946,36 @@ async def update_ticket_status_admin(
 ):
     """
     **[ADMIN ONLY]** Update ticket status.
-    
+
     **Path Parameters:**
     - `ticket_id`: Support ticket ID
-    
+
     **Query Parameters:**
     - `status`: New status (open, in_progress, resolved, closed)
-    
+
     **Access:**
     - Requires admin role
     """
     try:
         # TODO: Add admin role verification
-        
-        valid_statuses = ["open", "in_progress", "resolved", "closed", "waiting_user", "waiting_admin"]
+
+        valid_statuses = [
+            "open",
+            "in_progress",
+            "resolved",
+            "closed",
+            "waiting_user",
+            "waiting_admin",
+        ]
         if status not in valid_statuses:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}",
             )
-        
+
         db = await get_async_database()
         tickets_collection = db["support_tickets"]
-        
+
         try:
             ticket_obj_id = ObjectId(ticket_id)
         except:
@@ -968,35 +983,35 @@ async def update_ticket_status_admin(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid ticket ID format",
             )
-        
+
         update_data = {
             "status": status,
             "updated_at": datetime.utcnow(),
         }
-        
+
         if status == "resolved":
             update_data["resolved_at"] = datetime.utcnow()
         elif status == "closed":
             update_data["closed_at"] = datetime.utcnow()
-        
+
         result = await tickets_collection.update_one(
             {"_id": ticket_obj_id}, {"$set": update_data}
         )
-        
+
         if result.matched_count == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Ticket not found"
             )
-        
+
         logger.info(f"✅ Ticket {ticket_id} status updated to {status}")
-        
+
         return {
             "success": True,
             "message": f"Ticket status updated to {status}",
             "ticket_id": ticket_id,
             "new_status": status,
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:
