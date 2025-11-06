@@ -128,9 +128,9 @@ services:
       # SePay Configuration (only 2 fields needed)
       - SEPAY_API_MERCHANT_ID=${SEPAY_API_MERCHANT_ID}
       - SEPAY_SECRET_KEY=${SEPAY_SECRET_KEY}
-      - SEPAY_API_URL=${SEPAY_API_URL:-https://pgapi-sandbox.sepay.vn}
-      - SEPAY_CHECKOUT_URL=${SEPAY_CHECKOUT_URL:-https://pay-sandbox.sepay.vn/v1/checkout/init}
-      - SEPAY_SANDBOX=${SEPAY_SANDBOX:-true}
+      - SEPAY_API_URL=${SEPAY_API_URL:-https://pgapi.sepay.vn}
+      - SEPAY_CHECKOUT_URL=${SEPAY_CHECKOUT_URL:-https://pay.sepay.vn/v1/checkout/init}
+      - SEPAY_SANDBOX=${SEPAY_SANDBOX:-false}
 
       # MongoDB (shared with Python service)
       - MONGODB_URI=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017
