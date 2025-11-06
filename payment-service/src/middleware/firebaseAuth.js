@@ -4,7 +4,7 @@
  */
 
 const admin = require('firebase-admin');
-const logger = require('../config/logger');
+const logger = require('../utils/logger');
 const { AppError } = require('./errorHandler');
 
 let isInitialized = false;
@@ -18,8 +18,10 @@ function initializeFirebase() {
     }
 
     try {
-        // Check if Firebase credentials are provided
-        const credentialsPath = process.env.FIREBASE_CREDENTIALS_PATH || '../../../firebase-credentials.json';
+        // Get Firebase credentials path from environment
+        const credentialsPath = process.env.FIREBASE_CREDENTIALS_PATH || '/app/firebase-credentials.json';
+        
+        logger.info(`🔧 Initializing Firebase Admin SDK with credentials: ${credentialsPath}`);
 
         // Try to initialize with service account
         try {
@@ -29,6 +31,9 @@ function initializeFirebase() {
             });
             logger.info('✅ Firebase Admin SDK initialized with service account');
         } catch (error) {
+            logger.warn(`⚠️  Failed to load service account from ${credentialsPath}: ${error.message}`);
+            logger.info('🔄 Attempting to use application default credentials...');
+            
             // Fallback to application default credentials
             admin.initializeApp({
                 credential: admin.credential.applicationDefault(),

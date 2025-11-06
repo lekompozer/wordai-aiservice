@@ -119,11 +119,13 @@ services:
       - "3000:3000" # Internal only, NGINX will proxy
     volumes:
       - ./payment-service/logs:/app/logs # Log persistence
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro # Firebase credentials
     environment:
       # Server
       - NODE_ENV=production
       - PORT=3000
       - SERVICE_NAME=wordai-payment-service
+      - FIREBASE_CREDENTIALS_PATH=/app/firebase-credentials.json
 
       # SePay Configuration (only 2 fields needed)
       - SEPAY_API_MERCHANT_ID=${SEPAY_API_MERCHANT_ID}
