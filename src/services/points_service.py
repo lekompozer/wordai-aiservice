@@ -107,7 +107,7 @@ class PointsService:
             self.transactions.create_index(
                 [("service", ASCENDING), ("created_at", DESCENDING)]
             )
-            self.transactions.create_index([("transaction_type", ASCENDING)])
+            self.transactions.create_index([("type", ASCENDING)])
             self.transactions.create_index([("created_at", DESCENDING)])
 
             logger.info("Points transaction indexes created successfully")
@@ -236,7 +236,7 @@ class PointsService:
         transaction = PointsTransaction(
             user_id=user_id,
             subscription_id=str(subscription["_id"]),
-            transaction_type="spend",
+            type="spend",
             amount=amount,
             balance_before=balance_before,
             balance_after=balance_after,
@@ -297,7 +297,7 @@ class PointsService:
         transaction = PointsTransaction(
             user_id=request.user_id,
             subscription_id=str(subscription["_id"]),
-            transaction_type="grant",
+            type="grant",
             amount=request.amount,
             balance_before=balance_before,
             balance_after=balance_after,
@@ -371,7 +371,7 @@ class PointsService:
         transaction = PointsTransaction(
             user_id=request.user_id,
             subscription_id=str(subscription["_id"]),
-            transaction_type="deduct",
+            type="deduct",
             amount=request.amount,
             balance_before=balance_before,
             balance_after=balance_after,
@@ -442,7 +442,7 @@ class PointsService:
         transaction = PointsTransaction(
             user_id=user_id,
             subscription_id=str(subscription["_id"]),
-            transaction_type="refund",
+            type="refund",
             amount=amount,
             balance_before=balance_before,
             balance_after=balance_after,
@@ -509,7 +509,7 @@ class PointsService:
         query = {"user_id": user_id}
 
         if transaction_type:
-            query["transaction_type"] = transaction_type
+            query["type"] = transaction_type
 
         if service:
             query["service"] = service
@@ -568,7 +568,7 @@ class PointsService:
         Returns:
             Dict with usage breakdown by service
         """
-        query = {"user_id": user_id, "transaction_type": "spend"}
+        query = {"user_id": user_id, "type": "spend"}
 
         if start_date or end_date:
             query["created_at"] = {}
@@ -640,7 +640,7 @@ class PointsService:
         query = {}
 
         if transaction_type:
-            query["transaction_type"] = transaction_type
+            query["type"] = transaction_type
 
         if service:
             query["service"] = service
