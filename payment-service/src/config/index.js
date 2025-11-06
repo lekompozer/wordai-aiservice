@@ -17,8 +17,8 @@ const config = {
     sepay: {
         merchantId: process.env.SEPAY_API_MERCHANT_ID,
         secretKey: process.env.SEPAY_SECRET_KEY,
-        checkoutUrl: process.env.SEPAY_CHECKOUT_URL || 'https://pay-sandbox.sepay.vn/v1/checkout/init',
-        apiUrl: process.env.SEPAY_API_URL || 'https://pgapi-sandbox.sepay.vn',
+        checkoutUrl: process.env.SEPAY_CHECKOUT_URL || 'https://pay.sepay.vn/v1/checkout/init',
+        apiUrl: process.env.SEPAY_API_URL || 'https://pgapi.sepay.vn',
         sandbox: process.env.SEPAY_SANDBOX === 'true',
     },
 
