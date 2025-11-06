@@ -120,7 +120,7 @@ async function createCheckout(req, res) {
             duration_months: durationMonths,
             price,
             status: 'pending',
-            payment_method: 'sepay_bank_transfer',
+            payment_method: 'SEPAY_BANK_TRANSFER',
             user_email: user_email || null,  // ✅ From Firebase
             user_name: user_name || null,  // ✅ From Firebase
             sepay_transaction_id: null,

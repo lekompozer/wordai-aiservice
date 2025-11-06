@@ -106,7 +106,7 @@ async function handleWebhook(req, res) {
                         duration_months: payment.duration_months,
                         payment_id: payment._id.toString(),
                         order_invoice_number,
-                        payment_method: 'sepay_bank_transfer',
+                        payment_method: 'SEPAY_BANK_TRANSFER',
                         amount: payment.price,
                     },
                     {
@@ -259,7 +259,7 @@ async function retryActivation(req, res) {
                 duration_months: payment.duration_months,
                 payment_id: payment._id.toString(),
                 order_invoice_number,
-                payment_method: 'sepay_bank_transfer',
+                payment_method: 'SEPAY_BANK_TRANSFER',
                 amount: payment.price,
             },
             {

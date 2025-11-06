@@ -48,7 +48,13 @@ class PyObjectId(ObjectId):
 # Type aliases
 PaymentStatus = Literal["pending", "completed", "failed", "cancelled", "refunded"]
 PaymentMethod = Literal[
-    "BANK_TRANSFER", "BANK_TRANSFER_MANUAL", "VISA", "MASTERCARD", "MOMO", "ZALOPAY"
+    "BANK_TRANSFER",
+    "BANK_TRANSFER_MANUAL",
+    "SEPAY_BANK_TRANSFER",  # SePay payment gateway
+    "VISA",
+    "MASTERCARD",
+    "MOMO",
+    "ZALOPAY",
 ]
 PlanType = Literal["premium", "pro", "vip"]
 DurationType = Literal["3_months", "12_months"]

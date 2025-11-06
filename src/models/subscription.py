@@ -49,7 +49,13 @@ class PyObjectId(ObjectId):
 PlanType = Literal["free", "premium", "pro", "vip"]
 DurationType = Literal["3_months", "12_months"]
 PaymentMethod = Literal[
-    "BANK_TRANSFER", "BANK_TRANSFER_MANUAL", "VISA", "MASTERCARD", "MOMO", "ZALOPAY"
+    "BANK_TRANSFER",
+    "BANK_TRANSFER_MANUAL",
+    "SEPAY_BANK_TRANSFER",  # SePay payment gateway
+    "VISA",
+    "MASTERCARD",
+    "MOMO",
+    "ZALOPAY",
 ]
 
 
