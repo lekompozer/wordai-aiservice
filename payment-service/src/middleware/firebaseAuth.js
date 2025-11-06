@@ -20,7 +20,7 @@ function initializeFirebase() {
     try {
         // Get Firebase credentials path from environment
         const credentialsPath = process.env.FIREBASE_CREDENTIALS_PATH || '/app/firebase-credentials.json';
-        
+
         logger.info(`🔧 Initializing Firebase Admin SDK with credentials: ${credentialsPath}`);
 
         // Try to initialize with service account
@@ -33,7 +33,7 @@ function initializeFirebase() {
         } catch (error) {
             logger.warn(`⚠️  Failed to load service account from ${credentialsPath}: ${error.message}`);
             logger.info('🔄 Attempting to use application default credentials...');
-            
+
             // Fallback to application default credentials
             admin.initializeApp({
                 credential: admin.credential.applicationDefault(),

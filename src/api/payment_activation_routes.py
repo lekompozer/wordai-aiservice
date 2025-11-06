@@ -103,9 +103,15 @@ async def activate_subscription(
             request.user_id
         )
 
-        # Get current points balance
-        current_points = subscription.get("points_remaining", 0)
-        current_total = subscription.get("points_total", 0)
+        # Get current points balance (subscription is a Pydantic model)
+        current_points = (
+            subscription.points_remaining
+            if hasattr(subscription, "points_remaining")
+            else 0
+        )
+        current_total = (
+            subscription.points_total if hasattr(subscription, "points_total") else 0
+        )
 
         # Calculate new points (ADD to existing)
         new_points_remaining = current_points + points_to_grant
