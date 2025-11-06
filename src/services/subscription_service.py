@@ -96,6 +96,11 @@ class SubscriptionService:
         """
         Create free tier subscription for new user
 
+        FREE tier includes:
+        - 10 bonus points to try AI features (Claude, ChatGPT, AI operations)
+        - 10 FREE Deepseek chats/day (no points deduction)
+        - Basic storage and document limits
+
         Args:
             user_id: Firebase UID
 
@@ -104,14 +109,17 @@ class SubscriptionService:
         """
         free_config = PLAN_CONFIGS["free"]
 
+        # FREE tier gets 10 bonus points
+        bonus_points = free_config.points_3_months  # 10 points
+
         subscription = UserSubscription(
             user_id=user_id,
             plan="free",
             duration=None,
             price=0,
-            points_total=0,
+            points_total=bonus_points,  # Updated: 10 bonus points
             points_used=0,
-            points_remaining=0,
+            points_remaining=bonus_points,  # Updated: 10 bonus points available
             started_at=datetime.utcnow(),
             expires_at=None,  # Free never expires
             is_active=True,
@@ -119,7 +127,7 @@ class SubscriptionService:
             upload_files_limit=free_config.upload_files_limit,
             documents_limit=free_config.documents_limit,
             secret_files_limit=free_config.secret_files_limit,
-            daily_chat_limit=free_config.daily_chat_limit,
+            daily_chat_limit=free_config.daily_chat_limit,  # 10 chats/day
             last_chat_reset=datetime.utcnow(),
         )
 
@@ -137,7 +145,7 @@ class SubscriptionService:
                     "current_plan": "free",
                     "subscription_id": str(result.inserted_id),
                     "subscription_expires_at": None,
-                    "points_remaining": 0,
+                    "points_remaining": bonus_points,  # Updated: 10 bonus points
                     "storage_limit_mb": free_config.storage_mb,
                     "plan_updated_at": datetime.utcnow(),
                 }
@@ -145,7 +153,7 @@ class SubscriptionService:
         )
 
         logger.info(
-            f"Created free subscription: {result.inserted_id} for user: {user_id}"
+            f"Created free subscription with {bonus_points} bonus points: {result.inserted_id} for user: {user_id}"
         )
         return subscription
 
@@ -660,3 +668,9 @@ class SubscriptionService:
             "pages": (total + limit - 1) // limit,
             "limit": limit,
         }
+
+
+# Global service instance helper
+def get_subscription_service() -> SubscriptionService:
+    """Get or create global subscription service instance"""
+    return SubscriptionService()

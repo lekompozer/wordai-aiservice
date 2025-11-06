@@ -22,6 +22,8 @@ load_dotenv()
 
 from src.middleware.auth import verify_firebase_token
 from src.services.user_manager import get_user_manager
+from src.services.subscription_service import get_subscription_service
+from src.services.points_service import get_points_service
 
 logger = logging.getLogger(__name__)
 
@@ -548,6 +550,41 @@ async def upload_file(
 
         logger.info(f"   ✅ File size validated: {file_size / (1024 * 1024):.2f}MB")
 
+        # === CHECK STORAGE & FILE COUNT LIMITS (NO POINTS DEDUCTION) ===
+        subscription_service = get_subscription_service()
+        
+        # Check storage limit
+        file_size_mb = file_size / (1024 * 1024)
+        if not await subscription_service.check_storage_limit(user_id, file_size_mb):
+            subscription = await subscription_service.get_or_create_subscription(user_id)
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "storage_limit_exceeded",
+                    "message": f"Không đủ dung lượng. Cần: {file_size_mb:.2f}MB, Còn: {subscription.storage_limit_mb - subscription.storage_used_mb:.2f}MB",
+                    "storage_used_mb": subscription.storage_used_mb,
+                    "storage_limit_mb": subscription.storage_limit_mb,
+                    "file_size_mb": file_size_mb,
+                    "upgrade_url": "/pricing"
+                }
+            )
+        
+        # Check file count limit
+        if not await subscription_service.check_upload_files_limit(user_id):
+            subscription = await subscription_service.get_or_create_subscription(user_id)
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "file_limit_exceeded",
+                    "message": f"Bạn đã đạt giới hạn {subscription.upload_files_limit} files. Nâng cấp để upload thêm!",
+                    "current_count": subscription.upload_files_count,
+                    "limit": subscription.upload_files_limit,
+                    "upgrade_url": "/pricing"
+                }
+            )
+        
+        logger.info(f"✅ Storage & file count limits passed for user {user_id}")
+
         # Generate unique filename
         file_id = f"file_{uuid.uuid4().hex[:12]}"
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -622,6 +659,21 @@ async def upload_file(
         logger.info(f"   📁 Original Name: {file.filename}")
         logger.info(f"   📊 Size: {file_size} bytes ({file_size / 1024:.2f} KB)")
         logger.info(f"   🔗 Download URL: {download_url[:100]}...")
+        
+        # === UPDATE USAGE COUNTERS (NO POINTS DEDUCTION) ===
+        try:
+            await subscription_service.update_usage(
+                user_id=user_id,
+                update={
+                    "storage_mb": file_size_mb,
+                    "upload_files": 1
+                }
+            )
+            logger.info(f"📊 Updated storage (+{file_size_mb:.2f}MB) and file counter (+1)")
+        except Exception as usage_error:
+            logger.error(f"❌ Error updating usage counters: {usage_error}")
+            # Don't fail the request if counter update fails
+        
         logger.info("=" * 80)
 
         return FileResponse(**file_data)

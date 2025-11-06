@@ -131,7 +131,7 @@ class UserSubscription(BaseModel):
 
     # Daily limits (for free tier chat)
     daily_chat_count: int = Field(default=0)
-    daily_chat_limit: int = Field(default=15)  # 15 for free, -1 for unlimited
+    daily_chat_limit: int = Field(default=10)  # 10 for free, -1 for unlimited
     last_chat_reset: Optional[datetime] = None
 
     # Metadata
@@ -266,15 +266,16 @@ PLAN_CONFIGS = {
         documents_limit=10,
         secret_files_limit=1,
         can_create_tests=False,
-        daily_chat_limit=15,
-        points_3_months=0,
-        points_12_months=0,
+        daily_chat_limit=10,  # Updated: 10 chats/day with Deepseek
+        points_3_months=10,  # Updated: 10 bonus points to try AI features
+        points_12_months=10,  # Same bonus for any duration
         price_3_months=0,
         price_12_months=0,
         description="Basic features for getting started",
         features_list=[
             "50MB Storage",
-            "15 Deepseek chats/day",
+            "10 FREE Deepseek chats/day",
+            "10 bonus points to try AI features",
             "Join tests (cannot create)",
             "10 documents",
             "1 secret file (no share)",

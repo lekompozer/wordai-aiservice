@@ -14,6 +14,8 @@ import tempfile
 
 from src.middleware.firebase_auth import require_auth
 from src.services.ai_chat_service import ai_chat_service, AIProvider
+from src.services.subscription_service import get_subscription_service
+from src.services.points_service import get_points_service
 from src.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -284,6 +286,30 @@ async def parse_slides_from_file(
 
         logger.info(f"🎬 Starting slide parse for file {file_id} (user: {user_id})...")
 
+        # === CHECK POINTS (AI OPERATION: 2 points) ===
+        points_service = get_points_service()
+        points_needed = 2
+        
+        check_result = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=points_needed,
+            service="file_to_slide_conversion"
+        )
+        
+        if not check_result["has_points"]:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ points để chuyển file sang slide. Cần: {points_needed}, Còn: {check_result['points_available']}",
+                    "points_needed": points_needed,
+                    "points_available": check_result["points_available"],
+                    "upgrade_url": "/pricing"
+                }
+            )
+        
+        logger.info(f"✅ Points check passed - {check_result['points_available']} points available")
+
         # Step 1: Get file info from database
         from src.services.user_manager import UserManager
         from src.database.db_manager import DBManager
@@ -475,6 +501,19 @@ async def parse_slides_from_file(
 
             logger.info(f"💾 Saved {len(slides)} slides to document {document_id}")
 
+        # === DEDUCT POINTS AFTER SUCCESS ===
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_needed,
+                service="file_to_slide_conversion",
+                resource_id=file_id,
+                description=f"AI Convert {file_name} to slides ({len(slides)} slides)"
+            )
+            logger.info(f"💸 Deducted {points_needed} points for slide conversion")
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+
         return SlideParseResponse(
             success=True,
             total_slides=len(slides),
@@ -524,6 +563,30 @@ async def parse_slides_from_upload(
 
         logger.info(f"🎬 Starting direct upload parse: {file_name} (user: {user_id})")
 
+        # === CHECK POINTS (AI OPERATION: 2 points) ===
+        points_service = get_points_service()
+        points_needed = 2
+        
+        check_result = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=points_needed,
+            service="file_to_slide_conversion"
+        )
+        
+        if not check_result["has_points"]:
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ points để chuyển file sang slide. Cần: {points_needed}, Còn: {check_result['points_available']}",
+                    "points_needed": points_needed,
+                    "points_available": check_result["points_available"],
+                    "upgrade_url": "/pricing"
+                }
+            )
+        
+        logger.info(f"✅ Points check passed - {check_result['points_available']} points available")
+
         # Validate file type
         file_ext = Path(file_name).suffix.lower()
         if file_ext not in [".pdf", ".pptx"]:
@@ -559,6 +622,19 @@ async def parse_slides_from_upload(
             Path(tmp_path).unlink(missing_ok=True)
 
         logger.info(f"✅ Successfully parsed {len(slides)} slides")
+
+        # === DEDUCT POINTS AFTER SUCCESS ===
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_needed,
+                service="file_to_slide_conversion",
+                resource_id=file_name,
+                description=f"AI Convert {file_name} to slides ({len(slides)} slides)"
+            )
+            logger.info(f"💸 Deducted {points_needed} points for slide conversion")
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
 
         return SlideParseResponse(
             success=True,

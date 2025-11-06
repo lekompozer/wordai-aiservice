@@ -28,12 +28,28 @@ logger = logging.getLogger(__name__)
 
 
 # Points cost for each service type
+# VARIABLE PRICING by AI provider and operation
 SERVICE_POINTS_COST = {
-    "ai_chat": 2,
+    # Chat operations - Variable pricing by provider
+    "ai_chat_deepseek": 1,  # Deepseek: 1 point (cheaper)
+    "ai_chat_claude": 2,  # Claude: 2 points
+    "ai_chat_chatgpt": 2,  # ChatGPT: 2 points
+    "ai_chat_gemini": 2,  # Gemini: 2 points
+    "ai_chat_cerebras": 2,  # Cerebras: 2 points
+    "ai_chat_default": 2,  # Other providers: 2 points
+    # Document AI operations
+    "ai_edit": 2,
+    "ai_translate": 2,
+    "ai_format": 2,
+    "ai_dual_language": 2,
     "document_generation": 2,
+    # File/Slide AI operations
     "slide_generation": 2,
-    "quote_generation": 2,
+    "file_to_doc_conversion": 2,
+    "file_to_slide_conversion": 2,
     "file_analysis": 2,
+    # Other AI operations
+    "quote_generation": 2,
     "test_generation": 2,
     "default": 2,  # Default cost for any AI operation
 }
@@ -80,6 +96,25 @@ class PointsService:
             logger.info("Points transaction indexes created successfully")
         except Exception as e:
             logger.error(f"Error creating indexes: {e}")
+
+    @staticmethod
+    def get_chat_points_cost(provider: str) -> int:
+        """
+        Get points cost for chat operation based on AI provider
+
+        Args:
+            provider: AI provider name (deepseek, claude, chatgpt, gemini, cerebras)
+
+        Returns:
+            Points cost (1 for deepseek, 2 for others)
+        """
+        provider_lower = provider.lower() if provider else "default"
+        service_key = f"ai_chat_{provider_lower}"
+
+        # Return provider-specific cost or default to 2 points
+        return SERVICE_POINTS_COST.get(
+            service_key, SERVICE_POINTS_COST.get("ai_chat_default", 2)
+        )
 
     async def get_points_balance(self, user_id: str) -> Dict[str, Any]:
         """
@@ -624,3 +659,9 @@ class PointsService:
             "pages": (total + limit - 1) // limit,
             "limit": limit,
         }
+
+
+# Global service instance helper
+def get_points_service() -> PointsService:
+    """Get or create global points service instance"""
+    return PointsService()

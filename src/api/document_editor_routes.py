@@ -24,6 +24,7 @@ from src.models.document_editor_models import (
 from src.services.document_manager import DocumentManager
 from src.services.file_download_service import FileDownloadService
 from src.services.user_manager import UserManager
+from src.services.subscription_service import get_subscription_service
 from src.middleware.auth import verify_firebase_token
 from src.database.db_manager import DBManager
 
@@ -268,6 +269,25 @@ async def create_new_document(
     doc_manager = get_document_manager()
 
     try:
+        # === CHECK DOCUMENT LIMIT (NO POINTS DEDUCTION) ===
+        subscription_service = get_subscription_service()
+        
+        # Check if user can create more documents
+        if not await subscription_service.check_documents_limit(user_id):
+            subscription = await subscription_service.get_or_create_subscription(user_id)
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "document_limit_exceeded",
+                    "message": f"Bạn đã đạt giới hạn {subscription.documents_limit} documents. Nâng cấp để tạo thêm!",
+                    "current_count": subscription.documents_count,
+                    "limit": subscription.documents_limit,
+                    "upgrade_url": "/pricing"
+                }
+            )
+        
+        logger.info(f"✅ Document limit check passed for user {user_id}")
+
         # Validate document type for created documents
         if request.source_type == "created":
             if not request.document_type:
@@ -310,6 +330,17 @@ async def create_new_document(
             f"✅ Created {request.source_type} document: {document_id} "
             f"(type: {request.document_type})"
         )
+        
+        # === INCREMENT DOCUMENT COUNTER (NO POINTS DEDUCTION) ===
+        try:
+            await subscription_service.update_usage(
+                user_id=user_id,
+                update={"documents": 1}
+            )
+            logger.info(f"📊 Incremented document counter for user {user_id}")
+        except Exception as usage_error:
+            logger.error(f"❌ Error updating document counter: {usage_error}")
+            # Don't fail the request if counter update fails
 
         return DocumentResponse(
             document_id=document["document_id"],
