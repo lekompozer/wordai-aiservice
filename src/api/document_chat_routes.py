@@ -753,9 +753,9 @@ async def document_chat_stream(
                         try:
                             await points_service.deduct_points(
                                 user_id=user_id,
-                                points=points_cost,
-                                transaction_type="spend",
+                                amount=points_cost,
                                 service=f"ai_document_chat_{provider_name}",
+                                resource_id=conversation_id,
                                 description=f"Document chat with {request.provider}",
                             )
                             logger.info(
