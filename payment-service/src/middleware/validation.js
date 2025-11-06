@@ -28,12 +28,10 @@ function validateBody(schema) {
 // Validation schemas
 const schemas = {
     // Checkout request
+    // Note: user_id, user_email, user_name come from Firebase token, not request body
     checkout: Joi.object({
-        user_id: Joi.string().required(),
         plan: Joi.string().valid('premium', 'pro', 'vip').required(),
         duration: Joi.string().valid('3_months', '12_months').required(),
-        user_email: Joi.string().email().optional(),
-        user_name: Joi.string().optional(),
     }),
 
     // Webhook payload (basic validation, SePay signature will be verified separately)

@@ -77,9 +77,23 @@ function generateSignature(fields, secretKey) {
 /**
  * Create SePay checkout
  * Returns form fields for frontend to submit to SePay
+ * REQUIRES AUTHENTICATION - user_id extracted from Firebase token
  */
 async function createCheckout(req, res) {
-    const { user_id, plan, duration, user_email, user_name } = req.body;
+    // Get authenticated user from Firebase token (set by verifyFirebaseToken middleware)
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    // Use authenticated user's information
+    const user_id = authenticatedUser.uid;  // ✅ From verified Firebase token
+    const user_email = authenticatedUser.email;  // ✅ From Firebase
+    const user_name = authenticatedUser.name || authenticatedUser.email?.split('@')[0];  // ✅ From Firebase
+
+    // Get plan and duration from request body
+    const { plan, duration } = req.body;
 
     try {
         // Get price
@@ -99,7 +113,7 @@ async function createCheckout(req, res) {
         const paymentsCollection = db.collection('payments');
 
         const paymentDoc = {
-            user_id,
+            user_id,  // ✅ Verified Firebase UID
             order_invoice_number: orderInvoiceNumber,
             plan,
             duration,
@@ -107,8 +121,8 @@ async function createCheckout(req, res) {
             price,
             status: 'pending',
             payment_method: 'sepay_bank_transfer',
-            user_email: user_email || null,
-            user_name: user_name || null,
+            user_email: user_email || null,  // ✅ From Firebase
+            user_name: user_name || null,  // ✅ From Firebase
             sepay_transaction_id: null,
             created_at: new Date(),
             updated_at: new Date(),
@@ -117,7 +131,7 @@ async function createCheckout(req, res) {
         const result = await paymentsCollection.insertOne(paymentDoc);
         const paymentId = result.insertedId.toString();
 
-        logger.info(`Created payment record: ${paymentId} for user: ${user_id}`);
+        logger.info(`Created payment record: ${paymentId} for user: ${user_id} (${user_email})`);
 
         // Prepare form fields for SePay checkout
         const formFields = {
