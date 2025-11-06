@@ -82,6 +82,12 @@ from src.api.auth_routes import router as auth_router
 # ✅ ADDED: Subscription & Points API for user subscription and points management
 from src.api.subscription_routes import router as subscription_router
 
+# ✅ ADDED: Billing History API for payment history
+from src.api.billing_routes import router as billing_router
+
+# ✅ ADDED: Support Ticket System API for customer support
+from src.api.support_routes import router as support_router
+
 # ✅ ADDED: E2EE Secret Documents - Key Management API
 from src.api.secret_key_routes import router as secret_key_router
 
@@ -500,6 +506,12 @@ def create_app() -> FastAPI:
 
     # ✅ Subscription & Points endpoints - User subscription and points management
     app.include_router(subscription_router, tags=["Subscription & Points"])
+
+    # ✅ Billing History endpoints - Payment history
+    app.include_router(billing_router, tags=["Billing & Payments"])
+
+    # ✅ Support System endpoints - Customer support tickets
+    app.include_router(support_router, tags=["Customer Support"])
 
     # ✅ E2EE Secret Documents - Key Management endpoints
     app.include_router(secret_key_router, tags=["E2EE - Key Management"])
