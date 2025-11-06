@@ -27,8 +27,8 @@ class PyObjectId(ObjectId):
         return ObjectId(v)
 
     @classmethod
-    def __modify_schema__(cls, field_schema):
-        field_schema.update(type="string")
+    def __get_pydantic_json_schema__(cls, field_schema, handler):
+        return {"type": "string"}
 
 
 # Type aliases
@@ -38,6 +38,7 @@ PaymentMethod = Literal[
 ]
 PlanType = Literal["premium", "pro", "vip"]
 DurationType = Literal["3_months", "12_months"]
+TransactionType = Literal["spend", "earn", "grant", "refund", "bonus", "purchase"]
 
 
 class Payment(BaseModel):

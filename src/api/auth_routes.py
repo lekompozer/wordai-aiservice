@@ -95,24 +95,35 @@ async def register_user(
     try:
         # Create or update user in database
         user_doc = await user_manager.create_or_update_user(user_data)
-        
+
         firebase_uid = user_doc["firebase_uid"]
-        
+
         # === AUTO-CREATE FREE SUBSCRIPTION WITH 10 BONUS POINTS ===
         subscription_service = get_subscription_service()
-        
+
         # Check if user already has a subscription
         try:
-            existing_subscription = await subscription_service.get_or_create_subscription(firebase_uid)
-            
+            existing_subscription = (
+                await subscription_service.get_or_create_subscription(firebase_uid)
+            )
+
             # If this is a new subscription (just created), log it
-            if existing_subscription.plan == "free" and existing_subscription.points_total == 10:
-                logger.info(f"🎁 New FREE subscription created for user {firebase_uid} with 10 bonus points")
+            if (
+                existing_subscription.plan == "free"
+                and existing_subscription.points_total == 10
+            ):
+                logger.info(
+                    f"🎁 New FREE subscription created for user {firebase_uid} with 10 bonus points"
+                )
             else:
-                logger.info(f"✅ User {firebase_uid} already has {existing_subscription.plan} subscription")
-                
+                logger.info(
+                    f"✅ User {firebase_uid} already has {existing_subscription.plan} subscription"
+                )
+
         except Exception as sub_error:
-            logger.error(f"❌ Error creating subscription for user {firebase_uid}: {sub_error}")
+            logger.error(
+                f"❌ Error creating subscription for user {firebase_uid}: {sub_error}"
+            )
             # Don't fail registration if subscription creation fails
             existing_subscription = None
 
@@ -126,7 +137,9 @@ async def register_user(
             provider=user_doc.get("provider", "unknown"),
             created_at=user_doc.get("created_at", datetime.now()),
             last_login=user_doc.get("last_login", datetime.now()),
-            subscription_plan=existing_subscription.plan if existing_subscription else "free",
+            subscription_plan=(
+                existing_subscription.plan if existing_subscription else "free"
+            ),
             total_conversations=user_doc.get("total_conversations", 0),
             total_files=user_doc.get("total_files", 0),
             preferences=user_doc.get("preferences", {}),

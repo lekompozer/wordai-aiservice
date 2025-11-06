@@ -101,11 +101,11 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
     Edit document content based on user's natural language instruction
     Uses Claude Haiku 4.5 for fast and accurate content editing
     Context-aware: automatically adapts for A4 documents vs Slides
-    
+
     **Cost: 2 points** (AI operation)
     """
     try:
-        user_id = user_info['uid']
+        user_id = user_info["uid"]
         logger.info(f"🎨 Edit by AI request from user {user_id}")
         logger.info(
             f"Document ID: {request.document_id}, Prompt: {request.user_prompt}"
@@ -114,13 +114,11 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
         # === CHECK POINTS (AI OPERATION: 2 points) ===
         points_service = get_points_service()
         points_needed = 2
-        
+
         check_result = await points_service.check_sufficient_points(
-            user_id=user_id,
-            points_needed=points_needed,
-            service="ai_edit"
+            user_id=user_id, points_needed=points_needed, service="ai_edit"
         )
-        
+
         if not check_result["has_points"]:
             raise HTTPException(
                 status_code=403,
@@ -129,11 +127,13 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
                     "message": f"Không đủ points để dùng AI Edit. Cần: {points_needed}, Còn: {check_result['points_available']}",
                     "points_needed": points_needed,
                     "points_available": check_result["points_available"],
-                    "upgrade_url": "/pricing"
-                }
+                    "upgrade_url": "/pricing",
+                },
             )
-        
-        logger.info(f"✅ Points check passed - {check_result['points_available']} points available")
+
+        logger.info(
+            f"✅ Points check passed - {check_result['points_available']} points available"
+        )
 
         # Log content size for debugging
         content_length = len(request.context_html)
@@ -172,7 +172,7 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
         )
 
         logger.info(f"✅ Edit by AI completed for document {request.document_id}")
-        
+
         # === DEDUCT POINTS AFTER SUCCESS ===
         try:
             await points_service.deduct_points(
@@ -180,7 +180,7 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
                 amount=points_needed,
                 service="ai_edit",
                 resource_id=request.document_id,
-                description=f"AI Edit document: {request.user_prompt[:50]}..."
+                description=f"AI Edit document: {request.user_prompt[:50]}...",
             )
             logger.info(f"💸 Deducted {points_needed} points for AI Edit")
         except Exception as points_error:
@@ -204,11 +204,11 @@ async def translate(
     """
     Translate document content to target language (Streaming)
     Uses Deepseek for fast and cost-effective translation
-    
+
     **Cost: 2 points** (AI operation)
     """
     try:
-        user_id = user_info['uid']
+        user_id = user_info["uid"]
         logger.info(f"🌍 Translate request from user {user_id}")
         logger.info(
             f"Document ID: {request.document_id}, Target: {request.target_language}"
@@ -217,13 +217,11 @@ async def translate(
         # === CHECK POINTS (AI OPERATION: 2 points) ===
         points_service = get_points_service()
         points_needed = 2
-        
+
         check_result = await points_service.check_sufficient_points(
-            user_id=user_id,
-            points_needed=points_needed,
-            service="ai_translate"
+            user_id=user_id, points_needed=points_needed, service="ai_translate"
         )
-        
+
         if not check_result["has_points"]:
             raise HTTPException(
                 status_code=403,
@@ -232,11 +230,13 @@ async def translate(
                     "message": f"Không đủ points để dùng AI Translate. Cần: {points_needed}, Còn: {check_result['points_available']}",
                     "points_needed": points_needed,
                     "points_available": check_result["points_available"],
-                    "upgrade_url": "/pricing"
-                }
+                    "upgrade_url": "/pricing",
+                },
             )
-        
-        logger.info(f"✅ Points check passed - {check_result['points_available']} points available")
+
+        logger.info(
+            f"✅ Points check passed - {check_result['points_available']} points available"
+        )
 
         # Build prompt for AI
         prompt = f"""You are an expert translator. Your task is to translate the text content within the provided HTML snippet to the target language.
@@ -272,7 +272,7 @@ HTML to translate:
                 logger.info(
                     f"✅ Translation completed for document {request.document_id}"
                 )
-                
+
                 # === DEDUCT POINTS AFTER SUCCESS ===
                 try:
                     await points_service.deduct_points(
@@ -280,7 +280,7 @@ HTML to translate:
                         amount=points_needed,
                         service="ai_translate",
                         resource_id=request.document_id,
-                        description=f"AI Translate to {request.target_language}"
+                        description=f"AI Translate to {request.target_language}",
                     )
                     logger.info(f"💸 Deducted {points_needed} points for AI Translate")
                 except Exception as points_error:
@@ -308,24 +308,22 @@ async def format_document(
     Format and clean up document/slide content with context-aware instructions
     Uses Claude Haiku 4.5 for fast and intelligent formatting
     Supports both A4 documents and presentation slides
-    
+
     **Cost: 2 points** (AI operation)
     """
     try:
-        user_id = user_info['uid']
+        user_id = user_info["uid"]
         logger.info(f"✨ Format request from user {user_id}")
         logger.info(f"Document ID: {request.document_id}, Scope: {request.scope}")
 
         # === CHECK POINTS (AI OPERATION: 2 points) ===
         points_service = get_points_service()
         points_needed = 2
-        
+
         check_result = await points_service.check_sufficient_points(
-            user_id=user_id,
-            points_needed=points_needed,
-            service="ai_format"
+            user_id=user_id, points_needed=points_needed, service="ai_format"
         )
-        
+
         if not check_result["has_points"]:
             raise HTTPException(
                 status_code=403,
@@ -334,11 +332,13 @@ async def format_document(
                     "message": f"Không đủ points để dùng AI Format. Cần: {points_needed}, Còn: {check_result['points_available']}",
                     "points_needed": points_needed,
                     "points_available": check_result["points_available"],
-                    "upgrade_url": "/pricing"
-                }
+                    "upgrade_url": "/pricing",
+                },
             )
-        
-        logger.info(f"✅ Points check passed - {check_result['points_available']} points available")
+
+        logger.info(
+            f"✅ Points check passed - {check_result['points_available']} points available"
+        )
 
         # Log content size for debugging
         content_length = len(request.context_html)
@@ -392,7 +392,7 @@ async def format_document(
             )
 
         logger.info(f"✅ Formatting completed for document {request.document_id}")
-        
+
         # === DEDUCT POINTS AFTER SUCCESS ===
         try:
             await points_service.deduct_points(
@@ -400,7 +400,7 @@ async def format_document(
                 amount=points_needed,
                 service="ai_format",
                 resource_id=request.document_id,
-                description=f"AI Format {doc_type} document"
+                description=f"AI Format {doc_type} document",
             )
             logger.info(f"💸 Deducted {points_needed} points for AI Format")
         except Exception as points_error:
@@ -423,23 +423,21 @@ async def bilingual_convert(
     """
     Convert entire document to bilingual format
     Uses Gemini 2.5 Pro for handling large context and complex formatting
-    
+
     **Cost: 2 points** (AI operation)
     """
     try:
-        user_id = user_info['uid']
+        user_id = user_info["uid"]
         logger.info(f"🌐 Bilingual conversion request from user {user_id}")
-        
+
         # === CHECK POINTS (AI OPERATION: 2 points) ===
         points_service = get_points_service()
         points_needed = 2
-        
+
         check_result = await points_service.check_sufficient_points(
-            user_id=user_id,
-            points_needed=points_needed,
-            service="ai_dual_language"
+            user_id=user_id, points_needed=points_needed, service="ai_dual_language"
         )
-        
+
         if not check_result["has_points"]:
             raise HTTPException(
                 status_code=403,
@@ -448,11 +446,13 @@ async def bilingual_convert(
                     "message": f"Không đủ points để dùng AI Bilingual Convert. Cần: {points_needed}, Còn: {check_result['points_available']}",
                     "points_needed": points_needed,
                     "points_available": check_result["points_available"],
-                    "upgrade_url": "/pricing"
-                }
+                    "upgrade_url": "/pricing",
+                },
             )
-        
-        logger.info(f"✅ Points check passed - {check_result['points_available']} points available")
+
+        logger.info(
+            f"✅ Points check passed - {check_result['points_available']} points available"
+        )
         logger.info(
             f"Document ID: {request.document_id}, {request.source_language} -> {request.target_language}"
         )
@@ -521,7 +521,7 @@ Now, convert the following HTML document:
         logger.info(
             f"✅ Bilingual conversion completed for document {request.document_id}"
         )
-        
+
         # === DEDUCT POINTS AFTER SUCCESS ===
         try:
             await points_service.deduct_points(
@@ -529,7 +529,7 @@ Now, convert the following HTML document:
                 amount=points_needed,
                 service="ai_dual_language",
                 resource_id=request.document_id,
-                description=f"AI Bilingual {request.source_language} -> {request.target_language}"
+                description=f"AI Bilingual {request.source_language} -> {request.target_language}",
             )
             logger.info(f"💸 Deducted {points_needed} points for AI Bilingual Convert")
         except Exception as points_error:

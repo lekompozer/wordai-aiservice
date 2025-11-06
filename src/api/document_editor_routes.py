@@ -271,10 +271,12 @@ async def create_new_document(
     try:
         # === CHECK DOCUMENT LIMIT (NO POINTS DEDUCTION) ===
         subscription_service = get_subscription_service()
-        
+
         # Check if user can create more documents
         if not await subscription_service.check_documents_limit(user_id):
-            subscription = await subscription_service.get_or_create_subscription(user_id)
+            subscription = await subscription_service.get_or_create_subscription(
+                user_id
+            )
             raise HTTPException(
                 status_code=403,
                 detail={
@@ -282,10 +284,10 @@ async def create_new_document(
                     "message": f"Bạn đã đạt giới hạn {subscription.documents_limit} documents. Nâng cấp để tạo thêm!",
                     "current_count": subscription.documents_count,
                     "limit": subscription.documents_limit,
-                    "upgrade_url": "/pricing"
-                }
+                    "upgrade_url": "/pricing",
+                },
             )
-        
+
         logger.info(f"✅ Document limit check passed for user {user_id}")
 
         # Validate document type for created documents
@@ -330,12 +332,11 @@ async def create_new_document(
             f"✅ Created {request.source_type} document: {document_id} "
             f"(type: {request.document_type})"
         )
-        
+
         # === INCREMENT DOCUMENT COUNTER (NO POINTS DEDUCTION) ===
         try:
             await subscription_service.update_usage(
-                user_id=user_id,
-                update={"documents": 1}
+                user_id=user_id, update={"documents": 1}
             )
             logger.info(f"📊 Incremented document counter for user {user_id}")
         except Exception as usage_error:
