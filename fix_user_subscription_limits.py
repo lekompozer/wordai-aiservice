@@ -29,17 +29,17 @@ VIP:
   - daily_chat_limit: -1 (unlimited)
 
 USAGE (on production server):
-    # Option 1: Run inside Docker container (recommended)
+    # Option 1: Run inside Docker container with confirmation bypass
     ssh root@104.248.147.155
     su - hoile
     cd /home/hoile/wordai
-    docker compose exec ai-chatbot-rag python fix_user_subscription_limits.py
-    
+    echo "YES" | docker compose exec -T ai-chatbot-rag python fix_user_subscription_limits.py
+
     # Option 2: Execute directly in container by name
-    docker exec -it ai-chatbot-rag python fix_user_subscription_limits.py
-    
+    echo "YES" | docker exec -i ai-chatbot-rag python fix_user_subscription_limits.py
+
     # Option 3: Execute directly in container by ID
-    docker exec -it d59e27201dce python fix_user_subscription_limits.py
+    echo "YES" | docker exec -i d59e27201dce python fix_user_subscription_limits.py
 
 USAGE (local development):
     ENV=development python fix_user_subscription_limits.py
