@@ -28,9 +28,21 @@ VIP:
   - documents_limit: -1 (unlimited)
   - daily_chat_limit: -1 (unlimited)
 
-USAGE:
-    ENV=production python fix_user_subscription_limits.py          # Production
-    ENV=development python fix_user_subscription_limits.py         # Development
+USAGE (on production server):
+    # Option 1: Run inside Docker container (recommended)
+    ssh root@104.248.147.155
+    su - hoile
+    cd /home/hoile/wordai
+    docker compose exec ai-chatbot-rag python fix_user_subscription_limits.py
+    
+    # Option 2: Execute directly in container by name
+    docker exec -it ai-chatbot-rag python fix_user_subscription_limits.py
+    
+    # Option 3: Execute directly in container by ID
+    docker exec -it d59e27201dce python fix_user_subscription_limits.py
+
+USAGE (local development):
+    ENV=development python fix_user_subscription_limits.py
 """
 
 import os
