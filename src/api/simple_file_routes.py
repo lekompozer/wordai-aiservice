@@ -24,6 +24,7 @@ from src.middleware.auth import verify_firebase_token
 from src.services.user_manager import get_user_manager
 from src.services.subscription_service import get_subscription_service
 from src.services.points_service import get_points_service
+from src.models.subscription import SubscriptionUsageUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -1573,8 +1574,10 @@ async def empty_files_trash(
 
     This will:
     1. Find all files with is_deleted=true for current user
-    2. Delete each file from R2 storage
-    3. Delete each file record from MongoDB
+    2. Calculate total storage to free
+    3. Delete each file from R2 storage
+    4. Delete each file record from MongoDB
+    5. Decrease storage_used_mb
     """
     try:
         user_id = user_data.get("uid")
@@ -1582,15 +1585,42 @@ async def empty_files_trash(
 
         logger.info(f"💀 Emptying files trash for user {user_id}")
 
+        # Get deleted files to calculate storage
+        deleted_files = await asyncio.to_thread(
+            user_manager.list_deleted_files, user_id=user_id, limit=10000
+        )
+
+        # Calculate total storage to free
+        total_bytes_freed = sum(
+            file_doc.get("file_size", 0) for file_doc in deleted_files
+        )
+        total_mb_freed = total_bytes_freed / (1024 * 1024)
+
+        # Delete files
         deleted_count = await asyncio.to_thread(
             user_manager.empty_files_trash,
             user_id=user_id,
         )
 
+        # === DECREASE STORAGE USED ===
+        if deleted_count > 0 and total_mb_freed > 0:
+            try:
+                subscription_service = get_subscription_service()
+                await subscription_service.update_usage(
+                    user_id=user_id,
+                    update=SubscriptionUsageUpdate(storage_mb=-total_mb_freed),
+                )
+                logger.info(
+                    f"📊 Decreased storage by {total_mb_freed:.2f}MB ({deleted_count} files)"
+                )
+            except Exception as usage_error:
+                logger.error(f"❌ Error updating storage counter: {usage_error}")
+
         return {
             "success": True,
             "message": f"Permanently deleted {deleted_count} files from trash",
             "deleted_count": deleted_count,
+            "storage_freed_mb": round(total_mb_freed, 2),
         }
 
     except Exception as e:

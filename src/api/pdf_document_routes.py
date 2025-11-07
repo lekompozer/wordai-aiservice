@@ -42,6 +42,9 @@ from src.services.pdf_split_service import get_pdf_split_service
 from src.services.pdf_ai_processor import get_pdf_ai_processor
 from src.services.document_manager import DocumentManager
 from src.services.background_job_manager import get_job_manager, JobStatus
+from src.services.points_service import PointsService
+from src.services.subscription_service import get_subscription_service
+from src.models.subscription import SubscriptionUsageUpdate
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
 from config.config import R2_BUCKET_NAME
@@ -405,6 +408,20 @@ async def split_document(
 
                     logger.info(f"✅ Created part {part_num}: {part_doc_id}")
 
+            # === UPDATE DOCUMENTS COUNT (split created multiple documents) ===
+            try:
+                subscription_service = get_subscription_service()
+                num_parts = len(split_parts)
+                await subscription_service.update_usage(
+                    user_id=user_id,
+                    update=SubscriptionUsageUpdate(documents=num_parts),
+                )
+                logger.info(
+                    f"📊 Updated document counter (+{num_parts} documents created from split)"
+                )
+            except Exception as usage_error:
+                logger.error(f"❌ Error updating document counter: {usage_error}")
+
             # Update original document with child IDs
             child_ids = [part.document_id for part in split_parts]
             db_manager.db.documents.update_one(
@@ -743,6 +760,17 @@ async def convert_document_with_ai(
                 db_manager.db.documents.insert_one(document_data)
                 logger.info(f"💾 Created new document: {doc_id}")
 
+                # === UPDATE DOCUMENTS COUNT (only when creating new document) ===
+                try:
+                    subscription_service = get_subscription_service()
+                    await subscription_service.update_usage(
+                        user_id=user_id,
+                        update=SubscriptionUsageUpdate(documents=1),
+                    )
+                    logger.info(f"📊 Updated document counter (+1 new document)")
+                except Exception as usage_error:
+                    logger.error(f"❌ Error updating document counter: {usage_error}")
+
             # Calculate total time
             total_time = (datetime.now() - start_time).total_seconds()
 
@@ -813,40 +841,28 @@ async def convert_document_with_ai_async(
     Returns:
         ConvertJobStartResponse with result (if cached) OR job_id (if processing)
     """
-    # Log IMMEDIATELY at function entry (before try block)
-    print(f"🔥🔥🔥 ASYNC ENDPOINT CALLED: document={document_id}")
-    logger.info(f"🔥🔥🔥 ASYNC ENDPOINT CALLED: document={document_id}")
-
     try:
-        print(f"🔥 Step 1: Get user_id")
         user_id = user_data["uid"]
-        print(f"🔥 user_id={user_id}")
 
         logger.info(
             f"🚀 ASYNC conversion request: document={document_id}, user={user_id}"
         )
 
-        print(f"🔥 Step 2: Query file metadata from DB")
         # Get file metadata
         file_doc = db_manager.db.user_files.find_one(
             {"file_id": document_id, "user_id": user_id}
         )
-        print(f"🔥 file_doc found: {bool(file_doc)}")
 
         if not file_doc:
             raise HTTPException(status_code=404, detail=f"File {document_id} not found")
 
-        print(f"🔥 Step 3: Check cache (force_reprocess={request.force_reprocess})")
         # ⚡ STEP 1: Check cache FIRST (avoid unnecessary job creation)
         if not request.force_reprocess:
-            print(f"🔥 Querying documents collection for cache...")
             existing_doc = db_manager.db.documents.find_one(
                 {"file_id": document_id, "user_id": user_id}
             )
-            print(f"🔥 Cache result: {bool(existing_doc)}")
 
             if existing_doc:
-                print(f"🔥 CACHE HIT! Returning cached result")
                 logger.info(
                     f"📦 CACHE HIT! Returning result immediately (no job, no polling)"
                 )
@@ -884,17 +900,12 @@ async def convert_document_with_ai_async(
                 )
 
         # ⚡ STEP 2: No cache → Create background job
-        print(f"🔥 Step 4: NO CACHE - Creating background job")
         job_id = f"convert_{document_id}_{int(datetime.now().timestamp())}"
-        print(f"🔥 job_id={job_id}")
 
         logger.info(f"🔄 NO CACHE: Creating background job {job_id}")
 
-        print(f"🔥 Step 5: Get job_manager")
         job_manager = get_job_manager()
-        print(f"🔥 job_manager={job_manager}")
 
-        print(f"🔥 Step 6: Create job in manager")
         job = job_manager.create_job(
             job_id=job_id,
             job_type="pdf_ai_conversion",
@@ -907,25 +918,14 @@ async def convert_document_with_ai_async(
                 "page_range": request.page_range.dict() if request.page_range else None,
             },
         )
-        print(f"🔥 Job created: {job}")
 
         # Start background task using FastAPI's BackgroundTasks
-        # This ensures task runs AFTER response is sent and won't be cancelled
-        print(f"🔥 Step 7: Add task to FastAPI BackgroundTasks")
         logger.info(f"🚀 Starting background task for job {job_id}...")
 
-        try:
-            print(f"🔥 Calling background_tasks.add_task()...")
-            background_tasks.add_task(
-                _run_conversion_job, job_id, document_id, request, user_id
-            )
-            print(f"🔥 background_tasks.add_task() completed successfully")
-        except Exception as e:
-            print(f"❌ ERROR in add_task: {e}")
-            logger.error(f"❌ Failed to add background task: {e}", exc_info=True)
-            raise
+        background_tasks.add_task(
+            _run_conversion_job, job_id, document_id, request, user_id
+        )
 
-        print(f"🔥 Task added to BackgroundTasks")
         logger.info(f"✅ Background task added to FastAPI BackgroundTasks")
 
         # Return job info for polling
@@ -1024,22 +1024,12 @@ async def _run_conversion_job(
     user_id: str,
 ):
     """Background task to run AI conversion"""
-    print(f"🔥🔥🔥 === BACKGROUND JOB STARTED ===")
-    print(f"🆔 Job ID: {job_id}")
-    print(f"📄 Document: {document_id}")
-    print(f"👤 User: {user_id}")
-
-    logger.info(f"🔥 === BACKGROUND JOB STARTED ===")
-    logger.info(f"🆔 Job ID: {job_id}")
-    logger.info(f"📄 Document: {document_id}")
-    logger.info(f"👤 User: {user_id}")
-    logger.info(f"🎯 Target: {request.target_type}")
+    logger.info(f"� Background job started: {job_id} for document {document_id}")
 
     job_manager = get_job_manager()
 
     try:
-        print(f"🔥 Job {job_id}: Starting AI processing...")
-        logger.info(f"🔄 Job {job_id}: Starting AI processing...")
+        logger.debug(f"Job {job_id}: Starting AI processing...")
 
         # Update progress
         job_manager.update_progress(job_id, 10, JobStatus.PROCESSING)
@@ -1056,14 +1046,11 @@ async def _run_conversion_job(
         job_manager.update_progress(job_id, 20)
 
         # Check cache
-        print(f"🔥 Job {job_id}: Checking cache in background job...")
         existing_doc = db_manager.db.documents.find_one(
             {"file_id": document_id, "user_id": user_id}
         )
-        print(f"🔥 Job {job_id}: Cache found={bool(existing_doc)}")
 
         if existing_doc and not request.force_reprocess:
-            print(f"📦 Job {job_id}: Using cached content, skipping AI processing")
             logger.info(f"📦 Job {job_id}: Using cached content")
             job_manager.update_progress(job_id, 90)
 
@@ -1090,52 +1077,34 @@ async def _run_conversion_job(
             return
 
         # Process with AI (slow path)
-        print(f"🔥 Job {job_id}: NO CACHE - Starting AI processing...")
+        logger.info(f"🤖 Job {job_id}: Starting AI processing ({request.target_type}, {request.chunk_size} pages/chunk)")
         job_manager.update_progress(job_id, 30)
 
         # Download PDF from R2
-        print(f"🔥 Job {job_id}: Downloading PDF from R2...")
         r2_client = _get_r2_client()
         r2_key = file_doc.get("r2_key")
-        print(f"🔥 R2 key: {r2_key}")
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             temp_pdf_path = temp_pdf.name
             await r2_client.download_file(r2_key, temp_pdf_path)
 
-        print(f"🔥 Job {job_id}: PDF downloaded to {temp_pdf_path}")
+        logger.debug(f"Job {job_id}: PDF downloaded to {temp_pdf_path}")
 
         job_manager.update_progress(job_id, 40)
 
         # Process with Gemini AI
-        print(f"🤖 Job {job_id}: Calling Gemini AI...")
-        print(f"   Target: {request.target_type}, Chunk size: {request.chunk_size}")
-        logger.info(f"🤖 Job {job_id}: Processing with Gemini AI...")
-        logger.info(
-            f"   Target type: {request.target_type}, Chunk size: {request.chunk_size}"
-        )
-
         html_content, metadata = await pdf_ai_processor.convert_existing_document(
             pdf_path=temp_pdf_path,
             target_type=request.target_type,
             chunk_size=request.chunk_size,
         )
 
-        # Extract page numbers from final HTML (to verify merge worked)
+        # Extract page numbers from final HTML
         import re
-
         page_numbers = re.findall(r'data-page-number="(\d+)"', html_content)
 
-        print(f"✅ Job {job_id}: Gemini returned!")
-        print(f"   HTML size: {len(html_content)} chars")
-        print(f"   Pages in final HTML: {page_numbers}")
-        print(f"   Total pages: {len(page_numbers)}")
-        print(f"   Metadata: {metadata}")
-
-        logger.info(f"✅ Job {job_id}: Gemini processing complete!")
-        logger.info(f"   HTML size: {len(html_content)} chars")
-        logger.info(f"   Pages: {page_numbers} (total: {len(page_numbers)})")
-        logger.info(f"   Metadata: {metadata}")
+        logger.info(f"✅ Job {job_id}: AI processing complete - {len(page_numbers)} pages, {len(html_content)} chars")
+        logger.debug(f"Job {job_id}: Metadata - {metadata}")
 
         job_manager.update_progress(job_id, 80)
 
@@ -1153,6 +1122,39 @@ async def _run_conversion_job(
         )
 
         job_manager.update_progress(job_id, 95)
+
+        # === UPDATE DOCUMENT COUNT ===
+        try:
+            subscription_service = get_subscription_service()
+            await subscription_service.update_usage(
+                user_id=user_id,
+                update=SubscriptionUsageUpdate(documents=1),
+            )
+            logger.info(f"📊 Updated document counter (+1) for user {user_id}")
+        except Exception as usage_error:
+            logger.error(f"❌ Error updating document counter: {usage_error}")
+            # Don't fail if counter update fails
+
+        # 💰 DEDUCT POINTS: 2 points per AI call
+        points_service = PointsService()
+        successful_chunks = metadata.get("successful_chunks", 1)
+
+        # Calculate points: 2 points per AI call (not per page!)
+        points_to_deduct = successful_chunks * 2
+
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_to_deduct,
+                service="pdf_ai_conversion",
+                resource_id=doc_id,
+                description=f"AI PDF conversion: {file_doc.get('filename', 'Unknown')} ({successful_chunks} AI calls)"
+            )
+            logger.info(f"💰 Deducted {points_to_deduct} points ({successful_chunks} AI calls × 2 points)")
+        except ValueError as e:
+            logger.error(f"❌ Points deduction failed: {e}")
+            # Continue anyway - document already created
+            # User will see low points warning on next request
 
         # Build result
         result = ConvertWithAIResponse(
@@ -1175,37 +1177,24 @@ async def _run_conversion_job(
             updated_at=datetime.now().isoformat(),
         )
 
-        # Log content size for debugging
-        print(f"📊 Job {job_id} completed!")
-        print(f"   content_html={len(html_content)} chars")
-        print(
-            f"   chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}"
-        )
-        print(f"   pages={metadata.get('total_a4_pages', 0)}")
-
         logger.info(
-            f"📊 Job {job_id} result: content_html={len(html_content)} chars, "
-            f"chunks={metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)}, "
-            f"pages={metadata.get('total_a4_pages', 0)}"
+            f"📊 Job {job_id} completed: {len(html_content)} chars, "
+            f"{metadata.get('successful_chunks', 0)}/{metadata.get('total_chunks', 0)} chunks, "
+            f"{metadata.get('total_a4_pages', 0)} pages"
         )
 
         # Cleanup
-        print(f"🔥 Job {job_id}: Cleaning up temp file...")
         try:
             os.remove(temp_pdf_path)
-            print(f"✅ Temp file removed")
+            logger.debug(f"Job {job_id}: Temp file removed")
         except Exception as e:
-            print(f"⚠️ Failed to remove temp file: {e}")
+            logger.warning(f"Job {job_id}: Failed to remove temp file: {e}")
 
         # Complete job
-        print(f"🔥 Job {job_id}: Calling job_manager.complete_job()...")
         job_manager.complete_job(job_id, result.dict())
-        print(f"✅ Job {job_id}: Job marked as COMPLETED in manager")
         logger.info(f"✅ Job {job_id}: Completed successfully")
 
     except Exception as e:
-        print(f"❌ Job {job_id} EXCEPTION: {str(e)}")
-        print(f"   Exception type: {type(e).__name__}")
         logger.error(f"❌ Job {job_id} failed: {str(e)}", exc_info=True)
         job_manager.fail_job(job_id, str(e))
 
@@ -1455,6 +1444,17 @@ async def merge_documents(
             db_manager.db.documents.insert_one(merged_document)
 
             logger.info(f"💾 Created merged document: {merged_doc_id}")
+
+            # === UPDATE DOCUMENTS COUNT (merge created 1 new document) ===
+            try:
+                subscription_service = get_subscription_service()
+                await subscription_service.update_usage(
+                    user_id=user_id,
+                    update=SubscriptionUsageUpdate(documents=1),
+                )
+                logger.info(f"📊 Updated document counter (+1 merged document)")
+            except Exception as usage_error:
+                logger.error(f"❌ Error updating document counter: {usage_error}")
 
             # Delete originals if not keeping
             originals_deleted = not request.keep_originals

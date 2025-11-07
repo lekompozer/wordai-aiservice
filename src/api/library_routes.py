@@ -13,6 +13,8 @@ from datetime import datetime
 
 from src.middleware.auth import verify_firebase_token
 from src.services.library_manager import LibraryManager
+from src.services.subscription_service import get_subscription_service
+from src.models.subscription import SubscriptionUsageUpdate
 from config.config import get_r2_client, get_mongodb, R2_BUCKET_NAME
 
 logger = logging.getLogger(__name__)
@@ -248,6 +250,19 @@ async def upload_library_file(
         logger.info(
             f"📚 Library file uploaded: {library_doc['library_id']} (category: {library_doc['category']})"
         )
+
+        # === UPDATE USAGE COUNTERS ===
+        try:
+            await subscription_service.update_usage(
+                user_id=user_id,
+                update=SubscriptionUsageUpdate(storage_mb=file_size_mb, upload_files=1),
+            )
+            logger.info(
+                f"📊 Updated storage (+{file_size_mb:.2f}MB) and file counter (+1)"
+            )
+        except Exception as usage_error:
+            logger.error(f"❌ Error updating usage counters: {usage_error}")
+            # Don't fail the request if counter update fails
 
         return LibraryFileResponse(**library_doc)
 
@@ -536,15 +551,42 @@ async def empty_library_trash(
         user_id = user_data.get("uid")
         library_manager = get_library_manager()
 
+        # Get deleted files to calculate storage
+        deleted_files = await asyncio.to_thread(
+            library_manager.list_deleted_library_files, user_id=user_id, limit=10000
+        )
+
+        # Calculate total storage to free
+        total_bytes_freed = sum(
+            file_doc.get("file_size", 0) for file_doc in deleted_files
+        )
+        total_mb_freed = total_bytes_freed / (1024 * 1024)
+
+        # Delete files
         deleted_count = await asyncio.to_thread(
             library_manager.empty_library_trash,
             user_id=user_id,
         )
 
+        # === DECREASE STORAGE USED ===
+        if deleted_count > 0 and total_mb_freed > 0:
+            try:
+                subscription_service = get_subscription_service()
+                await subscription_service.update_usage(
+                    user_id=user_id,
+                    update=SubscriptionUsageUpdate(storage_mb=-total_mb_freed),
+                )
+                logger.info(
+                    f"📊 Decreased storage by {total_mb_freed:.2f}MB ({deleted_count} library files)"
+                )
+            except Exception as usage_error:
+                logger.error(f"❌ Error updating storage counter: {usage_error}")
+
         return {
             "success": True,
             "message": f"Permanently deleted {deleted_count} library files from trash",
             "deleted_count": deleted_count,
+            "storage_freed_mb": round(total_mb_freed, 2),
         }
 
     except Exception as e:

@@ -13,6 +13,7 @@ from datetime import datetime
 
 from src.middleware.auth import verify_firebase_token
 from src.services.encrypted_library_manager import EncryptedLibraryManager
+from src.models.subscription import SubscriptionUsageUpdate
 from config.config import get_r2_client, get_mongodb, R2_BUCKET_NAME
 
 logger = logging.getLogger(__name__)
@@ -257,6 +258,19 @@ async def upload_encrypted_image(
         )
 
         logger.info(f"🔐 Encrypted image saved: {image_doc['image_id']}")
+
+        # === UPDATE USAGE COUNTERS ===
+        try:
+            await subscription_service.update_usage(
+                user_id=owner_id,
+                update=SubscriptionUsageUpdate(storage_mb=file_size_mb, upload_files=1),
+            )
+            logger.info(
+                f"📊 Updated storage (+{file_size_mb:.2f}MB) and file counter (+1)"
+            )
+        except Exception as usage_error:
+            logger.error(f"❌ Error updating usage counters: {usage_error}")
+            # Don't fail the request if counter update fails
 
         # Generate presigned URLs for immediate use (optional for upload response)
         image_doc["image_download_url"] = s3_client.generate_presigned_url(

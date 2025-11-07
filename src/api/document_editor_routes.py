@@ -21,6 +21,7 @@ from src.models.document_editor_models import (
     DocumentsByFolderResponse,
     FolderWithDocuments,
 )
+from src.models.subscription import SubscriptionUsageUpdate
 from src.services.document_manager import DocumentManager
 from src.services.file_download_service import FileDownloadService
 from src.services.user_manager import UserManager
@@ -336,7 +337,7 @@ async def create_new_document(
         # === INCREMENT DOCUMENT COUNTER (NO POINTS DEDUCTION) ===
         try:
             await subscription_service.update_usage(
-                user_id=user_id, update={"documents": 1}
+                user_id=user_id, update=SubscriptionUsageUpdate(documents=1)
             )
             logger.info(f"📊 Incremented document counter for user {user_id}")
         except Exception as usage_error:

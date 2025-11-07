@@ -444,28 +444,34 @@ class SubscriptionService:
         self, user_id: str, update: SubscriptionUsageUpdate
     ) -> UserSubscription:
         """
-        Update usage counters
+        Update usage counters using $inc (increment)
 
         Args:
             user_id: Firebase UID
-            update: SubscriptionUsageUpdate with fields to update
+            update: SubscriptionUsageUpdate with INCREMENT values (not absolute values)
+                - storage_mb: MB to ADD to current storage
+                - upload_files: Number of files to ADD to counter
+                - documents: Number of documents to ADD to counter
+                - secret_files: Number of secret files to ADD to counter
 
         Returns:
             Updated UserSubscription
         """
-        update_fields = {}
+        inc_fields = {}
+        set_fields = {}
 
+        # Use $inc for counters (increment, not set)
         if update.storage_mb is not None:
-            update_fields["storage_used_mb"] = update.storage_mb
+            inc_fields["storage_used_mb"] = update.storage_mb
 
         if update.upload_files is not None:
-            update_fields["upload_files_count"] = update.upload_files
+            inc_fields["upload_files_count"] = update.upload_files
 
         if update.documents is not None:
-            update_fields["documents_count"] = update.documents
+            inc_fields["documents_count"] = update.documents
 
         if update.secret_files is not None:
-            update_fields["secret_files_count"] = update.secret_files
+            inc_fields["secret_files_count"] = update.secret_files
 
         if update.daily_chat is not None:
             # Check if need to reset daily counter
@@ -474,18 +480,25 @@ class SubscriptionService:
 
             if last_reset and (datetime.utcnow() - last_reset).days >= 1:
                 # Reset counter
-                update_fields["daily_chat_count"] = 1
-                update_fields["last_chat_reset"] = datetime.utcnow()
+                set_fields["daily_chat_count"] = 1
+                set_fields["last_chat_reset"] = datetime.utcnow()
             else:
                 # Increment counter
-                update_fields["daily_chat_count"] = (
-                    subscription.get("daily_chat_count", 0) + 1
-                )
+                inc_fields["daily_chat_count"] = 1
 
-        if update_fields:
-            update_fields["updated_at"] = datetime.utcnow()
+        # Apply updates
+        update_ops = {}
+        if inc_fields:
+            update_ops["$inc"] = inc_fields
+        if set_fields:
+            set_fields["updated_at"] = datetime.utcnow()
+            update_ops["$set"] = set_fields
+        elif inc_fields:
+            # Only $inc, still need to update timestamp
+            update_ops["$set"] = {"updated_at": datetime.utcnow()}
 
-            self.subscriptions.update_one({"user_id": user_id}, {"$set": update_fields})
+        if update_ops:
+            self.subscriptions.update_one({"user_id": user_id}, update_ops)
 
         subscription_doc = self.subscriptions.find_one({"user_id": user_id})
         return UserSubscription(**subscription_doc)
