@@ -165,6 +165,35 @@ async def upload_library_file(
         file_content = await file.read()
         file_size = len(file_content)
 
+        # === CHECK STORAGE LIMIT ===
+        from src.services.subscription_service import get_subscription_service
+
+        subscription_service = get_subscription_service()
+        file_size_mb = file_size / (1024 * 1024)
+
+        if not await subscription_service.check_storage_limit(user_id, file_size_mb):
+            subscription = await subscription_service.get_or_create_subscription(
+                user_id
+            )
+            remaining_mb = subscription.storage_limit_mb - subscription.storage_used_mb
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "storage_limit_exceeded",
+                    "message": f"Không đủ dung lượng lưu trữ. File cần: {file_size_mb:.2f}MB, Còn lại: {remaining_mb:.2f}MB",
+                    "storage_used_mb": round(subscription.storage_used_mb, 2),
+                    "storage_limit_mb": subscription.storage_limit_mb,
+                    "file_size_mb": round(file_size_mb, 2),
+                    "remaining_mb": round(remaining_mb, 2),
+                    "upgrade_url": "/pricing",
+                    "current_plan": subscription.plan,
+                },
+            )
+
+        logger.info(
+            f"✅ Library storage check passed: {file_size_mb:.2f}MB for user {user_id}"
+        )
+
         # Validate file size (max 100MB for library files)
         max_size = 100 * 1024 * 1024  # 100MB
         if file_size > max_size:
