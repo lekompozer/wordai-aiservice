@@ -11,6 +11,7 @@ import logging
 import os
 
 from src.services.subscription_service import get_subscription_service
+from src.models.subscription import PLAN_CONFIGS
 
 router = APIRouter(prefix="/api/v1/subscriptions", tags=["Payment Activation"])
 logger = logging.getLogger(__name__)
@@ -74,29 +75,32 @@ async def activate_subscription(
 
         subscription_service = get_subscription_service()
 
+        # Get plan configuration from PLAN_CONFIGS
+        plan_config = PLAN_CONFIGS.get(request.plan)
+        if not plan_config:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid plan: {request.plan}"
+            )
+
         # Calculate expiration date
         expires_at = datetime.utcnow() + timedelta(days=30 * request.duration_months)
 
-        # Determine points to grant based on plan and duration
-        points_map = {
-            "premium": {3: 300, 12: 1500},
-            "pro": {3: 800, 12: 3500},
-            "vip": {3: 2000, 12: 9000},
-        }
-
-        points_to_grant = points_map.get(request.plan, {}).get(
-            request.duration_months, 0
-        )
-
-        if points_to_grant == 0:
+        # Get points based on duration from PLAN_CONFIGS
+        if request.duration_months == 3:
+            points_to_grant = plan_config.points_3_months
+        elif request.duration_months == 12:
+            points_to_grant = plan_config.points_12_months
+        else:
+            # Fallback for other durations (should not happen)
             logger.warning(
-                f"No points mapping for plan={request.plan}, duration={request.duration_months}"
+                f"⚠️ Unexpected duration: {request.duration_months} months for plan {request.plan}"
             )
-            # Use fallback calculation
-            base_points = {"premium": 100, "pro": 267, "vip": 667}
-            points_to_grant = (
-                base_points.get(request.plan, 100) * request.duration_months
-            )
+            # Use 3-month points as base
+            points_to_grant = plan_config.points_3_months
+
+        logger.info(
+            f"📊 Plan: {request.plan}, Duration: {request.duration_months}mo → Points: {points_to_grant}"
+        )
 
         # Get or create subscription
         subscription = await subscription_service.get_or_create_subscription(
@@ -117,23 +121,18 @@ async def activate_subscription(
         new_points_remaining = current_points + points_to_grant
         new_points_total = current_total + points_to_grant
 
+        # Get plan limits
+        storage_limit_mb = plan_config.storage_mb
+        upload_files_limit = plan_config.upload_files_limit
+        documents_limit = plan_config.documents_limit
+        daily_chat_limit = plan_config.daily_chat_limit
+
         logger.info(
-            f"📊 Points calculation: current={current_points}, adding={points_to_grant}, new_total={new_points_remaining}"
+            f"� Points: current={current_points} + grant={points_to_grant} = new={new_points_remaining}"
         )
-
-        # Update plan limits based on tier
-        storage_limit_mb = 5120  # Default PREMIUM
-        max_files = 500
-
-        if request.plan == "premium":
-            storage_limit_mb = 5120  # 5GB
-            max_files = 500
-        elif request.plan == "pro":
-            storage_limit_mb = 10240  # 10GB
-            max_files = 1000
-        elif request.plan == "vip":
-            storage_limit_mb = 20480  # 20GB
-            max_files = 2000
+        logger.info(
+            f"📋 Limits: storage={storage_limit_mb}MB, files={upload_files_limit}, docs={documents_limit}, chat={daily_chat_limit}"
+        )
 
         # Update subscription document
         update_result = subscription_service.subscriptions.update_one(
@@ -150,10 +149,12 @@ async def activate_subscription(
                     "order_invoice_number": request.order_invoice_number,
                     "payment_method": request.payment_method,
                     "amount_paid": request.amount,
-                    "points_total": new_points_total,  # ✅ ADD points
-                    "points_remaining": new_points_remaining,  # ✅ ADD points
+                    "points_total": new_points_total,
+                    "points_remaining": new_points_remaining,
                     "storage_limit_mb": storage_limit_mb,
-                    "upload_files_limit": max_files,
+                    "upload_files_limit": upload_files_limit,
+                    "documents_limit": documents_limit,
+                    "daily_chat_limit": daily_chat_limit,
                     "updated_at": datetime.utcnow(),
                 }
             },
