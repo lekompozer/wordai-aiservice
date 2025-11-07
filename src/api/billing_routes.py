@@ -28,15 +28,15 @@ class BillingHistoryItem(BaseModel):
 
     payment_id: str = Field(description="Unique payment ID")
     order_invoice_number: str = Field(description="Invoice number (WA-xxx)")
-    
+
     # Payment details
     amount: int = Field(description="Amount in VND")
     currency: str = Field(default="VND")
-    
+
     # Subscription purchased
     plan: str = Field(description="Plan purchased: premium, pro, vip")
     duration: str = Field(description="Duration: 3_months, 12_months")
-    
+
     # Payment status
     status: str = Field(
         description="Payment status: pending, completed, failed, cancelled, refunded"
@@ -44,13 +44,13 @@ class BillingHistoryItem(BaseModel):
     payment_method: Optional[str] = Field(
         description="Payment method: BANK_TRANSFER, VISA, MOMO, etc."
     )
-    
+
     # Dates
     created_at: datetime = Field(description="Order creation date")
     paid_at: Optional[datetime] = Field(description="Payment completion date")
     cancelled_at: Optional[datetime] = Field(description="Cancellation date")
     refunded_at: Optional[datetime] = Field(description="Refund date")
-    
+
     # Additional info
     notes: Optional[str] = Field(description="Additional notes")
     manually_processed: bool = Field(
@@ -66,7 +66,7 @@ class BillingHistoryResponse(BaseModel):
     page: int
     limit: int
     has_more: bool
-    
+
     # Summary statistics
     total_spent: int = Field(description="Total amount spent (VND)")
     completed_payments: int = Field(description="Number of completed payments")
@@ -90,23 +90,23 @@ async def get_billing_history(
 ):
     """
     Get billing/payment history for current user with pagination.
-    
+
     Returns all payment records including:
     - Completed payments
     - Pending payments (awaiting confirmation)
     - Failed/cancelled payments
     - Refunded payments
-    
+
     **Query Parameters:**
     - `page`: Page number (default: 1)
     - `limit`: Items per page (default: 20, max: 100)
     - `status_filter`: Filter by payment status
-    
+
     **Returns:**
     - List of payment records with full details
     - Pagination information
     - Summary statistics
-    
+
     **Example Response:**
     ```json
     {
@@ -140,20 +140,25 @@ async def get_billing_history(
         firebase_uid = user_data["firebase_uid"]
         db = await get_async_database()
         payments_collection = db["payments"]
-        
+
         # Build query
         query = {"user_id": firebase_uid}
         if status_filter:
             query["status"] = status_filter
-        
+
         # Get total count
         total = await payments_collection.count_documents(query)
-        
+
         # Get paginated results
         skip = (page - 1) * limit
-        cursor = payments_collection.find(query).sort("created_at", -1).skip(skip).limit(limit)
+        cursor = (
+            payments_collection.find(query)
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
         payments = await cursor.to_list(length=limit)
-        
+
         # Convert to response format
         payment_items = []
         for payment in payments:
@@ -161,7 +166,9 @@ async def get_billing_history(
                 BillingHistoryItem(
                     payment_id=str(payment.get("_id")),
                     order_invoice_number=payment["order_invoice_number"],
-                    amount=payment["amount"],
+                    amount=payment.get(
+                        "price", payment.get("amount", 0)
+                    ),  # Fix: use 'price' field from DB
                     currency=payment.get("currency", "VND"),
                     plan=payment["plan"],
                     duration=payment["duration"],
@@ -175,22 +182,30 @@ async def get_billing_history(
                     manually_processed=payment.get("manually_processed", False),
                 )
             )
-        
+
         # Calculate summary statistics
         # Total spent (only completed payments)
         completed_pipeline = [
             {"$match": {"user_id": firebase_uid, "status": "completed"}},
-            {"$group": {"_id": None, "total": {"$sum": "$amount"}, "count": {"$sum": 1}}},
+            {
+                "$group": {
+                    "_id": None,
+                    "total": {"$sum": "$price"},
+                    "count": {"$sum": 1},
+                }
+            },  # Fix: use 'price' field
         ]
-        completed_result = await payments_collection.aggregate(completed_pipeline).to_list(1)
+        completed_result = await payments_collection.aggregate(
+            completed_pipeline
+        ).to_list(1)
         total_spent = completed_result[0]["total"] if completed_result else 0
         completed_count = completed_result[0]["count"] if completed_result else 0
-        
+
         # Count pending payments
         pending_count = await payments_collection.count_documents(
             {"user_id": firebase_uid, "status": "pending"}
         )
-        
+
         return BillingHistoryResponse(
             payments=payment_items,
             total=total,
@@ -201,7 +216,7 @@ async def get_billing_history(
             completed_payments=completed_count,
             pending_payments=pending_count,
         )
-    
+
     except Exception as e:
         logger.error(f"❌ Error fetching billing history: {e}")
         raise HTTPException(
@@ -217,13 +232,13 @@ async def get_payment_details(
 ):
     """
     Get detailed information for a specific payment.
-    
+
     **Path Parameters:**
     - `payment_id`: Payment ID
-    
+
     **Returns:**
     - Complete payment record with all details
-    
+
     **Security:**
     - Users can only view their own payments
     """
@@ -231,7 +246,7 @@ async def get_payment_details(
         firebase_uid = user_data["firebase_uid"]
         db = await get_async_database()
         payments_collection = db["payments"]
-        
+
         # Convert to ObjectId if needed
         try:
             payment_obj_id = ObjectId(payment_id)
@@ -240,18 +255,18 @@ async def get_payment_details(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid payment ID format",
             )
-        
+
         # Find payment and verify ownership
         payment = await payments_collection.find_one(
             {"_id": payment_obj_id, "user_id": firebase_uid}
         )
-        
+
         if not payment:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Payment not found or access denied",
             )
-        
+
         # Return full payment details
         return {
             "payment_id": str(payment["_id"]),
@@ -272,7 +287,7 @@ async def get_payment_details(
             "payment_reference": payment.get("payment_reference"),
             "subscription_id": payment.get("subscription_id"),
         }
-    
+
     except HTTPException:
         raise
     except Exception as e:

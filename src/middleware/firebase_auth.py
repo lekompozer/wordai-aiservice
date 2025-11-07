@@ -86,7 +86,7 @@ class FirebaseAuth:
             # Try to verify as session cookie first (24-hour expiry, highest priority)
             try:
                 decoded_token = self.firebase_config.verify_session_cookie(token)
-                logger.info(
+                logger.debug(
                     f"✅ Session cookie verified for user: {decoded_token.get('email', decoded_token.get('uid'))}"
                 )
                 return decoded_token
@@ -96,7 +96,7 @@ class FirebaseAuth:
 
             # Try to verify as ID token (Firebase ID token, lower priority)
             decoded_token = self.firebase_config.verify_token(token)
-            logger.info(
+            logger.debug(
                 f"✅ ID token verified for user: {decoded_token.get('email', decoded_token.get('uid'))}"
             )
             return decoded_token
@@ -161,7 +161,7 @@ class FirebaseAuth:
             )
 
         user_data = await self.verify_token(credentials.credentials)
-        logger.info("✅ Using Authorization Bearer token for authentication")
+        logger.debug("✅ Using Authorization Bearer token for authentication")
         return user_data
 
     async def get_current_user_optional(
