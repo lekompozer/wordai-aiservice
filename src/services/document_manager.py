@@ -9,7 +9,8 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import logging
 
-logger = logging.getLogger(__name__)
+# Use 'chatbot' logger to match app.py logging configuration
+logger = logging.getLogger("chatbot")
 
 
 class DocumentManager:
