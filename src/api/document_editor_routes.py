@@ -1144,6 +1144,9 @@ async def save_document(
 
     Cả 2 đều tăng version number
     """
+    # 🔍 CRITICAL DEBUG: First line of function
+    logger.info(f"🔥 [SAVE_DOCUMENT_CALLED] document_id={document_id}")
+
     user_id = user_data.get("uid")
     doc_manager = get_document_manager()
 
