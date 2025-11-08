@@ -235,14 +235,14 @@ class DocumentManager:
                 len(slide.get("elements", [])) for slide in slide_elements
             )
             logger.info(
-                f"🎨 [SLIDE_ELEMENTS_SAVE] document_id={document_id}, "
+                f"🎨 [SLIDE_ELEMENTS_SAVE] Preparing to save: document_id={document_id}, "
                 f"user_id={user_id}, slides={len(slide_elements)}, "
                 f"total_overlay_elements={total_elements}"
             )
         else:
             logger.info(
-                f"📄 [SLIDE_ELEMENTS_SAVE] document_id={document_id}, "
-                f"user_id={user_id}, slide_elements=None (not a slide or no overlays)"
+                f"📄 [SLIDE_ELEMENTS_SAVE] No overlay elements to save: document_id={document_id}, "
+                f"user_id={user_id}"
             )
 
         if is_auto_save:
@@ -264,9 +264,20 @@ class DocumentManager:
         if result.modified_count > 0:
             save_type = "auto-saved" if is_auto_save else "manually saved"
             title_info = f" (title: {title})" if title else ""
-            logger.info(
-                f"💾 Document {document_id} {save_type} (version +1){title_info}"
-            )
+
+            # ✅ Enhanced logging for slide_elements database confirmation
+            if slide_elements is not None:
+                total_elements = sum(
+                    len(slide.get("elements", [])) for slide in slide_elements
+                )
+                logger.info(
+                    f"✅ [DB_SAVED] Document {document_id} {save_type} with {len(slide_elements)} slides "
+                    f"and {total_elements} overlay elements (version +1){title_info}"
+                )
+            else:
+                logger.info(
+                    f"💾 Document {document_id} {save_type} (version +1){title_info}"
+                )
             return True
 
         logger.warning(f"⚠️ Document {document_id} not found or not modified")
