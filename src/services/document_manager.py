@@ -177,11 +177,27 @@ class DocumentManager:
                 {"document_id": document_id},
                 {"$set": {"last_opened_at": datetime.utcnow()}},
             )
-            logger.info(f"📄 Loaded document {document_id}")
 
             # ✅ Ensure slide_elements is returned (default to empty array for slides)
             if "slide_elements" not in document:
                 document["slide_elements"] = []
+                logger.info(
+                    f"📄 [SLIDE_ELEMENTS_LOAD] document_id={document_id}, user_id={user_id}, slide_elements=[] (no stored overlays)"
+                )
+            else:
+                # Count total elements
+                slide_elements = document["slide_elements"]
+                total_elements = (
+                    sum(len(slide.get("elements", [])) for slide in slide_elements)
+                    if slide_elements
+                    else 0
+                )
+                logger.info(
+                    f"🎨 [SLIDE_ELEMENTS_LOAD] document_id={document_id}, user_id={user_id}, "
+                    f"slides={len(slide_elements)}, total_overlay_elements={total_elements}"
+                )
+
+            logger.info(f"📄 Loaded document {document_id}")
 
         return document
 
@@ -214,8 +230,19 @@ class DocumentManager:
         # ✅ NEW: Save slide_elements separately (only for slide documents)
         if slide_elements is not None:
             update_data["slide_elements"] = slide_elements
+            # Count total elements across all slides
+            total_elements = sum(
+                len(slide.get("elements", [])) for slide in slide_elements
+            )
             logger.info(
-                f"💾 Saving {len(slide_elements)} slide(s) with overlay elements"
+                f"🎨 [SLIDE_ELEMENTS_SAVE] document_id={document_id}, "
+                f"user_id={user_id}, slides={len(slide_elements)}, "
+                f"total_overlay_elements={total_elements}"
+            )
+        else:
+            logger.info(
+                f"📄 [SLIDE_ELEMENTS_SAVE] document_id={document_id}, "
+                f"user_id={user_id}, slide_elements=None (not a slide or no overlays)"
             )
 
         if is_auto_save:

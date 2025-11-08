@@ -1081,6 +1081,23 @@ async def get_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
+        # Log slide_elements info when returning document
+        slide_elements = document.get("slide_elements", [])
+        if slide_elements:
+            total_elements = sum(
+                len(slide.get("elements", [])) for slide in slide_elements
+            )
+            logger.info(
+                f"🎨 [SLIDE_ELEMENTS_API_LOAD] document_id={document_id}, user_id={user_id}, "
+                f"slides={len(slide_elements)}, total_overlay_elements={total_elements}, "
+                f"document_type={document.get('document_type')}"
+            )
+        else:
+            logger.info(
+                f"📄 [SLIDE_ELEMENTS_API_LOAD] document_id={document_id}, user_id={user_id}, "
+                f"slide_elements=[] (empty), document_type={document.get('document_type')}"
+            )
+
         return DocumentResponse(
             document_id=document["document_id"],
             title=document.get("title", "Untitled"),
@@ -1138,6 +1155,22 @@ async def save_document(
             import re
 
             content_text = re.sub(r"<[^>]+>", "", update_data.content_html)
+
+        # Log slide_elements info before saving
+        if update_data.slide_elements:
+            total_elements = sum(
+                len(slide.get("elements", [])) for slide in update_data.slide_elements
+            )
+            logger.info(
+                f"🎨 [SLIDE_ELEMENTS_API_SAVE] document_id={document_id}, user_id={user_id}, "
+                f"slides={len(update_data.slide_elements)}, total_overlay_elements={total_elements}, "
+                f"is_auto_save={update_data.is_auto_save}"
+            )
+        else:
+            logger.info(
+                f"📄 [SLIDE_ELEMENTS_API_SAVE] document_id={document_id}, user_id={user_id}, "
+                f"slide_elements=None or empty, is_auto_save={update_data.is_auto_save}"
+            )
 
         success = await asyncio.to_thread(
             doc_manager.update_document,

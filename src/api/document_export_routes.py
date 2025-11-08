@@ -202,11 +202,25 @@ async def export_document(
 
         # Reconstruct HTML with overlay elements if slide_elements provided (slide documents only)
         if request.slide_elements and document_type == "slide":
+            # Count total elements
+            total_elements = sum(
+                len(slide.get("elements", [])) for slide in request.slide_elements
+            )
             logger.info(
-                f"🎨 Reconstructing HTML with {len(request.slide_elements)} slide overlay groups"
+                f"🎨 [SLIDE_ELEMENTS_EXPORT] document_id={document_id}, "
+                f"user_id={user_info['uid']}, slides={len(request.slide_elements)}, "
+                f"total_overlay_elements={total_elements}, format={request.format}"
+            )
+            logger.info(
+                f"🔧 Reconstructing HTML with {len(request.slide_elements)} slide overlay groups"
             )
             content_html = export_service.reconstruct_html_with_overlays(
                 content_html, request.slide_elements
+            )
+        elif document_type == "slide":
+            logger.info(
+                f"📄 [SLIDE_ELEMENTS_EXPORT] document_id={document_id}, "
+                f"user_id={user_info['uid']}, slide_elements=None or empty (no overlays to export)"
             )
 
         # Prepare page range info
