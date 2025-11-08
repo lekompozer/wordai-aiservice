@@ -1113,6 +1113,9 @@ async def get_document(
             source_type=document.get("source_type", "file"),
             document_type=document.get("document_type"),
             file_id=document.get("file_id"),
+            slide_elements=document.get(
+                "slide_elements", []
+            ),  # ✅ NEW: Return overlay elements
         )
 
     except HTTPException:

@@ -67,6 +67,9 @@ class DocumentResponse(BaseModel):
     source_type: str = "file"  # "file" | "created"
     document_type: Optional[str] = None  # "doc" | "slide" | "note"
     file_id: Optional[str] = None  # Có thể null nếu là created document
+    slide_elements: Optional[list] = (
+        None  # ✅ NEW: Overlay elements for slides (JSON array)
+    )
 
 
 class DocumentListItem(BaseModel):
