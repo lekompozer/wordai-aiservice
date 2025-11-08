@@ -1148,6 +1148,14 @@ async def save_document(
     doc_manager = get_document_manager()
 
     try:
+        # 🔍 DEBUG: Log incoming request data
+        logger.info(
+            f"📥 [PUT_REQUEST_DEBUG] document_id={document_id}, user_id={user_id}, "
+            f"has_slide_elements={update_data.slide_elements is not None}, "
+            f"slide_elements_type={type(update_data.slide_elements)}, "
+            f"is_auto_save={update_data.is_auto_save}"
+        )
+
         # Extract plain text from HTML if not provided
         content_text = update_data.content_text
         if not content_text:
