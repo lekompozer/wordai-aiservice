@@ -29,7 +29,8 @@ from src.services.subscription_service import get_subscription_service
 from src.middleware.auth import verify_firebase_token
 from src.database.db_manager import DBManager
 
-logger = logging.getLogger(__name__)
+# Use 'chatbot' logger to match app.py logging configuration
+logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api/documents", tags=["Document Editor"])
 
 # Global instances
