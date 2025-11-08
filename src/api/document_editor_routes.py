@@ -1178,6 +1178,12 @@ async def save_document(
                 f"slides={len(update_data.slide_elements)}, total_overlay_elements={total_elements}, "
                 f"is_auto_save={update_data.is_auto_save}"
             )
+            # 🔍 DEBUG: Log detailed structure
+            import json
+
+            logger.info(
+                f"📦 [SLIDE_ELEMENTS_JSON] {json.dumps(update_data.slide_elements, indent=2)}"
+            )
         else:
             logger.info(
                 f"📄 [SLIDE_ELEMENTS_API_SAVE] document_id={document_id}, user_id={user_id}, "
