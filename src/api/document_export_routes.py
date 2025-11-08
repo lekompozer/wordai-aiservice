@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Optional, Literal
 from enum import Enum
+from datetime import datetime
 
 from src.middleware.firebase_auth import require_auth
 from src.services.document_manager import document_manager
@@ -36,10 +37,32 @@ class ExportFormat(str, Enum):
 
 
 class DocumentExportRequest(BaseModel):
-    document_id: str = Field(..., description="Document ID to export")
+    # Option 1: Current state from frontend (for real-time export with unsaved changes)
+    content_html: Optional[str] = Field(
+        None,
+        description="Current HTML content (for unsaved changes, especially for slides)",
+    )
+    slide_elements: Optional[list] = Field(
+        None,
+        description="Current overlay elements for SLIDE documents (JSON array) - format: [{slideIndex: int, elements: []}]",
+    )
+
+    # Option 2: Document reference (for saved documents)
+    document_id: Optional[str] = Field(
+        None, description="Document ID to load from DB (if no current state provided)"
+    )
+
+    # Common fields
+    title: Optional[str] = Field(None, description="Document title (optional)")
+    document_type: Optional[str] = Field(
+        None,
+        description="Document type: doc/slide/note (optional, for proper page sizing)",
+    )
     format: ExportFormat = Field(
         ..., description="Export format (pdf, docx, txt, html)"
     )
+
+    # Page range (optional)
     start_page: Optional[int] = Field(
         None, ge=1, description="Starting page number (optional, 1-based)"
     )
@@ -74,6 +97,10 @@ async def export_document(
     """
     Export document to specified format (PDF, DOCX, TXT, HTML)
 
+    **Two Export Modes:**
+    1. **With current state** (content_html + slide_elements): Export without saving first
+    2. **From database** (document_id): Export saved document
+
     **Supported Formats:**
     - **PDF**: Best for printing and sharing, preserves formatting
     - **DOCX**: Editable Word document
@@ -90,7 +117,18 @@ async def export_document(
     - Leave empty to export full document
     - Pages are 1-indexed (first page is 1)
 
-    **Example:**
+    **Example (with current state):**
+    ```json
+    {
+      "content_html": "<div>...</div>",
+      "slide_elements": [{"slideIndex": 0, "elements": [...]}],
+      "title": "My Presentation",
+      "document_type": "slide",
+      "format": "pdf"
+    }
+    ```
+
+    **Example (from database):**
     ```json
     {
       "document_id": "doc_xyz123",
@@ -104,22 +142,46 @@ async def export_document(
     """
     try:
         logger.info(
-            f"📥 Export request from user {user_info['uid']}: {request.document_id} → {request.format}"
+            f"📥 Export request from user {user_info['uid']}: format={request.format}"
         )
 
-        # Get document from database
-        doc = document_manager.get_document(request.document_id, user_info["uid"])
-        if not doc:
-            raise HTTPException(status_code=404, detail="Document not found")
+        # Determine export mode: content_html provided (real-time) or document_id (from DB)
+        if request.content_html:
+            # Mode 1: Export with current state from frontend (may include unsaved changes)
+            logger.info("📝 Export mode: Real-time with current state")
+            content_html = request.content_html
+            title = request.title or "Untitled"
+            document_type = request.document_type or "doc"
+            document_id = (
+                request.document_id
+                or f"temp_{user_info['uid']}_{int(datetime.now().timestamp())}"
+            )
 
-        content_html = doc.get("content_html", "")
-        if not content_html:
-            raise HTTPException(status_code=400, detail="Document has no content")
+        elif request.document_id:
+            # Mode 2: Export from database
+            logger.info(
+                f"💾 Export mode: From database (document_id={request.document_id})"
+            )
+            doc = document_manager.get_document(request.document_id, user_info["uid"])
+            if not doc:
+                raise HTTPException(status_code=404, detail="Document not found")
 
-        title = doc.get("title", "Untitled")
-        document_type = doc.get(
-            "document_type", "doc"
-        )  # Get document_type (doc/slide/note)
+            content_html = doc.get("content_html", "")
+            if not content_html:
+                raise HTTPException(status_code=400, detail="Document has no content")
+
+            title = doc.get("title", "Untitled")
+            document_type = doc.get("document_type", "doc")
+            document_id = request.document_id
+
+            # Load slide_elements from database if not provided
+            if not request.slide_elements:
+                request.slide_elements = doc.get("slide_elements", [])
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Either content_html or document_id must be provided",
+            )
 
         # Validate format for document type
         if request.format == ExportFormat.TXT and document_type != "note":
@@ -136,7 +198,18 @@ async def export_document(
         )
 
         db = get_mongodb()
-        export_service = DocumentExportService(r2_client, db)  # Prepare page range info
+        export_service = DocumentExportService(r2_client, db)
+
+        # Reconstruct HTML with overlay elements if slide_elements provided (slide documents only)
+        if request.slide_elements and document_type == "slide":
+            logger.info(
+                f"🎨 Reconstructing HTML with {len(request.slide_elements)} slide overlay groups"
+            )
+            content_html = export_service.reconstruct_html_with_overlays(
+                content_html, request.slide_elements
+            )
+
+        # Prepare page range info
         pages_info = "all"
         if request.start_page or request.end_page:
             if not request.include_full_document:
@@ -153,16 +226,14 @@ async def export_document(
         # Export and upload
         result = await export_service.export_and_upload(
             user_id=user_info["uid"],
-            document_id=request.document_id,
+            document_id=document_id,
             html_content=content_html,
             title=title,
             format=request.format.value,
             document_type=document_type,  # Pass document_type for proper page sizing
         )
 
-        logger.info(
-            f"✅ Export successful: {request.document_id} → {result['filename']}"
-        )
+        logger.info(f"✅ Export successful: {document_id} → {result['filename']}")
 
         return DocumentExportResponse(
             success=True,

@@ -47,6 +47,10 @@ class DocumentUpdate(BaseModel):
     is_auto_save: bool = Field(
         False, description="True = auto-save, False = manual save"
     )
+    slide_elements: Optional[list] = Field(
+        None,
+        description="Overlay elements for slides only (JSON array) - format: [{slideIndex: int, elements: []}]",
+    )
 
 
 class DocumentResponse(BaseModel):

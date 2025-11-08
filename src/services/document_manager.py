@@ -179,6 +179,10 @@ class DocumentManager:
             )
             logger.info(f"📄 Loaded document {document_id}")
 
+            # ✅ Ensure slide_elements is returned (default to empty array for slides)
+            if "slide_elements" not in document:
+                document["slide_elements"] = []
+
         return document
 
     def update_document(
@@ -189,8 +193,9 @@ class DocumentManager:
         content_text: Optional[str] = None,
         title: Optional[str] = None,
         is_auto_save: bool = False,
+        slide_elements: Optional[list] = None,
     ) -> bool:
-        """Cập nhật nội dung document (bao gồm title)"""
+        """Cập nhật nội dung document (bao gồm title và slide_elements cho slide documents)"""
         now = datetime.utcnow()
 
         update_data = {
@@ -205,6 +210,13 @@ class DocumentManager:
         # Update title if provided
         if title is not None:
             update_data["title"] = title
+
+        # ✅ NEW: Save slide_elements separately (only for slide documents)
+        if slide_elements is not None:
+            update_data["slide_elements"] = slide_elements
+            logger.info(
+                f"💾 Saving {len(slide_elements)} slide(s) with overlay elements"
+            )
 
         if is_auto_save:
             update_data["last_auto_save_at"] = now

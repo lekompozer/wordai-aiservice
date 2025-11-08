@@ -7,7 +7,7 @@ import os
 import uuid
 import logging
 import tempfile
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List, Dict
 from datetime import datetime, timedelta
 from io import BytesIO
 
@@ -579,3 +579,168 @@ class DocumentExportService:
         except Exception as e:
             logger.error(f"❌ Export and upload failed: {e}")
             raise Exception(f"Export failed: {str(e)}")
+
+    def reconstruct_html_with_overlays(
+        self, base_html: str, slide_elements: List[Dict]
+    ) -> str:
+        """
+        Reconstruct HTML by injecting overlay elements into slides (ONLY for slide documents)
+
+        Args:
+            base_html: Background HTML (contentEditable content)
+            slide_elements: Array of {slideIndex, elements[]}
+
+        Returns:
+            Full HTML with overlay elements injected
+        """
+        from bs4 import BeautifulSoup
+
+        logger.info(
+            f"🔧 Reconstructing HTML with overlay elements for SLIDE document..."
+        )
+
+        soup = BeautifulSoup(base_html, "html.parser")
+        slides = soup.find_all(class_="slide")
+
+        logger.info(f"📄 Found {len(slides)} slides in base HTML")
+
+        # Create lookup map: slideIndex -> elements[]
+        elements_map = {item["slideIndex"]: item["elements"] for item in slide_elements}
+
+        # Inject overlays into each slide
+        total_elements = 0
+        for slide_idx, slide_tag in enumerate(slides):
+            if slide_idx not in elements_map:
+                continue
+
+            elements = elements_map[slide_idx]
+            logger.info(
+                f"  📌 Slide {slide_idx + 1}: Injecting {len(elements)} overlay(s)"
+            )
+
+            for element in elements:
+                # Convert JSON element to HTML string
+                element_html_str = self._convert_element_to_html(element)
+
+                if element_html_str:
+                    # Parse and append to slide
+                    element_soup = BeautifulSoup(element_html_str, "html.parser")
+                    slide_tag.append(element_soup)
+                    total_elements += 1
+
+        logger.info(f"✅ Reconstruction complete: {total_elements} overlay(s) injected")
+
+        return str(soup)
+
+    def _convert_element_to_html(self, element: Dict) -> str:
+        """
+        Convert overlay element JSON to HTML string
+
+        Supports: textbox, image, video, shape
+        """
+        element_type = element.get("type", "textbox")
+
+        if element_type == "textbox":
+            # Text align to justify content mapping
+            text_align = element.get("textAlign", "left")
+            justify_map = {
+                "left": "flex-start",
+                "center": "center",
+                "right": "flex-end",
+            }
+            justify_content = justify_map.get(text_align, "flex-start")
+
+            return f"""
+        <div class="overlay-textbox" style="
+            position: absolute;
+            left: {element.get('x', 0)}px;
+            top: {element.get('y', 0)}px;
+            width: {element.get('width', 200)}px;
+            height: {element.get('height', 100)}px;
+            font-size: {element.get('fontSize', 16)}px;
+            font-family: {element.get('fontFamily', 'Arial')};
+            font-weight: {element.get('fontWeight', 'normal')};
+            font-style: {element.get('fontStyle', 'normal')};
+            text-decoration: {element.get('textDecoration', 'none')};
+            color: {element.get('color', '#000000')};
+            background-color: {element.get('backgroundColor', 'transparent')};
+            border: {element.get('borderWidth', 0)}px {element.get('borderStyle', 'solid')} {element.get('borderColor', '#000')};
+            border-radius: {element.get('borderRadius', 0)}px;
+            padding: {element.get('padding', 8)}px;
+            text-align: {text_align};
+            transform: rotate({element.get('rotation', 0)}deg);
+            z-index: {element.get('zIndex', 1)};
+            opacity: {element.get('opacity', 1)};
+            display: flex;
+            align-items: center;
+            justify-content: {justify_content};
+            overflow: hidden;
+        ">{element.get('content', '')}</div>
+        """
+
+        elif element_type == "image":
+            return f"""
+        <img
+            class="overlay-image"
+            src="{element.get('src', '')}"
+            alt="{element.get('alt', 'Image')}"
+            style="
+                position: absolute;
+                left: {element.get('x', 0)}px;
+                top: {element.get('y', 0)}px;
+                width: {element.get('width', 200)}px;
+                height: {element.get('height', 200)}px;
+                object-fit: {element.get('objectFit', 'cover')};
+                border-radius: {element.get('borderRadius', 0)}px;
+                transform: rotate({element.get('rotation', 0)}deg);
+                z-index: {element.get('zIndex', 1)};
+                opacity: {element.get('opacity', 1)};
+            "
+        />
+        """
+
+        elif element_type == "video":
+            # PDF doesn't support video, show placeholder
+            return f"""
+        <div class="overlay-video-placeholder" style="
+            position: absolute;
+            left: {element.get('x', 0)}px;
+            top: {element.get('y', 0)}px;
+            width: {element.get('width', 400)}px;
+            height: {element.get('height', 300)}px;
+            background-color: #000;
+            border-radius: {element.get('borderRadius', 0)}px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            z-index: {element.get('zIndex', 1)};
+        ">
+            ▶ Video
+        </div>
+        """
+
+        elif element_type == "shape":
+            border_radius = (
+                "50%"
+                if element.get("shape") == "circle"
+                else f"{element.get('borderRadius', 0)}px"
+            )
+            return f"""
+        <div class="overlay-shape" style="
+            position: absolute;
+            left: {element.get('x', 0)}px;
+            top: {element.get('y', 0)}px;
+            width: {element.get('width', 100)}px;
+            height: {element.get('height', 100)}px;
+            background-color: {element.get('backgroundColor', '#cccccc')};
+            border: {element.get('borderWidth', 0)}px {element.get('borderStyle', 'solid')} {element.get('borderColor', '#000')};
+            border-radius: {border_radius};
+            transform: rotate({element.get('rotation', 0)}deg);
+            z-index: {element.get('zIndex', 1)};
+            opacity: {element.get('opacity', 1)};
+        "></div>
+        """
+
+        return ""  # Unknown type

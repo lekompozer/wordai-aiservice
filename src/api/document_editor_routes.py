@@ -1147,6 +1147,7 @@ async def save_document(
             content_text=content_text,
             title=update_data.title,
             is_auto_save=update_data.is_auto_save,
+            slide_elements=update_data.slide_elements,  # ✅ NEW: Pass slide_elements for slides
         )
 
         if not success:
