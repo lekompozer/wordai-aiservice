@@ -396,6 +396,14 @@ async def list_secret_images(
             # Set image_id (same as library_id for compatibility)
             img["image_id"] = img.get("library_id", img.get("_id"))
 
+            # Map user_id to owner_id (backward compatibility)
+            if "owner_id" not in img and "user_id" in img:
+                img["owner_id"] = img["user_id"]
+
+            # Map uploaded_at to created_at (backward compatibility)
+            if "created_at" not in img and "uploaded_at" in img:
+                img["created_at"] = img["uploaded_at"]
+
             # Generate presigned URLs
             img = generate_presigned_urls_for_secret_image(img, s3_client)
 
@@ -511,6 +519,14 @@ async def get_secret_image(
 
         # Set image_id
         image["image_id"] = image.get("library_id", image.get("_id"))
+
+        # Map user_id to owner_id (backward compatibility)
+        if "owner_id" not in image and "user_id" in image:
+            image["owner_id"] = image["user_id"]
+
+        # Map uploaded_at to created_at (backward compatibility)
+        if "created_at" not in image and "uploaded_at" in image:
+            image["created_at"] = image["uploaded_at"]
 
         # Generate presigned URLs
         image = generate_presigned_urls_for_secret_image(image, s3_client)
@@ -843,6 +859,15 @@ async def list_secret_images_trash(
         # Generate presigned URLs
         for img in images:
             img["image_id"] = img.get("library_id", img.get("_id"))
+
+            # Map user_id to owner_id (backward compatibility)
+            if "owner_id" not in img and "user_id" in img:
+                img["owner_id"] = img["user_id"]
+
+            # Map uploaded_at to created_at (backward compatibility)
+            if "created_at" not in img and "uploaded_at" in img:
+                img["created_at"] = img["uploaded_at"]
+
             img = generate_presigned_urls_for_secret_image(img, s3_client)
 
             if img.get("folder_id"):
