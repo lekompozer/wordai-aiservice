@@ -137,6 +137,9 @@ from src.api.encrypted_library_routes import router as encrypted_library_router
 # ✅ ADDED: Encrypted Folder API for folder management
 from src.api.encrypted_folder_routes import router as encrypted_folder_router
 
+# ✅ ADDED: Secret Images API - Dedicated endpoints for secret images with folder support
+from src.api.secret_images_routes import router as secret_images_router
+
 # ✅ ADDED: Online Test API for test generation and taking (Phase 1-3)
 from src.api.online_test_routes import router as online_test_router
 
@@ -668,6 +671,9 @@ def create_app() -> FastAPI:
     app.include_router(
         encrypted_folder_router, tags=["Encrypted Library Folders - E2EE"]
     )
+
+    # ✅ NEW: Secret Images API - Dedicated endpoints for secret images with folder support
+    app.include_router(secret_images_router, tags=["Secret Images"])
 
     # ✅ NEW: Share API - File Sharing System (Phase 2 complete)
     app.include_router(share_router, tags=["File Sharing"])

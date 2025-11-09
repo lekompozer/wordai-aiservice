@@ -563,6 +563,17 @@ async def get_document_by_file(
             doc_manager.get_document, new_doc_id, user_id
         )
 
+        # Log slide_elements info if present
+        slide_elements = document.get("slide_elements", [])
+        if slide_elements:
+            total_elements = sum(
+                len(slide.get("elements", [])) for slide in slide_elements
+            )
+            logger.info(
+                f"🎨 [SLIDE_ELEMENTS_API_LOAD] document_id={new_doc_id}, file_id={file_id}, "
+                f"slides={len(slide_elements)}, total_overlay_elements={total_elements}"
+            )
+
         response = DocumentResponse(
             document_id=document["document_id"],
             title=document["title"],
@@ -575,6 +586,9 @@ async def get_document_by_file(
             source_type=document.get("source_type", "file"),
             document_type=document.get("document_type"),
             file_id=document.get("file_id"),
+            slide_elements=document.get(
+                "slide_elements", []
+            ),  # ✅ FIX: Return overlay elements
         )
 
         logger.warning(f"🔍 FRONTEND: Created NEW document copy #{copy_number}")

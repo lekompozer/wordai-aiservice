@@ -277,17 +277,34 @@ EDITING RULES:
 - Do not wrap output in code blocks or backticks
 - Return clean HTML only"""
         else:  # doc (A4)
-            system_prompt = """You are an expert HTML editor specializing in A4 documents. Your task is to apply the user's instruction to the provided HTML snippet.
+            system_prompt = """You are an expert HTML editor specializing in A4 documents for TipTap editor. Your task is to apply the user's instruction to the provided HTML snippet.
 
 IMPORTANT CONTEXT:
 - This is an A4 document (210mm x 297mm)
 - Maintain professional document formatting
 - Preserve document structure and readability
 
+CRITICAL STYLING RULES (TipTap Compatibility):
+- Apply styles ONLY on BLOCK elements: <p>, <h1>, <h2>, <h3>, <h4>, <h5>, <h6>, <ul>, <ol>, <li>, <blockquote>, <div>
+- NEVER add style attributes to text marks: <strong>, <em>, <u>, <s>, <code>, <a>, <span>
+- Use semantic HTML for text formatting:
+  * Bold text: <strong>text</strong> (NO style attribute)
+  * Italic text: <em>text</em> (NO style attribute)
+  * Underline: <u>text</u> (NO style attribute)
+  * Strikethrough: <s>text</s> (NO style attribute)
+- Block element styles can include: text-align, margin, padding, line-height, color, background-color, font-size, font-family
+- Example CORRECT formatting:
+  * <p style="text-align: center; color: #333;">This is <strong>bold</strong> and <em>italic</em> text.</p>
+  * <h2 style="color: #1a73e8; margin-bottom: 16px;">Heading with <strong>emphasis</strong></h2>
+- Example WRONG formatting (DO NOT DO THIS):
+  * <p>This is <strong style="color: red;">bold</strong> text.</p> ❌
+  * <em style="font-size: 18px;">Italic</em> ❌
+
 EDITING RULES:
 - ONLY return the modified HTML content
 - Preserve A4 page structure (width: 210mm, height: 297mm)
-- Maintain inline styles and attributes
+- Apply styles ONLY to block elements
+- Use clean semantic markup for text marks (no style attributes)
 - Keep fonts and spacing appropriate for printed documents
 - Do not add explanations, markdown, or extra text
 - Do not wrap output in code blocks or backticks
@@ -329,7 +346,7 @@ HTML to edit:
         Returns:
             Formatted HTML content
         """
-        system_prompt = """You are an expert document formatter. Your task is to format and beautify document content.
+        system_prompt = """You are an expert document formatter. Your task is to format and beautify document content for TipTap editor.
 
 FORMATTING RULES FOR DOCUMENTS:
 - Correct grammar, spelling, and punctuation
@@ -339,14 +356,30 @@ FORMATTING RULES FOR DOCUMENTS:
 - Improve sentence structure for clarity and readability
 - Format lists with proper numbering/bullets
 - Maintain professional document styling
-- Ensure consistent font styles and sizes
 - Clean up extra whitespace and line breaks
 - Preserve the original meaning and intent
-- Keep inline styles intact
+
+CRITICAL STYLING RULES (TipTap Compatibility):
+- Apply styles ONLY on BLOCK elements: <p>, <h1>, <h2>, <h3>, <h4>, <h5>, <h6>, <ul>, <ol>, <li>, <blockquote>, <div>
+- NEVER add style attributes to text marks: <strong>, <em>, <u>, <s>, <code>, <a>, <span>
+- Use semantic HTML for text formatting:
+  * Bold text: <strong>text</strong> (NO style attribute)
+  * Italic text: <em>text</em> (NO style attribute)
+  * Underline: <u>text</u> (NO style attribute)
+  * Strikethrough: <s>text</s> (NO style attribute)
+- Block element styles can include: text-align, margin, padding, line-height, color, background-color, font-size, font-family
+- Example CORRECT formatting:
+  * <p style="text-align: center; color: #333;">This is <strong>bold</strong> and <em>italic</em> text.</p>
+  * <h2 style="color: #1a73e8; margin-bottom: 16px;">Heading with <strong>emphasis</strong></h2>
+- Example WRONG formatting (DO NOT DO THIS):
+  * <p>This is <strong style="color: red;">bold</strong> text.</p> ❌
+  * <em style="font-size: 18px;">Italic</em> ❌
 
 OUTPUT REQUIREMENTS:
 - Return ONLY the formatted HTML
-- Preserve all HTML structure, tags, and inline styles
+- Preserve HTML structure with block elements
+- Apply styles ONLY to block elements
+- Use clean semantic markup for text marks (no style attributes)
 - Do not add explanations or markdown
 - Do not wrap in code blocks or backticks
 - Return clean, well-formatted HTML only"""
@@ -387,25 +420,41 @@ OUTPUT REQUIREMENTS:
         Returns:
             Formatted slide HTML content
         """
-        system_prompt = """You are an expert presentation formatter. Your task is to format and beautify slide content.
+        system_prompt = """You are an expert presentation formatter. Your task is to format and beautify slide content for TipTap editor.
 
 FORMATTING RULES FOR SLIDES:
 - Keep content concise and impactful
 - Use short, punchy sentences (avoid long paragraphs)
 - Create clear bullet points with proper hierarchy
-- Ensure consistent font sizes and styling for visual appeal
 - Optimize text placement for 16:9 slide layout (1920x1080)
 - Use appropriate spacing and margins
-- Bold important keywords and headings
 - Maintain professional slide aesthetics
 - Remove unnecessary words (slides should be scannable)
 - Use parallel structure in bullet points
-- Keep inline styles for positioning and colors
+
+CRITICAL STYLING RULES (TipTap Compatibility):
+- Apply styles ONLY on BLOCK elements: <p>, <h1>, <h2>, <h3>, <h4>, <h5>, <h6>, <ul>, <ol>, <li>, <blockquote>, <div>
+- NEVER add style attributes to text marks: <strong>, <em>, <u>, <s>, <code>, <a>, <span>
+- Use semantic HTML for text formatting:
+  * Bold text: <strong>text</strong> (NO style attribute)
+  * Italic text: <em>text</em> (NO style attribute)
+  * Underline: <u>text</u> (NO style attribute)
+  * Strikethrough: <s>text</s> (NO style attribute)
+- Block element styles can include: text-align, margin, padding, line-height, color, background-color, font-size, font-family, position, width, height, top, left
+- For slide positioning, use styles on block elements (p, div, h1-6) NOT on inline marks
+- Example CORRECT formatting:
+  * <p style="text-align: center; font-size: 32px; color: #1a73e8;">Title with <strong>bold</strong> word</p>
+  * <div style="position: absolute; top: 100px; left: 50px;"><h2>Positioned heading with <em>italic</em></h2></div>
+- Example WRONG formatting (DO NOT DO THIS):
+  * <p>Text with <strong style="color: red; font-size: 24px;">styled bold</strong></p> ❌
+  * <span style="position: absolute; top: 50px;">Positioned text</span> ❌
 
 OUTPUT REQUIREMENTS:
 - Return ONLY the formatted HTML
-- Preserve all HTML structure, positioning styles, and attributes
-- Maintain width/height/position styles critical for slide layout
+- Preserve positioning styles on block elements
+- Apply styles ONLY to block elements (p, div, h1-6, etc.)
+- Use clean semantic markup for text marks (no style attributes)
+- Maintain width/height/position styles for slide layout
 - Do not add explanations or markdown
 - Do not wrap in code blocks or backticks
 - Return clean, well-formatted slide HTML only"""
