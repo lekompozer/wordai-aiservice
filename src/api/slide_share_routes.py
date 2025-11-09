@@ -442,8 +442,23 @@ async def get_share_content(share_id: str, access_token: Optional[str] = None):
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
-        # Parse slides
+        # Get content_html and slide_elements
         html_content = document.get("content_html", "")
+        slide_elements = document.get("slide_elements", [])
+
+        # ✅ Merge overlay elements if present (for slide documents)
+        if slide_elements:
+            from src.services.document_export_service import DocumentExportService
+
+            export_service = DocumentExportService(None, db_manager.db)
+            html_content = export_service.reconstruct_html_with_overlays(
+                html_content, slide_elements
+            )
+            logger.info(
+                f"🎨 Merged {len(slide_elements)} slide overlay groups into HTML for viewing"
+            )
+
+        # Parse slides
         soup = BeautifulSoup(html_content, "html.parser")
         slide_divs = soup.find_all(
             "div", style=lambda s: s and "1920px" in s or "width:1920px" in s
