@@ -5,7 +5,7 @@ Dedicated endpoints for E2EE secret images in library with folder support
 
 import logging
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, File, Form, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
@@ -1044,4 +1044,224 @@ async def get_secret_images_stats(
 
     except Exception as e:
         logger.error(f"❌ Error getting secret images stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# DIRECT UPLOAD SECRET IMAGE
+# ============================================================================
+
+
+@router.post("/upload")
+async def upload_secret_image(
+    # Encrypted files
+    encryptedImage: UploadFile = File(
+        ..., description="Encrypted original image binary"
+    ),
+    encryptedThumbnail: UploadFile = File(
+        ..., description="Encrypted thumbnail binary"
+    ),
+    # Encryption metadata
+    encryptedFileKey: str = Form(
+        ..., description="RSA-OAEP encrypted AES file key (base64)"
+    ),
+    ivOriginal: str = Form(..., description="IV for original image (base64, 12 bytes)"),
+    ivThumbnail: str = Form(..., description="IV for thumbnail (base64, 12 bytes)"),
+    # Optional EXIF encryption
+    encryptedExif: Optional[str] = Form(
+        None, description="Encrypted EXIF JSON (base64)"
+    ),
+    ivExif: Optional[str] = Form(None, description="IV for EXIF (base64, 12 bytes)"),
+    # Image metadata
+    filename: str = Form(..., description="Original filename"),
+    imageWidth: int = Form(..., description="Original image width"),
+    imageHeight: int = Form(..., description="Original image height"),
+    thumbnailWidth: int = Form(..., description="Thumbnail width"),
+    thumbnailHeight: int = Form(..., description="Thumbnail height"),
+    # Optional metadata
+    description: Optional[str] = Form("", description="Image description"),
+    tags: Optional[str] = Form("", description="Comma-separated tags"),
+    folderId: Optional[str] = Form(None, description="Secret folder ID"),
+    # Auth
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Upload encrypted image directly to secret images collection
+
+    This is a direct upload endpoint - no need to upload regular image first.
+    Client encrypts the image locally and uploads encrypted binary directly.
+
+    Flow:
+    1. Client encrypts image with AES-256-GCM (generates random AES key)
+    2. Client encrypts AES key with user's RSA public key
+    3. Client uploads encrypted binary + encrypted key to this endpoint
+    4. Server stores encrypted data on R2 and metadata in MongoDB
+    5. Server NEVER sees unencrypted image (Zero-Knowledge E2EE)
+    """
+    try:
+        user_id = user_data.get("uid")
+        s3_client = get_r2_client()
+        db = get_mongodb()
+
+        # Read encrypted files
+        encrypted_image_content = await encryptedImage.read()
+        encrypted_thumbnail_content = await encryptedThumbnail.read()
+
+        file_size = len(encrypted_image_content)
+
+        # === CHECK STORAGE LIMIT ===
+        from src.services.subscription_service import get_subscription_service
+
+        subscription_service = get_subscription_service()
+        file_size_mb = file_size / (1024 * 1024)
+
+        if not await subscription_service.check_storage_limit(user_id, file_size_mb):
+            subscription = await subscription_service.get_or_create_subscription(
+                user_id
+            )
+            remaining_mb = subscription.storage_limit_mb - subscription.storage_used_mb
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "storage_limit_exceeded",
+                    "message": f"Không đủ dung lượng lưu trữ. File cần: {file_size_mb:.2f}MB, Còn lại: {remaining_mb:.2f}MB",
+                    "storage_used_mb": round(subscription.storage_used_mb, 2),
+                    "storage_limit_mb": subscription.storage_limit_mb,
+                    "file_size_mb": round(file_size_mb, 2),
+                    "remaining_mb": round(remaining_mb, 2),
+                    "upgrade_url": "/pricing",
+                    "current_plan": subscription.plan,
+                },
+            )
+
+        logger.info(
+            f"✅ Secret image storage check passed: {file_size_mb:.2f}MB for user {user_id}"
+        )
+
+        # Generate R2 keys with .enc extension
+        import uuid
+
+        unique_id = uuid.uuid4().hex[:12]
+        file_extension = filename.split(".")[-1] if "." in filename else "jpg"
+
+        r2_image_path = f"encrypted-library/{user_id}/{unique_id}.{file_extension}.enc"
+        r2_thumbnail_path = (
+            f"encrypted-library/{user_id}/{unique_id}_thumb.{file_extension}.enc"
+        )
+
+        # Upload encrypted files to R2
+        s3_client.put_object(
+            Bucket=R2_BUCKET_NAME,
+            Key=r2_image_path,
+            Body=encrypted_image_content,
+            ContentType="application/octet-stream",  # Binary encrypted data
+        )
+
+        s3_client.put_object(
+            Bucket=R2_BUCKET_NAME,
+            Key=r2_thumbnail_path,
+            Body=encrypted_thumbnail_content,
+            ContentType="application/octet-stream",
+        )
+
+        logger.info(f"🔐 Uploaded encrypted image to R2: {r2_image_path}")
+
+        # Parse tags
+        tags_list = (
+            [tag.strip() for tag in tags.split(",") if tag.strip()] if tags else []
+        )
+
+        # Create MongoDB document
+        from datetime import datetime, timezone
+
+        library_id = f"lib_{unique_id}"
+        now = datetime.now(timezone.utc)
+
+        image_doc = {
+            "library_id": library_id,
+            "user_id": user_id,
+            "filename": filename,
+            "file_type": "image/jpeg",  # Encrypted, actual type doesn't matter
+            "file_size": file_size,
+            "category": "images",
+            "description": description,
+            "tags": tags_list,
+            "folder_id": folderId if folderId else None,
+            # Encryption metadata
+            "is_encrypted": True,
+            "encrypted_file_keys": {user_id: encryptedFileKey},
+            "encryption_iv_original": ivOriginal,
+            "encryption_iv_thumbnail": ivThumbnail,
+            "encryption_iv_exif": ivExif if encryptedExif else None,
+            "encrypted_exif": encryptedExif,
+            # Image dimensions
+            "image_width": imageWidth,
+            "image_height": imageHeight,
+            "thumbnail_width": thumbnailWidth,
+            "thumbnail_height": thumbnailHeight,
+            # R2 storage
+            "r2_image_path": r2_image_path,
+            "r2_thumbnail_path": r2_thumbnail_path,
+            "r2_key": r2_image_path,
+            # Sharing
+            "shared_with": [],
+            # Timestamps
+            "uploaded_at": now,
+            "created_at": now,
+            "updated_at": now,
+            "deleted_at": None,
+            "is_deleted": False,
+        }
+
+        db["library_files"].insert_one(image_doc)
+
+        logger.info(
+            f"✅ Created secret image {library_id} for user {user_id}"
+            + (f" in folder {folderId}" if folderId else "")
+        )
+
+        # === UPDATE USAGE COUNTERS ===
+        try:
+            from src.models.subscription import SubscriptionUsageUpdate
+
+            await subscription_service.update_usage(
+                user_id=user_id,
+                update=SubscriptionUsageUpdate(storage_mb=file_size_mb, upload_files=1),
+            )
+            logger.info(
+                f"📊 Updated storage (+{file_size_mb:.2f}MB) and file counter (+1)"
+            )
+        except Exception as usage_error:
+            logger.error(f"❌ Error updating usage counters: {usage_error}")
+            # Don't fail the request if counter update fails
+
+        # Generate presigned URLs
+        image_download_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": r2_image_path},
+            ExpiresIn=3600,
+        )
+        thumbnail_download_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": R2_BUCKET_NAME, "Key": r2_thumbnail_path},
+            ExpiresIn=3600,
+        )
+
+        return {
+            "success": True,
+            "message": "Secret image uploaded successfully",
+            "library_id": library_id,
+            "image_id": library_id,
+            "r2_image_path": r2_image_path,
+            "r2_thumbnail_path": r2_thumbnail_path,
+            "is_encrypted": True,
+            "image_download_url": image_download_url,
+            "thumbnail_download_url": thumbnail_download_url,
+            "folder_id": folderId,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error uploading secret image: {e}")
         raise HTTPException(status_code=500, detail=str(e))
