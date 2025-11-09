@@ -404,13 +404,19 @@ async def list_secret_images(
             if "created_at" not in img and "uploaded_at" in img:
                 img["created_at"] = img["uploaded_at"]
 
-            # Generate presigned URLs
-            img = generate_presigned_urls_for_secret_image(img, s3_client)
-
-            # Get folder name if folder_id exists
+            # Get folder name if folder_id exists (BEFORE generating URLs)
             if img.get("folder_id"):
                 folder = db["library_folders"].find_one({"folder_id": img["folder_id"]})
                 img["folder_name"] = folder.get("folder_name") if folder else None
+                # DEBUG: Log folder lookup
+                logger.info(
+                    f"🔍 [IMAGE_FOLDER_DEBUG] image_id={img.get('library_id')}, folder_id={img.get('folder_id')}, folder_name={img.get('folder_name')}, folder_found={folder is not None}"
+                )
+            else:
+                img["folder_name"] = None
+
+            # Generate presigned URLs (AFTER setting folder_name)
+            img = generate_presigned_urls_for_secret_image(img, s3_client)
 
         # Get folders (if not filtering by specific folder, get root folders)
         folders_query = {
@@ -432,6 +438,11 @@ async def list_secret_images(
 
         # Calculate stats for folders
         for folder in folders:
+            # DEBUG: Log folder data
+            logger.info(
+                f"🔍 [FOLDER_DEBUG] folder_id={folder.get('folder_id')}, folder_name={folder.get('folder_name')}, owner_id={folder.get('owner_id')}"
+            )
+
             folder["image_count"] = db["library_files"].count_documents(
                 {
                     "user_id": user_id,
