@@ -787,6 +787,10 @@ async def convert_regular_image_to_secret(
     imageHeight: Optional[int] = Form(None, description="Original image height"),
     thumbnailWidth: Optional[int] = Form(None, description="Thumbnail width"),
     thumbnailHeight: Optional[int] = Form(None, description="Thumbnail height"),
+    # Optional: Assign to secret folder
+    folderId: Optional[str] = Form(
+        None, description="Secret folder ID to assign image to"
+    ),
     # Auth
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
@@ -903,6 +907,11 @@ async def convert_regular_image_to_secret(
             "updated_at": datetime.now(timezone.utc),
             "shared_with": [],  # Initialize empty sharing list
         }
+
+        # Add folder_id if provided
+        if folderId:
+            update_data["folder_id"] = folderId
+            logger.info(f"📁 Assigning converted image to folder: {folderId}")
 
         # Update the document
         db = get_mongodb()
