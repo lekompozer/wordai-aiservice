@@ -1138,6 +1138,25 @@ async def upload_secret_image(
             f"✅ Secret image storage check passed: {file_size_mb:.2f}MB for user {user_id}"
         )
 
+        # Validate folder if provided
+        folder_name = None
+        if folderId:
+            folder = db["library_folders"].find_one(
+                {
+                    "folder_id": folderId,
+                    "owner_id": user_id,
+                    "is_secret": True,
+                    "is_deleted": False,
+                }
+            )
+            if not folder:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Secret folder {folderId} not found or not accessible",
+                )
+            folder_name = folder.get("folder_name")
+            logger.info(f"✅ Validated folder {folderId}: {folder_name}")
+
         # Generate R2 keys with .enc extension
         import uuid
 
@@ -1252,12 +1271,20 @@ async def upload_secret_image(
             "message": "Secret image uploaded successfully",
             "library_id": library_id,
             "image_id": library_id,
+            "filename": filename,
+            "folder_id": folderId,
+            "folder_name": folder_name,
+            "is_encrypted": True,
             "r2_image_path": r2_image_path,
             "r2_thumbnail_path": r2_thumbnail_path,
-            "is_encrypted": True,
             "image_download_url": image_download_url,
             "thumbnail_download_url": thumbnail_download_url,
-            "folder_id": folderId,
+            "image_width": imageWidth,
+            "image_height": imageHeight,
+            "thumbnail_width": thumbnailWidth,
+            "thumbnail_height": thumbnailHeight,
+            "file_size": file_size,
+            "created_at": now.isoformat(),
         }
 
     except HTTPException:
