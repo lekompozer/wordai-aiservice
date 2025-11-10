@@ -489,6 +489,14 @@ async def list_secret_images(
             if "created_at" not in img and "uploaded_at" in img:
                 img["created_at"] = img["uploaded_at"]
 
+            # Filter out None values from shared_with array
+            if "shared_with" in img and img["shared_with"]:
+                img["shared_with"] = [
+                    uid for uid in img["shared_with"] if uid is not None
+                ]
+            else:
+                img["shared_with"] = []
+
             # Get folder name if folder_id exists (BEFORE generating URLs)
             if img.get("folder_id"):
                 folder = db["library_folders"].find_one({"folder_id": img["folder_id"]})
@@ -1455,6 +1463,11 @@ async def share_secret_image(
             )
 
         recipient_uid = recipient.get("uid")  # Get uid from user record
+        if not recipient_uid:
+            raise HTTPException(
+                status_code=500,
+                detail="Recipient has invalid user ID (uid is None)",
+            )
         recipient_email = request.recipientId  # Email from request
 
         # Update library_files: add recipient to shared_with and store encrypted key
