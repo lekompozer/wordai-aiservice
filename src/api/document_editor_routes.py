@@ -1604,6 +1604,7 @@ async def download_document(
         # Step 2: Extract data
         html_content = document["content_html"]
         title = document["title"]
+        slide_elements = document.get("slide_elements", [])  # Get overlay elements
 
         # Determine document type: Use query param if provided, otherwise fallback to MongoDB field
         detected_document_type = document_type or document.get("document_type", "doc")
@@ -1616,6 +1617,22 @@ async def download_document(
         if not html_content or html_content.strip() == "":
             raise HTTPException(
                 status_code=400, detail="Document content is empty, cannot export"
+            )
+
+        # Reconstruct HTML with overlay elements for slides
+        if detected_document_type == "slide" and slide_elements:
+            logger.info(
+                f"🎨 Reconstructing HTML with {len(slide_elements)} overlay element groups"
+            )
+            from src.services.document_export_service import DocumentExportService
+
+            # Create temporary service to access reconstruct method
+            temp_service = DocumentExportService(r2_client=None, db=None)
+            html_content = temp_service.reconstruct_html_with_overlays(
+                html_content, slide_elements
+            )
+            logger.info(
+                f"✅ HTML reconstructed with overlays ({len(html_content)} chars)"
             )
 
         # Step 3: Import export service and R2 client

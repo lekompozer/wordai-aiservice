@@ -329,7 +329,7 @@ docker-compose build ai-service --no-cache
 
 ---
 
-**Author:** GitHub Copilot  
-**Date:** 2025-11-10  
-**Version:** 2.0  
+**Author:** GitHub Copilot
+**Date:** 2025-11-10
+**Version:** 2.0
 **Status:** ✅ Ready for Deployment
