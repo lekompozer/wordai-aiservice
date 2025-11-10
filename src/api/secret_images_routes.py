@@ -1451,7 +1451,7 @@ async def share_secret_image(
                 status_code=403, detail="Only owner can share secret image"
             )
 
-        # Verify recipient exists by email and get uid
+        # Verify recipient exists in MongoDB (has public key)
         recipient = db["users"].find_one({"email": request.recipientId})
         if not recipient:
             raise HTTPException(status_code=404, detail="Recipient not found")
@@ -1462,11 +1462,21 @@ async def share_secret_image(
                 detail="Recipient has not set up E2EE (no public key)",
             )
 
-        recipient_uid = recipient.get("uid")  # Get uid from user record
+        # Get recipient's Firebase UID (NOT from MongoDB, from Firebase!)
+        from src.config.firebase_config import firebase_config
+
+        firebase_user = firebase_config.get_user_by_email(request.recipientId)
+        if not firebase_user:
+            raise HTTPException(
+                status_code=404,
+                detail="Recipient not found in Firebase authentication",
+            )
+
+        recipient_uid = firebase_user.get("uid")  # Firebase UID
         if not recipient_uid:
             raise HTTPException(
                 status_code=500,
-                detail="Recipient has invalid user ID (uid is None)",
+                detail="Recipient has invalid Firebase UID",
             )
         recipient_email = request.recipientId  # Email from request
 

@@ -105,6 +105,31 @@ class FirebaseConfig:
             return None
         return auth
 
+    def get_user_by_email(self, email: str) -> Optional[Dict[str, Any]]:
+        """Get Firebase user by email address
+
+        Returns user data including uid, or None if user not found
+        """
+        if not self.app:
+            logger.warning("🔧 Development mode: Firebase Auth not available")
+            return None
+
+        try:
+            user = auth.get_user_by_email(email)
+            return {
+                "uid": user.uid,
+                "email": user.email,
+                "email_verified": user.email_verified,
+                "display_name": user.display_name,
+                "photo_url": user.photo_url,
+            }
+        except auth.UserNotFoundError:
+            logger.warning(f"⚠️ Firebase user not found: {email}")
+            return None
+        except Exception as e:
+            logger.error(f"❌ Error getting Firebase user by email: {e}")
+            return None
+
     def verify_token(self, token: str) -> Dict[str, Any]:
         """Verify Firebase ID token"""
         logger.debug(f"🔍 verify_token() called with token length: {len(token)}")
