@@ -131,6 +131,7 @@ class ShareSecretImageRequest(BaseModel):
 
     recipientId: str
     encryptedFileKeyForRecipient: str  # File key encrypted with recipient's public key
+    permission: Optional[str] = "download"  # view | download | edit (default: download)
 
 
 # ============================================================================
@@ -1405,14 +1406,16 @@ async def share_secret_image(
     Body:
         {
             "recipientId": "user_456",
-            "encryptedFileKeyForRecipient": "base64_rsa_encrypted_key"
+            "encryptedFileKeyForRecipient": "base64_rsa_encrypted_key",
+            "permission": "download"  // optional, default: "download"
         }
 
     Returns:
         {
             "success": true,
             "message": "Secret image shared successfully",
-            "recipient_id": "user_456"
+            "recipient_id": "user_456",
+            "share_id": "share_abc123"
         }
     """
     user_id = user_data.get("uid")
@@ -1432,7 +1435,7 @@ async def share_secret_image(
                 status_code=403, detail="Only owner can share secret image"
             )
 
-        # Verify recipient exists
+        # Verify recipient exists and get email
         recipient = db["users"].find_one({"firebase_uid": request.recipientId})
         if not recipient:
             raise HTTPException(status_code=404, detail="Recipient not found")
@@ -1443,8 +1446,10 @@ async def share_secret_image(
                 detail="Recipient has not set up E2EE (no public key)",
             )
 
-        # Update image: add recipient to shared_with and store encrypted key
-        result = db["library_files"].update_one(
+        recipient_email = recipient.get("email", "")
+
+        # Update library_files: add recipient to shared_with and store encrypted key
+        db["library_files"].update_one(
             {"library_id": image_id},
             {
                 "$addToSet": {"shared_with": request.recipientId},
@@ -1455,23 +1460,62 @@ async def share_secret_image(
             },
         )
 
-        if result.modified_count > 0:
-            logger.info(
-                f"✅ Shared secret image {image_id} with user {request.recipientId}"
-            )
+        # Create share record in file_shares collection
+        from src.services.share_manager import ShareManager
 
-            return {
-                "success": True,
-                "message": "Secret image shared successfully",
+        share_manager = ShareManager(db=db)
+
+        # Check if share already exists
+        existing_share = db["file_shares"].find_one(
+            {
+                "owner_id": user_id,
                 "recipient_id": request.recipientId,
+                "file_id": image_id,
+                "file_type": "library",
             }
+        )
+
+        if existing_share:
+            # Update existing share
+            db["file_shares"].update_one(
+                {"share_id": existing_share["share_id"]},
+                {
+                    "$set": {
+                        "is_active": True,
+                        "permission": getattr(request, "permission", "download"),
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+            share_id = existing_share["share_id"]
+            logger.info(
+                f"✅ Updated existing share {share_id} for secret image {image_id}"
+            )
         else:
-            # Already shared
-            return {
-                "success": True,
-                "message": "Secret image already shared with this user",
-                "recipient_id": request.recipientId,
-            }
+            # Create new share
+            share_doc = await asyncio.to_thread(
+                share_manager.create_share,
+                owner_id=user_id,
+                recipient_email=recipient_email,
+                file_id=image_id,
+                file_type="library",
+                permission=getattr(request, "permission", "download"),
+                expires_at=None,
+                send_notification=False,  # Don't send notification for secret images (handled separately)
+            )
+            share_id = share_doc.get("share_id")
+            logger.info(f"✅ Created share {share_id} for secret image {image_id}")
+
+        logger.info(
+            f"✅ Shared secret image {image_id} with user {request.recipientId}"
+        )
+
+        return {
+            "success": True,
+            "message": "Secret image shared successfully",
+            "recipient_id": request.recipientId,
+            "share_id": share_id,
+        }
 
     except HTTPException:
         raise
