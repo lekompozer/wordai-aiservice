@@ -57,6 +57,9 @@ class ShareResponse(BaseModel):
     file_type: str
     filename: str
     document_type: Optional[str] = None  # doc/slide/note for documents, null for others
+    is_encrypted: Optional[bool] = (
+        False  # True for Secret Images/Documents, False otherwise
+    )
     permission: str
     is_active: bool
     expires_at: Optional[datetime]
@@ -509,18 +512,83 @@ async def access_shared_file(
                 "uploaded_at": library_file.get("uploaded_at"),
             }
 
-            # Generate signed URL - ALWAYS (for all permissions)
-            r2_key = library_file.get("r2_key")
-            if r2_key:
-                view_url = s3_client.generate_presigned_url(
-                    "get_object",
-                    Params={"Bucket": R2_BUCKET_NAME, "Key": r2_key},
-                    ExpiresIn=3600,
+            # Check if this is an encrypted file (Secret Image)
+            is_encrypted = library_file.get("is_encrypted", False)
+            if is_encrypted:
+                # Add encryption metadata for Secret Images
+                encrypted_file_keys = library_file.get("encrypted_file_keys", {})
+
+                # Get recipient's encrypted file key
+                recipient_encrypted_key = encrypted_file_keys.get(user_id)
+
+                if not recipient_encrypted_key:
+                    raise HTTPException(
+                        status_code=403,
+                        detail="You don't have decryption key for this secret image",
+                    )
+
+                file_details["is_encrypted"] = True
+                file_details["encrypted_file_key"] = recipient_encrypted_key
+                file_details["encryption_iv_original"] = library_file.get(
+                    "encryption_iv_original"
                 )
+                file_details["encryption_iv_thumbnail"] = library_file.get(
+                    "encryption_iv_thumbnail"
+                )
+                file_details["encryption_iv_exif"] = library_file.get(
+                    "encryption_iv_exif"
+                )
+                file_details["encrypted_exif"] = library_file.get("encrypted_exif")
+
+                # Image dimensions
+                file_details["image_width"] = library_file.get("image_width")
+                file_details["image_height"] = library_file.get("image_height")
+                file_details["thumbnail_width"] = library_file.get("thumbnail_width")
+                file_details["thumbnail_height"] = library_file.get("thumbnail_height")
+
+                # R2 paths for encrypted files
+                file_details["r2_image_path"] = library_file.get("r2_image_path")
+                file_details["r2_thumbnail_path"] = library_file.get(
+                    "r2_thumbnail_path"
+                )
+
+                # Generate presigned URLs for encrypted files
+                r2_image_path = library_file.get("r2_image_path")
+                r2_thumbnail_path = library_file.get("r2_thumbnail_path")
+
+                if r2_image_path:
+                    view_url = s3_client.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": R2_BUCKET_NAME, "Key": r2_image_path},
+                        ExpiresIn=3600,
+                    )
+
+                if r2_thumbnail_path:
+                    file_details["thumbnail_url"] = s3_client.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": R2_BUCKET_NAME, "Key": r2_thumbnail_path},
+                        ExpiresIn=3600,
+                    )
 
                 # Download URL only for download/edit permissions
                 if permission in ["download", "edit"]:
                     download_url = view_url  # Same URL, frontend controls behavior
+            else:
+                # Regular library file (not encrypted)
+                file_details["is_encrypted"] = False
+
+                # Generate signed URL - ALWAYS (for all permissions)
+                r2_key = library_file.get("r2_key")
+                if r2_key:
+                    view_url = s3_client.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": R2_BUCKET_NAME, "Key": r2_key},
+                        ExpiresIn=3600,
+                    )
+
+                    # Download URL only for download/edit permissions
+                    if permission in ["download", "edit"]:
+                        download_url = view_url  # Same URL, frontend controls behavior
 
         elif file_type == "upload":
             # Upload file

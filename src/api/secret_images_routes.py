@@ -126,6 +126,13 @@ class UpdateSecretImageRequest(BaseModel):
     folder_id: Optional[str] = None
 
 
+class ShareSecretImageRequest(BaseModel):
+    """Request to share secret image with another user"""
+
+    recipientId: str
+    encryptedFileKeyForRecipient: str  # File key encrypted with recipient's public key
+
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -1368,4 +1375,170 @@ async def upload_secret_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error uploading secret image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# SHARING
+# ============================================================================
+
+
+@router.post("/{image_id}/share")
+async def share_secret_image(
+    image_id: str,
+    request: ShareSecretImageRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Share E2EE secret image with another user
+
+    Client flow:
+    1. User enters recipient email/ID
+    2. Get recipient's public key from server
+    3. Decrypt file key with own private key
+    4. Encrypt file key with recipient's public key
+    5. Send encrypted file key to server
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Body:
+        {
+            "recipientId": "user_456",
+            "encryptedFileKeyForRecipient": "base64_rsa_encrypted_key"
+        }
+
+    Returns:
+        {
+            "success": true,
+            "message": "Secret image shared successfully",
+            "recipient_id": "user_456"
+        }
+    """
+    user_id = user_data.get("uid")
+    db = get_mongodb()
+
+    try:
+        # Find the secret image
+        image = db["library_files"].find_one(
+            {"library_id": image_id, "file_type": "image", "is_encrypted": True}
+        )
+
+        if not image:
+            raise HTTPException(status_code=404, detail="Secret image not found")
+
+        if image["owner_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only owner can share secret image"
+            )
+
+        # Verify recipient exists
+        recipient = db["users"].find_one({"firebase_uid": request.recipientId})
+        if not recipient:
+            raise HTTPException(status_code=404, detail="Recipient not found")
+
+        if "publicKey" not in recipient:
+            raise HTTPException(
+                status_code=400,
+                detail="Recipient has not set up E2EE (no public key)",
+            )
+
+        # Update image: add recipient to shared_with and store encrypted key
+        result = db["library_files"].update_one(
+            {"library_id": image_id},
+            {
+                "$addToSet": {"shared_with": request.recipientId},
+                "$set": {
+                    f"encrypted_file_keys.{request.recipientId}": request.encryptedFileKeyForRecipient,
+                    "updated_at": datetime.utcnow(),
+                },
+            },
+        )
+
+        if result.modified_count > 0:
+            logger.info(
+                f"✅ Shared secret image {image_id} with user {request.recipientId}"
+            )
+
+            return {
+                "success": True,
+                "message": "Secret image shared successfully",
+                "recipient_id": request.recipientId,
+            }
+        else:
+            # Already shared
+            return {
+                "success": True,
+                "message": "Secret image already shared with this user",
+                "recipient_id": request.recipientId,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error sharing secret image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{image_id}/revoke-share/{user_id_to_revoke}")
+async def revoke_secret_image_share(
+    image_id: str,
+    user_id_to_revoke: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Revoke access to secret image
+
+    Only owner can revoke access.
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Path Parameters:
+        image_id: Secret image ID
+        user_id_to_revoke: Firebase UID of user to revoke access from
+
+    Returns:
+        {
+            "success": true,
+            "message": "Access revoked successfully"
+        }
+    """
+    user_id = user_data.get("uid")
+    db = get_mongodb()
+
+    try:
+        # Find the secret image
+        image = db["library_files"].find_one(
+            {"library_id": image_id, "file_type": "image", "is_encrypted": True}
+        )
+
+        if not image:
+            raise HTTPException(status_code=404, detail="Secret image not found")
+
+        if image["owner_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Only owner can revoke access")
+
+        # Remove recipient from shared_with and delete their encrypted key
+        result = db["library_files"].update_one(
+            {"library_id": image_id},
+            {
+                "$pull": {"shared_with": user_id_to_revoke},
+                "$unset": {f"encrypted_file_keys.{user_id_to_revoke}": ""},
+                "$set": {"updated_at": datetime.utcnow()},
+            },
+        )
+
+        if result.modified_count > 0:
+            logger.info(
+                f"✅ Revoked access to secret image {image_id} from user {user_id_to_revoke}"
+            )
+            return {"success": True, "message": "Access revoked successfully"}
+        else:
+            return {"success": True, "message": "User did not have access"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error revoking access: {e}")
         raise HTTPException(status_code=500, detail=str(e))

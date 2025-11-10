@@ -175,9 +175,17 @@ class ShareManager:
 
             # Get filename and document_type based on file type
             document_type = None
+            is_encrypted = False
+
             if file_type == "document":
                 filename = file_doc.get("title", "Untitled Document")
                 document_type = file_doc.get("document_type")  # doc, slide, note
+                # Check if it's a secret document
+                is_encrypted = file_doc.get("encrypted_content") is not None
+            elif file_type == "library":
+                filename = file_doc.get("filename", "Untitled File")
+                # Check if it's a secret image
+                is_encrypted = file_doc.get("is_encrypted", False)
             else:
                 filename = file_doc.get("filename", "Untitled File")
 
@@ -190,6 +198,7 @@ class ShareManager:
                 "file_type": file_type,
                 "filename": filename,
                 "document_type": document_type,  # doc/slide/note for documents, null for others
+                "is_encrypted": is_encrypted,  # True for Secret Images/Documents, False otherwise
                 "permission": permission,
                 "is_active": True,
                 "expires_at": expires_at,
