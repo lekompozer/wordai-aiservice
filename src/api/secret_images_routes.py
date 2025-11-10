@@ -134,6 +134,24 @@ class ShareSecretImageRequest(BaseModel):
     permission: Optional[str] = "download"  # view | download | edit (default: download)
 
 
+class SharedUserInfo(BaseModel):
+    """Information about a user who has access to the secret image"""
+
+    user_id: str  # Firebase UID
+    email: str
+    display_name: Optional[str] = None
+    photo_url: Optional[str] = None
+    permission: str = "download"
+    shared_at: datetime
+
+
+class SharedUsersResponse(BaseModel):
+    """Response containing list of users who have access to the secret image"""
+
+    image_id: str
+    shared_users: List[SharedUserInfo]
+
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -1552,6 +1570,137 @@ async def share_secret_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error sharing secret image: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{image_id}/shares", response_model=SharedUsersResponse)
+async def get_secret_image_shared_users(
+    image_id: str,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Get list of users who have access to this secret image
+
+    Returns detailed information about each user including:
+    - Firebase UID
+    - Email
+    - Display name and photo
+    - Permission level
+    - When they were granted access
+
+    Headers:
+        Authorization: Bearer <firebase_token>
+
+    Returns:
+        {
+            "image_id": "lib_abc123",
+            "shared_users": [
+                {
+                    "user_id": "firebase_uid_123",
+                    "email": "user@example.com",
+                    "display_name": "John Doe",
+                    "photo_url": "https://...",
+                    "permission": "download",
+                    "shared_at": "2025-11-10T12:00:00Z"
+                }
+            ]
+        }
+    """
+    try:
+        user_id = user_data.get("uid")
+        db = get_mongodb()
+
+        # Get the secret image
+        image = db["library_files"].find_one(
+            {
+                "library_id": image_id,
+                "category": {"$in": ["image", "images"]},
+                "is_encrypted": True,
+            }
+        )
+
+        if not image:
+            raise HTTPException(status_code=404, detail="Secret image not found")
+
+        # Check owner
+        image_owner_id = image.get("user_id") or image.get("owner_id")
+        if image_owner_id != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only owner can view shared users"
+            )
+
+        # Get all file_shares for this image
+        shares = list(
+            db["file_shares"].find(
+                {
+                    "file_id": image_id,
+                    "file_type": "library",
+                    "is_active": True,
+                }
+            )
+        )
+
+        shared_users = []
+
+        # Get Firebase user info for each recipient
+        from src.config.firebase_config import firebase_config
+
+        for share in shares:
+            recipient_uid = share.get("recipient_id")
+            if not recipient_uid:
+                continue
+
+            # Get user from MongoDB
+            recipient = db["users"].find_one({"uid": recipient_uid})
+            if not recipient:
+                # Try to get from Firebase
+                try:
+                    from firebase_admin import auth
+
+                    firebase_user = auth.get_user(recipient_uid)
+                    shared_users.append(
+                        SharedUserInfo(
+                            user_id=recipient_uid,
+                            email=firebase_user.email or "unknown@example.com",
+                            display_name=firebase_user.display_name,
+                            photo_url=firebase_user.photo_url,
+                            permission=share.get("permission", "download"),
+                            shared_at=share.get("created_at", datetime.utcnow()),
+                        )
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Could not get Firebase user {recipient_uid}: {e}"
+                    )
+                    continue
+            else:
+                # Use data from MongoDB
+                shared_users.append(
+                    SharedUserInfo(
+                        user_id=recipient_uid,
+                        email=recipient.get("email", "unknown@example.com"),
+                        display_name=recipient.get("display_name")
+                        or recipient.get("displayName"),
+                        photo_url=recipient.get("photo_url")
+                        or recipient.get("photoURL"),
+                        permission=share.get("permission", "download"),
+                        shared_at=share.get("created_at", datetime.utcnow()),
+                    )
+                )
+
+        logger.info(
+            f"✅ Retrieved {len(shared_users)} shared users for image {image_id}"
+        )
+
+        return SharedUsersResponse(
+            image_id=image_id,
+            shared_users=shared_users,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error getting shared users: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
