@@ -111,6 +111,12 @@ class CreateSecretFolderRequest(BaseModel):
     encrypted_folder_key: Optional[str] = None  # For future folder encryption
 
 
+class UpdateSecretFolderRequest(BaseModel):
+    """Request to update secret folder metadata"""
+
+    folder_name: str = Field(..., min_length=1, max_length=255)
+
+
 class UpdateSecretImageRequest(BaseModel):
     """Update secret image metadata"""
 
@@ -310,6 +316,72 @@ async def delete_secret_folder(
         raise
     except Exception as e:
         logger.error(f"❌ Error deleting secret folder: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/folders/{folder_id}")
+async def update_secret_folder(
+    folder_id: str,
+    request: UpdateSecretFolderRequest,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
+):
+    """
+    Update secret folder name
+
+    Only folder_name can be updated. parent_folder_id cannot be changed after creation.
+    """
+    try:
+        user_id = user_data.get("uid")
+        db = get_mongodb()
+
+        # Verify ownership
+        folder = db["library_folders"].find_one(
+            {
+                "folder_id": folder_id,
+                "owner_id": user_id,
+                "is_secret": True,
+                "is_deleted": False,
+            }
+        )
+
+        if not folder:
+            raise HTTPException(
+                status_code=404,
+                detail="Secret folder not found or not accessible",
+            )
+
+        # Update folder name
+        from datetime import datetime, timezone
+
+        result = db["library_folders"].update_one(
+            {"folder_id": folder_id, "owner_id": user_id},
+            {
+                "$set": {
+                    "folder_name": request.folder_name,
+                    "updated_at": datetime.now(timezone.utc),
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            # Name might be the same, still success
+            pass
+
+        logger.info(
+            f"✅ Updated secret folder {folder_id} to name: {request.folder_name}"
+        )
+
+        return {
+            "success": True,
+            "message": f"Folder {folder_id} updated successfully",
+            "folder_id": folder_id,
+            "folder_name": request.folder_name,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error updating secret folder: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
