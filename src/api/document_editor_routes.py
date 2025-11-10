@@ -1619,22 +1619,6 @@ async def download_document(
                 status_code=400, detail="Document content is empty, cannot export"
             )
 
-        # Reconstruct HTML with overlay elements for slides
-        if detected_document_type == "slide" and slide_elements:
-            logger.info(
-                f"🎨 Reconstructing HTML with {len(slide_elements)} overlay element groups"
-            )
-            from src.services.document_export_service import DocumentExportService
-
-            # Create temporary service to access reconstruct method
-            temp_service = DocumentExportService(r2_client=None, db=None)
-            html_content = temp_service.reconstruct_html_with_overlays(
-                html_content, slide_elements
-            )
-            logger.info(
-                f"✅ HTML reconstructed with overlays ({len(html_content)} chars)"
-            )
-
         # Step 3: Import export service and R2 client
         from src.services.document_export_service import DocumentExportService
         from src.storage.r2_client import R2Client
@@ -1651,6 +1635,18 @@ async def download_document(
 
         db = get_mongodb()
         export_service = DocumentExportService(r2_client=r2_client, db=db)
+
+        # Reconstruct HTML with overlay elements for slides
+        if detected_document_type == "slide" and slide_elements:
+            logger.info(
+                f"🎨 Reconstructing HTML with {len(slide_elements)} overlay element groups"
+            )
+            html_content = export_service.reconstruct_html_with_overlays(
+                html_content, slide_elements
+            )
+            logger.info(
+                f"✅ HTML reconstructed with overlays ({len(html_content)} chars)"
+            )
 
         # Step 4: Check rate limits
         can_export, error_message = await asyncio.to_thread(
