@@ -1510,7 +1510,6 @@ async def share_secret_image(
                 file_type="library",
                 permission=getattr(request, "permission", "download"),
                 expires_at=None,
-                send_notification=False,  # Don't send notification for secret images (handled separately)
             )
             share_id = share_doc.get("share_id")
             logger.info(f"✅ Created share {share_id} for secret image {image_id}")
