@@ -1563,8 +1563,8 @@ async def revoke_secret_image_share(
         if image["owner_id"] != user_id:
             raise HTTPException(status_code=403, detail="Only owner can revoke access")
 
-        # Remove recipient from shared_with and delete their encrypted key
-        result = db["library_files"].update_one(
+        # Remove from library_files: shared_with and delete encrypted key
+        db["library_files"].update_one(
             {"library_id": image_id},
             {
                 "$pull": {"shared_with": user_id_to_revoke},
@@ -1573,13 +1573,23 @@ async def revoke_secret_image_share(
             },
         )
 
-        if result.modified_count > 0:
-            logger.info(
-                f"✅ Revoked access to secret image {image_id} from user {user_id_to_revoke}"
-            )
-            return {"success": True, "message": "Access revoked successfully"}
-        else:
-            return {"success": True, "message": "User did not have access"}
+        # Deactivate share in file_shares collection
+        share_result = db["file_shares"].update_one(
+            {
+                "owner_id": user_id,
+                "recipient_id": user_id_to_revoke,
+                "file_id": image_id,
+                "file_type": "library",
+            },
+            {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
+        )
+
+        logger.info(
+            f"✅ Revoked access to secret image {image_id} from user {user_id_to_revoke} "
+            f"(library_files updated, file_shares deactivated: {share_result.modified_count > 0})"
+        )
+
+        return {"success": True, "message": "Access revoked successfully"}
 
     except HTTPException:
         raise
