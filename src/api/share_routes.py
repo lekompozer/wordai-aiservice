@@ -567,18 +567,24 @@ async def access_shared_file(
                 r2_thumbnail_path = library_file.get("r2_thumbnail_path")
 
                 if r2_image_path:
-                    view_url = s3_client.generate_presigned_url(
+                    image_url = s3_client.generate_presigned_url(
                         "get_object",
                         Params={"Bucket": R2_BUCKET_NAME, "Key": r2_image_path},
                         ExpiresIn=3600,
                     )
+                    view_url = image_url
+                    # Add alias for frontend compatibility
+                    file_details["image_download_url"] = image_url
 
                 if r2_thumbnail_path:
-                    file_details["thumbnail_url"] = s3_client.generate_presigned_url(
+                    thumbnail_url = s3_client.generate_presigned_url(
                         "get_object",
                         Params={"Bucket": R2_BUCKET_NAME, "Key": r2_thumbnail_path},
                         ExpiresIn=3600,
                     )
+                    file_details["thumbnail_url"] = thumbnail_url
+                    # Add alias for frontend compatibility
+                    file_details["thumbnail_download_url"] = thumbnail_url
 
                 # Download URL only for download/edit permissions
                 if permission in ["download", "edit"]:
