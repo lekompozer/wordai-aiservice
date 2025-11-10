@@ -1557,7 +1557,7 @@ async def revoke_secret_image_share(
         recipient = db["users"].find_one({"email": recipient_email})
         if not recipient:
             raise HTTPException(status_code=404, detail="Recipient not found")
-        
+
         recipient_uid = recipient.get("uid")
 
         # Find the secret image
