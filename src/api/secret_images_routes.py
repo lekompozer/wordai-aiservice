@@ -1424,13 +1424,21 @@ async def share_secret_image(
     try:
         # Find the secret image
         image = db["library_files"].find_one(
-            {"library_id": image_id, "file_type": "image", "is_encrypted": True}
+            {
+                "library_id": image_id,
+                "category": {
+                    "$in": ["image", "images"]
+                },  # Support both singular and plural
+                "is_encrypted": True,
+            }
         )
 
         if not image:
             raise HTTPException(status_code=404, detail="Secret image not found")
 
-        if image["owner_id"] != user_id:
+        # Check owner (user_id field, not owner_id)
+        image_owner_id = image.get("user_id") or image.get("owner_id")
+        if image_owner_id != user_id:
             raise HTTPException(
                 status_code=403, detail="Only owner can share secret image"
             )
@@ -1562,13 +1570,19 @@ async def revoke_secret_image_share(
 
         # Find the secret image
         image = db["library_files"].find_one(
-            {"library_id": image_id, "file_type": "image", "is_encrypted": True}
+            {
+                "library_id": image_id,
+                "category": {"$in": ["image", "images"]},
+                "is_encrypted": True,
+            }
         )
 
         if not image:
             raise HTTPException(status_code=404, detail="Secret image not found")
 
-        if image["owner_id"] != user_id:
+        # Check owner (user_id field, not owner_id)
+        image_owner_id = image.get("user_id") or image.get("owner_id")
+        if image_owner_id != user_id:
             raise HTTPException(status_code=403, detail="Only owner can revoke access")
 
         # Remove from library_files: shared_with and delete encrypted key (using uid)
