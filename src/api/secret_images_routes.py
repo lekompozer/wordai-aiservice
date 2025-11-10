@@ -351,8 +351,13 @@ async def list_secret_images(
             "category": "images",
         }
 
+        # Filter by folder_id
         if folder_id is not None:
+            # Inside folder: Get images WITH this folder_id
             query["folder_id"] = folder_id
+        else:
+            # Root level: Get images WITHOUT folder_id (folder_id = null)
+            query["folder_id"] = None
 
         if not include_deleted:
             query["is_deleted"] = False
