@@ -145,11 +145,283 @@ class DocumentExportService:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         return f"{filename}_{timestamp}"
 
+    async def export_to_pdf_playwright(
+        self, html_content: str, title: str = "document", document_type: str = "doc"
+    ) -> Tuple[bytes, str]:
+        """
+        Convert HTML to PDF using Playwright (Chromium rendering engine)
+
+        **Best for slide presentations** - provides browser-quality rendering
+
+        Args:
+            html_content: HTML content to convert
+            title: Document title for filename
+            document_type: Document type ("doc", "slide", "note") for page sizing
+
+        Returns:
+            (pdf_bytes, filename)
+        """
+        try:
+            from playwright.async_api import async_playwright
+            import tempfile
+            import os
+
+            # Determine page size and styling
+            if document_type == "slide":
+                width = "1920px"
+                height = "1080px"
+                landscape = True
+
+                # Enhanced CSS for slide presentations
+                enhanced_css = """
+                <style>
+                * {
+                    box-sizing: border-box;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+
+                body {
+                    margin: 0;
+                    padding: 0;
+                    width: 1920px;
+                    height: 1080px;
+                    overflow: hidden;
+                    background: white;
+                }
+
+                .slide {
+                    width: 1920px !important;
+                    height: 1080px !important;
+                    max-width: none !important;
+                    margin: 0 !important;
+                    padding: 60px !important;
+                    box-sizing: border-box;
+                    page-break-after: always;
+                    page-break-inside: avoid;
+                    position: relative;
+                    overflow: hidden;
+                }
+
+                /* Enhanced typography for slides */
+                .slide h1 {
+                    font-size: 64px !important;
+                    font-weight: bold;
+                    margin-bottom: 30px;
+                    line-height: 1.2;
+                }
+
+                .slide h2 {
+                    font-size: 48px !important;
+                    margin-bottom: 25px;
+                    line-height: 1.3;
+                }
+
+                .slide h3 {
+                    font-size: 36px !important;
+                    margin-bottom: 20px;
+                    line-height: 1.4;
+                }
+
+                .slide p, .slide li {
+                    font-size: 28px !important;
+                    line-height: 1.6;
+                    margin-bottom: 15px;
+                }
+
+                .slide ul, .slide ol {
+                    font-size: 28px !important;
+                    line-height: 1.6;
+                }
+
+                /* Table styling */
+                .slide table {
+                    font-size: 24px !important;
+                    border-collapse: collapse;
+                }
+
+                .slide th, .slide td {
+                    padding: 12px !important;
+                    border: 1px solid #ddd;
+                }
+
+                /* Overlay elements - absolute positioning */
+                .overlay-textbox {
+                    position: absolute !important;
+                    display: flex;
+                    align-items: center;
+                    word-wrap: break-word;
+                    overflow-wrap: break-word;
+                    white-space: pre-wrap;
+                }
+
+                .overlay-image {
+                    position: absolute !important;
+                    object-fit: cover;
+                }
+
+                .overlay-shape {
+                    position: absolute !important;
+                }
+
+                .overlay-video-placeholder {
+                    position: absolute !important;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #1a1a1a;
+                    border-radius: 8px;
+                }
+
+                /* YouTube embed iframe */
+                .youtube-embed {
+                    position: absolute !important;
+                    border: none;
+                }
+
+                /* Print optimization */
+                @page {
+                    size: 1920px 1080px;
+                    margin: 0;
+                }
+
+                @media print {
+                    body {
+                        width: 1920px;
+                        height: 1080px;
+                    }
+                    .slide {
+                        page-break-after: always;
+                        page-break-inside: avoid;
+                    }
+                }
+                </style>
+                """
+                logger.info(f"📄 Using Playwright with FullHD (1920x1080) for slides")
+
+            else:
+                # A4 for documents and notes
+                width = "210mm"
+                height = "297mm"
+                landscape = False
+
+                enhanced_css = """
+                <style>
+                @page {
+                    size: A4;
+                    margin: 20mm;
+                }
+
+                * {
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                }
+
+                body {
+                    font-family: Arial, sans-serif;
+                    font-size: 12pt;
+                    line-height: 1.6;
+                    color: #333;
+                    margin: 0;
+                    padding: 0;
+                }
+
+                h1 { font-size: 24pt; margin-bottom: 12pt; }
+                h2 { font-size: 20pt; margin-bottom: 10pt; }
+                h3 { font-size: 16pt; margin-bottom: 8pt; }
+                p { margin-bottom: 8pt; }
+                img { max-width: 100%; height: auto; }
+                table { border-collapse: collapse; width: 100%; }
+                th, td { border: 1px solid #ddd; padding: 8px; }
+                </style>
+                """
+                logger.info(f"📄 Using Playwright with A4 for {document_type}")
+
+            # Wrap HTML with proper structure
+            full_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    {enhanced_css}
+</head>
+<body>
+{html_content}
+</body>
+</html>"""
+
+            # Create temp file for PDF output
+            temp_pdf = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+            temp_pdf_path = temp_pdf.name
+            temp_pdf.close()
+
+            try:
+                async with async_playwright() as p:
+                    # Launch Chromium browser (headless)
+                    browser = await p.chromium.launch(headless=True)
+                    page = await browser.new_page()
+
+                    # Set viewport for slides
+                    if document_type == "slide":
+                        await page.set_viewport_size({"width": 1920, "height": 1080})
+
+                    # Load HTML content
+                    await page.set_content(full_html, wait_until="networkidle")
+
+                    # Wait for any images/resources to load
+                    await page.wait_for_timeout(1000)  # 1 second delay for rendering
+
+                    # Generate PDF
+                    await page.pdf(
+                        path=temp_pdf_path,
+                        format=None if document_type == "slide" else "A4",
+                        width=width if document_type == "slide" else None,
+                        height=height if document_type == "slide" else None,
+                        landscape=landscape,
+                        margin=(
+                            {"top": "0", "right": "0", "bottom": "0", "left": "0"}
+                            if document_type == "slide"
+                            else {
+                                "top": "20mm",
+                                "right": "20mm",
+                                "bottom": "20mm",
+                                "left": "20mm",
+                            }
+                        ),
+                        print_background=True,  # Include background colors/images
+                        prefer_css_page_size=True,
+                    )
+
+                    await browser.close()
+
+                # Read PDF bytes
+                with open(temp_pdf_path, "rb") as f:
+                    pdf_bytes = f.read()
+
+                filename = f"{self._sanitize_filename(title)}.pdf"
+
+                logger.info(
+                    f"✅ Generated PDF with Playwright: {filename} "
+                    f"({len(pdf_bytes)} bytes, {document_type} format)"
+                )
+
+                return pdf_bytes, filename
+
+            finally:
+                # Clean up temp file
+                if os.path.exists(temp_pdf_path):
+                    os.unlink(temp_pdf_path)
+
+        except Exception as e:
+            logger.error(f"❌ Error generating PDF with Playwright: {e}")
+            raise Exception(f"PDF generation failed: {str(e)}")
+
     def export_to_pdf(
         self, html_content: str, title: str = "document", document_type: str = "doc"
     ) -> Tuple[bytes, str]:
         """
-        Convert HTML to PDF using weasyprint
+        Convert HTML to PDF using weasyprint (legacy method)
 
         Args:
             html_content: HTML content to convert
@@ -496,9 +768,18 @@ class DocumentExportService:
         try:
             # Generate file based on format
             if format == "pdf":
-                file_bytes, filename = self.export_to_pdf(
-                    html_content, title, document_type
-                )
+                # Use Playwright for slide presentations (better quality)
+                # Use WeasyPrint for documents/notes (faster, simpler)
+                if document_type == "slide":
+                    logger.info("🎬 Using Playwright for slide PDF export")
+                    file_bytes, filename = await self.export_to_pdf_playwright(
+                        html_content, title, document_type
+                    )
+                else:
+                    logger.info("📄 Using WeasyPrint for document PDF export")
+                    file_bytes, filename = self.export_to_pdf(
+                        html_content, title, document_type
+                    )
                 content_type = "application/pdf"
             elif format == "docx":
                 file_bytes, filename = self.export_to_docx(html_content, title)
@@ -669,12 +950,15 @@ class DocumentExportService:
             padding: {element.get('padding', 8)}px;
             text-align: {text_align};
             transform: rotate({element.get('rotation', 0)}deg);
+            transform-origin: center;
             z-index: {element.get('zIndex', 1)};
             opacity: {element.get('opacity', 1)};
             display: flex;
             align-items: center;
             justify-content: {justify_content};
             overflow: hidden;
+            word-wrap: break-word;
+            white-space: pre-wrap;
         ">{element.get('content', '')}</div>
         """
 
@@ -693,6 +977,7 @@ class DocumentExportService:
                 object-fit: {element.get('objectFit', 'cover')};
                 border-radius: {element.get('borderRadius', 0)}px;
                 transform: rotate({element.get('rotation', 0)}deg);
+                transform-origin: center;
                 z-index: {element.get('zIndex', 1)};
                 opacity: {element.get('opacity', 1)};
             "
@@ -700,24 +985,96 @@ class DocumentExportService:
         """
 
         elif element_type == "video":
-            # PDF doesn't support video, show placeholder
-            return f"""
+            # Enhanced video handling for PDF export
+            video_id = element.get("videoId", "")
+            width = element.get("width", 560)
+            height = element.get("height", 315)
+            x = element.get("x", 0)
+            y = element.get("y", 0)
+            z_index = element.get("zIndex", 1)
+
+            if video_id:
+                # YouTube video - show thumbnail with play button overlay
+                # Use high quality thumbnail from YouTube
+                thumbnail_url = (
+                    f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                )
+                youtube_url = f"https://www.youtube.com/watch?v={video_id}"
+
+                return f"""
         <div class="overlay-video-placeholder" style="
             position: absolute;
-            left: {element.get('x', 0)}px;
-            top: {element.get('y', 0)}px;
-            width: {element.get('width', 400)}px;
-            height: {element.get('height', 300)}px;
-            background-color: #000;
-            border-radius: {element.get('borderRadius', 0)}px;
+            left: {x}px;
+            top: {y}px;
+            width: {width}px;
+            height: {height}px;
+            background: #000;
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: {z_index};
+        ">
+            <img src="{thumbnail_url}"
+                 alt="YouTube Video Thumbnail"
+                 style="width: 100%; height: 100%; object-fit: cover;" />
+            <div style="
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 80px;
+                height: 80px;
+                background: rgba(255, 0, 0, 0.9);
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            ">
+                <div style="
+                    width: 0;
+                    height: 0;
+                    border-left: 28px solid white;
+                    border-top: 18px solid transparent;
+                    border-bottom: 18px solid transparent;
+                    margin-left: 6px;
+                "></div>
+            </div>
+            <div style="
+                position: absolute;
+                bottom: 8px;
+                left: 8px;
+                right: 8px;
+                background: rgba(0, 0, 0, 0.7);
+                color: white;
+                padding: 8px 12px;
+                border-radius: 4px;
+                font-size: 14px;
+                font-family: Arial, sans-serif;
+                text-align: center;
+            ">
+                🎥 YouTube: {youtube_url}
+            </div>
+        </div>
+        """
+            else:
+                # Generic video placeholder
+                return f"""
+        <div class="overlay-video-placeholder" style="
+            position: absolute;
+            left: {x}px;
+            top: {y}px;
+            width: {width}px;
+            height: {height}px;
+            background-color: #1a1a1a;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-direction: column;
             color: white;
-            font-size: 32px;
-            z-index: {element.get('zIndex', 1)};
+            z-index: {z_index};
         ">
-            ▶ Video
+            <div style="font-size: 64px; margin-bottom: 10px;">▶</div>
+            <div style="font-size: 24px; font-weight: bold;">Video</div>
         </div>
         """
 
@@ -738,6 +1095,7 @@ class DocumentExportService:
             border: {element.get('borderWidth', 0)}px {element.get('borderStyle', 'solid')} {element.get('borderColor', '#000')};
             border-radius: {border_radius};
             transform: rotate({element.get('rotation', 0)}deg);
+            transform-origin: center;
             z-index: {element.get('zIndex', 1)};
             opacity: {element.get('opacity', 1)};
         "></div>

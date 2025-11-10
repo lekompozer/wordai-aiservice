@@ -17,6 +17,27 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
     shared-mime-info \
+    # Playwright/Chromium dependencies
+    wget \
+    fonts-liberation \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libatspi2.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libwayland-client0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    xdg-utils \
     --no-install-recommends \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -31,6 +52,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Cài đặt google-genai và cerebras riêng để tránh anyio conflict
 RUN pip install --no-cache-dir google-genai==1.29.0 --force-reinstall
 RUN pip install --no-cache-dir cerebras-cloud-sdk==1.29.0
+
+# Install Playwright browsers (Chromium for PDF generation)
+RUN playwright install chromium --with-deps
 
 # Copy toàn bộ code
 COPY . .
