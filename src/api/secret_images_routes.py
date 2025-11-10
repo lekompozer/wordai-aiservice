@@ -1435,8 +1435,8 @@ async def share_secret_image(
                 status_code=403, detail="Only owner can share secret image"
             )
 
-        # Verify recipient exists and get email
-        recipient = db["users"].find_one({"firebase_uid": request.recipientId})
+        # Verify recipient exists by email and get uid
+        recipient = db["users"].find_one({"email": request.recipientId})
         if not recipient:
             raise HTTPException(status_code=404, detail="Recipient not found")
 
@@ -1446,15 +1446,16 @@ async def share_secret_image(
                 detail="Recipient has not set up E2EE (no public key)",
             )
 
-        recipient_email = recipient.get("email", "")
+        recipient_uid = recipient.get("uid")  # Get uid from user record
+        recipient_email = request.recipientId  # Email from request
 
         # Update library_files: add recipient to shared_with and store encrypted key
         db["library_files"].update_one(
             {"library_id": image_id},
             {
-                "$addToSet": {"shared_with": request.recipientId},
+                "$addToSet": {"shared_with": recipient_uid},  # Use uid
                 "$set": {
-                    f"encrypted_file_keys.{request.recipientId}": request.encryptedFileKeyForRecipient,
+                    f"encrypted_file_keys.{recipient_uid}": request.encryptedFileKeyForRecipient,  # Use uid as key
                     "updated_at": datetime.utcnow(),
                 },
             },
@@ -1469,7 +1470,7 @@ async def share_secret_image(
         existing_share = db["file_shares"].find_one(
             {
                 "owner_id": user_id,
-                "recipient_id": request.recipientId,
+                "recipient_id": recipient_uid,  # Use uid
                 "file_id": image_id,
                 "file_type": "library",
             }
@@ -1507,13 +1508,13 @@ async def share_secret_image(
             logger.info(f"✅ Created share {share_id} for secret image {image_id}")
 
         logger.info(
-            f"✅ Shared secret image {image_id} with user {request.recipientId}"
+            f"✅ Shared secret image {image_id} with user {recipient_email} (uid: {recipient_uid})"
         )
 
         return {
             "success": True,
             "message": "Secret image shared successfully",
-            "recipient_id": request.recipientId,
+            "recipient_id": recipient_email,  # Return email as expected by frontend
             "share_id": share_id,
         }
 
@@ -1524,10 +1525,10 @@ async def share_secret_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/{image_id}/revoke-share/{user_id_to_revoke}")
+@router.delete("/{image_id}/revoke-share/{recipient_email}")
 async def revoke_secret_image_share(
     image_id: str,
-    user_id_to_revoke: str,
+    recipient_email: str,
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
@@ -1540,7 +1541,7 @@ async def revoke_secret_image_share(
 
     Path Parameters:
         image_id: Secret image ID
-        user_id_to_revoke: Firebase UID of user to revoke access from
+        recipient_email: Email of user to revoke access from
 
     Returns:
         {
@@ -1552,6 +1553,13 @@ async def revoke_secret_image_share(
     db = get_mongodb()
 
     try:
+        # Get recipient uid from email
+        recipient = db["users"].find_one({"email": recipient_email})
+        if not recipient:
+            raise HTTPException(status_code=404, detail="Recipient not found")
+        
+        recipient_uid = recipient.get("uid")
+
         # Find the secret image
         image = db["library_files"].find_one(
             {"library_id": image_id, "file_type": "image", "is_encrypted": True}
@@ -1563,21 +1571,21 @@ async def revoke_secret_image_share(
         if image["owner_id"] != user_id:
             raise HTTPException(status_code=403, detail="Only owner can revoke access")
 
-        # Remove from library_files: shared_with and delete encrypted key
+        # Remove from library_files: shared_with and delete encrypted key (using uid)
         db["library_files"].update_one(
             {"library_id": image_id},
             {
-                "$pull": {"shared_with": user_id_to_revoke},
-                "$unset": {f"encrypted_file_keys.{user_id_to_revoke}": ""},
+                "$pull": {"shared_with": recipient_uid},
+                "$unset": {f"encrypted_file_keys.{recipient_uid}": ""},
                 "$set": {"updated_at": datetime.utcnow()},
             },
         )
 
-        # Deactivate share in file_shares collection
+        # Deactivate share in file_shares collection (using uid)
         share_result = db["file_shares"].update_one(
             {
                 "owner_id": user_id,
-                "recipient_id": user_id_to_revoke,
+                "recipient_id": recipient_uid,
                 "file_id": image_id,
                 "file_type": "library",
             },
@@ -1585,7 +1593,7 @@ async def revoke_secret_image_share(
         )
 
         logger.info(
-            f"✅ Revoked access to secret image {image_id} from user {user_id_to_revoke} "
+            f"✅ Revoked access to secret image {image_id} from user {recipient_email} (uid: {recipient_uid}) "
             f"(library_files updated, file_shares deactivated: {share_result.modified_count > 0})"
         )
 

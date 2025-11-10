@@ -518,10 +518,20 @@ async def access_shared_file(
                 # Add encryption metadata for Secret Images
                 encrypted_file_keys = library_file.get("encrypted_file_keys", {})
 
+                logger.info(
+                    f"🔍 Secret image access attempt: "
+                    f"user_id={user_id}, "
+                    f"file_id={file_id}, "
+                    f"available_keys={list(encrypted_file_keys.keys())}"
+                )
+
                 # Get recipient's encrypted file key
                 recipient_encrypted_key = encrypted_file_keys.get(user_id)
 
                 if not recipient_encrypted_key:
+                    logger.error(
+                        f"❌ Missing encrypted key: user_id={user_id} not in {list(encrypted_file_keys.keys())}"
+                    )
                     raise HTTPException(
                         status_code=403,
                         detail="You don't have decryption key for this secret image",
