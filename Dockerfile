@@ -17,26 +17,42 @@ RUN apt-get update && apt-get install -y \
     libgdk-pixbuf-2.0-0 \
     libffi-dev \
     shared-mime-info \
-    # Playwright/Chromium dependencies
+    # Playwright/Chromium dependencies (comprehensive list)
     wget \
+    ca-certificates \
     fonts-liberation \
+    fonts-noto-color-emoji \
+    fonts-unifont \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
     libatspi2.0-0 \
+    libcairo2 \
     libcups2 \
     libdbus-1-3 \
     libdrm2 \
     libgbm1 \
+    libglib2.0-0 \
     libgtk-3-0 \
     libnspr4 \
     libnss3 \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
     libwayland-client0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
     libxcomposite1 \
+    libxcursor1 \
     libxdamage1 \
+    libxext6 \
     libxfixes3 \
+    libxi6 \
     libxkbcommon0 \
     libxrandr2 \
+    libxrender1 \
+    libxss1 \
+    libxtst6 \
     xdg-utils \
     --no-install-recommends \
     && apt-get clean \
@@ -53,8 +69,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 RUN pip install --no-cache-dir google-genai==1.29.0 --force-reinstall
 RUN pip install --no-cache-dir cerebras-cloud-sdk==1.29.0
 
-# Install Playwright browsers (Chromium for PDF generation)
-RUN playwright install chromium --with-deps
+# Install Playwright browsers (Chromium only, deps already installed above)
+RUN playwright install chromium
 
 # Copy toàn bộ code
 COPY . .
