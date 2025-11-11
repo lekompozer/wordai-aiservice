@@ -901,4 +901,81 @@ async def get_top_active_users(
         raise HTTPException(status_code=500, detail="Failed to get user leaderboard")
 
 
+@router.get("/tags")
+async def get_popular_tags(
+    limit: int = Query(10, ge=1, le=50, description="Number of tags to return"),
+    min_tests: int = Query(1, ge=1, description="Minimum number of tests per tag"),
+):
+    """
+    Get popular tags sorted by number of tests
+
+    Returns tags with test counts for filtering UI
+    Supports pagination via limit parameter (10, 20, 30, etc.)
+    """
+    try:
+        db = get_database()
+
+        # Aggregate tags from all public marketplace tests
+        pipeline = [
+            {
+                "$match": {
+                    "marketplace_config.is_public": True,
+                    "marketplace_config.tags": {"$exists": True, "$ne": []},
+                }
+            },
+            {"$unwind": "$marketplace_config.tags"},
+            {
+                "$group": {
+                    "_id": "$marketplace_config.tags",
+                    "test_count": {"$sum": 1},
+                    "test_ids": {"$addToSet": {"$toString": "$_id"}},
+                }
+            },
+            {"$match": {"test_count": {"$gte": min_tests}}},
+            {"$sort": {"test_count": -1}},
+            {"$limit": limit},
+            {
+                "$project": {
+                    "tag": "$_id",
+                    "test_count": 1,
+                    "sample_test_ids": {"$slice": ["$test_ids", 3]},
+                    "_id": 0,
+                }
+            },
+        ]
+
+        results = list(db.online_tests.aggregate(pipeline))
+
+        # Get total unique tags count
+        total_tags_pipeline = [
+            {
+                "$match": {
+                    "marketplace_config.is_public": True,
+                    "marketplace_config.tags": {"$exists": True, "$ne": []},
+                }
+            },
+            {"$unwind": "$marketplace_config.tags"},
+            {"$group": {"_id": "$marketplace_config.tags", "count": {"$sum": 1}}},
+            {"$match": {"count": {"$gte": min_tests}}},
+            {"$count": "total"},
+        ]
+
+        total_result = list(db.online_tests.aggregate(total_tags_pipeline))
+        total_tags = total_result[0]["total"] if total_result else 0
+
+        return {
+            "success": True,
+            "data": {
+                "tags": results,
+                "total_tags": total_tags,
+                "limit": limit,
+                "has_more": total_tags > limit,
+            },
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting popular tags: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get popular tags")
+
+
 # Note: Purchase, rating, and earnings endpoints will be added in next file

@@ -196,29 +196,58 @@ async def split_document(
             f"keep_original={request.keep_original}"
         )
 
-        # Get document from database
-        document = db_manager.db.documents.find_one(
-            {"document_id": document_id, "user_id": user_id}
+        # Get file from user_files (where uploaded files are stored)
+        file_doc = db_manager.db.user_files.find_one(
+            {"file_id": document_id, "user_id": user_id}
         )
 
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
+        # Backward compatibility: also try documents collection
+        if not file_doc:
+            document = db_manager.db.documents.find_one(
+                {"document_id": document_id, "user_id": user_id}
+            )
+            if document:
+                # Convert document format to file format
+                file_doc = {
+                    "file_id": document_id,
+                    "user_id": user_id,
+                    "filename": document.get("title", "Unknown.pdf"),
+                    "file_type": ".pdf",
+                    "r2_key": document.get("pdf_r2_path"),
+                    "total_pages": document.get("total_pages", 0),
+                }
 
-        # Check if document has PDF
-        pdf_r2_path = document.get("pdf_r2_path")
-        if not pdf_r2_path:
+        if not file_doc:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Check if file has R2 path
+        r2_key = file_doc.get("r2_key")
+        if not r2_key:
             raise HTTPException(
-                status_code=400, detail="Document does not have PDF file"
+                status_code=400, detail="File does not have R2 storage path"
             )
 
-        total_pages = document.get("total_pages", 0)
+        # Check if it's a PDF
+        file_type = file_doc.get("file_type", "")
+        if file_type.lower() != ".pdf":
+            raise HTTPException(
+                status_code=400, detail=f"Only PDF files can be split, got: {file_type}"
+            )
+
+        # Get total pages (may need to fetch from PDF if not stored)
+        total_pages = file_doc.get("total_pages", 0)
 
         # Download PDF from R2
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             r2_client = _get_r2_client()
-            pdf_content = r2_client.download_file(pdf_r2_path)
+            pdf_content = r2_client.download_file(r2_key)
             temp_pdf.write(pdf_content)
             temp_pdf_path = temp_pdf.name
+
+        # Get PDF info if total_pages not available
+        if total_pages == 0:
+            pdf_info = pdf_split_service.get_pdf_info(temp_pdf_path)
+            total_pages = pdf_info["total_pages"]
 
         try:
             split_parts = []
@@ -234,47 +263,46 @@ async def split_document(
                     temp_pdf_path, chunk_size
                 )
 
-                # Create documents for each chunk
+                # Create FILE for each chunk (not document!)
                 for idx, chunk_path in enumerate(chunk_files):
                     part_num = idx + 1
                     start_page = (idx * chunk_size) + 1
                     end_page = min((idx + 1) * chunk_size, total_pages)
                     pages_count = end_page - start_page + 1
 
-                    # Generate part document ID
-                    part_doc_id = f"{document_id}_part{part_num}"
-                    part_title = f"{document['title']} - Part {part_num}"
+                    # Generate part FILE ID (not document ID!)
+                    part_file_id = f"{document_id}_part{part_num}"
+                    original_filename = file_doc.get("filename", "Document")
+                    # Remove .pdf extension if present
+                    if original_filename.lower().endswith(".pdf"):
+                        original_filename = original_filename[:-4]
+                    part_filename = f"{original_filename} - Part {part_num}.pdf"
 
                     # Upload chunk to R2
                     with open(chunk_path, "rb") as f:
                         chunk_content = f.read()
 
-                    part_r2_path = f"documents/{user_id}/{part_doc_id}.pdf"
+                    part_r2_key = f"uploads/{user_id}/{part_file_id}.pdf"
                     r2_client = _get_r2_client()
                     r2_client.upload_file_object(
                         file_obj=chunk_content,
-                        remote_path=part_r2_path,
+                        remote_path=part_r2_key,
                         content_type="application/pdf",
                     )
 
-                    # Create part document in database
-                    part_document = {
-                        "document_id": part_doc_id,
+                    # Create FILE in user_files collection (hiển thị trong Upload Files!)
+                    part_file = {
+                        "file_id": part_file_id,
                         "user_id": user_id,
-                        "title": part_title,
-                        "description": f"Part {part_num} of {document['title']}",
-                        "document_type": document["document_type"],
-                        "content_html": f"<p>Pages {start_page}-{end_page}</p>",
-                        "created_at": datetime.now(),
-                        "updated_at": datetime.now(),
-                        # PDF info
-                        "total_pages": pages_count,
-                        "pdf_r2_path": part_r2_path,
-                        "pdf_file_size": len(chunk_content),
+                        "filename": part_filename,
+                        "file_type": ".pdf",
+                        "file_size": len(chunk_content),
+                        "r2_key": part_r2_key,
+                        "upload_date": datetime.now(),
+                        "last_modified": datetime.now(),
                         # Split info
                         "is_split_part": True,
-                        "original_document_id": document_id,
-                        "parent_document_id": document_id,
+                        "original_file_id": document_id,
                         "split_info": {
                             "start_page": start_page,
                             "end_page": end_page,
@@ -282,25 +310,23 @@ async def split_document(
                             "total_parts": len(chunk_files),
                             "split_mode": "auto",
                         },
-                        # AI processing (not done yet for parts)
-                        "ai_processed": False,
                     }
 
-                    db_manager.db.documents.insert_one(part_document)
+                    db_manager.db.user_files.insert_one(part_file)
 
                     split_parts.append(
                         SplitDocumentPart(
-                            document_id=part_doc_id,
-                            title=part_title,
+                            document_id=part_file_id,  # Return as file_id
+                            title=part_filename,
                             pages=f"{start_page}-{end_page}",
                             pages_count=pages_count,
-                            r2_path=part_r2_path,
+                            r2_path=part_r2_key,
                             file_size_mb=round(len(chunk_content) / (1024 * 1024), 2),
                             created_at=datetime.now().isoformat(),
                         )
                     )
 
-                    logger.info(f"✅ Created part {part_num}: {part_doc_id}")
+                    logger.info(f"✅ Created file part {part_num}: {part_file_id}")
 
                 # Cleanup chunk files
                 for chunk_path in chunk_files:
@@ -339,43 +365,39 @@ async def split_document(
                         part_pdf_path,
                     )
 
-                    # Generate part document ID
-                    part_doc_id = f"{document_id}_part{part_num}"
-                    part_title = range_info.title
+                    # Generate part FILE ID (not document ID!)
+                    part_file_id = f"{document_id}_part{part_num}"
+                    part_filename = f"{range_info.title}.pdf"
 
                     # Upload to R2
                     with open(part_pdf_path, "rb") as f:
                         part_content = f.read()
 
-                    part_r2_path = f"documents/{user_id}/{part_doc_id}.pdf"
+                    part_r2_key = f"uploads/{user_id}/{part_file_id}.pdf"
                     r2_client = _get_r2_client()
                     r2_client.upload_file_object(
                         file_obj=part_content,
-                        remote_path=part_r2_path,
+                        remote_path=part_r2_key,
                         content_type="application/pdf",
                     )
 
                     pages_count = range_info.end_page - range_info.start_page + 1
 
-                    # Create part document
-                    part_document = {
-                        "document_id": part_doc_id,
+                    # Create FILE in user_files collection (hiển thị trong Upload Files!)
+                    part_file = {
+                        "file_id": part_file_id,
                         "user_id": user_id,
-                        "title": part_title,
+                        "filename": part_filename,
+                        "file_type": ".pdf",
+                        "file_size": len(part_content),
+                        "r2_key": part_r2_key,
+                        "upload_date": datetime.now(),
+                        "last_modified": datetime.now(),
                         "description": range_info.description
                         or f"Pages {range_info.start_page}-{range_info.end_page}",
-                        "document_type": document["document_type"],
-                        "content_html": f"<p>Pages {range_info.start_page}-{range_info.end_page}</p>",
-                        "created_at": datetime.now(),
-                        "updated_at": datetime.now(),
-                        # PDF info
-                        "total_pages": pages_count,
-                        "pdf_r2_path": part_r2_path,
-                        "pdf_file_size": len(part_content),
                         # Split info
                         "is_split_part": True,
-                        "original_document_id": document_id,
-                        "parent_document_id": document_id,
+                        "original_file_id": document_id,
                         "split_info": {
                             "start_page": range_info.start_page,
                             "end_page": range_info.end_page,
@@ -383,18 +405,17 @@ async def split_document(
                             "total_parts": len(request.split_ranges),
                             "split_mode": "manual",
                         },
-                        "ai_processed": False,
                     }
 
-                    db_manager.db.documents.insert_one(part_document)
+                    db_manager.db.user_files.insert_one(part_file)
 
                     split_parts.append(
                         SplitDocumentPart(
-                            document_id=part_doc_id,
-                            title=part_title,
+                            document_id=part_file_id,  # Return as file_id
+                            title=part_filename,
                             pages=f"{range_info.start_page}-{range_info.end_page}",
                             pages_count=pages_count,
-                            r2_path=part_r2_path,
+                            r2_path=part_r2_key,
                             file_size_mb=round(len(part_content) / (1024 * 1024), 2),
                             created_at=datetime.now().isoformat(),
                         )
@@ -406,39 +427,61 @@ async def split_document(
                     except Exception as e:
                         logger.warning(f"Failed to cleanup part: {e}")
 
-                    logger.info(f"✅ Created part {part_num}: {part_doc_id}")
+                    logger.info(f"✅ Created file part {part_num}: {part_file_id}")
 
-            # === UPDATE DOCUMENTS COUNT (split created multiple documents) ===
+            # === UPDATE FILES COUNT (split created multiple files) ===
             try:
                 subscription_service = get_subscription_service()
                 num_parts = len(split_parts)
                 await subscription_service.update_usage(
                     user_id=user_id,
-                    update=SubscriptionUsageUpdate(documents=num_parts),
+                    update=SubscriptionUsageUpdate(files=num_parts),
                 )
                 logger.info(
-                    f"📊 Updated document counter (+{num_parts} documents created from split)"
+                    f"📊 Updated file counter (+{num_parts} files created from split)"
                 )
             except Exception as usage_error:
-                logger.error(f"❌ Error updating document counter: {usage_error}")
+                logger.error(f"❌ Error updating file counter: {usage_error}")
 
-            # Update original document with child IDs
-            child_ids = [part.document_id for part in split_parts]
-            db_manager.db.documents.update_one(
-                {"document_id": document_id},
+            # Update original file with child IDs (if it's in user_files)
+            child_ids = [
+                part.document_id for part in split_parts
+            ]  # These are file_ids now
+
+            # Try to update in user_files first
+            result = db_manager.db.user_files.update_one(
+                {"file_id": document_id},
                 {
                     "$set": {
-                        "child_document_ids": child_ids,
-                        "updated_at": datetime.now(),
+                        "child_file_ids": child_ids,
+                        "last_modified": datetime.now(),
                     }
                 },
             )
 
+            # If not found in user_files, try documents collection (backward compatibility)
+            if result.matched_count == 0:
+                db_manager.db.documents.update_one(
+                    {"document_id": document_id},
+                    {
+                        "$set": {
+                            "child_document_ids": child_ids,
+                            "updated_at": datetime.now(),
+                        }
+                    },
+                )
+
             # Delete original if not keeping
             original_kept = request.keep_original
             if not request.keep_original:
-                db_manager.db.documents.delete_one({"document_id": document_id})
-                logger.info(f"🗑️ Deleted original document: {document_id}")
+                # Try to delete from user_files first
+                delete_result = db_manager.db.user_files.delete_one(
+                    {"file_id": document_id}
+                )
+                if delete_result.deleted_count == 0:
+                    # If not in user_files, try documents
+                    db_manager.db.documents.delete_one({"document_id": document_id})
+                logger.info(f"🗑️ Deleted original file: {document_id}")
 
             # Calculate processing time
             processing_time = (datetime.now() - start_time).total_seconds()
@@ -1077,7 +1120,9 @@ async def _run_conversion_job(
             return
 
         # Process with AI (slow path)
-        logger.info(f"🤖 Job {job_id}: Starting AI processing ({request.target_type}, {request.chunk_size} pages/chunk)")
+        logger.info(
+            f"🤖 Job {job_id}: Starting AI processing ({request.target_type}, {request.chunk_size} pages/chunk)"
+        )
         job_manager.update_progress(job_id, 30)
 
         # Download PDF from R2
@@ -1101,9 +1146,12 @@ async def _run_conversion_job(
 
         # Extract page numbers from final HTML
         import re
+
         page_numbers = re.findall(r'data-page-number="(\d+)"', html_content)
 
-        logger.info(f"✅ Job {job_id}: AI processing complete - {len(page_numbers)} pages, {len(html_content)} chars")
+        logger.info(
+            f"✅ Job {job_id}: AI processing complete - {len(page_numbers)} pages, {len(html_content)} chars"
+        )
         logger.debug(f"Job {job_id}: Metadata - {metadata}")
 
         job_manager.update_progress(job_id, 80)
@@ -1148,9 +1196,11 @@ async def _run_conversion_job(
                 amount=points_to_deduct,
                 service="pdf_ai_conversion",
                 resource_id=doc_id,
-                description=f"AI PDF conversion: {file_doc.get('filename', 'Unknown')} ({successful_chunks} AI calls)"
+                description=f"AI PDF conversion: {file_doc.get('filename', 'Unknown')} ({successful_chunks} AI calls)",
             )
-            logger.info(f"💰 Deducted {points_to_deduct} points ({successful_chunks} AI calls × 2 points)")
+            logger.info(
+                f"💰 Deducted {points_to_deduct} points ({successful_chunks} AI calls × 2 points)"
+            )
         except ValueError as e:
             logger.error(f"❌ Points deduction failed: {e}")
             # Continue anyway - document already created
