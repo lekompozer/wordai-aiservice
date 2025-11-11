@@ -153,15 +153,19 @@ class GenerateTestRequest(BaseModel):
         description="Test description for test takers (optional, user-facing)",
         max_length=1000,
     )
-    user_query: str = Field(
-        ...,
-        description="Instructions to AI: what topics/concepts to test (e.g., 'Kiến thức về bất động sản', 'Python programming basics')",
+    user_query: Optional[str] = Field(
+        None,
+        description="Instructions to AI: what topics/concepts to test (optional for files, can be inferred from content)",
         min_length=10,
         max_length=500,
     )
     language: str = Field(
         default="vi",
         description="Language for questions and answers: 'vi' (Vietnamese), 'en' (English), 'zh' (Chinese)",
+    )
+    difficulty: Optional[str] = Field(
+        None,
+        description="Question difficulty level: 'easy', 'medium', 'hard' (optional, AI can infer if not provided)",
     )
     num_questions: int = Field(..., description="Number of questions", ge=1, le=100)
     time_limit_minutes: int = Field(
@@ -307,6 +311,7 @@ async def generate_test_background(
     title: str,
     user_query: str,
     language: str,
+    difficulty: Optional[str],
     num_questions: int,
     creator_id: str,
     source_type: str,
@@ -353,6 +358,7 @@ async def generate_test_background(
             content=content,
             user_query=user_query,
             language=language,
+            difficulty=difficulty,
             num_questions=num_questions,
             gemini_pdf_bytes=gemini_pdf_bytes,
             num_options=num_options,
@@ -428,8 +434,16 @@ async def generate_test(
         logger.info(f"   Source: {request.source_type}/{request.source_id}")
         logger.info(f"   Title: {request.title}")
         logger.info(f"   Description: {request.description or '(none)'}")
-        logger.info(f"   Query: {request.user_query}")
+
+        # Set default user_query if not provided
+        if not request.user_query or request.user_query.strip() == "":
+            request.user_query = f"Generate comprehensive test questions covering all key concepts and important information from this document. Questions should assess understanding of the main topics, details, and core knowledge presented in the material."
+            logger.info(f"   Query: (auto-generated default)")
+        else:
+            logger.info(f"   Query: {request.user_query}")
+
         logger.info(f"   Language: {request.language}")
+        logger.info(f"   Difficulty: {request.difficulty or '(auto)'}")
         logger.info(
             f"   Questions: {request.num_questions}, Time: {request.time_limit_minutes}min"
         )
@@ -499,66 +513,138 @@ async def generate_test(
                     status_code=404, detail=f"File not found: {request.source_id}"
                 )
 
-            # Check if file is PDF (required for Gemini File API)
+            # Check file type and process accordingly
             file_type = file_info.get("file_type", "").lower()
-            if file_type != ".pdf":
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Only PDF files are supported for direct file processing. Your file is {file_type}. Please convert to document first.",
-                )
-
-            # Download PDF from R2
             r2_key = file_info.get("r2_key")
+
             if not r2_key:
                 raise HTTPException(
                     status_code=500, detail="File R2 key not found in database"
                 )
 
-            logger.info(f"📥 Downloading PDF from R2 for Gemini File API: {r2_key}")
+            logger.info(f"📄 Processing file type: {file_type}")
 
-            # Download PDF to temp file (ONLY download, no need to parse)
-            # Gemini File API will handle PDF directly
-            temp_pdf_path = await FileDownloadService._download_file_from_r2_with_boto3(
-                r2_key=r2_key, file_type="pdf"
-            )
+            # ========== PDF FILES: Send directly to Gemini (no parsing) ==========
+            if file_type == ".pdf":
+                logger.info(f"📥 Downloading PDF from R2 for Gemini File API: {r2_key}")
 
-            if not temp_pdf_path:
-                raise HTTPException(
-                    status_code=500, detail="Failed to download PDF from R2"
+                # Download PDF to temp file (ONLY download, no need to parse)
+                # Gemini File API will handle PDF directly (including image-based PDFs)
+                temp_pdf_path = (
+                    await FileDownloadService._download_file_from_r2_with_boto3(
+                        r2_key=r2_key, file_type="pdf"
+                    )
                 )
 
-            logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
+                if not temp_pdf_path:
+                    raise HTTPException(
+                        status_code=500, detail="Failed to download PDF from R2"
+                    )
 
-            # Read PDF content as bytes (NEW API approach)
-            logger.info(f"� Reading PDF content for Gemini...")
+                logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
 
-            try:
-                with open(temp_pdf_path, "rb") as f:
-                    pdf_content = f.read()
+                # Read PDF content as bytes (NEW API approach)
+                logger.info(f"📖 Reading PDF content for Gemini...")
 
-                logger.info(f"✅ PDF content read: {len(pdf_content)} bytes")
+                try:
+                    with open(temp_pdf_path, "rb") as f:
+                        pdf_content = f.read()
 
-                # Store PDF bytes for Gemini (will be passed directly to model)
-                gemini_pdf_bytes = pdf_content
+                    logger.info(f"✅ PDF content read: {len(pdf_content)} bytes")
 
-                # Use placeholder content
-                content = f"[PDF file ready for Gemini: {len(pdf_content)} bytes]"
+                    # Store PDF bytes for Gemini (will be passed directly to model)
+                    gemini_pdf_bytes = pdf_content
 
-            except Exception as e:
-                logger.error(f"❌ Failed to read PDF: {e}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to process PDF: {str(e)}",
+                    # Use placeholder content
+                    content = f"[PDF file ready for Gemini: {len(pdf_content)} bytes]"
+
+                except Exception as e:
+                    logger.error(f"❌ Failed to read PDF: {e}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to process PDF: {str(e)}",
+                    )
+
+                finally:
+                    # Cleanup temp file
+                    if temp_pdf_path and os.path.exists(temp_pdf_path):
+                        try:
+                            os.unlink(temp_pdf_path)
+                            logger.info(f"🗑️ Cleaned up temp file: {temp_pdf_path}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Failed to cleanup temp file: {e}")
+
+            # ========== TEXT FILES: .md, .docx, .txt - Parse to text ==========
+            elif file_type in [".md", ".docx", ".txt", ".doc"]:
+                logger.info(f"📥 Downloading text file from R2: {r2_key}")
+
+                # Download file to temp location
+                temp_file_path = (
+                    await FileDownloadService._download_file_from_r2_with_boto3(
+                        r2_key=r2_key, file_type=file_type.replace(".", "")
+                    )
                 )
 
-            finally:
-                # Cleanup temp file
-                if temp_pdf_path and os.path.exists(temp_pdf_path):
-                    try:
-                        os.unlink(temp_pdf_path)
-                        logger.info(f"🗑️ Cleaned up temp file: {temp_pdf_path}")
-                    except Exception as e:
-                        logger.warning(f"⚠️ Failed to cleanup temp file: {e}")
+                if not temp_file_path:
+                    raise HTTPException(
+                        status_code=500, detail="Failed to download file from R2"
+                    )
+
+                try:
+                    # Parse file to text based on type
+                    if file_type == ".txt":
+                        with open(temp_file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+
+                    elif file_type == ".md":
+                        with open(temp_file_path, "r", encoding="utf-8") as f:
+                            content = f.read()
+
+                    elif file_type in [".docx", ".doc"]:
+                        # Use python-docx to extract text
+                        try:
+                            from docx import Document
+
+                            doc = Document(temp_file_path)
+                            content = "\n".join([para.text for para in doc.paragraphs])
+                        except Exception as e:
+                            logger.error(f"❌ Failed to parse DOCX: {e}")
+                            raise HTTPException(
+                                status_code=500,
+                                detail=f"Failed to parse DOCX file: {str(e)}",
+                            )
+
+                    logger.info(
+                        f"✅ Parsed {file_type} file: {len(content)} characters"
+                    )
+
+                    if not content or len(content.strip()) < 50:
+                        raise HTTPException(
+                            status_code=400,
+                            detail="File content is too short or empty",
+                        )
+
+                except Exception as e:
+                    logger.error(f"❌ Failed to process file: {e}")
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to process {file_type} file: {str(e)}",
+                    )
+
+                finally:
+                    # Cleanup temp file
+                    if temp_file_path and os.path.exists(temp_file_path):
+                        try:
+                            os.unlink(temp_file_path)
+                            logger.info(f"🗑️ Cleaned up temp file: {temp_file_path}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Failed to cleanup temp file: {e}")
+
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported file type: {file_type}. Supported types: PDF (sent directly to Gemini), .md, .docx, .txt (parsed to text)",
+                )
 
         else:
             raise HTTPException(
@@ -610,6 +696,7 @@ async def generate_test(
             title=request.title,
             user_query=request.user_query,
             language=request.language,
+            difficulty=request.difficulty,
             num_questions=request.num_questions,
             creator_id=user_info["uid"],
             source_type=request.source_type,

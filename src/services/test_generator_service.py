@@ -38,6 +38,7 @@ class TestGeneratorService:
         num_questions: int,
         document_content: str,
         language: str = "vi",
+        difficulty: Optional[str] = None,
         num_options: int = 4,
         num_correct_answers: int = 1,
     ) -> str:
@@ -50,6 +51,18 @@ class TestGeneratorService:
             "zh": "Generate all questions, options, and explanations in Chinese (Simplified).",
         }
         lang_instruction = language_map.get(language, language_map["vi"])
+
+        # Difficulty instructions
+        difficulty_map = {
+            "easy": "Create EASY questions that test basic understanding and recall of straightforward facts from the document. Questions should be simple and clear.",
+            "medium": "Create MEDIUM difficulty questions that test comprehension and application of concepts. Questions should require understanding relationships between ideas.",
+            "hard": "Create HARD questions that test deep analysis, synthesis, and critical thinking. Questions should be challenging and require thorough understanding of complex concepts.",
+        }
+        difficulty_instruction = ""
+        if difficulty and difficulty.lower() in difficulty_map:
+            difficulty_instruction = (
+                f"\n10. DIFFICULTY LEVEL: {difficulty_map[difficulty.lower()]}"
+            )
 
         # Generate option keys dynamically (A, B, C, D, E, F, G, H, I, J)
         option_keys = [chr(65 + i) for i in range(num_options)]  # 65 is ASCII for 'A'
@@ -91,7 +104,7 @@ class TestGeneratorService:
 6. All information used to create questions, answers, and explanations must come directly from the provided document.
 7. Each question must have exactly {num_options} options ({", ".join(option_keys)}).
 8. {correct_answer_instruction}
-9. Explanations should be clear and reference specific information from the document.
+9. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
 
 **DOCUMENT CONTENT:**
 ---
@@ -107,6 +120,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         content: str,
         user_query: str,
         language: str,
+        difficulty: Optional[str],
         num_questions: int,
         gemini_pdf_bytes: Optional[bytes] = None,
         num_options: int = 4,
@@ -124,6 +138,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             num_questions,
             content if not gemini_pdf_bytes else "",
             language,
+            difficulty=difficulty,
             num_options=num_options,
             num_correct_answers=num_correct_answers,
         )
