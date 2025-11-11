@@ -19,7 +19,7 @@ import config.config as config
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/marketplace", tags=["Marketplace Transactions"])
+router = APIRouter(prefix="/api/v1/marketplace", tags=["Marketplace Transactions"])
 
 
 # MongoDB connection helper
