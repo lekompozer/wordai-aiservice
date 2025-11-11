@@ -141,6 +141,68 @@ class R2Client:
         # Upload using put_object (allows setting ContentDisposition)
         self.s3_client.put_object(**put_params)
 
+    async def upload_file_from_bytes(
+        self,
+        file_bytes: bytes,
+        remote_path: str,
+        content_type: str = None,
+        content_disposition: str = None,
+    ) -> bool:
+        """
+        Upload a file from bytes to R2.
+
+        Args:
+            file_bytes: File content as bytes
+            remote_path: Path to store file in R2 bucket
+            content_type: MIME type of the file (optional)
+            content_disposition: Content-Disposition header (optional)
+
+        Returns:
+            True if upload successful, False otherwise
+        """
+        try:
+            # Upload file using sync client in thread pool
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(
+                None,
+                self._upload_bytes_sync,
+                file_bytes,
+                remote_path,
+                content_type,
+                content_disposition,
+            )
+
+            logger.debug(f"Successfully uploaded bytes to {remote_path}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error uploading bytes to {remote_path}: {e}")
+            return False
+
+    def _upload_bytes_sync(
+        self,
+        file_bytes: bytes,
+        remote_path: str,
+        content_type: str = None,
+        content_disposition: str = None,
+    ):
+        """Synchronous bytes upload (runs in thread pool)"""
+        # Build put_object parameters
+        put_params = {
+            "Bucket": self.bucket_name,
+            "Key": remote_path,
+            "Body": file_bytes,
+        }
+
+        # Add optional parameters
+        if content_type:
+            put_params["ContentType"] = content_type
+        if content_disposition:
+            put_params["ContentDisposition"] = content_disposition
+
+        # Upload using put_object
+        self.s3_client.put_object(**put_params)
+
     async def download_file(self, remote_path: str, local_path: str) -> bool:
         """
         Download a file from R2 to local filesystem.

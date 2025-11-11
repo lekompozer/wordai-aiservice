@@ -1,0 +1,629 @@
+"""
+Marketplace Transaction Routes - Phase 5
+Handle purchases, ratings, and earnings transfers
+
+Revenue Split: 80% creator, 20% platform
+"""
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+from typing import Optional, List
+from datetime import datetime, timezone
+from bson import ObjectId
+import logging
+import uuid
+
+from ..middleware.auth import verify_firebase_token as require_auth
+from pymongo import MongoClient
+import config.config as config
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/marketplace", tags=["Marketplace Transactions"])
+
+
+# MongoDB connection helper
+_mongo_client = None
+
+
+def get_database():
+    """Get MongoDB database instance"""
+    global _mongo_client
+    if _mongo_client is None:
+        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
+            config, "MONGODB_URI", "mongodb://localhost:27017"
+        )
+        _mongo_client = MongoClient(mongo_uri)
+    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
+    return _mongo_client[db_name]
+
+
+# ============================================================================
+# PYDANTIC MODELS
+# ============================================================================
+
+class PurchaseTestRequest(BaseModel):
+    """Purchase a marketplace test"""
+    pass  # test_id from path parameter
+
+
+class RatingRequest(BaseModel):
+    """Rate and comment on a test"""
+    rating: int = Field(..., ge=1, le=5, description="Rating 1-5 stars")
+    comment: Optional[str] = Field(None, max_length=1000, description="Optional comment")
+
+
+class TransferEarningsRequest(BaseModel):
+    """Transfer earnings from test sales to user wallet"""
+    amount_points: int = Field(..., gt=0, description="Points to transfer")
+
+
+# ============================================================================
+# PURCHASE ENDPOINT
+# ============================================================================
+
+@router.post("/tests/{test_id}/purchase")
+async def purchase_test(
+    test_id: str,
+    user_info: dict = Depends(require_auth)
+):
+    """
+    Purchase a marketplace test
+    
+    Revenue Split:
+    - 80% goes to creator's marketplace earnings
+    - 20% goes to platform
+    
+    Transaction creates:
+    - test_purchases record
+    - 2x point_transactions (creator +80%, platform +20%)
+    - Updates test stats
+    """
+    try:
+        db = get_database()
+        user_id = user_info["uid"]
+        
+        # 1. Get test
+        test = db.online_tests.find_one({
+            "_id": ObjectId(test_id),
+            "marketplace_config.is_public": True
+        })
+        
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found or not published")
+        
+        creator_id = test["creator_id"]
+        price_points = test.get("marketplace_config", {}).get("price_points", 0)
+        
+        # 2. Check if user is creator
+        if user_id == creator_id:
+            raise HTTPException(status_code=400, detail="Cannot purchase your own test")
+        
+        # 3. Check if already purchased
+        existing_purchase = db.test_purchases.find_one({
+            "test_id": test_id,
+            "buyer_id": user_id
+        })
+        
+        if existing_purchase:
+            raise HTTPException(status_code=400, detail="You already purchased this test")
+        
+        # 4. Check user has enough points (if not free)
+        if price_points > 0:
+            user_points_doc = db.user_points.find_one({"user_id": user_id})
+            current_balance = user_points_doc.get("balance", 0) if user_points_doc else 0
+            
+            if current_balance < price_points:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Insufficient points. Required: {price_points}, Available: {current_balance}"
+                )
+            
+            # 5. Calculate revenue split
+            creator_earnings = int(price_points * 0.8)  # 80% to creator
+            platform_fee = price_points - creator_earnings  # 20% to platform
+            
+            # 6. Deduct points from buyer
+            db.user_points.update_one(
+                {"user_id": user_id},
+                {
+                    "$inc": {"balance": -price_points},
+                    "$set": {"updated_at": datetime.now(timezone.utc)}
+                },
+                upsert=True
+            )
+            
+            # 7. Add to creator's marketplace earnings (NOT wallet yet)
+            db.online_tests.update_one(
+                {"_id": ObjectId(test_id)},
+                {
+                    "$inc": {
+                        "marketplace_config.total_revenue": creator_earnings,
+                        "marketplace_config.total_purchases": 1
+                    },
+                    "$set": {"marketplace_config.updated_at": datetime.now(timezone.utc)}
+                }
+            )
+            
+            # 8. Record point transactions
+            now = datetime.now(timezone.utc)
+            purchase_id = str(uuid.uuid4())
+            
+            # Buyer deduction
+            db.point_transactions.insert_one({
+                "transaction_id": f"purchase_{purchase_id}_buyer",
+                "user_id": user_id,
+                "amount": -price_points,
+                "transaction_type": "test_purchase",
+                "description": f"Purchased test: {test.get('title', 'Untitled')}",
+                "metadata": {
+                    "test_id": test_id,
+                    "purchase_id": purchase_id
+                },
+                "created_at": now
+            })
+            
+            # Creator earnings (marketplace balance, not wallet)
+            db.point_transactions.insert_one({
+                "transaction_id": f"purchase_{purchase_id}_creator",
+                "user_id": creator_id,
+                "amount": creator_earnings,
+                "transaction_type": "test_sale_earnings",
+                "description": f"Sale earnings (80%): {test.get('title', 'Untitled')}",
+                "metadata": {
+                    "test_id": test_id,
+                    "purchase_id": purchase_id,
+                    "buyer_id": user_id,
+                    "original_amount": price_points,
+                    "revenue_share": "80%"
+                },
+                "created_at": now
+            })
+            
+            # Platform fee
+            db.point_transactions.insert_one({
+                "transaction_id": f"purchase_{purchase_id}_platform",
+                "user_id": "PLATFORM",
+                "amount": platform_fee,
+                "transaction_type": "platform_fee",
+                "description": f"Platform fee (20%): {test.get('title', 'Untitled')}",
+                "metadata": {
+                    "test_id": test_id,
+                    "purchase_id": purchase_id,
+                    "buyer_id": user_id,
+                    "creator_id": creator_id,
+                    "original_amount": price_points,
+                    "revenue_share": "20%"
+                },
+                "created_at": now
+            })
+        
+        else:
+            # Free test - just increment purchase count
+            db.online_tests.update_one(
+                {"_id": ObjectId(test_id)},
+                {
+                    "$inc": {"marketplace_config.total_purchases": 1},
+                    "$set": {"marketplace_config.updated_at": datetime.now(timezone.utc)}
+                }
+            )
+            purchase_id = str(uuid.uuid4())
+        
+        # 9. Create purchase record
+        purchase_doc = {
+            "purchase_id": purchase_id,
+            "test_id": test_id,
+            "buyer_id": user_id,
+            "creator_id": creator_id,
+            "price_paid": price_points,
+            "creator_earnings": int(price_points * 0.8) if price_points > 0 else 0,
+            "platform_fee": price_points - int(price_points * 0.8) if price_points > 0 else 0,
+            "version_purchased": test.get("marketplace_config", {}).get("current_version", "v1"),
+            "purchased_at": datetime.now(timezone.utc)
+        }
+        
+        db.test_purchases.insert_one(purchase_doc)
+        
+        logger.info(f"User {user_id} purchased test {test_id} for {price_points} points (80/20 split)")
+        
+        return {
+            "success": True,
+            "message": "Test purchased successfully",
+            "data": {
+                "purchase_id": purchase_id,
+                "test_id": test_id,
+                "price_paid": price_points,
+                "creator_earnings": purchase_doc["creator_earnings"],
+                "platform_fee": purchase_doc["platform_fee"],
+                "version": purchase_doc["version_purchased"],
+                "purchased_at": purchase_doc["purchased_at"]
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error purchasing test: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to purchase test: {str(e)}")
+
+
+# ============================================================================
+# RATING ENDPOINTS
+# ============================================================================
+
+@router.post("/tests/{test_id}/ratings")
+async def rate_test(
+    test_id: str,
+    request: RatingRequest,
+    user_info: dict = Depends(require_auth)
+):
+    """
+    Rate and comment on a test (must have purchased)
+    Updates test's avg_rating and rating_count
+    """
+    try:
+        db = get_database()
+        user_id = user_info["uid"]
+        
+        # 1. Validate test exists and is published
+        test = db.online_tests.find_one({
+            "_id": ObjectId(test_id),
+            "marketplace_config.is_public": True
+        })
+        
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found or not published")
+        
+        # 2. Check if user purchased (or is creator - creators can't rate their own test)
+        if user_id == test["creator_id"]:
+            raise HTTPException(status_code=400, detail="Cannot rate your own test")
+        
+        purchase = db.test_purchases.find_one({
+            "test_id": test_id,
+            "buyer_id": user_id
+        })
+        
+        if not purchase:
+            raise HTTPException(status_code=400, detail="Must purchase test before rating")
+        
+        # 3. Check if already rated
+        existing_rating = db.test_ratings.find_one({
+            "test_id": test_id,
+            "user_id": user_id
+        })
+        
+        now = datetime.now(timezone.utc)
+        rating_id = str(uuid.uuid4())
+        
+        if existing_rating:
+            # Update existing rating
+            old_rating = existing_rating["rating"]
+            
+            db.test_ratings.update_one(
+                {"_id": existing_rating["_id"]},
+                {
+                    "$set": {
+                        "rating": request.rating,
+                        "comment": request.comment,
+                        "updated_at": now
+                    }
+                }
+            )
+            
+            # Recalculate average
+            all_ratings = list(db.test_ratings.find({"test_id": test_id}))
+            total_rating = sum(r["rating"] for r in all_ratings)
+            avg_rating = total_rating / len(all_ratings)
+            
+            db.online_tests.update_one(
+                {"_id": ObjectId(test_id)},
+                {
+                    "$set": {
+                        "marketplace_config.avg_rating": round(avg_rating, 2),
+                        "marketplace_config.updated_at": now
+                    }
+                }
+            )
+            
+            logger.info(f"Updated rating for test {test_id} by user {user_id}")
+            
+            return {
+                "success": True,
+                "message": "Rating updated successfully",
+                "data": {
+                    "rating_id": str(existing_rating["_id"]),
+                    "test_id": test_id,
+                    "rating": request.rating,
+                    "old_rating": old_rating,
+                    "new_avg_rating": round(avg_rating, 2)
+                }
+            }
+        
+        else:
+            # Create new rating
+            rating_doc = {
+                "rating_id": rating_id,
+                "test_id": test_id,
+                "user_id": user_id,
+                "rating": request.rating,
+                "comment": request.comment,
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            db.test_ratings.insert_one(rating_doc)
+            
+            # Recalculate average
+            all_ratings = list(db.test_ratings.find({"test_id": test_id}))
+            total_rating = sum(r["rating"] for r in all_ratings)
+            avg_rating = total_rating / len(all_ratings)
+            rating_count = len(all_ratings)
+            
+            db.online_tests.update_one(
+                {"_id": ObjectId(test_id)},
+                {
+                    "$set": {
+                        "marketplace_config.avg_rating": round(avg_rating, 2),
+                        "marketplace_config.rating_count": rating_count,
+                        "marketplace_config.updated_at": now
+                    }
+                }
+            )
+            
+            logger.info(f"Created rating for test {test_id} by user {user_id}")
+            
+            return {
+                "success": True,
+                "message": "Rating created successfully",
+                "data": {
+                    "rating_id": rating_id,
+                    "test_id": test_id,
+                    "rating": request.rating,
+                    "new_avg_rating": round(avg_rating, 2),
+                    "rating_count": rating_count
+                }
+            }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error rating test: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to rate test")
+
+
+@router.get("/tests/{test_id}/ratings")
+async def get_test_ratings(
+    test_id: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    sort_by: str = Query("newest", regex="^(newest|oldest|highest|lowest)$")
+):
+    """
+    Get ratings for a test with pagination
+    """
+    try:
+        db = get_database()
+        
+        # Validate test exists
+        test = db.online_tests.find_one({
+            "_id": ObjectId(test_id),
+            "marketplace_config.is_public": True
+        })
+        
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+        
+        # Build sort
+        sort_map = {
+            "newest": [("created_at", -1)],
+            "oldest": [("created_at", 1)],
+            "highest": [("rating", -1), ("created_at", -1)],
+            "lowest": [("rating", 1), ("created_at", -1)]
+        }
+        
+        sort_order = sort_map.get(sort_by, sort_map["newest"])
+        
+        # Count total
+        total = db.test_ratings.count_documents({"test_id": test_id})
+        
+        # Fetch ratings
+        skip = (page - 1) * page_size
+        ratings = list(
+            db.test_ratings.find({"test_id": test_id})
+            .sort(sort_order)
+            .skip(skip)
+            .limit(page_size)
+        )
+        
+        # Format response with user info
+        results = []
+        for rating in ratings:
+            user = db.users.find_one({"uid": rating["user_id"]})
+            
+            results.append({
+                "rating_id": rating.get("rating_id", str(rating["_id"])),
+                "rating": rating["rating"],
+                "comment": rating.get("comment"),
+                "created_at": rating["created_at"],
+                "updated_at": rating.get("updated_at"),
+                "user": {
+                    "uid": rating["user_id"],
+                    "display_name": user.get("display_name", "Anonymous") if user else "Anonymous"
+                }
+            })
+        
+        total_pages = (total + page_size - 1) // page_size
+        
+        return {
+            "success": True,
+            "data": {
+                "ratings": results,
+                "summary": {
+                    "avg_rating": test.get("marketplace_config", {}).get("avg_rating", 0.0),
+                    "total_ratings": total
+                },
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total_items": total,
+                    "total_pages": total_pages,
+                    "has_next": page < total_pages,
+                    "has_prev": page > 1
+                }
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting ratings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get ratings")
+
+
+# ============================================================================
+# EARNINGS MANAGEMENT
+# ============================================================================
+
+@router.get("/me/earnings")
+async def get_my_earnings(
+    user_info: dict = Depends(require_auth)
+):
+    """
+    Get current user's marketplace earnings from all tests
+    Shows earnings still in marketplace (not yet transferred to wallet)
+    """
+    try:
+        db = get_database()
+        user_id = user_info["uid"]
+        
+        # Get all tests owned by user
+        tests = list(db.online_tests.find({"creator_id": user_id}))
+        
+        total_earnings = 0
+        test_breakdown = []
+        
+        for test in tests:
+            mc = test.get("marketplace_config", {})
+            if mc.get("is_public"):
+                test_earnings = mc.get("total_revenue", 0)
+                total_earnings += test_earnings
+                
+                test_breakdown.append({
+                    "test_id": str(test["_id"]),
+                    "title": test.get("title", "Untitled"),
+                    "total_revenue": test_earnings,
+                    "total_purchases": mc.get("total_purchases", 0),
+                    "avg_rating": mc.get("avg_rating", 0.0)
+                })
+        
+        return {
+            "success": True,
+            "data": {
+                "total_earnings": total_earnings,
+                "test_count": len(test_breakdown),
+                "tests": test_breakdown
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting earnings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get earnings")
+
+
+@router.post("/me/earnings/transfer")
+async def transfer_earnings_to_wallet(
+    request: TransferEarningsRequest,
+    user_info: dict = Depends(require_auth)
+):
+    """
+    Transfer earnings from marketplace to user's point wallet
+    Allows withdrawing sales revenue to use or cash out
+    """
+    try:
+        db = get_database()
+        user_id = user_info["uid"]
+        amount = request.amount_points
+        
+        # 1. Calculate total available earnings
+        tests = list(db.online_tests.find({"creator_id": user_id}))
+        total_earnings = sum(
+            test.get("marketplace_config", {}).get("total_revenue", 0)
+            for test in tests
+        )
+        
+        if amount > total_earnings:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Insufficient earnings. Available: {total_earnings}, Requested: {amount}"
+            )
+        
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be positive")
+        
+        # 2. Deduct from tests proportionally (FIFO by revenue)
+        remaining = amount
+        now = datetime.now(timezone.utc)
+        
+        for test in sorted(tests, key=lambda t: t.get("marketplace_config", {}).get("total_revenue", 0), reverse=True):
+            if remaining <= 0:
+                break
+            
+            test_revenue = test.get("marketplace_config", {}).get("total_revenue", 0)
+            if test_revenue > 0:
+                deduct = min(remaining, test_revenue)
+                
+                db.online_tests.update_one(
+                    {"_id": test["_id"]},
+                    {
+                        "$inc": {"marketplace_config.total_revenue": -deduct},
+                        "$set": {"marketplace_config.updated_at": now}
+                    }
+                )
+                
+                remaining -= deduct
+        
+        # 3. Add to user wallet
+        db.user_points.update_one(
+            {"user_id": user_id},
+            {
+                "$inc": {"balance": amount},
+                "$set": {"updated_at": now}
+            },
+            upsert=True
+        )
+        
+        # 4. Record transaction
+        transaction_id = str(uuid.uuid4())
+        db.point_transactions.insert_one({
+            "transaction_id": transaction_id,
+            "user_id": user_id,
+            "amount": amount,
+            "transaction_type": "earnings_transfer",
+            "description": f"Transferred marketplace earnings to wallet",
+            "metadata": {
+                "transfer_id": transaction_id
+            },
+            "created_at": now
+        })
+        
+        # 5. Get updated balance
+        updated_user_points = db.user_points.find_one({"user_id": user_id})
+        new_balance = updated_user_points.get("balance", 0) if updated_user_points else 0
+        
+        logger.info(f"Transferred {amount} points from marketplace to wallet for user {user_id}")
+        
+        return {
+            "success": True,
+            "message": "Earnings transferred to wallet successfully",
+            "data": {
+                "transferred_amount": amount,
+                "new_wallet_balance": new_balance,
+                "transaction_id": transaction_id
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error transferring earnings: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to transfer earnings")

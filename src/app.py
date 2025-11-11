@@ -146,6 +146,10 @@ from src.api.online_test_routes import router as online_test_router
 # ✅ ADDED: Test Sharing API for Online Test Phase 4 (Sharing & Collaboration)
 from src.api.test_sharing_routes import router as test_sharing_router
 
+# ✅ ADDED: Test Marketplace API for Online Test Phase 5 (Marketplace)
+from src.api.marketplace_routes import router as marketplace_router
+from src.api.marketplace_transactions_routes import router as marketplace_transactions_router
+
 # ✅ ADDED: WebSocket service for Online Test Phase 2 (Real-time auto-save)
 from src.services.test_websocket_service import get_websocket_service
 
@@ -634,6 +638,11 @@ def create_app() -> FastAPI:
     # ✅ ADDED: Test Sharing API - Online Test Phase 4 (Sharing & Collaboration)
     # IMPORTANT: Mount BEFORE online_test_router to prioritize specific routes like /shared-with-me
     app.include_router(test_sharing_router, tags=["Online Tests - Phase 4: Sharing"])
+
+    # ✅ ADDED: Test Marketplace API - Online Test Phase 5 (Marketplace)
+    # Mount marketplace routes before online_test_router for priority
+    app.include_router(marketplace_router, tags=["Online Tests - Phase 5: Marketplace"])
+    app.include_router(marketplace_transactions_router, tags=["Online Tests - Phase 5: Transactions"])
 
     # ✅ ADDED: Online Test API - Test generation and taking (Phase 1-3)
     app.include_router(online_test_router, tags=["Online Tests - Phase 1-3"])
