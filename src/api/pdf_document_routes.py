@@ -305,15 +305,20 @@ async def split_document(
 
                     # Create FILE in user_files collection (hiển thị trong Upload Files!)
                     # Inherit folder_id from original file (None = Root folder)
+                    now = datetime.now()
                     part_file = {
                         "file_id": part_file_id,
                         "user_id": user_id,
                         "filename": part_filename,
+                        "original_name": part_filename,  # Required for list_user_files
                         "file_type": ".pdf",
                         "file_size": len(chunk_content),
                         "r2_key": part_r2_key,
-                        "upload_date": datetime.now(),
-                        "last_modified": datetime.now(),
+                        "file_url": f"r2://{R2_BUCKET_NAME}/{part_r2_key}",  # Private URL placeholder
+                        "is_deleted": False,  # CRITICAL: Required for list_user_files query!
+                        "deleted_at": None,
+                        "uploaded_at": now,  # Use uploaded_at (not upload_date)
+                        "updated_at": now,  # Use updated_at (not last_modified)
                         "folder_id": file_doc.get(
                             "folder_id", None
                         ),  # Inherit from original, None = Root
@@ -405,15 +410,20 @@ async def split_document(
 
                     # Create FILE in user_files collection (hiển thị trong Upload Files!)
                     # Inherit folder_id from original file (None = Root folder)
+                    now = datetime.now()
                     part_file = {
                         "file_id": part_file_id,
                         "user_id": user_id,
                         "filename": part_filename,
+                        "original_name": part_filename,  # Required for list_user_files
                         "file_type": ".pdf",
                         "file_size": len(part_content),
                         "r2_key": part_r2_key,
-                        "upload_date": datetime.now(),
-                        "last_modified": datetime.now(),
+                        "file_url": f"r2://{R2_BUCKET_NAME}/{part_r2_key}",  # Private URL placeholder
+                        "is_deleted": False,  # CRITICAL: Required for list_user_files query!
+                        "deleted_at": None,
+                        "uploaded_at": now,  # Use uploaded_at (not upload_date)
+                        "updated_at": now,  # Use updated_at (not last_modified)
                         "folder_id": file_doc.get(
                             "folder_id", None
                         ),  # Inherit from original, None = Root
