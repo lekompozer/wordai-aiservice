@@ -274,14 +274,17 @@ async def split_document(
                 )
 
                 # Create FILE for each chunk (not document!)
+                # Generate unique timestamp to avoid duplicate key errors on re-split
+                split_timestamp = int(datetime.now().timestamp())
+
                 for idx, chunk_path in enumerate(chunk_files):
                     part_num = idx + 1
                     start_page = (idx * chunk_size) + 1
                     end_page = min((idx + 1) * chunk_size, total_pages)
                     pages_count = end_page - start_page + 1
 
-                    # Generate part FILE ID (not document ID!)
-                    part_file_id = f"{document_id}_part{part_num}"
+                    # Generate part FILE ID with timestamp (avoid duplicates on re-split)
+                    part_file_id = f"{document_id}_part{part_num}_{split_timestamp}"
                     original_filename = file_doc.get("filename", "Document")
                     # Remove .pdf extension if present
                     if original_filename.lower().endswith(".pdf"):
@@ -301,6 +304,7 @@ async def split_document(
                     )
 
                     # Create FILE in user_files collection (hiển thị trong Upload Files!)
+                    # Inherit folder_id from original file (None = Root folder)
                     part_file = {
                         "file_id": part_file_id,
                         "user_id": user_id,
@@ -310,6 +314,9 @@ async def split_document(
                         "r2_key": part_r2_key,
                         "upload_date": datetime.now(),
                         "last_modified": datetime.now(),
+                        "folder_id": file_doc.get(
+                            "folder_id", None
+                        ),  # Inherit from original, None = Root
                         # Split info
                         "is_split_part": True,
                         "original_file_id": document_id,
@@ -359,6 +366,9 @@ async def split_document(
                         status_code=400, detail=f"Invalid split ranges: {error_msg}"
                     )
 
+                # Generate unique timestamp to avoid duplicate key errors on re-split
+                split_timestamp = int(datetime.now().timestamp())
+
                 # Extract each range
                 for idx, range_info in enumerate(request.split_ranges):
                     part_num = idx + 1
@@ -375,8 +385,8 @@ async def split_document(
                         part_pdf_path,
                     )
 
-                    # Generate part FILE ID (not document ID!)
-                    part_file_id = f"{document_id}_part{part_num}"
+                    # Generate part FILE ID with timestamp (avoid duplicates on re-split)
+                    part_file_id = f"{document_id}_part{part_num}_{split_timestamp}"
                     part_filename = f"{range_info.title}.pdf"
 
                     # Upload to R2
@@ -394,6 +404,7 @@ async def split_document(
                     pages_count = range_info.end_page - range_info.start_page + 1
 
                     # Create FILE in user_files collection (hiển thị trong Upload Files!)
+                    # Inherit folder_id from original file (None = Root folder)
                     part_file = {
                         "file_id": part_file_id,
                         "user_id": user_id,
@@ -403,6 +414,9 @@ async def split_document(
                         "r2_key": part_r2_key,
                         "upload_date": datetime.now(),
                         "last_modified": datetime.now(),
+                        "folder_id": file_doc.get(
+                            "folder_id", None
+                        ),  # Inherit from original, None = Root
                         "description": range_info.description
                         or f"Pages {range_info.start_page}-{range_info.end_page}",
                         # Split info
