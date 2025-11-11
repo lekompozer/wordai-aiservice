@@ -302,11 +302,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
     ) -> list:
         """
         Fallback method using ChatGPT (GPT-4o) when Gemini fails
-        Supports PDF via OpenAI File Upload API (similar to Gemini)
+        Supports PDF via base64 encoding (GPT-4o supports PDF inputs)
         """
         import base64
-        import tempfile
-        import os
         from openai import AsyncOpenAI
 
         # Get OpenAI API key from config
@@ -319,96 +317,50 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         logger.info("🤖 Calling ChatGPT (GPT-4o) as fallback...")
 
         try:
+            messages = []
+
             if gemini_pdf_bytes:
-                # Upload PDF file to OpenAI (similar to Gemini approach)
-                logger.info(
-                    f"   Uploading PDF to OpenAI: {len(gemini_pdf_bytes)} bytes"
-                )
+                # Encode PDF as base64 for GPT-4o
+                logger.info(f"   Encoding PDF as base64: {len(gemini_pdf_bytes)} bytes")
 
-                # Create temp file for upload
-                with tempfile.NamedTemporaryFile(
-                    suffix=".pdf", delete=False
-                ) as tmp_file:
-                    tmp_file.write(gemini_pdf_bytes)
-                    tmp_file_path = tmp_file.name
+                pdf_base64 = base64.b64encode(gemini_pdf_bytes).decode("utf-8")
 
-                try:
-                    # Upload file to OpenAI
-                    with open(tmp_file_path, "rb") as f:
-                        file_upload = await client.files.create(
-                            file=f, purpose="assistants"
-                        )
-
-                    logger.info(f"   ✅ PDF uploaded: {file_upload.id}")
-
-                    # Use Assistants API with file
-                    # Create assistant
-                    assistant = await client.beta.assistants.create(
-                        name="Test Generator",
-                        instructions="You are an expert at creating educational assessments. Generate questions in strict JSON format.",
-                        model="gpt-4o",
-                        tools=[{"type": "file_search"}],
-                    )
-
-                    # Create thread with file
-                    thread = await client.beta.threads.create(
-                        messages=[
+                # GPT-4o supports PDF via document understanding
+                # Send both PDF data and prompt
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
                             {
-                                "role": "user",
-                                "content": prompt,
-                                "attachments": [
-                                    {
-                                        "file_id": file_upload.id,
-                                        "tools": [{"type": "file_search"}],
-                                    }
-                                ],
-                            }
-                        ]
-                    )
+                                "type": "text",
+                                "text": f"I have attached a PDF document. {prompt}",
+                            },
+                            {
+                                "type": "image_url",  # GPT-4o treats PDF as document/image
+                                "image_url": {
+                                    "url": f"data:application/pdf;base64,{pdf_base64}"
+                                },
+                            },
+                        ],
+                    }
+                ]
 
-                    # Run assistant
-                    run = await client.beta.threads.runs.create_and_poll(
-                        thread_id=thread.id,
-                        assistant_id=assistant.id,
-                        response_format={"type": "json_object"},
-                        temperature=0.3,
-                        max_completion_tokens=8000,
-                    )
-
-                    if run.status == "completed":
-                        messages = await client.beta.threads.messages.list(
-                            thread_id=thread.id
-                        )
-                        response_text = messages.data[0].content[0].text.value
-                        logger.info(
-                            f"   ✅ ChatGPT response: {len(response_text)} characters"
-                        )
-                    else:
-                        raise Exception(f"ChatGPT run failed with status: {run.status}")
-
-                    # Cleanup
-                    await client.files.delete(file_upload.id)
-                    await client.beta.assistants.delete(assistant.id)
-
-                finally:
-                    # Remove temp file
-                    if os.path.exists(tmp_file_path):
-                        os.unlink(tmp_file_path)
-
+                logger.info("   ✅ PDF encoded and attached to request")
             else:
-                # Text only - use regular chat completion
+                # Text only
                 messages = [{"role": "user", "content": prompt}]
 
-                response = await client.chat.completions.create(
-                    model="gpt-4o",
-                    messages=messages,
-                    response_format={"type": "json_object"},
-                    temperature=0.3,
-                    max_tokens=8000,
-                )
+            # Call ChatGPT with JSON mode
+            response = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0.3,
+                max_tokens=8000,
+            )
 
-                response_text = response.choices[0].message.content
-                logger.info(f"   ✅ ChatGPT response: {len(response_text)} characters")
+            response_text = response.choices[0].message.content
+            logger.info(f"   ✅ ChatGPT response: {len(response_text)} characters")
 
             # Parse and validate JSON (same for both paths)
             questions_json = json.loads(response_text)
