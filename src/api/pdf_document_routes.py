@@ -121,7 +121,12 @@ async def preview_document_split(
         # Download PDF from R2
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             r2_client = _get_r2_client()
-            pdf_content = r2_client.download_file(pdf_r2_path)
+            file_obj = r2_client.get_file(pdf_r2_path)
+            if not file_obj:
+                raise HTTPException(
+                    status_code=500, detail="Failed to download file from R2"
+                )
+            pdf_content = file_obj["Body"].read()
             temp_pdf.write(pdf_content)
             temp_pdf_path = temp_pdf.name
 
@@ -240,7 +245,12 @@ async def split_document(
         # Download PDF from R2
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
             r2_client = _get_r2_client()
-            pdf_content = r2_client.download_file(r2_key)
+            file_obj = r2_client.get_file(r2_key)
+            if not file_obj:
+                raise HTTPException(
+                    status_code=500, detail="Failed to download file from R2"
+                )
+            pdf_content = file_obj["Body"].read()
             temp_pdf.write(pdf_content)
             temp_pdf_path = temp_pdf.name
 
@@ -1430,7 +1440,13 @@ async def merge_documents(
         r2_client = _get_r2_client()
         for pdf_r2_path in pdf_paths:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_pdf:
-                pdf_content = r2_client.download_file(pdf_r2_path)
+                file_obj = r2_client.get_file(pdf_r2_path)
+                if not file_obj:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Failed to download file from R2: {pdf_r2_path}",
+                    )
+                pdf_content = file_obj["Body"].read()
                 temp_pdf.write(pdf_content)
                 temp_pdf_files.append(temp_pdf.name)
 
