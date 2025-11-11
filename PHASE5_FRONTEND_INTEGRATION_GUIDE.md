@@ -45,12 +45,12 @@ img.onload = () => {
     alert('Image must be at least 800x600 pixels');
     return;
   }
-  
+
   if (coverImage.size > 5 * 1024 * 1024) {
     alert('Image must be less than 5MB');
     return;
   }
-  
+
   // 2. Create form data
   const formData = new FormData();
   formData.append('price_points', pricePoints); // 0 for free
@@ -58,7 +58,7 @@ img.onload = () => {
   formData.append('category', category || '');  // Optional
   formData.append('tags', tags.join(',')); // Max 10 tags
   formData.append('cover_image', coverImage);
-  
+
   // 3. Submit
   const response = await fetch(`/marketplace/tests/${testId}/publish`, {
     method: 'POST',
@@ -67,7 +67,7 @@ img.onload = () => {
     },
     body: formData // Don't set Content-Type, browser handles it
   });
-  
+
   const result = await response.json();
   console.log('Published:', result.data.version); // v1, v2, v3...
 };
@@ -122,19 +122,19 @@ async function browseMarketplace({
     page_size: pageSize,
     sort_by: sortBy
   });
-  
+
   if (category) params.append('category', category);
   if (tag) params.append('tag', tag);
   if (minPrice !== null) params.append('min_price', minPrice);
   if (maxPrice !== null) params.append('max_price', maxPrice);
   if (search) params.append('search', search);
-  
+
   const response = await fetch(`/marketplace/tests?${params}`, {
     headers: {
       'Authorization': `Bearer ${await user.getIdToken()}` // Optional
     }
   });
-  
+
   return await response.json();
 }
 ```
@@ -186,7 +186,7 @@ function MarketplaceCard({ test }) {
       <img src={test.thumbnail_url} alt={test.title} />
       <h3>{test.title}</h3>
       <p>{test.description}</p>
-      
+
       <div className="meta">
         <span className="price">
           {test.price_points === 0 ? 'FREE' : `${test.price_points} points`}
@@ -198,15 +198,15 @@ function MarketplaceCard({ test }) {
           📥 {test.total_purchases} purchases
         </span>
       </div>
-      
+
       <div className="creator">
         By {test.creator.display_name}
       </div>
-      
+
       {test.has_purchased && (
         <span className="badge">✅ Owned</span>
       )}
-      
+
       <button onClick={() => viewTest(test.test_id)}>
         View Details
       </button>
@@ -232,7 +232,7 @@ async function getTestDetail(testId) {
       'Authorization': `Bearer ${await user.getIdToken()}` // Optional
     }
   });
-  
+
   return await response.json();
 }
 ```
@@ -293,9 +293,9 @@ async function purchaseTest(testId) {
     `Your balance: ${userBalance} points\n` +
     `After purchase: ${userBalance - test.price_points} points`
   );
-  
+
   if (!confirmed) return;
-  
+
   // 2. Submit purchase
   try {
     const response = await fetch(`/marketplace/tests/${testId}/purchase`, {
@@ -305,9 +305,9 @@ async function purchaseTest(testId) {
         'Content-Type': 'application/json'
       }
     });
-    
+
     const result = await response.json();
-    
+
     if (response.ok) {
       alert(`Test purchased! Version: ${result.data.version}`);
       // Redirect to test taking page
@@ -365,7 +365,7 @@ async function rateTest(testId, rating, comment) {
       comment: comment     // Optional, max 1000 chars
     })
   });
-  
+
   return await response.json();
 }
 ```
@@ -378,7 +378,7 @@ async function getRatings(testId, page = 1, sortBy = 'newest') {
     page_size: 20,
     sort_by: sortBy // newest|oldest|highest|lowest
   });
-  
+
   const response = await fetch(`/marketplace/tests/${testId}/ratings?${params}`);
   return await response.json();
 }
@@ -389,14 +389,14 @@ async function getRatings(testId, page = 1, sortBy = 'newest') {
 function RatingSection({ testId }) {
   const [ratings, setRatings] = useState([]);
   const [myRating, setMyRating] = useState(null);
-  
+
   return (
     <div className="ratings">
       <h3>Ratings & Reviews</h3>
-      
+
       {/* Submit rating (if purchased) */}
       <RatingForm testId={testId} onSubmit={refreshRatings} />
-      
+
       {/* Display ratings */}
       {ratings.map(rating => (
         <div key={rating.rating_id} className="rating-card">
@@ -408,7 +408,7 @@ function RatingSection({ testId }) {
           <div className="date">{formatDate(rating.created_at)}</div>
         </div>
       ))}
-      
+
       <button onClick={loadMore}>Load More</button>
     </div>
   );
@@ -427,7 +427,7 @@ async function getMyEarnings() {
       'Authorization': `Bearer ${await user.getIdToken()}`
     }
   });
-  
+
   return await response.json();
 }
 ```
@@ -465,7 +465,7 @@ async function transferEarnings(amount) {
       amount_points: amount
     })
   });
-  
+
   return await response.json();
 }
 ```
@@ -474,34 +474,34 @@ async function transferEarnings(amount) {
 ```jsx
 function EarningsDashboard() {
   const [earnings, setEarnings] = useState(null);
-  
+
   useEffect(() => {
     loadEarnings();
   }, []);
-  
+
   async function handleTransfer() {
     const amount = parseInt(prompt('Amount to transfer:'));
     if (amount > earnings.total_earnings) {
       alert('Insufficient earnings');
       return;
     }
-    
+
     const result = await transferEarnings(amount);
     if (result.success) {
       alert(`Transferred ${amount} points to wallet!`);
       loadEarnings();
     }
   }
-  
+
   return (
     <div className="earnings-dashboard">
       <h2>Marketplace Earnings</h2>
-      
+
       <div className="total">
         <h3>{earnings?.total_earnings || 0} points</h3>
         <button onClick={handleTransfer}>Transfer to Wallet</button>
       </div>
-      
+
       <table>
         <thead>
           <tr>
@@ -547,7 +547,7 @@ async function updateConfig(testId, updates) {
     },
     body: JSON.stringify(updates)
   });
-  
+
   return await response.json();
 }
 
@@ -572,14 +572,14 @@ POST /marketplace/tests/{test_id}/unpublish
 async function unpublishTest(testId) {
   const confirmed = confirm('Hide this test from marketplace?');
   if (!confirmed) return;
-  
+
   const response = await fetch(`/marketplace/tests/${testId}/unpublish`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${await user.getIdToken()}`
     }
   });
-  
+
   return await response.json();
 }
 ```
@@ -597,12 +597,12 @@ function validateCoverImage(file) {
     if (!['image/jpeg', 'image/png'].includes(file.type)) {
       reject('Only JPEG and PNG allowed');
     }
-    
+
     // Check file size
     if (file.size > 5 * 1024 * 1024) {
       reject('Image must be less than 5MB');
     }
-    
+
     // Check dimensions
     const img = new Image();
     img.onload = () => {
@@ -642,7 +642,7 @@ async function safeApiCall(apiFunction, ...args) {
 ```jsx
 function PurchaseButton({ test }) {
   const [loading, setLoading] = useState(false);
-  
+
   async function handlePurchase() {
     setLoading(true);
     try {
@@ -653,7 +653,7 @@ function PurchaseButton({ test }) {
       setLoading(false);
     }
   }
-  
+
   return (
     <button onClick={handlePurchase} disabled={loading}>
       {loading ? 'Purchasing...' : `Buy for ${test.price_points} points`}
