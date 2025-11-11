@@ -27,9 +27,9 @@ class TestGeneratorService:
             raise ValueError("GEMINI_API_KEY not configured")
 
         self.client = genai.Client(api_key=self.gemini_api_key)
-        self.max_retries = 3
+        self.max_retries = 2  # Reduced to 2 retries, then fallback to ChatGPT
         logger.info(
-            "🤖 Test Generator Service initialized (Gemini 2.5 Pro with JSON Mode)"
+            "🤖 Test Generator Service initialized (Gemini 2.5 Pro with ChatGPT fallback)"
         )
 
     def _build_generation_prompt(
@@ -280,9 +280,181 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     logger.error(f"   ❌ Gemini generation failed: {e}")
                     raise
 
-        raise Exception(
-            f"Failed to generate questions after {self.max_retries} attempts"
-        )
+        # All Gemini attempts failed, try ChatGPT as fallback
+        logger.warning("⚠️ All Gemini attempts failed. Trying ChatGPT as fallback...")
+        try:
+            return await self._generate_with_chatgpt(
+                prompt=prompt,
+                gemini_pdf_bytes=gemini_pdf_bytes,
+                num_questions=num_questions,
+            )
+        except Exception as chatgpt_error:
+            logger.error(f"❌ ChatGPT fallback also failed: {chatgpt_error}")
+            raise Exception(
+                f"Both Gemini and ChatGPT failed to generate questions. Last error: {chatgpt_error}"
+            )
+
+    async def _generate_with_chatgpt(
+        self,
+        prompt: str,
+        gemini_pdf_bytes: Optional[bytes],
+        num_questions: int,
+    ) -> list:
+        """
+        Fallback method using ChatGPT (GPT-4o) when Gemini fails
+        Supports PDF via OpenAI File Upload API (similar to Gemini)
+        """
+        import base64
+        import tempfile
+        import os
+        from openai import AsyncOpenAI
+
+        # Get OpenAI API key from config
+        openai_api_key = getattr(config, "OPENAI_API_KEY", None)
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY not configured for fallback")
+
+        client = AsyncOpenAI(api_key=openai_api_key)
+
+        logger.info("🤖 Calling ChatGPT (GPT-4o) as fallback...")
+
+        try:
+            if gemini_pdf_bytes:
+                # Upload PDF file to OpenAI (similar to Gemini approach)
+                logger.info(
+                    f"   Uploading PDF to OpenAI: {len(gemini_pdf_bytes)} bytes"
+                )
+
+                # Create temp file for upload
+                with tempfile.NamedTemporaryFile(
+                    suffix=".pdf", delete=False
+                ) as tmp_file:
+                    tmp_file.write(gemini_pdf_bytes)
+                    tmp_file_path = tmp_file.name
+
+                try:
+                    # Upload file to OpenAI
+                    with open(tmp_file_path, "rb") as f:
+                        file_upload = await client.files.create(
+                            file=f, purpose="assistants"
+                        )
+
+                    logger.info(f"   ✅ PDF uploaded: {file_upload.id}")
+
+                    # Use Assistants API with file
+                    # Create assistant
+                    assistant = await client.beta.assistants.create(
+                        name="Test Generator",
+                        instructions="You are an expert at creating educational assessments. Generate questions in strict JSON format.",
+                        model="gpt-4o",
+                        tools=[{"type": "file_search"}],
+                    )
+
+                    # Create thread with file
+                    thread = await client.beta.threads.create(
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": prompt,
+                                "attachments": [
+                                    {
+                                        "file_id": file_upload.id,
+                                        "tools": [{"type": "file_search"}],
+                                    }
+                                ],
+                            }
+                        ]
+                    )
+
+                    # Run assistant
+                    run = await client.beta.threads.runs.create_and_poll(
+                        thread_id=thread.id,
+                        assistant_id=assistant.id,
+                        response_format={"type": "json_object"},
+                        temperature=0.3,
+                        max_completion_tokens=8000,
+                    )
+
+                    if run.status == "completed":
+                        messages = await client.beta.threads.messages.list(
+                            thread_id=thread.id
+                        )
+                        response_text = messages.data[0].content[0].text.value
+                        logger.info(
+                            f"   ✅ ChatGPT response: {len(response_text)} characters"
+                        )
+                    else:
+                        raise Exception(f"ChatGPT run failed with status: {run.status}")
+
+                    # Cleanup
+                    await client.files.delete(file_upload.id)
+                    await client.beta.assistants.delete(assistant.id)
+
+                finally:
+                    # Remove temp file
+                    if os.path.exists(tmp_file_path):
+                        os.unlink(tmp_file_path)
+
+            else:
+                # Text only - use regular chat completion
+                messages = [{"role": "user", "content": prompt}]
+
+                response = await client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages,
+                    response_format={"type": "json_object"},
+                    temperature=0.3,
+                    max_tokens=8000,
+                )
+
+                response_text = response.choices[0].message.content
+                logger.info(f"   ✅ ChatGPT response: {len(response_text)} characters")
+
+            # Parse and validate JSON (same for both paths)
+            questions_json = json.loads(response_text)
+
+            if (
+                not isinstance(questions_json, dict)
+                or "questions" not in questions_json
+            ):
+                raise ValueError("Invalid JSON structure from ChatGPT")
+
+            questions_list = questions_json["questions"]
+
+            if not isinstance(questions_list, list) or len(questions_list) == 0:
+                raise ValueError("No questions in ChatGPT response")
+
+            # Validate and normalize questions
+            for idx, q in enumerate(questions_list):
+                has_correct_answer_key = "correct_answer_key" in q
+                has_correct_answer_keys = "correct_answer_keys" in q
+
+                if not all(k in q for k in ["question_text", "options", "explanation"]):
+                    raise ValueError(f"Question {idx + 1} missing required fields")
+
+                if not has_correct_answer_key and not has_correct_answer_keys:
+                    raise ValueError(f"Question {idx + 1} missing correct answer")
+
+                # Normalize to array format
+                if has_correct_answer_key and not has_correct_answer_keys:
+                    q["correct_answer_keys"] = [q["correct_answer_key"]]
+                elif has_correct_answer_keys:
+                    if isinstance(q["correct_answer_keys"], str):
+                        q["correct_answer_keys"] = [q["correct_answer_keys"]]
+
+                q["correct_answer_key"] = (
+                    q["correct_answer_keys"][0] if q["correct_answer_keys"] else None
+                )
+                q["question_id"] = str(ObjectId())
+
+            logger.info(
+                f"   ✅ ChatGPT generated {len(questions_list)} valid questions"
+            )
+            return questions_list
+
+        except Exception as e:
+            logger.error(f"   ❌ ChatGPT generation failed: {e}")
+            raise
 
     async def generate_test_from_content(
         self,
