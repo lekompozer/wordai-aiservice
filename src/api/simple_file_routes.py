@@ -871,9 +871,37 @@ async def get_file(
         if s3_client is None:
             raise HTTPException(status_code=503, detail="Storage service unavailable")
 
-        # Search for file across all folders for this user
+        # 🔍 FIRST: Try to find in MongoDB user_files collection (new uploads + split files)
+        user_manager = get_user_manager()
+        file_doc = await asyncio.to_thread(
+            user_manager.get_file_by_id, file_id, user_id
+        )
+
+        if file_doc and not file_doc.get("is_deleted", False):
+            # ✅ Found in MongoDB - generate signed URL
+            r2_key = file_doc.get("r2_key")
+            download_url = generate_signed_url(r2_key, expiration=3600)
+
+            file_data = {
+                "id": file_doc.get("file_id"),
+                "filename": file_doc.get("filename"),
+                "original_name": file_doc.get("original_name"),
+                "file_type": file_doc.get("file_type"),
+                "file_size": file_doc.get("file_size"),
+                "folder_id": file_doc.get("folder_id"),
+                "user_id": file_doc.get("user_id"),
+                "r2_key": r2_key,
+                "download_url": download_url,
+                "created_at": file_doc.get("uploaded_at"),
+                "updated_at": file_doc.get("updated_at"),
+            }
+
+            logger.info(f"✅ Found file in MongoDB: {file_id}")
+            return FileDownloadResponse(**file_data)
+
+        # 🔍 FALLBACK: Search in R2 for old files (legacy pattern: files/{user_id}/...)
         prefix = f"files/{user_id}/"
-        logger.info(f"🔍 Searching for file {file_id} with prefix: {prefix}")
+        logger.info(f"🔍 Searching for legacy file {file_id} with prefix: {prefix}")
 
         try:
             response = s3_client.list_objects_v2(
