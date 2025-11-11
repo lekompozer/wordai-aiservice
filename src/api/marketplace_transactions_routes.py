@@ -714,9 +714,24 @@ async def get_my_public_tests(
         results = []
         for test in tests:
             mc = test.get("marketplace_config", {})
+            test_id = str(test["_id"])
+
+            # Calculate completion stats
+            total_purchases = mc.get("total_purchases", 0)
+            total_completions = 0
+            completion_rate = 0.0
+
+            if total_purchases > 0:
+                # Count unique users who completed this test
+                completed_users = db.user_test_attempts.distinct(
+                    "user_id", {"test_id": test_id, "status": "completed"}
+                )
+                total_completions = len(completed_users)
+                completion_rate = round((total_completions / total_purchases) * 100, 1)
+
             results.append(
                 {
-                    "test_id": str(test["_id"]),
+                    "test_id": test_id,
                     "title": test.get("title", "Untitled"),
                     "description": mc.get("description", ""),
                     "category": mc.get("category"),
@@ -727,7 +742,9 @@ async def get_my_public_tests(
                     "thumbnail_url": mc.get("thumbnail_url"),
                     "current_version": mc.get("current_version", "v1"),
                     "stats": {
-                        "total_purchases": mc.get("total_purchases", 0),
+                        "total_purchases": total_purchases,
+                        "total_completions": total_completions,
+                        "completion_rate": completion_rate,
                         "total_revenue": mc.get("total_revenue", 0),
                         "avg_rating": mc.get("avg_rating", 0.0),
                         "rating_count": mc.get("rating_count", 0),
@@ -914,3 +931,187 @@ async def get_my_purchase_history(
     except Exception as e:
         logger.error(f"Error getting purchase history: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to get purchase history")
+
+
+@router.get("/me/purchases/summary")
+async def get_purchase_history_summary(user_info: dict = Depends(require_auth)):
+    """
+    Get summary statistics for user's purchase history
+
+    Provides:
+    - Total purchased tests
+    - Total completed tests
+    - Pass rate (% tests with best_score >= 70)
+    - Average score across all completed tests
+    - Total time spent
+    """
+    try:
+        db = get_database()
+        user_id = user_info["uid"]
+
+        # Get all purchases
+        purchases = list(db.test_purchases.find({"buyer_id": user_id}))
+        total_purchased = len(purchases)
+
+        if total_purchased == 0:
+            return {
+                "success": True,
+                "data": {
+                    "total_purchased": 0,
+                    "total_completed": 0,
+                    "pass_rate": 0.0,
+                    "average_score": 0.0,
+                    "total_time_spent_minutes": 0,
+                },
+            }
+
+        test_ids = [p["test_id"] for p in purchases]
+
+        # Get all completed attempts for purchased tests
+        completed_attempts = list(
+            db.user_test_attempts.find(
+                {
+                    "user_id": user_id,
+                    "test_id": {"$in": test_ids},
+                    "status": "completed",
+                }
+            )
+        )
+
+        # Calculate stats per test
+        test_best_scores = {}
+        test_times = {}
+
+        for attempt in completed_attempts:
+            test_id = attempt["test_id"]
+            score = attempt.get("score", 0)
+
+            # Track best score per test
+            if test_id not in test_best_scores or score > test_best_scores[test_id]:
+                test_best_scores[test_id] = score
+
+            # Track time
+            if "started_at" in attempt and "completed_at" in attempt:
+                time_minutes = (
+                    attempt["completed_at"] - attempt["started_at"]
+                ).total_seconds() / 60
+                if test_id not in test_times:
+                    test_times[test_id] = 0
+                test_times[test_id] += time_minutes
+
+        # Calculate summary
+        total_completed = len(test_best_scores)
+        passed_tests = sum(1 for score in test_best_scores.values() if score >= 70)
+        pass_rate = (
+            round((passed_tests / total_completed * 100), 1)
+            if total_completed > 0
+            else 0.0
+        )
+        average_score = (
+            round(sum(test_best_scores.values()) / len(test_best_scores), 1)
+            if test_best_scores
+            else 0.0
+        )
+        total_time_spent = round(sum(test_times.values()), 0)
+
+        return {
+            "success": True,
+            "data": {
+                "total_purchased": total_purchased,
+                "total_completed": total_completed,
+                "pass_rate": pass_rate,
+                "average_score": average_score,
+                "total_time_spent_minutes": int(total_time_spent),
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting purchase summary: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get purchase summary")
+
+
+@router.get("/me/purchases/{test_id}/rank")
+async def get_test_rank_percentile(
+    test_id: str, user_info: dict = Depends(require_auth)
+):
+    """
+    Get user's rank percentile for a specific test
+
+    Compares user's best score with all other users who completed the test
+    Returns percentile (e.g., 85.5 means user is in top 14.5%)
+    """
+    try:
+        db = get_database()
+        user_id = user_info["uid"]
+
+        # Check if user purchased this test
+        purchase = db.test_purchases.find_one({"buyer_id": user_id, "test_id": test_id})
+
+        if not purchase:
+            raise HTTPException(status_code=404, detail="Test not purchased")
+
+        # Get user's best score
+        user_attempts = list(
+            db.user_test_attempts.find(
+                {"user_id": user_id, "test_id": test_id, "status": "completed"}
+            )
+        )
+
+        if not user_attempts:
+            return {
+                "success": True,
+                "data": {
+                    "test_id": test_id,
+                    "user_best_score": 0.0,
+                    "rank_percentile": 0.0,
+                    "total_users": 0,
+                    "users_below": 0,
+                },
+            }
+
+        user_best_score = max([a.get("score", 0) for a in user_attempts])
+
+        # Get all users' best scores for this test
+        pipeline = [
+            {"$match": {"test_id": test_id, "status": "completed"}},
+            {"$group": {"_id": "$user_id", "best_score": {"$max": "$score"}}},
+        ]
+
+        all_scores = list(db.user_test_attempts.aggregate(pipeline))
+
+        if len(all_scores) <= 1:
+            return {
+                "success": True,
+                "data": {
+                    "test_id": test_id,
+                    "user_best_score": user_best_score,
+                    "rank_percentile": 100.0,
+                    "total_users": len(all_scores),
+                    "users_below": 0,
+                },
+            }
+
+        # Calculate percentile
+        users_below = sum(1 for s in all_scores if s["best_score"] < user_best_score)
+        total_users = len(all_scores)
+        rank_percentile = round((users_below / total_users) * 100, 1)
+
+        return {
+            "success": True,
+            "data": {
+                "test_id": test_id,
+                "user_best_score": round(user_best_score, 1),
+                "rank_percentile": rank_percentile,
+                "total_users": total_users,
+                "users_below": users_below,
+                "rank_position": total_users - users_below,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting rank percentile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get rank percentile")
