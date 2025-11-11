@@ -294,8 +294,8 @@ async def split_document(
 
                     part_r2_key = f"uploads/{user_id}/{part_file_id}.pdf"
                     r2_client = _get_r2_client()
-                    r2_client.upload_file_object(
-                        file_obj=chunk_content,
+                    await r2_client.upload_file_from_bytes(
+                        file_bytes=chunk_content,
                         remote_path=part_r2_key,
                         content_type="application/pdf",
                     )
@@ -385,8 +385,8 @@ async def split_document(
 
                     part_r2_key = f"uploads/{user_id}/{part_file_id}.pdf"
                     r2_client = _get_r2_client()
-                    r2_client.upload_file_object(
-                        file_obj=part_content,
+                    await r2_client.upload_file_from_bytes(
+                        file_bytes=part_content,
                         remote_path=part_r2_key,
                         content_type="application/pdf",
                     )
