@@ -263,9 +263,10 @@ class PointsService:
             },
         )
 
-        # Update user document cache
+        # Update user document with unified points field
         self.users.update_one(
-            {"uid": user_id}, {"$set": {"points_remaining": balance_after}}
+            {"firebase_uid": user_id},  # Use firebase_uid for unified schema
+            {"$set": {"points": balance_after}},  # Update unified points field
         )
 
         logger.info(
@@ -325,9 +326,10 @@ class PointsService:
             },
         )
 
-        # Update user document
+        # Update user document with unified points field
         self.users.update_one(
-            {"uid": request.user_id}, {"$set": {"points_remaining": balance_after}}
+            {"firebase_uid": request.user_id},  # Use firebase_uid for unified schema
+            {"$set": {"points": balance_after}},  # Update unified points field
         )
 
         logger.info(
@@ -398,9 +400,10 @@ class PointsService:
             },
         )
 
-        # Update user document
+        # Update user document with unified points field
         self.users.update_one(
-            {"uid": request.user_id}, {"$set": {"points_remaining": balance_after}}
+            {"firebase_uid": request.user_id},  # Use firebase_uid for unified schema
+            {"$set": {"points": balance_after}},  # Update unified points field
         )
 
         logger.info(
@@ -469,9 +472,10 @@ class PointsService:
             },
         )
 
-        # Update user document
+        # Update user document with unified points field
         self.users.update_one(
-            {"uid": user_id}, {"$set": {"points_remaining": balance_after}}
+            {"firebase_uid": user_id},  # Use firebase_uid for unified schema
+            {"$set": {"points": balance_after}},  # Update unified points field
         )
 
         logger.info(

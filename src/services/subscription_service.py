@@ -154,24 +154,27 @@ class SubscriptionService:
         )
         subscription.id = result.inserted_id
 
-        # Update user document
+        # Update user document with unified points system
         self.users.update_one(
-            {"uid": user_id},
+            {"firebase_uid": user_id},  # Use firebase_uid for consistency
             {
                 "$set": {
                     "current_plan": "free",
                     "subscription_id": str(result.inserted_id),
                     "subscription_expires_at": None,
-                    "points_remaining": bonus_points,  # Updated: 10 bonus points
+                    "points_remaining": bonus_points,  # Legacy field (keep for compatibility)
+                    "points": bonus_points,  # ✅ UNIFIED: Sync to main points field
                     "storage_limit_mb": free_config.storage_mb,
                     "plan_updated_at": datetime.utcnow(),
                 }
             },
+            upsert=True,  # Create if not exists
         )
 
         logger.info(
             f"Created free subscription with {bonus_points} bonus points: {result.inserted_id} for user: {user_id}"
         )
+        logger.info(f"✅ Synced {bonus_points} points to user.points (unified system)")
         return subscription
 
     async def create_paid_subscription(

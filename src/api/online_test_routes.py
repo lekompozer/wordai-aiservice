@@ -1443,6 +1443,19 @@ async def start_test(
             # Query by firebase_uid (unified schema)
             user_doc = users_collection.find_one({"firebase_uid": user_info["uid"]})
 
+            logger.info(f"   🔍 Debug user document:")
+            logger.info(f"      User ID: {user_info['uid']}")
+            logger.info(f"      Email: {user_info.get('email', 'N/A')}")
+            logger.info(f"      User doc found: {user_doc is not None}")
+            if user_doc:
+                logger.info(f"      Points in doc: {user_doc.get('points', 'MISSING')}")
+                logger.info(
+                    f"      Earnings in doc: {user_doc.get('earnings_points', 'MISSING')}"
+                )
+                logger.info(
+                    f"      Firebase UID: {user_doc.get('firebase_uid', 'MISSING')}"
+                )
+
             # Auto-create or sync user profile if not exists
             if not user_doc:
                 logger.info(
@@ -1515,6 +1528,27 @@ async def start_test(
                     },
                 },
             )
+
+            # ✅ BIDIRECTIONAL SYNC: Also update subscription.points_remaining
+            subscriptions_collection = mongo_service.db["user_subscriptions"]
+            subscription_doc = subscriptions_collection.find_one(
+                {"user_id": user_info["uid"]}
+            )
+            if subscription_doc:
+                points_used = subscription_doc.get("points_used", 0) + price_points
+                subscriptions_collection.update_one(
+                    {"user_id": user_info["uid"]},
+                    {
+                        "$set": {
+                            "points_remaining": new_points,
+                            "points_used": points_used,
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
+                )
+                logger.info(
+                    f"   ✅ Subscription synced: points_remaining updated to {new_points}"
+                )
 
             # Update test's total earnings (increment on EVERY attempt)
             # This will be distributed to creator's earnings_points (80% of total)

@@ -225,7 +225,7 @@ class UserManager:
                             "total_conversations": 0,
                             "total_files": 0,
                             # Online test system fields (unified)
-                            "points": 0,
+                            "points": 0,  # Will be synced from subscription
                             "earnings_points": 0,
                             "point_transactions": [],
                             "earnings_transactions": [],
@@ -236,6 +236,37 @@ class UserManager:
 
                 # Get the updated document
                 user = self.users.find_one({"firebase_uid": firebase_uid})
+
+                # ========== SYNC POINTS FROM SUBSCRIPTION ==========
+                # Check if user has subscription with points
+                subscriptions_collection = self.db.db["user_subscriptions"]
+                subscription = subscriptions_collection.find_one(
+                    {"user_id": firebase_uid}
+                )
+
+                if subscription and subscription.get("points_remaining", 0) > 0:
+                    subscription_points = subscription.get("points_remaining", 0)
+                    current_points = user.get("points", 0)
+
+                    # Only sync if subscription has more points
+                    if subscription_points > current_points:
+                        logger.info(
+                            f"   🔄 Syncing points: subscription({subscription_points}) → user.points"
+                        )
+                        self.users.update_one(
+                            {"firebase_uid": firebase_uid},
+                            {
+                                "$set": {
+                                    "points": subscription_points,
+                                    "updated_at": now,
+                                }
+                            },
+                        )
+                        user["points"] = subscription_points
+                        logger.info(
+                            f"   ✅ Points synced: {subscription_points} points"
+                        )
+
                 logger.info(
                     f"✅ User {'updated' if result.matched_count else 'created'}: {user_doc['email']}"
                 )
