@@ -1203,12 +1203,14 @@ async def get_test(
         if not test:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        if not test.get("is_active", False):
-            raise HTTPException(status_code=403, detail="Test is not active")
-
-        # ========== Phase 4: Check access (owner or shared) ==========
+        # ========== Phase 5: Check access first (owner, shared, or public) ==========
         access_info = check_test_access(test_id, user_info["uid"], test)
         logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
+
+        # Check is_active ONLY for non-public tests
+        # Public marketplace tests are always available regardless of is_active status
+        if access_info["access_type"] != "public" and not test.get("is_active", False):
+            raise HTTPException(status_code=403, detail="Test is not active")
 
         # ========== Check if test is ready ==========
         status = test.get("status", "ready")
@@ -1421,14 +1423,18 @@ async def submit_test(
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        if not test_doc.get("is_active", False):
-            raise HTTPException(status_code=410, detail="Test is no longer active")
-
-        # ========== Phase 4: Check access (owner or shared) ==========
+        # ========== Phase 5: Check access first (owner, shared, or public) ==========
         access_info = check_test_access(test_id, user_info["uid"], test_doc)
         is_owner = access_info["is_owner"]
 
         logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
+
+        # Check is_active ONLY for non-public tests
+        # Public marketplace tests are always available regardless of is_active status
+        if access_info["access_type"] != "public" and not test_doc.get(
+            "is_active", False
+        ):
+            raise HTTPException(status_code=410, detail="Test is no longer active")
 
         # Score the test
         questions = test_doc["questions"]
