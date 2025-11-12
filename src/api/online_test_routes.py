@@ -1279,11 +1279,113 @@ async def start_test(
         # ========== Phase 4: Check access (owner or shared) ==========
         access_info = check_test_access(test_id, user_info["uid"], test_doc)
         is_creator = access_info["is_owner"]
+        is_public = access_info.get("access_type") == "public"
 
         logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
 
         if is_creator:
             logger.info(f"   👤 User is test creator - unlimited attempts allowed")
+
+        # ========== Phase 5: Deduct points for public marketplace tests ==========
+        marketplace_config = test_doc.get("marketplace_config", {})
+        price_points = marketplace_config.get("price_points", 0)
+
+        # Deduct points on EVERY attempt if:
+        # 1. Test is public (marketplace)
+        # 2. User is NOT the creator
+        # 3. Test has a price
+        should_deduct_points = is_public and not is_creator and price_points > 0
+
+        if should_deduct_points:
+            # Get user's current points
+            users_collection = mongo_service.db["users"]
+            user_doc = users_collection.find_one({"uid": user_info["uid"]})
+
+            if not user_doc:
+                raise HTTPException(status_code=404, detail="User profile not found")
+
+            current_points = user_doc.get("points", 0)
+
+            # Check if user has enough points
+            if current_points < price_points:
+                raise HTTPException(
+                    status_code=402,  # Payment Required
+                    detail=f"Insufficient points. You need {price_points} points but only have {current_points} points.",
+                )
+
+            # Count how many times user has started this test (for logging)
+            progress_collection = mongo_service.db["test_progress"]
+            previous_attempts = progress_collection.count_documents(
+                {"test_id": test_id, "user_id": user_info["uid"]}
+            )
+            current_attempt_number = previous_attempts + 1
+
+            # Deduct points from user (on EVERY attempt)
+            new_points = current_points - price_points
+            users_collection.update_one(
+                {"uid": user_info["uid"]},
+                {
+                    "$set": {"points": new_points},
+                    "$push": {
+                        "point_transactions": {
+                            "type": "deduct",
+                            "amount": price_points,
+                            "reason": f"Started test: {test_doc.get('title')} (Attempt #{current_attempt_number})",
+                            "test_id": test_id,
+                            "attempt_number": current_attempt_number,
+                            "timestamp": datetime.utcnow(),
+                            "balance_after": new_points,
+                        }
+                    },
+                },
+            )
+
+            # Update test's total earnings (increment on EVERY attempt)
+            # This will be distributed to creator's earnings_points (80% of total)
+            test_collection.update_one(
+                {"_id": ObjectId(test_id)},
+                {"$inc": {"marketplace_config.total_earnings": price_points}},
+            )
+            
+            # Calculate creator's earnings (80% of price, rounded up)
+            import math
+            creator_earnings = math.ceil(price_points * 0.8)
+            
+            # Add to creator's earnings_points (separate from regular points)
+            creator_id = test_doc.get("creator_id")
+            users_collection.update_one(
+                {"uid": creator_id},
+                {
+                    "$inc": {"earnings_points": creator_earnings},
+                    "$push": {
+                        "earnings_transactions": {
+                            "type": "earn",
+                            "amount": creator_earnings,
+                            "original_amount": price_points,
+                            "percentage": 80,
+                            "reason": f"User started your test: {test_doc.get('title')} (Attempt #{current_attempt_number})",
+                            "test_id": test_id,
+                            "participant_id": user_info["uid"],
+                            "attempt_number": current_attempt_number,
+                            "timestamp": datetime.utcnow(),
+                        }
+                    },
+                },
+            )
+
+            # Only increment participants count on FIRST attempt
+            if current_attempt_number == 1:
+                test_collection.update_one(
+                    {"_id": ObjectId(test_id)},
+                    {"$inc": {"marketplace_config.total_participants": 1}},
+                )
+
+            logger.info(
+                f"   💰 Points deducted: {price_points} from user {user_info['uid']} (Attempt #{current_attempt_number})"
+            )
+            logger.info(f"   💰 Test earnings: +{price_points} (total accumulated)")
+            logger.info(f"   💵 Creator earnings: +{creator_earnings} points ({price_points} × 80% = {creator_earnings})")
+            logger.info(f"   📊 User balance: {current_points} → {new_points}")
 
         # Get test data
         test_generator = get_test_generator_service()
@@ -3019,4 +3121,333 @@ async def publish_test_to_marketplace(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to publish test: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/{test_id}/marketplace/details",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def get_public_test_details(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get full public test details for marketplace view (before starting test)
+
+    Returns comprehensive information including:
+    - Marketplace config (title, description, cover_image, price, difficulty)
+    - Test statistics (num_questions, time_limit, passing_score)
+    - Community stats (total_participants, average_participant_score, average_rating)
+    - User status (already_participated, attempts_used, user_best_score)
+
+    **Access:**
+    - Must be a public test (marketplace_config.is_public = true)
+    - Any authenticated user can view
+
+    **Note:**
+    - This is for VIEWING details only (before starting)
+    - To start the test, use POST /{test_id}/start (which will deduct points)
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(f"📋 Get public test details: {test_id} for user {user_id}")
+
+        # ========== Step 1: Get test document ==========
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # ========== Step 2: Check if test is public ==========
+        marketplace_config = test_doc.get("marketplace_config", {})
+        if not marketplace_config.get("is_public", False):
+            raise HTTPException(
+                status_code=403,
+                detail="This test is not public. Only published marketplace tests can be viewed.",
+            )
+
+        # ========== Step 3: Get user's participation history ==========
+        submissions_collection = mongo_service.db["test_submissions"]
+
+        user_submissions = list(
+            submissions_collection.find({"test_id": test_id, "user_id": user_id}).sort(
+                "submitted_at", -1
+            )
+        )
+
+        already_participated = len(user_submissions) > 0
+        attempts_used = len(user_submissions)
+        user_best_score = (
+            max([s.get("score_percentage", 0) for s in user_submissions])
+            if user_submissions
+            else None
+        )
+
+        # ========== Step 4: Check if user is creator ==========
+        is_creator = test_doc.get("creator_id") == user_id
+
+        # ========== Step 5: Build response ==========
+        response = {
+            "success": True,
+            "test_id": test_id,
+            # Basic test info
+            "title": marketplace_config.get("title", test_doc.get("title")),
+            "description": marketplace_config.get(
+                "description", test_doc.get("description")
+            ),
+            "short_description": marketplace_config.get("short_description"),
+            "cover_image_url": marketplace_config.get("cover_image_url"),
+            # Test configuration
+            "num_questions": test_doc.get(
+                "num_questions", len(test_doc.get("questions", []))
+            ),
+            "time_limit_minutes": test_doc.get("time_limit_minutes", 30),
+            "passing_score": test_doc.get("passing_score", 70),
+            "max_retries": test_doc.get("max_retries", 3),
+            # Marketplace metadata
+            "price_points": marketplace_config.get("price_points", 0),
+            "category": marketplace_config.get("category"),
+            "tags": marketplace_config.get("tags", []),
+            "difficulty_level": marketplace_config.get("difficulty_level"),
+            "version": marketplace_config.get("version"),
+            # Community statistics
+            "total_participants": marketplace_config.get("total_participants", 0),
+            "average_participant_score": marketplace_config.get(
+                "average_participant_score", 0.0
+            ),
+            "average_rating": marketplace_config.get("average_rating", 0.0),
+            "rating_count": marketplace_config.get("rating_count", 0),
+            # Publication info
+            "published_at": (
+                marketplace_config.get("published_at").isoformat()
+                if marketplace_config.get("published_at")
+                else None
+            ),
+            "creator_id": test_doc.get("creator_id"),
+            # User-specific info
+            "is_creator": is_creator,
+            "already_participated": already_participated,
+            "attempts_used": attempts_used,
+            "user_best_score": user_best_score,
+            # Additional metadata
+            "creation_type": test_doc.get("creation_type"),
+            "test_language": test_doc.get(
+                "test_language", test_doc.get("language", "vi")
+            ),
+        }
+
+        logger.info(f"✅ Public test details retrieved: {test_id}")
+        logger.info(f"   Price: {response['price_points']} points")
+        logger.info(
+            f"   User participated: {already_participated} ({attempts_used} attempts)"
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get public test details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/me/earnings",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def get_my_earnings(
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get user's earnings from public tests
+    
+    Returns:
+    - earnings_points: Total earnings available (can be withdrawn to cash)
+    - total_earned: Lifetime earnings
+    - earnings_transactions: Recent earnings history
+    - pending_withdrawal: Any pending withdrawal requests
+    
+    **Note:**
+    - earnings_points is separate from regular points
+    - earnings_points can be withdrawn to real money
+    - Regular points are for app usage only
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+        
+        logger.info(f"💰 Get earnings for user: {user_id}")
+        
+        # Get user document
+        users_collection = mongo_service.db["users"]
+        user_doc = users_collection.find_one({"uid": user_id})
+        
+        if not user_doc:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        earnings_points = user_doc.get("earnings_points", 0)
+        earnings_transactions = user_doc.get("earnings_transactions", [])
+        
+        # Calculate total lifetime earnings
+        total_earned = sum(
+            t.get("amount", 0) 
+            for t in earnings_transactions 
+            if t.get("type") == "earn"
+        )
+        
+        # Get recent transactions (last 50)
+        recent_transactions = sorted(
+            earnings_transactions,
+            key=lambda x: x.get("timestamp", datetime.min),
+            reverse=True
+        )[:50]
+        
+        # Format transactions for response
+        formatted_transactions = []
+        for t in recent_transactions:
+            formatted_transactions.append({
+                "type": t.get("type"),
+                "amount": t.get("amount"),
+                "original_amount": t.get("original_amount"),
+                "percentage": t.get("percentage"),
+                "reason": t.get("reason"),
+                "test_id": t.get("test_id"),
+                "timestamp": t.get("timestamp").isoformat() if t.get("timestamp") else None,
+            })
+        
+        response = {
+            "success": True,
+            "earnings_points": earnings_points,
+            "total_earned": total_earned,
+            "total_withdrawn": total_earned - earnings_points,
+            "recent_transactions": formatted_transactions,
+        }
+        
+        logger.info(f"✅ Earnings retrieved: {earnings_points} points available")
+        
+        return response
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get earnings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/me/earnings/withdraw",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def withdraw_earnings(
+    amount: int,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Request to withdraw earnings to real money
+    
+    **Requirements:**
+    - Minimum withdrawal: 100,000 points (100,000 VND)
+    - earnings_points must be sufficient
+    - Withdrawal will be processed manually by admin
+    
+    **Process:**
+    1. User requests withdrawal
+    2. Points are held (deducted from earnings_points)
+    3. Admin reviews and transfers money
+    4. Transaction is recorded
+    
+    **Note:**
+    - This only works with earnings_points (not regular points)
+    - Withdrawals are processed within 24-48 hours
+    - User will receive money via bank transfer
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+        
+        logger.info(f"💸 Withdrawal request: {amount} points from user {user_id}")
+        
+        # Minimum withdrawal check
+        MIN_WITHDRAWAL = 100000
+        if amount < MIN_WITHDRAWAL:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Minimum withdrawal is {MIN_WITHDRAWAL} points ({MIN_WITHDRAWAL:,} VND)"
+            )
+        
+        # Get user document
+        users_collection = mongo_service.db["users"]
+        user_doc = users_collection.find_one({"uid": user_id})
+        
+        if not user_doc:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        earnings_points = user_doc.get("earnings_points", 0)
+        
+        # Check sufficient balance
+        if earnings_points < amount:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Insufficient earnings. You have {earnings_points:,} points but requested {amount:,} points."
+            )
+        
+        # Deduct from earnings_points
+        new_earnings = earnings_points - amount
+        users_collection.update_one(
+            {"uid": user_id},
+            {
+                "$set": {"earnings_points": new_earnings},
+                "$push": {
+                    "earnings_transactions": {
+                        "type": "withdraw",
+                        "amount": amount,
+                        "reason": "Withdrawal to bank account",
+                        "status": "pending",
+                        "timestamp": datetime.utcnow(),
+                        "balance_after": new_earnings,
+                    }
+                },
+            }
+        )
+        
+        # Create withdrawal request for admin review
+        withdrawals_collection = mongo_service.db["withdrawal_requests"]
+        withdrawal_doc = {
+            "user_id": user_id,
+            "amount": amount,
+            "amount_vnd": amount,  # 1 point = 1 VND
+            "status": "pending",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "user_email": user_info.get("email"),
+            "user_name": user_info.get("name"),
+        }
+        
+        result = withdrawals_collection.insert_one(withdrawal_doc)
+        withdrawal_id = str(result.inserted_id)
+        
+        logger.info(f"✅ Withdrawal request created: {withdrawal_id}")
+        logger.info(f"   Amount: {amount:,} points ({amount:,} VND)")
+        logger.info(f"   User balance: {earnings_points:,} → {new_earnings:,}")
+        
+        return {
+            "success": True,
+            "withdrawal_id": withdrawal_id,
+            "amount": amount,
+            "amount_vnd": amount,
+            "status": "pending",
+            "message": "Withdrawal request submitted. You will receive money within 24-48 hours.",
+            "new_balance": new_earnings,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to process withdrawal: {e}")
         raise HTTPException(status_code=500, detail=str(e))
