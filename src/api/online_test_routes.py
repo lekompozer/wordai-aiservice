@@ -140,7 +140,7 @@ def check_test_access(
     test_id: str, user_id: str, test_doc: Optional[Dict] = None
 ) -> Dict[str, Any]:
     """
-    Check if user has access to test (owner or shared)
+    Check if user has access to test (owner, shared, or public)
 
     Args:
         test_id: Test ID
@@ -148,7 +148,7 @@ def check_test_access(
         test_doc: Optional test document (to avoid extra query)
 
     Returns:
-        Dict with access_type ("owner" or "shared") and test document
+        Dict with access_type ("owner", "shared", or "public") and test document
 
     Raises:
         HTTPException: If no access
@@ -170,6 +170,16 @@ def check_test_access(
                 "access_type": "owner",
                 "test": test_doc,
                 "is_owner": True,
+            }
+
+        # Check if test is public on marketplace
+        marketplace_config = test_doc.get("marketplace_config", {})
+        if marketplace_config.get("is_public", False):
+            return {
+                "access_type": "public",
+                "test": test_doc,
+                "is_owner": False,
+                "is_public": True,
             }
 
         # Check if test is shared with user
