@@ -2446,6 +2446,242 @@ async def get_test_attempts(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ========== Phase 4: Question Media Upload ==========
+
+
+@router.post(
+    "/{test_id}/questions/{question_id}/media",
+    response_model=dict,
+    tags=["Phase 4 - Question Media"],
+)
+async def upload_question_media(
+    test_id: str,
+    question_id: str,
+    media_file: UploadFile = File(...),
+    media_type: str = Form(...),  # "image" or "audio"
+    description: str = Form(None),
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Upload image or audio for a specific question
+
+    Supported formats:
+    - Images: JPG, PNG, GIF (max 5MB)
+    - Audio: MP3, WAV, OGG (max 10MB)
+
+    Media will be stored in R2: question-media/{test_id}/{question_id}_{type}.ext
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(
+            f"📤 Uploading {media_type} for question {question_id} in test {test_id}"
+        )
+
+        # ========== Step 1: Verify test and permissions ==========
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only test creator can upload question media",
+            )
+
+        # ========== Step 2: Find question ==========
+        questions = test_doc.get("questions", [])
+        question_index = None
+        for idx, q in enumerate(questions):
+            if q.get("question_id") == question_id:
+                question_index = idx
+                break
+
+        if question_index is None:
+            raise HTTPException(status_code=404, detail="Question not found in test")
+
+        # ========== Step 3: Validate media type and file ==========
+        if media_type not in ["image", "audio"]:
+            raise HTTPException(
+                status_code=400, detail="media_type must be 'image' or 'audio'"
+            )
+
+        # Validate file type
+        if media_type == "image":
+            allowed_types = ["image/jpeg", "image/png", "image/gif", "image/jpg"]
+            max_size_mb = 5
+            extensions = {".jpg": "jpg", ".jpeg": "jpg", ".png": "png", ".gif": "gif"}
+        else:  # audio
+            allowed_types = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/ogg"]
+            max_size_mb = 10
+            extensions = {".mp3": "mp3", ".wav": "wav", ".ogg": "ogg"}
+
+        if media_file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type. Allowed: {', '.join(allowed_types)}",
+            )
+
+        # Read and validate file size
+        media_content = await media_file.read()
+        size_mb = len(media_content) / (1024 * 1024)
+
+        if size_mb > max_size_mb:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {size_mb:.2f}MB (max {max_size_mb}MB)",
+            )
+
+        logger.info(f"   File size: {size_mb:.2f}MB")
+
+        # ========== Step 4: Determine file extension ==========
+        import mimetypes
+
+        ext = mimetypes.guess_extension(media_file.content_type) or ".bin"
+        if ext in extensions:
+            ext = f".{extensions[ext]}"
+
+        # ========== Step 5: Upload to R2 ==========
+        s3_client = get_s3_client()
+        key = f"question-media/{test_id}/{question_id}_{media_type}{ext}"
+
+        logger.info(f"   [R2] Uploading to: {key}")
+
+        s3_client.put_object(
+            Bucket=R2_BUCKET_NAME,
+            Key=key,
+            Body=media_content,
+            ContentType=media_file.content_type,
+        )
+
+        media_url = f"{R2_PUBLIC_URL}/{key}"
+        logger.info(f"   [R2] ✅ Uploaded: {media_url}")
+
+        # ========== Step 6: Update question in database ==========
+        update_path = f"questions.{question_index}"
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    f"{update_path}.media_type": media_type,
+                    f"{update_path}.media_url": media_url,
+                    f"{update_path}.media_description": description or "",
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            logger.warning(f"⚠️  No changes made to question {question_id}")
+
+        logger.info(f"✅ Media uploaded for question {question_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "question_id": question_id,
+            "media_type": media_type,
+            "media_url": media_url,
+            "media_description": description or "",
+            "file_size_mb": round(size_mb, 2),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to upload question media: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/{test_id}/questions/{question_id}/media",
+    response_model=dict,
+    tags=["Phase 4 - Question Media"],
+)
+async def delete_question_media(
+    test_id: str,
+    question_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Delete media (image/audio) from a question
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(f"🗑️  Deleting media for question {question_id} in test {test_id}")
+
+        # Verify test and permissions
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test creator can delete question media"
+            )
+
+        # Find question
+        questions = test_doc.get("questions", [])
+        question_index = None
+        old_media_url = None
+
+        for idx, q in enumerate(questions):
+            if q.get("question_id") == question_id:
+                question_index = idx
+                old_media_url = q.get("media_url")
+                break
+
+        if question_index is None:
+            raise HTTPException(status_code=404, detail="Question not found")
+
+        if not old_media_url:
+            raise HTTPException(
+                status_code=404, detail="No media found for this question"
+            )
+
+        # Delete from R2 (optional - files are small, can keep for rollback)
+        try:
+            s3_client = get_s3_client()
+            # Extract key from URL
+            key = old_media_url.replace(f"{R2_PUBLIC_URL}/", "")
+            s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=key)
+            logger.info(f"   [R2] ✅ Deleted: {key}")
+        except Exception as e:
+            logger.warning(f"   [R2] ⚠️  Failed to delete from R2: {e}")
+
+        # Remove media fields from question
+        update_path = f"questions.{question_index}"
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$unset": {
+                    f"{update_path}.media_type": "",
+                    f"{update_path}.media_url": "",
+                    f"{update_path}.media_description": "",
+                },
+                "$set": {"updated_at": datetime.utcnow()},
+            },
+        )
+
+        logger.info(f"✅ Media deleted for question {question_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "question_id": question_id,
+            "deleted_media_url": old_media_url,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete question media: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ========== Phase 5: Marketplace Endpoints ==========
 
 

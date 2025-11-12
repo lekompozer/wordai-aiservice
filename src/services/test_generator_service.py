@@ -753,14 +753,20 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         # Remove correct answers and explanations
         questions_for_user = []
         for q in test_doc["questions"]:
-            questions_for_user.append(
-                {
-                    "question_id": q["question_id"],
-                    "question_text": q["question_text"],
-                    "options": q["options"],
-                    # Do NOT include: correct_answer_key, explanation
-                }
-            )
+            question_data = {
+                "question_id": q["question_id"],
+                "question_text": q["question_text"],
+                "options": q["options"],
+                # Do NOT include: correct_answer_key, explanation
+            }
+
+            # Include media if present
+            if q.get("media_type"):
+                question_data["media_type"] = q["media_type"]
+                question_data["media_url"] = q.get("media_url")
+                question_data["media_description"] = q.get("media_description", "")
+
+            questions_for_user.append(question_data)
 
         return {
             "test_id": test_id,
