@@ -1181,17 +1181,31 @@ async def get_test(
     user_info: dict = Depends(require_auth),
 ):
     """
-    Get test details for taking (questions without correct answers)
+    Get test details - response varies by access type
 
-    **UPDATED Phase 4**: Now supports shared access (owner OR shared users can access)
+    **UPDATED**: Now returns different data based on user's relationship to test
 
-    **Status Check:**
-    - If status != 'ready': Returns error with current status
-    - If status = 'ready': Returns questions (without correct answers)
+    **Owner View:**
+    - Full test configuration (all settings)
+    - All questions with correct answers
+    - Marketplace config (if published)
+    - Statistics (participants, earnings, ratings)
+    - Complete edit dashboard data
+
+    **Public View (Marketplace):**
+    - Marketplace info only (cover, price, description, difficulty)
+    - No questions revealed
+    - Community stats (participants, average score)
+    - User's participation history
+
+    **Shared View:**
+    - Questions for taking (without correct answers)
+    - Basic test info
 
     **Access Control:**
-    - Owner: Can always access
-    - Shared: Must have accepted invitation, deadline not passed
+    - Owner: Full access to all data
+    - Public: Marketplace data only
+    - Shared: Questions for taking
     """
     try:
         logger.info(f"📖 Get test request: {test_id} from user {user_info['uid']}")
@@ -1203,40 +1217,167 @@ async def get_test(
         if not test:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        # ========== Phase 5: Check access first (owner, shared, or public) ==========
+        # ========== Check access (owner, shared, or public) ==========
         access_info = check_test_access(test_id, user_info["uid"], test)
         logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
 
-        # Check is_active ONLY for non-public tests
-        # Public marketplace tests are always available regardless of is_active status
-        if access_info["access_type"] != "public" and not test.get("is_active", False):
-            raise HTTPException(status_code=403, detail="Test is not active")
+        # ========== OWNER VIEW: Return full edit dashboard data ==========
+        if access_info["is_owner"]:
+            logger.info(f"   🔑 Owner view: returning full data")
 
-        # ========== Check if test is ready ==========
-        status = test.get("status", "ready")
-        if status != "ready":
-            raise HTTPException(
-                status_code=400,
-                detail={
-                    "error": "TEST_NOT_READY",
-                    "message": f"Test is not ready yet. Current status: {status}",
-                    "current_status": status,
-                    "progress_percent": test.get("progress_percent", 0),
-                    "tip": f"Poll GET /api/v1/tests/{test_id}/status to check when ready",
-                },
+            # Get statistics
+            submissions_collection = mongo_service.db["test_submissions"]
+            total_submissions = submissions_collection.count_documents(
+                {"test_id": test_id}
             )
 
-        # Test is ready, return questions
-        test_generator = get_test_generator_service()
-        test_data = await test_generator.get_test_for_taking(test_id, user_info["uid"])
+            marketplace_config = test.get("marketplace_config", {})
+            is_published = marketplace_config.get("is_public", False)
 
-        # Add status and access info to response
-        test_data["status"] = "ready"
-        test_data["description"] = test.get("description")
-        test_data["access_type"] = access_info["access_type"]
-        test_data["is_owner"] = access_info["is_owner"]
+            return {
+                "success": True,
+                "test_id": test_id,
+                "view_type": "owner",
+                "is_owner": True,
+                "access_type": "owner",
+                # Basic info
+                "title": test.get("title"),
+                "description": test.get("description"),
+                "is_active": test.get("is_active", True),
+                "status": test.get("status", "ready"),
+                # Test settings
+                "max_retries": test.get("max_retries"),
+                "time_limit_minutes": test.get("time_limit_minutes"),
+                "passing_score": test.get("passing_score"),
+                "deadline": (
+                    test.get("deadline").isoformat() if test.get("deadline") else None
+                ),
+                "show_answers_timing": test.get("show_answers_timing"),
+                # Questions (with correct answers for owner)
+                "num_questions": len(test.get("questions", [])),
+                "questions": test.get("questions", []),
+                # Creation info
+                "creation_type": test.get("creation_type"),
+                "test_language": test.get("test_language", test.get("language", "vi")),
+                # Statistics
+                "total_submissions": total_submissions,
+                # Marketplace (if published)
+                "is_published": is_published,
+                "marketplace_config": marketplace_config if is_published else None,
+                # Timestamps
+                "created_at": test.get("created_at").isoformat(),
+                "updated_at": (
+                    test.get("updated_at").isoformat()
+                    if test.get("updated_at")
+                    else None
+                ),
+            }
 
-        return test_data
+        # ========== PUBLIC VIEW: Return marketplace data only ==========
+        elif access_info["access_type"] == "public":
+            logger.info(f"   🌍 Public view: returning marketplace data only")
+
+            marketplace_config = test.get("marketplace_config", {})
+
+            # Get user's participation history
+            submissions_collection = mongo_service.db["test_submissions"]
+            user_submissions = list(
+                submissions_collection.find(
+                    {"test_id": test_id, "user_id": user_info["uid"]}
+                ).sort("submitted_at", -1)
+            )
+
+            already_participated = len(user_submissions) > 0
+            attempts_used = len(user_submissions)
+            user_best_score = (
+                max([s.get("score_percentage", 0) for s in user_submissions])
+                if user_submissions
+                else None
+            )
+
+            return {
+                "success": True,
+                "test_id": test_id,
+                "view_type": "public",
+                "is_owner": False,
+                "access_type": "public",
+                # Marketplace info
+                "title": marketplace_config.get("title", test.get("title")),
+                "description": marketplace_config.get(
+                    "description", test.get("description")
+                ),
+                "short_description": marketplace_config.get("short_description"),
+                "cover_image_url": marketplace_config.get("cover_image_url"),
+                # Test configuration (basic)
+                "num_questions": len(test.get("questions", [])),
+                "time_limit_minutes": test.get("time_limit_minutes"),
+                "passing_score": test.get("passing_score"),
+                "max_retries": test.get("max_retries"),
+                # Marketplace metadata
+                "price_points": marketplace_config.get("price_points", 0),
+                "category": marketplace_config.get("category"),
+                "tags": marketplace_config.get("tags", []),
+                "difficulty_level": marketplace_config.get("difficulty_level"),
+                "version": marketplace_config.get("version"),
+                # Community statistics
+                "total_participants": marketplace_config.get("total_participants", 0),
+                "average_participant_score": marketplace_config.get(
+                    "average_participant_score", 0.0
+                ),
+                "average_rating": marketplace_config.get("average_rating", 0.0),
+                "rating_count": marketplace_config.get("rating_count", 0),
+                # Publication info
+                "published_at": (
+                    marketplace_config.get("published_at").isoformat()
+                    if marketplace_config.get("published_at")
+                    else None
+                ),
+                "creator_id": test.get("creator_id"),
+                # User-specific info
+                "already_participated": already_participated,
+                "attempts_used": attempts_used,
+                "user_best_score": user_best_score,
+                # Additional metadata
+                "creation_type": test.get("creation_type"),
+                "test_language": test.get("test_language", test.get("language", "vi")),
+            }
+
+        # ========== SHARED VIEW: Return questions for taking (no answers) ==========
+        else:
+            logger.info(f"   👥 Shared view: returning questions for taking")
+
+            # Check is_active for shared access
+            if not test.get("is_active", False):
+                raise HTTPException(status_code=403, detail="Test is not active")
+
+            # Check if test is ready
+            status = test.get("status", "ready")
+            if status != "ready":
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "TEST_NOT_READY",
+                        "message": f"Test is not ready yet. Current status: {status}",
+                        "current_status": status,
+                        "progress_percent": test.get("progress_percent", 0),
+                        "tip": f"Poll GET /api/v1/tests/{test_id}/status to check when ready",
+                    },
+                )
+
+            # Get questions without correct answers
+            test_generator = get_test_generator_service()
+            test_data = await test_generator.get_test_for_taking(
+                test_id, user_info["uid"]
+            )
+
+            # Add metadata
+            test_data["status"] = "ready"
+            test_data["description"] = test.get("description")
+            test_data["access_type"] = access_info["access_type"]
+            test_data["is_owner"] = False
+            test_data["view_type"] = "shared"
+
+            return test_data
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -1346,11 +1487,12 @@ async def start_test(
                 {"_id": ObjectId(test_id)},
                 {"$inc": {"marketplace_config.total_earnings": price_points}},
             )
-            
+
             # Calculate creator's earnings (80% of price, rounded up)
             import math
+
             creator_earnings = math.ceil(price_points * 0.8)
-            
+
             # Add to creator's earnings_points (separate from regular points)
             creator_id = test_doc.get("creator_id")
             users_collection.update_one(
@@ -1384,7 +1526,9 @@ async def start_test(
                 f"   💰 Points deducted: {price_points} from user {user_info['uid']} (Attempt #{current_attempt_number})"
             )
             logger.info(f"   💰 Test earnings: +{price_points} (total accumulated)")
-            logger.info(f"   💵 Creator earnings: +{creator_earnings} points ({price_points} × 80% = {creator_earnings})")
+            logger.info(
+                f"   💵 Creator earnings: +{creator_earnings} points ({price_points} × 80% = {creator_earnings})"
+            )
             logger.info(f"   📊 User balance: {current_points} → {new_points}")
 
         # Get test data
@@ -2259,6 +2403,55 @@ class UpdateTestQuestionsRequest(BaseModel):
     questions: list = Field(..., description="Updated questions array")
 
 
+class UpdateMarketplaceConfigRequest(BaseModel):
+    """Request model for updating marketplace configuration"""
+
+    title: Optional[str] = Field(
+        None, description="Marketplace title", min_length=10, max_length=200
+    )
+    description: Optional[str] = Field(
+        None, description="Full description", min_length=50, max_length=2000
+    )
+    short_description: Optional[str] = Field(
+        None, description="Short description for cards", max_length=150
+    )
+    price_points: Optional[int] = Field(None, description="Price in points", ge=0)
+    category: Optional[str] = Field(None, description="Test category")
+    tags: Optional[str] = Field(None, description="Comma-separated tags")
+    difficulty_level: Optional[str] = Field(None, description="Difficulty level")
+    is_public: Optional[bool] = Field(
+        None, description="Public status (unpublish if False)"
+    )
+
+
+class FullTestEditRequest(BaseModel):
+    """Request model for comprehensive test editing (owner only)"""
+
+    # Basic config
+    title: Optional[str] = Field(None, max_length=200)
+    description: Optional[str] = Field(None, max_length=1000)
+    is_active: Optional[bool] = None
+
+    # Test settings
+    max_retries: Optional[int] = Field(None, ge=1, le=20)
+    time_limit_minutes: Optional[int] = Field(None, ge=1, le=300)
+    passing_score: Optional[int] = Field(None, ge=0, le=100)
+    deadline: Optional[datetime] = None
+    show_answers_timing: Optional[str] = None
+
+    # Questions
+    questions: Optional[list] = None
+
+    # Marketplace config (if published)
+    marketplace_title: Optional[str] = Field(None, min_length=10, max_length=200)
+    marketplace_description: Optional[str] = Field(None, min_length=50, max_length=2000)
+    short_description: Optional[str] = Field(None, max_length=150)
+    price_points: Optional[int] = Field(None, ge=0)
+    category: Optional[str] = None
+    tags: Optional[str] = None
+    difficulty_level: Optional[str] = None
+
+
 class TestPreviewResponse(BaseModel):
     """Response model for test preview (including correct answers)"""
 
@@ -2517,6 +2710,300 @@ async def preview_test(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to preview test: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{test_id}/edit", response_model=dict, tags=["Phase 3 - Editing"])
+async def full_edit_test(
+    test_id: str,
+    request: FullTestEditRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Comprehensive test editing endpoint for owner
+
+    **Can update ALL test aspects in one call:**
+    - Basic config: title, description, is_active
+    - Test settings: max_retries, time_limit_minutes, passing_score, deadline, show_answers_timing
+    - Questions: Full questions array
+    - Marketplace config: marketplace_title, marketplace_description, price_points, category, tags, difficulty
+
+    **Access:**
+    - Only test creator can edit
+
+    **Usage:**
+    - Update any combination of fields
+    - All fields optional (only update what you provide)
+    - For marketplace fields, test must already be published
+
+    **Returns:**
+    - Updated test document with all current values
+    - Useful for owner's edit dashboard
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(f"✏️ Full edit test {test_id}")
+        logger.info(f"   User: {user_id}")
+
+        # ========== Step 1: Verify test exists and user is creator ==========
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only the test creator can edit this test"
+            )
+
+        # ========== Step 2: Build update data ==========
+        update_data = {}
+        marketplace_updates = {}
+
+        # Basic config updates
+        if request.title is not None:
+            update_data["title"] = request.title
+            logger.info(f"   Update title: {request.title}")
+
+        if request.description is not None:
+            update_data["description"] = request.description
+            logger.info(f"   Update description")
+
+        if request.is_active is not None:
+            update_data["is_active"] = request.is_active
+            logger.info(f"   Update is_active: {request.is_active}")
+
+        # Test settings updates
+        if request.max_retries is not None:
+            update_data["max_retries"] = request.max_retries
+            logger.info(f"   Update max_retries: {request.max_retries}")
+
+        if request.time_limit_minutes is not None:
+            update_data["time_limit_minutes"] = request.time_limit_minutes
+            logger.info(f"   Update time_limit: {request.time_limit_minutes}min")
+
+        if request.passing_score is not None:
+            update_data["passing_score"] = request.passing_score
+            logger.info(f"   Update passing_score: {request.passing_score}%")
+
+        if request.deadline is not None:
+            update_data["deadline"] = request.deadline
+            logger.info(f"   Update deadline: {request.deadline}")
+
+        if request.show_answers_timing is not None:
+            if request.show_answers_timing not in ["immediate", "after_deadline"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="show_answers_timing must be 'immediate' or 'after_deadline'",
+                )
+            update_data["show_answers_timing"] = request.show_answers_timing
+            logger.info(f"   Update show_answers_timing: {request.show_answers_timing}")
+
+        # Questions update
+        if request.questions is not None:
+            if len(request.questions) == 0:
+                raise HTTPException(
+                    status_code=400, detail="At least one question is required"
+                )
+
+            if len(request.questions) > 100:
+                raise HTTPException(
+                    status_code=400, detail="Maximum 100 questions allowed"
+                )
+
+            # Validate questions structure
+            for idx, q in enumerate(request.questions):
+                if not q.get("question_text"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: question_text is required",
+                    )
+
+                if not q.get("options") or len(q["options"]) < 2:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: At least 2 options are required",
+                    )
+
+                # Ensure question_id exists
+                if not q.get("question_id"):
+                    q["question_id"] = str(ObjectId())
+
+            update_data["questions"] = request.questions
+            logger.info(f"   Update questions: {len(request.questions)} questions")
+
+        # ========== Step 3: Handle marketplace config updates (if published) ==========
+        marketplace_config = test_doc.get("marketplace_config", {})
+        is_published = marketplace_config.get("is_public", False)
+
+        if is_published:
+            # Update marketplace fields
+            if request.marketplace_title is not None:
+                if len(request.marketplace_title) < 10:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Marketplace title must be at least 10 characters",
+                    )
+                marketplace_updates["marketplace_config.title"] = (
+                    request.marketplace_title
+                )
+                logger.info(f"   Update marketplace title: {request.marketplace_title}")
+
+            if request.marketplace_description is not None:
+                if len(request.marketplace_description) < 50:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Marketplace description must be at least 50 characters",
+                    )
+                marketplace_updates["marketplace_config.description"] = (
+                    request.marketplace_description
+                )
+                logger.info(f"   Update marketplace description")
+
+            if request.short_description is not None:
+                marketplace_updates["marketplace_config.short_description"] = (
+                    request.short_description
+                )
+                logger.info(f"   Update short_description")
+
+            if request.price_points is not None:
+                if request.price_points < 0:
+                    raise HTTPException(status_code=400, detail="Price must be >= 0")
+                marketplace_updates["marketplace_config.price_points"] = (
+                    request.price_points
+                )
+                logger.info(f"   Update price: {request.price_points} points")
+
+            if request.category is not None:
+                valid_categories = [
+                    "programming",
+                    "language",
+                    "math",
+                    "science",
+                    "business",
+                    "technology",
+                    "design",
+                    "exam_prep",
+                    "certification",
+                    "other",
+                ]
+                if request.category not in valid_categories:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid category. Valid: {', '.join(valid_categories)}",
+                    )
+                marketplace_updates["marketplace_config.category"] = request.category
+                logger.info(f"   Update category: {request.category}")
+
+            if request.tags is not None:
+                tags_list = [
+                    tag.strip().lower()
+                    for tag in request.tags.split(",")
+                    if tag.strip()
+                ]
+                if len(tags_list) < 1:
+                    raise HTTPException(
+                        status_code=400, detail="At least 1 tag is required"
+                    )
+                if len(tags_list) > 10:
+                    raise HTTPException(
+                        status_code=400, detail="Maximum 10 tags allowed"
+                    )
+                marketplace_updates["marketplace_config.tags"] = tags_list
+                logger.info(f"   Update tags: {tags_list}")
+
+            if request.difficulty_level is not None:
+                valid_difficulty = ["beginner", "intermediate", "advanced", "expert"]
+                if request.difficulty_level not in valid_difficulty:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid difficulty. Valid: {', '.join(valid_difficulty)}",
+                    )
+                marketplace_updates["marketplace_config.difficulty_level"] = (
+                    request.difficulty_level
+                )
+                logger.info(f"   Update difficulty: {request.difficulty_level}")
+
+        elif any(
+            [
+                request.marketplace_title,
+                request.marketplace_description,
+                request.short_description,
+                request.price_points is not None,
+                request.category,
+                request.tags,
+                request.difficulty_level,
+            ]
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot update marketplace config. Test is not published. Use POST /marketplace/publish first.",
+            )
+
+        # ========== Step 4: Combine all updates ==========
+        all_updates = {**update_data, **marketplace_updates}
+
+        if not all_updates:
+            raise HTTPException(
+                status_code=400,
+                detail="No fields to update. Provide at least one field to update.",
+            )
+
+        # Add timestamp
+        all_updates["updated_at"] = datetime.utcnow()
+
+        # ========== Step 5: Update in database ==========
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)}, {"$set": all_updates}
+        )
+
+        if result.modified_count == 0:
+            logger.warning(f"⚠️ No changes made to test {test_id}")
+
+        # ========== Step 6: Get updated test document ==========
+        updated_test = mongo_service.db["online_tests"].find_one(
+            {"_id": ObjectId(test_id)}
+        )
+
+        logger.info(f"✅ Test {test_id} fully updated")
+
+        # ========== Step 7: Return comprehensive response ==========
+        return {
+            "success": True,
+            "test_id": test_id,
+            "updated_fields": list(all_updates.keys()),
+            "test": {
+                # Basic info
+                "title": updated_test.get("title"),
+                "description": updated_test.get("description"),
+                "is_active": updated_test.get("is_active", True),
+                # Test settings
+                "max_retries": updated_test.get("max_retries"),
+                "time_limit_minutes": updated_test.get("time_limit_minutes"),
+                "passing_score": updated_test.get("passing_score"),
+                "deadline": (
+                    updated_test.get("deadline").isoformat()
+                    if updated_test.get("deadline")
+                    else None
+                ),
+                "show_answers_timing": updated_test.get("show_answers_timing"),
+                # Questions
+                "num_questions": len(updated_test.get("questions", [])),
+                "questions": updated_test.get("questions", []),
+                # Marketplace (if published)
+                "is_published": is_published,
+                "marketplace_config": updated_test.get("marketplace_config", {}),
+                # Timestamps
+                "created_at": updated_test.get("created_at").isoformat(),
+                "updated_at": updated_test.get("updated_at").isoformat(),
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to edit test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3124,6 +3611,235 @@ async def publish_test_to_marketplace(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.patch(
+    "/{test_id}/marketplace/config",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def update_marketplace_config(
+    test_id: str,
+    cover_image: Optional[UploadFile] = File(None),
+    title: Optional[str] = Form(None),
+    description: Optional[str] = Form(None),
+    short_description: Optional[str] = Form(None),
+    price_points: Optional[int] = Form(None),
+    category: Optional[str] = Form(None),
+    tags: Optional[str] = Form(None),
+    difficulty_level: Optional[str] = Form(None),
+    is_public: Optional[bool] = Form(None),
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Update marketplace configuration for an already published test
+
+    **Can update:**
+    - cover_image: Upload new cover image (JPG/PNG, max 5MB)
+    - title: Marketplace title (min 10 chars)
+    - description: Full description (min 50 chars)
+    - short_description: Brief summary for listing cards
+    - price_points: Price in points (>= 0)
+    - category: Test category
+    - tags: Comma-separated tags
+    - difficulty_level: Difficulty (beginner/intermediate/advanced/expert)
+    - is_public: Set to False to unpublish test
+
+    **Access:**
+    - Only test creator can update
+    - Test must already be published (marketplace_config.is_public = true)
+
+    **Note:**
+    - All fields are optional, only update what you provide
+    - Cover image: If provided, uploads new version and replaces old URL
+    - Version number increments automatically on update
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(f"🔄 Updating marketplace config for test {test_id}")
+        logger.info(f"   User: {user_id}")
+
+        # ========== Step 1: Validate test exists and user is creator ==========
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc.get("creator_id") != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only test creator can update marketplace config",
+            )
+
+        # ========== Step 2: Check if test is published ==========
+        marketplace_config = test_doc.get("marketplace_config", {})
+        if not marketplace_config.get("is_public", False):
+            raise HTTPException(
+                status_code=400,
+                detail="Test is not published. Use POST /marketplace/publish first.",
+            )
+
+        # ========== Step 3: Build update data ==========
+        update_data = {}
+
+        # Validate and update title
+        if title is not None:
+            if len(title) < 10:
+                raise HTTPException(
+                    status_code=400, detail="Title must be at least 10 characters"
+                )
+            update_data["marketplace_config.title"] = title
+            logger.info(f"   Update title: {title}")
+
+        # Validate and update description
+        if description is not None:
+            if len(description) < 50:
+                raise HTTPException(
+                    status_code=400, detail="Description must be at least 50 characters"
+                )
+            update_data["marketplace_config.description"] = description
+            logger.info(f"   Update description (length: {len(description)})")
+
+        # Update short description
+        if short_description is not None:
+            update_data["marketplace_config.short_description"] = short_description
+            logger.info(f"   Update short_description")
+
+        # Validate and update price
+        if price_points is not None:
+            if price_points < 0:
+                raise HTTPException(status_code=400, detail="Price must be >= 0")
+            update_data["marketplace_config.price_points"] = price_points
+            logger.info(f"   Update price: {price_points} points")
+
+        # Validate and update category
+        if category is not None:
+            valid_categories = [
+                "programming",
+                "language",
+                "math",
+                "science",
+                "business",
+                "technology",
+                "design",
+                "exam_prep",
+                "certification",
+                "other",
+            ]
+            if category not in valid_categories:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid category. Valid: {', '.join(valid_categories)}",
+                )
+            update_data["marketplace_config.category"] = category
+            logger.info(f"   Update category: {category}")
+
+        # Validate and update tags
+        if tags is not None:
+            tags_list = [tag.strip().lower() for tag in tags.split(",") if tag.strip()]
+            if len(tags_list) < 1:
+                raise HTTPException(
+                    status_code=400, detail="At least 1 tag is required"
+                )
+            if len(tags_list) > 10:
+                raise HTTPException(status_code=400, detail="Maximum 10 tags allowed")
+            update_data["marketplace_config.tags"] = tags_list
+            logger.info(f"   Update tags: {tags_list}")
+
+        # Validate and update difficulty
+        if difficulty_level is not None:
+            valid_difficulty = ["beginner", "intermediate", "advanced", "expert"]
+            if difficulty_level not in valid_difficulty:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid difficulty. Valid: {', '.join(valid_difficulty)}",
+                )
+            update_data["marketplace_config.difficulty_level"] = difficulty_level
+            logger.info(f"   Update difficulty: {difficulty_level}")
+
+        # Update public status (unpublish if False)
+        if is_public is not None:
+            update_data["marketplace_config.is_public"] = is_public
+            logger.info(f"   Update is_public: {is_public}")
+
+        # ========== Step 4: Handle cover image upload (if provided) ==========
+        if cover_image:
+            logger.info(f"   New cover image provided: {cover_image.filename}")
+
+            # Validate image
+            if not cover_image.content_type in ["image/jpeg", "image/png", "image/jpg"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cover image must be JPG or PNG",
+                )
+
+            # Read file content
+            cover_content = await cover_image.read()
+            cover_size_mb = len(cover_content) / (1024 * 1024)
+
+            if cover_size_mb > 5:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cover image too large: {cover_size_mb:.2f}MB (max 5MB)",
+                )
+
+            logger.info(f"   Cover image size: {cover_size_mb:.2f}MB")
+
+            # Increment version for new upload
+            current_version_str = marketplace_config.get("version", "v1")
+            current_version_num = int(current_version_str.replace("v", ""))
+            new_version = f"v{current_version_num + 1}"
+
+            # Upload to R2
+            cover_url = await upload_cover_to_r2(
+                cover_content, test_id, new_version, cover_image.content_type
+            )
+
+            update_data["marketplace_config.cover_image_url"] = cover_url
+            update_data["marketplace_config.version"] = new_version
+            logger.info(f"   Uploaded new cover: {cover_url}")
+            logger.info(f"   New version: {new_version}")
+
+        # ========== Step 5: Ensure at least one field to update ==========
+        if not update_data:
+            raise HTTPException(
+                status_code=400,
+                detail="No fields to update. Provide at least one field to update.",
+            )
+
+        # Add updated_at timestamp
+        update_data["updated_at"] = datetime.utcnow()
+
+        # ========== Step 6: Update in database ==========
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)}, {"$set": update_data}
+        )
+
+        if result.modified_count == 0:
+            logger.warning(f"⚠️ No changes made to test {test_id} (data might be same)")
+
+        # ========== Step 7: Get updated config ==========
+        updated_test = mongo_service.db["online_tests"].find_one(
+            {"_id": ObjectId(test_id)}
+        )
+        updated_marketplace_config = updated_test.get("marketplace_config", {})
+
+        logger.info(f"✅ Marketplace config updated for test {test_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "updated_fields": list(update_data.keys()),
+            "marketplace_config": updated_marketplace_config,
+            "updated_at": update_data["updated_at"].isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update marketplace config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/{test_id}/marketplace/details",
     response_model=dict,
@@ -3265,13 +3981,13 @@ async def get_my_earnings(
 ):
     """
     Get user's earnings from public tests
-    
+
     Returns:
     - earnings_points: Total earnings available (can be withdrawn to cash)
     - total_earned: Lifetime earnings
     - earnings_transactions: Recent earnings history
     - pending_withdrawal: Any pending withdrawal requests
-    
+
     **Note:**
     - earnings_points is separate from regular points
     - earnings_points can be withdrawn to real money
@@ -3280,46 +3996,48 @@ async def get_my_earnings(
     try:
         user_id = user_info["uid"]
         mongo_service = get_mongodb_service()
-        
+
         logger.info(f"💰 Get earnings for user: {user_id}")
-        
+
         # Get user document
         users_collection = mongo_service.db["users"]
         user_doc = users_collection.find_one({"uid": user_id})
-        
+
         if not user_doc:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         earnings_points = user_doc.get("earnings_points", 0)
         earnings_transactions = user_doc.get("earnings_transactions", [])
-        
+
         # Calculate total lifetime earnings
         total_earned = sum(
-            t.get("amount", 0) 
-            for t in earnings_transactions 
-            if t.get("type") == "earn"
+            t.get("amount", 0) for t in earnings_transactions if t.get("type") == "earn"
         )
-        
+
         # Get recent transactions (last 50)
         recent_transactions = sorted(
             earnings_transactions,
             key=lambda x: x.get("timestamp", datetime.min),
-            reverse=True
+            reverse=True,
         )[:50]
-        
+
         # Format transactions for response
         formatted_transactions = []
         for t in recent_transactions:
-            formatted_transactions.append({
-                "type": t.get("type"),
-                "amount": t.get("amount"),
-                "original_amount": t.get("original_amount"),
-                "percentage": t.get("percentage"),
-                "reason": t.get("reason"),
-                "test_id": t.get("test_id"),
-                "timestamp": t.get("timestamp").isoformat() if t.get("timestamp") else None,
-            })
-        
+            formatted_transactions.append(
+                {
+                    "type": t.get("type"),
+                    "amount": t.get("amount"),
+                    "original_amount": t.get("original_amount"),
+                    "percentage": t.get("percentage"),
+                    "reason": t.get("reason"),
+                    "test_id": t.get("test_id"),
+                    "timestamp": (
+                        t.get("timestamp").isoformat() if t.get("timestamp") else None
+                    ),
+                }
+            )
+
         response = {
             "success": True,
             "earnings_points": earnings_points,
@@ -3327,11 +4045,11 @@ async def get_my_earnings(
             "total_withdrawn": total_earned - earnings_points,
             "recent_transactions": formatted_transactions,
         }
-        
+
         logger.info(f"✅ Earnings retrieved: {earnings_points} points available")
-        
+
         return response
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -3350,18 +4068,18 @@ async def withdraw_earnings(
 ):
     """
     Request to withdraw earnings to real money
-    
+
     **Requirements:**
     - Minimum withdrawal: 100,000 points (100,000 VND)
     - earnings_points must be sufficient
     - Withdrawal will be processed manually by admin
-    
+
     **Process:**
     1. User requests withdrawal
     2. Points are held (deducted from earnings_points)
     3. Admin reviews and transfers money
     4. Transaction is recorded
-    
+
     **Note:**
     - This only works with earnings_points (not regular points)
     - Withdrawals are processed within 24-48 hours
@@ -3370,33 +4088,33 @@ async def withdraw_earnings(
     try:
         user_id = user_info["uid"]
         mongo_service = get_mongodb_service()
-        
+
         logger.info(f"💸 Withdrawal request: {amount} points from user {user_id}")
-        
+
         # Minimum withdrawal check
         MIN_WITHDRAWAL = 100000
         if amount < MIN_WITHDRAWAL:
             raise HTTPException(
                 status_code=400,
-                detail=f"Minimum withdrawal is {MIN_WITHDRAWAL} points ({MIN_WITHDRAWAL:,} VND)"
+                detail=f"Minimum withdrawal is {MIN_WITHDRAWAL} points ({MIN_WITHDRAWAL:,} VND)",
             )
-        
+
         # Get user document
         users_collection = mongo_service.db["users"]
         user_doc = users_collection.find_one({"uid": user_id})
-        
+
         if not user_doc:
             raise HTTPException(status_code=404, detail="User not found")
-        
+
         earnings_points = user_doc.get("earnings_points", 0)
-        
+
         # Check sufficient balance
         if earnings_points < amount:
             raise HTTPException(
                 status_code=402,
-                detail=f"Insufficient earnings. You have {earnings_points:,} points but requested {amount:,} points."
+                detail=f"Insufficient earnings. You have {earnings_points:,} points but requested {amount:,} points.",
             )
-        
+
         # Deduct from earnings_points
         new_earnings = earnings_points - amount
         users_collection.update_one(
@@ -3413,9 +4131,9 @@ async def withdraw_earnings(
                         "balance_after": new_earnings,
                     }
                 },
-            }
+            },
         )
-        
+
         # Create withdrawal request for admin review
         withdrawals_collection = mongo_service.db["withdrawal_requests"]
         withdrawal_doc = {
@@ -3428,14 +4146,14 @@ async def withdraw_earnings(
             "user_email": user_info.get("email"),
             "user_name": user_info.get("name"),
         }
-        
+
         result = withdrawals_collection.insert_one(withdrawal_doc)
         withdrawal_id = str(result.inserted_id)
-        
+
         logger.info(f"✅ Withdrawal request created: {withdrawal_id}")
         logger.info(f"   Amount: {amount:,} points ({amount:,} VND)")
         logger.info(f"   User balance: {earnings_points:,} → {new_earnings:,}")
-        
+
         return {
             "success": True,
             "withdrawal_id": withdrawal_id,
@@ -3445,7 +4163,7 @@ async def withdraw_earnings(
             "message": "Withdrawal request submitted. You will receive money within 24-48 hours.",
             "new_balance": new_earnings,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
