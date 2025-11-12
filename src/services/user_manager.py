@@ -197,6 +197,7 @@ class UserManager:
 
             user_doc = {
                 "firebase_uid": firebase_uid,
+                "uid": firebase_uid,  # Alias for backward compatibility
                 "email": firebase_data.get("email"),
                 "display_name": firebase_data.get("display_name"),
                 "photo_url": firebase_data.get("photo_url"),
@@ -219,9 +220,15 @@ class UserManager:
                         "$set": user_doc,
                         "$setOnInsert": {
                             "created_at": now,
+                            # Auth system fields
                             "subscription_plan": "free",
                             "total_conversations": 0,
                             "total_files": 0,
+                            # Online test system fields (unified)
+                            "points": 0,
+                            "earnings_points": 0,
+                            "point_transactions": [],
+                            "earnings_transactions": [],
                         },
                     },
                     upsert=True,
@@ -239,9 +246,15 @@ class UserManager:
                     user_doc.update(
                         {
                             "created_at": now,
+                            # Auth system fields
                             "subscription_plan": "free",
                             "total_conversations": 0,
                             "total_files": 0,
+                            # Online test system fields (unified)
+                            "points": 0,
+                            "earnings_points": 0,
+                            "point_transactions": [],
+                            "earnings_transactions": [],
                         }
                     )
 

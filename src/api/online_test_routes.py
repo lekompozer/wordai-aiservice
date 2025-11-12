@@ -1123,11 +1123,11 @@ async def get_test_status(
         if not test:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        # Only creator can check status
-        if test.get("creator_id") != user_info["uid"]:
-            raise HTTPException(
-                status_code=403, detail="You don't have permission to view this test"
-            )
+        # Check access (owner, public, or shared)
+        access_info = check_test_access(test_id, user_info["uid"], test)
+        logger.info(
+            f"   ✅ Status check access granted: type={access_info['access_type']}"
+        )
 
         status = test.get("status", "pending")
         progress = test.get("progress_percent", 0)
@@ -1440,10 +1440,45 @@ async def start_test(
         if should_deduct_points:
             # Get user's current points
             users_collection = mongo_service.db["users"]
-            user_doc = users_collection.find_one({"uid": user_info["uid"]})
+            # Query by firebase_uid (unified schema)
+            user_doc = users_collection.find_one({"firebase_uid": user_info["uid"]})
 
+            # Auto-create or sync user profile if not exists
             if not user_doc:
-                raise HTTPException(status_code=404, detail="User profile not found")
+                logger.info(
+                    f"   📝 Creating unified user profile for {user_info['uid']}"
+                )
+                user_doc = {
+                    "firebase_uid": user_info["uid"],  # Primary key (unified)
+                    "uid": user_info["uid"],  # Alias for backward compatibility
+                    "email": user_info.get("email", ""),
+                    "display_name": user_info.get("name", ""),
+                    "photo_url": user_info.get("picture", ""),
+                    "email_verified": user_info.get("email_verified", False),
+                    "provider": user_info.get("firebase", {}).get(
+                        "sign_in_provider", "unknown"
+                    ),
+                    # Online test fields
+                    "points": 0,
+                    "earnings_points": 0,
+                    "point_transactions": [],
+                    "earnings_transactions": [],
+                    # Auth system fields
+                    "subscription_plan": "free",
+                    "total_conversations": 0,
+                    "total_files": 0,
+                    "preferences": {
+                        "default_ai_provider": "openai",
+                        "theme": "light",
+                        "language": "vi",
+                    },
+                    # Timestamps
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                    "last_login": datetime.utcnow(),
+                }
+                users_collection.insert_one(user_doc)
+                logger.info(f"   ✅ Unified user profile created with 0 points")
 
             current_points = user_doc.get("points", 0)
 
@@ -1464,9 +1499,9 @@ async def start_test(
             # Deduct points from user (on EVERY attempt)
             new_points = current_points - price_points
             users_collection.update_one(
-                {"uid": user_info["uid"]},
+                {"firebase_uid": user_info["uid"]},  # Use firebase_uid
                 {
-                    "$set": {"points": new_points},
+                    "$set": {"points": new_points, "updated_at": datetime.utcnow()},
                     "$push": {
                         "point_transactions": {
                             "type": "deduct",
@@ -1496,7 +1531,7 @@ async def start_test(
             # Add to creator's earnings_points (separate from regular points)
             creator_id = test_doc.get("creator_id")
             users_collection.update_one(
-                {"uid": creator_id},
+                {"firebase_uid": creator_id},  # Use firebase_uid
                 {
                     "$inc": {"earnings_points": creator_earnings},
                     "$push": {
@@ -3999,9 +4034,9 @@ async def get_my_earnings(
 
         logger.info(f"💰 Get earnings for user: {user_id}")
 
-        # Get user document
+        # Get user document (use firebase_uid)
         users_collection = mongo_service.db["users"]
-        user_doc = users_collection.find_one({"uid": user_id})
+        user_doc = users_collection.find_one({"firebase_uid": user_id})
 
         if not user_doc:
             raise HTTPException(status_code=404, detail="User not found")
@@ -4099,9 +4134,9 @@ async def withdraw_earnings(
                 detail=f"Minimum withdrawal is {MIN_WITHDRAWAL} points ({MIN_WITHDRAWAL:,} VND)",
             )
 
-        # Get user document
+        # Get user document (use firebase_uid)
         users_collection = mongo_service.db["users"]
-        user_doc = users_collection.find_one({"uid": user_id})
+        user_doc = users_collection.find_one({"firebase_uid": user_id})
 
         if not user_doc:
             raise HTTPException(status_code=404, detail="User not found")
@@ -4118,7 +4153,7 @@ async def withdraw_earnings(
         # Deduct from earnings_points
         new_earnings = earnings_points - amount
         users_collection.update_one(
-            {"uid": user_id},
+            {"firebase_uid": user_id},  # Use firebase_uid
             {
                 "$set": {"earnings_points": new_earnings},
                 "$push": {
