@@ -44,13 +44,10 @@ class TestGeneratorService:
     ) -> str:
         """Build prompt for test generation with language support and flexible answer options"""
 
-        # Language instructions
-        language_map = {
-            "vi": "Generate all questions, options, and explanations in Vietnamese.",
-            "en": "Generate all questions, options, and explanations in English.",
-            "zh": "Generate all questions, options, and explanations in Chinese (Simplified).",
-        }
-        lang_instruction = language_map.get(language, language_map["vi"])
+        # Language instruction - now supports ANY language dynamically
+        lang_instruction = (
+            f"Generate all questions, options, and explanations in {language} language."
+        )
 
         # Difficulty instructions
         difficulty_map = {
@@ -86,7 +83,8 @@ class TestGeneratorService:
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
 2. {lang_instruction}
-3. The JSON object must conform to the following structure:
+3. **IMPORTANT: If the user query specifies different requirements (e.g., number of options, correct answers, topics to focus on), follow the user's specifications FIRST, then use these defaults as fallback.**
+4. The JSON object must conform to the following structure:
    {{
      "questions": [
        {{
@@ -99,12 +97,12 @@ class TestGeneratorService:
        }}
      ]
    }}
-4. Generate exactly {num_questions} questions.
-5. The questions must be relevant to the user's query: "{user_query}".
-6. All information used to create questions, answers, and explanations must come directly from the provided document.
-7. Each question must have exactly {num_options} options ({", ".join(option_keys)}).
-8. {correct_answer_instruction}
-9. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
+5. Generate exactly {num_questions} questions (unless user query specifies otherwise).
+6. The questions must be relevant to the user's query: "{user_query}".
+7. All information used to create questions, answers, and explanations must come directly from the provided document.
+8. Each question should have {num_options} options by default ({", ".join(option_keys)}), but adjust if user query indicates otherwise.
+9. {correct_answer_instruction} However, if the question complexity requires it or user query specifies, you may adjust.
+10. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
 
 **DOCUMENT CONTENT:**
 ---
@@ -452,8 +450,8 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             if gemini_pdf_bytes:
                 logger.info(f"📄 Using PDF bytes: {len(gemini_pdf_bytes)} bytes")
             else:
-                # Text content validation
-                if len(content) < 100:
+                # Text content validation (skip for PDFs which may be image-based)
+                if not gemini_pdf_bytes and len(content) < 100:
                     raise ValueError("Content too short (minimum 100 characters)")
 
                 # Truncate content if too long (max ~1M characters / ~250K tokens)

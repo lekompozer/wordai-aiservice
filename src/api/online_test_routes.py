@@ -242,7 +242,7 @@ class GenerateTestRequest(BaseModel):
     )
     language: str = Field(
         default="vi",
-        description="Language for questions and answers: 'vi' (Vietnamese), 'en' (English), 'zh' (Chinese)",
+        description="Language for test content: specify any language (e.g., 'vi', 'en', 'zh', 'fr', 'es', etc.)",
     )
     difficulty: Optional[str] = Field(
         None,
@@ -299,7 +299,10 @@ class CreateManualTestRequest(BaseModel):
     description: Optional[str] = Field(
         None, description="Test description (optional)", max_length=1000
     )
-    language: str = Field(default="vi", description="Language: 'vi', 'en', or 'zh'")
+    language: str = Field(
+        default="vi",
+        description="Language for test content: specify any language (e.g., 'vi', 'en', 'zh', 'fr', 'es', etc.)",
+    )
     time_limit_minutes: int = Field(
         30, description="Time limit in minutes", ge=1, le=300
     )
@@ -537,13 +540,8 @@ async def generate_test(
             f"   Questions: {request.num_questions}, Time: {request.time_limit_minutes}min"
         )
 
-        # Validate language
-        supported_languages = {"vi", "en", "zh"}
-        if request.language not in supported_languages:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid language: {request.language}. Must be one of: {supported_languages}",
-            )
+        # Language validation removed - now supports ANY language for maximum flexibility
+        # The AI model can generate questions in any language the user specifies
 
         # Initialize variables
         content = ""
@@ -749,7 +747,7 @@ async def generate_test(
             "title": request.title,
             "description": request.description,
             "user_query": request.user_query,
-            "language": request.language,
+            "test_language": request.language,  # Renamed from 'language' to avoid MongoDB text index conflict
             "source_type": request.source_type,
             "source_document_id": (
                 request.source_id if request.source_type == "document" else None
@@ -897,7 +895,7 @@ async def create_manual_test(
             "title": request.title,
             "description": request.description,
             "user_query": None,  # N/A for manual tests
-            "language": request.language,
+            "test_language": request.language,  # Renamed from 'language' to avoid MongoDB text index conflict
             "source_type": "manual",
             "source_document_id": None,
             "source_file_r2_key": None,
@@ -1030,7 +1028,10 @@ async def duplicate_test(
             "title": new_title,
             "description": original_test.get("description"),
             "user_query": original_test.get("user_query"),
-            "language": original_test.get("language", "vi"),
+            "test_language": original_test.get("test_language")
+            or original_test.get(
+                "language", "vi"
+            ),  # Support both old and new field names
             "source_type": original_test.get("source_type", "manual"),
             "source_document_id": original_test.get("source_document_id"),
             "source_file_r2_key": original_test.get("source_file_r2_key"),
@@ -2792,10 +2793,10 @@ async def delete_question_media(
 )
 async def publish_test_to_marketplace(
     test_id: str,
-    cover_image: UploadFile = File(...),
+    cover_image: Optional[UploadFile] = File(None),
     title: str = Form(...),
     description: str = Form(...),
-    short_description: str = Form(...),
+    short_description: Optional[str] = Form(None),
     price_points: int = Form(...),
     category: str = Form(...),
     tags: str = Form(...),
@@ -2809,7 +2810,8 @@ async def publish_test_to_marketplace(
     - Test must have at least 5 questions
     - Description must be at least 50 characters
     - Title must be at least 10 characters
-    - Cover image: JPG/PNG, max 5MB, min 800x600
+    - Cover image: (Optional) JPG/PNG, max 5MB, min 800x600
+    - Short description: (Optional) Brief summary for listing cards
     - Price: 0 (FREE) or any positive integer
 
     Returns:
@@ -2904,24 +2906,28 @@ async def publish_test_to_marketplace(
         if len(tags_list) > 10:
             raise HTTPException(status_code=400, detail="Maximum 10 tags allowed")
 
-        # ========== Step 5: Validate cover image ==========
-        if not cover_image.content_type in ["image/jpeg", "image/png", "image/jpg"]:
-            raise HTTPException(
-                status_code=400,
-                detail="Cover image must be JPG or PNG",
-            )
+        # ========== Step 5: Validate cover image (optional) ==========
+        cover_url = None
+        if cover_image:
+            if not cover_image.content_type in ["image/jpeg", "image/png", "image/jpg"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Cover image must be JPG or PNG",
+                )
 
-        # Read file content
-        cover_content = await cover_image.read()
-        cover_size_mb = len(cover_content) / (1024 * 1024)
+            # Read file content
+            cover_content = await cover_image.read()
+            cover_size_mb = len(cover_content) / (1024 * 1024)
 
-        if cover_size_mb > 5:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Cover image too large: {cover_size_mb:.2f}MB (max 5MB)",
-            )
+            if cover_size_mb > 5:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cover image too large: {cover_size_mb:.2f}MB (max 5MB)",
+                )
 
-        logger.info(f"   Cover image size: {cover_size_mb:.2f}MB")
+            logger.info(f"   Cover image size: {cover_size_mb:.2f}MB")
+        else:
+            logger.info(f"   No cover image provided (optional)")
 
         # ========== Step 6: Determine version ==========
         current_version = test_doc.get("marketplace_config", {}).get("version", 0)
@@ -2929,10 +2935,13 @@ async def publish_test_to_marketplace(
 
         logger.info(f"   Creating marketplace version: {new_version}")
 
-        # ========== Step 7: Upload cover image to R2 ==========
-        cover_url = await upload_cover_to_r2(
-            cover_content, test_id, new_version, cover_image.content_type
-        )
+        # ========== Step 7: Upload cover image to R2 (if provided) ==========
+        if cover_image:
+            cover_url = await upload_cover_to_r2(
+                cover_content, test_id, new_version, cover_image.content_type
+            )
+        else:
+            cover_url = None
 
         # ========== Step 8: Create marketplace_config ==========
         marketplace_config = {
@@ -2940,8 +2949,12 @@ async def publish_test_to_marketplace(
             "version": new_version,
             "title": title,
             "description": description,
-            "short_description": short_description,
-            "cover_image_url": cover_url,
+            "short_description": (
+                short_description or description[:100] + "..."
+                if len(description) > 100
+                else description
+            ),  # Auto-generate from description if not provided
+            "cover_image_url": cover_url,  # None if not provided
             "price_points": price_points,
             "category": category,
             "tags": tags_list,
