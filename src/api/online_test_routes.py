@@ -99,7 +99,12 @@ def get_s3_client():
 async def upload_cover_to_r2(
     file_content: bytes, test_id: str, version: str, content_type: str
 ) -> str:
-    """Upload test cover image to R2 and return public URL"""
+    """
+    Upload test cover image to R2 and return public URL
+
+    Cover images are stored in public 'test-covers/' directory for direct access.
+    The R2 bucket has a public access policy configured for this directory.
+    """
     try:
         # Generate R2 key
         key = f"test-covers/test_{test_id}_{version}.jpg"
@@ -110,7 +115,7 @@ async def upload_cover_to_r2(
 
         s3_client = get_s3_client()
 
-        # Upload to R2
+        # Upload to R2 (public read via bucket policy)
         s3_client.put_object(
             Bucket=R2_BUCKET_NAME,
             Key=key,
@@ -118,7 +123,7 @@ async def upload_cover_to_r2(
             ContentType=content_type,
         )
 
-        # Return public URL
+        # Return public URL (accessible via bucket policy)
         public_url = f"{R2_PUBLIC_URL}/{key}"
         logger.info(f"   [R2] ✅ Cover uploaded: {public_url}")
         return public_url

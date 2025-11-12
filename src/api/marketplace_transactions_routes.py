@@ -146,7 +146,7 @@ async def purchase_test(test_id: str, user_info: dict = Depends(require_auth)):
                 {"_id": ObjectId(test_id)},
                 {
                     "$inc": {
-                        "marketplace_config.total_revenue": creator_earnings,
+                        "marketplace_config.total_earnings": creator_earnings,  # Changed from total_revenue
                         "marketplace_config.total_purchases": 1,
                     },
                     "$set": {
@@ -532,7 +532,9 @@ async def get_my_earnings(user_info: dict = Depends(require_auth)):
         for test in tests:
             mc = test.get("marketplace_config", {})
             if mc.get("is_public"):
-                test_earnings = mc.get("total_revenue", 0)
+                test_earnings = mc.get(
+                    "total_earnings", 0
+                )  # Changed from total_revenue
                 total_earnings += test_earnings
 
                 test_breakdown.append(
@@ -575,7 +577,8 @@ async def transfer_earnings_to_wallet(
         # 1. Calculate total available earnings
         tests = list(db.online_tests.find({"creator_id": user_id}))
         total_earnings = sum(
-            test.get("marketplace_config", {}).get("total_revenue", 0) for test in tests
+            test.get("marketplace_config", {}).get("total_earnings", 0)
+            for test in tests  # Changed from total_revenue
         )
 
         if amount > total_earnings:
@@ -593,20 +596,26 @@ async def transfer_earnings_to_wallet(
 
         for test in sorted(
             tests,
-            key=lambda t: t.get("marketplace_config", {}).get("total_revenue", 0),
+            key=lambda t: t.get("marketplace_config", {}).get(
+                "total_earnings", 0
+            ),  # Changed from total_revenue
             reverse=True,
         ):
             if remaining <= 0:
                 break
 
-            test_revenue = test.get("marketplace_config", {}).get("total_revenue", 0)
+            test_revenue = test.get("marketplace_config", {}).get(
+                "total_earnings", 0
+            )  # Changed from total_revenue
             if test_revenue > 0:
                 deduct = min(remaining, test_revenue)
 
                 db.online_tests.update_one(
                     {"_id": test["_id"]},
                     {
-                        "$inc": {"marketplace_config.total_revenue": -deduct},
+                        "$inc": {
+                            "marketplace_config.total_earnings": -deduct
+                        },  # Changed from total_revenue
                         "$set": {"marketplace_config.updated_at": now},
                     },
                 )
@@ -745,7 +754,9 @@ async def get_my_public_tests(
                         "total_purchases": total_purchases,
                         "total_completions": total_completions,
                         "completion_rate": completion_rate,
-                        "total_revenue": mc.get("total_revenue", 0),
+                        "total_revenue": mc.get(
+                            "total_earnings", 0
+                        ),  # Changed from total_revenue
                         "avg_rating": mc.get("avg_rating", 0.0),
                         "rating_count": mc.get("rating_count", 0),
                     },
