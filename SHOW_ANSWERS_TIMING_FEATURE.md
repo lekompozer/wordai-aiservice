@@ -46,7 +46,8 @@ When user submits test, they only see:
 - ✅ Score and percentage
 - ✅ Pass/fail status
 - ✅ Total correct answers count
-- ✅ Which questions they got right/wrong (is_correct: true/false)
+- ❌ **HIDDEN**: Detailed results list (no questions shown)
+- ❌ **HIDDEN**: Which questions they got right/wrong
 - ❌ **HIDDEN**: Correct answer keys
 - ❌ **HIDDEN**: User's selected answers
 - ❌ **HIDDEN**: Explanations
@@ -60,17 +61,11 @@ When user submits test, they only see:
   "is_passed": true,
   "correct_answers": 15,
   "total_questions": 20,
-  "results": [
-    {
-      "question_id": "abc123",
-      "question_text": "What is 2+2?",
-      "is_correct": true
-      // ❌ No your_answer, correct_answer, explanation
-    }
-  ],
-  "results_limited": true,
-  "answers_hidden_until_deadline": "2025-11-15T23:59:59Z",
-  "message": "Detailed answers and explanations will be revealed after the deadline"
+  "submission_id": "sub_789",
+
+  // ❌ NO "results" array at all
+  "results_hidden_until_deadline": "2025-11-15T23:59:59Z",
+  "message": "Detailed answers will be revealed after the deadline"
 }
 ```
 
@@ -185,12 +180,12 @@ User can view full details:
   "score_percentage": 82,
   "total_questions": 20,
   "correct_answers": 16,
-  "attempt_number": 1,
   "is_passed": true,
 
-  // ❌ No detailed "results" array
+  // ❌ NO "results" array - completely hidden
+  // ❌ NO "attempt_number" shown
   "results_hidden_until_deadline": "2025-11-20T23:59:59Z",
-  "message": "Answers will be revealed after the deadline"
+  "message": "Detailed answers will be revealed after the deadline"
 }
 ```
 
@@ -246,24 +241,9 @@ User can view full details:
   "is_passed": true,
   "submitted_at": "2025-11-15T10:30:00Z",
 
-  // Limited results - only show correct/incorrect
-  "results": [
-    {
-      "question_id": "q1",
-      "question_text": "Choose the correct answer:",
-      "is_correct": true
-      // ❌ No your_answer, correct_answer, explanation
-    },
-    {
-      "question_id": "q2",
-      "question_text": "Select the best option:",
-      "is_correct": false
-      // ❌ No your_answer, correct_answer, explanation
-    }
-  ],
-
-  "results_limited": true,
-  "answers_hidden_until_deadline": "2025-11-20T23:59:59Z",
+  // ❌ NO "results" array at all
+  // ❌ NO "attempt_number" or "time_taken_seconds"
+  "results_hidden_until_deadline": "2025-11-20T23:59:59Z",
   "message": "Detailed answers and explanations will be revealed after the deadline"
 }
 ```
@@ -397,26 +377,13 @@ function SubmissionResultDisplay({ result }: { result: SubmissionResult }) {
       </div>
 
       {/* Check if answers are hidden */}
-      {result.results_limited && result.answers_hidden_until_deadline ? (
+      {result.results_hidden_until_deadline ? (
         <div className="answers-locked">
           <h3>🔒 Answers Hidden Until Deadline</h3>
           <p>{result.message}</p>
           <p>
-            Deadline: {new Date(result.answers_hidden_until_deadline).toLocaleString()}
+            Deadline: {new Date(result.results_hidden_until_deadline).toLocaleString()}
           </p>
-
-          {/* Show limited info: which questions right/wrong */}
-          <div className="limited-results">
-            <h4>Your Performance:</h4>
-            {result.results?.map((q, i) => (
-              <div key={q.question_id} className="question-summary">
-                <span>Q{i + 1}: {q.question_text}</span>
-                <span className={q.is_correct ? 'correct' : 'incorrect'}>
-                  {q.is_correct ? '✅' : '❌'}
-                </span>
-              </div>
-            ))}
-          </div>
 
           <div className="info-box">
             💡 You can review detailed answers and explanations after the deadline
@@ -464,11 +431,11 @@ async function viewSubmission(submissionId: string) {
 
   const data: SubmissionResult = await response.json();
 
-  // Check if still locked
-  if (data.results_limited) {
+  // Check if still locked (no results array present)
+  if (data.results_hidden_until_deadline) {
     showMessage(
       'Answers are still hidden until deadline: ' +
-      new Date(data.answers_hidden_until_deadline!).toLocaleString()
+      new Date(data.results_hidden_until_deadline).toLocaleString()
     );
   } else {
     showFullResults(data.results);
@@ -488,11 +455,9 @@ async function viewSubmission(submissionId: string) {
 
 ### What This Feature Does NOT Prevent:
 ❌ Users can still see their score immediately
-❌ Users know which questions they got right/wrong
+❌ Users know total correct answers count
 ❌ Browser back button (frontend must handle)
-❌ Network request inspection (answers still sent to browser, just hidden by UI)
-
-### Best Practices:
+❌ Network request inspection (backend doesn't send results before deadline)### Best Practices:
 1. **Always set a deadline** when using `"after_deadline"` mode
 2. **Communicate clearly** to users when answers will be revealed
 3. **Frontend validation**: Disable "after_deadline" option if no deadline set
@@ -661,9 +626,7 @@ Q: What if I set `after_deadline` but no deadline?
 A: System treats it as `immediate` mode (shows answers right away)
 
 Q: Can users see which questions they got wrong before deadline?
-A: Yes, they see `is_correct: true/false` for each question, but not the actual answers
-
-Q: Does this work with marketplace tests?
+A: No, they only see: score, pass/fail status, and total correct count. No question-level details until deadline passes.Q: Does this work with marketplace tests?
 A: Yes, buyers inherit the `show_answers_timing` setting from the original test
 
 Q: Can I have different deadlines for different users?

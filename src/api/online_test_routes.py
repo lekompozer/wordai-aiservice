@@ -1580,23 +1580,32 @@ async def submit_test(
                 )
 
         # Build response based on show_answers_timing
-        response = {
-            "success": True,
-            "submission_id": submission_id,
-            "score": score_out_of_10,  # Thang điểm 10
-            "score_percentage": score_percentage,  # Phần trăm
-            "total_questions": total_questions,
-            "correct_answers": correct_count,
-            "attempt_number": attempt_number,
-            "is_passed": is_passed,
-        }
-
-        # Only include detailed results if allowed
         if not should_hide_answers:
-            response["results"] = results
+            # Full response - show everything
+            response = {
+                "success": True,
+                "submission_id": submission_id,
+                "score": score_out_of_10,  # Thang điểm 10
+                "score_percentage": score_percentage,  # Phần trăm
+                "total_questions": total_questions,
+                "correct_answers": correct_count,
+                "attempt_number": attempt_number,
+                "is_passed": is_passed,
+                "results": results,
+            }
         else:
-            response["results_hidden_until_deadline"] = deadline.isoformat()
-            response["message"] = "Answers will be revealed after the deadline"
+            # Limited response - hide detailed results and attempt number
+            response = {
+                "success": True,
+                "submission_id": submission_id,
+                "score": score_out_of_10,  # Thang điểm 10
+                "score_percentage": score_percentage,  # Phần trăm
+                "total_questions": total_questions,
+                "correct_answers": correct_count,  # Still show total correct count
+                "is_passed": is_passed,
+                "results_hidden_until_deadline": deadline.isoformat(),
+                "message": "Detailed answers will be revealed after the deadline",
+            }
 
         return response
 
@@ -1821,43 +1830,40 @@ async def get_submission_detail(
                     f"   🔒 Hiding detailed answers until deadline: {deadline.isoformat()}"
                 )
 
-        # Build response
-        response = {
-            "submission_id": submission_id,
-            "test_title": test_doc["title"],
-            "score": submission["score"],  # Thang điểm 10
-            "score_percentage": submission.get(
-                "score_percentage", submission["score"] * 10
-            ),  # Fallback for old data
-            "total_questions": submission["total_questions"],
-            "correct_answers": submission["correct_answers"],
-            "time_taken_seconds": submission.get("time_taken_seconds", 0),
-            "attempt_number": submission["attempt_number"],
-            "is_passed": submission.get("is_passed", False),
-            "submitted_at": submission["submitted_at"].isoformat(),
-        }
-
-        # Only include detailed results if allowed
+        # Build response based on show_answers_timing
         if not should_hide_answers:
-            response["results"] = results
+            # Full response - show everything
+            response = {
+                "submission_id": submission_id,
+                "test_title": test_doc["title"],
+                "score": submission["score"],  # Thang điểm 10
+                "score_percentage": submission.get(
+                    "score_percentage", submission["score"] * 10
+                ),  # Fallback for old data
+                "total_questions": submission["total_questions"],
+                "correct_answers": submission["correct_answers"],
+                "time_taken_seconds": submission.get("time_taken_seconds", 0),
+                "attempt_number": submission["attempt_number"],
+                "is_passed": submission.get("is_passed", False),
+                "submitted_at": submission["submitted_at"].isoformat(),
+                "results": results,
+            }
         else:
-            # Return limited results (only show if correct/incorrect, hide actual answers)
-            limited_results = []
-            for r in results:
-                limited_results.append(
-                    {
-                        "question_id": r["question_id"],
-                        "question_text": r["question_text"],
-                        "is_correct": r["is_correct"],
-                        # Hide: your_answer, correct_answer, explanation
-                    }
-                )
-            response["results"] = limited_results
-            response["results_limited"] = True
-            response["answers_hidden_until_deadline"] = deadline.isoformat()
-            response["message"] = (
-                "Detailed answers and explanations will be revealed after the deadline"
-            )
+            # Limited response - only basic info, NO detailed results
+            response = {
+                "submission_id": submission_id,
+                "test_title": test_doc["title"],
+                "score": submission["score"],  # Thang điểm 10
+                "score_percentage": submission.get(
+                    "score_percentage", submission["score"] * 10
+                ),
+                "total_questions": submission["total_questions"],
+                "correct_answers": submission["correct_answers"],  # Still show count
+                "is_passed": submission.get("is_passed", False),
+                "submitted_at": submission["submitted_at"].isoformat(),
+                "results_hidden_until_deadline": deadline.isoformat(),
+                "message": "Detailed answers and explanations will be revealed after the deadline",
+            }
 
         return response
 
