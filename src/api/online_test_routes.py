@@ -8,7 +8,7 @@ import os
 import asyncio
 import boto3
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from pymongo import MongoClient
 
@@ -259,6 +259,10 @@ class GenerateTestRequest(BaseModel):
     deadline: Optional[datetime] = Field(
         None, description="Global deadline for all users (ISO 8601 format)"
     )
+    show_answers_timing: str = Field(
+        "immediate",
+        description="When to show answers: 'immediate' (show after submit) or 'after_deadline' (show only after deadline passes)",
+    )
     num_options: int = Field(
         4,
         description="Number of answer options per question (e.g., 4 for A-D, 6 for A-F). Set to 0 or 'auto' to let AI decide.",
@@ -305,6 +309,10 @@ class CreateManualTestRequest(BaseModel):
     )
     deadline: Optional[datetime] = Field(
         None, description="Global deadline for all users (ISO 8601 format)"
+    )
+    show_answers_timing: str = Field(
+        "immediate",
+        description="When to show answers: 'immediate' (show after submit) or 'after_deadline' (show only after deadline passes)",
     )
     questions: Optional[list[ManualTestQuestion]] = Field(
         default=[],
@@ -755,6 +763,7 @@ async def generate_test(
             "max_retries": request.max_retries,
             "passing_score": request.passing_score,
             "deadline": request.deadline,  # Global deadline for all shared users
+            "show_answers_timing": request.show_answers_timing,  # New: Control when to show answers
             "creation_type": "ai_generated",
             "status": "pending",
             "progress_percent": 0,
@@ -898,6 +907,7 @@ async def create_manual_test(
             "max_retries": request.max_retries,
             "passing_score": request.passing_score,
             "deadline": request.deadline,  # Global deadline for all shared users
+            "show_answers_timing": request.show_answers_timing,  # New: Control when to show answers
             "creation_type": "manual",
             "status": status,  # "draft" if no questions, "ready" if has questions
             "progress_percent": 100 if len(formatted_questions) > 0 else 0,
@@ -1550,7 +1560,27 @@ async def submit_test(
             f"({score_percentage:.1f}%), attempt={attempt_number}"
         )
 
-        return {
+        # ========== NEW: Check show_answers_timing setting ==========
+        show_answers_timing = test_doc.get("show_answers_timing", "immediate")
+        deadline = test_doc.get("deadline")
+        should_hide_answers = False
+
+        if show_answers_timing == "after_deadline" and deadline:
+            # Make deadline timezone-aware if needed
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=timezone.utc)
+
+            current_time = datetime.now(timezone.utc)
+
+            # Hide answers if deadline not passed yet
+            if current_time < deadline:
+                should_hide_answers = True
+                logger.info(
+                    f"   🔒 Hiding answers until deadline: {deadline.isoformat()}"
+                )
+
+        # Build response based on show_answers_timing
+        response = {
             "success": True,
             "submission_id": submission_id,
             "score": score_out_of_10,  # Thang điểm 10
@@ -1558,9 +1588,17 @@ async def submit_test(
             "total_questions": total_questions,
             "correct_answers": correct_count,
             "attempt_number": attempt_number,
-            "is_passed": score_out_of_10 >= 5.0,  # Pass: >= 5/10
-            "results": results,
+            "is_passed": is_passed,
         }
+
+        # Only include detailed results if allowed
+        if not should_hide_answers:
+            response["results"] = results
+        else:
+            response["results_hidden_until_deadline"] = deadline.isoformat()
+            response["message"] = "Answers will be revealed after the deadline"
+
+        return response
 
     except HTTPException:
         raise
@@ -1764,7 +1802,27 @@ async def get_submission_detail(
                 }
             )
 
-        return {
+        # ========== NEW: Check show_answers_timing setting ==========
+        show_answers_timing = test_doc.get("show_answers_timing", "immediate")
+        deadline = test_doc.get("deadline")
+        should_hide_answers = False
+
+        if show_answers_timing == "after_deadline" and deadline:
+            # Make deadline timezone-aware if needed
+            if deadline.tzinfo is None:
+                deadline = deadline.replace(tzinfo=timezone.utc)
+
+            current_time = datetime.now(timezone.utc)
+
+            # Hide answers if deadline not passed yet
+            if current_time < deadline:
+                should_hide_answers = True
+                logger.info(
+                    f"   🔒 Hiding detailed answers until deadline: {deadline.isoformat()}"
+                )
+
+        # Build response
+        response = {
             "submission_id": submission_id,
             "test_title": test_doc["title"],
             "score": submission["score"],  # Thang điểm 10
@@ -1777,8 +1835,31 @@ async def get_submission_detail(
             "attempt_number": submission["attempt_number"],
             "is_passed": submission.get("is_passed", False),
             "submitted_at": submission["submitted_at"].isoformat(),
-            "results": results,
         }
+
+        # Only include detailed results if allowed
+        if not should_hide_answers:
+            response["results"] = results
+        else:
+            # Return limited results (only show if correct/incorrect, hide actual answers)
+            limited_results = []
+            for r in results:
+                limited_results.append(
+                    {
+                        "question_id": r["question_id"],
+                        "question_text": r["question_text"],
+                        "is_correct": r["is_correct"],
+                        # Hide: your_answer, correct_answer, explanation
+                    }
+                )
+            response["results"] = limited_results
+            response["results_limited"] = True
+            response["answers_hidden_until_deadline"] = deadline.isoformat()
+            response["message"] = (
+                "Detailed answers and explanations will be revealed after the deadline"
+            )
+
+        return response
 
     except HTTPException:
         raise
@@ -2036,6 +2117,10 @@ class UpdateTestConfigRequest(BaseModel):
     deadline: Optional[datetime] = Field(
         None, description="Global deadline for all users (ISO 8601 format)"
     )
+    show_answers_timing: Optional[str] = Field(
+        None,
+        description="When to show answers: 'immediate' or 'after_deadline'",
+    )
     is_active: Optional[bool] = Field(None, description="Active status")
     title: Optional[str] = Field(None, description="Test title", max_length=200)
     description: Optional[str] = Field(
@@ -2102,6 +2187,15 @@ async def update_test_config(
 
         if request.deadline is not None:
             update_data["deadline"] = request.deadline
+
+        if request.show_answers_timing is not None:
+            # Validate value
+            if request.show_answers_timing not in ["immediate", "after_deadline"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="show_answers_timing must be 'immediate' or 'after_deadline'",
+                )
+            update_data["show_answers_timing"] = request.show_answers_timing
 
         if request.is_active is not None:
             update_data["is_active"] = request.is_active
