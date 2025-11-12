@@ -6,12 +6,21 @@ Endpoints for test generation, taking tests, submission, WebSocket auto-save, an
 import logging
 import os
 import asyncio
+import boto3
 from typing import Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
 from pymongo import MongoClient
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    BackgroundTasks,
+    UploadFile,
+    File,
+    Form,
+)
 from pydantic import BaseModel, Field
 
 from src.middleware.auth import verify_firebase_token as require_auth
@@ -50,6 +59,73 @@ def get_mongodb_service():
 def get_document_manager():
     """Get document manager instance"""
     return document_manager
+
+
+# ========== R2 Configuration for Marketplace ==========
+
+# R2 Configuration
+R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "wordai")
+R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT")
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+
+# Initialize R2 client
+_s3_client = None
+
+
+def get_s3_client():
+    """Get or create S3 client for R2"""
+    global _s3_client
+    if _s3_client is None:
+        if not all([R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_ENDPOINT_URL]):
+            logger.error("❌ Missing R2 credentials")
+            raise HTTPException(
+                status_code=500, detail="R2 storage not configured properly"
+            )
+
+        _s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=R2_ACCESS_KEY_ID,
+            aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+            endpoint_url=R2_ENDPOINT_URL,
+            region_name="auto",
+        )
+        logger.info("✅ R2 client initialized for marketplace")
+
+    return _s3_client
+
+
+async def upload_cover_to_r2(
+    file_content: bytes, test_id: str, version: str, content_type: str
+) -> str:
+    """Upload test cover image to R2 and return public URL"""
+    try:
+        # Generate R2 key
+        key = f"test-covers/test_{test_id}_{version}.jpg"
+
+        logger.info(f"   [R2] Uploading cover image...")
+        logger.info(f"   [R2] Key: {key}")
+        logger.info(f"   [R2] Size: {len(file_content)} bytes")
+
+        s3_client = get_s3_client()
+
+        # Upload to R2
+        s3_client.put_object(
+            Bucket=R2_BUCKET_NAME,
+            Key=key,
+            Body=file_content,
+            ContentType=content_type,
+        )
+
+        # Return public URL
+        public_url = f"{R2_PUBLIC_URL}/{key}"
+        logger.info(f"   [R2] ✅ Cover uploaded: {public_url}")
+        return public_url
+
+    except Exception as e:
+        logger.error(f"   [R2] ❌ Upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Cover upload failed: {str(e)}")
 
 
 # ========== Phase 4: Access Control Helper ==========
@@ -2362,4 +2438,215 @@ async def get_test_attempts(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get attempts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Phase 5: Marketplace Endpoints ==========
+
+
+@router.post(
+    "/{test_id}/marketplace/publish",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def publish_test_to_marketplace(
+    test_id: str,
+    cover_image: UploadFile = File(...),
+    title: str = Form(...),
+    description: str = Form(...),
+    short_description: str = Form(...),
+    price_points: int = Form(...),
+    category: str = Form(...),
+    tags: str = Form(...),
+    difficulty_level: str = Form(...),
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Publish test to marketplace with cover image and full metadata
+
+    Requirements:
+    - Test must have at least 5 questions
+    - Description must be at least 50 characters
+    - Title must be at least 10 characters
+    - Cover image: JPG/PNG, max 5MB, min 800x600
+    - Price: 0 (FREE) or any positive integer
+
+    Returns:
+    - marketplace_url: Public marketplace URL
+    - marketplace_config: Full marketplace configuration
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(f"📢 Publishing test {test_id} to marketplace")
+        logger.info(f"   User: {user_id}")
+        logger.info(f"   Title: {title}")
+        logger.info(f"   Price: {price_points} points")
+        logger.info(f"   Category: {category}")
+
+        # ========== Step 1: Validate test exists and user is creator ==========
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc.get("creator_id") != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test creator can publish to marketplace"
+            )
+
+        # ========== Step 2: Check if already published ==========
+        if test_doc.get("marketplace_config", {}).get("is_public"):
+            raise HTTPException(
+                status_code=409,
+                detail="Test already published. Use PATCH /marketplace/config to update.",
+            )
+
+        # ========== Step 3: Validate test requirements ==========
+        if not test_doc.get("is_active", False):
+            raise HTTPException(
+                status_code=400, detail="Test must be active before publishing"
+            )
+
+        questions = test_doc.get("questions", [])
+        if len(questions) < 5:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Test must have at least 5 questions (current: {len(questions)})",
+            )
+
+        # ========== Step 4: Validate form inputs ==========
+        if len(title) < 10:
+            raise HTTPException(
+                status_code=400, detail="Title must be at least 10 characters"
+            )
+
+        if len(description) < 50:
+            raise HTTPException(
+                status_code=400, detail="Description must be at least 50 characters"
+            )
+
+        if price_points < 0:
+            raise HTTPException(status_code=400, detail="Price must be >= 0")
+
+        # Validate category
+        valid_categories = [
+            "programming",
+            "language",
+            "math",
+            "science",
+            "business",
+            "technology",
+            "design",
+            "exam_prep",
+            "certification",
+            "other",
+        ]
+        if category not in valid_categories:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid category. Valid: {', '.join(valid_categories)}",
+            )
+
+        # Validate difficulty
+        valid_difficulty = ["beginner", "intermediate", "advanced", "expert"]
+        if difficulty_level not in valid_difficulty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid difficulty. Valid: {', '.join(valid_difficulty)}",
+            )
+
+        # Parse tags
+        tags_list = [tag.strip().lower() for tag in tags.split(",") if tag.strip()]
+        if len(tags_list) < 1:
+            raise HTTPException(status_code=400, detail="At least 1 tag is required")
+        if len(tags_list) > 10:
+            raise HTTPException(status_code=400, detail="Maximum 10 tags allowed")
+
+        # ========== Step 5: Validate cover image ==========
+        if not cover_image.content_type in ["image/jpeg", "image/png", "image/jpg"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Cover image must be JPG or PNG",
+            )
+
+        # Read file content
+        cover_content = await cover_image.read()
+        cover_size_mb = len(cover_content) / (1024 * 1024)
+
+        if cover_size_mb > 5:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cover image too large: {cover_size_mb:.2f}MB (max 5MB)",
+            )
+
+        logger.info(f"   Cover image size: {cover_size_mb:.2f}MB")
+
+        # ========== Step 6: Determine version ==========
+        current_version = test_doc.get("marketplace_config", {}).get("version", 0)
+        new_version = f"v{current_version + 1}"
+
+        logger.info(f"   Creating marketplace version: {new_version}")
+
+        # ========== Step 7: Upload cover image to R2 ==========
+        cover_url = await upload_cover_to_r2(
+            cover_content, test_id, new_version, cover_image.content_type
+        )
+
+        # ========== Step 8: Create marketplace_config ==========
+        marketplace_config = {
+            "is_public": True,
+            "version": new_version,
+            "title": title,
+            "description": description,
+            "short_description": short_description,
+            "cover_image_url": cover_url,
+            "price_points": price_points,
+            "category": category,
+            "tags": tags_list,
+            "difficulty_level": difficulty_level,
+            "published_at": datetime.utcnow(),
+            "total_participants": 0,
+            "total_earnings": 0,
+            "average_rating": 0.0,
+            "rating_count": 0,
+            "average_participant_score": 0.0,
+        }
+
+        # ========== Step 9: Update test document ==========
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "marketplace_config": marketplace_config,
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            logger.error(f"❌ Failed to update test {test_id}")
+            raise HTTPException(status_code=500, detail="Failed to update test")
+
+        # ========== Step 10: Return success response ==========
+        marketplace_url = f"https://wordai.vn/marketplace/tests/{test_id}"
+
+        logger.info(f"✅ Test {test_id} published successfully!")
+        logger.info(f"   Version: {new_version}")
+        logger.info(f"   Cover: {cover_url}")
+        logger.info(f"   URL: {marketplace_url}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "version": new_version,
+            "marketplace_url": marketplace_url,
+            "published_at": marketplace_config["published_at"].isoformat(),
+            "marketplace_config": marketplace_config,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to publish test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
