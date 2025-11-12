@@ -432,7 +432,7 @@ async def browse_marketplace(
 
         for test in tests:
             test_id_str = str(test["_id"])
-            creator = db.users.find_one({"uid": test["creator_id"]})
+            creator = db.users.find_one({"firebase_uid": test["creator_id"]})
 
             # Check if user purchased
             has_purchased = False
@@ -542,7 +542,7 @@ async def get_marketplace_test_detail(
         is_creator = user_id == test["creator_id"]
 
         # Get creator info
-        creator = db.users.find_one({"uid": test["creator_id"]})
+        creator = db.users.find_one({"firebase_uid": test["creator_id"]})
 
         mc = test.get("marketplace_config", {})
 

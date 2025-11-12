@@ -458,7 +458,7 @@ async def get_test_ratings(
         # Format response with user info
         results = []
         for rating in ratings:
-            user = db.users.find_one({"uid": rating["user_id"]})
+            user = db.users.find_one({"firebase_uid": rating["user_id"]})
 
             results.append(
                 {
@@ -866,7 +866,7 @@ async def get_my_purchase_history(
                 continue
 
             # Get creator info
-            creator = db.users.find_one({"uid": test["creator_id"]})
+            creator = db.users.find_one({"firebase_uid": test["creator_id"]})
             mc = test.get("marketplace_config", {})
 
             results.append(
