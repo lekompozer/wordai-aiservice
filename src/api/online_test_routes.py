@@ -20,6 +20,7 @@ from fastapi import (
     UploadFile,
     File,
     Form,
+    Query,
 )
 from pydantic import BaseModel, Field
 
@@ -3218,6 +3219,173 @@ async def get_test_attempts(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get attempts: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{test_id}/participants", response_model=dict, tags=["Phase 3 - Editing"])
+async def get_test_participants(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(20, ge=1, le=100, description="Items per page"),
+    sort_by: str = Query(
+        "latest", regex="^(latest|highest_score|lowest_score|most_attempts)$"
+    ),
+):
+    """
+    Get list of all participants for a test (OWNER ONLY)
+
+    Returns detailed information about each participant:
+    - User ID, email, display name
+    - Number of attempts
+    - Best score
+    - Latest submission date
+    - Total correct answers
+    - Average time taken
+
+    **Access:** Only test owner can view participants
+
+    **Sort options:**
+    - latest: Most recent participants first
+    - highest_score: Best scores first
+    - lowest_score: Lowest scores first
+    - most_attempts: Most attempts first
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        # Verify test exists
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Check ownership
+        if test_doc.get("creator_id") != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can view participants"
+            )
+
+        # Get all unique participants who have started the test at least once
+        progress_collection = mongo_service.db["test_progress"]
+        submissions_collection = mongo_service.db["test_submissions"]
+        users_collection = mongo_service.db["users"]
+
+        # Get unique user IDs from test_progress (anyone who started)
+        participant_ids = progress_collection.distinct("user_id", {"test_id": test_id})
+
+        if not participant_ids:
+            return {
+                "test_id": test_id,
+                "test_title": test_doc.get("title", "Untitled"),
+                "total_participants": 0,
+                "participants": [],
+                "pagination": {
+                    "page": page,
+                    "page_size": page_size,
+                    "total_items": 0,
+                    "total_pages": 0,
+                    "has_next": False,
+                    "has_prev": False,
+                },
+            }
+
+        # Build participant data
+        participants_data = []
+
+        for participant_id in participant_ids:
+            # Get user info
+            user_doc = users_collection.find_one({"firebase_uid": participant_id})
+            if not user_doc:
+                continue  # Skip if user not found
+
+            # Get all submissions for this participant
+            submissions = list(
+                submissions_collection.find(
+                    {"test_id": test_id, "user_id": participant_id}
+                ).sort("submitted_at", -1)
+            )
+
+            # Calculate statistics
+            num_attempts = len(submissions)
+            best_score = 0
+            total_correct = 0
+            total_time = 0
+            latest_submission = None
+
+            if submissions:
+                best_score = max(sub.get("score", 0) for sub in submissions)
+                total_correct = sum(
+                    sub.get("correct_answers", 0) for sub in submissions
+                )
+                total_time = sum(
+                    sub.get("time_taken_seconds", 0) for sub in submissions
+                )
+                latest_submission = submissions[0].get("submitted_at")
+
+            avg_time = total_time / num_attempts if num_attempts > 0 else 0
+
+            participants_data.append(
+                {
+                    "user_id": participant_id,
+                    "email": user_doc.get("email", "N/A"),
+                    "display_name": user_doc.get("display_name", "Anonymous"),
+                    "photo_url": user_doc.get("photo_url"),
+                    "num_attempts": num_attempts,
+                    "best_score": best_score,
+                    "total_correct_answers": total_correct,
+                    "avg_time_seconds": int(avg_time),
+                    "latest_submission_at": (
+                        latest_submission.isoformat() if latest_submission else None
+                    ),
+                    "has_submitted": num_attempts > 0,
+                }
+            )
+
+        # Sort based on sort_by parameter
+        if sort_by == "latest":
+            participants_data.sort(
+                key=lambda x: x["latest_submission_at"] or "", reverse=True
+            )
+        elif sort_by == "highest_score":
+            participants_data.sort(key=lambda x: x["best_score"], reverse=True)
+        elif sort_by == "lowest_score":
+            participants_data.sort(key=lambda x: x["best_score"])
+        elif sort_by == "most_attempts":
+            participants_data.sort(key=lambda x: x["num_attempts"], reverse=True)
+
+        # Pagination
+        total_items = len(participants_data)
+        total_pages = (total_items + page_size - 1) // page_size
+        start_idx = (page - 1) * page_size
+        end_idx = start_idx + page_size
+
+        paginated_participants = participants_data[start_idx:end_idx]
+
+        logger.info(
+            f"📊 Get participants for test {test_id}: "
+            f"owner={user_id}, total={total_items}, page={page}/{total_pages}"
+        )
+
+        return {
+            "test_id": test_id,
+            "test_title": test_doc.get("title", "Untitled"),
+            "total_participants": total_items,
+            "participants": paginated_participants,
+            "pagination": {
+                "page": page,
+                "page_size": page_size,
+                "total_items": total_items,
+                "total_pages": total_pages,
+                "has_next": page < total_pages,
+                "has_prev": page > 1,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get participants: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

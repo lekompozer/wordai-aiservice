@@ -297,18 +297,27 @@ async def rate_test(
                 status_code=404, detail="Test not found or not published"
             )
 
-        # 2. Check if user purchased (or is creator - creators can't rate their own test)
+        # 2. Check if user is creator (creators can't rate their own test)
         if user_id == test["creator_id"]:
             raise HTTPException(status_code=400, detail="Cannot rate your own test")
 
-        purchase = db.test_purchases.find_one({"test_id": test_id, "buyer_id": user_id})
+        # 3. ✅ NEW: Check if user has PARTICIPATED (started the test at least once)
+        # This is more accurate than checking purchases, as free tests don't have purchases
+        progress_collection = db.test_progress
+        has_participated = (
+            progress_collection.count_documents(
+                {"test_id": test_id, "user_id": user_id}
+            )
+            > 0
+        )
 
-        if not purchase:
+        if not has_participated:
             raise HTTPException(
-                status_code=400, detail="Must purchase test before rating"
+                status_code=400,
+                detail="Must participate in test (start at least once) before rating",
             )
 
-        # 3. Check if already rated
+        # 4. Check if already rated
         existing_rating = db.test_ratings.find_one(
             {"test_id": test_id, "user_id": user_id}
         )
@@ -464,7 +473,9 @@ async def get_test_ratings(
                 {
                     "rating_id": rating.get("rating_id", str(rating["_id"])),
                     "rating": rating["rating"],
-                    "comment": rating.get("comment"),
+                    "comment": rating.get(
+                        "comment", ""
+                    ),  # Default empty string if no comment
                     "created_at": rating["created_at"],
                     "updated_at": rating.get("updated_at"),
                     "user": {
@@ -474,6 +485,9 @@ async def get_test_ratings(
                             if user
                             else "Anonymous"
                         ),
+                        "photo_url": (
+                            user.get("photo_url", None) if user else None
+                        ),  # ✅ Add user photo for better UI
                     },
                 }
             )
