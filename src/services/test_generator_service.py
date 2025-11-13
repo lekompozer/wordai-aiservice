@@ -6,6 +6,7 @@ Generate multiple-choice tests from documents or files using Gemini AI with JSON
 import logging
 import asyncio
 import json
+import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from bson import ObjectId
@@ -28,6 +29,39 @@ class TestGeneratorService:
 
         self.client = genai.Client(api_key=self.gemini_api_key)
         self.max_retries = 2  # Reduced to 2 retries, then fallback to ChatGPT
+
+    def _fix_json_string(self, json_str: str) -> str:
+        """
+        Fix common JSON formatting issues, especially with Vietnamese text
+
+        Args:
+            json_str: Potentially malformed JSON string
+
+        Returns:
+            Fixed JSON string
+        """
+        try:
+            # Remove any markdown code blocks
+            if "```json" in json_str:
+                json_str = json_str.split("```json")[1].split("```")[0].strip()
+            elif "```" in json_str:
+                json_str = json_str.split("```")[1].split("```")[0].strip()
+
+            # Fix common issues:
+            # 1. Replace smart quotes with regular quotes
+            json_str = json_str.replace('"', '"').replace('"', '"')
+            json_str = json_str.replace(""", "'").replace(""", "'")
+
+            # 2. Fix unescaped quotes within strings (simple heuristic)
+            # This is a basic fix - more sophisticated parsing may be needed
+
+            # 3. Remove any BOM or invisible characters
+            json_str = json_str.strip("\ufeff\u200b")
+
+            return json_str
+        except Exception as e:
+            logger.warning(f"Error in _fix_json_string: {e}")
+            return json_str
         logger.info(
             "🤖 Test Generator Service initialized (Gemini 2.5 Pro with ChatGPT fallback)"
         )
@@ -82,9 +116,13 @@ class TestGeneratorService:
 
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
-2. {lang_instruction}
-3. **IMPORTANT: If the user query specifies different requirements (e.g., number of options, correct answers, topics to focus on), follow the user's specifications FIRST, then use these defaults as fallback.**
-4. The JSON object must conform to the following structure:
+2. **IMPORTANT: Properly escape all special characters in JSON strings:**
+   - Use \\" for double quotes inside strings
+   - Use \\n for newlines inside strings
+   - Use \\\\ for backslashes inside strings
+3. {lang_instruction}
+4. **IMPORTANT: If the user query specifies different requirements (e.g., number of options, correct answers, topics to focus on), follow the user's specifications FIRST, then use these defaults as fallback.**
+5. The JSON object must conform to the following structure:
    {{
      "questions": [
        {{
@@ -97,19 +135,20 @@ class TestGeneratorService:
        }}
      ]
    }}
-5. Generate exactly {num_questions} questions (unless user query specifies otherwise).
-6. The questions must be relevant to the user's query: "{user_query}".
-7. All information used to create questions, answers, and explanations must come directly from the provided document.
-8. Each question should have {num_options} options by default ({", ".join(option_keys)}), but adjust if user query indicates otherwise.
-9. {correct_answer_instruction} However, if the question complexity requires it or user query specifies, you may adjust.
-10. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
+6. Generate exactly {num_questions} questions (unless user query specifies otherwise).
+7. The questions must be relevant to the user's query: "{user_query}".
+8. All information used to create questions, answers, and explanations must come directly from the provided document.
+9. Each question should have {num_options} options by default ({", ".join(option_keys)}), but adjust if user query indicates otherwise.
+10. {correct_answer_instruction} However, if the question complexity requires it or user query specifies, you may adjust.
+11. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
+12. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
 
 **DOCUMENT CONTENT:**
 ---
 {document_content}
 ---
 
-Now, generate the quiz based on the instructions and the document provided. Return ONLY the JSON object, no additional text."""
+Now, generate the quiz based on the instructions and the document provided. Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
         return prompt
 
@@ -178,8 +217,48 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 else:
                     raise Exception("No text response from Gemini API")
 
-                # Parse JSON
-                questions_json = json.loads(response_text)
+                # ✅ Clean JSON response (fix common issues with Vietnamese text)
+                try:
+                    # Try to parse directly first
+                    questions_json = json.loads(response_text)
+                    logger.info(f"   ✅ JSON parsed successfully on first attempt")
+                except json.JSONDecodeError as e:
+                    logger.warning(f"   ⚠️ Initial JSON parse failed: {e}")
+                    logger.warning(f"   Attempting to fix JSON formatting...")
+
+                    # Apply JSON fixes
+                    fixed_json = self._fix_json_string(response_text)
+
+                    # Try parsing again
+                    try:
+                        questions_json = json.loads(fixed_json)
+                        logger.info(f"   ✅ JSON parsing successful after cleanup")
+                    except json.JSONDecodeError as e2:
+                        # Log the problematic part of JSON for debugging
+                        error_pos = e2.pos if hasattr(e2, "pos") else 0
+                        snippet_start = max(0, error_pos - 200)
+                        snippet_end = min(len(fixed_json), error_pos + 200)
+                        problematic_snippet = fixed_json[snippet_start:snippet_end]
+
+                        logger.error(
+                            f"   ❌ JSON parsing error at position {error_pos}"
+                        )
+                        logger.error(f"   Error message: {str(e2)}")
+                        logger.error(f"   Problematic snippet:")
+                        logger.error(f"   ...{problematic_snippet}...")
+
+                        # Save the full response for debugging
+                        debug_file = f"/tmp/gemini_response_error_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                        try:
+                            with open(debug_file, "w", encoding="utf-8") as f:
+                                f.write(f"Original response:\n{response_text}\n\n")
+                                f.write(f"Fixed response:\n{fixed_json}\n\n")
+                                f.write(f"Error: {str(e2)}\n")
+                            logger.error(f"   Full response saved to {debug_file}")
+                        except Exception as save_error:
+                            logger.error(f"   Could not save debug file: {save_error}")
+
+                        raise e2
 
                 # Validate structure
                 if (
