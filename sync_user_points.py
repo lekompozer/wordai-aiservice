@@ -23,11 +23,11 @@ subscriptions_collection = db["user_subscriptions"]
 def sync_user_points(email: str = None, firebase_uid: str = None):
     """
     Sync points from subscription to users collection for a specific user
-    
+
     Args:
         email: User email to sync (optional)
         firebase_uid: Firebase UID to sync (optional)
-    
+
     At least one parameter must be provided.
     """
     if not email and not firebase_uid:
@@ -91,7 +91,7 @@ def sync_all_users():
     This is useful for migrating existing users
     """
     print("\n🔄 Syncing points for ALL users...")
-    
+
     # Get all users
     users = users_collection.find()
     total_users = 0
@@ -129,7 +129,9 @@ def sync_all_users():
                     }
                 },
             )
-            print(f"   ✅ Synced {email}: {current_points} → {subscription_points} points")
+            print(
+                f"   ✅ Synced {email}: {current_points} → {subscription_points} points"
+            )
             synced_users += 1
 
     print(f"\n📊 Sync Summary:")

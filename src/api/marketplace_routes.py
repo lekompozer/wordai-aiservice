@@ -457,6 +457,9 @@ async def browse_marketplace(
                     "difficulty_level": mc.get("difficulty_level", "beginner"),
                     "price_points": mc.get("price_points", 0),
                     "total_purchases": mc.get("total_purchases", 0),
+                    "total_participants": mc.get(
+                        "total_participants", 0
+                    ),  # ✅ NEW: Show number of participants
                     "avg_rating": mc.get("avg_rating", 0.0),
                     "rating_count": mc.get("rating_count", 0),
                     "published_at": mc.get("published_at"),
@@ -560,6 +563,9 @@ async def get_marketplace_test_detail(
             "difficulty_level": mc.get("difficulty_level", "beginner"),
             "price_points": mc.get("price_points", 0),
             "total_purchases": mc.get("total_purchases", 0),
+            "total_participants": mc.get(
+                "total_participants", 0
+            ),  # ✅ NEW: Show number of participants
             "avg_rating": mc.get("avg_rating", 0.0),
             "rating_count": mc.get("rating_count", 0),
             "published_at": mc.get("published_at"),
