@@ -303,6 +303,25 @@ class ManualTestQuestion(BaseModel):
     )
 
 
+class TestAttachment(BaseModel):
+    """Test attachment model for reading comprehension materials"""
+
+    title: str = Field(
+        ...,
+        description="Attachment title (e.g., 'Reading Passage', 'Reference Document')",
+        min_length=1,
+        max_length=200,
+    )
+    description: Optional[str] = Field(
+        None, description="Optional description of the attachment", max_length=500
+    )
+    file_url: str = Field(
+        ...,
+        description="URL to the PDF file (R2 storage URL or external URL)",
+        max_length=1000,
+    )
+
+
 class CreateManualTestRequest(BaseModel):
     """Request model for manual test creation"""
 
@@ -331,6 +350,10 @@ class CreateManualTestRequest(BaseModel):
     questions: Optional[list[ManualTestQuestion]] = Field(
         default=[],
         description="List of questions (optional, can be empty to create draft test)",
+    )
+    attachments: Optional[list[TestAttachment]] = Field(
+        default=[],
+        description="List of PDF attachments for reading comprehension (optional)",
     )
 
 
@@ -902,6 +925,20 @@ async def create_manual_test(
         # Determine status based on whether test has questions
         status = "ready" if len(formatted_questions) > 0 else "draft"
 
+        # Format attachments with attachment_id
+        formatted_attachments = []
+        if request.attachments:
+            for att in request.attachments:
+                formatted_attachments.append(
+                    {
+                        "attachment_id": str(uuid.uuid4())[:12],
+                        "title": att.title,
+                        "description": att.description,
+                        "file_url": att.file_url,
+                        "uploaded_at": datetime.now(),
+                    }
+                )
+
         test_doc = {
             "title": request.title,
             "description": request.description,
@@ -921,6 +958,7 @@ async def create_manual_test(
             "status": status,  # "draft" if no questions, "ready" if has questions
             "progress_percent": 100 if len(formatted_questions) > 0 else 0,
             "questions": formatted_questions,
+            "attachments": formatted_attachments,  # NEW: PDF attachments for reading comprehension
             "is_active": True,
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
@@ -944,6 +982,7 @@ async def create_manual_test(
             "title": request.title,
             "description": request.description,
             "num_questions": len(formatted_questions),
+            "num_attachments": len(formatted_attachments),
             "time_limit_minutes": request.time_limit_minutes,
             "created_at": test_doc["created_at"].isoformat(),
             "message": message,
@@ -2512,6 +2551,12 @@ class FullTestEditRequest(BaseModel):
     # Questions
     questions: Optional[list] = None
 
+    # Attachments (NEW)
+    attachments: Optional[list[TestAttachment]] = Field(
+        None,
+        description="List of PDF attachments for reading comprehension",
+    )
+
     # Marketplace config (if published)
     marketplace_title: Optional[str] = Field(None, min_length=10, max_length=200)
     marketplace_description: Optional[str] = Field(None, min_length=50, max_length=2000)
@@ -2739,6 +2784,219 @@ async def update_test_questions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ========== Attachment Management (NEW) ==========
+
+
+@router.post("/{test_id}/attachments", response_model=dict, tags=["Phase 3 - Editing"])
+async def add_test_attachment(
+    test_id: str,
+    attachment: TestAttachment,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Add a PDF attachment to test (Owner only)
+
+    Use case: Add reading comprehension materials, reference documents, etc.
+
+    **Request Body:**
+    ```json
+    {
+        "title": "Reading Passage 1",
+        "description": "Short story for comprehension questions",
+        "file_url": "https://r2.storage.com/files/passage1.pdf"
+    }
+    ```
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        # Verify test exists and user is creator
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test creator can add attachments"
+            )
+
+        # Create attachment with unique ID
+        import uuid
+
+        new_attachment = {
+            "attachment_id": str(uuid.uuid4())[:12],
+            "title": attachment.title,
+            "description": attachment.description,
+            "file_url": attachment.file_url,
+            "uploaded_at": datetime.now(),
+        }
+
+        # Add to test's attachments array
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$push": {"attachments": new_attachment},
+                "$set": {"updated_at": datetime.now()},
+            },
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to add attachment")
+
+        logger.info(
+            f"✅ Added attachment {new_attachment['attachment_id']} to test {test_id}"
+        )
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "attachment": new_attachment,
+            "message": "Attachment added successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to add attachment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put(
+    "/{test_id}/attachments/{attachment_id}",
+    response_model=dict,
+    tags=["Phase 3 - Editing"],
+)
+async def update_test_attachment(
+    test_id: str,
+    attachment_id: str,
+    attachment: TestAttachment,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Update a test attachment (Owner only)
+
+    **Request Body:**
+    ```json
+    {
+        "title": "Updated Reading Passage 1",
+        "description": "Updated description",
+        "file_url": "https://r2.storage.com/files/updated_passage1.pdf"
+    }
+    ```
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        # Verify test exists and user is creator
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test creator can update attachments"
+            )
+
+        # Find attachment in array
+        attachments = test_doc.get("attachments", [])
+        attachment_found = False
+
+        for att in attachments:
+            if att["attachment_id"] == attachment_id:
+                att["title"] = attachment.title
+                att["description"] = attachment.description
+                att["file_url"] = attachment.file_url
+                att["updated_at"] = datetime.now()
+                attachment_found = True
+                break
+
+        if not attachment_found:
+            raise HTTPException(status_code=404, detail="Attachment not found")
+
+        # Update entire attachments array
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)},
+            {"$set": {"attachments": attachments, "updated_at": datetime.now()}},
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to update attachment")
+
+        logger.info(f"✅ Updated attachment {attachment_id} in test {test_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "attachment_id": attachment_id,
+            "message": "Attachment updated successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update attachment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/{test_id}/attachments/{attachment_id}",
+    response_model=dict,
+    tags=["Phase 3 - Editing"],
+)
+async def delete_test_attachment(
+    test_id: str,
+    attachment_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Delete a test attachment (Owner only)
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        # Verify test exists and user is creator
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test creator can delete attachments"
+            )
+
+        # Remove attachment from array
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$pull": {"attachments": {"attachment_id": attachment_id}},
+                "$set": {"updated_at": datetime.now()},
+            },
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=404, detail="Attachment not found or already deleted"
+            )
+
+        logger.info(f"✅ Deleted attachment {attachment_id} from test {test_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "attachment_id": attachment_id,
+            "message": "Attachment deleted successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete attachment: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get(
     "/{test_id}/preview", response_model=TestPreviewResponse, tags=["Phase 3 - Editing"]
 )
@@ -2902,6 +3160,37 @@ async def full_edit_test(
 
             update_data["questions"] = request.questions
             logger.info(f"   Update questions: {len(request.questions)} questions")
+
+        # Attachments update (NEW)
+        if request.attachments is not None:
+            # Format attachments with attachment_id if not present
+            import uuid
+
+            formatted_attachments = []
+            for att in request.attachments:
+                # If dict without attachment_id, convert from TestAttachment model
+                if isinstance(att, dict):
+                    if not att.get("attachment_id"):
+                        att["attachment_id"] = str(uuid.uuid4())[:12]
+                    if not att.get("uploaded_at"):
+                        att["uploaded_at"] = datetime.now()
+                    formatted_attachments.append(att)
+                else:
+                    # TestAttachment model instance
+                    formatted_attachments.append(
+                        {
+                            "attachment_id": str(uuid.uuid4())[:12],
+                            "title": att.title,
+                            "description": att.description,
+                            "file_url": att.file_url,
+                            "uploaded_at": datetime.now(),
+                        }
+                    )
+
+            update_data["attachments"] = formatted_attachments
+            logger.info(
+                f"   Update attachments: {len(formatted_attachments)} attachments"
+            )
 
         # ========== Step 3: Handle marketplace config updates (if published) ==========
         marketplace_config = test_doc.get("marketplace_config", {})

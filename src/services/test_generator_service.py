@@ -845,12 +845,28 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
             questions_for_user.append(question_data)
 
+        # Get attachments (reading comprehension materials)
+        attachments = test_doc.get("attachments", [])
+
+        # Format attachments for response (remove internal IDs, keep public info)
+        formatted_attachments = []
+        for att in attachments:
+            formatted_attachments.append(
+                {
+                    "attachment_id": att.get("attachment_id"),
+                    "title": att.get("title"),
+                    "description": att.get("description"),
+                    "file_url": att.get("file_url"),
+                }
+            )
+
         return {
             "test_id": test_id,
             "title": test_doc["title"],
             "time_limit_minutes": test_doc["time_limit_minutes"],
             "num_questions": len(questions_for_user),
             "questions": questions_for_user,
+            "attachments": formatted_attachments,  # NEW: PDF attachments for reading comprehension
         }
 
 
