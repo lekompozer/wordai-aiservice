@@ -22,26 +22,41 @@ class R2StorageService:
         self.access_key_id = os.getenv("R2_ACCESS_KEY_ID")
         self.secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY")
         self.bucket_name = os.getenv("R2_BUCKET_NAME", "wordai-documents")
-        self.endpoint_url = os.getenv("R2_ENDPOINT_URL")
+        # Use R2_ENDPOINT to match existing production config
+        self.endpoint_url = os.getenv("R2_ENDPOINT")
         self.public_url = os.getenv("R2_PUBLIC_URL", "https://cdn.wordai.vn")
 
-        if not all([self.access_key_id, self.secret_access_key, self.endpoint_url]):
-            raise ValueError(
-                "Missing R2 credentials. Please set R2_ACCESS_KEY_ID, "
-                "R2_SECRET_ACCESS_KEY, and R2_ENDPOINT_URL in environment"
+        # Check if credentials are configured
+        missing_vars = []
+        if not self.access_key_id:
+            missing_vars.append("R2_ACCESS_KEY_ID")
+        if not self.secret_access_key:
+            missing_vars.append("R2_SECRET_ACCESS_KEY")
+        if not self.endpoint_url:
+            missing_vars.append("R2_ENDPOINT")
+
+        if missing_vars:
+            error_msg = f"Missing R2 environment variables: {', '.join(missing_vars)}"
+            logger.error(f"❌ {error_msg}")
+            raise ValueError(error_msg)
+
+        try:
+            # Initialize boto3 S3 client with R2 endpoint
+            self.s3_client = boto3.client(
+                "s3",
+                endpoint_url=self.endpoint_url,
+                aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+                config=Config(signature_version="s3v4"),
+                region_name="auto",  # R2 uses 'auto' for region
             )
 
-        # Initialize boto3 S3 client with R2 endpoint
-        self.s3_client = boto3.client(
-            "s3",
-            endpoint_url=self.endpoint_url,
-            aws_access_key_id=self.access_key_id,
-            aws_secret_access_key=self.secret_access_key,
-            config=Config(signature_version="s3v4"),
-            region_name="auto",  # R2 uses 'auto' for region
-        )
-
-        logger.info(f"R2StorageService initialized with bucket: {self.bucket_name}")
+            logger.info(
+                f"✅ R2StorageService initialized with bucket: {self.bucket_name}"
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize R2 client: {e}")
+            raise ValueError(f"Failed to initialize R2 storage: {str(e)}")
 
     def generate_unique_filename(self, original_filename: str) -> str:
         """
