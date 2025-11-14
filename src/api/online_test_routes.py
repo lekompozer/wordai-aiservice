@@ -320,6 +320,12 @@ class TestAttachment(BaseModel):
         description="URL to the PDF file (R2 storage URL or external URL)",
         max_length=1000,
     )
+    file_size_mb: float = Field(
+        ...,
+        description="File size in MB (from presigned URL response)",
+        ge=0,
+        le=100,
+    )
 
 
 class PresignedURLRequest(BaseModel):
@@ -330,6 +336,12 @@ class PresignedURLRequest(BaseModel):
         description="Original filename (e.g., 'passage1.pdf')",
         min_length=1,
         max_length=255,
+    )
+    file_size_mb: float = Field(
+        ...,
+        description="File size in MB (frontend must calculate before upload)",
+        ge=0,
+        le=100,  # Max 100MB per file
     )
     content_type: Optional[str] = Field(
         "application/pdf",
@@ -881,12 +893,21 @@ async def get_presigned_upload_url(
 ):
     """
     Generate presigned URL for direct file upload to R2 storage
+    
+    **IMPORTANT**: Attachments tính vào storage quota của test owner, không phải người upload.
+    Khi upload attachments cho test của người khác, vẫn tính vào quota của test owner.
 
     **Flow:**
-    1. Frontend calls this endpoint with filename
-    2. Backend generates presigned URL (valid 5 minutes)
-    3. Frontend uploads file directly to presigned URL (PUT request)
-    4. Frontend then creates attachment with file_url
+    1. Frontend calls this endpoint with filename + file_size_mb
+    2. Backend checks storage quota của user
+    3. Backend generates presigned URL (valid 5 minutes)
+    4. Frontend uploads file directly to presigned URL (PUT request)
+    5. Frontend then creates attachment with file_url
+    
+    **Storage Rules:**
+    - Attachments tính vào storage của test owner
+    - Max file size: 100MB per file
+    - Frontend phải tính file size trước khi gọi endpoint
 
     **Returns:**
     - presigned_url: URL for uploading file (PUT request)
@@ -895,11 +916,32 @@ async def get_presigned_upload_url(
     """
     try:
         from src.services.r2_storage_service import get_r2_service
+        from src.services.subscription_service import get_subscription_service
 
         user_id = user_info["uid"]
         logger.info(
-            f"🔗 Generating presigned URL for user {user_id}: {request.filename}"
+            f"🔗 Generating presigned URL for user {user_id}: {request.filename} ({request.file_size_mb}MB)"
         )
+
+        # Check storage limit
+        subscription_service = get_subscription_service()
+        if not await subscription_service.check_storage_limit(
+            user_id, request.file_size_mb
+        ):
+            subscription = await subscription_service.get_subscription(user_id)
+            remaining_mb = subscription.storage_limit_mb - subscription.storage_used_mb
+
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "Không đủ dung lượng lưu trữ",
+                    "message": f"Cần: {request.file_size_mb:.2f}MB, Còn lại: {remaining_mb:.2f}MB",
+                    "file_size_mb": request.file_size_mb,
+                    "storage_used_mb": round(subscription.storage_used_mb, 2),
+                    "storage_limit_mb": subscription.storage_limit_mb,
+                    "upgrade_url": "https://ai.wordai.pro/pricing",
+                },
+            )
 
         # Get R2 service
         r2_service = get_r2_service()
@@ -909,13 +951,17 @@ async def get_presigned_upload_url(
             filename=request.filename, content_type=request.content_type
         )
 
+        # Return presigned URL with file_size for tracking
         return {
             "success": True,
             "presigned_url": result["presigned_url"],
             "file_url": result["file_url"],
+            "file_size_mb": request.file_size_mb,  # Return for frontend tracking
             "expires_in": result["expires_in"],
         }
 
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.error(f"❌ R2 configuration error: {e}")
         raise HTTPException(
@@ -926,6 +972,7 @@ async def get_presigned_upload_url(
         raise HTTPException(
             status_code=500, detail=f"Failed to generate upload URL: {str(e)}"
         )
+
 
 
 # ========== NEW: Manual Test Creation Endpoint ==========
@@ -2868,6 +2915,8 @@ async def add_test_attachment(
 ):
     """
     Add a PDF attachment to test (Owner only)
+    
+    **IMPORTANT**: File size tính vào storage quota của test owner.
 
     Use case: Add reading comprehension materials, reference documents, etc.
 
@@ -2876,11 +2925,14 @@ async def add_test_attachment(
     {
         "title": "Reading Passage 1",
         "description": "Short story for comprehension questions",
-        "file_url": "https://r2.storage.com/files/passage1.pdf"
+        "file_url": "https://r2.storage.com/files/passage1.pdf",
+        "file_size_mb": 2.5
     }
     ```
     """
     try:
+        from src.services.subscription_service import get_subscription_service
+
         user_id = user_info["uid"]
         mongo_service = get_mongodb_service()
 
@@ -2902,6 +2954,7 @@ async def add_test_attachment(
             "title": attachment.title,
             "description": attachment.description,
             "file_url": attachment.file_url,
+            "file_size_mb": attachment.file_size_mb,
             "uploaded_at": datetime.now(),
         }
 
@@ -2917,8 +2970,14 @@ async def add_test_attachment(
         if result.modified_count == 0:
             raise HTTPException(status_code=500, detail="Failed to add attachment")
 
+        # Update storage usage for test owner
+        subscription_service = get_subscription_service()
+        await subscription_service.increment_usage(
+            user_id, storage_mb=attachment.file_size_mb
+        )
+
         logger.info(
-            f"✅ Added attachment {new_attachment['attachment_id']} to test {test_id}"
+            f"✅ Added attachment {new_attachment['attachment_id']} ({attachment.file_size_mb}MB) to test {test_id}, updated storage for user {user_id}"
         )
 
         return {
@@ -3025,8 +3084,12 @@ async def delete_test_attachment(
 ):
     """
     Delete a test attachment (Owner only)
+    
+    **IMPORTANT**: Giảm storage usage khi xóa attachment.
     """
     try:
+        from src.services.subscription_service import get_subscription_service
+
         user_id = user_info["uid"]
         mongo_service = get_mongodb_service()
 
@@ -3039,6 +3102,19 @@ async def delete_test_attachment(
             raise HTTPException(
                 status_code=403, detail="Only test creator can delete attachments"
             )
+
+        # Find attachment to get file_size_mb before deleting
+        attachment_to_delete = None
+        for att in test_doc.get("attachments", []):
+            if att.get("attachment_id") == attachment_id:
+                attachment_to_delete = att
+                break
+
+        if not attachment_to_delete:
+            raise HTTPException(status_code=404, detail="Attachment not found")
+
+        # Get file size (default to 0 if not found for old attachments)
+        file_size_mb = attachment_to_delete.get("file_size_mb", 0)
 
         # Remove attachment from array
         result = mongo_service.db["online_tests"].update_one(
@@ -3054,7 +3130,20 @@ async def delete_test_attachment(
                 status_code=404, detail="Attachment not found or already deleted"
             )
 
-        logger.info(f"✅ Deleted attachment {attachment_id} from test {test_id}")
+        # Decrease storage usage for test owner
+        if file_size_mb > 0:
+            subscription_service = get_subscription_service()
+            await subscription_service.increment_usage(
+                user_id, storage_mb=-file_size_mb  # Negative to decrease
+            )
+
+            logger.info(
+                f"✅ Deleted attachment {attachment_id} ({file_size_mb}MB) from test {test_id}, decreased storage for user {user_id}"
+            )
+        else:
+            logger.info(
+                f"✅ Deleted attachment {attachment_id} from test {test_id} (no storage tracking)"
+            )
 
         return {
             "success": True,
