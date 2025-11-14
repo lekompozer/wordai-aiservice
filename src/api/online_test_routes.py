@@ -322,6 +322,22 @@ class TestAttachment(BaseModel):
     )
 
 
+class PresignedURLRequest(BaseModel):
+    """Request model for generating presigned URL for file upload"""
+
+    filename: str = Field(
+        ...,
+        description="Original filename (e.g., 'passage1.pdf')",
+        min_length=1,
+        max_length=255,
+    )
+    content_type: Optional[str] = Field(
+        "application/pdf",
+        description="MIME type of file (default: application/pdf)",
+        max_length=100,
+    )
+
+
 class CreateManualTestRequest(BaseModel):
     """Request model for manual test creation"""
 
@@ -853,6 +869,63 @@ async def generate_test(
     except Exception as e:
         logger.error(f"❌ Test generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== NEW: Presigned URL for File Upload ==========
+
+
+@router.post("/attachments/presigned-url", tags=["Attachments"])
+async def get_presigned_upload_url(
+    request: PresignedURLRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Generate presigned URL for direct file upload to R2 storage
+
+    **Flow:**
+    1. Frontend calls this endpoint with filename
+    2. Backend generates presigned URL (valid 5 minutes)
+    3. Frontend uploads file directly to presigned URL (PUT request)
+    4. Frontend then creates attachment with file_url
+
+    **Returns:**
+    - presigned_url: URL for uploading file (PUT request)
+    - file_url: Public URL to access file after upload
+    - expires_in: Expiration time in seconds
+    """
+    try:
+        from src.services.r2_storage_service import get_r2_service
+
+        user_id = user_info["uid"]
+        logger.info(
+            f"🔗 Generating presigned URL for user {user_id}: {request.filename}"
+        )
+
+        # Get R2 service
+        r2_service = get_r2_service()
+
+        # Generate presigned URL
+        result = r2_service.generate_presigned_upload_url(
+            filename=request.filename, content_type=request.content_type
+        )
+
+        return {
+            "success": True,
+            "presigned_url": result["presigned_url"],
+            "file_url": result["file_url"],
+            "expires_in": result["expires_in"],
+        }
+
+    except ValueError as e:
+        logger.error(f"❌ R2 configuration error: {e}")
+        raise HTTPException(
+            status_code=500, detail="File upload service not configured properly"
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to generate presigned URL: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate upload URL: {str(e)}"
+        )
 
 
 # ========== NEW: Manual Test Creation Endpoint ==========
