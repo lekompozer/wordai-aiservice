@@ -28,6 +28,7 @@ from src.middleware.auth import verify_firebase_token as require_auth
 from src.services.test_generator_service import get_test_generator_service
 from src.services.document_manager import document_manager
 from src.services.test_sharing_service import get_test_sharing_service
+from src.models.subscription import SubscriptionUsageUpdate
 import config.config as config
 
 logger = logging.getLogger(__name__)
@@ -893,7 +894,7 @@ async def get_presigned_upload_url(
 ):
     """
     Generate presigned URL for direct file upload to R2 storage
-    
+
     **IMPORTANT**: Attachments tính vào storage quota của test owner, không phải người upload.
     Khi upload attachments cho test của người khác, vẫn tính vào quota của test owner.
 
@@ -903,7 +904,7 @@ async def get_presigned_upload_url(
     3. Backend generates presigned URL (valid 5 minutes)
     4. Frontend uploads file directly to presigned URL (PUT request)
     5. Frontend then creates attachment with file_url
-    
+
     **Storage Rules:**
     - Attachments tính vào storage của test owner
     - Max file size: 100MB per file
@@ -972,7 +973,6 @@ async def get_presigned_upload_url(
         raise HTTPException(
             status_code=500, detail=f"Failed to generate upload URL: {str(e)}"
         )
-
 
 
 # ========== NEW: Manual Test Creation Endpoint ==========
@@ -2915,7 +2915,7 @@ async def add_test_attachment(
 ):
     """
     Add a PDF attachment to test (Owner only)
-    
+
     **IMPORTANT**: File size tính vào storage quota của test owner.
 
     Use case: Add reading comprehension materials, reference documents, etc.
@@ -2972,8 +2972,8 @@ async def add_test_attachment(
 
         # Update storage usage for test owner
         subscription_service = get_subscription_service()
-        await subscription_service.increment_usage(
-            user_id, storage_mb=attachment.file_size_mb
+        await subscription_service.update_usage(
+            user_id, SubscriptionUsageUpdate(storage_mb=attachment.file_size_mb)
         )
 
         logger.info(
@@ -3084,7 +3084,7 @@ async def delete_test_attachment(
 ):
     """
     Delete a test attachment (Owner only)
-    
+
     **IMPORTANT**: Giảm storage usage khi xóa attachment.
     """
     try:
@@ -3133,8 +3133,11 @@ async def delete_test_attachment(
         # Decrease storage usage for test owner
         if file_size_mb > 0:
             subscription_service = get_subscription_service()
-            await subscription_service.increment_usage(
-                user_id, storage_mb=-file_size_mb  # Negative to decrease
+            await subscription_service.update_usage(
+                user_id,
+                SubscriptionUsageUpdate(
+                    storage_mb=-file_size_mb
+                ),  # Negative to decrease
             )
 
             logger.info(
