@@ -1,6 +1,6 @@
 # 🔍 API Endpoint Gap Analysis - User Guide Feature
 
-> **Analysis Date:** November 15, 2025  
+> **Analysis Date:** November 15, 2025
 > **Purpose:** Compare required endpoints from frontend docs vs implemented backend APIs
 
 ---
@@ -39,9 +39,9 @@
 ## 🚨 CRITICAL MISSING ENDPOINTS
 
 ### 1️⃣ **POST /api/v1/guides/{guide_id}/publish** ⚠️
-**Priority:** HIGH (MVP)  
-**Frontend Need:** Toggle publish/unpublish button in UI  
-**Current Workaround:** Use PATCH /api/v1/guides/{guide_id} to update `is_published` field  
+**Priority:** HIGH (MVP)
+**Frontend Need:** Toggle publish/unpublish button in UI
+**Current Workaround:** Use PATCH /api/v1/guides/{guide_id} to update `is_published` field
 
 **Recommendation:**
 ```python
@@ -62,9 +62,9 @@ async def toggle_publish(
 ---
 
 ### 2️⃣ **GET /api/v1/public/guides/{slug}** 🔴
-**Priority:** CRITICAL (MVP)  
-**Frontend Need:** Public guide homepage (NO AUTH)  
-**Impact:** Blocks public sharing feature completely  
+**Priority:** CRITICAL (MVP)
+**Frontend Need:** Public guide homepage (NO AUTH)
+**Impact:** Blocks public sharing feature completely
 
 **Recommendation:** Implement in **Phase 5** (Public View API)
 
@@ -73,7 +73,7 @@ async def toggle_publish(
 async def get_public_guide(slug: str):
     """
     Get public guide with chapters tree (NO AUTH REQUIRED)
-    
+
     Returns:
     - Guide metadata (title, description, color, logo)
     - Chapters tree structure
@@ -84,9 +84,9 @@ async def get_public_guide(slug: str):
 ---
 
 ### 3️⃣ **GET /api/v1/public/guides/{slug}/chapters/{chapter_slug}** 🔴
-**Priority:** CRITICAL (MVP)  
-**Frontend Need:** Display chapter content publicly  
-**Impact:** Blocks public guide viewing completely  
+**Priority:** CRITICAL (MVP)
+**Frontend Need:** Display chapter content publicly
+**Impact:** Blocks public guide viewing completely
 
 **Recommendation:** Implement in **Phase 5**
 
@@ -95,7 +95,7 @@ async def get_public_guide(slug: str):
 async def get_public_chapter(slug: str, chapter_slug: str):
     """
     Get chapter content (NO AUTH REQUIRED)
-    
+
     Returns:
     - Chapter metadata (title, icon)
     - Document content (HTML)
@@ -106,9 +106,9 @@ async def get_public_chapter(slug: str, chapter_slug: str):
 ---
 
 ### 4️⃣ **GET /api/v1/guides/by-domain/{domain}** 🔴
-**Priority:** CRITICAL for custom domain feature  
-**Frontend Need:** Next.js middleware URL rewriting  
-**Impact:** Blocks custom domain feature  
+**Priority:** CRITICAL for custom domain feature
+**Frontend Need:** Next.js middleware URL rewriting
+**Impact:** Blocks custom domain feature
 
 **Recommendation:** Implement in **Phase 6** (Custom Domain)
 
@@ -117,7 +117,7 @@ async def get_public_chapter(slug: str, chapter_slug: str):
 async def get_guide_by_domain(domain: str):
     """
     Lookup guide by custom domain (for middleware)
-    
+
     Used by Next.js middleware to rewrite URLs:
     docs.company.com/intro → /guides/{slug}/intro
     """
@@ -409,9 +409,9 @@ Reason: Frontend needs public endpoints to demonstrate the guide feature's main 
 ## 🎯 NEXT ACTION
 
 ### Option A: Implement Phase 5 (Public View API) 🔴
-**Priority:** CRITICAL  
-**Estimated Time:** 3-5 days  
-**Blockers:** None  
+**Priority:** CRITICAL
+**Estimated Time:** 3-5 days
+**Blockers:** None
 **Value:** Unlocks public guide sharing (MVP feature)
 
 **Deliverables:**
@@ -424,9 +424,9 @@ Reason: Frontend needs public endpoints to demonstrate the guide feature's main 
 ---
 
 ### Option B: Implement Phase 4 (User Permissions) 🟡
-**Priority:** MEDIUM  
-**Estimated Time:** 5-7 days  
-**Blockers:** None  
+**Priority:** MEDIUM
+**Estimated Time:** 5-7 days
+**Blockers:** None
 **Value:** Enables collaboration features
 
 **Deliverables:**
@@ -440,9 +440,9 @@ Reason: Frontend needs public endpoints to demonstrate the guide feature's main 
 ---
 
 ### Option C: Add Missing Helper Endpoint (Publish) ⚠️
-**Priority:** LOW  
-**Estimated Time:** 1 hour  
-**Blockers:** None  
+**Priority:** LOW
+**Estimated Time:** 1 hour
+**Blockers:** None
 **Value:** Convenience (PATCH endpoint works)
 
 **Deliverable:**
@@ -456,10 +456,10 @@ Reason: Frontend needs public endpoints to demonstrate the guide feature's main 
 
 **Missing Critical Endpoints:** 3 endpoints blocking public guide feature
 
-**Recommended Next Step:** 
+**Recommended Next Step:**
 🎯 **Implement Phase 5 (Public View API)** to unblock frontend public guide sharing
 
-**Alternative:** 
+**Alternative:**
 Implement Phase 4 (User Permissions) first if collaboration features are higher priority than public sharing.
 
 **Final MVP Order:**
@@ -472,6 +472,6 @@ Implement Phase 4 (User Permissions) first if collaboration features are higher 
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** November 15, 2025  
+**Document Version:** 1.0
+**Last Updated:** November 15, 2025
 **Status:** ✅ Ready for Phase 4/5 Implementation
