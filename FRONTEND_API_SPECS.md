@@ -34,7 +34,7 @@
 **Response 201**:
 ```json
 {
-  "guide_id": "string",
+  "book_id": "string",
   "user_id": "string",
   "title": "string",
   "slug": "string",
@@ -62,8 +62,8 @@
 
 ---
 
-### 2. List User's Guides
-**Endpoint**: `GET /guides`
+### 2. List User's Books
+**Endpoint**: `GET /books`
 **Authentication**: Required
 
 **Query Parameters**:
@@ -74,9 +74,9 @@
 **Response 200**:
 ```json
 {
-  "guides": [
+  "books": [
     {
-      "guide_id": "string",
+      "book_id": "string",
       "user_id": "string",
       "title": "string",
       "slug": "string",
@@ -99,17 +99,17 @@
 
 ---
 
-### 3. Get Guide by ID
-**Endpoint**: `GET /guides/{guide_id}`
+### 3. Get Book by ID
+**Endpoint**: `GET /books/{book_id}`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Response 200**:
 ```json
 {
-  "guide_id": "string",
+  "book_id": "string",
   "user_id": "string",
   "title": "string",
   "slug": "string",
@@ -131,18 +131,18 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
+- `404 Not Found`: Book not found
 - `403 Forbidden`: User is not the owner
 - `401 Unauthorized`: Missing or invalid token
 
 ---
 
-### 4. Update Guide
-**Endpoint**: `PATCH /guides/{guide_id}`
+### 4. Update Book
+**Endpoint**: `PATCH /books/{book_id}`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Request Body** (all fields optional):
 ```json
@@ -166,7 +166,7 @@
 **Response 200**:
 ```json
 {
-  "guide_id": "string",
+  "book_id": "string",
   "user_id": "string",
   "title": "string",
   "slug": "string",
@@ -188,7 +188,7 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
+- `404 Not Found`: Book not found
 - `403 Forbidden`: User is not the owner
 - `409 Conflict`: Slug already exists
 - `422 Unprocessable Entity`: Validation error
@@ -196,23 +196,23 @@
 
 ---
 
-### 5. Delete Guide
-**Endpoint**: `DELETE /guides/{guide_id}`
+### 5. Delete Book
+**Endpoint**: `DELETE /books/{book_id}`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Response 200**:
 ```json
 {
-  "message": "Guide deleted successfully",
-  "guide_id": "string"
+  "message": "Book deleted successfully",
+  "book_id": "string"
 }
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
+- `404 Not Found`: Book not found
 - `403 Forbidden`: User is not the owner
 - `401 Unauthorized`: Missing or invalid token
 
@@ -221,11 +221,11 @@
 ## 📖 Phase 3: Chapter Management APIs
 
 ### 6. Create Chapter
-**Endpoint**: `POST /guides/{guide_id}/chapters`
+**Endpoint**: `POST /books/{book_id}/chapters`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Request Body**:
 ```json
@@ -243,7 +243,7 @@
 ```json
 {
   "chapter_id": "string",
-  "guide_id": "string",
+  "book_id": "string",
   "title": "string",
   "slug": "string",
   "document_id": "string",
@@ -257,9 +257,9 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
-- `403 Forbidden`: User is not the guide owner
-- `409 Conflict`: Slug already exists in this guide
+- `404 Not Found`: Book not found
+- `403 Forbidden`: User is not the book owner
+- `409 Conflict`: Slug already exists in this book
 - `400 Bad Request`: Max nesting depth exceeded (3 levels max)
 - `422 Unprocessable Entity`: Validation error
 - `401 Unauthorized`: Missing or invalid token
@@ -267,11 +267,11 @@
 ---
 
 ### 7. List Chapters
-**Endpoint**: `GET /guides/{guide_id}/chapters`
+**Endpoint**: `GET /books/{book_id}/chapters`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Query Parameters**:
 - `include_unpublished`: boolean (default: false)
@@ -282,7 +282,7 @@
   "chapters": [
     {
       "chapter_id": "string",
-      "guide_id": "string",
+      "book_id": "string",
       "title": "string",
       "slug": "string",
       "document_id": "string",
@@ -299,18 +299,18 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book not found
+- `403 Forbidden`: User is not the book owner
 - `401 Unauthorized`: Missing or invalid token
 
 ---
 
 ### 8. Update Chapter
-**Endpoint**: `PATCH /guides/{guide_id}/chapters/{chapter_id}`
+**Endpoint**: `PATCH /books/{book_id}/chapters/{chapter_id}`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 - `chapter_id`: string (required)
 
 **Request Body** (all fields optional):
@@ -328,7 +328,7 @@
 ```json
 {
   "chapter_id": "string",
-  "guide_id": "string",
+  "book_id": "string",
   "title": "string",
   "slug": "string",
   "document_id": "string",
@@ -342,8 +342,8 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide or chapter not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book or chapter not found
+- `403 Forbidden`: User is not the book owner
 - `409 Conflict`: Slug already exists
 - `400 Bad Request`: Max nesting depth exceeded
 - `422 Unprocessable Entity`: Validation error
@@ -352,11 +352,11 @@
 ---
 
 ### 9. Delete Chapter
-**Endpoint**: `DELETE /guides/{guide_id}/chapters/{chapter_id}`
+**Endpoint**: `DELETE /books/{book_id}/chapters/{chapter_id}`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 - `chapter_id`: string (required)
 
 **Response 200**:
@@ -364,23 +364,23 @@
 {
   "message": "Chapter deleted successfully",
   "chapter_id": "string",
-  "guide_id": "string"
+  "book_id": "string"
 }
 ```
 
 **Errors**:
-- `404 Not Found`: Guide or chapter not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book or chapter not found
+- `403 Forbidden`: User is not the book owner
 - `401 Unauthorized`: Missing or invalid token
 
 ---
 
 ### 10. Reorder Chapters (Bulk)
-**Endpoint**: `POST /guides/{guide_id}/chapters/reorder`
+**Endpoint**: `POST /books/{book_id}/chapters/reorder`
 **Authentication**: Required
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Request Body**:
 ```json
@@ -403,7 +403,7 @@
   "chapters": [
     {
       "chapter_id": "string",
-      "guide_id": "string",
+      "book_id": "string",
       "title": "string",
       "slug": "string",
       "parent_id": "string",
@@ -416,8 +416,8 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book not found
+- `403 Forbidden`: User is not the book owner
 - `400 Bad Request`: Invalid reorder operation
 - `422 Unprocessable Entity`: Validation error
 - `401 Unauthorized`: Missing or invalid token
@@ -427,11 +427,11 @@
 ## 🔐 Phase 4: User Permissions APIs
 
 ### 11. Grant Permission
-**Endpoint**: `POST /guides/{guide_id}/permissions/users`
+**Endpoint**: `POST /books/{book_id}/permissions/users`
 **Authentication**: Required (Owner only)
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Request Body**:
 ```json
@@ -446,7 +446,7 @@
 ```json
 {
   "permission_id": "string",
-  "guide_id": "string",
+  "book_id": "string",
   "user_id": "string",
   "granted_by": "string",
   "access_level": "string",
@@ -458,8 +458,8 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book not found
+- `403 Forbidden`: User is not the book owner
 - `409 Conflict`: Permission already exists for this user
 - `422 Unprocessable Entity`: Validation error
 - `401 Unauthorized`: Missing or invalid token
@@ -467,11 +467,11 @@
 ---
 
 ### 12. List Permissions
-**Endpoint**: `GET /guides/{guide_id}/permissions/users`
+**Endpoint**: `GET /books/{book_id}/permissions/users`
 **Authentication**: Required (Owner only)
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Query Parameters**:
 - `skip`: integer (default: 0)
@@ -498,18 +498,18 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book not found
+- `403 Forbidden`: User is not the book owner
 - `401 Unauthorized`: Missing or invalid token
 
 ---
 
 ### 13. Revoke Permission
-**Endpoint**: `DELETE /guides/{guide_id}/permissions/users/{permission_user_id}`
+**Endpoint**: `DELETE /books/{book_id}/permissions/users/{permission_user_id}`
 **Authentication**: Required (Owner only)
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 - `permission_user_id`: string (user ID to revoke, required)
 
 **Response 200**:
@@ -517,7 +517,7 @@
 {
   "message": "Permission revoked successfully",
   "revoked": {
-    "guide_id": "string",
+    "book_id": "string",
     "user_id": "string",
     "revoked_by": "string"
   }
@@ -525,18 +525,18 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide or permission not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book or permission not found
+- `403 Forbidden`: User is not the book owner
 - `401 Unauthorized`: Missing or invalid token
 
 ---
 
 ### 14. Invite User by Email
-**Endpoint**: `POST /guides/{guide_id}/permissions/invite`
+**Endpoint**: `POST /books/{book_id}/permissions/invite`
 **Authentication**: Required (Owner only)
 
 **Path Parameters**:
-- `guide_id`: string (required)
+- `book_id`: string (required)
 
 **Request Body**:
 ```json
@@ -553,7 +553,7 @@
 {
   "invitation": {
     "permission_id": "string",
-    "guide_id": "string",
+    "book_id": "string",
     "invited_email": "string",
     "access_level": "string",
     "status": "pending",
@@ -568,8 +568,8 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
-- `403 Forbidden`: User is not the guide owner
+- `404 Not Found`: Book not found
+- `403 Forbidden`: User is not the book owner
 - `400 Bad Request`: Invalid email address
 - `422 Unprocessable Entity`: Validation error
 - `401 Unauthorized`: Missing or invalid token
@@ -578,17 +578,17 @@
 
 ## 🌐 Phase 5: Public View APIs (NO AUTH)
 
-### 15. Get Public Guide
-**Endpoint**: `GET /public/guides/{slug}`
+### 15. Get Public Book
+**Endpoint**: `GET /public/books/{slug}`
 **Authentication**: None (Public access)
 
 **Path Parameters**:
-- `slug`: string (guide slug, required)
+- `slug`: string (book slug, required)
 
 **Response 200**:
 ```json
 {
-  "guide_id": "string",
+  "book_id": "string",
   "title": "string",
   "slug": "string",
   "description": "string",
@@ -636,24 +636,24 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
-- `403 Forbidden`: Guide is private (not accessible publicly)
+- `404 Not Found`: Book not found
+- `403 Forbidden`: Book is private (not accessible publicly)
 
 ---
 
 ### 16. Get Public Chapter
-**Endpoint**: `GET /public/guides/{guide_slug}/chapters/{chapter_slug}`
+**Endpoint**: `GET /public/books/{book_slug}/chapters/{chapter_slug}`
 **Authentication**: None (Public access)
 
 **Path Parameters**:
-- `guide_slug`: string (guide slug, required)
+- `book_slug`: string (book slug, required)
 - `chapter_slug`: string (chapter slug, required)
 
 **Response 200**:
 ```json
 {
   "chapter_id": "string",
-  "guide_id": "string",
+  "book_id": "string",
   "title": "string",
   "slug": "string",
   "order": "integer",
@@ -663,8 +663,8 @@
     "type": "doc",
     "content": []
   },
-  "guide_info": {
-    "guide_id": "string",
+  "book_info": {
+    "book_id": "string",
     "title": "string",
     "slug": "string",
     "logo_url": "string",
@@ -695,17 +695,17 @@
 ```
 
 **Errors**:
-- `404 Not Found`: Guide or chapter not found
-- `403 Forbidden`: Guide is private
+- `404 Not Found`: Book or chapter not found
+- `403 Forbidden`: Book is private
 
 ---
 
 ### 17. Track View Analytics
-**Endpoint**: `POST /public/guides/{slug}/views`
+**Endpoint**: `POST /public/books/{slug}/views`
 **Authentication**: None (Public access)
 
 **Path Parameters**:
-- `slug`: string (guide slug, required)
+- `slug`: string (book slug, required)
 
 **Request Body**:
 ```json
@@ -722,19 +722,19 @@
 {
   "success": "boolean",
   "view_id": "string",
-  "guide_views": "integer",
+  "book_views": "integer",
   "chapter_views": "integer"
 }
 ```
 
 **Errors**:
-- `404 Not Found`: Guide not found
+- `404 Not Found`: Book not found
 - `429 Too Many Requests`: Rate limit exceeded (10 req/min per IP)
 
 ---
 
-### 18. Get Guide by Custom Domain
-**Endpoint**: `GET /guides/by-domain/{domain}`
+### 18. Get Book by Custom Domain
+**Endpoint**: `GET /books/by-domain/{domain}`
 **Authentication**: None (Public access)
 
 **Path Parameters**:
@@ -743,7 +743,7 @@
 **Response 200**:
 ```json
 {
-  "guide_id": "string",
+  "book_id": "string",
   "slug": "string",
   "title": "string",
   "custom_domain": "string",
@@ -753,11 +753,11 @@
 ```
 
 **Errors**:
-- `404 Not Found`: No guide found for domain
+- `404 Not Found`: No book found for domain
 
 ---
 
-## � Phase 6: Point System, Community Books & Document Integration
+## 💎 Phase 6: Point System, Community Books & Document Integration
 
 ### Point System Overview
 Users can set point-based access for their books:
@@ -1068,4 +1068,3 @@ Authorization: Bearer <firebase_jwt_token>
 - **Phase 6**: 6 endpoints (Point System, Community Books, Document Integration)
 
 **Last Updated**: January 2025
-
