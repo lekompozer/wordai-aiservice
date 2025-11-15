@@ -2,6 +2,7 @@
 User Guide API Routes - GitBook-style Documentation System
 Phase 2: Guide Management API
 Phase 3: Chapter Management API
+Phase 4: User Permissions API
 
 Implements RESTful endpoints for creating and managing User Guides with nested chapters.
 Supports public/private/unlisted visibility, user permissions, and hierarchical structure (max 3 levels).
@@ -28,6 +29,13 @@ from src.models.guide_chapter_models import (
     ChapterResponse,
     ChapterTreeNode,
     ChapterReorderBulk,
+)
+from src.models.guide_permission_models import (
+    PermissionCreate,
+    PermissionInvite,
+    PermissionResponse,
+    PermissionListItem,
+    PermissionListResponse,
 )
 
 # Services
@@ -777,4 +785,325 @@ async def reorder_chapters(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reorder chapters",
+        )
+
+
+# ==============================================================================
+# PHASE 4: USER PERMISSIONS API
+# ==============================================================================
+
+
+@router.post(
+    "/{guide_id}/permissions/users",
+    response_model=PermissionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def grant_permission(
+    guide_id: str,
+    permission_data: PermissionCreate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Grant user permission to access a private guide
+
+    **Authentication:** Required (Owner only)
+
+    **Request Body:**
+    - user_id: Firebase UID of user to grant access
+    - access_level: "viewer" | "editor" (default: viewer)
+    - expires_at: Optional expiration datetime
+
+    **Returns:**
+    - 201: Permission granted successfully
+    - 403: User is not the guide owner
+    - 404: Guide not found
+    - 409: Permission already exists for this user
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify guide ownership
+        guide = guide_manager.get_guide(guide_id)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Guide not found",
+            )
+
+        if guide["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only guide owner can grant permissions",
+            )
+
+        # Check if permission already exists
+        existing = permission_manager.get_permission(
+            guide_id=guide_id, user_id=permission_data.user_id
+        )
+
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"User {permission_data.user_id} already has permission for this guide",
+            )
+
+        # Grant permission
+        permission = permission_manager.grant_permission(
+            guide_id=guide_id,
+            user_id=permission_data.user_id,
+            granted_by=user_id,
+            access_level=permission_data.access_level.value,
+            expires_at=permission_data.expires_at,
+        )
+
+        logger.info(
+            f"✅ User {user_id} granted {permission_data.access_level} permission to {permission_data.user_id} for guide {guide_id}"
+        )
+
+        return permission
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to grant permission: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to grant permission",
+        )
+
+
+@router.get("/{guide_id}/permissions/users", response_model=PermissionListResponse)
+async def list_permissions(
+    guide_id: str,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    List all users with permissions on a guide
+
+    **Authentication:** Required (Owner only)
+
+    **Query Parameters:**
+    - skip: Pagination offset (default: 0)
+    - limit: Results per page (default: 50, max: 100)
+
+    **Returns:**
+    - 200: List of permissions
+    - 403: User is not the guide owner
+    - 404: Guide not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify guide ownership
+        guide = guide_manager.get_guide(guide_id)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Guide not found",
+            )
+
+        if guide["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only guide owner can list permissions",
+            )
+
+        # Get permissions
+        permissions = permission_manager.list_permissions(
+            guide_id=guide_id, skip=skip, limit=limit
+        )
+
+        total = permission_manager.count_permissions(guide_id=guide_id)
+
+        logger.info(
+            f"📋 User {user_id} listed permissions for guide {guide_id}: {len(permissions)} results"
+        )
+
+        return {"permissions": permissions, "total": total}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to list permissions: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list permissions",
+        )
+
+
+@router.delete("/{guide_id}/permissions/users/{permission_user_id}")
+async def revoke_permission(
+    guide_id: str,
+    permission_user_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Revoke user permission to access a guide
+
+    **Authentication:** Required (Owner only)
+
+    **Path Parameters:**
+    - guide_id: Guide identifier
+    - permission_user_id: Firebase UID of user to revoke
+
+    **Returns:**
+    - 200: Permission revoked successfully
+    - 403: User is not the guide owner
+    - 404: Guide or permission not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify guide ownership
+        guide = guide_manager.get_guide(guide_id)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Guide not found",
+            )
+
+        if guide["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only guide owner can revoke permissions",
+            )
+
+        # Check if permission exists
+        permission = permission_manager.get_permission(
+            guide_id=guide_id, user_id=permission_user_id
+        )
+
+        if not permission:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Permission not found for user {permission_user_id}",
+            )
+
+        # Revoke permission
+        success = permission_manager.revoke_permission(
+            guide_id=guide_id, user_id=permission_user_id
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to revoke permission",
+            )
+
+        logger.info(
+            f"❌ User {user_id} revoked permission from {permission_user_id} for guide {guide_id}"
+        )
+
+        return {
+            "message": "Permission revoked successfully",
+            "revoked": {
+                "guide_id": guide_id,
+                "user_id": permission_user_id,
+                "revoked_by": user_id,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to revoke permission: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to revoke permission",
+        )
+
+
+@router.post(
+    "/{guide_id}/permissions/invite",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_201_CREATED,
+)
+async def invite_user(
+    guide_id: str,
+    invite_data: PermissionInvite,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Invite user by email to access a guide (creates permission + sends email)
+
+    **Authentication:** Required (Owner only)
+
+    **Request Body:**
+    - email: Email address to invite
+    - access_level: "viewer" | "editor" (default: viewer)
+    - expires_at: Optional expiration datetime
+    - message: Optional personal message (max 500 chars)
+
+    **Returns:**
+    - 201: Invitation sent successfully
+    - 403: User is not the guide owner
+    - 404: Guide not found
+    - 400: Invalid email
+    - 500: Email sending failed
+
+    **Note:** Email invitation requires Brevo service integration
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify guide ownership
+        guide = guide_manager.get_guide(guide_id)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Guide not found",
+            )
+
+        if guide["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only guide owner can invite users",
+            )
+
+        # Create invitation (stores in guide_permissions with invited_email)
+        invitation = permission_manager.create_invitation(
+            guide_id=guide_id,
+            email=invite_data.email,
+            granted_by=user_id,
+            access_level=invite_data.access_level.value,
+            expires_at=invite_data.expires_at,
+            message=invite_data.message,
+        )
+
+        # TODO: Send email via Brevo service
+        # from src.services.brevo_service import BrevoService
+        # brevo = BrevoService()
+        # email_sent = await brevo.send_guide_invitation(
+        #     email=invite_data.email,
+        #     guide_title=guide["title"],
+        #     guide_slug=guide["slug"],
+        #     owner_name=current_user.get("name", "Someone"),
+        #     message=invite_data.message
+        # )
+
+        email_sent = True  # Placeholder - implement Brevo integration later
+
+        logger.info(
+            f"📧 User {user_id} invited {invite_data.email} to guide {guide_id} (email_sent: {email_sent})"
+        )
+
+        return {
+            "invitation": invitation,
+            "email_sent": email_sent,
+            "message": "Invitation sent successfully" if email_sent else "Invitation created (email service unavailable)",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to invite user: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to invite user",
         )

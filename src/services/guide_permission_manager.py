@@ -90,7 +90,7 @@ class GuidePermissionManager:
         granted_by: str,
         access_level: str = "viewer",
         expires_at: Optional[datetime] = None,
-    ) -> str:
+    ) -> Dict[str, Any]:
         """
         Grant permission to user
 
@@ -102,7 +102,7 @@ class GuidePermissionManager:
             expires_at: Optional expiration date
 
         Returns:
-            permission_id: UUID of created permission
+            permission document
 
         Raises:
             DuplicateKeyError: If user already has permission
@@ -131,7 +131,10 @@ class GuidePermissionManager:
             logger.info(
                 f"✅ Granted {access_level} permission to {user_id} for guide {guide_id}"
             )
-            return permission_id
+            # Return the document (remove _id for clean response)
+            result = dict(permission_doc)
+            result.pop("_id", None)
+            return result
         except DuplicateKeyError:
             logger.error(
                 f"❌ User {user_id} already has permission for guide {guide_id}"
@@ -145,7 +148,8 @@ class GuidePermissionManager:
         granted_by: str,
         access_level: str = "viewer",
         expires_at: Optional[datetime] = None,
-    ) -> tuple[str, str]:
+        message: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Create email invitation
 
@@ -155,9 +159,10 @@ class GuidePermissionManager:
             granted_by: Owner's Firebase UID
             access_level: "viewer" | "editor"
             expires_at: Optional expiration date
+            message: Optional personal message
 
         Returns:
-            (permission_id, invitation_token)
+            permission document with invitation details
         """
         permission_id = str(uuid.uuid4())
         invitation_token = secrets.token_urlsafe(32)
@@ -171,6 +176,7 @@ class GuidePermissionManager:
             "access_level": access_level,
             "invited_email": email,
             "invitation_token": invitation_token,
+            "invitation_message": message,  # Store the personal message
             "invitation_accepted": False,
             "invited_at": now,
             "accepted_at": None,
@@ -181,7 +187,11 @@ class GuidePermissionManager:
 
         self.permissions_collection.insert_one(permission_doc)
         logger.info(f"✅ Created invitation for {email} to guide {guide_id}")
-        return permission_id, invitation_token
+        
+        # Return the document (remove _id for clean response)
+        result = dict(permission_doc)
+        result.pop("_id", None)
+        return result
 
     def accept_invitation(self, invitation_token: str, user_id: str) -> Optional[str]:
         """
@@ -266,8 +276,25 @@ class GuidePermissionManager:
 
         return permission
 
+    def get_permission(self, guide_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get permission for a user on a guide (alias for check_permission)
+
+        Args:
+            guide_id: Guide UUID
+            user_id: User's Firebase UID
+
+        Returns:
+            Permission document if exists, None otherwise
+        """
+        return self.check_permission(guide_id, user_id)
+
     def list_permissions(
-        self, guide_id: str, include_pending: bool = False
+        self,
+        guide_id: str,
+        include_pending: bool = False,
+        skip: int = 0,
+        limit: int = 50,
     ) -> List[Dict[str, Any]]:
         """
         List all users with access to guide
@@ -275,6 +302,8 @@ class GuidePermissionManager:
         Args:
             guide_id: Guide UUID
             include_pending: Include pending invitations
+            skip: Pagination offset
+            limit: Results per page
 
         Returns:
             List of permission documents
@@ -284,10 +313,15 @@ class GuidePermissionManager:
             query["invitation_accepted"] = True
 
         permissions = list(
-            self.permissions_collection.find(query).sort([("created_at", -1)])
+            self.permissions_collection.find(query)
+            .sort([("created_at", -1)])
+            .skip(skip)
+            .limit(limit)
         )
 
-        logger.info(f"📊 Found {len(permissions)} permissions for guide {guide_id}")
+        logger.info(
+            f"📊 Found {len(permissions)} permissions for guide {guide_id} (skip={skip}, limit={limit})"
+        )
         return permissions
 
     def list_user_accessible_guides(self, user_id: str) -> List[str]:
