@@ -13,18 +13,18 @@ from pymongo.errors import DuplicateKeyError
 logger = logging.getLogger("chatbot")
 
 
-class GuidePermissionManager:
+class GuideBookBookPermissionManager:
     """Quản lý Guide Permissions trong MongoDB"""
 
     def __init__(self, db):
         """
-        Initialize GuidePermissionManager
+        Initialize GuideBookBookPermissionManager
 
         Args:
             db: PyMongo Database object (synchronous)
         """
         self.db = db
-        self.permissions_collection = db["guide_permissions"]
+        self.permissions_collection = db["book_permissions"]
 
     def create_indexes(self):
         """Tạo indexes cho collection guide_permissions"""
@@ -43,7 +43,7 @@ class GuidePermissionManager:
             # One permission per user per guide
             if "guide_user_unique" not in existing_indexes:
                 self.permissions_collection.create_index(
-                    [("guide_id", 1), ("user_id", 1)],
+                    [("book_id", 1), ("user_id", 1)],
                     unique=True,
                     name="guide_user_unique",
                 )
@@ -52,7 +52,7 @@ class GuidePermissionManager:
             # List permissions for a guide
             if "guide_permissions_list" not in existing_indexes:
                 self.permissions_collection.create_index(
-                    "guide_id", name="guide_permissions_list"
+                    "book_id", name="guide_permissions_list"
                 )
                 logger.info("✅ Created index: guide_permissions_list")
 
@@ -85,7 +85,7 @@ class GuidePermissionManager:
 
     def grant_permission(
         self,
-        guide_id: str,
+        book_id: str,
         user_id: str,
         granted_by: str,
         access_level: str = "viewer",
@@ -95,7 +95,7 @@ class GuidePermissionManager:
         Grant permission to user
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             user_id: User's Firebase UID
             granted_by: Owner's Firebase UID
             access_level: "viewer" | "editor"
@@ -112,7 +112,7 @@ class GuidePermissionManager:
 
         permission_doc = {
             "permission_id": permission_id,
-            "guide_id": guide_id,
+            "book_id": book_id,
             "user_id": user_id,
             "granted_by": granted_by,
             "access_level": access_level,
@@ -143,7 +143,7 @@ class GuidePermissionManager:
 
     def create_invitation(
         self,
-        guide_id: str,
+        book_id: str,
         email: str,
         granted_by: str,
         access_level: str = "viewer",
@@ -154,7 +154,7 @@ class GuidePermissionManager:
         Create email invitation
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             email: Email to invite
             granted_by: Owner's Firebase UID
             access_level: "viewer" | "editor"
@@ -170,7 +170,7 @@ class GuidePermissionManager:
 
         permission_doc = {
             "permission_id": permission_id,
-            "guide_id": guide_id,
+            "book_id": book_id,
             "user_id": "",  # Will be filled when invitation is accepted
             "granted_by": granted_by,
             "access_level": access_level,
@@ -232,19 +232,19 @@ class GuidePermissionManager:
             )
             return None
 
-    def revoke_permission(self, guide_id: str, user_id: str) -> bool:
+    def revoke_permission(self, book_id: str, user_id: str) -> bool:
         """
         Revoke user's permission
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             user_id: User's Firebase UID
 
         Returns:
             True if revoked
         """
         result = self.permissions_collection.delete_one(
-            {"guide_id": guide_id, "user_id": user_id}
+            {"book_id": book_id, "user_id": user_id}
         )
 
         if result.deleted_count > 0:
@@ -252,12 +252,12 @@ class GuidePermissionManager:
             return True
         return False
 
-    def check_permission(self, guide_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    def check_permission(self, book_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """
         Check if user has permission to access guide
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             user_id: User's Firebase UID
 
         Returns:
@@ -267,7 +267,7 @@ class GuidePermissionManager:
 
         permission = self.permissions_collection.find_one(
             {
-                "guide_id": guide_id,
+                "book_id": book_id,
                 "user_id": user_id,
                 "invitation_accepted": True,
                 "$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}],
@@ -276,22 +276,22 @@ class GuidePermissionManager:
 
         return permission
 
-    def get_permission(self, guide_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_permission(self, book_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """
         Get permission for a user on a guide (alias for check_permission)
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             user_id: User's Firebase UID
 
         Returns:
             Permission document if exists, None otherwise
         """
-        return self.check_permission(guide_id, user_id)
+        return self.check_permission(book_id, user_id)
 
     def list_permissions(
         self,
-        guide_id: str,
+        book_id: str,
         include_pending: bool = False,
         skip: int = 0,
         limit: int = 50,
@@ -300,7 +300,7 @@ class GuidePermissionManager:
         List all users with access to guide
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             include_pending: Include pending invitations
             skip: Pagination offset
             limit: Results per page
@@ -308,7 +308,7 @@ class GuidePermissionManager:
         Returns:
             List of permission documents
         """
-        query = {"guide_id": guide_id}
+        query = {"book_id": guide_id}
         if not include_pending:
             query["invitation_accepted"] = True
 
@@ -344,30 +344,30 @@ class GuidePermissionManager:
             }
         )
 
-        guide_ids = [p["guide_id"] for p in permissions]
+        guide_ids = [p["book_id"] for p in permissions]
         logger.info(f"📊 User {user_id} has access to {len(guide_ids)} guides")
         return guide_ids
 
-    def delete_permissions_by_guide(self, guide_id: str) -> int:
+    def delete_permissions_by_guide(self, book_id: str) -> int:
         """
         Delete all permissions for a guide (cascade delete)
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
 
         Returns:
             Number of permissions deleted
         """
-        result = self.permissions_collection.delete_many({"guide_id": guide_id})
+        result = self.permissions_collection.delete_many({"book_id": guide_id})
         deleted_count = result.deleted_count
 
         logger.info(f"🗑️ Deleted {deleted_count} permissions for guide {guide_id}")
         return deleted_count
 
-    def count_permissions(self, guide_id: str) -> int:
+    def count_permissions(self, book_id: str) -> int:
         """Count total permissions for guide"""
         return self.permissions_collection.count_documents(
-            {"guide_id": guide_id, "invitation_accepted": True}
+            {"book_id": book_id, "invitation_accepted": True}
         )
 
     def cleanup_expired(self) -> int:

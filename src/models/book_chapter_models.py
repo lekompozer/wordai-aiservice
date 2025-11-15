@@ -51,7 +51,7 @@ class ChapterResponse(BaseModel):
     """Response model for chapter"""
 
     chapter_id: str
-    guide_id: str
+    book_id: str
     title: str
     slug: str
     document_id: str

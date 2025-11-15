@@ -37,7 +37,7 @@ class PermissionResponse(BaseModel):
     """Response model for permission"""
 
     permission_id: str
-    guide_id: str
+    book_id: str
     user_id: str
     granted_by: str
     access_level: AccessLevel

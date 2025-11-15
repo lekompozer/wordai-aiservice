@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), ".")))
 
 from src.database.db_manager import DBManager
-from src.services.user_guide_manager import UserGuideManager
-from src.services.guide_permission_manager import GuidePermissionManager
+from src.services.book_manager import UserGuideManager
+from src.services.book_permission_manager import GuidePermissionManager
 
 
 def test_permissions_api():
@@ -34,7 +34,7 @@ def test_permissions_api():
     viewer_id = "test_viewer_phase4_" + str(int(datetime.utcnow().timestamp()))
     viewer2_id = "test_viewer2_phase4_" + str(int(datetime.utcnow().timestamp()))
 
-    guide_id = None
+    book_id = None
     permission_id = None
 
     tests_passed = 0
@@ -43,16 +43,16 @@ def test_permissions_api():
     try:
         # Setup: Create a test guide
         print("📋 Setup: Creating test guide...")
-        guide = guide_manager.create_guide(
+        guide = guide_manager.create_book(
             user_id=owner_id,
-            guide_data={
+            book_data={
                 "title": "Private Guide for Permissions Test",
                 "slug": f"private-guide-{owner_id}",
                 "description": "Testing permissions",
                 "visibility": "private",
             },
         )
-        guide_id = guide["guide_id"]
+        book_id = guide["book_id"]
         print(f"✅ Guide created: {guide_id}\n")
 
         # ======================================================================
@@ -71,7 +71,7 @@ def test_permissions_api():
 
             permission_id = permission["permission_id"]
 
-            assert permission["guide_id"] == guide_id
+            assert permission["book_id"] == guide_id
             assert permission["user_id"] == viewer_id
             assert permission["granted_by"] == owner_id
             assert permission["access_level"] == "viewer"
@@ -377,7 +377,7 @@ def test_permissions_api():
     finally:
         # Cleanup
         print("🧹 Cleanup: Removing test data...")
-        if guide_id:
+        if book_id:
             # Delete permissions first (cascade)
             deleted_perms = permission_manager.delete_permissions_by_guide(guide_id)
             print(f"   Deleted {deleted_perms} permissions")

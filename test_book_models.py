@@ -1,5 +1,5 @@
 """
-Test Pydantic Models for User Guide System
+Test Pydantic Models for Online Book System
 Phase 1: Model validation tests
 """
 
@@ -9,13 +9,13 @@ import os
 # Add project root to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.models.user_guide_models import GuideCreate, GuideUpdate, GuideVisibility
-from src.models.guide_chapter_models import (
+from src.models.book_models import GuideCreate, GuideUpdate, GuideVisibility
+from src.models.book_chapter_models import (
     ChapterCreate,
     ChapterUpdate,
     ChapterReorderBulk,
 )
-from src.models.guide_permission_models import (
+from src.models.book_permission_models import (
     PermissionCreate,
     PermissionInvite,
     AccessLevel,
@@ -23,7 +23,7 @@ from src.models.guide_permission_models import (
 from pydantic import ValidationError
 
 
-def test_guide_models():
+def test_book_models():
     """Test Guide models"""
     print("\n" + "=" * 60)
     print("📘 Testing Guide Models")
@@ -197,13 +197,13 @@ def test_permission_models():
 def main():
     """Run all tests"""
     print("\n" + "=" * 60)
-    print("🧪 User Guide Models - Validation Tests")
+    print("🧪 Online Book Models - Validation Tests")
     print("=" * 60)
 
     results = []
 
     # Test guides
-    results.append(("Guide Models", test_guide_models()))
+    results.append(("Guide Models", test_book_models()))
 
     # Test chapters
     results.append(("Chapter Models", test_chapter_models()))

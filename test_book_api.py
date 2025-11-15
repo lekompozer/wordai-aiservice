@@ -1,6 +1,6 @@
 """
-Test User Guide API Routes - Phase 2 & 3
-Tests all 10 endpoints: 5 Guide Management + 5 Chapter Management
+Test Online Book API Routes - Phase 2 & 3
+Tests all 10 endpoints: 5 Book Management + 5 Chapter Management
 
 Run: python test_user_guide_api.py
 """
@@ -20,12 +20,12 @@ from typing import Dict, Any
 from src.database.db_manager import DBManager
 
 # Import managers
-from src.services.user_guide_manager import UserGuideManager
-from src.services.guide_chapter_manager import GuideChapterManager
+from src.services.book_manager import UserGuideManager
+from src.services.book_chapter_manager import GuideChapterManager
 
 # Import models
-from src.models.user_guide_models import GuideCreate, GuideUpdate, GuideVisibility
-from src.models.guide_chapter_models import ChapterCreate, ChapterUpdate, ChapterReorder
+from src.models.book_models import GuideCreate, GuideUpdate, GuideVisibility
+from src.models.book_chapter_models import ChapterCreate, ChapterUpdate, ChapterReorder
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,9 +44,9 @@ guide_manager = UserGuideManager(db)
 chapter_manager = GuideChapterManager(db)
 
 
-def test_guide_crud():
+def test_book_crud():
     """
-    Test Phase 2: Guide Management CRUD operations
+    Test Phase 2: Book Management CRUD operations
     """
     print("\n" + "=" * 80)
     print("🧪 TESTING PHASE 2: GUIDE MANAGEMENT API")
@@ -55,7 +55,7 @@ def test_guide_crud():
     # ========== TEST 1: Create Guide ==========
     print("\n📝 TEST 1: Create Guide")
     try:
-        guide_data = GuideCreate(
+        book_data = GuideCreate(
             title="Test Guide - Getting Started",
             slug="test-getting-started",
             description="A comprehensive guide for testing",
@@ -67,8 +67,8 @@ def test_guide_crud():
             enable_feedback=True,
         )
 
-        guide = guide_manager.create_guide(TEST_USER_ID, guide_data)
-        guide_id = guide["guide_id"]
+        guide = guide_manager.create_book(TEST_USER_ID, book_data)
+        book_id = guide["book_id"]
 
         print(f"✅ Guide created: {guide_id}")
         print(f"   Title: {guide['title']}")
@@ -139,7 +139,7 @@ def test_guide_crud():
             visibility=GuideVisibility.PUBLIC,
         )
 
-        guide_manager.create_guide(TEST_USER_ID, duplicate_guide)
+        guide_manager.create_book(TEST_USER_ID, duplicate_guide)
         print("❌ Should have failed: Duplicate slug accepted!")
 
     except Exception as e:
@@ -155,7 +155,7 @@ def test_guide_crud():
     return guide_id
 
 
-def test_chapter_crud(guide_id: str):
+def test_chapter_crud(book_id: str):
     """
     Test Phase 3: Chapter Management CRUD operations
     """
@@ -379,7 +379,7 @@ def test_chapter_crud(guide_id: str):
     print("=" * 80)
 
 
-def test_guide_deletion(guide_id: str):
+def test_book_deletion(book_id: str):
     """
     Test Guide Deletion with Cascade (Delete chapters and permissions)
     """
@@ -427,10 +427,10 @@ def main():
     except Exception as e:
         print(f"⚠️ Index initialization: {e}")
 
-    # Run Phase 2 tests (Guide Management)
-    guide_id = test_guide_crud()
+    # Run Phase 2 tests (Book Management)
+    book_id = test_book_crud()
 
-    if not guide_id:
+    if not book_id:
         print("\n❌ Phase 2 tests failed - cannot continue to Phase 3")
         return
 
@@ -438,13 +438,13 @@ def main():
     test_chapter_crud(guide_id)
 
     # Run deletion test
-    test_guide_deletion(guide_id)
+    test_book_deletion(guide_id)
 
     print("\n" + "=" * 80)
     print("🎉 ALL TESTS COMPLETED SUCCESSFULLY")
     print("=" * 80)
     print("\n📊 Test Summary:")
-    print("   ✅ Phase 2: Guide Management API - 5 endpoints tested")
+    print("   ✅ Phase 2: Book Management API - 5 endpoints tested")
     print("   ✅ Phase 3: Chapter Management API - 5 endpoints tested")
     print("   ✅ Data validation and error handling verified")
     print("   ✅ Cascade deletion working correctly")

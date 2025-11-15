@@ -1,10 +1,10 @@
 """
-User Guide API Routes - GitBook-style Documentation System
+Online Book API Routes - GitBook-style Documentation System
 Phase 2: Guide Management API
 Phase 3: Chapter Management API
 Phase 4: User Permissions API
 
-Implements RESTful endpoints for creating and managing User Guides with nested chapters.
+Implements RESTful endpoints for creating and managing Online Books with nested chapters.
 Supports public/private/unlisted visibility, user permissions, and hierarchical structure (max 3 levels).
 """
 
@@ -16,61 +16,61 @@ import logging
 from src.middleware.firebase_auth import get_current_user
 
 # Models
-from src.models.user_guide_models import (
-    GuideCreate,
-    GuideUpdate,
-    GuideResponse,
-    GuideListResponse,
-    GuideVisibility,
+from src.models.book_models import (
+    BookCreate,
+    BookUpdate,
+    BookResponse,
+    BookListResponse,
+    BookVisibility,
 )
-from src.models.guide_chapter_models import (
+from src.models.book_chapter_models import (
     ChapterCreate,
     ChapterUpdate,
     ChapterResponse,
     ChapterTreeNode,
     ChapterReorderBulk,
 )
-from src.models.guide_permission_models import (
+from src.models.book_permission_models import (
     PermissionCreate,
     PermissionInvite,
     PermissionResponse,
     PermissionListItem,
     PermissionListResponse,
 )
-from src.models.public_guide_models import (
-    PublicGuideResponse,
+from src.models.public_book_models import (
+    PublicBookResponse,
     PublicChapterResponse,
     ViewTrackingRequest,
     ViewTrackingResponse,
-    GuideDomainResponse,
+    BookDomainResponse,
     PublicAuthorInfo,
     PublicChapterSummary,
-    GuideStats,
+    BookStats,
     SEOMetadata,
     ChapterNavigation,
     PublicGuideInfo,
 )
 
 # Services
-from src.services.user_guide_manager import UserGuideManager
-from src.services.guide_chapter_manager import GuideChapterManager
-from src.services.guide_permission_manager import GuidePermissionManager
+from src.services.book_manager import UserBookManager
+from src.services.book_chapter_manager import GuideBookBookChapterManager
+from src.services.book_permission_manager import GuideBookBookPermissionManager
 
 # Database
 from src.database.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/guides", tags=["User Guides"])
+router = APIRouter(prefix="/api/v1/books", tags=["Online Books"])
 
 # Initialize DB connection
 db_manager = DBManager()
 db = db_manager.db
 
 # Initialize managers with DB
-guide_manager = UserGuideManager(db)
-chapter_manager = GuideChapterManager(db)
-permission_manager = GuidePermissionManager(db)
+guide_manager = UserBookManager(db)
+chapter_manager = GuideBookBookChapterManager(db)
+permission_manager = GuideBookBookPermissionManager(db)
 
 
 # ==============================================================================
@@ -78,9 +78,9 @@ permission_manager = GuidePermissionManager(db)
 # ==============================================================================
 
 
-@router.post("", response_model=GuideResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=BookResponse, status_code=status.HTTP_201_CREATED)
 async def create_guide(
-    guide_data: GuideCreate, current_user: Dict[str, Any] = Depends(get_current_user)
+    guide_data: BookCreate, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Create a new User Guide
@@ -117,7 +117,7 @@ async def create_guide(
         guide = guide_manager.create_guide(user_id, guide_data)
 
         logger.info(
-            f"✅ User {user_id} created guide: {guide['guide_id']} ({guide_data.title})"
+            f"✅ User {user_id} created guide: {guide['book_id']} ({guide_data.title})"
         )
         return guide
 
@@ -131,11 +131,11 @@ async def create_guide(
         )
 
 
-@router.get("", response_model=GuideListResponse)
+@router.get("", response_model=BookListResponse)
 async def list_guides(
     skip: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Results per page"),
-    visibility: Optional[GuideVisibility] = Query(
+    visibility: Optional[BookVisibility] = Query(
         None, description="Filter by visibility"
     ),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -181,9 +181,9 @@ async def list_guides(
         )
 
 
-@router.get("/{guide_id}", response_model=GuideResponse)
+@router.get("/{guide_id}", response_model=BookResponse)
 async def get_guide(
-    guide_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+    book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Get detailed information about a specific guide
@@ -199,7 +199,7 @@ async def get_guide(
         user_id = current_user["uid"]
 
         # Get guide
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -213,7 +213,7 @@ async def get_guide(
         if not is_owner:
             # Check if user has permission
             has_permission = permission_manager.check_permission(
-                guide_id=guide_id, user_id=user_id
+                guide_id=book_id, user_id=user_id
             )
 
             if not has_permission:
@@ -235,10 +235,10 @@ async def get_guide(
         )
 
 
-@router.patch("/{guide_id}", response_model=GuideResponse)
+@router.patch("/{guide_id}", response_model=BookResponse)
 async def update_guide(
-    guide_id: str,
-    guide_data: GuideUpdate,
+    book_id: str,
+    guide_data: BookUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
@@ -247,7 +247,7 @@ async def update_guide(
     **Authentication:** Required (Owner only)
 
     **Request Body:**
-    - Any fields from GuideCreate (all optional)
+    - Any fields from BookCreate (all optional)
 
     **Returns:**
     - 200: Guide updated successfully
@@ -259,7 +259,7 @@ async def update_guide(
         user_id = current_user["uid"]
 
         # Get guide to verify ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -283,7 +283,7 @@ async def update_guide(
                 )
 
         # Update guide
-        updated_guide = guide_manager.update_guide(guide_id, guide_data)
+        updated_guide = guide_manager.update_guide(book_id, guide_data)
 
         if not updated_guide:
             raise HTTPException(
@@ -306,7 +306,7 @@ async def update_guide(
 
 @router.delete("/{guide_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_guide(
-    guide_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+    book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     Delete guide and all associated chapters and permissions
@@ -327,7 +327,7 @@ async def delete_guide(
         user_id = current_user["uid"]
 
         # Get guide to verify ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -343,13 +343,13 @@ async def delete_guide(
             )
 
         # Delete chapters
-        deleted_chapters = chapter_manager.delete_guide_chapters(guide_id)
+        deleted_chapters = chapter_manager.delete_guide_chapters(book_id)
 
         # Delete permissions
-        deleted_permissions = permission_manager.delete_guide_permissions(guide_id)
+        deleted_permissions = permission_manager.delete_guide_permissions(book_id)
 
         # Delete guide
-        deleted = guide_manager.delete_guide(guide_id)
+        deleted = guide_manager.delete_guide(book_id)
 
         if not deleted:
             raise HTTPException(
@@ -384,7 +384,7 @@ async def delete_guide(
     status_code=status.HTTP_201_CREATED,
 )
 async def create_chapter(
-    guide_id: str,
+    book_id: str,
     chapter_data: ChapterCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -418,7 +418,7 @@ async def create_chapter(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -433,7 +433,7 @@ async def create_chapter(
             )
 
         # Check slug uniqueness within guide
-        if chapter_manager.slug_exists(guide_id, chapter_data.slug):
+        if chapter_manager.slug_exists(book_id, chapter_data.slug):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Slug '{chapter_data.slug}' already exists in this guide",
@@ -450,14 +450,14 @@ async def create_chapter(
                 )
 
             # Verify parent belongs to same guide
-            if parent["guide_id"] != guide_id:
+            if parent["book_id"] != book_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Parent chapter must belong to the same guide",
                 )
 
         # Create chapter (depth is auto-calculated)
-        chapter = chapter_manager.create_chapter(guide_id, chapter_data)
+        chapter = chapter_manager.create_chapter(book_id, chapter_data)
 
         logger.info(
             f"✅ User {user_id} created chapter in guide {guide_id}: "
@@ -477,7 +477,7 @@ async def create_chapter(
 
 @router.get("/{guide_id}/chapters", response_model=Dict[str, Any])
 async def get_chapter_tree(
-    guide_id: str,
+    book_id: str,
     include_unpublished: bool = Query(
         False, description="Include unpublished chapters (owner only)"
     ),
@@ -507,7 +507,7 @@ async def get_chapter_tree(
         user_id = current_user["uid"]
 
         # Verify guide access
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -520,7 +520,7 @@ async def get_chapter_tree(
 
         if not is_owner:
             has_permission = permission_manager.check_permission(
-                guide_id=guide_id, user_id=user_id
+                guide_id=book_id, user_id=user_id
             )
 
             if not has_permission:
@@ -534,18 +534,18 @@ async def get_chapter_tree(
 
         # Get chapter tree
         chapters = chapter_manager.get_chapter_tree(
-            guide_id=guide_id, include_unpublished=show_unpublished
+            guide_id=book_id, include_unpublished=show_unpublished
         )
 
         # Count total chapters
-        total = chapter_manager.count_chapters(guide_id)
+        total = chapter_manager.count_chapters(book_id)
 
         logger.info(
             f"📄 User {user_id} retrieved chapter tree for guide {guide_id}: {total} chapters"
         )
 
         return {
-            "guide_id": guide_id,
+            "book_id": book_id,
             "chapters": chapters,
             "total_chapters": total,
         }
@@ -565,7 +565,7 @@ async def get_chapter_tree(
     response_model=ChapterResponse,
 )
 async def update_chapter(
-    guide_id: str,
+    book_id: str,
     chapter_id: str,
     chapter_data: ChapterUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -595,7 +595,7 @@ async def update_chapter(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -619,7 +619,7 @@ async def update_chapter(
             )
 
         # Verify chapter belongs to guide
-        if chapter["guide_id"] != guide_id:
+        if chapter["book_id"] != book_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Chapter does not belong to this guide",
@@ -627,7 +627,7 @@ async def update_chapter(
 
         # Check slug uniqueness if changed
         if chapter_data.slug and chapter_data.slug != chapter["slug"]:
-            if chapter_manager.slug_exists(guide_id, chapter_data.slug):
+            if chapter_manager.slug_exists(book_id, chapter_data.slug):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Slug '{chapter_data.slug}' already exists in this guide",
@@ -657,7 +657,7 @@ async def update_chapter(
 
 @router.delete("/{guide_id}/chapters/{chapter_id}", response_model=Dict[str, Any])
 async def delete_chapter(
-    guide_id: str,
+    book_id: str,
     chapter_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -681,7 +681,7 @@ async def delete_chapter(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -705,7 +705,7 @@ async def delete_chapter(
             )
 
         # Verify chapter belongs to guide
-        if chapter["guide_id"] != guide_id:
+        if chapter["book_id"] != book_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Chapter does not belong to this guide",
@@ -737,7 +737,7 @@ async def delete_chapter(
 
 @router.post("/{guide_id}/chapters/reorder", response_model=Dict[str, Any])
 async def reorder_chapters(
-    guide_id: str,
+    book_id: str,
     reorder_data: ChapterReorderBulk,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -763,7 +763,7 @@ async def reorder_chapters(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -779,7 +779,7 @@ async def reorder_chapters(
 
         # Reorder chapters
         updated_chapters = chapter_manager.reorder_chapters(
-            guide_id=guide_id, updates=reorder_data.updates
+            guide_id=book_id, updates=reorder_data.updates
         )
 
         logger.info(
@@ -812,7 +812,7 @@ async def reorder_chapters(
     status_code=status.HTTP_201_CREATED,
 )
 async def grant_permission(
-    guide_id: str,
+    book_id: str,
     permission_data: PermissionCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -836,7 +836,7 @@ async def grant_permission(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -852,7 +852,7 @@ async def grant_permission(
 
         # Check if permission already exists
         existing = permission_manager.get_permission(
-            guide_id=guide_id, user_id=permission_data.user_id
+            guide_id=book_id, user_id=permission_data.user_id
         )
 
         if existing:
@@ -863,7 +863,7 @@ async def grant_permission(
 
         # Grant permission
         permission = permission_manager.grant_permission(
-            guide_id=guide_id,
+            guide_id=book_id,
             user_id=permission_data.user_id,
             granted_by=user_id,
             access_level=permission_data.access_level.value,
@@ -888,7 +888,7 @@ async def grant_permission(
 
 @router.get("/{guide_id}/permissions/users", response_model=PermissionListResponse)
 async def list_permissions(
-    guide_id: str,
+    book_id: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -911,7 +911,7 @@ async def list_permissions(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -927,10 +927,10 @@ async def list_permissions(
 
         # Get permissions
         permissions = permission_manager.list_permissions(
-            guide_id=guide_id, skip=skip, limit=limit
+            guide_id=book_id, skip=skip, limit=limit
         )
 
-        total = permission_manager.count_permissions(guide_id=guide_id)
+        total = permission_manager.count_permissions(guide_id=book_id)
 
         logger.info(
             f"📋 User {user_id} listed permissions for guide {guide_id}: {len(permissions)} results"
@@ -950,7 +950,7 @@ async def list_permissions(
 
 @router.delete("/{guide_id}/permissions/users/{permission_user_id}")
 async def revoke_permission(
-    guide_id: str,
+    book_id: str,
     permission_user_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -960,7 +960,7 @@ async def revoke_permission(
     **Authentication:** Required (Owner only)
 
     **Path Parameters:**
-    - guide_id: Guide identifier
+    - book_id: Guide identifier
     - permission_user_id: Firebase UID of user to revoke
 
     **Returns:**
@@ -972,7 +972,7 @@ async def revoke_permission(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -988,7 +988,7 @@ async def revoke_permission(
 
         # Check if permission exists
         permission = permission_manager.get_permission(
-            guide_id=guide_id, user_id=permission_user_id
+            guide_id=book_id, user_id=permission_user_id
         )
 
         if not permission:
@@ -999,7 +999,7 @@ async def revoke_permission(
 
         # Revoke permission
         success = permission_manager.revoke_permission(
-            guide_id=guide_id, user_id=permission_user_id
+            guide_id=book_id, user_id=permission_user_id
         )
 
         if not success:
@@ -1015,7 +1015,7 @@ async def revoke_permission(
         return {
             "message": "Permission revoked successfully",
             "revoked": {
-                "guide_id": guide_id,
+                "book_id": book_id,
                 "user_id": permission_user_id,
                 "revoked_by": user_id,
             },
@@ -1037,7 +1037,7 @@ async def revoke_permission(
     status_code=status.HTTP_201_CREATED,
 )
 async def invite_user(
-    guide_id: str,
+    book_id: str,
     invite_data: PermissionInvite,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -1065,7 +1065,7 @@ async def invite_user(
         user_id = current_user["uid"]
 
         # Verify guide ownership
-        guide = guide_manager.get_guide(guide_id)
+        guide = guide_manager.get_guide(book_id)
 
         if not guide:
             raise HTTPException(
@@ -1081,7 +1081,7 @@ async def invite_user(
 
         # Create invitation (stores in guide_permissions with invited_email)
         invitation = permission_manager.create_invitation(
-            guide_id=guide_id,
+            guide_id=book_id,
             email=invite_data.email,
             granted_by=user_id,
             access_level=invite_data.access_level.value,
@@ -1133,7 +1133,7 @@ async def invite_user(
 
 @router.get(
     "/public/guides/{slug}",
-    response_model=PublicGuideResponse,
+    response_model=PublicBookResponse,
     status_code=status.HTTP_200_OK,
 )
 async def get_public_guide(slug: str):
@@ -1170,7 +1170,7 @@ async def get_public_guide(slug: str):
             )
 
         # Get all chapters for this guide (sorted by order)
-        chapters = chapter_manager.list_chapters(guide["guide_id"])
+        chapters = chapter_manager.list_chapters(guide["book_id"])
 
         # Get author info (mock for now - implement user service later)
         author = PublicAuthorInfo(
@@ -1193,7 +1193,7 @@ async def get_public_guide(slug: str):
         ]
 
         # Stats
-        stats = GuideStats(
+        stats = BookStats(
             total_chapters=len(chapters),
             total_views=guide.get("stats", {}).get("total_views", 0),
             last_updated=guide["updated_at"],
@@ -1212,8 +1212,8 @@ async def get_public_guide(slug: str):
         )
 
         # Response
-        response = PublicGuideResponse(
-            guide_id=guide["guide_id"],
+        response = PublicBookResponse(
+            guide_id=guide["book_id"],
             title=guide["title"],
             slug=guide["slug"],
             description=guide.get("description"),
@@ -1285,7 +1285,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
             )
 
         # Get chapter by slug
-        chapter = chapter_manager.get_chapter_by_slug(guide["guide_id"], chapter_slug)
+        chapter = chapter_manager.get_chapter_by_slug(guide["book_id"], chapter_slug)
 
         if not chapter:
             raise HTTPException(
@@ -1294,7 +1294,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
             )
 
         # Get all chapters for navigation
-        all_chapters = chapter_manager.list_chapters(guide["guide_id"])
+        all_chapters = chapter_manager.list_chapters(guide["book_id"])
         all_chapters_sorted = sorted(all_chapters, key=lambda x: x["order"])
 
         # Find prev/next chapters
@@ -1337,7 +1337,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
 
         # Guide info
         guide_info = PublicGuideInfo(
-            guide_id=guide["guide_id"],
+            guide_id=guide["book_id"],
             title=guide["title"],
             slug=guide["slug"],
             logo_url=guide.get("logo_url"),
@@ -1359,7 +1359,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
         # Response
         response = PublicChapterResponse(
             chapter_id=chapter["chapter_id"],
-            guide_id=guide["guide_id"],
+            guide_id=guide["book_id"],
             title=chapter["title"],
             slug=chapter["slug"],
             order=chapter["order"],
@@ -1427,13 +1427,13 @@ async def track_view(slug: str, view_data: ViewTrackingRequest):
         # In production, store in separate guide_views collection
 
         # Mock view tracking
-        view_id = f"view_{guide['guide_id']}_{view_data.session_id or 'anon'}"
+        view_id = f"view_{guide['book_id']}_{view_data.session_id or 'anon'}"
         guide_views = guide.get("stats", {}).get("total_views", 0) + 1
         chapter_views = None
 
         if view_data.chapter_slug:
             chapter = chapter_manager.get_chapter_by_slug(
-                guide["guide_id"], view_data.chapter_slug
+                guide["book_id"], view_data.chapter_slug
             )
             if chapter:
                 chapter_views = chapter.get("stats", {}).get("total_views", 0) + 1
@@ -1459,7 +1459,7 @@ async def track_view(slug: str, view_data: ViewTrackingRequest):
 
 @router.get(
     "/by-domain/{domain}",
-    response_model=GuideDomainResponse,
+    response_model=BookDomainResponse,
     status_code=status.HTTP_200_OK,
 )
 async def get_guide_by_domain(domain: str):
@@ -1491,8 +1491,8 @@ async def get_guide_by_domain(domain: str):
                 detail=f"No guide found for domain '{domain}'",
             )
 
-        response = GuideDomainResponse(
-            guide_id=guide["guide_id"],
+        response = BookDomainResponse(
+            guide_id=guide["book_id"],
             slug=guide["slug"],
             title=guide["title"],
             custom_domain=guide["custom_domain"],

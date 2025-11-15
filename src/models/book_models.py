@@ -9,7 +9,7 @@ from datetime import datetime
 from enum import Enum
 
 
-class GuideVisibility(str, Enum):
+class BookVisibility(str, Enum):
     """Guide visibility options"""
 
     PUBLIC = "public"
@@ -17,7 +17,7 @@ class GuideVisibility(str, Enum):
     UNLISTED = "unlisted"
 
 
-class GuideCreate(BaseModel):
+class BookCreate(BaseModel):
     """Request model to create a new guide"""
 
     title: str = Field(..., min_length=1, max_length=200, description="Guide title")
@@ -27,8 +27,8 @@ class GuideCreate(BaseModel):
     slug: str = Field(
         ..., min_length=1, max_length=100, description="URL-friendly slug"
     )
-    visibility: GuideVisibility = Field(
-        default=GuideVisibility.PUBLIC, description="Visibility setting"
+    visibility: BookVisibility = Field(
+        default=BookVisibility.PUBLIC, description="Visibility setting"
     )
     is_published: bool = Field(default=False, description="Published state")
 
@@ -53,12 +53,12 @@ class GuideCreate(BaseModel):
         return v
 
 
-class GuideUpdate(BaseModel):
+class BookUpdate(BaseModel):
     """Request model to update guide"""
 
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     description: Optional[str] = Field(None, max_length=500)
-    visibility: Optional[GuideVisibility] = None
+    visibility: Optional[BookVisibility] = None
     is_published: Optional[bool] = None
     logo_url: Optional[str] = None
     cover_image_url: Optional[str] = None
@@ -67,15 +67,15 @@ class GuideUpdate(BaseModel):
     meta_description: Optional[str] = Field(None, max_length=200)
 
 
-class GuideResponse(BaseModel):
+class BookResponse(BaseModel):
     """Response model for guide"""
 
-    guide_id: str
+    book_id: str
     user_id: str
     title: str
     description: Optional[str] = None
     slug: str
-    visibility: GuideVisibility
+    visibility: BookVisibility
     is_published: bool
     logo_url: Optional[str] = None
     cover_image_url: Optional[str] = None
@@ -92,11 +92,11 @@ class GuideResponse(BaseModel):
 class GuideListItem(BaseModel):
     """Simplified guide info for listing"""
 
-    guide_id: str
+    book_id: str
     title: str
     slug: str
     description: Optional[str] = None
-    visibility: GuideVisibility
+    visibility: BookVisibility
     is_published: bool
     chapter_count: int = 0
     view_count: int = 0
@@ -104,7 +104,7 @@ class GuideListItem(BaseModel):
     last_published_at: Optional[datetime] = None
 
 
-class GuideListResponse(BaseModel):
+class BookListResponse(BaseModel):
     """Response for guide listing with pagination"""
 
     guides: List[GuideListItem]

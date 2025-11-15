@@ -13,8 +13,8 @@ from typing import Dict, Any
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.database.db_manager import DBManager
-from src.services.user_guide_manager import UserGuideManager
-from src.services.guide_chapter_manager import GuideChapterManager
+from src.services.book_manager import UserGuideManager
+from src.services.book_chapter_manager import GuideChapterManager
 
 
 def print_section(title: str):
@@ -42,8 +42,8 @@ class Phase5TestSuite:
 
         # Test data
         self.test_user_id = "test_user_phase5"
-        self.test_guide_id = None
-        self.test_guide_slug = "test-public-guide-phase5"
+        self.test_book_id = None
+        self.test_book_slug = "test-public-guide-phase5"
         self.test_chapter_id = None
         self.test_chapter_slug = "introduction"
         self.test_domain = "test-phase5.example.com"
@@ -61,7 +61,7 @@ class Phase5TestSuite:
         self.db.user_guides.delete_many({"user_id": self.test_user_id})
 
         # Delete test chapters
-        self.db.guide_chapters.delete_many({"guide_id": {"$regex": "^guide_.*phase5"}})
+        self.db.guide_chapters.delete_many({"book_id": {"$regex": "^guide_.*phase5"}})
 
         print("✅ Cleanup completed\n")
 
@@ -70,9 +70,9 @@ class Phase5TestSuite:
         print("📝 Setting up test data...")
 
         # Create a public guide
-        guide_data = {
+        book_data = {
             "title": "Test Public Guide",
-            "slug": self.test_guide_slug,
+            "slug": self.test_book_slug,
             "description": "A test guide for Phase 5 public access",
             "visibility": "public",
             "is_indexed": True,
@@ -83,8 +83,8 @@ class Phase5TestSuite:
             "author_avatar": "https://example.com/avatar.jpg",
         }
 
-        guide = self.guide_manager.create_guide(self.test_user_id, guide_data)
-        self.test_guide_id = guide["guide_id"]
+        guide = self.guide_manager.create_book(self.test_user_id, book_data)
+        self.test_book_id = guide["book_id"]
 
         # Create test chapters
         chapter1_data = {
@@ -104,15 +104,15 @@ class Phase5TestSuite:
         }
 
         chapter1 = self.chapter_manager.create_chapter(
-            self.test_guide_id, chapter1_data
+            self.test_book_id, chapter1_data
         )
         self.test_chapter_id = chapter1["chapter_id"]
 
         chapter2 = self.chapter_manager.create_chapter(
-            self.test_guide_id, chapter2_data
+            self.test_book_id, chapter2_data
         )
 
-        print(f"✅ Created test guide: {self.test_guide_id}")
+        print(f"✅ Created test guide: {self.test_book_id}")
         print(f"✅ Created test chapters: 2 chapters\n")
 
     def test_1_get_public_guide_by_slug(self) -> bool:
@@ -122,12 +122,12 @@ class Phase5TestSuite:
         try:
             # Get guide by slug
             guide = self.guide_manager.get_guide_by_slug(
-                user_id=self.test_user_id, slug=self.test_guide_slug
+                user_id=self.test_user_id, slug=self.test_book_slug
             )
 
             assert guide is not None, "Guide should be found"
-            assert guide["guide_id"] == self.test_guide_id, "Guide ID should match"
-            assert guide["slug"] == self.test_guide_slug, "Slug should match"
+            assert guide["book_id"] == self.test_book_id, "Guide ID should match"
+            assert guide["slug"] == self.test_book_slug, "Slug should match"
             assert guide["visibility"] == "public", "Guide should be public"
             assert (
                 guide["custom_domain"] == self.test_domain
@@ -150,7 +150,7 @@ class Phase5TestSuite:
         self.total_tests += 1
 
         try:
-            chapters = self.chapter_manager.list_chapters(self.test_guide_id)
+            chapters = self.chapter_manager.list_chapters(self.test_book_id)
 
             assert len(chapters) == 2, "Should have 2 chapters"
             assert (
@@ -177,7 +177,7 @@ class Phase5TestSuite:
 
         try:
             chapter = self.chapter_manager.get_chapter_by_slug(
-                self.test_guide_id, self.test_chapter_slug
+                self.test_book_id, self.test_chapter_slug
             )
 
             assert chapter is not None, "Chapter should be found"
@@ -206,7 +206,7 @@ class Phase5TestSuite:
 
         try:
             # Get all chapters sorted
-            chapters = self.chapter_manager.list_chapters(self.test_guide_id)
+            chapters = self.chapter_manager.list_chapters(self.test_book_id)
             chapters_sorted = sorted(chapters, key=lambda x: x["order_index"])
 
             # First chapter (no prev, has next)
@@ -248,11 +248,11 @@ class Phase5TestSuite:
             guide = self.guide_manager.get_guide_by_domain(self.test_domain)
 
             assert guide is not None, "Guide should be found by domain"
-            assert guide["guide_id"] == self.test_guide_id, "Guide ID should match"
+            assert guide["book_id"] == self.test_book_id, "Guide ID should match"
             assert (
                 guide["custom_domain"] == self.test_domain
             ), "Custom domain should match"
-            assert guide["slug"] == self.test_guide_slug, "Slug should match"
+            assert guide["slug"] == self.test_book_slug, "Slug should match"
 
             self.tests_passed += 1
             return True
@@ -295,7 +295,7 @@ class Phase5TestSuite:
 
         try:
             chapter = self.chapter_manager.get_chapter_by_slug(
-                self.test_guide_id, "nonexistent-chapter-12345"
+                self.test_book_id, "nonexistent-chapter-12345"
             )
 
             assert chapter is None, "Should return None for nonexistent chapter"
@@ -318,15 +318,15 @@ class Phase5TestSuite:
 
         try:
             # Create private guide
-            private_guide_data = {
+            private_book_data = {
                 "title": "Private Test Guide",
                 "slug": "private-test-guide-phase5",
                 "description": "This guide should not be publicly accessible",
                 "visibility": "private",
             }
 
-            private_guide = self.guide_manager.create_guide(
-                self.test_user_id, private_guide_data
+            private_guide = self.guide_manager.create_book(
+                self.test_user_id, private_book_data
             )
 
             assert private_guide["visibility"] == "private", "Guide should be private"
@@ -335,7 +335,7 @@ class Phase5TestSuite:
             ), "Private guide should not be indexed"
 
             # Cleanup
-            self.guide_manager.delete_guide(private_guide["guide_id"])
+            self.guide_manager.delete_guide(private_guide["book_id"])
 
             self.tests_passed += 1
             return True
@@ -355,15 +355,15 @@ class Phase5TestSuite:
 
         try:
             # Create unlisted guide
-            unlisted_guide_data = {
+            unlisted_book_data = {
                 "title": "Unlisted Test Guide",
                 "slug": "unlisted-test-guide-phase5",
                 "description": "This guide is accessible but not indexed",
                 "visibility": "unlisted",
             }
 
-            unlisted_guide = self.guide_manager.create_guide(
-                self.test_user_id, unlisted_guide_data
+            unlisted_guide = self.guide_manager.create_book(
+                self.test_user_id, unlisted_book_data
             )
 
             assert (
@@ -374,7 +374,7 @@ class Phase5TestSuite:
             ), "Unlisted guide should not be indexed"
 
             # Cleanup
-            self.guide_manager.delete_guide(unlisted_guide["guide_id"])
+            self.guide_manager.delete_guide(unlisted_guide["book_id"])
 
             self.tests_passed += 1
             return True
@@ -393,7 +393,7 @@ class Phase5TestSuite:
         self.total_tests += 1
 
         try:
-            guide = self.guide_manager.get_guide(self.test_guide_id)
+            guide = self.guide_manager.get_guide(self.test_book_id)
 
             assert guide is not None, "Guide should exist"
             assert "title" in guide, "Should have title"
@@ -445,8 +445,8 @@ class Phase5TestSuite:
         self.total_tests += 1
 
         try:
-            guide = self.guide_manager.get_guide(self.test_guide_id)
-            chapters = self.chapter_manager.list_chapters(self.test_guide_id)
+            guide = self.guide_manager.get_guide(self.test_book_id)
+            chapters = self.chapter_manager.list_chapters(self.test_book_id)
 
             # Stats should include
             total_chapters = len(chapters)

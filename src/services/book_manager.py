@@ -1,6 +1,6 @@
 """
 User Guide Manager Service
-Phase 1: Database operations for User Guides
+Phase 1: Database operations for Online Books
 """
 
 import uuid
@@ -13,18 +13,18 @@ from pymongo import ReturnDocument
 logger = logging.getLogger("chatbot")
 
 
-class UserGuideManager:
-    """Quản lý User Guides trong MongoDB"""
+class UserBookManager:
+    """Quản lý Online Books trong MongoDB"""
 
     def __init__(self, db):
         """
-        Initialize UserGuideManager
+        Initialize UserBookManager
 
         Args:
             db: PyMongo Database object (synchronous)
         """
         self.db = db
-        self.guides_collection = db["user_guides"]
+        self.guides_collection = db["online_books"]
 
     def create_indexes(self):
         """Tạo indexes cho collection user_guides"""
@@ -36,7 +36,7 @@ class UserGuideManager:
             # Primary key - unique identifier
             if "guide_id_unique" not in existing_indexes:
                 self.guides_collection.create_index(
-                    "guide_id", unique=True, name="guide_id_unique"
+                    "book_id", unique=True, name="guide_id_unique"
                 )
                 logger.info("✅ Created index: guide_id_unique")
 
@@ -76,14 +76,14 @@ class UserGuideManager:
     def create_guide(
         self,
         user_id: str,
-        guide_data,  # GuideCreate Pydantic model or individual params
+        guide_data,  # BookCreate Pydantic model or individual params
     ) -> Dict[str, Any]:
         """
         Tạo guide mới
 
         Args:
             user_id: Firebase UID of owner
-            guide_data: GuideCreate Pydantic model with all fields
+            guide_data: BookCreate Pydantic model with all fields
 
         Returns:
             guide document dict
@@ -91,7 +91,7 @@ class UserGuideManager:
         Raises:
             DuplicateKeyError: If slug already exists for user
         """
-        guide_id = f"guide_{uuid.uuid4().hex[:12]}"
+        book_id = f"guide_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
 
         # Convert Pydantic model to dict if needed
@@ -103,7 +103,7 @@ class UserGuideManager:
             raise ValueError("guide_data must be a Pydantic model or dict")
 
         guide_doc = {
-            "guide_id": guide_id,
+            "book_id": book_id,
             "user_id": user_id,
             "title": data["title"],
             "slug": data["slug"],
@@ -137,19 +137,19 @@ class UserGuideManager:
             raise
 
     def get_guide(
-        self, guide_id: str, user_id: Optional[str] = None
+        self, book_id: str, user_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
         Lấy guide by ID
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             user_id: Optional - filter by owner
 
         Returns:
             Guide document or None
         """
-        query = {"guide_id": guide_id}
+        query = {"book_id": guide_id}
         if user_id:
             query["user_id"] = user_id
 
@@ -221,13 +221,13 @@ class UserGuideManager:
             query["visibility"] = visibility
         return self.guides_collection.count_documents(query)
 
-    def update_guide(self, guide_id: str, update_data) -> Optional[Dict[str, Any]]:
+    def update_guide(self, book_id: str, update_data) -> Optional[Dict[str, Any]]:
         """
         Update guide metadata
 
         Args:
-            guide_id: Guide UUID
-            update_data: GuideUpdate Pydantic model or dict
+            book_id: Guide UUID
+            update_data: BookUpdate Pydantic model or dict
 
         Returns:
             Updated guide document or None if not found
@@ -244,7 +244,7 @@ class UserGuideManager:
         updates["updated_at"] = datetime.utcnow()
 
         result = self.guides_collection.find_one_and_update(
-            {"guide_id": guide_id},
+            {"book_id": guide_id},
             {"$set": updates},
             return_document=ReturnDocument.AFTER,
         )
@@ -256,17 +256,17 @@ class UserGuideManager:
             logger.warning(f"⚠️ Guide not found: {guide_id}")
             return None
 
-    def delete_guide(self, guide_id: str) -> bool:
+    def delete_guide(self, book_id: str) -> bool:
         """
         Delete guide
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
 
         Returns:
             True if deleted, False if not found
         """
-        result = self.guides_collection.delete_one({"guide_id": guide_id})
+        result = self.guides_collection.delete_one({"book_id": guide_id})
 
         if result.deleted_count > 0:
             logger.info(f"🗑️ Deleted guide: {guide_id}")
@@ -275,12 +275,12 @@ class UserGuideManager:
             logger.warning(f"⚠️ Guide not found: {guide_id}")
             return False
 
-    def increment_view_count(self, guide_id: str, is_unique: bool = False) -> bool:
+    def increment_view_count(self, book_id: str, is_unique: bool = False) -> bool:
         """
         Increment view counter
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             is_unique: Whether this is a unique visitor
 
         Returns:
@@ -290,12 +290,12 @@ class UserGuideManager:
         if is_unique:
             updates["$inc"]["unique_visitors"] = 1
 
-        result = self.guides_collection.update_one({"guide_id": guide_id}, updates)
+        result = self.guides_collection.update_one({"book_id": guide_id}, updates)
 
         return result.modified_count > 0
 
     def slug_exists(
-        self, slug: str, user_id: str, exclude_guide_id: Optional[str] = None
+        self, slug: str, user_id: str, exclude_book_id: Optional[str] = None
     ) -> bool:
         """
         Check if slug already exists for user
@@ -303,14 +303,14 @@ class UserGuideManager:
         Args:
             slug: Slug to check
             user_id: User's Firebase UID
-            exclude_guide_id: Optional guide ID to exclude (for updates)
+            exclude_book_id: Optional guide ID to exclude (for updates)
 
         Returns:
             True if exists, False otherwise
         """
         query = {"slug": slug, "user_id": user_id}
-        if exclude_guide_id:
-            query["guide_id"] = {"$ne": exclude_guide_id}
+        if exclude_book_id:
+            query["book_id"] = {"$ne": exclude_guide_id}
 
         return self.guides_collection.count_documents(query) > 0
 

@@ -13,20 +13,20 @@ from pymongo import ReturnDocument
 logger = logging.getLogger("chatbot")
 
 
-class GuideChapterManager:
+class GuideBookBookChapterManager:
     """Quản lý Guide Chapters trong MongoDB"""
 
     MAX_DEPTH = 2  # 0, 1, 2 = 3 levels total
 
     def __init__(self, db):
         """
-        Initialize GuideChapterManager
+        Initialize GuideBookBookChapterManager
 
         Args:
             db: PyMongo Database object (synchronous)
         """
         self.db = db
-        self.chapters_collection = db["guide_chapters"]
+        self.chapters_collection = db["book_chapters"]
 
     def create_indexes(self):
         """Tạo indexes cho collection guide_chapters"""
@@ -45,14 +45,14 @@ class GuideChapterManager:
             # Get all chapters for a guide (ordered)
             if "guide_chapters_order" not in existing_indexes:
                 self.chapters_collection.create_index(
-                    [("guide_id", 1), ("order", 1)], name="guide_chapters_order"
+                    [("book_id", 1), ("order", 1)], name="guide_chapters_order"
                 )
                 logger.info("✅ Created index: guide_chapters_order")
 
             # Nested structure queries
             if "nested_chapters" not in existing_indexes:
                 self.chapters_collection.create_index(
-                    [("guide_id", 1), ("parent_chapter_id", 1), ("order", 1)],
+                    [("book_id", 1), ("parent_chapter_id", 1), ("order", 1)],
                     name="nested_chapters",
                 )
                 logger.info("✅ Created index: nested_chapters")
@@ -67,7 +67,7 @@ class GuideChapterManager:
             # Unique chapter slug per guide
             if "chapter_slug_unique" not in existing_indexes:
                 self.chapters_collection.create_index(
-                    [("guide_id", 1), ("slug", 1)],
+                    [("book_id", 1), ("slug", 1)],
                     unique=True,
                     name="chapter_slug_unique",
                 )
@@ -78,12 +78,12 @@ class GuideChapterManager:
             logger.error(f"❌ Error creating chapter indexes: {e}")
             raise
 
-    def create_chapter(self, guide_id: str, chapter_data) -> Dict[str, Any]:
+    def create_chapter(self, book_id: str, chapter_data) -> Dict[str, Any]:
         """
         Create a new chapter (Pydantic model interface)
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             chapter_data: ChapterCreate Pydantic model
 
         Returns:
@@ -110,7 +110,7 @@ class GuideChapterManager:
 
         chapter_doc = {
             "chapter_id": chapter_id,
-            "guide_id": guide_id,
+            "book_id": book_id,
             "document_id": data["document_id"],
             "parent_id": parent_id,
             "title": data["title"],
@@ -134,7 +134,7 @@ class GuideChapterManager:
 
     def add_chapter(
         self,
-        guide_id: str,
+        book_id: str,
         document_id: str,
         order: int,
         slug: str,
@@ -148,7 +148,7 @@ class GuideChapterManager:
         Add chapter to guide
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             document_id: Document UUID
             order: Display order
             slug: Chapter URL slug
@@ -177,7 +177,7 @@ class GuideChapterManager:
 
         chapter_doc = {
             "chapter_id": chapter_id,
-            "guide_id": guide_id,
+            "book_id": book_id,
             "document_id": document_id,
             "parent_chapter_id": parent_chapter_id,
             "order": order,
@@ -206,19 +206,19 @@ class GuideChapterManager:
         return self.chapters_collection.find_one({"chapter_id": chapter_id})
 
     def get_chapters(
-        self, guide_id: str, include_hidden: bool = False
+        self, book_id: str, include_hidden: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Get all chapters for a guide (flat list)
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             include_hidden: Include hidden chapters
 
         Returns:
             List of chapter documents
         """
-        query = {"guide_id": guide_id}
+        query = {"book_id": guide_id}
         if not include_hidden:
             query["is_visible"] = True
 
@@ -227,18 +227,18 @@ class GuideChapterManager:
         logger.info(f"📊 Found {len(chapters)} chapters for guide {guide_id}")
         return chapters
 
-    def list_chapters(self, guide_id: str) -> List[Dict[str, Any]]:
+    def list_chapters(self, book_id: str) -> List[Dict[str, Any]]:
         """
         List all published chapters for a guide (alias for get_chapters)
         Used by Phase 5 public API
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
 
         Returns:
             List of chapter documents sorted by order_index
         """
-        query = {"guide_id": guide_id, "is_published": True}
+        query = {"book_id": book_id, "is_published": True}
         chapters = list(
             self.chapters_collection.find(query, {"_id": 0}).sort([("order_index", 1)])
         )
@@ -247,19 +247,19 @@ class GuideChapterManager:
         return chapters
 
     def get_chapter_tree(
-        self, guide_id: str, include_unpublished: bool = False
+        self, book_id: str, include_unpublished: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Build nested tree structure from flat chapter list
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             include_unpublished: Include unpublished chapters
 
         Returns:
             List of root chapters with nested children
         """
-        query = {"guide_id": guide_id}
+        query = {"book_id": guide_id}
         if not include_unpublished:
             query["is_published"] = True
 
@@ -382,17 +382,17 @@ class GuideChapterManager:
             return True
         return False
 
-    def delete_chapters_by_guide(self, guide_id: str) -> int:
+    def delete_chapters_by_guide(self, book_id: str) -> int:
         """
         Delete all chapters for a guide (cascade delete when guide is deleted)
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
 
         Returns:
             Number of chapters deleted
         """
-        result = self.chapters_collection.delete_many({"guide_id": guide_id})
+        result = self.chapters_collection.delete_many({"book_id": guide_id})
         deleted_count = result.deleted_count
 
         logger.info(f"🗑️ Deleted {deleted_count} chapters for guide {guide_id}")
@@ -412,25 +412,25 @@ class GuideChapterManager:
         logger.info(f"📊 Document {document_id} used in {len(chapters)} chapters")
         return chapters
 
-    def count_chapters(self, guide_id: str) -> int:
+    def count_chapters(self, book_id: str) -> int:
         """Count total chapters in guide"""
-        return self.chapters_collection.count_documents({"guide_id": guide_id})
+        return self.chapters_collection.count_documents({"book_id": guide_id})
 
     def slug_exists(
-        self, guide_id: str, slug: str, exclude_chapter_id: Optional[str] = None
+        self, book_id: str, slug: str, exclude_chapter_id: Optional[str] = None
     ) -> bool:
         """
         Check if slug already exists in guide
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             slug: Slug to check
             exclude_chapter_id: Optional chapter ID to exclude (for updates)
 
         Returns:
             True if exists
         """
-        query = {"guide_id": guide_id, "slug": slug}
+        query = {"book_id": book_id, "slug": slug}
         if exclude_chapter_id:
             query["chapter_id"] = {"$ne": exclude_chapter_id}
 
@@ -541,35 +541,35 @@ class GuideChapterManager:
         )
         return deleted_ids
 
-    def delete_guide_chapters(self, guide_id: str) -> int:
+    def delete_guide_chapters(self, book_id: str) -> int:
         """
         Delete all chapters in a guide
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
 
         Returns:
             Number of deleted chapters
         """
-        result = self.chapters_collection.delete_many({"guide_id": guide_id})
+        result = self.chapters_collection.delete_many({"book_id": guide_id})
         logger.info(f"🗑️ Deleted {result.deleted_count} chapters from guide {guide_id}")
         return result.deleted_count
 
     def get_chapter_by_slug(
-        self, guide_id: str, chapter_slug: str
+        self, book_id: str, chapter_slug: str
     ) -> Optional[Dict[str, Any]]:
         """
         Get chapter by slug within a guide (Phase 5 - for public access)
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             chapter_slug: Chapter slug (URL-friendly identifier)
 
         Returns:
             Chapter document or None if not found
         """
         chapter = self.chapters_collection.find_one(
-            {"guide_id": guide_id, "slug": chapter_slug},
+            {"book_id": book_id, "slug": chapter_slug},
             {"_id": 0},  # Exclude MongoDB ObjectId
         )
 
@@ -580,12 +580,12 @@ class GuideChapterManager:
 
         return chapter
 
-    def reorder_chapters(self, guide_id: str, updates: List) -> List[Dict[str, Any]]:
+    def reorder_chapters(self, book_id: str, updates: List) -> List[Dict[str, Any]]:
         """
         Bulk reorder chapters
 
         Args:
-            guide_id: Guide UUID
+            book_id: Guide UUID
             updates: List of ChapterReorder objects
 
         Returns:
@@ -611,7 +611,7 @@ class GuideChapterManager:
 
             # Update chapter
             result = self.chapters_collection.find_one_and_update(
-                {"chapter_id": chapter_id, "guide_id": guide_id},
+                {"chapter_id": chapter_id, "book_id": guide_id},
                 {
                     "$set": {
                         "parent_id": parent_id,

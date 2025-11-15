@@ -27,7 +27,7 @@ class PublicChapterSummary(BaseModel):
     icon: Optional[str] = None
 
 
-class GuideStats(BaseModel):
+class BookStats(BaseModel):
     """Guide statistics"""
 
     total_chapters: int
@@ -53,10 +53,10 @@ class GuideBranding(BaseModel):
     custom_css: Optional[str] = None
 
 
-class PublicGuideResponse(BaseModel):
+class PublicBookResponse(BaseModel):
     """Public guide response (NO AUTH required)"""
 
-    guide_id: str
+    book_id: str
     title: str
     slug: str
     description: Optional[str] = None
@@ -68,7 +68,7 @@ class PublicGuideResponse(BaseModel):
     favicon_url: Optional[str] = None
     author: PublicAuthorInfo
     chapters: List[PublicChapterSummary]
-    stats: GuideStats
+    stats: BookStats
     seo: SEOMetadata
     branding: Optional[GuideBranding] = None
     created_at: datetime
@@ -85,7 +85,7 @@ class ChapterNavigation(BaseModel):
 class PublicGuideInfo(BaseModel):
     """Basic guide info for chapter pages"""
 
-    guide_id: str
+    book_id: str
     title: str
     slug: str
     logo_url: Optional[str] = None
@@ -96,7 +96,7 @@ class PublicChapterResponse(BaseModel):
     """Public chapter response (NO AUTH required)"""
 
     chapter_id: str
-    guide_id: str
+    book_id: str
     title: str
     slug: str
     order: int
@@ -128,10 +128,10 @@ class ViewTrackingResponse(BaseModel):
     chapter_views: Optional[int] = None
 
 
-class GuideDomainResponse(BaseModel):
+class BookDomainResponse(BaseModel):
     """Response for domain lookup (for Next.js middleware)"""
 
-    guide_id: str
+    book_id: str
     slug: str
     title: str
     custom_domain: str

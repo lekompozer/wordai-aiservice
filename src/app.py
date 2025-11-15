@@ -173,8 +173,8 @@ from src.api.slide_share_routes import router as slide_share_router
 # ✅ ADDED: PDF Document API - Upload, Split, Merge, and AI Conversion
 from src.api.pdf_document_routes import router as pdf_document_router
 
-# ✅ ADDED: User Guide API - GitBook-style documentation system (Phase 2 & 3)
-from src.api.user_guide_routes import router as user_guide_router
+# ✅ ADDED: Online Books API - GitBook-style documentation system (renamed from User Guides)
+from src.api.book_routes import router as book_router
 
 # Global startup time for uptime tracking
 startup_time = time.time()
@@ -718,10 +718,10 @@ def create_app() -> FastAPI:
         tags=["PDF Documents", "AI Conversion", "Document Management"],
     )
 
-    # ✅ NEW: User Guide API - GitBook-style documentation system (Phase 2 & 3)
+    # ✅ NEW: Online Books API - GitBook-style documentation system (renamed from User Guides)
     app.include_router(
-        user_guide_router,
-        tags=["User Guides", "GitBook-style Documentation"],
+        book_router,
+        tags=["Online Books", "Documentation System"],
     )
 
     # ✅ ADDED: Internal CORS management for chat-plugin
