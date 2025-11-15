@@ -400,7 +400,7 @@ Content-Type: application/json
 3. Connect WebSocket:
    → emit: join_test_session { session_id, user_id, test_id }
    ← listen: session_joined { current_answers, time_remaining_seconds }
-   
+
 4. Bắt đầu countdown timer:
    - Timer đếm ngược từ time_limit_seconds
    - Hiển thị thời gian còn lại
@@ -409,11 +409,11 @@ Content-Type: application/json
    - User chọn câu 1 → A
    - Update local state: answers = { q1: "A" }
    - emit: save_answers_batch { session_id, answers: { q1: "A" } }
-   
-   - User chọn câu 2 → B  
+
+   - User chọn câu 2 → B
    - Update local state: answers = { q1: "A", q2: "B" }
    - emit: save_answers_batch { session_id, answers: { q1: "A", q2: "B" } }
-   
+
    - User chọn câu 3 → C
    - Update local state: answers = { q1: "A", q2: "B", q3: "C" }
    - emit: save_answers_batch { session_id, answers: { q1: "A", q2: "B", q3: "C" } }
@@ -461,29 +461,29 @@ Content-Type: application/json
 4. Kết nối lại sau 2 phút:
    ← listen: connect
    - WebSocket reconnected
-   
+
 5. Rejoin session:
    → emit: join_test_session { session_id, user_id, test_id }
-   
+
    Case A: Còn trong thời gian (18 phút còn lại)
-   ← listen: session_joined { 
+   ← listen: session_joined {
        current_answers: { q1: "A", q2: "B", q3: "C" },  // Từ lần save cuối
        time_remaining_seconds: 1080  // Backend tính từ started_at
      }
-   
+
    - Merge local state với server state:
      answers = { q1: "A", q2: "B", q3: "C", q4: "D" }  // q4 từ local
-   
+
    - Sync lại với server:
      → POST /api/v1/tests/{test_id}/sync-answers
      Body: { session_id, answers: { q1: "A", q2: "B", q3: "C", q4: "D" } }
      ← { success: true, answers_count: 4 }
-   
+
    - Sync timer:
      Frontend timer = 1080s (từ backend)
-   
+
    - Tiếp tục làm bài bình thường
-   
+
    Case B: Hết thời gian (31 phút đã qua)
    ← listen: error {
        message: "Thời gian làm bài đã hết. Không thể kết nối lại.",
@@ -491,7 +491,7 @@ Content-Type: application/json
        elapsed_minutes: 31,
        time_limit_minutes: 30
      }
-   
+
    - Hiển thị thông báo: "Hết giờ làm bài"
    - Tự động navigate to results hoặc home
    - KHÔNG cho phép submit
@@ -552,7 +552,7 @@ Scenario B: Submit muộn hơn (sau 1-2 phút hết giờ)
          submitted_at: "10:25:00"
        }
      }
-   
+
    - Frontend hiển thị submission cũ
    - "Bạn đã nộp bài lúc 10:25, điểm: 7.5"
 
@@ -565,7 +565,7 @@ Scenario B: Submit muộn hơn (sau 1-2 phút hết giờ)
          time_limit_seconds: 1800
        }
      }
-   
+
    - Frontend hiển thị lỗi
    - "Hết thời gian làm bài, không thể nộp bài"
 ```
@@ -595,28 +595,28 @@ Scenario B: Submit muộn hơn (sau 1-2 phút hết giờ)
 4. Nếu có session active:
    - Không cần POST /start lại (đã có session_id)
    - Connect WebSocket ngay
-   
+
    → emit: join_test_session { session_id, user_id, test_id }
-   
-   ← listen: session_joined { 
+
+   ← listen: session_joined {
        current_answers: { q1: "A", q2: "B", q3: "C" },
        time_remaining_seconds: 1200  // Còn 20 phút
      }
-   
+
    - Restore UI state:
      * Questions
      * Answers đã chọn
      * Timer = 1200s
-   
+
    - Sync local answers nếu khác server:
      → POST /api/v1/tests/{test_id}/sync-answers
-   
+
    - Tiếp tục làm bài
 
 5. Nếu hết giờ (quay lại sau 35 phút):
    → emit: join_test_session
    ← listen: error { error_code: "TIME_EXPIRED" }
-   
+
    - Clear localStorage
    - Navigate to home hoặc results
 ```
@@ -635,25 +635,25 @@ Recommended state structure:
   testId: string,
   sessionId: string,
   questions: Array,
-  
+
   // Timer
   timeLimit: number,        // seconds (từ start response)
   timeRemaining: number,    // seconds (countdown local)
   serverTimeRemaining: number, // seconds (từ heartbeat_ack)
   startedAt: string,        // ISO 8601 (optional, để debug)
-  
+
   // Answers
   answers: {
     "q1": "A",
     "q2": "B",
     ...
   },
-  
+
   // Connection
   isConnected: boolean,
   isReconnecting: boolean,
   lastSyncAt: string,       // ISO 8601
-  
+
   // UI
   currentQuestionIndex: number,
   showTimeWarning: boolean
@@ -787,7 +787,7 @@ Save to localStorage:
    - Green dot: Connected
    - Yellow dot: Reconnecting...
    - Red dot: Disconnected
-   
+
 2. Auto-save indicator:
    - "Đã lưu tự động" sau mỗi lần save
    - Show timestamp: "Lưu lúc 10:15:30"
@@ -926,7 +926,7 @@ A: KHÔNG. Backend tự tính từ `started_at` và `time_limit`. Frontend chỉ
 
 **Q: Nếu user làm bài offline (không WebSocket) thì sao?**
 
-A: 
+A:
 - Timer vẫn chạy local
 - Answers lưu trong memory/localStorage
 - Khi online lại → POST /sync-answers để sync
@@ -950,7 +950,7 @@ A: CÓ, trong giới hạn `max_attempts`. Mỗi lần submit tạo submission m
 
 **Q: Answers được lưu ở đâu?**
 
-A: 
+A:
 - WebSocket: `test_progress.current_answers` (real-time)
 - Submit: `test_submissions.user_answers` (final)
 - Submit không dùng `current_answers`, chỉ dùng data từ request body
@@ -974,11 +974,11 @@ A:
 START → JOIN WEBSOCKET → AUTO-SAVE (FULL) → HEARTBEAT → SUBMIT
          ↓                     ↓                ↓           ↓
     session_joined    save_answers_batch  heartbeat_ack   score
-         ↓                     ↓                           
-   restore state      backend sync                        
+         ↓                     ↓
+   restore state      backend sync
 ```
 
 ---
 
-*Document version: 1.0*  
+*Document version: 1.0*
 *Last updated: 2025-11-15*
