@@ -244,9 +244,7 @@ class GuideChapterManager:
         if not include_unpublished:
             query["is_published"] = True
 
-        chapters = list(
-            self.chapters_collection.find(query).sort("order_index", 1)
-        )
+        chapters = list(self.chapters_collection.find(query).sort("order_index", 1))
 
         # Build chapter map
         chapter_map = {}

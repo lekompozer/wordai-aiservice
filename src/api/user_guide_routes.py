@@ -35,14 +35,21 @@ from src.services.user_guide_manager import UserGuideManager
 from src.services.guide_chapter_manager import GuideChapterManager
 from src.services.guide_permission_manager import GuidePermissionManager
 
+# Database
+from src.database.db_manager import DBManager
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/guides", tags=["User Guides"])
 
-# Initialize managers
-guide_manager = UserGuideManager()
-chapter_manager = GuideChapterManager()
-permission_manager = GuidePermissionManager()
+# Initialize DB connection
+db_manager = DBManager()
+db = db_manager.db
+
+# Initialize managers with DB
+guide_manager = UserGuideManager(db)
+chapter_manager = GuideChapterManager(db)
+permission_manager = GuidePermissionManager(db)
 
 
 # ==============================================================================
@@ -134,9 +141,7 @@ async def list_guides(
         )
 
         # Count total (for pagination)
-        total = guide_manager.count_user_guides(
-            user_id=user_id, visibility=visibility
-        )
+        total = guide_manager.count_user_guides(user_id=user_id, visibility=visibility)
 
         logger.info(f"📚 User {user_id} listed guides: {len(guides)} results")
 
@@ -320,9 +325,7 @@ async def delete_guide(
         deleted_chapters = chapter_manager.delete_guide_chapters(guide_id)
 
         # Delete permissions
-        deleted_permissions = permission_manager.delete_guide_permissions(
-            guide_id
-        )
+        deleted_permissions = permission_manager.delete_guide_permissions(guide_id)
 
         # Delete guide
         deleted = guide_manager.delete_guide(guide_id)
