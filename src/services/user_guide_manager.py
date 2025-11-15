@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import logging
 from pymongo.errors import DuplicateKeyError
+from pymongo import ReturnDocument
 
 logger = logging.getLogger("chatbot")
 
@@ -75,60 +76,54 @@ class UserGuideManager:
     def create_guide(
         self,
         user_id: str,
-        title: str,
-        slug: str,
-        description: Optional[str] = None,
-        visibility: str = "public",
-        is_published: bool = False,
-        **kwargs,
-    ) -> str:
+        guide_data,  # GuideCreate Pydantic model or individual params
+    ) -> Dict[str, Any]:
         """
         Tạo guide mới
 
         Args:
             user_id: Firebase UID of owner
-            title: Guide title
-            slug: URL-friendly slug
-            description: Guide description
-            visibility: "public" | "private" | "unlisted"
-            is_published: Published state
-            **kwargs: Additional fields (logo_url, primary_color, etc.)
+            guide_data: GuideCreate Pydantic model with all fields
 
         Returns:
-            guide_id: UUID of created guide
+            guide document dict
 
         Raises:
             DuplicateKeyError: If slug already exists for user
         """
-        guide_id = str(uuid.uuid4())
+        guide_id = f"guide_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
+
+        # Convert Pydantic model to dict if needed
+        if hasattr(guide_data, "model_dump"):
+            data = guide_data.model_dump(exclude_unset=True)
+        elif isinstance(guide_data, dict):
+            data = guide_data
+        else:
+            raise ValueError("guide_data must be a Pydantic model or dict")
 
         guide_doc = {
             "guide_id": guide_id,
             "user_id": user_id,
-            "title": title,
-            "description": description,
-            "slug": slug,
-            "visibility": visibility,
-            "is_published": is_published,
-            "logo_url": kwargs.get("logo_url"),
-            "cover_image_url": kwargs.get("cover_image_url"),
-            "primary_color": kwargs.get("primary_color", "#4F46E5"),
-            "meta_title": kwargs.get("meta_title"),
-            "meta_description": kwargs.get("meta_description"),
-            "view_count": 0,
-            "unique_visitors": 0,
+            "title": data["title"],
+            "slug": data["slug"],
+            "description": data.get("description"),
+            "visibility": data.get("visibility", "public"),
+            "icon": data.get("icon"),
+            "color": data.get("color", "#4F46E5"),
+            "enable_toc": data.get("enable_toc", True),
+            "enable_search": data.get("enable_search", True),
+            "enable_feedback": data.get("enable_feedback", True),
             "created_at": now,
             "updated_at": now,
-            "last_published_at": now if is_published else None,
         }
 
         try:
             self.guides_collection.insert_one(guide_doc)
-            logger.info(f"✅ Created guide: {guide_id} (slug: {slug})")
-            return guide_id
+            logger.info(f"✅ Created guide: {guide_id} (slug: {data['slug']})")
+            return guide_doc
         except DuplicateKeyError:
-            logger.error(f"❌ Slug '{slug}' already exists for user {user_id}")
+            logger.error(f"❌ Slug '{data['slug']}' already exists for user {user_id}")
             raise
 
     def get_guide(
@@ -174,94 +169,94 @@ class UserGuideManager:
     def list_user_guides(
         self,
         user_id: str,
-        page: int = 1,
+        skip: int = 0,
         limit: int = 20,
         visibility: Optional[str] = None,
-        sort_by: str = "updated",
-    ) -> tuple[List[Dict[str, Any]], int]:
+    ) -> List[Dict[str, Any]]:
         """
         List guides của user với pagination
 
         Args:
             user_id: Firebase UID
-            page: Page number (1-indexed)
+            skip: Pagination offset
             limit: Items per page
             visibility: Filter by visibility ("public", "private", "unlisted", or None for all)
-            sort_by: "updated" | "created" | "title"
 
         Returns:
-            (guides list, total count)
+            List of guide documents
         """
         query = {"user_id": user_id}
         if visibility:
             query["visibility"] = visibility
 
-        # Sort mapping
-        sort_map = {
-            "updated": [("updated_at", -1)],
-            "created": [("created_at", -1)],
-            "title": [("title", 1)],
-        }
-        sort = sort_map.get(sort_by, [("updated_at", -1)])
-
-        # Get total count
-        total = self.guides_collection.count_documents(query)
-
-        # Get paginated results
-        skip = (page - 1) * limit
+        # Get paginated results (sorted by updated_at desc)
         guides = list(
-            self.guides_collection.find(query).sort(sort).skip(skip).limit(limit)
+            self.guides_collection.find(query)
+            .sort("updated_at", -1)
+            .skip(skip)
+            .limit(limit)
         )
 
-        logger.info(f"📊 Found {len(guides)} guides for user {user_id} (page {page})")
-        return guides, total
+        logger.info(f"📊 Found {len(guides)} guides for user {user_id}")
+        return guides
 
-    def update_guide(
-        self, guide_id: str, user_id: str, updates: Dict[str, Any]
-    ) -> bool:
+    def count_user_guides(
+        self,
+        user_id: str,
+        visibility: Optional[str] = None,
+    ) -> int:
+        """Count total guides for user"""
+        query = {"user_id": user_id}
+        if visibility:
+            query["visibility"] = visibility
+        return self.guides_collection.count_documents(query)
+
+    def update_guide(self, guide_id: str, update_data) -> Optional[Dict[str, Any]]:
         """
         Update guide metadata
 
         Args:
             guide_id: Guide UUID
-            user_id: Owner's Firebase UID
-            updates: Fields to update
+            update_data: GuideUpdate Pydantic model or dict
 
         Returns:
-            True if updated, False if not found
+            Updated guide document or None if not found
         """
+        # Convert Pydantic model to dict if needed
+        if hasattr(update_data, "model_dump"):
+            updates = update_data.model_dump(exclude_unset=True)
+        elif isinstance(update_data, dict):
+            updates = update_data
+        else:
+            raise ValueError("update_data must be a Pydantic model or dict")
+
         # Add updated_at
         updates["updated_at"] = datetime.utcnow()
 
-        # If publishing, update last_published_at
-        if updates.get("is_published") is True:
-            updates["last_published_at"] = datetime.utcnow()
-
-        result = self.guides_collection.update_one(
-            {"guide_id": guide_id, "user_id": user_id}, {"$set": updates}
+        result = self.guides_collection.find_one_and_update(
+            {"guide_id": guide_id},
+            {"$set": updates},
+            return_document=ReturnDocument.AFTER,
         )
 
-        if result.modified_count > 0:
+        if result:
             logger.info(f"✅ Updated guide: {guide_id}")
-            return True
+            return result
         else:
-            logger.warning(f"⚠️ Guide not found or not modified: {guide_id}")
-            return False
+            logger.warning(f"⚠️ Guide not found: {guide_id}")
+            return None
 
-    def delete_guide(self, guide_id: str, user_id: str) -> bool:
+    def delete_guide(self, guide_id: str) -> bool:
         """
         Delete guide
 
         Args:
             guide_id: Guide UUID
-            user_id: Owner's Firebase UID
 
         Returns:
             True if deleted, False if not found
         """
-        result = self.guides_collection.delete_one(
-            {"guide_id": guide_id, "user_id": user_id}
-        )
+        result = self.guides_collection.delete_one({"guide_id": guide_id})
 
         if result.deleted_count > 0:
             logger.info(f"🗑️ Deleted guide: {guide_id}")

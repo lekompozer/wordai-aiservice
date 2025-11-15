@@ -53,7 +53,7 @@ Kế hoạch implement backend cho tính năng **User Guide (GitBook-style)** ch
 
 **Database Collections Created:**
 - ✅ `user_guides` - 6 indexes
-- ✅ `guide_chapters` - 6 indexes  
+- ✅ `guide_chapters` - 6 indexes
 - ✅ `guide_permissions` - 7 indexes
 
 **Test Results:**

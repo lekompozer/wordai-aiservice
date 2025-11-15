@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Any
 import logging
 from pymongo.errors import DuplicateKeyError
+from pymongo import ReturnDocument
 
 logger = logging.getLogger("chatbot")
 
@@ -75,6 +76,60 @@ class GuideChapterManager:
             logger.info("✅ Guide Chapter indexes verified/created")
         except Exception as e:
             logger.error(f"❌ Error creating chapter indexes: {e}")
+            raise
+
+    def create_chapter(self, guide_id: str, chapter_data) -> Dict[str, Any]:
+        """
+        Create a new chapter (Pydantic model interface)
+
+        Args:
+            guide_id: Guide UUID
+            chapter_data: ChapterCreate Pydantic model
+
+        Returns:
+            Chapter document dict
+        """
+        # Convert Pydantic model to dict
+        if hasattr(chapter_data, "model_dump"):
+            data = chapter_data.model_dump(exclude_unset=True)
+        elif isinstance(chapter_data, dict):
+            data = data
+        else:
+            raise ValueError("chapter_data must be a Pydantic model or dict")
+
+        chapter_id = f"chapter_{uuid.uuid4().hex[:12]}"
+        now = datetime.utcnow()
+
+        # Calculate depth
+        parent_id = data.get("parent_id")
+        depth = self._calculate_depth(parent_id)
+        if depth > self.MAX_DEPTH:
+            raise ValueError(
+                f"Maximum nesting depth ({self.MAX_DEPTH + 1} levels) exceeded"
+            )
+
+        chapter_doc = {
+            "chapter_id": chapter_id,
+            "guide_id": guide_id,
+            "document_id": data["document_id"],
+            "parent_id": parent_id,
+            "title": data["title"],
+            "slug": data["slug"],
+            "order_index": data.get("order_index", 0),
+            "depth": depth,
+            "is_published": data.get("is_published", True),
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        try:
+            self.chapters_collection.insert_one(chapter_doc)
+            logger.info(
+                f"✅ Created chapter: {chapter_id} in guide {guide_id} (depth: {depth})"
+            )
+            return chapter_doc
+        except DuplicateKeyError:
+            logger.error(f"❌ Slug '{data['slug']}' already exists in guide {guide_id}")
             raise
 
     def add_chapter(
@@ -173,19 +228,25 @@ class GuideChapterManager:
         return chapters
 
     def get_chapter_tree(
-        self, guide_id: str, include_hidden: bool = False
+        self, guide_id: str, include_unpublished: bool = False
     ) -> List[Dict[str, Any]]:
         """
         Build nested tree structure from flat chapter list
 
         Args:
             guide_id: Guide UUID
-            include_hidden: Include hidden chapters
+            include_unpublished: Include unpublished chapters
 
         Returns:
             List of root chapters with nested children
         """
-        chapters = self.get_chapters(guide_id, include_hidden)
+        query = {"guide_id": guide_id}
+        if not include_unpublished:
+            query["is_published"] = True
+
+        chapters = list(
+            self.chapters_collection.find(query).sort("order_index", 1)
+        )
 
         # Build chapter map
         chapter_map = {}
@@ -197,7 +258,7 @@ class GuideChapterManager:
         tree = []
         for chapter in chapters:
             chapter_id = chapter["chapter_id"]
-            parent_id = chapter.get("parent_chapter_id")
+            parent_id = chapter.get("parent_id")
 
             if parent_id is None:
                 # Root level
@@ -384,7 +445,146 @@ class GuideChapterManager:
         Args:
             nodes: List of chapter nodes (modified in place)
         """
-        nodes.sort(key=lambda x: x["order"])
+        nodes.sort(key=lambda x: x.get("order_index", x.get("order", 0)))
         for node in nodes:
             if node.get("children"):
                 self._sort_tree(node["children"])
+
+    def update_chapter(self, chapter_id: str, update_data) -> Optional[Dict[str, Any]]:
+        """
+        Update chapter (Pydantic model interface)
+
+        Args:
+            chapter_id: Chapter UUID
+            update_data: ChapterUpdate Pydantic model
+
+        Returns:
+            Updated chapter document or None
+        """
+        # Convert Pydantic model to dict
+        if hasattr(update_data, "model_dump"):
+            updates = update_data.model_dump(exclude_unset=True)
+        elif isinstance(update_data, dict):
+            updates = update_data
+        else:
+            raise ValueError("update_data must be a Pydantic model or dict")
+
+        # Add updated_at
+        updates["updated_at"] = datetime.utcnow()
+
+        # Recalculate depth if parent changed
+        if "parent_id" in updates:
+            updates["depth"] = self._calculate_depth(updates["parent_id"])
+
+        result = self.chapters_collection.find_one_and_update(
+            {"chapter_id": chapter_id},
+            {"$set": updates},
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if result:
+            logger.info(f"✅ Updated chapter: {chapter_id}")
+            return result
+        else:
+            logger.warning(f"⚠️ Chapter not found: {chapter_id}")
+            return None
+
+    def delete_chapter_cascade(self, chapter_id: str) -> List[str]:
+        """
+        Delete chapter and all descendants recursively
+
+        Args:
+            chapter_id: Chapter UUID to delete
+
+        Returns:
+            List of deleted chapter IDs
+        """
+        deleted_ids = []
+
+        # Find all children recursively
+        def find_descendants(parent_id: str):
+            children = list(self.chapters_collection.find({"parent_id": parent_id}))
+            for child in children:
+                find_descendants(child["chapter_id"])
+                deleted_ids.append(child["chapter_id"])
+
+        # Find all descendants
+        find_descendants(chapter_id)
+
+        # Delete all descendants
+        if deleted_ids:
+            self.chapters_collection.delete_many({"chapter_id": {"$in": deleted_ids}})
+
+        # Delete the chapter itself
+        self.chapters_collection.delete_one({"chapter_id": chapter_id})
+        deleted_ids.append(chapter_id)
+
+        logger.info(
+            f"🗑️ Cascade deleted chapter {chapter_id} and {len(deleted_ids) - 1} descendants"
+        )
+        return deleted_ids
+
+    def delete_guide_chapters(self, guide_id: str) -> int:
+        """
+        Delete all chapters in a guide
+
+        Args:
+            guide_id: Guide UUID
+
+        Returns:
+            Number of deleted chapters
+        """
+        result = self.chapters_collection.delete_many({"guide_id": guide_id})
+        logger.info(f"🗑️ Deleted {result.deleted_count} chapters from guide {guide_id}")
+        return result.deleted_count
+
+    def reorder_chapters(self, guide_id: str, updates: List) -> List[Dict[str, Any]]:
+        """
+        Bulk reorder chapters
+
+        Args:
+            guide_id: Guide UUID
+            updates: List of ChapterReorder objects
+
+        Returns:
+            List of updated chapters
+        """
+        updated_chapters = []
+
+        for update_item in updates:
+            # Convert Pydantic model to dict
+            if hasattr(update_item, "model_dump"):
+                update = update_item.model_dump()
+            elif isinstance(update_item, dict):
+                update = update_item
+            else:
+                continue
+
+            chapter_id = update["chapter_id"]
+            parent_id = update.get("parent_id")
+            order_index = update.get("order_index", 0)
+
+            # Calculate new depth
+            depth = self._calculate_depth(parent_id)
+
+            # Update chapter
+            result = self.chapters_collection.find_one_and_update(
+                {"chapter_id": chapter_id, "guide_id": guide_id},
+                {
+                    "$set": {
+                        "parent_id": parent_id,
+                        "order_index": order_index,
+                        "depth": depth,
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+
+            if result:
+                updated_chapters.append(result)
+
+        logger.info(
+            f"🔄 Reordered {len(updated_chapters)} chapters in guide {guide_id}"
+        )
+        return updated_chapters
