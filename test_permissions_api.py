@@ -172,7 +172,9 @@ def test_permissions_api():
 
             assert permission2["user_id"] == viewer2_id
 
-            print(f"✅ PASSED - Second permission granted: {permission2['permission_id']}")
+            print(
+                f"✅ PASSED - Second permission granted: {permission2['permission_id']}"
+            )
             tests_passed += 1
         except Exception as e:
             print(f"❌ FAILED - {e}")
@@ -315,10 +317,18 @@ def test_permissions_api():
             )
 
             assert invitation is not None, "Invitation should not be None"
-            assert invitation["invited_email"] == "test@example.com", f"Email mismatch: {invitation['invited_email']}"
-            assert invitation["invitation_accepted"] is False, f"Should not be accepted yet: {invitation['invitation_accepted']}"
-            assert invitation["invitation_token"] is not None, "Token should not be None"
-            assert len(invitation["invitation_token"]) == 43, f"Token length should be 43: {len(invitation['invitation_token'])}"  # URL-safe token
+            assert (
+                invitation["invited_email"] == "test@example.com"
+            ), f"Email mismatch: {invitation['invited_email']}"
+            assert (
+                invitation["invitation_accepted"] is False
+            ), f"Should not be accepted yet: {invitation['invitation_accepted']}"
+            assert (
+                invitation["invitation_token"] is not None
+            ), "Token should not be None"
+            assert (
+                len(invitation["invitation_token"]) == 43
+            ), f"Token length should be 43: {len(invitation['invitation_token'])}"  # URL-safe token
 
             print(f"✅ PASSED - Invitation created")
             print(f"   Email: {invitation['invited_email']}")

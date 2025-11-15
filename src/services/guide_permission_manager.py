@@ -187,7 +187,7 @@ class GuidePermissionManager:
 
         self.permissions_collection.insert_one(permission_doc)
         logger.info(f"✅ Created invitation for {email} to guide {guide_id}")
-        
+
         # Return the document (remove _id for clean response)
         result = dict(permission_doc)
         result.pop("_id", None)

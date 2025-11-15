@@ -93,7 +93,7 @@ class GuideChapterManager:
         if hasattr(chapter_data, "model_dump"):
             data = chapter_data.model_dump(exclude_unset=True)
         elif isinstance(chapter_data, dict):
-            data = data
+            data = chapter_data
         else:
             raise ValueError("chapter_data must be a Pydantic model or dict")
 
@@ -225,6 +225,25 @@ class GuideChapterManager:
         chapters = list(self.chapters_collection.find(query).sort([("order", 1)]))
 
         logger.info(f"📊 Found {len(chapters)} chapters for guide {guide_id}")
+        return chapters
+
+    def list_chapters(self, guide_id: str) -> List[Dict[str, Any]]:
+        """
+        List all published chapters for a guide (alias for get_chapters)
+        Used by Phase 5 public API
+
+        Args:
+            guide_id: Guide UUID
+
+        Returns:
+            List of chapter documents sorted by order_index
+        """
+        query = {"guide_id": guide_id, "is_published": True}
+        chapters = list(
+            self.chapters_collection.find(query, {"_id": 0}).sort([("order_index", 1)])
+        )
+
+        logger.info(f"📊 Found {len(chapters)} published chapters for guide {guide_id}")
         return chapters
 
     def get_chapter_tree(
@@ -535,6 +554,31 @@ class GuideChapterManager:
         result = self.chapters_collection.delete_many({"guide_id": guide_id})
         logger.info(f"🗑️ Deleted {result.deleted_count} chapters from guide {guide_id}")
         return result.deleted_count
+
+    def get_chapter_by_slug(
+        self, guide_id: str, chapter_slug: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get chapter by slug within a guide (Phase 5 - for public access)
+
+        Args:
+            guide_id: Guide UUID
+            chapter_slug: Chapter slug (URL-friendly identifier)
+
+        Returns:
+            Chapter document or None if not found
+        """
+        chapter = self.chapters_collection.find_one(
+            {"guide_id": guide_id, "slug": chapter_slug},
+            {"_id": 0},  # Exclude MongoDB ObjectId
+        )
+
+        if chapter:
+            logger.info(f"📄 Found chapter: {guide_id}/{chapter_slug}")
+        else:
+            logger.warning(f"⚠️ Chapter not found: {guide_id}/{chapter_slug}")
+
+        return chapter
 
     def reorder_chapters(self, guide_id: str, updates: List) -> List[Dict[str, Any]]:
         """

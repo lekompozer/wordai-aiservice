@@ -37,6 +37,19 @@ from src.models.guide_permission_models import (
     PermissionListItem,
     PermissionListResponse,
 )
+from src.models.public_guide_models import (
+    PublicGuideResponse,
+    PublicChapterResponse,
+    ViewTrackingRequest,
+    ViewTrackingResponse,
+    GuideDomainResponse,
+    PublicAuthorInfo,
+    PublicChapterSummary,
+    GuideStats,
+    SEOMetadata,
+    ChapterNavigation,
+    PublicGuideInfo,
+)
 
 # Services
 from src.services.user_guide_manager import UserGuideManager
@@ -1096,7 +1109,11 @@ async def invite_user(
         return {
             "invitation": invitation,
             "email_sent": email_sent,
-            "message": "Invitation sent successfully" if email_sent else "Invitation created (email service unavailable)",
+            "message": (
+                "Invitation sent successfully"
+                if email_sent
+                else "Invitation created (email service unavailable)"
+            ),
         }
 
     except HTTPException:
@@ -1106,4 +1123,391 @@ async def invite_user(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to invite user",
+        )
+
+
+# ==============================================================================
+# PHASE 5: PUBLIC VIEW API (NO AUTH REQUIRED)
+# ==============================================================================
+
+
+@router.get(
+    "/public/guides/{slug}",
+    response_model=PublicGuideResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_public_guide(slug: str):
+    """
+    Get public guide with all chapters (NO AUTHENTICATION REQUIRED)
+
+    **Use Case:** Homepage/TOC for public guides
+
+    **Path Parameters:**
+    - slug: Guide slug (URL-friendly identifier)
+
+    **Returns:**
+    - 200: Guide with chapters, SEO metadata, author info
+    - 404: Guide not found
+    - 403: Guide is private (not accessible publicly)
+
+    **Note:** Only public/unlisted guides are accessible
+    """
+    try:
+        # Get guide by slug
+        guide = guide_manager.get_guide_by_slug(slug)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Guide not found",
+            )
+
+        # Check visibility - only public/unlisted guides accessible
+        if guide.get("visibility") == "private":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This guide is private and cannot be accessed publicly",
+            )
+
+        # Get all chapters for this guide (sorted by order)
+        chapters = chapter_manager.list_chapters(guide["guide_id"])
+
+        # Get author info (mock for now - implement user service later)
+        author = PublicAuthorInfo(
+            user_id=guide["user_id"],
+            display_name=guide.get("author_name", "Unknown Author"),
+            avatar_url=guide.get("author_avatar"),
+        )
+
+        # Build chapter summaries
+        chapter_summaries = [
+            PublicChapterSummary(
+                chapter_id=ch["chapter_id"],
+                title=ch["title"],
+                slug=ch["slug"],
+                order=ch["order"],
+                description=ch.get("description"),
+                icon=ch.get("icon"),
+            )
+            for ch in chapters
+        ]
+
+        # Stats
+        stats = GuideStats(
+            total_chapters=len(chapters),
+            total_views=guide.get("stats", {}).get("total_views", 0),
+            last_updated=guide["updated_at"],
+        )
+
+        # SEO metadata
+        base_url = "https://wordai.com"
+        guide_url = f"{base_url}/g/{slug}"
+
+        seo = SEOMetadata(
+            title=f"{guide['title']} - Complete Guide",
+            description=guide.get("description", f"Learn about {guide['title']}"),
+            og_image=guide.get("cover_image_url"),
+            og_url=guide.get("custom_domain", guide_url),
+            twitter_card="summary_large_image",
+        )
+
+        # Response
+        response = PublicGuideResponse(
+            guide_id=guide["guide_id"],
+            title=guide["title"],
+            slug=guide["slug"],
+            description=guide.get("description"),
+            visibility=guide["visibility"],
+            custom_domain=guide.get("custom_domain"),
+            is_indexed=guide.get("is_indexed", True),
+            cover_image_url=guide.get("cover_image_url"),
+            logo_url=guide.get("logo_url"),
+            favicon_url=guide.get("favicon_url"),
+            author=author,
+            chapters=chapter_summaries,
+            stats=stats,
+            seo=seo,
+            branding=guide.get("branding"),
+            created_at=guide["created_at"],
+            updated_at=guide["updated_at"],
+        )
+
+        logger.info(f"📖 Public guide accessed: {slug} ({len(chapters)} chapters)")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get public guide: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get public guide",
+        )
+
+
+@router.get(
+    "/public/guides/{guide_slug}/chapters/{chapter_slug}",
+    response_model=PublicChapterResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_public_chapter(guide_slug: str, chapter_slug: str):
+    """
+    Get public chapter with content and navigation (NO AUTHENTICATION REQUIRED)
+
+    **Use Case:** Chapter content page for public guides
+
+    **Path Parameters:**
+    - guide_slug: Guide slug
+    - chapter_slug: Chapter slug
+
+    **Returns:**
+    - 200: Chapter content with prev/next navigation
+    - 404: Guide or chapter not found
+    - 403: Guide is private
+
+    **Note:** Includes guide info + prev/next navigation + SEO metadata
+    """
+    try:
+        # Get guide by slug
+        guide = guide_manager.get_guide_by_slug(guide_slug)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Guide not found",
+            )
+
+        # Check visibility
+        if guide.get("visibility") == "private":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This guide is private and cannot be accessed publicly",
+            )
+
+        # Get chapter by slug
+        chapter = chapter_manager.get_chapter_by_slug(guide["guide_id"], chapter_slug)
+
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chapter not found",
+            )
+
+        # Get all chapters for navigation
+        all_chapters = chapter_manager.list_chapters(guide["guide_id"])
+        all_chapters_sorted = sorted(all_chapters, key=lambda x: x["order"])
+
+        # Find prev/next chapters
+        current_index = next(
+            (
+                i
+                for i, ch in enumerate(all_chapters_sorted)
+                if ch["chapter_id"] == chapter["chapter_id"]
+            ),
+            -1,
+        )
+
+        prev_chapter = None
+        next_chapter = None
+
+        if current_index > 0:
+            prev_ch = all_chapters_sorted[current_index - 1]
+            prev_chapter = PublicChapterSummary(
+                chapter_id=prev_ch["chapter_id"],
+                title=prev_ch["title"],
+                slug=prev_ch["slug"],
+                order=prev_ch["order"],
+                description=prev_ch.get("description"),
+                icon=prev_ch.get("icon"),
+            )
+
+        if current_index < len(all_chapters_sorted) - 1:
+            next_ch = all_chapters_sorted[current_index + 1]
+            next_chapter = PublicChapterSummary(
+                chapter_id=next_ch["chapter_id"],
+                title=next_ch["title"],
+                slug=next_ch["slug"],
+                order=next_ch["order"],
+                description=next_ch.get("description"),
+                icon=next_ch.get("icon"),
+            )
+
+        # Navigation
+        navigation = ChapterNavigation(previous=prev_chapter, next=next_chapter)
+
+        # Guide info
+        guide_info = PublicGuideInfo(
+            guide_id=guide["guide_id"],
+            title=guide["title"],
+            slug=guide["slug"],
+            logo_url=guide.get("logo_url"),
+            custom_domain=guide.get("custom_domain"),
+        )
+
+        # SEO metadata
+        base_url = guide.get("custom_domain") or "https://wordai.com"
+        chapter_url = f"{base_url}/g/{guide_slug}/{chapter_slug}"
+
+        seo = SEOMetadata(
+            title=f"{chapter['title']} - {guide['title']}",
+            description=chapter.get("description", f"Read {chapter['title']}"),
+            og_image=guide.get("cover_image_url"),
+            og_url=chapter_url,
+            twitter_card="summary_large_image",
+        )
+
+        # Response
+        response = PublicChapterResponse(
+            chapter_id=chapter["chapter_id"],
+            guide_id=guide["guide_id"],
+            title=chapter["title"],
+            slug=chapter["slug"],
+            order=chapter["order"],
+            description=chapter.get("description"),
+            icon=chapter.get("icon"),
+            content=chapter["content"],
+            guide_info=guide_info,
+            navigation=navigation,
+            seo=seo,
+            created_at=chapter["created_at"],
+            updated_at=chapter["updated_at"],
+        )
+
+        logger.info(f"📄 Public chapter accessed: {guide_slug}/{chapter_slug}")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get public chapter: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get public chapter",
+        )
+
+
+@router.post(
+    "/public/guides/{slug}/views",
+    response_model=ViewTrackingResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def track_view(slug: str, view_data: ViewTrackingRequest):
+    """
+    Track guide/chapter view analytics (NO AUTHENTICATION REQUIRED)
+
+    **Use Case:** Frontend calls this to track views (optional)
+
+    **Path Parameters:**
+    - slug: Guide slug
+
+    **Request Body:**
+    - chapter_slug: Optional chapter slug (if viewing specific chapter)
+    - referrer: Optional referrer URL
+    - user_agent: Optional user agent string
+    - session_id: Optional session ID (to prevent double-counting)
+
+    **Returns:**
+    - 200: View tracked successfully
+    - 404: Guide not found
+
+    **Note:** Rate limited to 10 requests/minute per IP
+    """
+    try:
+        # Get guide by slug
+        guide = guide_manager.get_guide_by_slug(slug)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Guide not found",
+            )
+
+        # TODO: Implement analytics tracking
+        # For now, just increment view count in guide stats
+        # In production, store in separate guide_views collection
+
+        # Mock view tracking
+        view_id = f"view_{guide['guide_id']}_{view_data.session_id or 'anon'}"
+        guide_views = guide.get("stats", {}).get("total_views", 0) + 1
+        chapter_views = None
+
+        if view_data.chapter_slug:
+            chapter = chapter_manager.get_chapter_by_slug(
+                guide["guide_id"], view_data.chapter_slug
+            )
+            if chapter:
+                chapter_views = chapter.get("stats", {}).get("total_views", 0) + 1
+
+        logger.info(f"📊 View tracked: {slug} (session: {view_data.session_id})")
+
+        return ViewTrackingResponse(
+            success=True,
+            view_id=view_id,
+            guide_views=guide_views,
+            chapter_views=chapter_views,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to track view: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to track view",
+        )
+
+
+@router.get(
+    "/by-domain/{domain}",
+    response_model=GuideDomainResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_guide_by_domain(domain: str):
+    """
+    Get guide by custom domain (NO AUTHENTICATION REQUIRED)
+
+    **Use Case:** Next.js middleware uses this to route custom domain requests
+
+    **Path Parameters:**
+    - domain: Custom domain (e.g., "python.example.com")
+
+    **Returns:**
+    - 200: Guide info for domain
+    - 404: No guide found for this domain
+
+    **Example Flow:**
+    1. Request comes to python.example.com
+    2. Middleware calls /api/v1/guides/by-domain/python.example.com
+    3. Gets guide slug
+    4. Rewrites to /g/{slug}
+    """
+    try:
+        # Get guide by custom domain
+        guide = guide_manager.get_guide_by_domain(domain)
+
+        if not guide:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No guide found for domain '{domain}'",
+            )
+
+        response = GuideDomainResponse(
+            guide_id=guide["guide_id"],
+            slug=guide["slug"],
+            title=guide["title"],
+            custom_domain=guide["custom_domain"],
+            visibility=guide["visibility"],
+            is_active=guide.get("is_active", True),
+        )
+
+        logger.info(f"🌐 Domain lookup: {domain} → {guide['slug']}")
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get guide by domain: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get guide by domain",
         )

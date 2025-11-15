@@ -1,7 +1,7 @@
 # Phase 4: User Permissions System API
 
-> **GitBook User Guide Feature - Phase 4 Implementation**  
-> **Created:** November 15, 2025  
+> **GitBook User Guide Feature - Phase 4 Implementation**
+> **Created:** November 15, 2025
 > **Status:** ✅ Implementation Complete
 
 ---
@@ -34,7 +34,7 @@ Phase 4 implements the **User Permissions System** for private guides, allowing 
 | **Editor** | Edit content | Can modify guide/chapters (future enhancement) |
 | **Viewer** | Read-only | Can view private guide (current implementation) |
 
-**Phase 4 Implementation:** Only `viewer` level (read-only access)  
+**Phase 4 Implementation:** Only `viewer` level (read-only access)
 **Future:** Add `editor` and `admin` levels
 
 ---
@@ -295,31 +295,31 @@ async def check_guide_access(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ) -> bool:
     """Check if user has access to guide"""
-    
+
     guide = guide_manager.get_guide(guide_id)
-    
+
     if not guide:
         raise HTTPException(404, "Guide not found")
-    
+
     user_id = current_user["uid"]
-    
+
     # 1. Owner always has access
     if guide["user_id"] == user_id:
         return True
-    
+
     # 2. Public guides - anyone can access
     if guide["visibility"] == "public":
         return True
-    
+
     # 3. Private/Unlisted - check permissions
     has_permission = permission_manager.check_permission(
         guide_id=guide_id,
         user_id=user_id
     )
-    
+
     if not has_permission:
         raise HTTPException(403, "You don't have permission to access this guide")
-    
+
     return True
 ```
 
@@ -345,24 +345,24 @@ async def check_guide_access(
   <style>
     body { font-family: Arial, sans-serif; }
     .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .button { background: #4F46E5; color: white; padding: 12px 24px; 
+    .button { background: #4F46E5; color: white; padding: 12px 24px;
               text-decoration: none; border-radius: 6px; display: inline-block; }
   </style>
 </head>
 <body>
   <div class="container">
     <h2>{{owner_name}} invited you to view "{{guide_title}}"</h2>
-    
+
     {{#if custom_message}}
     <p><em>"{{custom_message}}"</em></p>
     {{/if}}
-    
+
     <p>You now have access to this guide. Click the button below to view it:</p>
-    
+
     <a href="{{guide_url}}" class="button">View Guide</a>
-    
+
     <p>This invitation expires in 7 days.</p>
-    
+
     <hr>
     <p style="color: #666; font-size: 12px;">
       Sent via WordAI Guide System
@@ -381,22 +381,22 @@ async def send_invitation_email(
     message: Optional[str]
 ):
     """Send invitation email via Brevo"""
-    
+
     brevo = BrevoService()
-    
+
     data = {
         "owner_name": owner_name,
         "guide_title": guide["title"],
         "guide_url": f"https://wordai.pro/guides/{guide['slug']}",
         "custom_message": message
     }
-    
+
     result = await brevo.send_template_email(
         to=email,
         template_id=GUIDE_INVITATION_TEMPLATE_ID,
         params=data
     )
-    
+
     return result
 ```
 
@@ -607,6 +607,6 @@ permissions = permission_manager.batch_check_permissions(guide_ids, user_id)
 
 ---
 
-**Document Version:** 1.0  
-**Status:** ✅ Complete  
+**Document Version:** 1.0
+**Status:** ✅ Complete
 **Last Updated:** November 15, 2025

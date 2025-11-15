@@ -109,6 +109,16 @@ class UserGuideManager:
             "slug": data["slug"],
             "description": data.get("description"),
             "visibility": data.get("visibility", "public"),
+            "is_indexed": data.get(
+                "is_indexed", data.get("visibility", "public") == "public"
+            ),
+            "custom_domain": data.get("custom_domain"),
+            "cover_image_url": data.get("cover_image_url"),
+            "logo_url": data.get("logo_url"),
+            "favicon_url": data.get("favicon_url"),
+            "author_name": data.get("author_name"),
+            "author_avatar": data.get("author_avatar"),
+            "branding": data.get("branding"),
             "icon": data.get("icon"),
             "color": data.get("color", "#4F46E5"),
             "enable_toc": data.get("enable_toc", True),
@@ -303,3 +313,24 @@ class UserGuideManager:
             query["guide_id"] = {"$ne": exclude_guide_id}
 
         return self.guides_collection.count_documents(query) > 0
+
+    def get_guide_by_domain(self, domain: str) -> Optional[Dict[str, Any]]:
+        """
+        Get guide by custom domain (Phase 5 - for Next.js middleware)
+
+        Args:
+            domain: Custom domain (e.g., "python.example.com")
+
+        Returns:
+            Guide document or None if not found
+        """
+        guide = self.guides_collection.find_one(
+            {"custom_domain": domain}, {"_id": 0}  # Exclude MongoDB ObjectId
+        )
+
+        if guide:
+            logger.info(f"🌐 Found guide for domain: {domain} → {guide['slug']}")
+        else:
+            logger.warning(f"⚠️ No guide found for domain: {domain}")
+
+        return guide
