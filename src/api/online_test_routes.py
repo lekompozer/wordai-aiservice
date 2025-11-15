@@ -2907,6 +2907,93 @@ async def update_test_questions(
 # ========== Attachment Management (NEW) ==========
 
 
+@router.get("/{test_id}/attachments", response_model=dict, tags=["Phase 3 - Editing"])
+async def get_test_attachments(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get list of all attachments for a test
+
+    **Use case:** Display attachments when editing test - user can view, add, or delete
+
+    **Access:**
+    - Owner: Can view and manage attachments
+    - Others: Read-only access if they have test access
+
+    **Returns:**
+    - List of attachments with id, title, description, file_url, file_size_mb, uploaded_at
+    - Total storage used by attachments
+    - Test metadata (creator_id, title)
+    """
+    try:
+        logger.info(
+            f"📋 Get attachments for test {test_id} from user {user_info['uid']}"
+        )
+
+        # Get test
+        mongo_service = get_mongodb_service()
+        test_collection = mongo_service.db["online_tests"]
+
+        test_doc = test_collection.find_one({"_id": ObjectId(test_id)})
+
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Check access (owner or shared)
+        access_info = check_test_access(test_id, user_info["uid"], test_doc)
+        is_owner = access_info["is_owner"]
+
+        logger.info(
+            f"   ✅ Access granted: type={access_info['access_type']}, owner={is_owner}"
+        )
+
+        # Get attachments
+        attachments = test_doc.get("attachments", [])
+
+        # Calculate total storage used by attachments
+        total_storage_mb = sum(att.get("file_size_mb", 0) for att in attachments)
+
+        # Format response
+        formatted_attachments = []
+        for att in attachments:
+            formatted_attachments.append(
+                {
+                    "attachment_id": att.get("attachment_id"),
+                    "title": att.get("title"),
+                    "description": att.get("description"),
+                    "file_url": att.get("file_url"),
+                    "file_size_mb": att.get("file_size_mb", 0),
+                    "uploaded_at": (
+                        att.get("uploaded_at").isoformat()
+                        if att.get("uploaded_at")
+                        else None
+                    ),
+                }
+            )
+
+        logger.info(
+            f"   📄 Found {len(formatted_attachments)} attachments ({total_storage_mb:.2f}MB total)"
+        )
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "test_title": test_doc.get("title"),
+            "creator_id": test_doc.get("creator_id"),
+            "is_owner": is_owner,
+            "attachments": formatted_attachments,
+            "total_attachments": len(formatted_attachments),
+            "total_storage_mb": round(total_storage_mb, 2),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get attachments: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/{test_id}/attachments", response_model=dict, tags=["Phase 3 - Editing"])
 async def add_test_attachment(
     test_id: str,
