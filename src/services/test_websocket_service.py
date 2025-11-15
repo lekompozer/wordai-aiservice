@@ -21,6 +21,26 @@ from api.online_test_routes import get_mongodb_service
 logger = logging.getLogger(__name__)
 
 
+def calculate_time_remaining(started_at: datetime, time_limit_seconds: int) -> int:
+    """
+    Calculate time remaining based on elapsed time since session start
+
+    Args:
+        started_at: When the test session started
+        time_limit_seconds: Total time limit for the test
+
+    Returns:
+        Time remaining in seconds (minimum 0)
+    """
+    if not started_at:
+        return time_limit_seconds
+
+    elapsed_seconds = (datetime.utcnow() - started_at).total_seconds()
+    remaining = int(time_limit_seconds - elapsed_seconds)
+
+    return max(0, remaining)  # Never return negative
+
+
 class TestWebSocketService:
     """Service for managing WebSocket connections for online tests"""
 
@@ -137,7 +157,63 @@ class TestWebSocketService:
                     )
                     return
 
-                # Add to active sessions
+                # Get test to retrieve time_limit
+                test = await asyncio.to_thread(
+                    mongo.db["online_tests"].find_one, {"_id": ObjectId(test_id)}
+                )
+
+                if not test:
+                    await self.sio.emit(
+                        "error",
+                        {"message": "Test not found"},
+                        to=sid,
+                    )
+                    return
+
+                time_limit_seconds = test.get("time_limit_minutes", 30) * 60
+
+                # Calculate time_remaining from elapsed time since start
+                started_at = session.get("started_at")
+                time_remaining = calculate_time_remaining(
+                    started_at, time_limit_seconds
+                )
+
+                # Check if time has expired - cannot rejoin if test time is over
+                if time_remaining <= 0:
+                    elapsed_minutes = int(
+                        (datetime.utcnow() - started_at).total_seconds() / 60
+                    )
+                    time_limit_minutes = test.get("time_limit_minutes", 30)
+
+                    logger.warning(
+                        f"⏰ Session {session_id[:8]}... expired: "
+                        f"started at {started_at}, "
+                        f"elapsed {elapsed_minutes}min > limit {time_limit_minutes}min"
+                    )
+
+                    await self.sio.emit(
+                        "error",
+                        {
+                            "message": "Thời gian làm bài đã hết. Không thể kết nối lại.",
+                            "error_code": "TIME_EXPIRED",
+                            "started_at": (
+                                started_at.isoformat() if started_at else None
+                            ),
+                            "elapsed_minutes": elapsed_minutes,
+                            "time_limit_minutes": time_limit_minutes,
+                        },
+                        to=sid,
+                    )
+                    return
+
+                logger.info(
+                    f"📊 Session {session_id[:8]}...: "
+                    f"started_at={started_at}, "
+                    f"time_limit={time_limit_seconds}s, "
+                    f"time_remaining={time_remaining}s - OK to rejoin"
+                )
+
+                # Add to active sessions (after time check passes)
                 self.active_sessions[session_id] = {
                     "sid": sid,
                     "user_id": user_id,
@@ -146,7 +222,7 @@ class TestWebSocketService:
                 }
                 self.sid_to_session[sid] = session_id
 
-                # Update connection status in database
+                # Update connection status AND calculated time_remaining in database
                 await asyncio.to_thread(
                     mongo.db["test_progress"].update_one,
                     {"session_id": session_id},
@@ -154,28 +230,19 @@ class TestWebSocketService:
                         "$set": {
                             "connection_status": "active",
                             "last_heartbeat_at": datetime.utcnow(),
+                            "time_remaining_seconds": time_remaining,  # Update with calculated value
                         }
                     },
                 )
 
-                # Send current progress to client
-                time_remaining = session.get("time_remaining_seconds")
-                logger.info(
-                    f"📊 Session data: time_remaining={time_remaining}s, "
-                    f"started_at={session.get('started_at')}"
-                )
-
+                # Send current progress to client with calculated time
                 await self.sio.emit(
                     "session_joined",
                     {
                         "session_id": session_id,
                         "current_answers": session.get("current_answers", {}),
                         "time_remaining_seconds": time_remaining,
-                        "started_at": (
-                            session.get("started_at").isoformat()
-                            if session.get("started_at")
-                            else None
-                        ),
+                        "started_at": (started_at.isoformat() if started_at else None),
                     },
                     to=sid,
                 )
@@ -192,9 +259,103 @@ class TestWebSocketService:
                 )
 
         @self.sio.event
+        async def save_answers_batch(sid, data):
+            """
+            Save multiple answers at once (batch save for sync after reconnect)
+
+            Frontend gửi FULL answers mỗi lần để đảm bảo không mất data nếu đứt kết nối.
+            Backend sẽ overwrite toàn bộ current_answers với data mới.
+
+            Data: {
+                session_id: str,
+                answers: {
+                    "question_id_1": "A",
+                    "question_id_2": "B",
+                    ...
+                }
+            }
+            """
+            try:
+                session_id = data.get("session_id")
+                answers = data.get("answers", {})
+
+                if not session_id:
+                    await self.sio.emit(
+                        "error",
+                        {"message": "Missing required field: session_id"},
+                        to=sid,
+                    )
+                    return
+
+                # Verify session is active for this client
+                if session_id not in self.active_sessions:
+                    await self.sio.emit(
+                        "error",
+                        {"message": "Session not active. Please rejoin."},
+                        to=sid,
+                    )
+                    return
+
+                if self.active_sessions[session_id]["sid"] != sid:
+                    await self.sio.emit(
+                        "error",
+                        {
+                            "message": "Unauthorized: Session belongs to different client"
+                        },
+                        to=sid,
+                    )
+                    return
+
+                # Update ALL answers in database (overwrite)
+                mongo = get_mongodb_service()
+                result = await asyncio.to_thread(
+                    mongo.db["test_progress"].update_one,
+                    {"session_id": session_id, "is_completed": False},
+                    {
+                        "$set": {
+                            "current_answers": answers,  # Overwrite với full data
+                            "last_saved_at": datetime.utcnow(),
+                        }
+                    },
+                )
+
+                if result.modified_count > 0:
+                    # Acknowledge batch save
+                    await self.sio.emit(
+                        "answers_saved_batch",
+                        {
+                            "session_id": session_id,
+                            "answers_count": len(answers),
+                            "saved_at": datetime.utcnow().isoformat(),
+                        },
+                        to=sid,
+                    )
+                    logger.info(
+                        f"💾 Batch saved {len(answers)} answers for session {session_id[:8]}..."
+                    )
+                else:
+                    await self.sio.emit(
+                        "error",
+                        {
+                            "message": "Failed to save answers. Session may be completed."
+                        },
+                        to=sid,
+                    )
+
+            except Exception as e:
+                logger.error(f"Error in save_answers_batch: {e}", exc_info=True)
+                await self.sio.emit(
+                    "error", {"message": f"Failed to save answers: {str(e)}"}, to=sid
+                )
+
+        @self.sio.event
         async def save_answer(sid, data):
             """
-            Save a single answer in real-time
+            Save a single answer in real-time (legacy method)
+
+            Khuyến nghị: Frontend nên dùng save_answers_batch để gửi FULL answers
+            mỗi lần thay vì chỉ gửi từng câu một.
+
             Data: {session_id: str, question_id: str, answer_key: str}
             """
             try:
@@ -274,12 +435,15 @@ class TestWebSocketService:
         @self.sio.event
         async def heartbeat(sid, data):
             """
-            Heartbeat to maintain connection and update time remaining
-            Data: {session_id: str, time_remaining_seconds: int}
+            Heartbeat to maintain connection and calculate time remaining
+
+            Backend tự động tính time_remaining dựa trên started_at và time_limit.
+            Frontend gửi heartbeat chỉ để duy trì kết nối, không cần gửi time_remaining.
+
+            Data: {session_id: str}
             """
             try:
                 session_id = data.get("session_id")
-                time_remaining = data.get("time_remaining_seconds")
 
                 if not session_id:
                     return
@@ -293,15 +457,36 @@ class TestWebSocketService:
                     )
                     return
 
-                # Update heartbeat in database
+                # Get session and test data to calculate time_remaining
                 mongo = get_mongodb_service()
+                session = await asyncio.to_thread(
+                    mongo.db["test_progress"].find_one, {"session_id": session_id}
+                )
+
+                if not session:
+                    return
+
+                test_id = self.active_sessions[session_id]["test_id"]
+                test = await asyncio.to_thread(
+                    mongo.db["online_tests"].find_one, {"_id": ObjectId(test_id)}
+                )
+
+                if not test:
+                    return
+
+                # Calculate time_remaining from elapsed time
+                time_limit_seconds = test.get("time_limit_minutes", 30) * 60
+                started_at = session.get("started_at")
+                time_remaining = calculate_time_remaining(
+                    started_at, time_limit_seconds
+                )
+
+                # Update heartbeat and calculated time_remaining in database
                 update_data = {
                     "last_heartbeat_at": datetime.utcnow(),
                     "connection_status": "active",
+                    "time_remaining_seconds": time_remaining,  # Backend-calculated value
                 }
-
-                if time_remaining is not None:
-                    update_data["time_remaining_seconds"] = time_remaining
 
                 await asyncio.to_thread(
                     mongo.db["test_progress"].update_one,
@@ -309,18 +494,20 @@ class TestWebSocketService:
                     {"$set": update_data},
                 )
 
-                # Send acknowledgment
+                # Send acknowledgment with backend-calculated time_remaining
+                # Frontend có thể dùng giá trị này để sync nếu cần
                 await self.sio.emit(
                     "heartbeat_ack",
                     {
                         "session_id": session_id,
                         "timestamp": datetime.utcnow().isoformat(),
+                        "time_remaining_seconds": time_remaining,  # Backend's authoritative time
                     },
                     to=sid,
                 )
 
                 # Check if time is running out (< 5 minutes)
-                if time_remaining is not None and time_remaining < 300:
+                if time_remaining > 0 and time_remaining < 300:
                     logger.warning(
                         f"⏰ Time warning for session {session_id}: "
                         f"{time_remaining}s remaining ({time_remaining // 60} min {time_remaining % 60} sec)"

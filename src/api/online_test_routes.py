@@ -1955,6 +1955,73 @@ async def submit_test(
         passing_score = test_doc.get("passing_score", 70)  # Default 70%
         is_passed = score_percentage >= passing_score
 
+        # ========== Validate time limit ==========
+        # Get session to check started_at time
+        progress_collection = mongo_service.db["test_progress"]
+        session = progress_collection.find_one(
+            {"test_id": test_id, "user_id": user_info["uid"], "is_completed": False},
+            sort=[("started_at", -1)],  # Get most recent session
+        )
+
+        time_taken_seconds = 0
+        if session and session.get("started_at"):
+            started_at = session.get("started_at")
+            submitted_at = datetime.now()
+            time_taken_seconds = int((submitted_at - started_at).total_seconds())
+
+            # Check if exceeded time limit
+            time_limit_seconds = test_doc.get("time_limit_minutes", 30) * 60
+
+            if time_taken_seconds > time_limit_seconds:
+                # Time exceeded - reject submission and return latest result
+                logger.warning(
+                    f"⏰ Time limit exceeded: {time_taken_seconds}s > {time_limit_seconds}s"
+                )
+
+                # Get latest submission if exists
+                submissions_collection = mongo_service.db["test_submissions"]
+                latest_submission = submissions_collection.find_one(
+                    {
+                        "test_id": test_id,
+                        "user_id": user_info["uid"],
+                    },
+                    sort=[("submitted_at", -1)],
+                )
+
+                if latest_submission:
+                    # Return latest submission result
+                    return {
+                        "success": False,
+                        "error": "time_limit_exceeded",
+                        "message": f"Thời gian làm bài đã hết ({time_limit_seconds // 60} phút). Kết quả được lấy từ lần nộp gần nhất.",
+                        "time_taken_seconds": time_taken_seconds,
+                        "time_limit_seconds": time_limit_seconds,
+                        "latest_submission": {
+                            "submission_id": str(latest_submission["_id"]),
+                            "score": latest_submission.get("score", 0),
+                            "score_percentage": latest_submission.get(
+                                "score_percentage", 0
+                            ),
+                            "is_passed": latest_submission.get("is_passed", False),
+                            "submitted_at": latest_submission.get(
+                                "submitted_at"
+                            ).isoformat(),
+                        },
+                    }
+                else:
+                    # No previous submission - fail with 0 score
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "error": "time_limit_exceeded",
+                            "message": f"Thời gian làm bài đã hết ({time_limit_seconds // 60} phút) và không có lần nộp bài nào trước đó.",
+                            "time_taken_seconds": time_taken_seconds,
+                            "time_limit_seconds": time_limit_seconds,
+                        },
+                    )
+
+        logger.info(f"   ⏱️ Time taken: {time_taken_seconds}s")
+
         # Count attempt number
         submissions_collection = mongo_service.db["test_submissions"]
         attempt_number = (
@@ -1976,7 +2043,7 @@ async def submit_test(
             "score_percentage": score_percentage,  # Phần trăm (for reference)
             "total_questions": total_questions,
             "correct_answers": correct_count,
-            "time_taken_seconds": 0,  # TODO: Calculate from session start time (Phase 2)
+            "time_taken_seconds": time_taken_seconds,  # Calculated from started_at
             "attempt_number": attempt_number,
             "is_passed": is_passed,  # ✅ Fixed: Use test's passing_score
             "submitted_at": datetime.now(),
@@ -2105,6 +2172,132 @@ async def submit_test(
         raise
     except Exception as e:
         logger.error(f"❌ Test submission failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{test_id}/sync-answers")
+async def sync_answers(
+    test_id: str,
+    request: dict,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Sync answers to session (HTTP endpoint for reconnection)
+
+    **Use case**: Frontend reconnect sau khi mất kết nối WebSocket
+
+    Frontend gửi FULL answers để sync với backend. Backend sẽ overwrite
+    toàn bộ current_answers của session.
+
+    **Request Body:**
+    ```json
+    {
+        "session_id": "uuid-string",
+        "answers": {
+            "question_id_1": "A",
+            "question_id_2": "B",
+            ...
+        }
+    }
+    ```
+
+    **Response:**
+    ```json
+    {
+        "success": true,
+        "session_id": "uuid-string",
+        "answers_count": 5,
+        "saved_at": "2025-11-15T10:30:00Z"
+    }
+    ```
+    """
+    try:
+        session_id = request.get("session_id")
+        answers = request.get("answers", {})
+
+        if not session_id:
+            raise HTTPException(
+                status_code=400, detail="Missing required field: session_id"
+            )
+
+        logger.info(
+            f"🔄 Sync answers for session {session_id[:8]}... "
+            f"from user {user_info['uid']}: {len(answers)} answers"
+        )
+
+        # Get session and verify ownership
+        mongo_service = get_mongodb_service()
+        progress_collection = mongo_service.db["test_progress"]
+
+        session = progress_collection.find_one({"session_id": session_id})
+
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+
+        # Verify session belongs to user
+        if session.get("user_id") != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Session does not belong to user"
+            )
+
+        # Check if session is already completed
+        if session.get("is_completed"):
+            raise HTTPException(status_code=410, detail="Session already completed")
+
+        # Check if time has expired
+        test_collection = mongo_service.db["online_tests"]
+        test = test_collection.find_one({"_id": ObjectId(test_id)})
+
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        time_limit_seconds = test.get("time_limit_minutes", 30) * 60
+        started_at = session.get("started_at")
+
+        if started_at:
+            elapsed_seconds = (datetime.now() - started_at).total_seconds()
+            if elapsed_seconds > time_limit_seconds:
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "error": "time_expired",
+                        "message": "Thời gian làm bài đã hết. Không thể sync answers.",
+                        "elapsed_seconds": int(elapsed_seconds),
+                        "time_limit_seconds": time_limit_seconds,
+                    },
+                )
+
+        # Update answers in database (overwrite)
+        result = progress_collection.update_one(
+            {"session_id": session_id, "is_completed": False},
+            {
+                "$set": {
+                    "current_answers": answers,  # Overwrite với full data
+                    "last_saved_at": datetime.now(),
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to sync answers. Session may be inactive.",
+            )
+
+        saved_at = datetime.now()
+        logger.info(f"✅ Synced {len(answers)} answers for session {session_id[:8]}...")
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "answers_count": len(answers),
+            "saved_at": saved_at.isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to sync answers: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
