@@ -125,11 +125,11 @@ class GuideBookBookChapterManager:
         try:
             self.chapters_collection.insert_one(chapter_doc)
             logger.info(
-                f"✅ Created chapter: {chapter_id} in guide {guide_id} (depth: {depth})"
+                f"✅ Created chapter: {chapter_id} in guide {book_id} (depth: {depth})"
             )
             return chapter_doc
         except DuplicateKeyError:
-            logger.error(f"❌ Slug '{data['slug']}' already exists in guide {guide_id}")
+            logger.error(f"❌ Slug '{data['slug']}' already exists in guide {book_id}")
             raise
 
     def add_chapter(
@@ -194,11 +194,11 @@ class GuideBookBookChapterManager:
         try:
             self.chapters_collection.insert_one(chapter_doc)
             logger.info(
-                f"✅ Added chapter: {chapter_id} to guide {guide_id} (depth: {depth})"
+                f"✅ Added chapter: {chapter_id} to guide {book_id} (depth: {depth})"
             )
             return chapter_id
         except DuplicateKeyError:
-            logger.error(f"❌ Slug '{slug}' already exists in guide {guide_id}")
+            logger.error(f"❌ Slug '{slug}' already exists in guide {book_id}")
             raise
 
     def get_chapter(self, chapter_id: str) -> Optional[Dict[str, Any]]:
@@ -218,13 +218,13 @@ class GuideBookBookChapterManager:
         Returns:
             List of chapter documents
         """
-        query = {"book_id": guide_id}
+        query = {"book_id": book_id}
         if not include_hidden:
             query["is_visible"] = True
 
         chapters = list(self.chapters_collection.find(query).sort([("order", 1)]))
 
-        logger.info(f"📊 Found {len(chapters)} chapters for guide {guide_id}")
+        logger.info(f"📊 Found {len(chapters)} chapters for guide {book_id}")
         return chapters
 
     def list_chapters(self, book_id: str) -> List[Dict[str, Any]]:
@@ -243,7 +243,7 @@ class GuideBookBookChapterManager:
             self.chapters_collection.find(query, {"_id": 0}).sort([("order_index", 1)])
         )
 
-        logger.info(f"📊 Found {len(chapters)} published chapters for guide {guide_id}")
+        logger.info(f"📊 Found {len(chapters)} published chapters for guide {book_id}")
         return chapters
 
     def get_chapter_tree(
@@ -259,7 +259,7 @@ class GuideBookBookChapterManager:
         Returns:
             List of root chapters with nested children
         """
-        query = {"book_id": guide_id}
+        query = {"book_id": book_id}
         if not include_unpublished:
             query["is_published"] = True
 
@@ -392,10 +392,10 @@ class GuideBookBookChapterManager:
         Returns:
             Number of chapters deleted
         """
-        result = self.chapters_collection.delete_many({"book_id": guide_id})
+        result = self.chapters_collection.delete_many({"book_id": book_id})
         deleted_count = result.deleted_count
 
-        logger.info(f"🗑️ Deleted {deleted_count} chapters for guide {guide_id}")
+        logger.info(f"🗑️ Deleted {deleted_count} chapters for guide {book_id}")
         return deleted_count
 
     def get_document_usage(self, document_id: str) -> List[Dict[str, Any]]:
@@ -414,7 +414,7 @@ class GuideBookBookChapterManager:
 
     def count_chapters(self, book_id: str) -> int:
         """Count total chapters in guide"""
-        return self.chapters_collection.count_documents({"book_id": guide_id})
+        return self.chapters_collection.count_documents({"book_id": book_id})
 
     def slug_exists(
         self, book_id: str, slug: str, exclude_chapter_id: Optional[str] = None
@@ -551,8 +551,8 @@ class GuideBookBookChapterManager:
         Returns:
             Number of deleted chapters
         """
-        result = self.chapters_collection.delete_many({"book_id": guide_id})
-        logger.info(f"🗑️ Deleted {result.deleted_count} chapters from guide {guide_id}")
+        result = self.chapters_collection.delete_many({"book_id": book_id})
+        logger.info(f"🗑️ Deleted {result.deleted_count} chapters from guide {book_id}")
         return result.deleted_count
 
     def get_chapter_by_slug(
@@ -574,9 +574,9 @@ class GuideBookBookChapterManager:
         )
 
         if chapter:
-            logger.info(f"📄 Found chapter: {guide_id}/{chapter_slug}")
+            logger.info(f"📄 Found chapter: {book_id}/{chapter_slug}")
         else:
-            logger.warning(f"⚠️ Chapter not found: {guide_id}/{chapter_slug}")
+            logger.warning(f"⚠️ Chapter not found: {book_id}/{chapter_slug}")
 
         return chapter
 
@@ -611,7 +611,7 @@ class GuideBookBookChapterManager:
 
             # Update chapter
             result = self.chapters_collection.find_one_and_update(
-                {"chapter_id": chapter_id, "book_id": guide_id},
+                {"chapter_id": chapter_id, "book_id": book_id},
                 {
                     "$set": {
                         "parent_id": parent_id,
@@ -626,7 +626,137 @@ class GuideBookBookChapterManager:
             if result:
                 updated_chapters.append(result)
 
-        logger.info(
-            f"🔄 Reordered {len(updated_chapters)} chapters in guide {guide_id}"
-        )
+        logger.info(f"🔄 Reordered {len(updated_chapters)} chapters in guide {book_id}")
         return updated_chapters
+
+    # ============ DOCUMENT INTEGRATION METHODS (NEW - Phase 6) ============
+
+    def create_chapter_from_document(
+        self,
+        book_id: str,
+        document_id: str,
+        title: str,
+        order_index: int = 0,
+        parent_id: Optional[str] = None,
+        icon: str = "📄",
+        is_published: bool = False,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Create a chapter that references a document (no content duplication)
+
+        Args:
+            book_id: Book UUID
+            document_id: Document UUID to reference
+            title: Chapter title
+            order_index: Position in chapter list
+            parent_id: Parent chapter for nesting
+            icon: Chapter icon (emoji)
+            is_published: Publish immediately
+
+        Returns:
+            Created chapter document or None
+        """
+        # Verify document exists
+        document = self.db["documents"].find_one(
+            {"document_id": document_id},
+            {"_id": 0, "user_id": 1, "name": 1, "content": 1},
+        )
+
+        if not document:
+            logger.error(f"❌ Document not found: {document_id}")
+            return None
+
+        # Calculate depth
+        depth = self._calculate_depth(parent_id)
+        if depth > self.MAX_DEPTH:
+            logger.error(f"❌ Max depth exceeded: {depth} > {self.MAX_DEPTH}")
+            return None
+
+        # Create chapter
+        chapter_id = str(uuid.uuid4())
+        now = datetime.utcnow()
+
+        chapter_doc = {
+            "chapter_id": chapter_id,
+            "book_id": book_id,
+            "title": title,
+            "slug": f"chapter-{chapter_id[:8]}",  # Auto-generate slug
+            "icon": icon,
+            "order_index": order_index,
+            "parent_id": parent_id,
+            "depth": depth,
+            # Document reference (Phase 6 - no content duplication)
+            "content_source": "document",  # "document" or "inline"
+            "document_id": document_id,
+            "content_html": None,  # Not stored here - loaded from document
+            "content_json": None,
+            "is_published": is_published,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        try:
+            self.chapters_collection.insert_one(chapter_doc)
+
+            # Update document's used_in_books array
+            self.db["documents"].update_one(
+                {"document_id": document_id},
+                {
+                    "$addToSet": {
+                        "used_in_books": {
+                            "book_id": book_id,
+                            "chapter_id": chapter_id,
+                            "added_at": now,
+                        }
+                    }
+                },
+            )
+
+            logger.info(
+                f"✅ Created chapter from document: {chapter_id} → doc:{document_id}"
+            )
+            return chapter_doc
+
+        except Exception as e:
+            logger.error(f"❌ Failed to create chapter from document: {e}")
+            return None
+
+    def get_chapter_with_content(self, chapter_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get chapter with content (loads from document if content_source='document')
+
+        Args:
+            chapter_id: Chapter UUID
+
+        Returns:
+            Chapter with content loaded
+        """
+        chapter = self.chapters_collection.find_one(
+            {"chapter_id": chapter_id}, {"_id": 0}
+        )
+
+        if not chapter:
+            return None
+
+        # If chapter references a document, load content dynamically
+        if chapter.get("content_source") == "document" and chapter.get("document_id"):
+            document = self.db["documents"].find_one(
+                {"document_id": chapter["document_id"]},
+                {"_id": 0, "content": 1, "name": 1},
+            )
+
+            if document:
+                # Inject document content into chapter response
+                chapter["content_html"] = document.get("content", "")
+                chapter["content_json"] = None  # Not available for documents
+                chapter["document_name"] = document.get("name")
+                logger.info(
+                    f"📄 Loaded content from document: {chapter['document_id']}"
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Referenced document not found: {chapter['document_id']}"
+                )
+                chapter["content_html"] = "<p>Document content not available</p>"
+
+        return chapter

@@ -1,4 +1,4 @@
-# Frontend API Specifications - User Guide System
+# Frontend API Specifications - Online Books System
 
 **Base URL**: `https://wordai.com/api/v1`
 
@@ -6,10 +6,10 @@
 
 ---
 
-## 📚 Phase 2: Guide Management APIs
+## 📚 Phase 2: Book Management APIs
 
-### 1. Create Guide
-**Endpoint**: `POST /guides`
+### 1. Create Book
+**Endpoint**: `POST /books`
 **Authentication**: Required
 
 **Request Body**:
@@ -757,7 +757,261 @@
 
 ---
 
-## 📊 Common Error Response Format
+## � Phase 6: Point System, Community Books & Document Integration
+
+### Point System Overview
+Users can set point-based access for their books:
+- **One-time view**: Pay points to view once (temporary access)
+- **Forever view**: Pay points for permanent view access
+- **Download PDF**: Pay points to download PDF export
+
+Revenue split: 80% to owner, 20% to system (same as Online Tests)
+
+### 1. Create Book with Point Pricing
+**Endpoint**: `POST /books`
+**Authentication**: Required
+
+**Request Body** (added fields):
+```json
+{
+  "title": "string (required)",
+  "slug": "string (required)",
+  "visibility": "point_based",  // NEW: Added to existing enum
+  "access_config": {  // NEW: Required if visibility = "point_based"
+    "one_time_view_points": 10,
+    "forever_view_points": 50,
+    "download_pdf_points": 20,
+    "is_one_time_enabled": true,
+    "is_forever_enabled": true,
+    "is_download_enabled": true
+  }
+}
+```
+
+**Response 201**:
+```json
+{
+  "book_id": "string",
+  "title": "string",
+  "visibility": "point_based",
+  "access_config": {
+    "one_time_view_points": 10,
+    "forever_view_points": 50,
+    "download_pdf_points": 20,
+    "is_one_time_enabled": true,
+    "is_forever_enabled": true,
+    "is_download_enabled": true
+  },
+  "community_config": {
+    "is_public": false,
+    "total_purchases": 0,
+    "total_views": 0
+  },
+  "stats": {
+    "total_revenue_points": 0,
+    "owner_reward_points": 0,
+    "system_fee_points": 0
+  }
+}
+```
+
+---
+
+### 2. Publish Book to Community Marketplace
+**Endpoint**: `POST /books/{book_id}/publish-community`
+**Authentication**: Required
+
+**Request Body**:
+```json
+{
+  "category": "string (required, e.g., 'Programming', 'Business')",
+  "tags": ["string", "string"],  // Required, max 5 tags
+  "difficulty_level": "beginner | intermediate | advanced",
+  "short_description": "string (max 500 chars)",
+  "cover_image_url": "string (optional)"
+}
+```
+
+**Response 200**:
+```json
+{
+  "book_id": "string",
+  "community_config": {
+    "is_public": true,
+    "category": "Programming",
+    "tags": ["python", "tutorial"],
+    "difficulty_level": "intermediate",
+    "short_description": "Learn Python in 30 days",
+    "cover_image_url": "https://...",
+    "published_at": "ISO 8601 datetime",
+    "total_purchases": 0,
+    "total_views": 0,
+    "average_rating": 0.0,
+    "rating_count": 0
+  }
+}
+```
+
+**Errors**:
+- `404 Not Found`: Book not found or not owned by user
+- `400 Bad Request`: Failed to publish
+
+---
+
+### 3. Unpublish Book from Community
+**Endpoint**: `PATCH /books/{book_id}/unpublish-community`
+**Authentication**: Required
+
+**Path Parameters**:
+- `book_id`: string (required)
+
+**Response 200**:
+```json
+{
+  "book_id": "string",
+  "community_config": {
+    "is_public": false
+  }
+}
+```
+
+**Errors**:
+- `404 Not Found`: Book not found or not owned by user
+
+---
+
+### 4. Browse Community Books (Public Marketplace)
+**Endpoint**: `GET /books/community/books`
+**Authentication**: NOT required (public)
+
+**Query Parameters**:
+- `category`: string (optional, filter by category)
+- `tags`: string (optional, comma-separated tags, e.g., "python,tutorial")
+- `difficulty`: string (optional, "beginner" | "intermediate" | "advanced")
+- `sort_by`: string (optional, "popular" | "newest" | "rating", default: "popular")
+- `page`: integer (default: 1, min: 1)
+- `limit`: integer (default: 20, min: 1, max: 100)
+
+**Response 200**:
+```json
+{
+  "items": [
+    {
+      "book_id": "string",
+      "title": "string",
+      "slug": "string",
+      "author_id": "string",
+      "author_name": "string",
+      "category": "Programming",
+      "tags": ["python", "tutorial"],
+      "difficulty_level": "intermediate",
+      "short_description": "Learn Python in 30 days",
+      "cover_image_url": "https://...",
+      "access_config": {
+        "one_time_view_points": 10,
+        "forever_view_points": 50,
+        "download_pdf_points": 20
+      },
+      "stats": {
+        "total_purchases": 150,
+        "total_views": 500,
+        "average_rating": 4.5,
+        "rating_count": 30
+      },
+      "published_at": "ISO 8601 datetime"
+    }
+  ],
+  "total": 150,
+  "page": 1,
+  "limit": 20,
+  "total_pages": 8
+}
+```
+
+**Sort Options**:
+- `popular`: Sorted by total_purchases + total_views (descending)
+- `newest`: Sorted by published_at (newest first)
+- `rating`: Sorted by average_rating + rating_count (descending)
+
+---
+
+### 5. Create Chapter from Document
+**Endpoint**: `POST /books/{book_id}/chapters/from-document`
+**Authentication**: Required
+
+**Description**: Converts an existing document to a book chapter (no content duplication).
+
+**Request Body**:
+```json
+{
+  "document_id": "string (UUID, required)",
+  "title": "string (required)",
+  "order_index": 0,
+  "parent_id": "string (optional, for nesting)",
+  "icon": "📄",
+  "is_published": false
+}
+```
+
+**Response 201**:
+```json
+{
+  "chapter_id": "string",
+  "book_id": "string",
+  "title": "string",
+  "slug": "chapter-abc123",
+  "icon": "📄",
+  "order_index": 0,
+  "parent_id": null,
+  "depth": 0,
+  "content_source": "document",  // "document" or "inline"
+  "document_id": "string",
+  "content_html": null,  // Not stored - loaded dynamically
+  "content_json": null,
+  "is_published": false,
+  "created_at": "ISO 8601 datetime",
+  "updated_at": "ISO 8601 datetime"
+}
+```
+
+**Errors**:
+- `404 Not Found`: Book not found or document not found
+- `400 Bad Request`: Failed to create chapter
+
+---
+
+### 6. Get Chapter with Content (Supports Document References)
+**Endpoint**: `GET /books/{book_id}/chapters/{chapter_id}/content`
+**Authentication**: Required
+
+**Description**: Gets chapter with content loaded dynamically. If chapter references a document, content is loaded from documents collection.
+
+**Path Parameters**:
+- `book_id`: string (required)
+- `chapter_id`: string (required)
+
+**Response 200**:
+```json
+{
+  "chapter_id": "string",
+  "book_id": "string",
+  "title": "string",
+  "content_source": "document",  // or "inline"
+  "document_id": "string",  // Only if content_source = "document"
+  "document_name": "My Document.txt",  // Only if content_source = "document"
+  "content_html": "string (loaded from document or chapter)",
+  "content_json": null,
+  "is_published": true
+}
+```
+
+**Errors**:
+- `404 Not Found`: Book or chapter not found
+- `403 Forbidden`: No access to book
+
+---
+
+## �📊 Common Error Response Format
 
 All error responses follow this structure:
 
@@ -805,11 +1059,13 @@ Authorization: Bearer <firebase_jwt_token>
 
 ---
 
-## 🚀 Total Endpoints: 18
+## 🚀 Total Endpoints: 24
 
-- **Phase 2**: 5 endpoints (Guide Management)
+- **Phase 2**: 5 endpoints (Book Management)
 - **Phase 3**: 5 endpoints (Chapter Management)
 - **Phase 4**: 4 endpoints (User Permissions)
 - **Phase 5**: 4 endpoints (Public View - NO AUTH)
+- **Phase 6**: 6 endpoints (Point System, Community Books, Document Integration)
 
-**Last Updated**: November 15, 2025
+**Last Updated**: January 2025
+

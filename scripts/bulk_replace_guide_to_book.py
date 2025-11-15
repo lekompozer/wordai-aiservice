@@ -14,7 +14,6 @@ REPLACEMENTS = [
     ("GuideManager", "BookManager"),
     ("ChapterManager", "BookChapterManager"),
     ("PermissionManager", "BookPermissionManager"),
-    
     # Model classes
     ("GuideCreate", "BookCreate"),
     ("GuideUpdate", "BookUpdate"),
@@ -24,7 +23,6 @@ REPLACEMENTS = [
     ("PublicGuideResponse", "PublicBookResponse"),
     ("GuideDomainResponse", "BookDomainResponse"),
     ("GuideStats", "BookStats"),
-    
     # Collection names (in strings)
     ('"user_guides"', '"online_books"'),
     ("'user_guides'", "'online_books'"),
@@ -32,11 +30,9 @@ REPLACEMENTS = [
     ("'guide_chapters'", "'book_chapters'"),
     ('"guide_permissions"', '"book_permissions"'),
     ("'guide_permissions'", "'book_permissions'"),
-    
     # Field names (in strings)
     ('"guide_id"', '"book_id"'),
     ("'guide_id'", "'book_id'"),
-    
     # Variable names (be careful with these)
     ("guide_id:", "book_id:"),
     ("guide_id =", "book_id ="),
@@ -45,10 +41,11 @@ REPLACEMENTS = [
     (".guide_id", ".book_id"),
     ('["guide_id"]', '["book_id"]'),
     ("['guide_id']", "['book_id']"),
-    
     # Router prefix
-    ('router = APIRouter(prefix="/api/v1/guides"', 'router = APIRouter(prefix="/api/v1/books"'),
-    
+    (
+        'router = APIRouter(prefix="/api/v1/guides"',
+        'router = APIRouter(prefix="/api/v1/books"',
+    ),
     # Comments and docstrings
     ("User Guide API", "Online Book API"),
     ("user guide", "book"),
@@ -67,20 +64,21 @@ FILES_TO_UPDATE = [
     "src/models/public_book_models.py",
 ]
 
+
 def replace_in_file(filepath: str):
     """Apply all replacements to a file"""
     print(f"\n📝 Processing: {filepath}")
-    
+
     if not os.path.exists(filepath):
         print(f"   ⚠️  File not found, skipping")
         return
-    
-    with open(filepath, 'r', encoding='utf-8') as f:
+
+    with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
-    
+
     original_content = content
     replacements_made = 0
-    
+
     for old, new in REPLACEMENTS:
         if old in content:
             count = content.count(old)
@@ -88,22 +86,23 @@ def replace_in_file(filepath: str):
             replacements_made += count
             if count > 0:
                 print(f"   ✅ {old} → {new} ({count} occurrences)")
-    
+
     if content != original_content:
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
         print(f"   💾 Saved with {replacements_made} replacements")
     else:
         print(f"   ℹ️  No changes needed")
 
+
 def main():
     print("=" * 80)
     print("🔄 Bulk Find & Replace: Guide → Book")
     print("=" * 80)
-    
+
     for filepath in FILES_TO_UPDATE:
         replace_in_file(filepath)
-    
+
     print("\n" + "=" * 80)
     print("✅ All files updated!")
     print("=" * 80)
@@ -111,6 +110,7 @@ def main():
     print("   - Check for any missed occurrences")
     print("   - Verify logic still makes sense")
     print("   - Run tests to catch errors")
+
 
 if __name__ == "__main__":
     main()

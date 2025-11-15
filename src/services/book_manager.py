@@ -34,11 +34,11 @@ class UserBookManager:
             ]
 
             # Primary key - unique identifier
-            if "guide_id_unique" not in existing_indexes:
+            if "book_id_unique" not in existing_indexes:
                 self.guides_collection.create_index(
-                    "book_id", unique=True, name="guide_id_unique"
+                    "book_id", unique=True, name="book_id_unique"
                 )
-                logger.info("✅ Created index: guide_id_unique")
+                logger.info("✅ Created index: book_id_unique")
 
             # User's guides listing (sorted by update time)
             if "user_guides_list" not in existing_indexes:
@@ -109,28 +109,54 @@ class UserBookManager:
             "slug": data["slug"],
             "description": data.get("description"),
             "visibility": data.get("visibility", "public"),
+            "is_published": data.get("is_published", False),
+            # Point-based access (NEW)
+            "access_config": data.get("access_config"),  # Will be None or dict
+            # Community config (initialized, not public by default)
+            "community_config": {
+                "is_public": False,
+                "category": None,
+                "tags": [],
+                "short_description": None,
+                "difficulty_level": None,
+                "cover_image_url": data.get("cover_image_url"),
+                "total_views": 0,
+                "total_downloads": 0,
+                "total_purchases": 0,
+                "average_rating": 0.0,
+                "rating_count": 0,
+                "version": "1.0.0",
+                "published_at": None,
+            },
+            # Revenue stats (initialized)
+            "stats": {
+                "total_revenue_points": 0,
+                "owner_reward_points": 0,
+                "system_fee_points": 0,
+            },
+            # SEO
             "is_indexed": data.get(
                 "is_indexed", data.get("visibility", "public") == "public"
             ),
+            "meta_title": data.get("meta_title"),
+            "meta_description": data.get("meta_description"),
+            # Branding
             "custom_domain": data.get("custom_domain"),
             "cover_image_url": data.get("cover_image_url"),
             "logo_url": data.get("logo_url"),
-            "favicon_url": data.get("favicon_url"),
-            "author_name": data.get("author_name"),
-            "author_avatar": data.get("author_avatar"),
-            "branding": data.get("branding"),
-            "icon": data.get("icon"),
-            "color": data.get("color", "#4F46E5"),
-            "enable_toc": data.get("enable_toc", True),
-            "enable_search": data.get("enable_search", True),
-            "enable_feedback": data.get("enable_feedback", True),
+            "primary_color": data.get("primary_color", "#4F46E5"),
+            # Analytics
+            "view_count": 0,
+            "unique_visitors": 0,
+            # Timestamps
             "created_at": now,
             "updated_at": now,
+            "last_published_at": None,
         }
 
         try:
             self.guides_collection.insert_one(guide_doc)
-            logger.info(f"✅ Created guide: {guide_id} (slug: {data['slug']})")
+            logger.info(f"✅ Created guide: {book_id} (slug: {data['slug']})")
             return guide_doc
         except DuplicateKeyError:
             logger.error(f"❌ Slug '{data['slug']}' already exists for user {user_id}")
@@ -149,7 +175,7 @@ class UserBookManager:
         Returns:
             Guide document or None
         """
-        query = {"book_id": guide_id}
+        query = {"book_id": book_id}
         if user_id:
             query["user_id"] = user_id
 
@@ -244,16 +270,16 @@ class UserBookManager:
         updates["updated_at"] = datetime.utcnow()
 
         result = self.guides_collection.find_one_and_update(
-            {"book_id": guide_id},
+            {"book_id": book_id},
             {"$set": updates},
             return_document=ReturnDocument.AFTER,
         )
 
         if result:
-            logger.info(f"✅ Updated guide: {guide_id}")
+            logger.info(f"✅ Updated guide: {book_id}")
             return result
         else:
-            logger.warning(f"⚠️ Guide not found: {guide_id}")
+            logger.warning(f"⚠️ Guide not found: {book_id}")
             return None
 
     def delete_guide(self, book_id: str) -> bool:
@@ -266,13 +292,13 @@ class UserBookManager:
         Returns:
             True if deleted, False if not found
         """
-        result = self.guides_collection.delete_one({"book_id": guide_id})
+        result = self.guides_collection.delete_one({"book_id": book_id})
 
         if result.deleted_count > 0:
-            logger.info(f"🗑️ Deleted guide: {guide_id}")
+            logger.info(f"🗑️ Deleted guide: {book_id}")
             return True
         else:
-            logger.warning(f"⚠️ Guide not found: {guide_id}")
+            logger.warning(f"⚠️ Guide not found: {book_id}")
             return False
 
     def increment_view_count(self, book_id: str, is_unique: bool = False) -> bool:
@@ -290,7 +316,7 @@ class UserBookManager:
         if is_unique:
             updates["$inc"]["unique_visitors"] = 1
 
-        result = self.guides_collection.update_one({"book_id": guide_id}, updates)
+        result = self.guides_collection.update_one({"book_id": book_id}, updates)
 
         return result.modified_count > 0
 
@@ -310,7 +336,7 @@ class UserBookManager:
         """
         query = {"slug": slug, "user_id": user_id}
         if exclude_book_id:
-            query["book_id"] = {"$ne": exclude_guide_id}
+            query["book_id"] = {"$ne": exclude_book_id}
 
         return self.guides_collection.count_documents(query) > 0
 
@@ -334,3 +360,150 @@ class UserBookManager:
             logger.warning(f"⚠️ No guide found for domain: {domain}")
 
         return guide
+
+    # ============ COMMUNITY BOOKS METHODS (NEW - Phase 6) ============
+
+    def publish_to_community(
+        self, book_id: str, user_id: str, publish_data: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Publish book to community marketplace
+
+        Args:
+            book_id: Book UUID
+            user_id: Owner's Firebase UID
+            publish_data: CommunityPublishRequest data
+
+        Returns:
+            Updated book document or None
+        """
+        now = datetime.utcnow()
+
+        update_data = {
+            "$set": {
+                "community_config.is_public": True,
+                "community_config.category": publish_data["category"],
+                "community_config.tags": publish_data["tags"],
+                "community_config.difficulty_level": publish_data["difficulty_level"],
+                "community_config.short_description": publish_data["short_description"],
+                "community_config.published_at": now,
+                "updated_at": now,
+            }
+        }
+
+        # Update cover image if provided
+        if publish_data.get("cover_image_url"):
+            update_data["$set"]["community_config.cover_image_url"] = publish_data[
+                "cover_image_url"
+            ]
+
+        updated_book = self.guides_collection.find_one_and_update(
+            {"book_id": book_id, "user_id": user_id},
+            update_data,
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if updated_book:
+            logger.info(
+                f"✅ Published book to community: {book_id} (category: {publish_data['category']})"
+            )
+        else:
+            logger.warning(f"⚠️ Book not found or not owned by user: {book_id}")
+
+        return updated_book
+
+    def unpublish_from_community(
+        self, book_id: str, user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Unpublish book from community marketplace
+
+        Args:
+            book_id: Book UUID
+            user_id: Owner's Firebase UID
+
+        Returns:
+            Updated book document or None
+        """
+        updated_book = self.guides_collection.find_one_and_update(
+            {"book_id": book_id, "user_id": user_id},
+            {
+                "$set": {
+                    "community_config.is_public": False,
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if updated_book:
+            logger.info(f"✅ Unpublished book from community: {book_id}")
+        else:
+            logger.warning(f"⚠️ Book not found or not owned by user: {book_id}")
+
+        return updated_book
+
+    def list_community_books(
+        self,
+        category: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        difficulty: Optional[str] = None,
+        sort_by: str = "popular",  # popular, newest, rating
+        skip: int = 0,
+        limit: int = 20,
+    ) -> tuple[List[Dict[str, Any]], int]:
+        """
+        List public community books with filters
+
+        Args:
+            category: Filter by category
+            tags: Filter by tags (any match)
+            difficulty: Filter by difficulty level
+            sort_by: Sort method (popular, newest, rating)
+            skip: Pagination offset
+            limit: Items per page
+
+        Returns:
+            (books list, total count)
+        """
+        query = {"community_config.is_public": True}
+
+        if category:
+            query["community_config.category"] = category
+        if tags:
+            query["community_config.tags"] = {"$in": tags}
+        if difficulty:
+            query["community_config.difficulty_level"] = difficulty
+
+        # Determine sort order
+        if sort_by == "popular":
+            sort_field = [
+                ("community_config.total_purchases", -1),
+                ("community_config.total_views", -1),
+            ]
+        elif sort_by == "newest":
+            sort_field = [("community_config.published_at", -1)]
+        elif sort_by == "rating":
+            sort_field = [
+                ("community_config.average_rating", -1),
+                ("community_config.rating_count", -1),
+            ]
+        else:
+            sort_field = [("community_config.published_at", -1)]
+
+        # Get total count
+        total = self.guides_collection.count_documents(query)
+
+        # Get books
+        books = list(
+            self.guides_collection.find(query, {"_id": 0})
+            .sort(sort_field)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        logger.info(
+            f"📚 Found {len(books)} community books (total: {total}, category: {category}, sort: {sort_by})"
+        )
+
+        return books, total

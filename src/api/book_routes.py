@@ -22,6 +22,11 @@ from src.models.book_models import (
     BookResponse,
     BookListResponse,
     BookVisibility,
+    # Phase 6: Community Books & Document Integration
+    CommunityPublishRequest,
+    CommunityBookItem,
+    CommunityBooksResponse,
+    ChapterFromDocumentRequest,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -181,7 +186,7 @@ async def list_guides(
         )
 
 
-@router.get("/{guide_id}", response_model=BookResponse)
+@router.get("/{book_id}", response_model=BookResponse)
 async def get_guide(
     book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
@@ -213,7 +218,7 @@ async def get_guide(
         if not is_owner:
             # Check if user has permission
             has_permission = permission_manager.check_permission(
-                guide_id=book_id, user_id=user_id
+                book_id=book_id, user_id=user_id
             )
 
             if not has_permission:
@@ -222,7 +227,7 @@ async def get_guide(
                     detail="You don't have access to this guide",
                 )
 
-        logger.info(f"📖 User {user_id} accessed guide: {guide_id}")
+        logger.info(f"📖 User {user_id} accessed guide: {book_id}")
         return guide
 
     except HTTPException:
@@ -235,7 +240,7 @@ async def get_guide(
         )
 
 
-@router.patch("/{guide_id}", response_model=BookResponse)
+@router.patch("/{book_id}", response_model=BookResponse)
 async def update_guide(
     book_id: str,
     guide_data: BookUpdate,
@@ -291,7 +296,7 @@ async def update_guide(
                 detail="Guide not found",
             )
 
-        logger.info(f"✏️ User {user_id} updated guide: {guide_id}")
+        logger.info(f"✏️ User {user_id} updated guide: {book_id}")
         return updated_guide
 
     except HTTPException:
@@ -304,7 +309,7 @@ async def update_guide(
         )
 
 
-@router.delete("/{guide_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_guide(
     book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
@@ -358,7 +363,7 @@ async def delete_guide(
             )
 
         logger.info(
-            f"🗑️ User {user_id} deleted guide: {guide_id} "
+            f"🗑️ User {user_id} deleted guide: {book_id} "
             f"(chapters: {deleted_chapters}, permissions: {deleted_permissions})"
         )
         return None
@@ -379,7 +384,7 @@ async def delete_guide(
 
 
 @router.post(
-    "/{guide_id}/chapters",
+    "/{book_id}/chapters",
     response_model=ChapterResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -460,7 +465,7 @@ async def create_chapter(
         chapter = chapter_manager.create_chapter(book_id, chapter_data)
 
         logger.info(
-            f"✅ User {user_id} created chapter in guide {guide_id}: "
+            f"✅ User {user_id} created chapter in guide {book_id}: "
             f"{chapter['chapter_id']} ({chapter_data.title})"
         )
         return chapter
@@ -475,7 +480,7 @@ async def create_chapter(
         )
 
 
-@router.get("/{guide_id}/chapters", response_model=Dict[str, Any])
+@router.get("/{book_id}/chapters", response_model=Dict[str, Any])
 async def get_chapter_tree(
     book_id: str,
     include_unpublished: bool = Query(
@@ -520,7 +525,7 @@ async def get_chapter_tree(
 
         if not is_owner:
             has_permission = permission_manager.check_permission(
-                guide_id=book_id, user_id=user_id
+                book_id=book_id, user_id=user_id
             )
 
             if not has_permission:
@@ -534,14 +539,14 @@ async def get_chapter_tree(
 
         # Get chapter tree
         chapters = chapter_manager.get_chapter_tree(
-            guide_id=book_id, include_unpublished=show_unpublished
+            book_id=book_id, include_unpublished=show_unpublished
         )
 
         # Count total chapters
         total = chapter_manager.count_chapters(book_id)
 
         logger.info(
-            f"📄 User {user_id} retrieved chapter tree for guide {guide_id}: {total} chapters"
+            f"📄 User {user_id} retrieved chapter tree for guide {book_id}: {total} chapters"
         )
 
         return {
@@ -561,7 +566,7 @@ async def get_chapter_tree(
 
 
 @router.patch(
-    "/{guide_id}/chapters/{chapter_id}",
+    "/{book_id}/chapters/{chapter_id}",
     response_model=ChapterResponse,
 )
 async def update_chapter(
@@ -655,7 +660,7 @@ async def update_chapter(
         )
 
 
-@router.delete("/{guide_id}/chapters/{chapter_id}", response_model=Dict[str, Any])
+@router.delete("/{book_id}/chapters/{chapter_id}", response_model=Dict[str, Any])
 async def delete_chapter(
     book_id: str,
     chapter_id: str,
@@ -735,7 +740,7 @@ async def delete_chapter(
         )
 
 
-@router.post("/{guide_id}/chapters/reorder", response_model=Dict[str, Any])
+@router.post("/{book_id}/chapters/reorder", response_model=Dict[str, Any])
 async def reorder_chapters(
     book_id: str,
     reorder_data: ChapterReorderBulk,
@@ -779,11 +784,11 @@ async def reorder_chapters(
 
         # Reorder chapters
         updated_chapters = chapter_manager.reorder_chapters(
-            guide_id=book_id, updates=reorder_data.updates
+            book_id=book_id, updates=reorder_data.updates
         )
 
         logger.info(
-            f"🔄 User {user_id} reordered {len(updated_chapters)} chapters in guide {guide_id}"
+            f"🔄 User {user_id} reordered {len(updated_chapters)} chapters in guide {book_id}"
         )
 
         return {
@@ -807,7 +812,7 @@ async def reorder_chapters(
 
 
 @router.post(
-    "/{guide_id}/permissions/users",
+    "/{book_id}/permissions/users",
     response_model=PermissionResponse,
     status_code=status.HTTP_201_CREATED,
 )
@@ -852,7 +857,7 @@ async def grant_permission(
 
         # Check if permission already exists
         existing = permission_manager.get_permission(
-            guide_id=book_id, user_id=permission_data.user_id
+            book_id=book_id, user_id=permission_data.user_id
         )
 
         if existing:
@@ -863,7 +868,7 @@ async def grant_permission(
 
         # Grant permission
         permission = permission_manager.grant_permission(
-            guide_id=book_id,
+            book_id=book_id,
             user_id=permission_data.user_id,
             granted_by=user_id,
             access_level=permission_data.access_level.value,
@@ -871,7 +876,7 @@ async def grant_permission(
         )
 
         logger.info(
-            f"✅ User {user_id} granted {permission_data.access_level} permission to {permission_data.user_id} for guide {guide_id}"
+            f"✅ User {user_id} granted {permission_data.access_level} permission to {permission_data.user_id} for guide {book_id}"
         )
 
         return permission
@@ -886,7 +891,7 @@ async def grant_permission(
         )
 
 
-@router.get("/{guide_id}/permissions/users", response_model=PermissionListResponse)
+@router.get("/{book_id}/permissions/users", response_model=PermissionListResponse)
 async def list_permissions(
     book_id: str,
     skip: int = Query(0, ge=0),
@@ -927,13 +932,13 @@ async def list_permissions(
 
         # Get permissions
         permissions = permission_manager.list_permissions(
-            guide_id=book_id, skip=skip, limit=limit
+            book_id=book_id, skip=skip, limit=limit
         )
 
-        total = permission_manager.count_permissions(guide_id=book_id)
+        total = permission_manager.count_permissions(book_id=book_id)
 
         logger.info(
-            f"📋 User {user_id} listed permissions for guide {guide_id}: {len(permissions)} results"
+            f"📋 User {user_id} listed permissions for guide {book_id}: {len(permissions)} results"
         )
 
         return {"permissions": permissions, "total": total}
@@ -948,7 +953,7 @@ async def list_permissions(
         )
 
 
-@router.delete("/{guide_id}/permissions/users/{permission_user_id}")
+@router.delete("/{book_id}/permissions/users/{permission_user_id}")
 async def revoke_permission(
     book_id: str,
     permission_user_id: str,
@@ -988,7 +993,7 @@ async def revoke_permission(
 
         # Check if permission exists
         permission = permission_manager.get_permission(
-            guide_id=book_id, user_id=permission_user_id
+            book_id=book_id, user_id=permission_user_id
         )
 
         if not permission:
@@ -999,7 +1004,7 @@ async def revoke_permission(
 
         # Revoke permission
         success = permission_manager.revoke_permission(
-            guide_id=book_id, user_id=permission_user_id
+            book_id=book_id, user_id=permission_user_id
         )
 
         if not success:
@@ -1009,7 +1014,7 @@ async def revoke_permission(
             )
 
         logger.info(
-            f"❌ User {user_id} revoked permission from {permission_user_id} for guide {guide_id}"
+            f"❌ User {user_id} revoked permission from {permission_user_id} for guide {book_id}"
         )
 
         return {
@@ -1032,7 +1037,7 @@ async def revoke_permission(
 
 
 @router.post(
-    "/{guide_id}/permissions/invite",
+    "/{book_id}/permissions/invite",
     response_model=Dict[str, Any],
     status_code=status.HTTP_201_CREATED,
 )
@@ -1081,7 +1086,7 @@ async def invite_user(
 
         # Create invitation (stores in guide_permissions with invited_email)
         invitation = permission_manager.create_invitation(
-            guide_id=book_id,
+            book_id=book_id,
             email=invite_data.email,
             granted_by=user_id,
             access_level=invite_data.access_level.value,
@@ -1103,7 +1108,7 @@ async def invite_user(
         email_sent = True  # Placeholder - implement Brevo integration later
 
         logger.info(
-            f"📧 User {user_id} invited {invite_data.email} to guide {guide_id} (email_sent: {email_sent})"
+            f"📧 User {user_id} invited {invite_data.email} to guide {book_id} (email_sent: {email_sent})"
         )
 
         return {
@@ -1213,7 +1218,7 @@ async def get_public_guide(slug: str):
 
         # Response
         response = PublicBookResponse(
-            guide_id=guide["book_id"],
+            book_id=guide["book_id"],
             title=guide["title"],
             slug=guide["slug"],
             description=guide.get("description"),
@@ -1337,7 +1342,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
 
         # Guide info
         guide_info = PublicGuideInfo(
-            guide_id=guide["book_id"],
+            book_id=guide["book_id"],
             title=guide["title"],
             slug=guide["slug"],
             logo_url=guide.get("logo_url"),
@@ -1359,7 +1364,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
         # Response
         response = PublicChapterResponse(
             chapter_id=chapter["chapter_id"],
-            guide_id=guide["book_id"],
+            book_id=guide["book_id"],
             title=chapter["title"],
             slug=chapter["slug"],
             order=chapter["order"],
@@ -1492,7 +1497,7 @@ async def get_guide_by_domain(domain: str):
             )
 
         response = BookDomainResponse(
-            guide_id=guide["book_id"],
+            book_id=guide["book_id"],
             slug=guide["slug"],
             title=guide["title"],
             custom_domain=guide["custom_domain"],
@@ -1510,4 +1515,320 @@ async def get_guide_by_domain(domain: str):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get guide by domain",
+        )
+
+
+# ==============================================================================
+# PHASE 6: COMMUNITY BOOKS & DOCUMENT INTEGRATION
+# ==============================================================================
+
+
+@router.post(
+    "/{book_id}/publish-community",
+    response_model=BookResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Publish book to community marketplace",
+)
+async def publish_book_to_community(
+    book_id: str,
+    publish_data: CommunityPublishRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Phase 6: Publish book to community marketplace**
+
+    Publishes a book to the public community marketplace with metadata.
+
+    Requirements:
+    - User must be the book owner
+    - Book must be published (not draft)
+    - Sets community_config.is_public = true
+
+    Request Body:
+    - category: Category (e.g., "Programming", "Business")
+    - tags: List of tags for discovery
+    - difficulty_level: "beginner", "intermediate", "advanced"
+    - short_description: Description for marketplace listing
+    - cover_image_url: Optional cover image
+    """
+    user_id = user["uid"]
+
+    try:
+        # Verify ownership
+        book = guide_manager.get_guide(book_id, user_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or you don't have access",
+            )
+
+        # Publish to community
+        updated_book = guide_manager.publish_to_community(
+            book_id=book_id, user_id=user_id, publish_data=publish_data.dict()
+        )
+
+        if not updated_book:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to publish book to community",
+            )
+
+        logger.info(f"✅ User {user_id} published book to community: {book_id}")
+        return BookResponse(**updated_book)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to publish book to community: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to publish book to community",
+        )
+
+
+@router.patch(
+    "/{book_id}/unpublish-community",
+    response_model=BookResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Unpublish book from community marketplace",
+)
+async def unpublish_book_from_community(
+    book_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Phase 6: Unpublish book from community marketplace**
+
+    Removes book from public community marketplace.
+
+    Requirements:
+    - User must be the book owner
+    - Sets community_config.is_public = false
+    """
+    user_id = user["uid"]
+
+    try:
+        # Verify ownership
+        book = guide_manager.get_guide(book_id, user_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or you don't have access",
+            )
+
+        # Unpublish from community
+        updated_book = guide_manager.unpublish_from_community(
+            book_id=book_id, user_id=user_id
+        )
+
+        if not updated_book:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to unpublish book from community",
+            )
+
+        logger.info(f"✅ User {user_id} unpublished book from community: {book_id}")
+        return BookResponse(**updated_book)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to unpublish book from community: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to unpublish book from community",
+        )
+
+
+@router.get(
+    "/community/books",
+    response_model=CommunityBooksResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Browse community books (public marketplace)",
+)
+async def list_community_books(
+    category: Optional[str] = Query(None, description="Filter by category"),
+    tags: Optional[str] = Query(None, description="Comma-separated tags"),
+    difficulty: Optional[str] = Query(None, description="Filter by difficulty level"),
+    sort_by: str = Query("popular", description="Sort by: popular, newest, rating"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+):
+    """
+    **Phase 6: Browse community books (public marketplace)**
+
+    Lists public books in the community marketplace with filtering and sorting.
+
+    Query Parameters:
+    - category: Filter by category
+    - tags: Comma-separated tags (e.g., "python,tutorial")
+    - difficulty: beginner, intermediate, or advanced
+    - sort_by: popular (views + purchases), newest (published_at), rating (avg rating)
+    - page: Page number (1-indexed)
+    - limit: Items per page (max 100)
+
+    No authentication required (public endpoint).
+    """
+    try:
+        skip = (page - 1) * limit
+        tags_list = tags.split(",") if tags else None
+
+        # Get community books
+        books, total = guide_manager.list_community_books(
+            category=category,
+            tags=tags_list,
+            difficulty=difficulty,
+            sort_by=sort_by,
+            skip=skip,
+            limit=limit,
+        )
+
+        # Convert to response model
+        items = [CommunityBookItem(**book) for book in books]
+
+        response = CommunityBooksResponse(
+            items=items,
+            total=total,
+            page=page,
+            limit=limit,
+            total_pages=(total + limit - 1) // limit,
+        )
+
+        logger.info(
+            f"📚 Listed community books: {len(items)} results (page {page}/{response.total_pages})"
+        )
+        return response
+
+    except Exception as e:
+        logger.error(f"❌ Failed to list community books: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list community books",
+        )
+
+
+@router.post(
+    "/{book_id}/chapters/from-document",
+    response_model=ChapterResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create chapter from existing document",
+)
+async def create_chapter_from_document(
+    book_id: str,
+    request: ChapterFromDocumentRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Phase 6: Create chapter from existing document**
+
+    Creates a chapter that references an existing document (no content duplication).
+
+    - Chapter stores document_id reference
+    - Content is loaded dynamically from documents collection
+    - Document's used_in_books array is updated
+    - content_source = "document" (vs "inline")
+
+    Request Body:
+    - document_id: UUID of existing document
+    - title: Chapter title
+    - order_index: Position in chapter list
+    - parent_id: Optional parent chapter for nesting
+    - icon: Chapter icon (emoji)
+    - is_published: Publish immediately (default: false)
+    """
+    user_id = user["uid"]
+
+    try:
+        # Verify book ownership
+        book = guide_manager.get_guide(book_id, user_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or you don't have access",
+            )
+
+        # Create chapter from document
+        chapter = chapter_manager.create_chapter_from_document(
+            book_id=book_id,
+            document_id=request.document_id,
+            title=request.title,
+            order_index=request.order_index,
+            parent_id=request.parent_id,
+            icon=request.icon,
+            is_published=request.is_published,
+        )
+
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create chapter from document (document may not exist)",
+            )
+
+        logger.info(
+            f"✅ User {user_id} created chapter from document: {chapter['chapter_id']} → doc:{request.document_id}"
+        )
+        return ChapterResponse(**chapter)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to create chapter from document: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to create chapter from document",
+        )
+
+
+@router.get(
+    "/{book_id}/chapters/{chapter_id}/content",
+    response_model=ChapterResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get chapter with content (supports document references)",
+)
+async def get_chapter_with_content(
+    book_id: str,
+    chapter_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Phase 6: Get chapter with content (supports document references)**
+
+    Gets chapter with content loaded dynamically.
+
+    - If content_source = "inline": Returns content_html/content_json from chapter
+    - If content_source = "document": Loads content from documents collection
+
+    This allows chapters to reference documents without duplicating content.
+    """
+    user_id = user["uid"]
+
+    try:
+        # Verify book access
+        book = guide_manager.get_guide(book_id, user_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or you don't have access",
+            )
+
+        # Get chapter with content
+        chapter = chapter_manager.get_chapter_with_content(chapter_id)
+
+        if not chapter or chapter.get("book_id") != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+            )
+
+        logger.info(
+            f"📄 User {user_id} retrieved chapter content: {chapter_id} (source: {chapter.get('content_source', 'inline')})"
+        )
+        return ChapterResponse(**chapter)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get chapter with content: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get chapter with content",
         )
