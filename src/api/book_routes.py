@@ -260,7 +260,7 @@ async def list_guides(
         )
 
         return {
-            "guides": guides,
+            "books": guides,  # Changed from 'guides' to 'books' for consistency with endpoint name
             "total": total,
             "pagination": {
                 "skip": skip,

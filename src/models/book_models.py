@@ -181,7 +181,7 @@ class GuideListItem(BaseModel):
 class BookListResponse(BaseModel):
     """Response for guide listing with pagination"""
 
-    guides: List[GuideListItem]
+    books: List[GuideListItem]  # Changed from 'guides' to 'books' for consistency
     pagination: dict
     total: int
 

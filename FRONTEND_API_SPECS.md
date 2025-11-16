@@ -201,7 +201,7 @@ GET /books?sort_by=view_count&sort_order=desc - Most viewed first
 **Response 200**:
 ```json
 {
-  "guides": [
+  "books": [
     {
       "book_id": "string",
       "title": "string",
