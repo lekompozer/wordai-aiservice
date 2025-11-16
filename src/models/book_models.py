@@ -255,11 +255,11 @@ class CommunityBookItem(BaseModel):
     book_id: str
     title: str
     slug: str
-    short_description: Optional[str]
-    cover_image_url: Optional[str]
-    category: str
-    tags: List[str]
-    difficulty_level: str
+    short_description: Optional[str] = None
+    cover_image_url: Optional[str] = None
+    category: Optional[str] = "uncategorized"
+    tags: List[str] = []
+    difficulty_level: Optional[str] = "beginner"
 
     # Pricing (if point_based)
     forever_view_points: int = 0  # Main price to display
@@ -275,7 +275,7 @@ class CommunityBookItem(BaseModel):
     author_name: Optional[str] = None
 
     # Timestamps
-    published_at: datetime
+    published_at: Optional[datetime] = None
 
 
 class CommunityBooksResponse(BaseModel):

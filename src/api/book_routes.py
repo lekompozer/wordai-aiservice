@@ -1896,8 +1896,31 @@ async def list_community_books(
             limit=limit,
         )
 
-        # Convert to response model
-        items = [CommunityBookItem(**book) for book in books]
+        # Transform books to CommunityBookItem format
+        items = []
+        for book in books:
+            community_config = book.get("community_config", {})
+            access_config = book.get("access_config", {})
+
+            item = CommunityBookItem(
+                book_id=book.get("book_id"),
+                title=book.get("title"),
+                slug=book.get("slug"),
+                short_description=community_config.get("short_description"),
+                cover_image_url=book.get("cover_image_url"),
+                category=community_config.get("category", "uncategorized"),
+                tags=community_config.get("tags", []),
+                difficulty_level=community_config.get("difficulty_level", "beginner"),
+                forever_view_points=access_config.get("forever_view_points", 0),
+                total_views=community_config.get("total_views", 0),
+                total_purchases=community_config.get("total_purchases", 0),
+                average_rating=community_config.get("average_rating", 0.0),
+                rating_count=community_config.get("rating_count", 0),
+                author_id=community_config.get("author_id"),
+                author_name=community_config.get("author_name"),
+                published_at=community_config.get("published_at"),
+            )
+            items.append(item)
 
         response = CommunityBooksResponse(
             items=items,
