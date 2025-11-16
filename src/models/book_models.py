@@ -226,8 +226,8 @@ class CommunityPublishRequest(BaseModel):
         ..., description="Book category (programming, business, marketing, etc.)"
     )
     tags: List[str] = Field(..., min_items=1, max_items=10, description="Search tags")
-    difficulty_level: str = Field(
-        ..., description="beginner|intermediate|advanced|expert"
+    difficulty_level: Optional[str] = Field(
+        None, description="beginner|intermediate|advanced|expert (optional)"
     )
     short_description: str = Field(..., min_length=10, max_length=200)
     cover_image_url: Optional[str] = Field(None, description="Cover image URL")

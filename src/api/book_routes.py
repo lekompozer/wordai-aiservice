@@ -1900,7 +1900,7 @@ async def list_community_books(
         items = []
         for book in books:
             community_config = book.get("community_config", {})
-            access_config = book.get("access_config", {})
+            access_config = book.get("access_config") or {}  # Handle None case
 
             item = CommunityBookItem(
                 book_id=book.get("book_id"),
