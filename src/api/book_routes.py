@@ -597,7 +597,9 @@ async def create_chapter(
                 document_type="doc",
             )
             chapter_data.document_id = document_id
-            logger.info(f"✅ Auto-created empty document: {document_id} for chapter: {chapter_data.title}")
+            logger.info(
+                f"✅ Auto-created empty document: {document_id} for chapter: {chapter_data.title}"
+            )
 
         # Create chapter (depth is auto-calculated)
         chapter = chapter_manager.create_chapter(book_id, chapter_data)

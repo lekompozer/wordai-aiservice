@@ -206,7 +206,7 @@ class GuideBookBookChapterManager:
 
     def get_chapter(self, chapter_id: str) -> Optional[Dict[str, Any]]:
         """Get chapter by ID"""
-        return self.chapters_collection.find_one({"chapter_id": chapter_id})
+        return self.chapters_collection.find_one({"chapter_id": chapter_id}, {"_id": 0})
 
     def get_chapters(
         self, book_id: str, include_hidden: bool = False
@@ -225,7 +225,9 @@ class GuideBookBookChapterManager:
         if not include_hidden:
             query["is_visible"] = True
 
-        chapters = list(self.chapters_collection.find(query).sort([("order", 1)]))
+        chapters = list(
+            self.chapters_collection.find(query, {"_id": 0}).sort([("order", 1)])
+        )
 
         logger.info(f"📊 Found {len(chapters)} chapters for guide {book_id}")
         return chapters
@@ -266,7 +268,10 @@ class GuideBookBookChapterManager:
         if not include_unpublished:
             query["is_published"] = True
 
-        chapters = list(self.chapters_collection.find(query).sort("order_index", 1))
+        # Exclude MongoDB _id field to avoid serialization issues
+        chapters = list(
+            self.chapters_collection.find(query, {"_id": 0}).sort("order_index", 1)
+        )
 
         # Build chapter map
         chapter_map = {}
@@ -411,7 +416,9 @@ class GuideBookBookChapterManager:
         Returns:
             List of chapters using this document
         """
-        chapters = list(self.chapters_collection.find({"document_id": document_id}))
+        chapters = list(
+            self.chapters_collection.find({"document_id": document_id}, {"_id": 0})
+        )
         logger.info(f"📊 Document {document_id} used in {len(chapters)} chapters")
         return chapters
 
@@ -523,7 +530,9 @@ class GuideBookBookChapterManager:
 
         # Find all children recursively
         def find_descendants(parent_id: str):
-            children = list(self.chapters_collection.find({"parent_id": parent_id}))
+            children = list(
+                self.chapters_collection.find({"parent_id": parent_id}, {"_id": 0})
+            )
             for child in children:
                 find_descendants(child["chapter_id"])
                 deleted_ids.append(child["chapter_id"])
