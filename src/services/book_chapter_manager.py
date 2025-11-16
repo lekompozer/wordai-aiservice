@@ -108,14 +108,17 @@ class GuideBookBookChapterManager:
                 f"Maximum nesting depth ({self.MAX_DEPTH + 1} levels) exceeded"
             )
 
+        # Get order_index (support both 'order' and 'order_index' fields)
+        order_index = data.get("order", data.get("order_index", 0))
+
         chapter_doc = {
             "chapter_id": chapter_id,
             "book_id": book_id,
-            "document_id": data["document_id"],
+            "document_id": data.get("document_id"),  # Optional now
             "parent_id": parent_id,
             "title": data["title"],
             "slug": data["slug"],
-            "order_index": data.get("order_index", 0),
+            "order_index": order_index,
             "depth": depth,
             "is_published": data.get("is_published", True),
             "created_at": now,

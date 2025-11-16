@@ -63,6 +63,7 @@ from src.services.book_manager import UserBookManager
 from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.book_permission_manager import GuideBookBookPermissionManager
 from src.services.author_manager import AuthorManager
+from src.services.document_manager import DocumentManager
 
 # Database
 from src.database.db_manager import DBManager
@@ -80,6 +81,7 @@ book_manager = UserBookManager(db)
 chapter_manager = GuideBookBookChapterManager(db)
 permission_manager = GuideBookBookPermissionManager(db)
 author_manager = AuthorManager(db)
+document_manager = DocumentManager(db)
 
 
 # ==============================================================================
@@ -491,18 +493,22 @@ async def create_chapter(
     **Authentication:** Required (Owner only)
 
     **Request Body:**
-    - title: Chapter title (1-200 chars)
-    - slug: URL-friendly slug (alphanumeric + hyphens)
-    - document_id: Document ID from documents collection
+    - title: Chapter title (1-200 chars) [REQUIRED]
+    - slug: URL-friendly slug (auto-generated from title if not provided)
+    - document_id: Document ID from documents collection (auto-created if not provided)
     - parent_id: Parent chapter ID (null for root chapters)
     - order_index: Display order (default: 0)
+    - order: Alias for order_index (for backward compatibility)
     - is_published: Publish status (default: true)
+
+    **Auto-Generation:**
+    - If slug not provided: Generated from title (Vietnamese-safe)
+    - If document_id not provided: Creates empty document automatically
 
     **Validation:**
     - Slug must be unique within book
     - Parent chapter must exist in same book (if provided)
     - Max depth: 3 levels (0, 1, 2)
-    - Document must exist
 
     **Returns:**
     - 201: Chapter created successfully
@@ -529,12 +535,39 @@ async def create_chapter(
                 detail="Only book owner can create chapters",
             )
 
-        # Check slug uniqueness within book
-        if chapter_manager.slug_exists(book_id, chapter_data.slug):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Slug '{chapter_data.slug}' already exists in this book",
+        # Auto-generate slug if not provided
+        if not chapter_data.slug:
+            import re
+            import unicodedata
+
+            # Convert title to slug: normalize, lowercase, replace spaces with hyphens
+            slug = chapter_data.title.lower()
+            # Normalize unicode characters (Vietnamese → ASCII)
+            slug = (
+                unicodedata.normalize("NFKD", slug)
+                .encode("ascii", "ignore")
+                .decode("ascii")
             )
+            # Replace spaces and special chars with hyphens
+            slug = re.sub(r"[^a-z0-9]+", "-", slug)
+            # Remove leading/trailing hyphens
+            slug = slug.strip("-")
+
+            # Ensure uniqueness by appending number if needed
+            original_slug = slug
+            counter = 1
+            while chapter_manager.slug_exists(book_id, slug):
+                slug = f"{original_slug}-{counter}"
+                counter += 1
+
+            chapter_data.slug = slug
+        else:
+            # Check slug uniqueness within book if provided
+            if chapter_manager.slug_exists(book_id, chapter_data.slug):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Slug '{chapter_data.slug}' already exists in this book",
+                )
 
         # Verify parent exists if provided
         if chapter_data.parent_id:
@@ -552,6 +585,19 @@ async def create_chapter(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Parent chapter must belong to the same book",
                 )
+
+        # Auto-create empty document if not provided
+        if not chapter_data.document_id:
+            document_id = document_manager.create_document(
+                user_id=user_id,
+                title=chapter_data.title,
+                content_html="<p></p>",  # Empty content
+                content_text="",
+                source_type="created",
+                document_type="doc",
+            )
+            chapter_data.document_id = document_id
+            logger.info(f"✅ Auto-created empty document: {document_id} for chapter: {chapter_data.title}")
 
         # Create chapter (depth is auto-calculated)
         chapter = chapter_manager.create_chapter(book_id, chapter_data)
