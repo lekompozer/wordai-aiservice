@@ -92,37 +92,7 @@
 }
 ```
 
-**Upload Flow**:
-```javascript
-// 1. Get presigned URL
-const response = await fetch('/api/v1/books/upload-image/presigned-url', {
-  method: 'POST',
-  headers: {
-    'Authorization': 'Bearer <token>',
-    'Content-Type': 'application/json'
-  },
-  body: JSON.stringify({
-    filename: 'cover.jpg',
-    content_type: 'image/jpeg',
-    image_type: 'cover',
-    file_size_mb: 2.5
-  })
-})
-const { presigned_url, file_url } = await response.json()
 
-// 2. Upload file to R2 using presigned URL
-await fetch(presigned_url, {
-  method: 'PUT',
-  body: fileBlob,
-  headers: { 'Content-Type': 'image/jpeg' }
-})
-
-// 3. Update book with file_url
-await fetch('/api/v1/books/{book_id}', {
-  method: 'PATCH',
-  body: JSON.stringify({ cover_image_url: file_url })
-})
-```
 
 **Image Types**:
 - `cover`: Book cover image (recommended: 1200x630px for og:image)
@@ -138,6 +108,69 @@ await fetch('/api/v1/books/{book_id}', {
 - `400 Bad Request`: Invalid content_type or image_type
 - `422 Unprocessable Entity`: Validation error (file too large, etc.)
 - `500 Internal Server Error`: R2 service error
+
+---
+
+### 1b. Delete Book Image (Cover, Logo, Favicon)
+**Endpoint**: `DELETE /books/{book_id}/delete-image/{image_type}`
+**Authentication**: Required
+
+**Description**: Delete book image (cover, logo, or favicon). Clears the image URL from database.
+
+**Path Parameters**:
+- `book_id`: string (required)
+- `image_type`: string (required) - "cover" | "logo" | "favicon"
+
+**Response 200**:
+```json
+{
+  "success": true,
+  "message": "Successfully deleted cover image",
+  "image_type": "cover",
+  "book_id": "string",
+  "deleted_url": "https://cdn.wordai.pro/book-covers/..."
+}
+```
+
+**Response 200** (if no image to delete):
+```json
+{
+  "success": true,
+  "message": "No cover image to delete",
+  "image_type": "cover",
+  "book_id": "string"
+}
+```
+
+**Use Cases**:
+- User wants to change image → Delete old one first, then upload new one
+- User wants to remove image completely
+- Cleaning up before uploading new version
+
+**Errors**:
+- `400 Bad Request`: Invalid image_type
+- `404 Not Found`: Book not found or not owned by user
+- `500 Internal Server Error`: Delete failed
+
+**Example Usage**:
+```javascript
+// Delete cover image before uploading new one
+await fetch('/api/v1/books/{book_id}/delete-image/cover', {
+  method: 'DELETE',
+  headers: { 'Authorization': 'Bearer <token>' }
+})
+
+// Then upload new cover
+const response = await fetch('/api/v1/books/upload-image/presigned-url', {
+  method: 'POST',
+  body: JSON.stringify({
+    filename: 'new-cover.jpg',
+    content_type: 'image/jpeg',
+    image_type: 'cover',
+    file_size_mb: 1.2
+  })
+})
+```
 
 ---
 
@@ -1501,9 +1534,12 @@ Authorization: Bearer <firebase_jwt_token>
 
 ---
 
-## 🚀 Total Endpoints: 32
+## 🚀 Total Endpoints: 33
 
-- **Phase 2**: 6 endpoints (Book Management + Image Upload)
+- **Phase 2**: 7 endpoints (Book Management + Image Upload/Delete)
+  - Create, List, Get, Update, Delete Book
+  - Upload Image (Presigned URL)
+  - Delete Image
 - **Phase 3**: 5 endpoints (Chapter Management)
 - **Phase 4**: 4 endpoints (User Permissions)
 - **Phase 5**: 4 endpoints (Public View - NO AUTH)

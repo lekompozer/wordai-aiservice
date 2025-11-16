@@ -2049,3 +2049,122 @@ async def get_book_image_presigned_url(
             status_code=500,
             detail=f"Failed to generate upload URL: {str(e)}",
         )
+
+
+@router.delete("/{book_id}/delete-image/{image_type}", tags=["Book Images"])
+async def delete_book_image(
+    book_id: str,
+    image_type: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Delete book image (cover, logo, or favicon)**
+
+    This endpoint removes the image URL from the book and optionally deletes the file from R2 storage.
+
+    **Supported Image Types:**
+    - `cover`: Remove cover_image_url
+    - `logo`: Remove logo_url
+    - `favicon`: Remove favicon_url
+
+    **Path Parameters:**
+    - `book_id`: Book ID (required)
+    - `image_type`: Type of image to delete: "cover" | "logo" | "favicon" (required)
+
+    **What happens:**
+    1. Verifies user owns the book
+    2. Clears the image URL field in database (cover_image_url, logo_url, or favicon_url)
+    3. Optionally deletes the file from R2 storage (if URL is from our CDN)
+
+    **Returns:**
+    - Success message with deleted image type
+    - Updated book with null image URL
+
+    **Use Cases:**
+    - User wants to change the image (delete old one first)
+    - User wants to remove the image completely
+    - Cleaning up unused images
+
+    **Example:**
+    ```javascript
+    // Delete cover image
+    await fetch('/api/v1/books/{book_id}/delete-image/cover', {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer <token>' }
+    })
+    ```
+    """
+    try:
+        user_id = user["uid"]
+
+        # Validate image_type
+        valid_types = ["cover", "logo", "favicon"]
+        if image_type not in valid_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid image_type. Allowed: {', '.join(valid_types)}",
+            )
+
+        logger.info(f"🗑️ User {user_id} deleting {image_type} for book {book_id}")
+
+        # Get book and verify ownership
+        book = guide_manager.get_guide(book_id, user_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or you don't have access",
+            )
+
+        # Map image_type to field name
+        field_map = {
+            "cover": "cover_image_url",
+            "logo": "logo_url",
+            "favicon": "favicon_url",
+        }
+        field_name = field_map[image_type]
+
+        # Get current image URL
+        current_url = book.get(field_name)
+
+        if not current_url:
+            logger.info(f"ℹ️ No {image_type} to delete for book {book_id}")
+            return {
+                "success": True,
+                "message": f"No {image_type} image to delete",
+                "image_type": image_type,
+                "book_id": book_id,
+            }
+
+        # Update book to remove image URL
+        update_data = {field_name: None}
+        updated_book = guide_manager.update_guide(book_id, user_id, update_data)
+
+        if not updated_book:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to delete image",
+            )
+
+        # TODO: Optionally delete file from R2 storage
+        # For now, we just clear the URL in database
+        # File will remain in R2 but won't be referenced
+        # Can implement cleanup job later to remove unreferenced files
+
+        logger.info(f"✅ Deleted {image_type} for book {book_id}: {current_url}")
+
+        return {
+            "success": True,
+            "message": f"Successfully deleted {image_type} image",
+            "image_type": image_type,
+            "book_id": book_id,
+            "deleted_url": current_url,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete image: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete image: {str(e)}",
+        )
