@@ -193,21 +193,22 @@ class CommunityPublishRequest(BaseModel):
     """Request to publish book to community"""
 
     # Author (NEW - required for community publishing)
-    author_id: Optional[str] = Field(
-        None,
-        description="Existing author ID (e.g., @john_doe). If not provided, user must provide author_name to create new author.",
+    author_id: str = Field(
+        ...,
+        description="Author ID (e.g., @john_doe). Can be existing or new - use check endpoint to verify availability first.",
     )
+    # Only for NEW authors (if author_id doesn't exist yet)
     author_name: Optional[str] = Field(
         None,
         min_length=2,
         max_length=100,
-        description="Name for new author (required if author_id not provided)",
+        description="Display name (required only if creating new author)",
     )
     author_bio: Optional[str] = Field(
-        None, max_length=500, description="Author bio (for new author)"
+        None, max_length=500, description="Author bio (optional, for new author)"
     )
     author_avatar_url: Optional[str] = Field(
-        None, description="Author avatar (for new author)"
+        None, description="Author avatar (optional, for new author)"
     )
 
     # Visibility & Pricing
@@ -230,16 +231,6 @@ class CommunityPublishRequest(BaseModel):
     )
     short_description: str = Field(..., min_length=10, max_length=200)
     cover_image_url: Optional[str] = Field(None, description="Cover image URL")
-
-    @validator("author_name")
-    def validate_author(cls, v, values):
-        """Validate that either author_id or author_name is provided"""
-        author_id = values.get("author_id")
-        if not author_id and not v:
-            raise ValueError(
-                "Either author_id (existing author) or author_name (create new author) must be provided"
-            )
-        return v
 
     @validator("visibility")
     def validate_visibility(cls, v):

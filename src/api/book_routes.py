@@ -1595,18 +1595,25 @@ async def publish_book_to_community(
             logger.info(f"📚 Using existing author: {author_id}")
 
         elif publish_data.author_name:
-            # Create new author with auto-generated ID
-            import uuid
-            import re
+            # Create new author with user-provided @ID
+            # User must provide author_id when creating new author
+            if not publish_data.author_id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="author_id is required when creating new author. Please provide a unique @username (e.g., @john_doe)",
+                )
 
-            # Generate @ID from name
-            base_id = re.sub(r"[^a-zA-Z0-9_]", "_", publish_data.author_name.lower())
-            base_id = re.sub(r"_+", "_", base_id).strip("_")
-            author_id = f"@{base_id}_{uuid.uuid4().hex[:6]}"
+            # Check if author_id already exists
+            existing = author_manager.get_author(publish_data.author_id)
+            if existing:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Author ID already taken: {publish_data.author_id}. Please choose a different @username.",
+                )
 
-            # Create author
+            # Create author with user-provided ID
             author_data = {
-                "author_id": author_id,
+                "author_id": publish_data.author_id,  # USER-PROVIDED
                 "name": publish_data.author_name,
                 "bio": publish_data.author_bio,
                 "avatar_url": publish_data.author_avatar_url,
@@ -1620,6 +1627,7 @@ async def publish_book_to_community(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Failed to create author",
                     )
+                author_id = publish_data.author_id
                 logger.info(f"✅ Created new author: {author_id}")
             except Exception as e:
                 logger.error(f"❌ Failed to create author: {e}")
@@ -1631,7 +1639,7 @@ async def publish_book_to_community(
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either author_id or author_name must be provided",
+                detail="Either author_id (existing) or both author_id + author_name (new) must be provided",
             )
 
         # Publish to community with author

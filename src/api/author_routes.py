@@ -84,6 +84,42 @@ async def create_author(
 
 
 @router.get(
+    "/check/{author_id}",
+    summary="Check author ID availability",
+    description="Check if an author ID (@username) is available for use. Public endpoint, no auth required.",
+)
+async def check_author_availability(author_id: str):
+    """
+    **Check if author ID is available**
+
+    Returns whether the provided @username is available for registration.
+
+    - **author_id**: The @username to check (e.g., @john_doe)
+
+    Returns:
+    ```json
+    {
+        "available": true,
+        "author_id": "@john_doe"
+    }
+    ```
+    """
+    try:
+        # Check if author exists
+        existing = author_manager.get_author(author_id)
+        available = existing is None
+
+        return {"available": available, "author_id": author_id}
+
+    except Exception as e:
+        logger.error(f"Error checking author availability: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check author availability",
+        )
+
+
+@router.get(
     "/my-authors",
     response_model=AuthorListResponse,
     summary="List my author profiles",
