@@ -271,7 +271,7 @@ class CommunityBookItem(BaseModel):
     rating_count: int = 0
 
     # Author
-    author_id: str
+    author_id: Optional[str] = None
     author_name: Optional[str] = None
 
     # Timestamps
