@@ -58,12 +58,15 @@ class R2StorageService:
             logger.error(f"❌ Failed to initialize R2 client: {e}")
             raise ValueError(f"Failed to initialize R2 storage: {str(e)}")
 
-    def generate_unique_filename(self, original_filename: str) -> str:
+    def generate_unique_filename(
+        self, original_filename: str, folder: str = "attachments"
+    ) -> str:
         """
         Generate unique filename to prevent conflicts
 
         Args:
             original_filename: Original filename from user
+            folder: Folder path in bucket (default: "attachments")
 
         Returns:
             Unique filename with timestamp and UUID prefix
@@ -81,13 +84,14 @@ class R2StorageService:
         clean_name = "".join(c for c in base_name if c.isalnum() or c in ("_", "-"))
         clean_name = clean_name[:50]  # Limit length
 
-        return f"attachments/{timestamp}_{unique_id}_{clean_name}.{extension}"
+        return f"{folder}/{timestamp}_{unique_id}_{clean_name}.{extension}"
 
     def generate_presigned_upload_url(
         self,
         filename: str,
         content_type: str = "application/pdf",
         expiration: int = 300,
+        folder: str = "attachments",
     ) -> dict:
         """
         Generate presigned URL for direct file upload to R2
@@ -96,6 +100,7 @@ class R2StorageService:
             filename: Original filename from user
             content_type: MIME type of file (default: application/pdf)
             expiration: URL expiration time in seconds (default: 300 = 5 minutes)
+            folder: Folder path in bucket (default: "attachments")
 
         Returns:
             dict with:
@@ -106,7 +111,7 @@ class R2StorageService:
         """
         try:
             # Generate unique key (path in bucket)
-            key = self.generate_unique_filename(filename)
+            key = self.generate_unique_filename(filename, folder=folder)
 
             # Generate presigned URL for PUT operation
             presigned_url = self.s3_client.generate_presigned_url(

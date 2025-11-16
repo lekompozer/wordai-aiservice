@@ -18,16 +18,16 @@
   "title": "string (1-200 chars, required)",
   "slug": "string (alphanumeric + hyphens, required)",
   "description": "string (max 1000 chars, optional)",
-  "visibility": "public | private | unlisted (default: public)",
+  "visibility": "public | private | unlisted (default: private)",
   "icon": "string (emoji, optional)",
   "color": "string (#RRGGBB format, optional)",
   "enable_toc": "boolean (default: true)",
   "enable_search": "boolean (default: true)",
   "enable_feedback": "boolean (default: true)",
   "custom_domain": "string (optional)",
-  "cover_image_url": "string (optional)",
-  "logo_url": "string (optional)",
-  "favicon_url": "string (optional)"
+  "cover_image_url": "string (optional, use /upload-image/presigned-url to upload)",
+  "logo_url": "string (optional, use /upload-image/presigned-url to upload)",
+  "favicon_url": "string (optional, use /upload-image/presigned-url to upload)"
 }
 ```
 
@@ -59,6 +59,85 @@
 - `409 Conflict`: Slug already exists for this user
 - `422 Unprocessable Entity`: Validation error
 - `401 Unauthorized`: Missing or invalid token
+
+**Note**: To upload images (cover, logo, favicon), first use `POST /books/upload-image/presigned-url` to get upload URL, then update book with the returned file_url.
+
+---
+
+### 1a. Upload Book Images (Cover, Logo, Favicon)
+**Endpoint**: `POST /books/upload-image/presigned-url`
+**Authentication**: Required
+
+**Description**: Generate presigned URL for uploading book images (cover, logo, favicon) directly to R2 storage.
+
+**Request Body**:
+```json
+{
+  "filename": "my-book-cover.jpg",  // Required, max 255 chars
+  "content_type": "image/jpeg",  // Required: image/jpeg, image/png, image/webp, image/svg+xml, image/gif
+  "image_type": "cover",  // Required: "cover" | "logo" | "favicon"
+  "file_size_mb": 2.5  // Required, max 10MB
+}
+```
+
+**Response 200**:
+```json
+{
+  "success": true,
+  "presigned_url": "https://r2.cloudflare.com/...",  // Use PUT request to upload
+  "file_url": "https://cdn.wordai.pro/book-covers/...",  // Use this in book update
+  "image_type": "cover",
+  "file_size_mb": 2.5,
+  "expires_in": 300  // Seconds (5 minutes)
+}
+```
+
+**Upload Flow**:
+```javascript
+// 1. Get presigned URL
+const response = await fetch('/api/v1/books/upload-image/presigned-url', {
+  method: 'POST',
+  headers: {
+    'Authorization': 'Bearer <token>',
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    filename: 'cover.jpg',
+    content_type: 'image/jpeg',
+    image_type: 'cover',
+    file_size_mb: 2.5
+  })
+})
+const { presigned_url, file_url } = await response.json()
+
+// 2. Upload file to R2 using presigned URL
+await fetch(presigned_url, {
+  method: 'PUT',
+  body: fileBlob,
+  headers: { 'Content-Type': 'image/jpeg' }
+})
+
+// 3. Update book with file_url
+await fetch('/api/v1/books/{book_id}', {
+  method: 'PATCH',
+  body: JSON.stringify({ cover_image_url: file_url })
+})
+```
+
+**Image Types**:
+- `cover`: Book cover image (recommended: 1200x630px for og:image)
+- `logo`: Book logo (recommended: 512x512px square)
+- `favicon`: Book favicon (recommended: 32x32px or 64x64px)
+
+**Constraints**:
+- Max file size: 10MB per image
+- Allowed formats: JPEG, PNG, WebP, SVG, GIF
+- URL expires in 5 minutes
+
+**Errors**:
+- `400 Bad Request`: Invalid content_type or image_type
+- `422 Unprocessable Entity`: Validation error (file too large, etc.)
+- `500 Internal Server Error`: R2 service error
 
 ---
 
@@ -1422,9 +1501,9 @@ Authorization: Bearer <firebase_jwt_token>
 
 ---
 
-## 🚀 Total Endpoints: 31
+## 🚀 Total Endpoints: 32
 
-- **Phase 2**: 5 endpoints (Book Management)
+- **Phase 2**: 6 endpoints (Book Management + Image Upload)
 - **Phase 3**: 5 endpoints (Chapter Management)
 - **Phase 4**: 4 endpoints (User Permissions)
 - **Phase 5**: 4 endpoints (Public View - NO AUTH)

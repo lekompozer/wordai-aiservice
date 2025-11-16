@@ -27,6 +27,8 @@ from src.models.book_models import (
     CommunityBookItem,
     CommunityBooksResponse,
     ChapterFromDocumentRequest,
+    # Image Upload
+    BookImageUploadRequest,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -1923,4 +1925,127 @@ async def get_chapter_with_content(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get chapter with content",
+        )
+
+
+# ==============================================================================
+# IMAGE UPLOAD API (Presigned URL for Book Images)
+# ==============================================================================
+
+
+@router.post("/upload-image/presigned-url", tags=["Book Images"])
+async def get_book_image_presigned_url(
+    request: BookImageUploadRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Generate presigned URL for book image upload (cover, logo, favicon)**
+
+    This endpoint generates a presigned URL for uploading book images directly to R2 storage.
+
+    **Supported Image Types:**
+    - `cover`: Book cover image (cover_image_url)
+    - `logo`: Book logo (logo_url)
+    - `favicon`: Book favicon (favicon_url)
+
+    **Flow:**
+    1. Frontend calls this endpoint with filename, content_type, image_type, and file_size_mb
+    2. Backend validates image format and size (max 10MB)
+    3. Backend generates presigned URL (valid for 5 minutes)
+    4. Frontend uploads file directly to presigned URL using PUT request
+    5. Frontend updates book with the returned file_url
+
+    **Image Constraints:**
+    - Max file size: 10MB per image
+    - Allowed formats: JPEG, PNG, WebP, SVG, GIF
+    - Recommended sizes:
+      - Cover: 1200x630px (og:image standard)
+      - Logo: 512x512px (square)
+      - Favicon: 32x32px or 64x64px
+
+    **Returns:**
+    - `presigned_url`: URL for uploading file (use PUT request with file content)
+    - `file_url`: Public CDN URL to use in book update (cover_image_url, logo_url, or favicon_url)
+    - `expires_in`: Presigned URL expiration time in seconds (300 = 5 minutes)
+    - `image_type`: Type of image (cover, logo, favicon)
+
+    **Example Usage:**
+    ```python
+    # 1. Get presigned URL
+    response = await fetch('/api/v1/books/upload-image/presigned-url', {
+        method: 'POST',
+        body: JSON.stringify({
+            filename: 'my-book-cover.jpg',
+            content_type: 'image/jpeg',
+            image_type: 'cover',
+            file_size_mb: 2.5
+        })
+    })
+    const { presigned_url, file_url } = await response.json()
+
+    # 2. Upload file to presigned URL
+    await fetch(presigned_url, {
+        method: 'PUT',
+        body: fileBlob,
+        headers: { 'Content-Type': 'image/jpeg' }
+    })
+
+    # 3. Update book with file_url
+    await fetch('/api/v1/books/{book_id}', {
+        method: 'PATCH',
+        body: JSON.stringify({ cover_image_url: file_url })
+    })
+    ```
+    """
+    try:
+        from src.services.r2_storage_service import get_r2_service
+
+        user_id = user["uid"]
+        logger.info(
+            f"🖼️ Generating presigned URL for book {request.image_type}: {request.filename} ({request.file_size_mb}MB) - User: {user_id}"
+        )
+
+        # Get R2 service
+        r2_service = get_r2_service()
+
+        # Generate folder path based on image type
+        folder_map = {
+            "cover": "book-covers",
+            "logo": "book-logos",
+            "favicon": "book-favicons",
+        }
+        folder = folder_map[request.image_type]
+
+        # Generate presigned URL with custom folder
+        result = r2_service.generate_presigned_upload_url(
+            filename=request.filename,
+            content_type=request.content_type,
+            folder=folder,  # Store in organized folders
+        )
+
+        logger.info(
+            f"✅ Generated presigned URL for {request.image_type}: {result['file_url']}"
+        )
+
+        # Return presigned URL
+        return {
+            "success": True,
+            "presigned_url": result["presigned_url"],
+            "file_url": result["file_url"],
+            "image_type": request.image_type,
+            "file_size_mb": request.file_size_mb,
+            "expires_in": result["expires_in"],
+        }
+
+    except ValueError as e:
+        logger.error(f"❌ R2 configuration error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail="Image upload service not configured properly",
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to generate presigned URL: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate upload URL: {str(e)}",
         )

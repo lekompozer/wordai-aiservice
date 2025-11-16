@@ -301,3 +301,48 @@ class ChapterFromDocumentRequest(BaseModel):
     parent_id: Optional[str] = Field(
         None, description="Parent chapter ID for nested structure"
     )
+
+
+# ============ IMAGE UPLOAD MODELS (NEW) ============
+
+
+class BookImageUploadRequest(BaseModel):
+    """Request model for generating presigned URL for book image upload"""
+
+    filename: str = Field(
+        ..., min_length=1, max_length=255, description="Image filename"
+    )
+    content_type: str = Field(
+        "image/jpeg",
+        description="MIME type (image/jpeg, image/png, image/webp, image/svg+xml)",
+    )
+    image_type: str = Field(
+        ...,
+        description="Type of image: 'cover' (cover_image_url), 'logo' (logo_url), 'favicon' (favicon_url)",
+    )
+    file_size_mb: float = Field(
+        ..., gt=0, le=10, description="File size in MB (max 10MB for images)"
+    )
+
+    @validator("content_type")
+    def validate_content_type(cls, v):
+        allowed_types = [
+            "image/jpeg",
+            "image/jpg",
+            "image/png",
+            "image/webp",
+            "image/svg+xml",
+            "image/gif",
+        ]
+        if v not in allowed_types:
+            raise ValueError(
+                f"Invalid content type. Allowed: {', '.join(allowed_types)}"
+            )
+        return v
+
+    @validator("image_type")
+    def validate_image_type(cls, v):
+        allowed_types = ["cover", "logo", "favicon"]
+        if v not in allowed_types:
+            raise ValueError(f"Invalid image type. Allowed: {', '.join(allowed_types)}")
+        return v
