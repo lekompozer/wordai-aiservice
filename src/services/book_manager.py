@@ -91,7 +91,7 @@ class UserBookManager:
         Raises:
             DuplicateKeyError: If slug already exists for user
         """
-        book_id = f"guide_{uuid.uuid4().hex[:12]}"
+        book_id = f"book_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
 
         # Convert Pydantic model to dict if needed
@@ -233,7 +233,7 @@ class UserBookManager:
             .limit(limit)
         )
 
-        logger.info(f"📊 Found {count} books for user {user_id}")
+        logger.info(f"📊 Found {len(guides)} books for user {user_id}")
         return guides
 
     def count_user_books(
