@@ -1679,22 +1679,23 @@ async def publish_book_to_community(
 
     Publishes a book to the public community marketplace with author.
 
-    **Author Flow:**
-    1. If `author_id` provided: Use existing author (must be owned by user)
-    2. If `author_name` provided: Create new author with auto-generated @ID
-    3. Must provide either `author_id` OR `author_name`
+    **Author Flow (Simplified):**
+    1. Provide `author_id` (e.g., @michael)
+    2. If author exists: Use existing author (must be owned by user)
+    3. If author NOT exists: Auto-create new author with that ID
+    4. If `author_name` not provided: Auto-generate from user info or author_id
 
     **Requirements:**
     - User must be the book owner
-    - Either author_id (existing) or author_name (create new) required
+    - author_id is required (will auto-create if doesn't exist)
     - Sets visibility (public or point_based) and access_config
     - Sets community_config.is_public = true
 
     **Request Body:**
-    - author_id: Existing author ID (e.g., @john_doe) OR
-    - author_name: Name for new author (will auto-generate @ID)
-    - author_bio: Optional bio for new author
-    - author_avatar_url: Optional avatar for new author
+    - author_id: Author @username (e.g., @john_doe) [REQUIRED]
+    - author_name: Display name (optional - auto-generated if not provided)
+    - author_bio: Optional bio
+    - author_avatar_url: Optional avatar
     - visibility: "public" (free) or "point_based" (paid)
     - access_config: Required if visibility=point_based
     - category, tags, difficulty_level, short_description
@@ -1710,51 +1711,40 @@ async def publish_book_to_community(
                 detail="Book not found or you don't have access",
             )
 
-        # Handle Author: Use existing or create new
-        author_id = None
+        # Handle Author: Use existing or auto-create new
+        author_id = publish_data.author_id
 
-        if publish_data.author_id:
-            # Use existing author
-            existing_author = author_manager.get_author(publish_data.author_id)
-            if not existing_author:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail=f"Author not found: {publish_data.author_id}",
-                )
+        # Check if author already exists
+        existing_author = author_manager.get_author(author_id)
 
-            # Verify ownership
+        if existing_author:
+            # Use existing author - verify ownership
             if existing_author["user_id"] != user_id:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="You don't own this author profile",
                 )
-
-            author_id = publish_data.author_id
             logger.info(f"📚 Using existing author: {author_id}")
 
-        elif publish_data.author_name:
-            # Create new author with user-provided @ID
-            # User must provide author_id when creating new author
-            if not publish_data.author_id:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="author_id is required when creating new author. Please provide a unique @username (e.g., @john_doe)",
-                )
+        else:
+            # Auto-create new author
+            # Use provided author_name or fallback to user info
+            author_name = publish_data.author_name
+            if not author_name:
+                # Fallback: use user's display name or extract from email
+                author_name = user.get("name") or user.get("email", "").split("@")[0]
+                # Clean up the @username to make a nice display name
+                if author_id.startswith("@"):
+                    fallback_name = (
+                        author_id[1:].replace("_", " ").replace("-", " ").title()
+                    )
+                    author_name = fallback_name
 
-            # Check if author_id already exists
-            existing = author_manager.get_author(publish_data.author_id)
-            if existing:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Author ID already taken: {publish_data.author_id}. Please choose a different @username.",
-                )
-
-            # Create author with user-provided ID
             author_data = {
-                "author_id": publish_data.author_id,  # USER-PROVIDED
-                "name": publish_data.author_name,
-                "bio": publish_data.author_bio,
-                "avatar_url": publish_data.author_avatar_url,
+                "author_id": author_id,
+                "name": author_name,
+                "bio": publish_data.author_bio or "",
+                "avatar_url": publish_data.author_avatar_url or "",
                 "social_links": {},
             }
 
@@ -1765,20 +1755,13 @@ async def publish_book_to_community(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="Failed to create author",
                     )
-                author_id = publish_data.author_id
-                logger.info(f"✅ Created new author: {author_id}")
+                logger.info(f"✅ Auto-created new author: {author_id} ({author_name})")
             except Exception as e:
                 logger.error(f"❌ Failed to create author: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Failed to create author: {str(e)}",
                 )
-
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Either author_id (existing) or both author_id + author_name (new) must be provided",
-            )
 
         # Publish to community with author
         updated_book = book_manager.publish_to_community(
