@@ -364,7 +364,11 @@ class UserBookManager:
     # ============ COMMUNITY BOOKS METHODS (NEW - Phase 6) ============
 
     def publish_to_community(
-        self, book_id: str, user_id: str, publish_data: Dict[str, Any]
+        self,
+        book_id: str,
+        user_id: str,
+        publish_data: Dict[str, Any],
+        author_id: str,  # Resolved author_id (from existing or newly created)
     ) -> Optional[Dict[str, Any]]:
         """
         Publish book to community marketplace
@@ -373,6 +377,7 @@ class UserBookManager:
             book_id: Book UUID
             user_id: Owner's Firebase UID
             publish_data: CommunityPublishRequest data
+            author_id: Author ID to publish under (e.g., @john_doe)
 
         Returns:
             Updated book document or None
@@ -381,7 +386,9 @@ class UserBookManager:
 
         update_data = {
             "$set": {
-                # Set visibility & access config (NEW - core feature)
+                # Set author
+                "author_id": author_id,
+                # Set visibility & access config
                 "visibility": publish_data["visibility"],
                 "access_config": publish_data.get("access_config"),
                 # Community marketplace metadata
@@ -409,7 +416,7 @@ class UserBookManager:
 
         if updated_book:
             logger.info(
-                f"✅ Published book to community: {book_id} (category: {publish_data['category']})"
+                f"✅ Published book to community: {book_id} by author {author_id} (category: {publish_data['category']})"
             )
         else:
             logger.warning(f"⚠️ Book not found or not owned by user: {book_id}")

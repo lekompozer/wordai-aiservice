@@ -176,6 +176,9 @@ from src.api.pdf_document_routes import router as pdf_document_router
 # ✅ ADDED: Online Books API - GitBook-style documentation system (renamed from User Guides)
 from src.api.book_routes import router as book_router
 
+# ✅ ADDED: Author API - Community books author management
+from src.api.author_routes import router as author_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -722,6 +725,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_router,
         tags=["Online Books", "Documentation System"],
+    )
+
+    # ✅ NEW: Author API - Community books author management
+    app.include_router(
+        author_router,
+        tags=["Authors", "Community Books"],
     )
 
     # ✅ ADDED: Internal CORS management for chat-plugin

@@ -60,6 +60,7 @@ from src.models.public_book_models import (
 from src.services.book_manager import UserBookManager
 from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.book_permission_manager import GuideBookBookPermissionManager
+from src.services.author_manager import AuthorManager
 
 # Database
 from src.database.db_manager import DBManager
@@ -76,6 +77,7 @@ db = db_manager.db
 guide_manager = UserBookManager(db)
 chapter_manager = GuideBookBookChapterManager(db)
 permission_manager = GuideBookBookPermissionManager(db)
+author_manager = AuthorManager(db)
 
 
 # ==============================================================================
@@ -1537,19 +1539,27 @@ async def publish_book_to_community(
     """
     **Phase 6: Publish book to community marketplace**
 
-    Publishes a book to the public community marketplace with metadata.
+    Publishes a book to the public community marketplace with author.
 
-    Requirements:
+    **Author Flow:**
+    1. If `author_id` provided: Use existing author (must be owned by user)
+    2. If `author_name` provided: Create new author with auto-generated @ID
+    3. Must provide either `author_id` OR `author_name`
+
+    **Requirements:**
     - User must be the book owner
-    - Book must be published (not draft)
+    - Either author_id (existing) or author_name (create new) required
+    - Sets visibility (public or point_based) and access_config
     - Sets community_config.is_public = true
 
-    Request Body:
-    - category: Category (e.g., "Programming", "Business")
-    - tags: List of tags for discovery
-    - difficulty_level: "beginner", "intermediate", "advanced"
-    - short_description: Description for marketplace listing
-    - cover_image_url: Optional cover image
+    **Request Body:**
+    - author_id: Existing author ID (e.g., @john_doe) OR
+    - author_name: Name for new author (will auto-generate @ID)
+    - author_bio: Optional bio for new author
+    - author_avatar_url: Optional avatar for new author
+    - visibility: "public" (free) or "point_based" (paid)
+    - access_config: Required if visibility=point_based
+    - category, tags, difficulty_level, short_description
     """
     user_id = user["uid"]
 
@@ -1562,9 +1572,74 @@ async def publish_book_to_community(
                 detail="Book not found or you don't have access",
             )
 
-        # Publish to community
+        # Handle Author: Use existing or create new
+        author_id = None
+
+        if publish_data.author_id:
+            # Use existing author
+            existing_author = author_manager.get_author(publish_data.author_id)
+            if not existing_author:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Author not found: {publish_data.author_id}",
+                )
+
+            # Verify ownership
+            if existing_author["user_id"] != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't own this author profile",
+                )
+
+            author_id = publish_data.author_id
+            logger.info(f"📚 Using existing author: {author_id}")
+
+        elif publish_data.author_name:
+            # Create new author with auto-generated ID
+            import uuid
+            import re
+
+            # Generate @ID from name
+            base_id = re.sub(r"[^a-zA-Z0-9_]", "_", publish_data.author_name.lower())
+            base_id = re.sub(r"_+", "_", base_id).strip("_")
+            author_id = f"@{base_id}_{uuid.uuid4().hex[:6]}"
+
+            # Create author
+            author_data = {
+                "author_id": author_id,
+                "name": publish_data.author_name,
+                "bio": publish_data.author_bio,
+                "avatar_url": publish_data.author_avatar_url,
+                "social_links": {},
+            }
+
+            try:
+                created_author = author_manager.create_author(user_id, author_data)
+                if not created_author:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Failed to create author",
+                    )
+                logger.info(f"✅ Created new author: {author_id}")
+            except Exception as e:
+                logger.error(f"❌ Failed to create author: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Failed to create author: {str(e)}",
+                )
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Either author_id or author_name must be provided",
+            )
+
+        # Publish to community with author
         updated_book = guide_manager.publish_to_community(
-            book_id=book_id, user_id=user_id, publish_data=publish_data.dict()
+            book_id=book_id,
+            user_id=user_id,
+            publish_data=publish_data.dict(),
+            author_id=author_id,
         )
 
         if not updated_book:
@@ -1573,7 +1648,12 @@ async def publish_book_to_community(
                 detail="Failed to publish book to community",
             )
 
-        logger.info(f"✅ User {user_id} published book to community: {book_id}")
+        # Add book to author's published books list
+        author_manager.add_book_to_author(author_id, book_id)
+
+        logger.info(
+            f"✅ User {user_id} published book {book_id} to community by author {author_id}"
+        )
         return BookResponse(**updated_book)
 
     except HTTPException:
@@ -1615,6 +1695,10 @@ async def unpublish_book_from_community(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Book not found or you don't have access",
             )
+
+        # Remove book from author's list (if has author)
+        if book.get("author_id"):
+            author_manager.remove_book_from_author(book["author_id"], book_id)
 
         # Unpublish from community
         updated_book = guide_manager.unpublish_from_community(
