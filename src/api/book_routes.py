@@ -237,7 +237,9 @@ async def list_guides(
         for book in guides_cursor:
             guides.append(
                 {
-                    "book_id": str(book["_id"]),
+                    "book_id": book.get(
+                        "book_id"
+                    ),  # Use actual book_id field, not MongoDB _id
                     "title": book.get("title", ""),
                     "slug": book.get("slug", ""),
                     "description": book.get("description"),
