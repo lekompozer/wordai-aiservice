@@ -1,5 +1,5 @@
 """
-User Guide Manager Service
+User Book Manager Service
 Phase 1: Database operations for Online Books
 """
 
@@ -14,7 +14,7 @@ logger = logging.getLogger("chatbot")
 
 
 class UserBookManager:
-    """Quản lý Online Books trong MongoDB"""
+    """Manage Online Books trong MongoDB"""
 
     def __init__(self, db):
         """
@@ -24,69 +24,69 @@ class UserBookManager:
             db: PyMongo Database object (synchronous)
         """
         self.db = db
-        self.guides_collection = db["online_books"]
+        self.books_collection = db["online_books"]
 
     def create_indexes(self):
         """Tạo indexes cho collection user_guides"""
         try:
             existing_indexes = [
-                idx["name"] for idx in self.guides_collection.list_indexes()
+                idx["name"] for idx in self.books_collection.list_indexes()
             ]
 
             # Primary key - unique identifier
             if "book_id_unique" not in existing_indexes:
-                self.guides_collection.create_index(
+                self.books_collection.create_index(
                     "book_id", unique=True, name="book_id_unique"
                 )
                 logger.info("✅ Created index: book_id_unique")
 
-            # User's guides listing (sorted by update time)
+            # User's books listing (sorted by update time)
             if "user_guides_list" not in existing_indexes:
-                self.guides_collection.create_index(
+                self.books_collection.create_index(
                     [("user_id", 1), ("updated_at", -1)], name="user_guides_list"
                 )
                 logger.info("✅ Created index: user_guides_list")
 
             # Unique slug per user
             if "user_slug_unique" not in existing_indexes:
-                self.guides_collection.create_index(
+                self.books_collection.create_index(
                     [("user_id", 1), ("slug", 1)], unique=True, name="user_slug_unique"
                 )
                 logger.info("✅ Created index: user_slug_unique")
 
-            # Public guide lookup by slug
+            # Public book lookup by slug
             if "public_guide_lookup" not in existing_indexes:
-                self.guides_collection.create_index(
+                self.books_collection.create_index(
                     [("slug", 1), ("visibility", 1)], name="public_guide_lookup"
                 )
                 logger.info("✅ Created index: public_guide_lookup")
 
             # Filter by visibility
             if "visibility_filter" not in existing_indexes:
-                self.guides_collection.create_index(
+                self.books_collection.create_index(
                     [("visibility", 1), ("is_published", 1)], name="visibility_filter"
                 )
                 logger.info("✅ Created index: visibility_filter")
 
             logger.info("✅ User Guide indexes verified/created")
         except Exception as e:
-            logger.error(f"❌ Error creating guide indexes: {e}")
+            logger.error(f"❌ Error creating book indexes: {e}")
             raise
 
-    def create_guide(
+    def create_book(
         self,
         user_id: str,
         guide_data,  # BookCreate Pydantic model or individual params
     ) -> Dict[str, Any]:
         """
-        Tạo guide mới
+        Tạo book mới
 
         Args:
             user_id: Firebase UID of owner
             guide_data: BookCreate Pydantic model with all fields
 
         Returns:
-            guide document dict
+            book document dict
 
         Raises:
             DuplicateKeyError: If slug already exists for user
@@ -155,18 +155,18 @@ class UserBookManager:
         }
 
         try:
-            self.guides_collection.insert_one(guide_doc)
-            logger.info(f"✅ Created guide: {book_id} (slug: {data['slug']})")
+            self.books_collection.insert_one(guide_doc)
+            logger.info(f"✅ Created book: {book_id} (slug: {data['slug']})")
             return guide_doc
         except DuplicateKeyError:
             logger.error(f"❌ Slug '{data['slug']}' already exists for user {user_id}")
             raise
 
-    def get_guide(
+    def get_book(
         self, book_id: str, user_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Lấy guide by ID
+        Lấy book by ID
 
         Args:
             book_id: Guide UUID
@@ -179,14 +179,14 @@ class UserBookManager:
         if user_id:
             query["user_id"] = user_id
 
-        guide = self.guides_collection.find_one(query)
-        return guide
+        book = self.books_collection.find_one(query)
+        return book
 
-    def get_guide_by_slug(
+    def get_book_by_slug(
         self, slug: str, user_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
         """
-        Lấy guide by slug
+        Lấy book by slug
 
         Args:
             slug: URL slug
@@ -199,10 +199,10 @@ class UserBookManager:
         if user_id:
             query["user_id"] = user_id
 
-        guide = self.guides_collection.find_one(query)
-        return guide
+        book = self.books_collection.find_one(query)
+        return book
 
-    def list_user_guides(
+    def list_user_books(
         self,
         user_id: str,
         skip: int = 0,
@@ -210,7 +210,7 @@ class UserBookManager:
         visibility: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        List guides của user với pagination
+        List books của user với pagination
 
         Args:
             user_id: Firebase UID
@@ -219,7 +219,7 @@ class UserBookManager:
             visibility: Filter by visibility ("public", "private", "unlisted", or None for all)
 
         Returns:
-            List of guide documents
+            List of book documents
         """
         query = {"user_id": user_id}
         if visibility:
@@ -227,16 +227,16 @@ class UserBookManager:
 
         # Get paginated results (sorted by updated_at desc)
         guides = list(
-            self.guides_collection.find(query)
+            self.books_collection.find(query)
             .sort("updated_at", -1)
             .skip(skip)
             .limit(limit)
         )
 
-        logger.info(f"📊 Found {len(guides)} guides for user {user_id}")
+        logger.info(f"📊 Found {count} books for user {user_id}")
         return guides
 
-    def count_user_guides(
+    def count_user_books(
         self,
         user_id: str,
         visibility: Optional[str] = None,
@@ -245,18 +245,18 @@ class UserBookManager:
         query = {"user_id": user_id}
         if visibility:
             query["visibility"] = visibility
-        return self.guides_collection.count_documents(query)
+        return self.books_collection.count_documents(query)
 
-    def update_guide(self, book_id: str, update_data) -> Optional[Dict[str, Any]]:
+    def update_book(self, book_id: str, update_data) -> Optional[Dict[str, Any]]:
         """
-        Update guide metadata
+        Update book metadata
 
         Args:
             book_id: Guide UUID
             update_data: BookUpdate Pydantic model or dict
 
         Returns:
-            Updated guide document or None if not found
+            Updated book document or None if not found
         """
         # Convert Pydantic model to dict if needed
         if hasattr(update_data, "model_dump"):
@@ -269,22 +269,22 @@ class UserBookManager:
         # Add updated_at
         updates["updated_at"] = datetime.utcnow()
 
-        result = self.guides_collection.find_one_and_update(
+        result = self.books_collection.find_one_and_update(
             {"book_id": book_id},
             {"$set": updates},
             return_document=ReturnDocument.AFTER,
         )
 
         if result:
-            logger.info(f"✅ Updated guide: {book_id}")
+            logger.info(f"✅ Updated book: {book_id}")
             return result
         else:
-            logger.warning(f"⚠️ Guide not found: {book_id}")
+            logger.warning(f"⚠️ Book not found: {book_id}")
             return None
 
-    def delete_guide(self, book_id: str) -> bool:
+    def delete_book(self, book_id: str) -> bool:
         """
-        Delete guide
+        Delete book
 
         Args:
             book_id: Guide UUID
@@ -292,13 +292,13 @@ class UserBookManager:
         Returns:
             True if deleted, False if not found
         """
-        result = self.guides_collection.delete_one({"book_id": book_id})
+        result = self.books_collection.delete_one({"book_id": book_id})
 
         if result.deleted_count > 0:
-            logger.info(f"🗑️ Deleted guide: {book_id}")
+            logger.info(f"🗑️ Deleted book: {book_id}")
             return True
         else:
-            logger.warning(f"⚠️ Guide not found: {book_id}")
+            logger.warning(f"⚠️ Book not found: {book_id}")
             return False
 
     def increment_view_count(self, book_id: str, is_unique: bool = False) -> bool:
@@ -316,7 +316,7 @@ class UserBookManager:
         if is_unique:
             updates["$inc"]["unique_visitors"] = 1
 
-        result = self.guides_collection.update_one({"book_id": book_id}, updates)
+        result = self.books_collection.update_one({"book_id": book_id}, updates)
 
         return result.modified_count > 0
 
@@ -329,7 +329,7 @@ class UserBookManager:
         Args:
             slug: Slug to check
             user_id: User's Firebase UID
-            exclude_book_id: Optional guide ID to exclude (for updates)
+            exclude_book_id: Optional book ID to exclude (for updates)
 
         Returns:
             True if exists, False otherwise
@@ -338,11 +338,11 @@ class UserBookManager:
         if exclude_book_id:
             query["book_id"] = {"$ne": exclude_book_id}
 
-        return self.guides_collection.count_documents(query) > 0
+        return self.books_collection.count_documents(query) > 0
 
-    def get_guide_by_domain(self, domain: str) -> Optional[Dict[str, Any]]:
+    def get_book_by_domain(self, domain: str) -> Optional[Dict[str, Any]]:
         """
-        Get guide by custom domain (Phase 5 - for Next.js middleware)
+        Get book by custom domain (Phase 5 - for Next.js middleware)
 
         Args:
             domain: Custom domain (e.g., "python.example.com")
@@ -350,16 +350,16 @@ class UserBookManager:
         Returns:
             Guide document or None if not found
         """
-        guide = self.guides_collection.find_one(
+        book = self.books_collection.find_one(
             {"custom_domain": domain}, {"_id": 0}  # Exclude MongoDB ObjectId
         )
 
-        if guide:
-            logger.info(f"🌐 Found guide for domain: {domain} → {guide['slug']}")
+        if book:
+            logger.info(f"🌐 Found book for domain: {domain} → {book['slug']}")
         else:
-            logger.warning(f"⚠️ No guide found for domain: {domain}")
+            logger.warning(f"⚠️ No book found for domain: {domain}")
 
-        return guide
+        return book
 
     # ============ COMMUNITY BOOKS METHODS (NEW - Phase 6) ============
 
@@ -408,7 +408,7 @@ class UserBookManager:
                 "cover_image_url"
             ]
 
-        updated_book = self.guides_collection.find_one_and_update(
+        updated_book = self.books_collection.find_one_and_update(
             {"book_id": book_id, "user_id": user_id},
             update_data,
             return_document=ReturnDocument.AFTER,
@@ -436,7 +436,7 @@ class UserBookManager:
         Returns:
             Updated book document or None
         """
-        updated_book = self.guides_collection.find_one_and_update(
+        updated_book = self.books_collection.find_one_and_update(
             {"book_id": book_id, "user_id": user_id},
             {
                 "$set": {
@@ -505,11 +505,11 @@ class UserBookManager:
             sort_field = [("community_config.published_at", -1)]
 
         # Get total count
-        total = self.guides_collection.count_documents(query)
+        total = self.books_collection.count_documents(query)
 
         # Get books
         books = list(
-            self.guides_collection.find(query, {"_id": 0})
+            self.books_collection.find(query, {"_id": 0})
             .sort(sort_field)
             .skip(skip)
             .limit(limit)

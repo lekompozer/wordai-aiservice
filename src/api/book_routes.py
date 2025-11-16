@@ -76,7 +76,7 @@ db_manager = DBManager()
 db = db_manager.db
 
 # Initialize managers with DB
-guide_manager = UserBookManager(db)
+book_manager = UserBookManager(db)
 chapter_manager = GuideBookBookChapterManager(db)
 permission_manager = GuideBookBookPermissionManager(db)
 author_manager = AuthorManager(db)
@@ -88,7 +88,7 @@ author_manager = AuthorManager(db)
 
 
 @router.post("", response_model=BookResponse, status_code=status.HTTP_201_CREATED)
-async def create_guide(
+async def create_book(
     guide_data: BookCreate, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
@@ -116,27 +116,27 @@ async def create_guide(
         user_id = current_user["uid"]
 
         # Check slug uniqueness
-        if guide_manager.slug_exists(user_id, guide_data.slug):
+        if book_manager.slug_exists(user_id, guide_data.slug):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Slug '{guide_data.slug}' already exists for this user",
             )
 
-        # Create guide
-        guide = guide_manager.create_guide(user_id, guide_data)
+        # Create book
+        book = book_manager.create_book(user_id, guide_data)
 
         logger.info(
-            f"✅ User {user_id} created guide: {guide['book_id']} ({guide_data.title})"
+            f"✅ User {user_id} created book: {book['book_id']} ({guide_data.title})"
         )
-        return guide
+        return book
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to create guide: {e}", exc_info=True)
+        logger.error(f"❌ Failed to create book: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create guide",
+            detail="Failed to create book",
         )
 
 
@@ -234,21 +234,21 @@ async def list_guides(
         )
 
         guides = []
-        for guide in guides_cursor:
+        for book in guides_cursor:
             guides.append(
                 {
-                    "book_id": str(guide["_id"]),
-                    "title": guide.get("title", ""),
-                    "slug": guide.get("slug", ""),
-                    "description": guide.get("description"),
-                    "visibility": guide.get("visibility", "private"),
-                    "is_published": guide.get("community_config", {}).get(
+                    "book_id": str(book["_id"]),
+                    "title": book.get("title", ""),
+                    "slug": book.get("slug", ""),
+                    "description": book.get("description"),
+                    "visibility": book.get("visibility", "private"),
+                    "is_published": book.get("community_config", {}).get(
                         "is_public", False
                     ),
-                    "chapter_count": guide.get("chapter_count", 0),
-                    "view_count": guide.get("view_count", 0),
-                    "updated_at": guide.get("updated_at"),
-                    "last_published_at": guide.get("community_config", {}).get(
+                    "chapter_count": book.get("chapter_count", 0),
+                    "view_count": book.get("view_count", 0),
+                    "updated_at": book.get("updated_at"),
+                    "last_published_at": book.get("community_config", {}).get(
                         "published_at"
                     ),
                 }
@@ -269,41 +269,41 @@ async def list_guides(
         }
 
     except Exception as e:
-        logger.error(f"❌ Failed to list guides: {e}", exc_info=True)
+        logger.error(f"❌ Failed to list books: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list guides",
+            detail="Failed to list books",
         )
 
 
 @router.get("/{book_id}", response_model=BookResponse)
-async def get_guide(
+async def get_book(
     book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Get detailed information about a specific guide
+    Get detailed information about a specific book
 
     **Authentication:** Required
 
     **Returns:**
     - 200: Guide details
-    - 403: User doesn't have access to this guide
-    - 404: Guide not found
+    - 403: User doesn't have access to this book
+    - 404: Book not found
     """
     try:
         user_id = current_user["uid"]
 
-        # Get guide
-        guide = guide_manager.get_guide(book_id)
+        # Get book
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         # Check access: owner OR has permission
-        is_owner = guide["user_id"] == user_id
+        is_owner = book["user_id"] == user_id
 
         if not is_owner:
             # Check if user has permission
@@ -314,30 +314,30 @@ async def get_guide(
             if not has_permission:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You don't have access to this guide",
+                    detail="You don't have access to this book",
                 )
 
-        logger.info(f"📖 User {user_id} accessed guide: {book_id}")
-        return guide
+        logger.info(f"📖 User {user_id} accessed book: {book_id}")
+        return book
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get guide: {e}", exc_info=True)
+        logger.error(f"❌ Failed to get book: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get guide",
+            detail="Failed to get book",
         )
 
 
 @router.patch("/{book_id}", response_model=BookResponse)
-async def update_guide(
+async def update_book(
     book_id: str,
     guide_data: BookUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Update guide metadata (partial update supported)
+    Update book metadata (partial update supported)
 
     **Authentication:** Required (Owner only)
 
@@ -346,95 +346,95 @@ async def update_guide(
 
     **Returns:**
     - 200: Guide updated successfully
-    - 403: User is not the guide owner
-    - 404: Guide not found
+    - 403: User is not the book owner
+    - 404: Book not found
     - 409: Slug already exists
     """
     try:
         user_id = current_user["uid"]
 
-        # Get guide to verify ownership
-        guide = guide_manager.get_guide(book_id)
+        # Get book to verify ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         # Check ownership
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can update guide",
+                detail="Only book owner can update book",
             )
 
         # Check slug uniqueness if slug is being changed
-        if guide_data.slug and guide_data.slug != guide["slug"]:
-            if guide_manager.slug_exists(user_id, guide_data.slug):
+        if guide_data.slug and guide_data.slug != book["slug"]:
+            if book_manager.slug_exists(user_id, guide_data.slug):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail=f"Slug '{guide_data.slug}' already exists for this user",
                 )
 
-        # Update guide
-        updated_guide = guide_manager.update_guide(book_id, guide_data)
+        # Update book
+        updated_book = book_manager.update_book(book_id, guide_data)
 
-        if not updated_guide:
+        if not updated_book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        logger.info(f"✏️ User {user_id} updated guide: {book_id}")
-        return updated_guide
+        logger.info(f"✏️ User {user_id} updated book: {book_id}")
+        return updated_book
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to update guide: {e}", exc_info=True)
+        logger.error(f"❌ Failed to update book: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update guide",
+            detail="Failed to update book",
         )
 
 
 @router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_guide(
+async def delete_book(
     book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
-    Delete guide and all associated chapters and permissions
+    Delete book and all associated chapters and permissions
 
     **Authentication:** Required (Owner only)
 
     **Cascade Deletion:**
     1. Delete all chapters in guide_chapters collection
     2. Delete all permissions in guide_permissions collection
-    3. Delete guide from user_guides collection
+    3. Delete book from user_guides collection
 
     **Returns:**
     - 204: Guide deleted successfully
-    - 403: User is not the guide owner
-    - 404: Guide not found
+    - 403: User is not the book owner
+    - 404: Book not found
     """
     try:
         user_id = current_user["uid"]
 
-        # Get guide to verify ownership
-        guide = guide_manager.get_guide(book_id)
+        # Get book to verify ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         # Check ownership
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can delete guide",
+                detail="Only book owner can delete book",
             )
 
         # Delete chapters
@@ -443,17 +443,17 @@ async def delete_guide(
         # Delete permissions
         deleted_permissions = permission_manager.delete_guide_permissions(book_id)
 
-        # Delete guide
-        deleted = guide_manager.delete_guide(book_id)
+        # Delete book
+        deleted = book_manager.delete_book(book_id)
 
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         logger.info(
-            f"🗑️ User {user_id} deleted guide: {book_id} "
+            f"🗑️ User {user_id} deleted book: {book_id} "
             f"(chapters: {deleted_chapters}, permissions: {deleted_permissions})"
         )
         return None
@@ -461,10 +461,10 @@ async def delete_guide(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to delete guide: {e}", exc_info=True)
+        logger.error(f"❌ Failed to delete book: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete guide",
+            detail="Failed to delete book",
         )
 
 
@@ -484,7 +484,7 @@ async def create_chapter(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Create a new chapter in a guide
+    Create a new chapter in a book
 
     **Authentication:** Required (Owner only)
 
@@ -497,41 +497,41 @@ async def create_chapter(
     - is_published: Publish status (default: true)
 
     **Validation:**
-    - Slug must be unique within guide
-    - Parent chapter must exist in same guide (if provided)
+    - Slug must be unique within book
+    - Parent chapter must exist in same book (if provided)
     - Max depth: 3 levels (0, 1, 2)
     - Document must exist
 
     **Returns:**
     - 201: Chapter created successfully
     - 400: Max depth exceeded or validation error
-    - 403: User is not the guide owner
+    - 403: User is not the book owner
     - 404: Guide or parent chapter not found
-    - 409: Slug already exists in guide
+    - 409: Slug already exists in book
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can create chapters",
+                detail="Only book owner can create chapters",
             )
 
-        # Check slug uniqueness within guide
+        # Check slug uniqueness within book
         if chapter_manager.slug_exists(book_id, chapter_data.slug):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"Slug '{chapter_data.slug}' already exists in this guide",
+                detail=f"Slug '{chapter_data.slug}' already exists in this book",
             )
 
         # Verify parent exists if provided
@@ -544,18 +544,18 @@ async def create_chapter(
                     detail="Parent chapter not found",
                 )
 
-            # Verify parent belongs to same guide
+            # Verify parent belongs to same book
             if parent["book_id"] != book_id:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Parent chapter must belong to the same guide",
+                    detail="Parent chapter must belong to the same book",
                 )
 
         # Create chapter (depth is auto-calculated)
         chapter = chapter_manager.create_chapter(book_id, chapter_data)
 
         logger.info(
-            f"✅ User {user_id} created chapter in guide {book_id}: "
+            f"✅ User {user_id} created chapter in book {book_id}: "
             f"{chapter['chapter_id']} ({chapter_data.title})"
         )
         return chapter
@@ -579,13 +579,13 @@ async def get_chapter_tree(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Get hierarchical tree structure of all chapters in a guide
+    Get hierarchical tree structure of all chapters in a book
 
     **Authentication:** Required
 
     **Query Parameters:**
     - include_unpublished: Include unpublished chapters (default: false)
-      * Always true for guide owner
+      * Always true for book owner
       * Ignored for non-owners
 
     **Tree Structure:**
@@ -595,23 +595,23 @@ async def get_chapter_tree(
 
     **Returns:**
     - 200: Chapter tree structure
-    - 403: User doesn't have access to guide
-    - 404: Guide not found
+    - 403: User doesn't have access to book
+    - 404: Book not found
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide access
-        guide = guide_manager.get_guide(book_id)
+        # Verify book access
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         # Check access
-        is_owner = guide["user_id"] == user_id
+        is_owner = book["user_id"] == user_id
 
         if not is_owner:
             has_permission = permission_manager.check_permission(
@@ -621,7 +621,7 @@ async def get_chapter_tree(
             if not has_permission:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You don't have access to this guide",
+                    detail="You don't have access to this book",
                 )
 
         # Owner always sees unpublished chapters
@@ -636,7 +636,7 @@ async def get_chapter_tree(
         total = chapter_manager.count_chapters(book_id)
 
         logger.info(
-            f"📄 User {user_id} retrieved chapter tree for guide {book_id}: {total} chapters"
+            f"📄 User {user_id} retrieved chapter tree for book {book_id}: {total} chapters"
         )
 
         return {
@@ -676,32 +676,32 @@ async def update_chapter(
 
     **Validation:**
     - Cannot move chapter to its own descendant (circular reference)
-    - Slug must be unique within guide (if changed)
+    - Slug must be unique within book (if changed)
     - Max depth validation after parent change
 
     **Returns:**
     - 200: Chapter updated successfully
     - 400: Circular reference or max depth exceeded
-    - 403: User is not the guide owner
+    - 403: User is not the book owner
     - 404: Chapter not found
-    - 409: Slug already exists in guide
+    - 409: Slug already exists in book
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can update chapters",
+                detail="Only book owner can update chapters",
             )
 
         # Get existing chapter
@@ -713,11 +713,11 @@ async def update_chapter(
                 detail="Chapter not found",
             )
 
-        # Verify chapter belongs to guide
+        # Verify chapter belongs to book
         if chapter["book_id"] != book_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Chapter does not belong to this guide",
+                detail="Chapter does not belong to this book",
             )
 
         # Check slug uniqueness if changed
@@ -725,7 +725,7 @@ async def update_chapter(
             if chapter_manager.slug_exists(book_id, chapter_data.slug):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Slug '{chapter_data.slug}' already exists in this guide",
+                    detail=f"Slug '{chapter_data.slug}' already exists in this book",
                 )
 
         # Update chapter
@@ -769,25 +769,25 @@ async def delete_chapter(
 
     **Returns:**
     - 200: Chapter(s) deleted successfully with count
-    - 403: User is not the guide owner
+    - 403: User is not the book owner
     - 404: Chapter not found
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can delete chapters",
+                detail="Only book owner can delete chapters",
             )
 
         # Get chapter to verify it exists
@@ -799,11 +799,11 @@ async def delete_chapter(
                 detail="Chapter not found",
             )
 
-        # Verify chapter belongs to guide
+        # Verify chapter belongs to book
         if chapter["book_id"] != book_id:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Chapter does not belong to this guide",
+                detail="Chapter does not belong to this book",
             )
 
         # Delete chapter and all children (cascade)
@@ -845,31 +845,31 @@ async def reorder_chapters(
     - updates: Array of chapter updates with new parent_id and order_index
 
     **Validation:**
-    - All chapter_ids must exist in the guide
+    - All chapter_ids must exist in the book
     - Validates max depth for each chapter after reordering
     - Prevents circular references
 
     **Returns:**
     - 200: Chapters reordered successfully
     - 400: Invalid chapter IDs, circular reference, or max depth exceeded
-    - 403: User is not the guide owner
+    - 403: User is not the book owner
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can reorder chapters",
+                detail="Only book owner can reorder chapters",
             )
 
         # Reorder chapters
@@ -878,7 +878,7 @@ async def reorder_chapters(
         )
 
         logger.info(
-            f"🔄 User {user_id} reordered {len(updated_chapters)} chapters in guide {book_id}"
+            f"🔄 User {user_id} reordered {len(updated_chapters)} chapters in book {book_id}"
         )
 
         return {
@@ -912,7 +912,7 @@ async def grant_permission(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Grant user permission to access a private guide
+    Grant user permission to access a private book
 
     **Authentication:** Required (Owner only)
 
@@ -923,26 +923,26 @@ async def grant_permission(
 
     **Returns:**
     - 201: Permission granted successfully
-    - 403: User is not the guide owner
-    - 404: Guide not found
+    - 403: User is not the book owner
+    - 404: Book not found
     - 409: Permission already exists for this user
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can grant permissions",
+                detail="Only book owner can grant permissions",
             )
 
         # Check if permission already exists
@@ -953,7 +953,7 @@ async def grant_permission(
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=f"User {permission_data.user_id} already has permission for this guide",
+                detail=f"User {permission_data.user_id} already has permission for this book",
             )
 
         # Grant permission
@@ -966,7 +966,7 @@ async def grant_permission(
         )
 
         logger.info(
-            f"✅ User {user_id} granted {permission_data.access_level} permission to {permission_data.user_id} for guide {book_id}"
+            f"✅ User {user_id} granted {permission_data.access_level} permission to {permission_data.user_id} for book {book_id}"
         )
 
         return permission
@@ -989,7 +989,7 @@ async def list_permissions(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    List all users with permissions on a guide
+    List all users with permissions on a book
 
     **Authentication:** Required (Owner only)
 
@@ -999,25 +999,25 @@ async def list_permissions(
 
     **Returns:**
     - 200: List of permissions
-    - 403: User is not the guide owner
-    - 404: Guide not found
+    - 403: User is not the book owner
+    - 404: Book not found
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can list permissions",
+                detail="Only book owner can list permissions",
             )
 
         # Get permissions
@@ -1028,7 +1028,7 @@ async def list_permissions(
         total = permission_manager.count_permissions(book_id=book_id)
 
         logger.info(
-            f"📋 User {user_id} listed permissions for guide {book_id}: {len(permissions)} results"
+            f"📋 User {user_id} listed permissions for book {book_id}: {len(permissions)} results"
         )
 
         return {"permissions": permissions, "total": total}
@@ -1050,7 +1050,7 @@ async def revoke_permission(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Revoke user permission to access a guide
+    Revoke user permission to access a book
 
     **Authentication:** Required (Owner only)
 
@@ -1060,25 +1060,25 @@ async def revoke_permission(
 
     **Returns:**
     - 200: Permission revoked successfully
-    - 403: User is not the guide owner
+    - 403: User is not the book owner
     - 404: Guide or permission not found
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can revoke permissions",
+                detail="Only book owner can revoke permissions",
             )
 
         # Check if permission exists
@@ -1104,7 +1104,7 @@ async def revoke_permission(
             )
 
         logger.info(
-            f"❌ User {user_id} revoked permission from {permission_user_id} for guide {book_id}"
+            f"❌ User {user_id} revoked permission from {permission_user_id} for book {book_id}"
         )
 
         return {
@@ -1137,7 +1137,7 @@ async def invite_user(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Invite user by email to access a guide (creates permission + sends email)
+    Invite user by email to access a book (creates permission + sends email)
 
     **Authentication:** Required (Owner only)
 
@@ -1149,8 +1149,8 @@ async def invite_user(
 
     **Returns:**
     - 201: Invitation sent successfully
-    - 403: User is not the guide owner
-    - 404: Guide not found
+    - 403: User is not the book owner
+    - 404: Book not found
     - 400: Invalid email
     - 500: Email sending failed
 
@@ -1159,19 +1159,19 @@ async def invite_user(
     try:
         user_id = current_user["uid"]
 
-        # Verify guide ownership
-        guide = guide_manager.get_guide(book_id)
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
-        if guide["user_id"] != user_id:
+        if book["user_id"] != user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only guide owner can invite users",
+                detail="Only book owner can invite users",
             )
 
         # Create invitation (stores in guide_permissions with invited_email)
@@ -1189,8 +1189,8 @@ async def invite_user(
         # brevo = BrevoService()
         # email_sent = await brevo.send_guide_invitation(
         #     email=invite_data.email,
-        #     guide_title=guide["title"],
-        #     guide_slug=guide["slug"],
+        #     guide_title=book["title"],
+        #     guide_slug=book["slug"],
         #     owner_name=current_user.get("name", "Someone"),
         #     message=invite_data.message
         # )
@@ -1198,7 +1198,7 @@ async def invite_user(
         email_sent = True  # Placeholder - implement Brevo integration later
 
         logger.info(
-            f"📧 User {user_id} invited {invite_data.email} to guide {book_id} (email_sent: {email_sent})"
+            f"📧 User {user_id} invited {invite_data.email} to book {book_id} (email_sent: {email_sent})"
         )
 
         return {
@@ -1233,7 +1233,7 @@ async def invite_user(
 )
 async def get_public_guide(slug: str):
     """
-    Get public guide with all chapters (NO AUTHENTICATION REQUIRED)
+    Get public book with all chapters (NO AUTHENTICATION REQUIRED)
 
     **Use Case:** Homepage/TOC for public guides
 
@@ -1242,36 +1242,36 @@ async def get_public_guide(slug: str):
 
     **Returns:**
     - 200: Guide with chapters, SEO metadata, author info
-    - 404: Guide not found
+    - 404: Book not found
     - 403: Guide is private (not accessible publicly)
 
     **Note:** Only public/unlisted guides are accessible
     """
     try:
-        # Get guide by slug
-        guide = guide_manager.get_guide_by_slug(slug)
+        # Get book by slug
+        book = book_manager.get_book_by_slug(slug)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         # Check visibility - only public/unlisted guides accessible
-        if guide.get("visibility") == "private":
+        if book.get("visibility") == "private":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="This guide is private and cannot be accessed publicly",
+                detail="This book is private and cannot be accessed publicly",
             )
 
-        # Get all chapters for this guide (sorted by order)
-        chapters = chapter_manager.list_chapters(guide["book_id"])
+        # Get all chapters for this book (sorted by order)
+        chapters = chapter_manager.list_chapters(book["book_id"])
 
         # Get author info (mock for now - implement user service later)
         author = PublicAuthorInfo(
-            user_id=guide["user_id"],
-            display_name=guide.get("author_name", "Unknown Author"),
-            avatar_url=guide.get("author_avatar"),
+            user_id=book["user_id"],
+            display_name=book.get("author_name", "Unknown Author"),
+            avatar_url=book.get("author_avatar"),
         )
 
         # Build chapter summaries
@@ -1290,8 +1290,8 @@ async def get_public_guide(slug: str):
         # Stats
         stats = BookStats(
             total_chapters=len(chapters),
-            total_views=guide.get("stats", {}).get("total_views", 0),
-            last_updated=guide["updated_at"],
+            total_views=book.get("stats", {}).get("total_views", 0),
+            last_updated=book["updated_at"],
         )
 
         # SEO metadata
@@ -1299,44 +1299,44 @@ async def get_public_guide(slug: str):
         guide_url = f"{base_url}/g/{slug}"
 
         seo = SEOMetadata(
-            title=f"{guide['title']} - Complete Guide",
-            description=guide.get("description", f"Learn about {guide['title']}"),
-            og_image=guide.get("cover_image_url"),
-            og_url=guide.get("custom_domain", guide_url),
+            title=f"{book['title']} - Complete Guide",
+            description=book.get("description", f"Learn about {book['title']}"),
+            og_image=book.get("cover_image_url"),
+            og_url=book.get("custom_domain", guide_url),
             twitter_card="summary_large_image",
         )
 
         # Response
         response = PublicBookResponse(
-            book_id=guide["book_id"],
-            title=guide["title"],
-            slug=guide["slug"],
-            description=guide.get("description"),
-            visibility=guide["visibility"],
-            custom_domain=guide.get("custom_domain"),
-            is_indexed=guide.get("is_indexed", True),
-            cover_image_url=guide.get("cover_image_url"),
-            logo_url=guide.get("logo_url"),
-            favicon_url=guide.get("favicon_url"),
+            book_id=book["book_id"],
+            title=book["title"],
+            slug=book["slug"],
+            description=book.get("description"),
+            visibility=book["visibility"],
+            custom_domain=book.get("custom_domain"),
+            is_indexed=book.get("is_indexed", True),
+            cover_image_url=book.get("cover_image_url"),
+            logo_url=book.get("logo_url"),
+            favicon_url=book.get("favicon_url"),
             author=author,
             chapters=chapter_summaries,
             stats=stats,
             seo=seo,
-            branding=guide.get("branding"),
-            created_at=guide["created_at"],
-            updated_at=guide["updated_at"],
+            branding=book.get("branding"),
+            created_at=book["created_at"],
+            updated_at=book["updated_at"],
         )
 
-        logger.info(f"📖 Public guide accessed: {slug} ({len(chapters)} chapters)")
+        logger.info(f"📖 Public book accessed: {slug} ({len(chapters)} chapters)")
         return response
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get public guide: {e}", exc_info=True)
+        logger.error(f"❌ Failed to get public book: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get public guide",
+            detail="Failed to get public book",
         )
 
 
@@ -1360,27 +1360,27 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
     - 404: Guide or chapter not found
     - 403: Guide is private
 
-    **Note:** Includes guide info + prev/next navigation + SEO metadata
+    **Note:** Includes book info + prev/next navigation + SEO metadata
     """
     try:
-        # Get guide by slug
-        guide = guide_manager.get_guide_by_slug(guide_slug)
+        # Get book by slug
+        book = book_manager.get_book_by_slug(guide_slug)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         # Check visibility
-        if guide.get("visibility") == "private":
+        if book.get("visibility") == "private":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="This guide is private and cannot be accessed publicly",
+                detail="This book is private and cannot be accessed publicly",
             )
 
         # Get chapter by slug
-        chapter = chapter_manager.get_chapter_by_slug(guide["book_id"], chapter_slug)
+        chapter = chapter_manager.get_chapter_by_slug(book["book_id"], chapter_slug)
 
         if not chapter:
             raise HTTPException(
@@ -1389,7 +1389,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
             )
 
         # Get all chapters for navigation
-        all_chapters = chapter_manager.list_chapters(guide["book_id"])
+        all_chapters = chapter_manager.list_chapters(book["book_id"])
         all_chapters_sorted = sorted(all_chapters, key=lambda x: x["order"])
 
         # Find prev/next chapters
@@ -1432,21 +1432,21 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
 
         # Guide info
         guide_info = PublicGuideInfo(
-            book_id=guide["book_id"],
-            title=guide["title"],
-            slug=guide["slug"],
-            logo_url=guide.get("logo_url"),
-            custom_domain=guide.get("custom_domain"),
+            book_id=book["book_id"],
+            title=book["title"],
+            slug=book["slug"],
+            logo_url=book.get("logo_url"),
+            custom_domain=book.get("custom_domain"),
         )
 
         # SEO metadata
-        base_url = guide.get("custom_domain") or "https://wordai.com"
+        base_url = book.get("custom_domain") or "https://wordai.com"
         chapter_url = f"{base_url}/g/{guide_slug}/{chapter_slug}"
 
         seo = SEOMetadata(
-            title=f"{chapter['title']} - {guide['title']}",
+            title=f"{chapter['title']} - {book['title']}",
             description=chapter.get("description", f"Read {chapter['title']}"),
-            og_image=guide.get("cover_image_url"),
+            og_image=book.get("cover_image_url"),
             og_url=chapter_url,
             twitter_card="summary_large_image",
         )
@@ -1454,7 +1454,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
         # Response
         response = PublicChapterResponse(
             chapter_id=chapter["chapter_id"],
-            book_id=guide["book_id"],
+            book_id=book["book_id"],
             title=chapter["title"],
             slug=chapter["slug"],
             order=chapter["order"],
@@ -1488,7 +1488,7 @@ async def get_public_chapter(guide_slug: str, chapter_slug: str):
 )
 async def track_view(slug: str, view_data: ViewTrackingRequest):
     """
-    Track guide/chapter view analytics (NO AUTHENTICATION REQUIRED)
+    Track book/chapter view analytics (NO AUTHENTICATION REQUIRED)
 
     **Use Case:** Frontend calls this to track views (optional)
 
@@ -1503,32 +1503,32 @@ async def track_view(slug: str, view_data: ViewTrackingRequest):
 
     **Returns:**
     - 200: View tracked successfully
-    - 404: Guide not found
+    - 404: Book not found
 
     **Note:** Rate limited to 10 requests/minute per IP
     """
     try:
-        # Get guide by slug
-        guide = guide_manager.get_guide_by_slug(slug)
+        # Get book by slug
+        book = book_manager.get_book_by_slug(slug)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Guide not found",
+                detail="Book not found",
             )
 
         # TODO: Implement analytics tracking
-        # For now, just increment view count in guide stats
+        # For now, just increment view count in book stats
         # In production, store in separate guide_views collection
 
         # Mock view tracking
-        view_id = f"view_{guide['book_id']}_{view_data.session_id or 'anon'}"
-        guide_views = guide.get("stats", {}).get("total_views", 0) + 1
+        view_id = f"view_{book['book_id']}_{view_data.session_id or 'anon'}"
+        guide_views = book.get("stats", {}).get("total_views", 0) + 1
         chapter_views = None
 
         if view_data.chapter_slug:
             chapter = chapter_manager.get_chapter_by_slug(
-                guide["book_id"], view_data.chapter_slug
+                book["book_id"], view_data.chapter_slug
             )
             if chapter:
                 chapter_views = chapter.get("stats", {}).get("total_views", 0) + 1
@@ -1557,9 +1557,9 @@ async def track_view(slug: str, view_data: ViewTrackingRequest):
     response_model=BookDomainResponse,
     status_code=status.HTTP_200_OK,
 )
-async def get_guide_by_domain(domain: str):
+async def get_book_by_domain(domain: str):
     """
-    Get guide by custom domain (NO AUTHENTICATION REQUIRED)
+    Get book by custom domain (NO AUTHENTICATION REQUIRED)
 
     **Use Case:** Next.js middleware uses this to route custom domain requests
 
@@ -1568,43 +1568,43 @@ async def get_guide_by_domain(domain: str):
 
     **Returns:**
     - 200: Guide info for domain
-    - 404: No guide found for this domain
+    - 404: No book found for this domain
 
     **Example Flow:**
     1. Request comes to python.example.com
     2. Middleware calls /api/v1/guides/by-domain/python.example.com
-    3. Gets guide slug
+    3. Gets book slug
     4. Rewrites to /g/{slug}
     """
     try:
-        # Get guide by custom domain
-        guide = guide_manager.get_guide_by_domain(domain)
+        # Get book by custom domain
+        book = book_manager.get_book_by_domain(domain)
 
-        if not guide:
+        if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"No guide found for domain '{domain}'",
+                detail=f"No book found for domain '{domain}'",
             )
 
         response = BookDomainResponse(
-            book_id=guide["book_id"],
-            slug=guide["slug"],
-            title=guide["title"],
-            custom_domain=guide["custom_domain"],
-            visibility=guide["visibility"],
-            is_active=guide.get("is_active", True),
+            book_id=book["book_id"],
+            slug=book["slug"],
+            title=book["title"],
+            custom_domain=book["custom_domain"],
+            visibility=book["visibility"],
+            is_active=book.get("is_active", True),
         )
 
-        logger.info(f"🌐 Domain lookup: {domain} → {guide['slug']}")
+        logger.info(f"🌐 Domain lookup: {domain} → {book['slug']}")
         return response
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get guide by domain: {e}", exc_info=True)
+        logger.error(f"❌ Failed to get book by domain: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get guide by domain",
+            detail="Failed to get book by domain",
         )
 
 
@@ -1653,7 +1653,7 @@ async def publish_book_to_community(
 
     try:
         # Verify ownership
-        book = guide_manager.get_guide(book_id, user_id)
+        book = book_manager.get_book(book_id, user_id)
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1731,7 +1731,7 @@ async def publish_book_to_community(
             )
 
         # Publish to community with author
-        updated_book = guide_manager.publish_to_community(
+        updated_book = book_manager.publish_to_community(
             book_id=book_id,
             user_id=user_id,
             publish_data=publish_data.dict(),
@@ -1785,7 +1785,7 @@ async def unpublish_book_from_community(
 
     try:
         # Verify ownership
-        book = guide_manager.get_guide(book_id, user_id)
+        book = book_manager.get_book(book_id, user_id)
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1797,7 +1797,7 @@ async def unpublish_book_from_community(
             author_manager.remove_book_from_author(book["author_id"], book_id)
 
         # Unpublish from community
-        updated_book = guide_manager.unpublish_from_community(
+        updated_book = book_manager.unpublish_from_community(
             book_id=book_id, user_id=user_id
         )
 
@@ -1854,7 +1854,7 @@ async def list_community_books(
         tags_list = tags.split(",") if tags else None
 
         # Get community books
-        books, total = guide_manager.list_community_books(
+        books, total = book_manager.list_community_books(
             category=category,
             tags=tags_list,
             difficulty=difficulty,
@@ -1920,7 +1920,7 @@ async def create_chapter_from_document(
 
     try:
         # Verify book ownership
-        book = guide_manager.get_guide(book_id, user_id)
+        book = book_manager.get_book(book_id, user_id)
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1984,7 +1984,7 @@ async def get_chapter_with_content(
 
     try:
         # Verify book access
-        book = guide_manager.get_guide(book_id, user_id)
+        book = book_manager.get_book(book_id, user_id)
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -2194,7 +2194,7 @@ async def delete_book_image(
         logger.info(f"🗑️ User {user_id} deleting {image_type} for book {book_id}")
 
         # Get book and verify ownership
-        book = guide_manager.get_guide(book_id, user_id)
+        book = book_manager.get_book(book_id, user_id)
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -2223,7 +2223,7 @@ async def delete_book_image(
 
         # Update book to remove image URL
         update_data = {field_name: None}
-        updated_book = guide_manager.update_guide(book_id, user_id, update_data)
+        updated_book = book_manager.update_book(book_id, user_id, update_data)
 
         if not updated_book:
             raise HTTPException(
