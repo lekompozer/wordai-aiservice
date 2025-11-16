@@ -329,14 +329,30 @@ GET /books?sort_by=view_count&sort_order=desc - Most viewed first
 **Endpoint**: `DELETE /books/{book_id}`
 **Authentication**: Required
 
+**Query Parameters**:
+- `permanent`: boolean (default: false)
+  - `false`: Move to trash (soft delete, can be restored)
+  - `true`: Permanently delete (cannot be restored)
+
 **Path Parameters**:
 - `book_id`: string (required)
 
-**Response 200**:
+**Response 200 (Soft Delete - permanent=false)**:
 ```json
 {
-  "message": "Book deleted successfully",
-  "book_id": "string"
+  "message": "Book moved to trash",
+  "book_id": "string",
+  "can_restore": true
+}
+```
+
+**Response 200 (Hard Delete - permanent=true)**:
+```json
+{
+  "message": "Book permanently deleted",
+  "book_id": "string",
+  "deleted_chapters": 5,
+  "deleted_permissions": 3
 }
 ```
 
@@ -344,6 +360,103 @@ GET /books?sort_by=view_count&sort_order=desc - Most viewed first
 - `404 Not Found`: Book not found
 - `403 Forbidden`: User is not the owner
 - `401 Unauthorized`: Missing or invalid token
+
+**Notes**:
+- Default behavior (permanent=false) moves book to trash
+- Soft deleted books can be restored from trash
+- Hard delete (permanent=true) cascades to chapters and permissions
+- Use trash endpoints to manage soft-deleted books
+
+---
+
+### 5a. List Trash
+**Endpoint**: `GET /books/trash`
+**Authentication**: Required
+
+**Query Parameters**:
+- `page`: integer (default: 1, min: 1)
+- `limit`: integer (default: 20, min: 1, max: 100)
+- `sort_by`: string (default: "deleted_at")
+
+**Response 200**:
+```json
+{
+  "items": [
+    {
+      "book_id": "string",
+      "title": "string",
+      "slug": "string",
+      "deleted_at": "ISO 8601 datetime",
+      "deleted_by": "string (user_id)",
+      "chapters_count": 5,
+      "can_restore": true
+    }
+  ],
+  "total": 10,
+  "page": 1,
+  "limit": 20,
+  "total_pages": 1
+}
+```
+
+**Errors**:
+- `401 Unauthorized`: Missing or invalid token
+
+**Notes**:
+- Only returns books deleted by current user
+- Books are sorted by deletion time (newest first)
+- Use for displaying trash/recycle bin UI
+
+---
+
+### 5b. Restore Book from Trash
+**Endpoint**: `POST /books/{book_id}/restore`
+**Authentication**: Required
+
+**Path Parameters**:
+- `book_id`: string (required)
+
+**Response 200**:
+```json
+{
+  "message": "Book restored successfully",
+  "book_id": "string"
+}
+```
+
+**Errors**:
+- `404 Not Found`: Book not found in trash
+- `401 Unauthorized`: Missing or invalid token
+
+**Notes**:
+- Restores soft-deleted book back to active state
+- Book will appear in normal book listings again
+- Cannot restore permanently deleted books
+
+---
+
+### 5c. Empty Trash
+**Endpoint**: `DELETE /books/trash/empty`
+**Authentication**: Required
+
+**Response 200**:
+```json
+{
+  "message": "Trash emptied successfully",
+  "deleted_books": 10,
+  "deleted_chapters": 45,
+  "deleted_permissions": 15
+}
+```
+
+**Errors**:
+- `401 Unauthorized`: Missing or invalid token
+
+**Notes**:
+- Permanently deletes ALL books in trash
+- This action cannot be undone
+- Cascades to all chapters and permissions
+- Show confirmation dialog before calling this endpoint
 
 ---
 

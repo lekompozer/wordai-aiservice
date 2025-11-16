@@ -157,6 +157,11 @@ class BookResponse(BaseModel):
     view_count: int = 0
     unique_visitors: int = 0
 
+    # Trash/Soft Delete (NEW)
+    is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[str] = None
+
     # Timestamps
     created_at: datetime
     updated_at: datetime
@@ -302,6 +307,31 @@ class ChapterFromDocumentRequest(BaseModel):
     parent_id: Optional[str] = Field(
         None, description="Parent chapter ID for nested structure"
     )
+
+
+# ============ TRASH MODELS (NEW) ============
+
+
+class TrashBookItem(BaseModel):
+    """Trash book item for listing"""
+
+    book_id: str
+    title: str
+    slug: str
+    deleted_at: datetime
+    deleted_by: str
+    chapters_count: int = 0
+    can_restore: bool = True
+
+
+class TrashListResponse(BaseModel):
+    """Response for trash listing with pagination"""
+
+    items: List[TrashBookItem]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
 
 
 # ============ IMAGE UPLOAD MODELS (NEW) ============

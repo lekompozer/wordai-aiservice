@@ -210,7 +210,7 @@ class UserBookManager:
         visibility: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        List books của user với pagination
+        List books của user với pagination (excludes deleted books)
 
         Args:
             user_id: Firebase UID
@@ -221,7 +221,7 @@ class UserBookManager:
         Returns:
             List of book documents
         """
-        query = {"user_id": user_id}
+        query = {"user_id": user_id, "is_deleted": False}  # Exclude deleted books
         if visibility:
             query["visibility"] = visibility
 
@@ -241,8 +241,8 @@ class UserBookManager:
         user_id: str,
         visibility: Optional[str] = None,
     ) -> int:
-        """Count total guides for user"""
-        query = {"user_id": user_id}
+        """Count total guides for user (excludes deleted books)"""
+        query = {"user_id": user_id, "is_deleted": False}  # Exclude deleted books
         if visibility:
             query["visibility"] = visibility
         return self.books_collection.count_documents(query)
@@ -520,3 +520,172 @@ class UserBookManager:
         )
 
         return books, total
+
+    # ============ TRASH SYSTEM (NEW) ============
+
+    def soft_delete_book(self, book_id: str, user_id: str) -> bool:
+        """
+        Move book to trash (soft delete)
+
+        Args:
+            book_id: Book ID to delete
+            user_id: Owner user ID (for verification)
+
+        Returns:
+            True if deleted, False if not found or not owner
+        """
+        now = datetime.utcnow()
+
+        result = self.books_collection.update_one(
+            {"book_id": book_id, "user_id": user_id},
+            {
+                "$set": {
+                    "is_deleted": True,
+                    "deleted_at": now,
+                    "deleted_by": user_id,
+                    "updated_at": now,
+                }
+            },
+        )
+
+        if result.modified_count > 0:
+            logger.info(f"🗑️ Moved book {book_id} to trash")
+            return True
+        else:
+            logger.warning(
+                f"❌ Failed to move book {book_id} to trash (not found or not owner)"
+            )
+            return False
+
+    def list_trash(
+        self,
+        user_id: str,
+        skip: int = 0,
+        limit: int = 20,
+        sort_by: str = "deleted_at",
+    ) -> tuple[List[Dict[str, Any]], int]:
+        """
+        List books in trash
+
+        Args:
+            user_id: Owner user ID
+            skip: Pagination offset
+            limit: Items per page
+            sort_by: Sort field (default: deleted_at)
+
+        Returns:
+            Tuple of (books list, total count)
+        """
+        query = {"user_id": user_id, "is_deleted": True}
+
+        # Get total count
+        total = self.books_collection.count_documents(query)
+
+        # Get books (sorted descending)
+        sort_field = [(sort_by, -1)]
+        books = list(
+            self.books_collection.find(query, {"_id": 0})
+            .sort(sort_field)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        logger.info(f"🗑️ Found {len(books)} books in trash (total: {total})")
+        return books, total
+
+    def restore_book(self, book_id: str, user_id: str) -> bool:
+        """
+        Restore book from trash
+
+        Args:
+            book_id: Book ID to restore
+            user_id: Owner user ID (for verification)
+
+        Returns:
+            True if restored, False if not found or not in trash
+        """
+        now = datetime.utcnow()
+
+        result = self.books_collection.update_one(
+            {"book_id": book_id, "user_id": user_id, "is_deleted": True},
+            {
+                "$set": {"is_deleted": False, "updated_at": now},
+                "$unset": {"deleted_at": "", "deleted_by": ""},
+            },
+        )
+
+        if result.modified_count > 0:
+            logger.info(f"♻️ Restored book {book_id} from trash")
+            return True
+        else:
+            logger.warning(
+                f"❌ Failed to restore book {book_id} (not found or not in trash)"
+            )
+            return False
+
+    def permanent_delete_book(self, book_id: str, user_id: str) -> bool:
+        """
+        Permanently delete book (hard delete)
+
+        Args:
+            book_id: Book ID to delete
+            user_id: Owner user ID (for verification)
+
+        Returns:
+            True if deleted, False if not found
+        """
+        result = self.books_collection.delete_one(
+            {"book_id": book_id, "user_id": user_id}
+        )
+
+        if result.deleted_count > 0:
+            logger.info(f"💀 Permanently deleted book {book_id}")
+            return True
+        else:
+            logger.warning(f"❌ Failed to delete book {book_id} (not found)")
+            return False
+
+    def empty_trash(self, user_id: str) -> Dict[str, int]:
+        """
+        Permanently delete all books in trash (hard delete)
+
+        Args:
+            user_id: Owner user ID
+
+        Returns:
+            Dict with stats: deleted_books, deleted_chapters, deleted_permissions
+        """
+        # Get all books in trash
+        trash_books = list(
+            self.books_collection.find(
+                {"user_id": user_id, "is_deleted": True}, {"book_id": 1}
+            )
+        )
+
+        stats = {
+            "deleted_books": 0,
+            "deleted_chapters": 0,
+            "deleted_permissions": 0,
+        }
+
+        for book in trash_books:
+            book_id = book["book_id"]
+
+            # Delete chapters
+            chapters_result = self.db["book_chapters"].delete_many({"book_id": book_id})
+            stats["deleted_chapters"] += chapters_result.deleted_count
+
+            # Delete permissions
+            perms_result = self.db["book_permissions"].delete_many({"book_id": book_id})
+            stats["deleted_permissions"] += perms_result.deleted_count
+
+            # Delete book
+            self.books_collection.delete_one({"book_id": book_id})
+            stats["deleted_books"] += 1
+
+        logger.info(
+            f"🧹 Emptied trash for user {user_id}: {stats['deleted_books']} books, "
+            f"{stats['deleted_chapters']} chapters, {stats['deleted_permissions']} permissions"
+        )
+
+        return stats

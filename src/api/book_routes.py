@@ -29,6 +29,9 @@ from src.models.book_models import (
     ChapterFromDocumentRequest,
     # Image Upload
     BookImageUploadRequest,
+    # Trash System
+    TrashBookItem,
+    TrashListResponse,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -403,22 +406,36 @@ async def update_book(
         )
 
 
-@router.delete("/{book_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{book_id}")
 async def delete_book(
-    book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+    book_id: str,
+    permanent: bool = Query(
+        False,
+        description="Permanent delete (true) or move to trash (false)",
+    ),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Delete book and all associated chapters and permissions
+    Delete book (soft or hard delete)
+
+    **Query Parameters:**
+    - `permanent`: false (default) = Move to trash, true = Permanent delete
+
+    **Soft Delete (permanent=false):**
+    - Sets is_deleted=true
+    - Keeps all data (chapters, permissions)
+    - Can be restored from trash
+
+    **Hard Delete (permanent=true):**
+    - Deletes book permanently
+    - Deletes all chapters
+    - Deletes all permissions
+    - Cannot be restored
 
     **Authentication:** Required (Owner only)
 
-    **Cascade Deletion:**
-    1. Delete all chapters in guide_chapters collection
-    2. Delete all permissions in guide_permissions collection
-    3. Delete book from user_guides collection
-
     **Returns:**
-    - 204: Guide deleted successfully
+    - 200: Book moved to trash or permanently deleted
     - 403: User is not the book owner
     - 404: Book not found
     """
@@ -441,26 +458,46 @@ async def delete_book(
                 detail="Only book owner can delete book",
             )
 
-        # Delete chapters
-        deleted_chapters = chapter_manager.delete_guide_chapters(book_id)
+        if permanent:
+            # Hard delete - delete everything
+            deleted_chapters = chapter_manager.delete_guide_chapters(book_id)
+            deleted_permissions = permission_manager.delete_guide_permissions(book_id)
+            deleted = book_manager.delete_book(book_id)
 
-        # Delete permissions
-        deleted_permissions = permission_manager.delete_guide_permissions(book_id)
+            if not deleted:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Book not found",
+                )
 
-        # Delete book
-        deleted = book_manager.delete_book(book_id)
-
-        if not deleted:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Book not found",
+            logger.info(
+                f"� User {user_id} permanently deleted book: {book_id} "
+                f"(chapters: {deleted_chapters}, permissions: {deleted_permissions})"
             )
 
-        logger.info(
-            f"🗑️ User {user_id} deleted book: {book_id} "
-            f"(chapters: {deleted_chapters}, permissions: {deleted_permissions})"
-        )
-        return None
+            return {
+                "message": "Book permanently deleted",
+                "book_id": book_id,
+                "deleted_chapters": deleted_chapters,
+                "deleted_permissions": deleted_permissions,
+            }
+        else:
+            # Soft delete - move to trash
+            success = book_manager.soft_delete_book(book_id, user_id)
+
+            if not success:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Failed to move book to trash",
+                )
+
+            logger.info(f"🗑️ User {user_id} moved book to trash: {book_id}")
+
+            return {
+                "message": "Book moved to trash",
+                "book_id": book_id,
+                "can_restore": True,
+            }
 
     except HTTPException:
         raise
@@ -469,6 +506,159 @@ async def delete_book(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete book",
+        )
+
+
+# ==============================================================================
+# TRASH SYSTEM API
+# ==============================================================================
+
+
+@router.get("/trash", response_model=TrashListResponse)
+async def list_trash(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
+    sort_by: str = Query("deleted_at", description="Sort by field"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    List books in trash
+
+    **Authentication:** Required
+
+    **Query Parameters:**
+    - `page`: Page number (default: 1)
+    - `limit`: Items per page (default: 20, max: 100)
+    - `sort_by`: Sort by field (default: deleted_at)
+
+    **Returns:**
+    - List of books in trash with pagination
+    """
+    try:
+        user_id = current_user["uid"]
+        skip = (page - 1) * limit
+
+        # Get trash books
+        books, total = book_manager.list_trash(user_id, skip, limit, sort_by)
+
+        # Transform to TrashBookItem
+        items = []
+        for book in books:
+            # Count chapters for this book
+            chapters_count = chapter_manager.count_chapters(book["book_id"])
+
+            items.append(
+                TrashBookItem(
+                    book_id=book["book_id"],
+                    title=book["title"],
+                    slug=book["slug"],
+                    deleted_at=book["deleted_at"],
+                    deleted_by=book.get("deleted_by", user_id),
+                    chapters_count=chapters_count,
+                    can_restore=True,
+                )
+            )
+
+        # Calculate total pages
+        total_pages = (total + limit - 1) // limit
+
+        logger.info(
+            f"🗑️ User {user_id} listed trash: {len(items)} books (total: {total})"
+        )
+
+        return TrashListResponse(
+            items=items,
+            total=total,
+            page=page,
+            limit=limit,
+            total_pages=total_pages,
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Failed to list trash: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list trash",
+        )
+
+
+@router.post("/{book_id}/restore")
+async def restore_book(
+    book_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Restore book from trash
+
+    **Authentication:** Required (Owner only)
+
+    **Returns:**
+    - 200: Book restored successfully
+    - 404: Book not found in trash
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Restore book
+        success = book_manager.restore_book(book_id, user_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found in trash",
+            )
+
+        logger.info(f"♻️ User {user_id} restored book from trash: {book_id}")
+
+        return {
+            "message": "Book restored successfully",
+            "book_id": book_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to restore book: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to restore book",
+        )
+
+
+@router.delete("/trash/empty")
+async def empty_trash(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Empty trash (permanently delete all trashed books)
+
+    **Authentication:** Required
+
+    **Warning:** This action cannot be undone!
+
+    **Returns:**
+    - 200: Trash emptied with deletion stats
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Empty trash
+        stats = book_manager.empty_trash(user_id)
+
+        logger.info(
+            f"🧹 User {user_id} emptied trash: {stats['deleted_books']} books"
+        )
+
+        return {
+            "message": "Trash emptied successfully",
+            **stats,
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to empty trash: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to empty trash",
         )
 
 
