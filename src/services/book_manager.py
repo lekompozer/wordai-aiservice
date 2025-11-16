@@ -108,7 +108,7 @@ class UserBookManager:
             "title": data["title"],
             "slug": data["slug"],
             "description": data.get("description"),
-            "visibility": data.get("visibility", "public"),
+            "visibility": data.get("visibility", "private"),  # Default: private
             "is_published": data.get("is_published", False),
             # Point-based access (NEW)
             "access_config": data.get("access_config"),  # Will be None or dict
@@ -381,6 +381,10 @@ class UserBookManager:
 
         update_data = {
             "$set": {
+                # Set visibility & access config (NEW - core feature)
+                "visibility": publish_data["visibility"],
+                "access_config": publish_data.get("access_config"),
+                # Community marketplace metadata
                 "community_config.is_public": True,
                 "community_config.category": publish_data["category"],
                 "community_config.tags": publish_data["tags"],
@@ -429,6 +433,8 @@ class UserBookManager:
             {"book_id": book_id, "user_id": user_id},
             {
                 "$set": {
+                    "visibility": "private",  # Reset to private when unpublishing
+                    "access_config": None,  # Clear access config
                     "community_config.is_public": False,
                     "updated_at": datetime.utcnow(),
                 }

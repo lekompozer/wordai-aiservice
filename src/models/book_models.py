@@ -68,7 +68,8 @@ class BookCreate(BaseModel):
         ..., min_length=1, max_length=100, description="URL-friendly slug"
     )
     visibility: BookVisibility = Field(
-        default=BookVisibility.PUBLIC, description="Visibility setting"
+        default=BookVisibility.PRIVATE,
+        description="Visibility setting (default: private)",
     )
     is_published: bool = Field(default=False, description="Published state")
 
@@ -191,6 +192,17 @@ class BookListResponse(BaseModel):
 class CommunityPublishRequest(BaseModel):
     """Request to publish book to community"""
 
+    # Visibility & Pricing (NEW - required when publishing)
+    visibility: BookVisibility = Field(
+        ...,
+        description="public (free) or point_based (paid)",
+    )
+    access_config: Optional[AccessConfig] = Field(
+        None,
+        description="Required if visibility=point_based",
+    )
+
+    # Community metadata
     category: str = Field(
         ..., description="Book category (programming, business, marketing, etc.)"
     )
@@ -200,6 +212,22 @@ class CommunityPublishRequest(BaseModel):
     )
     short_description: str = Field(..., min_length=10, max_length=200)
     cover_image_url: Optional[str] = Field(None, description="Cover image URL")
+
+    @validator("visibility")
+    def validate_visibility(cls, v):
+        """Only allow public or point_based when publishing to community"""
+        if v not in [BookVisibility.PUBLIC, BookVisibility.POINT_BASED]:
+            raise ValueError(
+                "visibility must be 'public' (free) or 'point_based' (paid) when publishing to community"
+            )
+        return v
+
+    @validator("access_config")
+    def validate_access_config(cls, v, values):
+        """Validate access_config is provided when visibility is point_based"""
+        if values.get("visibility") == BookVisibility.POINT_BASED and not v:
+            raise ValueError("access_config is required when visibility is point_based")
+        return v
 
 
 class CommunityBookItem(BaseModel):
