@@ -178,8 +178,10 @@ async def list_guides(
         return {
             "guides": guides,
             "total": total,
-            "skip": skip,
-            "limit": limit,
+            "pagination": {
+                "skip": skip,
+                "limit": limit,
+            },
         }
 
     except Exception as e:
