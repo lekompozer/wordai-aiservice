@@ -145,35 +145,119 @@ async def list_guides(
     skip: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Results per page"),
     visibility: Optional[BookVisibility] = Query(
-        None, description="Filter by visibility"
+        None, description="Filter by visibility (public/private/unlisted)"
     ),
+    is_published: Optional[bool] = Query(
+        None, description="Filter by publish status (true for community books)"
+    ),
+    search: Optional[str] = Query(None, description="Search by title or description"),
+    tags: Optional[str] = Query(
+        None, description="Filter by tags (comma-separated, e.g., 'python,tutorial')"
+    ),
+    sort_by: str = Query(
+        "updated_at",
+        description="Sort field: updated_at | created_at | title | view_count",
+    ),
+    sort_order: str = Query("desc", description="Sort order: asc | desc"),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    List user's guides with pagination and filtering
+    **List user's books with advanced filtering and search**
 
     **Authentication:** Required
 
     **Query Parameters:**
-    - skip: Pagination offset (default: 0)
-    - limit: Results per page (default: 20, max: 100)
-    - visibility: Filter by visibility type (optional)
+    - `skip`: Pagination offset (default: 0)
+    - `limit`: Results per page (default: 20, max: 100)
+    - `visibility`: Filter by visibility type (public/private/unlisted)
+    - `is_published`: Filter by community publish status (true = published to marketplace)
+    - `search`: Search in title and description (case-insensitive)
+    - `tags`: Filter by tags (comma-separated)
+    - `sort_by`: Sort by field (updated_at | created_at | title | view_count)
+    - `sort_order`: Sort direction (asc | desc)
+
+    **Examples:**
+    - `GET /books` - All my books
+    - `GET /books?visibility=public` - Only public books
+    - `GET /books?is_published=true` - Only community marketplace books
+    - `GET /books?search=python` - Search for "python"
+    - `GET /books?tags=tutorial,beginner` - Books with these tags
+    - `GET /books?sort_by=view_count&sort_order=desc` - Most viewed first
 
     **Returns:**
-    - 200: Paginated list of guides
+    - 200: Paginated list of guides with filters applied
     """
     try:
         user_id = current_user["uid"]
 
-        # Get guides
-        guides = guide_manager.list_user_guides(
-            user_id=user_id, skip=skip, limit=limit, visibility=visibility
+        # Build query
+        query = {"user_id": user_id}
+
+        # Filter by visibility
+        if visibility:
+            query["visibility"] = visibility
+
+        # Filter by publish status
+        if is_published is not None:
+            query["community_config.is_public"] = is_published
+
+        # Search in title and description
+        if search:
+            query["$or"] = [
+                {"title": {"$regex": search, "$options": "i"}},
+                {"description": {"$regex": search, "$options": "i"}},
+            ]
+
+        # Filter by tags
+        if tags:
+            tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
+            if tag_list:
+                query["community_config.tags"] = {"$in": tag_list}
+
+        # Build sort criteria
+        sort_field = (
+            sort_by
+            if sort_by in ["updated_at", "created_at", "title", "view_count"]
+            else "updated_at"
+        )
+        sort_direction = -1 if sort_order == "desc" else 1
+
+        # Count total with filters
+        total = db.online_books.count_documents(query)
+
+        # Get paginated results
+        guides_cursor = (
+            db.online_books.find(query)
+            .sort(sort_field, sort_direction)
+            .skip(skip)
+            .limit(limit)
         )
 
-        # Count total (for pagination)
-        total = guide_manager.count_user_guides(user_id=user_id, visibility=visibility)
+        guides = []
+        for guide in guides_cursor:
+            guides.append(
+                {
+                    "book_id": str(guide["_id"]),
+                    "title": guide.get("title", ""),
+                    "slug": guide.get("slug", ""),
+                    "description": guide.get("description"),
+                    "visibility": guide.get("visibility", "private"),
+                    "is_published": guide.get("community_config", {}).get(
+                        "is_public", False
+                    ),
+                    "chapter_count": guide.get("chapter_count", 0),
+                    "view_count": guide.get("view_count", 0),
+                    "updated_at": guide.get("updated_at"),
+                    "last_published_at": guide.get("community_config", {}).get(
+                        "published_at"
+                    ),
+                }
+            )
 
-        logger.info(f"📚 User {user_id} listed guides: {len(guides)} results")
+        logger.info(
+            f"📚 User {user_id} listed {len(guides)}/{total} guides "
+            f"(filters: visibility={visibility}, is_published={is_published}, search={search}, tags={tags})"
+        )
 
         return {
             "guides": guides,

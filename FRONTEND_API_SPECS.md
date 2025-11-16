@@ -180,29 +180,46 @@ const response = await fetch('/api/v1/books/upload-image/presigned-url', {
 
 **Query Parameters**:
 - `skip`: integer (default: 0, pagination offset)
-- `limit`: integer (default: 50, max: 100)
+- `limit`: integer (default: 20, max: 100)
 - `visibility`: string (filter: "public" | "private" | "unlisted", optional)
+- `is_published`: boolean (filter by community marketplace status, optional)
+- `search`: string (search in title and description, case-insensitive, optional)
+- `tags`: string (comma-separated tags, e.g., "python,tutorial", optional)
+- `sort_by`: string (updated_at | created_at | title | view_count, default: updated_at)
+- `sort_order`: string (asc | desc, default: desc)
+
+**Examples**:
+```
+GET /books - All my books
+GET /books?visibility=public - Only public books
+GET /books?is_published=true - Only community marketplace books
+GET /books?search=python - Search for "python"
+GET /books?tags=tutorial,beginner - Books with these tags
+GET /books?sort_by=view_count&sort_order=desc - Most viewed first
+```
 
 **Response 200**:
 ```json
 {
-  "books": [
+  "guides": [
     {
       "book_id": "string",
-      "user_id": "string",
       "title": "string",
       "slug": "string",
       "description": "string",
-      "visibility": "string",
-      "icon": "string",
-      "color": "string",
-      "created_at": "ISO 8601 datetime",
-      "updated_at": "ISO 8601 datetime"
+      "visibility": "public | private | unlisted",
+      "is_published": false,
+      "chapter_count": 0,
+      "view_count": 0,
+      "updated_at": "ISO 8601 datetime",
+      "last_published_at": "ISO 8601 datetime or null"
     }
   ],
-  "total": "integer",
-  "skip": "integer",
-  "limit": "integer"
+  "total": 100,
+  "pagination": {
+    "skip": 0,
+    "limit": 20
+  }
 }
 ```
 
