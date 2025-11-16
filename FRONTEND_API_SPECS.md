@@ -821,13 +821,37 @@ Revenue split: 80% to owner, 20% to system (same as Online Tests)
 **Endpoint**: `POST /books/{book_id}/publish-community`
 **Authentication**: Required
 
+**Description**: Publish a book to the community marketplace. Must include author information (existing author_id OR new author details).
+
 **Request Body**:
 ```json
 {
+  // AUTHOR (Required - choose one of two scenarios below)
+  // Scenario A: Use existing author
+  "author_id": "@john_doe",  // Existing author @username
+
+  // Scenario B: Create new author (requires author_id + author_name)
+  "author_id": "@new_author",  // User-provided @username (must be available)
+  "author_name": "Display Name",  // Required for new author
+  "author_bio": "Bio text",  // Optional for new author
+  "author_avatar_url": "https://...",  // Optional for new author
+
+  // BOOK VISIBILITY & PRICING
+  "visibility": "public | point_based",  // Required
+  "access_config": {  // Required if visibility = "point_based"
+    "one_time_view_points": 10,
+    "forever_view_points": 50,
+    "download_pdf_points": 20,
+    "is_one_time_enabled": true,
+    "is_forever_enabled": true,
+    "is_download_enabled": true
+  },
+
+  // COMMUNITY METADATA
   "category": "string (required, e.g., 'Programming', 'Business')",
-  "tags": ["string", "string"],  // Required, max 5 tags
-  "difficulty_level": "beginner | intermediate | advanced",
-  "short_description": "string (max 500 chars)",
+  "tags": ["string", "string"],  // Required, 1-10 tags
+  "difficulty_level": "beginner | intermediate | advanced | expert",
+  "short_description": "string (10-200 chars)",
   "cover_image_url": "string (optional)"
 }
 ```
@@ -836,6 +860,13 @@ Revenue split: 80% to owner, 20% to system (same as Online Tests)
 ```json
 {
   "book_id": "string",
+  "visibility": "public",
+  "author_id": "@john_doe",
+  "access_config": {
+    "one_time_view_points": 10,
+    "forever_view_points": 50,
+    "download_pdf_points": 20
+  },
   "community_config": {
     "is_public": true,
     "category": "Programming",
@@ -848,19 +879,33 @@ Revenue split: 80% to owner, 20% to system (same as Online Tests)
     "total_views": 0,
     "average_rating": 0.0,
     "rating_count": 0
+  },
+  "stats": {
+    "total_revenue_points": 0,
+    "owner_reward_points": 0,
+    "system_fee_points": 0
   }
 }
 ```
 
 **Errors**:
 - `404 Not Found`: Book not found or not owned by user
-- `400 Bad Request`: Failed to publish
+- `400 Bad Request`: Missing required fields (author_id or author_id + author_name)
+- `409 Conflict`: Author ID already taken (when creating new author)
+- `403 Forbidden`: Author exists but not owned by you
+
+**Important Notes**:
+1. Always call `GET /authors/check/{author_id}` first to verify @username availability
+2. When creating new author: both `author_id` and `author_name` are required
+3. Author ID format: `@[a-z0-9_]{3,30}` (lowercase, alphanumeric + underscore, 3-30 chars)
 
 ---
 
 ### 3. Unpublish Book from Community
 **Endpoint**: `PATCH /books/{book_id}/unpublish-community`
 **Authentication**: Required
+
+**Description**: Remove book from community marketplace. Resets visibility to private and clears author association.
 
 **Path Parameters**:
 - `book_id`: string (required)
@@ -869,6 +914,8 @@ Revenue split: 80% to owner, 20% to system (same as Online Tests)
 ```json
 {
   "book_id": "string",
+  "visibility": "private",
+  "author_id": null,
   "community_config": {
     "is_public": false
   }
@@ -1011,7 +1058,322 @@ Revenue split: 80% to owner, 20% to system (same as Online Tests)
 
 ---
 
-## �📊 Common Error Response Format
+## 👤 Author Management APIs (Community Books)
+
+### Author System Overview
+Authors are separate identities for publishing books to the community marketplace:
+- **1 User → Many Authors**: One Firebase UID can create multiple author profiles
+- **1 Author → 1 User**: Each author profile belongs to exactly one user
+- **@username format**: All author IDs use @username format (e.g., @john_doe)
+- **Publishing requirement**: Must select or create an author when publishing to community
+
+### 1. Check Author ID Availability
+**Endpoint**: `GET /authors/check/{author_id}`
+**Authentication**: Not required (public endpoint)
+
+**Description**: Check if an @username is available for registration.
+
+**Path Parameters**:
+- `author_id`: string (e.g., @john_doe)
+
+**Response 200**:
+```json
+{
+  "available": true,
+  "author_id": "@john_doe"
+}
+```
+
+**Use Case**: Frontend should call this endpoint when user types @username to show real-time availability status (green check ✅ or red X ❌).
+
+---
+
+### 2. Create Author Profile
+**Endpoint**: `POST /authors`
+**Authentication**: Required
+
+**Description**: Create a new author profile with a unique @username.
+
+**Request Body**:
+```json
+{
+  "author_id": "@john_doe",  // Required, must be unique, format: @[a-z0-9_]{3,30}
+  "name": "John Doe",  // Required, display name (2-100 chars)
+  "bio": "Software engineer and technical writer",  // Optional (max 500 chars)
+  "avatar_url": "https://...",  // Optional
+  "website_url": "https://johndoe.com",  // Optional
+  "social_links": {  // Optional
+    "twitter": "https://twitter.com/johndoe",
+    "github": "https://github.com/johndoe",
+    "linkedin": "https://linkedin.com/in/johndoe"
+  }
+}
+```
+
+**Response 201**:
+```json
+{
+  "author_id": "@john_doe",
+  "user_id": "firebase_uid_123",
+  "name": "John Doe",
+  "bio": "Software engineer and technical writer",
+  "avatar_url": "https://...",
+  "website_url": "https://johndoe.com",
+  "social_links": {
+    "twitter": "https://twitter.com/johndoe",
+    "github": "https://github.com/johndoe"
+  },
+  "books": [],
+  "total_books": 0,
+  "total_followers": 0,
+  "total_revenue_points": 0,
+  "created_at": "ISO 8601 datetime",
+  "updated_at": "ISO 8601 datetime"
+}
+```
+
+**Errors**:
+- `409 Conflict`: Author ID already taken
+- `400 Bad Request`: Invalid author_id format (must be @lowercase_alphanumeric_underscore, 3-30 chars)
+
+---
+
+### 3. List My Authors
+**Endpoint**: `GET /authors/my-authors`
+**Authentication**: Required
+
+**Description**: List all author profiles created by the current user.
+
+**Query Parameters**:
+- `skip`: integer (default: 0)
+- `limit`: integer (default: 20, max: 100)
+
+**Response 200**:
+```json
+{
+  "authors": [
+    {
+      "author_id": "@john_doe",
+      "name": "John Doe",
+      "avatar_url": "https://...",
+      "total_books": 5,
+      "total_followers": 120,
+      "created_at": "ISO 8601 datetime"
+    },
+    {
+      "author_id": "@jane_tech",
+      "name": "Jane Smith",
+      "avatar_url": "https://...",
+      "total_books": 3,
+      "total_followers": 85,
+      "created_at": "ISO 8601 datetime"
+    }
+  ],
+  "total": 2,
+  "skip": 0,
+  "limit": 20
+}
+```
+
+---
+
+### 4. Get Author Profile (Public)
+**Endpoint**: `GET /authors/{author_id}`
+**Authentication**: Not required (public endpoint)
+
+**Description**: Get public author profile with book list.
+
+**Path Parameters**:
+- `author_id`: string (e.g., @john_doe)
+
+**Response 200**:
+```json
+{
+  "author_id": "@john_doe",
+  "name": "John Doe",
+  "bio": "Software engineer and technical writer",
+  "avatar_url": "https://...",
+  "website_url": "https://johndoe.com",
+  "social_links": {
+    "twitter": "https://twitter.com/johndoe",
+    "github": "https://github.com/johndoe"
+  },
+  "books": [
+    {
+      "book_id": "uuid-123",
+      "title": "Python Advanced Guide",
+      "cover_image_url": "https://...",
+      "category": "Programming",
+      "difficulty_level": "advanced",
+      "total_purchases": 150,
+      "average_rating": 4.5
+    }
+  ],
+  "total_books": 5,
+  "total_followers": 120,
+  "total_revenue_points": 45000,
+  "created_at": "ISO 8601 datetime"
+}
+```
+
+**Errors**:
+- `404 Not Found`: Author not found
+
+---
+
+### 5. Update Author Profile
+**Endpoint**: `PATCH /authors/{author_id}`
+**Authentication**: Required
+
+**Description**: Update author profile (only owner can update).
+
+**Path Parameters**:
+- `author_id`: string (e.g., @john_doe)
+
+**Request Body** (all fields optional):
+```json
+{
+  "name": "John Doe Jr.",
+  "bio": "Updated bio",
+  "avatar_url": "https://...",
+  "website_url": "https://johndoe.dev",
+  "social_links": {
+    "twitter": "https://twitter.com/johndoe",
+    "github": "https://github.com/johndoe"
+  }
+}
+```
+
+**Response 200**:
+```json
+{
+  "author_id": "@john_doe",
+  "name": "John Doe Jr.",
+  "bio": "Updated bio",
+  "avatar_url": "https://...",
+  "website_url": "https://johndoe.dev",
+  "social_links": {
+    "twitter": "https://twitter.com/johndoe",
+    "github": "https://github.com/johndoe"
+  },
+  "total_books": 5,
+  "total_followers": 120,
+  "updated_at": "ISO 8601 datetime"
+}
+```
+
+**Errors**:
+- `404 Not Found`: Author not found
+- `403 Forbidden`: You don't own this author profile
+
+---
+
+### 6. Delete Author Profile
+**Endpoint**: `DELETE /authors/{author_id}`
+**Authentication**: Required
+
+**Description**: Delete author profile (only if no published books).
+
+**Path Parameters**:
+- `author_id`: string (e.g., @john_doe)
+
+**Response 200**:
+```json
+{
+  "message": "Author deleted successfully",
+  "author_id": "@john_doe"
+}
+```
+
+**Errors**:
+- `404 Not Found`: Author not found
+- `403 Forbidden`: You don't own this author profile
+- `400 Bad Request`: Cannot delete author with published books (unpublish books first)
+
+---
+
+### 7. Browse All Authors (Public)
+**Endpoint**: `GET /authors`
+**Authentication**: Not required (public endpoint)
+
+**Description**: Browse and search all authors in the community.
+
+**Query Parameters**:
+- `search`: string (optional, text search in name and bio)
+- `skip`: integer (default: 0)
+- `limit`: integer (default: 20, max: 100)
+
+**Response 200**:
+```json
+{
+  "authors": [
+    {
+      "author_id": "@john_doe",
+      "name": "John Doe",
+      "avatar_url": "https://...",
+      "bio": "Software engineer...",
+      "total_books": 5,
+      "total_followers": 120,
+      "average_rating": 4.5
+    }
+  ],
+  "total": 50,
+  "skip": 0,
+  "limit": 20
+}
+```
+
+---
+
+### Publishing Flow with Authors
+
+#### Scenario 1: Publishing with Existing Author
+```json
+POST /books/{book_id}/publish-community
+
+{
+  "author_id": "@john_doe",  // Existing author (no other author fields needed)
+  "visibility": "public",
+  "category": "Programming",
+  "tags": ["python", "tutorial"],
+  "difficulty_level": "intermediate",
+  "short_description": "Learn Python basics"
+}
+```
+
+#### Scenario 2: Publishing with New Author
+**Step 1**: Check availability
+```
+GET /authors/check/@new_author
+Response: {"available": true, "author_id": "@new_author"}
+```
+
+**Step 2**: Publish with new author data
+```json
+POST /books/{book_id}/publish-community
+
+{
+  "author_id": "@new_author",  // User-provided @username (required)
+  "author_name": "New Author",  // Display name (required for new author)
+  "author_bio": "Bio text",  // Optional
+  "author_avatar_url": "https://...",  // Optional
+  "visibility": "public",
+  "category": "Programming",
+  "tags": ["python"],
+  "difficulty_level": "beginner",
+  "short_description": "Book description"
+}
+```
+
+**Backend will**:
+1. Validate author_id format (@username)
+2. Check if author_id is available (return 409 if taken)
+3. Create new author profile automatically
+4. Publish book to community with author
+
+---
+
+## 📊 Common Error Response Format
 
 All error responses follow this structure:
 
@@ -1056,15 +1418,17 @@ Authorization: Bearer <firebase_jwt_token>
    - `public`: Accessible to everyone, indexed by search engines
    - `unlisted`: Accessible via direct URL, NOT indexed
    - `private`: Only accessible to owner and users with permissions
+7. **Author IDs**: Must follow @username format, lowercase alphanumeric + underscore, 3-30 chars
 
 ---
 
-## 🚀 Total Endpoints: 24
+## 🚀 Total Endpoints: 31
 
 - **Phase 2**: 5 endpoints (Book Management)
 - **Phase 3**: 5 endpoints (Chapter Management)
 - **Phase 4**: 4 endpoints (User Permissions)
 - **Phase 5**: 4 endpoints (Public View - NO AUTH)
 - **Phase 6**: 6 endpoints (Point System, Community Books, Document Integration)
+- **Authors**: 7 endpoints (Author Management for Community Books)
 
-**Last Updated**: January 2025
+**Last Updated**: November 2025
