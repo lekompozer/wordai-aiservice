@@ -2168,3 +2168,235 @@ async def delete_book_image(
             status_code=500,
             detail=f"Failed to delete image: {str(e)}",
         )
+
+
+# ==============================================================================
+# COMMUNITY MARKETPLACE - DISCOVERY & STATS APIS
+# ==============================================================================
+
+
+@router.get("/community/tags", tags=["Community Books"])
+async def get_popular_tags(limit: int = Query(20, ge=1, le=100)):
+    """
+    **Get popular tags from community books**
+
+    Returns list of most used tags in community marketplace.
+
+    **Query Parameters:**
+    - `limit`: Number of tags to return (default: 20, max: 100)
+
+    **Returns:**
+    ```json
+    {
+      "tags": [
+        {"tag": "python", "count": 150},
+        {"tag": "javascript", "count": 120},
+        {"tag": "tutorial", "count": 95}
+      ],
+      "total": 50
+    }
+    ```
+
+    **Use Case**: Display popular tags for filtering and discovery
+    """
+    try:
+        # Aggregate tags from all published books
+        pipeline = [
+            {"$match": {"community_config.is_public": True}},
+            {"$unwind": "$community_config.tags"},
+            {
+                "$group": {
+                    "_id": "$community_config.tags",
+                    "count": {"$sum": 1},
+                }
+            },
+            {"$sort": {"count": -1}},
+            {"$limit": limit},
+            {"$project": {"tag": "$_id", "count": 1, "_id": 0}},
+        ]
+
+        tags = list(db.online_books.aggregate(pipeline))
+        total = len(tags)
+
+        logger.info(f"📊 Retrieved {total} popular tags")
+        return {"tags": tags, "total": total}
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get popular tags: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve popular tags",
+        )
+
+
+@router.get("/community/top", tags=["Community Books"])
+async def get_top_books(
+    period: str = Query("month", description="week | month | all"),
+    limit: int = Query(10, ge=1, le=50),
+):
+    """
+    **Get top performing books**
+
+    Returns top books by views and purchases in specified period.
+
+    **Query Parameters:**
+    - `period`: Time period - "week" | "month" | "all" (default: month)
+    - `limit`: Number of books to return (default: 10, max: 50)
+
+    **Returns:**
+    ```json
+    {
+      "books": [
+        {
+          "book_id": "...",
+          "title": "...",
+          "slug": "...",
+          "author_id": "@john_doe",
+          "author_name": "John Doe",
+          "cover_image_url": "...",
+          "total_views": 1500,
+          "total_purchases": 250,
+          "average_rating": 4.8,
+          "published_at": "..."
+        }
+      ],
+      "period": "month",
+      "total": 10
+    }
+    ```
+    """
+    try:
+        # Build match query based on period
+        from datetime import datetime, timedelta
+
+        match_query = {"community_config.is_public": True}
+
+        if period == "week":
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            match_query["community_config.published_at"] = {"$gte": week_ago}
+        elif period == "month":
+            month_ago = datetime.utcnow() - timedelta(days=30)
+            match_query["community_config.published_at"] = {"$gte": month_ago}
+        # "all" - no time filter
+
+        pipeline = [
+            {"$match": match_query},
+            {
+                "$addFields": {
+                    "score": {
+                        "$add": [
+                            "$community_config.total_views",
+                            {"$multiply": ["$community_config.total_purchases", 5]},
+                        ]
+                    }
+                }
+            },
+            {"$sort": {"score": -1}},
+            {"$limit": limit},
+            {
+                "$project": {
+                    "book_id": {"$toString": "$_id"},
+                    "title": 1,
+                    "slug": 1,
+                    "author_id": 1,
+                    "author_name": "$community_config.author_name",
+                    "cover_image_url": "$community_config.cover_image_url",
+                    "total_views": "$community_config.total_views",
+                    "total_purchases": "$community_config.total_purchases",
+                    "average_rating": "$community_config.average_rating",
+                    "published_at": "$community_config.published_at",
+                    "_id": 0,
+                }
+            },
+        ]
+
+        books = list(db.online_books.aggregate(pipeline))
+
+        logger.info(f"📈 Retrieved {len(books)} top books for period: {period}")
+        return {"books": books, "period": period, "total": len(books)}
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get top books: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve top books",
+        )
+
+
+@router.get("/community/top-authors", tags=["Community Books"])
+async def get_top_authors(
+    period: str = Query("month", description="week | month | all"),
+    limit: int = Query(10, ge=1, le=50),
+):
+    """
+    **Get top performing authors**
+
+    Returns top authors by book views and revenue in specified period.
+
+    **Query Parameters:**
+    - `period`: Time period - "week" | "month" | "all" (default: month)
+    - `limit`: Number of authors to return (default: 10, max: 50)
+
+    **Returns:**
+    ```json
+    {
+      "authors": [
+        {
+          "author_id": "@john_doe",
+          "name": "John Doe",
+          "avatar_url": "...",
+          "total_books": 5,
+          "total_followers": 120,
+          "total_revenue_points": 45000,
+          "average_rating": 4.7
+        }
+      ],
+      "period": "month",
+      "total": 10
+    }
+    ```
+    """
+    try:
+        from datetime import datetime, timedelta
+
+        # Build match query based on period
+        match_query = {}
+
+        if period == "week":
+            week_ago = datetime.utcnow() - timedelta(days=7)
+            match_query["created_at"] = {"$gte": week_ago}
+        elif period == "month":
+            month_ago = datetime.utcnow() - timedelta(days=30)
+            match_query["created_at"] = {"$gte": month_ago}
+        # "all" - no time filter
+
+        # Get authors sorted by total_books and total_revenue_points
+        authors_cursor = (
+            db.authors.find(match_query)
+            .sort([("total_books", -1), ("total_revenue_points", -1)])
+            .limit(limit)
+        )
+
+        authors = []
+        for author in authors_cursor:
+            authors.append(
+                {
+                    "author_id": author["author_id"],
+                    "name": author["name"],
+                    "avatar_url": author.get("avatar_url"),
+                    "total_books": author.get("total_books", 0),
+                    "total_followers": author.get("total_followers", 0),
+                    "total_revenue_points": author.get("total_revenue_points", 0),
+                    "average_rating": author.get("average_rating", 0.0),
+                }
+            )
+
+        logger.info(f"🏆 Retrieved {len(authors)} top authors for period: {period}")
+        return {"authors": authors, "period": period, "total": len(authors)}
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get top authors: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve top authors",
+        )

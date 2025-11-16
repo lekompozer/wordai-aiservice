@@ -281,10 +281,11 @@ class CommunityBookItem(BaseModel):
 class CommunityBooksResponse(BaseModel):
     """Response for community books listing"""
 
-    books: List[CommunityBookItem]
-    pagination: dict
+    items: List[CommunityBookItem]
     total: int
-    filters: dict  # Available filters
+    page: int
+    limit: int
+    total_pages: int
 
 
 # ============ DOCUMENT INTEGRATION MODELS (NEW) ============

@@ -1094,7 +1094,96 @@ Revenue split: 80% to owner, 20% to system (same as Online Tests)
 
 ---
 
-### 5. Create Chapter from Document
+### 5. Get Popular Tags
+**Endpoint**: `GET /books/community/tags`
+**Authentication**: NOT required (public)
+
+**Query Parameters**:
+- `limit`: integer (default: 20, min: 1, max: 100)
+
+**Response 200**:
+```json
+{
+  "tags": [
+    {"tag": "python", "count": 150},
+    {"tag": "javascript", "count": 120},
+    {"tag": "tutorial", "count": 95},
+    {"tag": "beginner", "count": 80}
+  ],
+  "total": 50
+}
+```
+
+**Description**: Returns most used tags in community marketplace, sorted by book count.
+
+---
+
+### 6. Get Top Books
+**Endpoint**: `GET /books/community/top`
+**Authentication**: NOT required (public)
+
+**Query Parameters**:
+- `period`: string (optional, "week" | "month" | "all", default: "month")
+- `limit`: integer (default: 10, min: 1, max: 50)
+
+**Response 200**:
+```json
+{
+  "books": [
+    {
+      "book_id": "string",
+      "title": "string",
+      "slug": "string",
+      "author_id": "@john_doe",
+      "author_name": "John Doe",
+      "cover_image_url": "https://...",
+      "total_views": 1500,
+      "total_purchases": 250,
+      "average_rating": 4.8,
+      "published_at": "ISO 8601 datetime"
+    }
+  ],
+  "period": "month",
+  "total": 10
+}
+```
+
+**Description**: Returns top performing books by views and purchases in specified time period.
+
+---
+
+### 7. Get Top Authors
+**Endpoint**: `GET /books/community/top-authors`
+**Authentication**: NOT required (public)
+
+**Query Parameters**:
+- `period`: string (optional, "week" | "month" | "all", default: "month")
+- `limit`: integer (default: 10, min: 1, max: 50)
+
+**Response 200**:
+```json
+{
+  "authors": [
+    {
+      "author_id": "@john_doe",
+      "name": "John Doe",
+      "avatar_url": "https://...",
+      "total_books": 5,
+      "total_followers": 120,
+      "total_revenue_points": 45000,
+      "average_rating": 4.7
+    }
+  ],
+  "period": "month",
+  "total": 10
+}
+```
+
+**Description**: Returns top performing authors by books and revenue in specified time period.
+
+---
+
+### 8. Create Chapter from Document
 **Endpoint**: `POST /books/{book_id}/chapters/from-document`
 **Authentication**: Required
 
@@ -1139,7 +1228,7 @@ Revenue split: 80% to owner, 20% to system (same as Online Tests)
 
 ---
 
-### 6. Get Chapter with Content (Supports Document References)
+### 9. Get Chapter with Content (Supports Document References)
 **Endpoint**: `GET /books/{book_id}/chapters/{chapter_id}/content`
 **Authentication**: Required
 
@@ -1534,7 +1623,7 @@ Authorization: Bearer <firebase_jwt_token>
 
 ---
 
-## 🚀 Total Endpoints: 33
+## 🚀 Total Endpoints: 36
 
 - **Phase 2**: 7 endpoints (Book Management + Image Upload/Delete)
   - Create, List, Get, Update, Delete Book
@@ -1543,7 +1632,16 @@ Authorization: Bearer <firebase_jwt_token>
 - **Phase 3**: 5 endpoints (Chapter Management)
 - **Phase 4**: 4 endpoints (User Permissions)
 - **Phase 5**: 4 endpoints (Public View - NO AUTH)
-- **Phase 6**: 6 endpoints (Point System, Community Books, Document Integration)
+- **Phase 6**: 9 endpoints (Point System, Community Books, Document Integration)
+  - Publish to Community
+  - Browse Community Books
+  - Get Popular Tags (NEW)
+  - Get Top Books (NEW)
+  - Get Top Authors (NEW)
+  - Create Chapter from Document
+  - Get Chapter with Content
+  - Update Community Config
+  - Update Access Prices
 - **Authors**: 7 endpoints (Author Management for Community Books)
 
-**Last Updated**: November 2025
+**Last Updated**: January 2025
