@@ -37,6 +37,7 @@ from src.models.book_models import (
     MyPublishedBooksListResponse,
     TransferEarningsRequest,
     TransferEarningsResponse,
+    EarningsSummaryResponse,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -541,6 +542,95 @@ async def list_my_published_books(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list my published books",
+        )
+
+
+@router.get("/earnings", response_model=EarningsSummaryResponse)
+async def get_earnings_summary(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Get earnings summary for all published books**
+
+    Returns aggregated earnings data across all books published by current user:
+    - Total revenue, owner reward, platform fee
+    - Breakdown by access type (one-time, forever, PDF)
+    - Top earning book
+
+    **Authentication:** Required
+
+    **Returns:**
+    - 200: Earnings summary with breakdown
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Query all published books
+        query = {
+            "user_id": user_id,
+            "is_deleted": False,
+            "community_config.is_public": True,
+        }
+
+        published_books = list(db.online_books.find(query))
+
+        # Calculate totals
+        total_books = len(published_books)
+        total_revenue = 0
+        owner_reward = 0
+        platform_fee = 0
+
+        # Breakdown (TODO: implement actual tracking)
+        one_time_revenue = 0
+        forever_revenue = 0
+        pdf_revenue = 0
+
+        # Find top earning book
+        top_book = None
+        max_revenue = 0
+
+        for book in published_books:
+            stats = book.get("stats", {})
+            book_revenue = stats.get("total_revenue_points", 0)
+            book_owner_reward = stats.get("owner_reward_points", 0)
+            book_system_fee = stats.get("system_fee_points", 0)
+
+            total_revenue += book_revenue
+            owner_reward += book_owner_reward
+            platform_fee += book_system_fee
+
+            # Track top earning book
+            if book_revenue > max_revenue:
+                max_revenue = book_revenue
+                top_book = {
+                    "book_id": book["book_id"],
+                    "title": book["title"],
+                    "revenue": book_revenue,
+                }
+
+        logger.info(
+            f"📊 User {user_id} earnings summary: {total_books} books, "
+            f"{total_revenue} total revenue, {owner_reward} owner reward"
+        )
+
+        return EarningsSummaryResponse(
+            total_books_published=total_books,
+            total_revenue=total_revenue,
+            owner_reward=owner_reward,
+            platform_fee=platform_fee,
+            breakdown={
+                "one_time_revenue": one_time_revenue,
+                "forever_revenue": forever_revenue,
+                "pdf_revenue": pdf_revenue,
+            },
+            top_earning_book=top_book,
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get earnings summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get earnings summary",
         )
 
 

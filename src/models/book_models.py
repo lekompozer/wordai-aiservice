@@ -464,3 +464,34 @@ class TransferEarningsResponse(BaseModel):
     new_wallet_balance: int
     transaction_id: str
     timestamp: datetime
+
+
+class TopEarningBook(BaseModel):
+    """Top earning book info"""
+
+    book_id: str
+    title: str
+    revenue: int
+
+
+class EarningsBreakdown(BaseModel):
+    """Revenue breakdown by access type"""
+
+    one_time_revenue: int = Field(0, description="Revenue from one-time purchases")
+    forever_revenue: int = Field(0, description="Revenue from forever purchases")
+    pdf_revenue: int = Field(0, description="Revenue from PDF downloads")
+
+
+class EarningsSummaryResponse(BaseModel):
+    """Earnings summary for all published books"""
+
+    total_books_published: int = Field(0, description="Total number of published books")
+    total_revenue: int = Field(0, description="Total revenue from all books (100%)")
+    owner_reward: int = Field(0, description="Owner's share (80% of revenue)")
+    platform_fee: int = Field(0, description="Platform fee (20% of revenue)")
+    breakdown: EarningsBreakdown = Field(
+        default_factory=EarningsBreakdown, description="Revenue breakdown by type"
+    )
+    top_earning_book: Optional[TopEarningBook] = Field(
+        None, description="Top earning book"
+    )
