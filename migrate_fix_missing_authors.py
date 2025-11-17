@@ -59,6 +59,22 @@ def migrate_fix_missing_authors():
                 print(f"   Updated book document with authors field")
                 books_updated += 1
 
+            # Fallback 2: If still no authors, generate from user_id
+            if not authors_list and user_id:
+                # Generate author_id from user_id (e.g., "user123" -> "@user123")
+                author_id = f"@{user_id}" if not user_id.startswith("@") else user_id
+                authors_list = [author_id]
+                print(
+                    f"📝 Generated author_id from user_id for book {book_id}: {author_id}"
+                )
+
+                # Update book document
+                db.online_books.update_one(
+                    {"book_id": book_id}, {"$set": {"authors": authors_list}}
+                )
+                print(f"   Updated book document with generated authors field")
+                books_updated += 1
+
             if not authors_list:
                 print(f"⚠️  Book {book_id} ({title}) has no authors! Skipping...")
                 books_without_authors += 1
