@@ -137,6 +137,12 @@ class BookResponse(BaseModel):
     visibility: BookVisibility
     is_published: bool
 
+    # Authors (NEW - Support multiple authors)
+    authors: List[str] = Field(
+        default_factory=list,
+        description="List of author IDs (e.g., ['@john_doe', '@jane_smith']). Empty for non-community books.",
+    )
+
     # Point-based access (NEW)
     access_config: Optional[AccessConfig] = None
 
@@ -197,23 +203,19 @@ class BookListResponse(BaseModel):
 class CommunityPublishRequest(BaseModel):
     """Request to publish book to community"""
 
-    # Author (NEW - required for community publishing)
-    author_id: str = Field(
+    # Authors (Support multiple authors - at least 1 required)
+    authors: List[str] = Field(
         ...,
-        description="Author ID (e.g., @john_doe). Can be existing or new - use check endpoint to verify availability first.",
+        min_items=1,
+        max_items=5,
+        description="List of author IDs (e.g., ['@john_doe', '@jane_smith']). Use check endpoint to verify availability first.",
     )
-    # Only for NEW authors (if author_id doesn't exist yet)
-    author_name: Optional[str] = Field(
-        None,
-        min_length=2,
-        max_length=100,
-        description="Display name (required only if creating new author)",
-    )
-    author_bio: Optional[str] = Field(
-        None, max_length=500, description="Author bio (optional, for new author)"
-    )
-    author_avatar_url: Optional[str] = Field(
-        None, description="Author avatar (optional, for new author)"
+
+    # Only for NEW authors (if any author_id doesn't exist yet)
+    # Format: {"@new_author": {"name": "...", "bio": "...", "avatar_url": "..."}}
+    new_authors: Optional[dict] = Field(
+        default_factory=dict,
+        description="Data for new authors. Keys are author_ids, values are author profile data.",
     )
 
     # Visibility & Pricing

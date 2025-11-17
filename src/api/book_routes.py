@@ -534,14 +534,6 @@ async def update_book(
                 detail="Only book owner can update book",
             )
 
-        # Check slug uniqueness if slug is being changed
-        if guide_data.slug and guide_data.slug != book["slug"]:
-            if book_manager.slug_exists(user_id, guide_data.slug):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Slug '{guide_data.slug}' already exists for this user",
-                )
-
         # Update book
         updated_book = book_manager.update_book(book_id, guide_data)
 
