@@ -569,7 +569,6 @@ class PurchaseType(str, Enum):
 class PurchaseBookRequest(BaseModel):
     """Request to purchase book access"""
 
-    book_id: str = Field(..., description="Book ID to purchase")
     purchase_type: PurchaseType = Field(..., description="Type of purchase")
 
 

@@ -3476,54 +3476,129 @@ async def create_chapter_from_document(
     "/{book_id}/chapters/{chapter_id}/content",
     response_model=ChapterResponse,
     status_code=status.HTTP_200_OK,
-    summary="Get chapter with content (supports document references)",
+    summary="Get chapter content (public for preview chapters, auth for paid)",
 )
 async def get_chapter_with_content(
     book_id: str,
     chapter_id: str,
-    user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
-    **Phase 6: Get chapter with content (supports document references)**
+    **Get chapter content with access control**
 
-    Gets chapter with content loaded dynamically.
+    Returns chapter content based on access permissions:
+    - **Free preview chapters** (`is_preview_free: true`): Public access, no auth required
+    - **Paid books**: Requires purchase or ownership
+    - **Private books**: Owner only
 
-    - If content_source = "inline": Returns content_html/content_json from chapter
-    - If content_source = "document": Loads content from documents collection
+    **Access Logic:**
+    1. If `is_preview_free: true` → Allow anyone (even anonymous)
+    2. If user is owner → Full access
+    3. If user has purchased book → Full access
+    4. If book is free (0 points) → Allow authenticated users
+    5. Otherwise → 403 Forbidden
 
-    This allows chapters to reference documents without duplicating content.
+    **Authentication:** Optional (required for non-preview chapters)
     """
-    user_id = user["uid"]
-
     try:
-        # Verify book access
-        book = book_manager.get_book(book_id, user_id)
-        if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Book not found or you don't have access",
-            )
-
-        # Get chapter with content
+        # Get chapter first to check if it's a preview chapter
         chapter = chapter_manager.get_chapter_with_content(chapter_id)
 
         if not chapter or chapter.get("book_id") != book_id:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chapter not found"
             )
 
-        logger.info(
-            f"📄 User {user_id} retrieved chapter content: {chapter_id} (source: {chapter.get('content_source', 'inline')})"
+        # Check if this is a free preview chapter
+        is_preview_free = chapter.get("is_preview_free", False)
+
+        if is_preview_free:
+            # Free preview - allow anonymous access
+            logger.info(
+                f"📖 Preview chapter accessed: {chapter_id} (anonymous: {current_user is None})"
+            )
+            return ChapterResponse(**chapter)
+
+        # For non-preview chapters, authentication is required
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access this chapter",
+            )
+
+        user_id = current_user["uid"]
+
+        # Get book to check access permissions
+        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        # Check access permissions
+        is_owner = book.get("user_id") == user_id
+
+        if is_owner:
+            # Owner has full access
+            logger.info(f"📄 Owner {user_id} accessed chapter: {chapter_id}")
+            return ChapterResponse(**chapter)
+
+        # Check if book is public/free
+        visibility = book.get("visibility", "private")
+        community_config = book.get("community_config", {})
+        is_published = community_config.get("is_public", False)
+
+        if visibility == "public" or (is_published and visibility == "point_based"):
+            # Check if it's a free book (0 points for all access types)
+            access_config = book.get("access_config", {})
+            one_time_points = access_config.get("one_time_view_points", 0)
+            forever_points = access_config.get("forever_view_points", 0)
+
+            if one_time_points == 0 and forever_points == 0:
+                # Free book - allow all authenticated users
+                logger.info(f"📖 Free book accessed by {user_id}: chapter {chapter_id}")
+                return ChapterResponse(**chapter)
+
+        # Check if user has purchased access
+        # Check forever access
+        forever_purchase = db.book_purchases.find_one({
+            "user_id": user_id,
+            "book_id": book_id,
+            "purchase_type": PurchaseType.FOREVER.value,
+        })
+
+        if forever_purchase:
+            logger.info(f"📄 User {user_id} accessed chapter (forever access): {chapter_id}")
+            return ChapterResponse(**chapter)
+
+        # Check one-time access (valid for 7 days)
+        one_time_purchase = db.book_purchases.find_one({
+            "user_id": user_id,
+            "book_id": book_id,
+            "purchase_type": PurchaseType.ONE_TIME.value,
+        })
+
+        if one_time_purchase:
+            expires_at = one_time_purchase.get("access_expires_at")
+            if expires_at and expires_at > datetime.now(timezone.utc):
+                logger.info(f"📄 User {user_id} accessed chapter (one-time access): {chapter_id}")
+                return ChapterResponse(**chapter)
+
+        # No access - user needs to purchase
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Purchase required to access this chapter",
         )
-        return ChapterResponse(**chapter)
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get chapter with content: {e}", exc_info=True)
+        logger.error(f"❌ Failed to get chapter content: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to get chapter with content",
+            detail="Failed to get chapter content",
         )
 
 
