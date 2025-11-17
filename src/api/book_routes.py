@@ -1730,7 +1730,7 @@ async def get_chapter_tree(
     include_unpublished: bool = Query(
         False, description="Include unpublished chapters (owner only)"
     ),
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
 ):
     """
     Get hierarchical tree structure of all chapters in a book
