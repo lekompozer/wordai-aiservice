@@ -220,11 +220,11 @@ class CommunityPublishRequest(BaseModel):
         max_items=5,
         description="List of author IDs (e.g., ['@john_doe', '@jane_smith']). Use check endpoint to verify availability first.",
     )
-    
+
     # Legacy field for backward compatibility
     author_id: Optional[str] = Field(
         None,
-        description="(DEPRECATED) Single author ID. Use 'authors' array instead. Will be converted to authors=[author_id]"
+        description="(DEPRECATED) Single author ID. Use 'authors' array instead. Will be converted to authors=[author_id]",
     )
 
     # Only for NEW authors (if any author_id doesn't exist yet)
@@ -254,8 +254,8 @@ class CommunityPublishRequest(BaseModel):
     )
     short_description: str = Field(..., min_length=10, max_length=200)
     cover_image_url: Optional[str] = Field(None, description="Cover image URL")
-    
-    @model_validator(mode='before')
+
+    @model_validator(mode="before")
     @classmethod
     def validate_authors_backward_compat(cls, data: Any) -> Any:
         """
@@ -268,21 +268,23 @@ class CommunityPublishRequest(BaseModel):
         if isinstance(data, dict):
             authors = data.get("authors")
             author_id = data.get("author_id")
-            
+
             # If authors already provided, use it
             if authors is not None:
                 if not authors:  # Empty list
                     raise ValueError("Authors list cannot be empty")
                 return data
-            
+
             # Fallback to author_id (legacy)
             if author_id:
                 data["authors"] = [author_id]
                 return data
-            
+
             # Neither provided
-            raise ValueError("Either 'authors' (array) or 'author_id' (string) is required")
-        
+            raise ValueError(
+                "Either 'authors' (array) or 'author_id' (string) is required"
+            )
+
         return data
 
     @validator("visibility")

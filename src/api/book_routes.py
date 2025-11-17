@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 
 # Authentication
-from src.middleware.firebase_auth import get_current_user
+from src.middleware.firebase_auth import get_current_user, get_current_user_optional
 
 # Models
 from src.models.book_models import (
@@ -1730,7 +1730,7 @@ async def get_chapter_tree(
     include_unpublished: bool = Query(
         False, description="Include unpublished chapters (owner only)"
     ),
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
     Get hierarchical tree structure of all chapters in a book
@@ -2958,7 +2958,7 @@ async def publish_book_to_community(
             # Auto-create new author
             # Check if author data provided in new_authors
             new_author_data = publish_data.new_authors.get(author_id) if publish_data.new_authors else None
-            
+
             if new_author_data:
                 # Use provided author data
                 author_name = new_author_data.get("name")
@@ -3210,7 +3210,7 @@ async def list_community_books(
 )
 async def get_book_preview(
     book_id: str,
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
     **Book Preview Page (Public Endpoint)**
