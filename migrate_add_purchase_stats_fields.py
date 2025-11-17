@@ -23,10 +23,13 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# MongoDB connection
+# MongoDB connection - try both MONGODB_URI_AUTH (production) and MONGODB_URI (local)
 MONGODB_URI = os.getenv(
-    "MONGODB_URI",
-    "mongodb://ai_service_user:ai_service_2025_secure_password@mongodb:27017/",
+    "MONGODB_URI_AUTH",
+    os.getenv(
+        "MONGODB_URI",
+        "mongodb://ai_service_user:ai_service_2025_secure_password@mongodb:27017/ai_service_db?authSource=admin",
+    ),
 )
 DB_NAME = "ai_service_db"
 COLLECTION_NAME = "online_books"
