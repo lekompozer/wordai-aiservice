@@ -379,3 +379,88 @@ class BookImageUploadRequest(BaseModel):
         if v not in allowed_types:
             raise ValueError(f"Invalid image type. Allowed: {', '.join(allowed_types)}")
         return v
+
+
+# ==============================================================================
+# MY PUBLISHED BOOKS MODELS (For creators to track earnings)
+# ==============================================================================
+
+
+class MyPublishedBookStats(BaseModel):
+    """Detailed stats for my published books"""
+
+    # Purchase stats
+    total_one_time_purchases: int = Field(0, description="Total one-time purchases")
+    total_forever_purchases: int = Field(0, description="Total forever purchases")
+    total_pdf_downloads: int = Field(0, description="Total PDF downloads")
+    total_purchases: int = Field(0, description="Total all purchases (sum)")
+
+    # Revenue stats (in points)
+    total_revenue_points: int = Field(0, description="Total revenue collected (100%)")
+    owner_reward_points: int = Field(0, description="Owner's share (80%)")
+    system_fee_points: int = Field(0, description="System fee (20%)")
+    pending_transfer_points: int = Field(
+        0, description="Points not yet transferred to wallet"
+    )
+
+    # Engagement stats
+    total_views: int = Field(0, description="Total book views")
+    total_readers: int = Field(0, description="Unique readers/buyers")
+    average_rating: float = Field(0.0, ge=0, le=5, description="Average rating (0-5)")
+    rating_count: int = Field(0, description="Total ratings")
+
+
+class MyPublishedBookResponse(BaseModel):
+    """Response model for creator's published book with earnings"""
+
+    book_id: str
+    title: str
+    slug: str
+    description: Optional[str] = None
+
+    # Author info
+    author_name: Optional[str] = Field(None, description="Author display name")
+    authors: List[str] = Field(default_factory=list, description="List of author IDs")
+
+    # Community config
+    category: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    difficulty_level: Optional[str] = None
+    cover_image_url: Optional[str] = None
+
+    # Pricing
+    access_config: Optional[AccessConfig] = None
+
+    # Stats
+    stats: MyPublishedBookStats
+
+    # Metadata
+    published_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+
+class MyPublishedBooksListResponse(BaseModel):
+    """Response for list of my published books"""
+
+    books: List[MyPublishedBookResponse]
+    total: int
+    pagination: dict
+
+
+class TransferEarningsRequest(BaseModel):
+    """Request to transfer book earnings to user wallet"""
+
+    book_id: str = Field(..., description="Book ID to transfer earnings from")
+    amount_points: Optional[int] = Field(
+        None, gt=0, description="Amount to transfer (optional, default: all pending)"
+    )
+
+
+class TransferEarningsResponse(BaseModel):
+    """Response after transferring earnings"""
+
+    book_id: str
+    transferred_points: int
+    new_wallet_balance: int
+    transaction_id: str
+    timestamp: datetime

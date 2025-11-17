@@ -32,6 +32,11 @@ from src.models.book_models import (
     # Trash System
     TrashBookItem,
     TrashListResponse,
+    # My Published Books
+    MyPublishedBookResponse,
+    MyPublishedBooksListResponse,
+    TransferEarningsRequest,
+    TransferEarningsResponse,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -393,6 +398,248 @@ async def empty_trash(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to empty trash",
+        )
+
+
+# ==============================================================================
+# MY PUBLISHED BOOKS API (Creator Dashboard)
+# ==============================================================================
+
+
+@router.get("/my-published", response_model=MyPublishedBooksListResponse)
+async def list_my_published_books(
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(20, ge=1, le=100, description="Results per page"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    sort_by: str = Query(
+        "published_at", description="Sort by: published_at | revenue | views | rating"
+    ),
+    sort_order: str = Query("desc", description="Sort order: asc | desc"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **List my published books with earnings stats**
+
+    Get all books I've published to community marketplace with detailed stats:
+    - Revenue (total, owner share, system fee)
+    - Purchases (one-time, forever, PDF downloads)
+    - Engagement (views, readers, ratings)
+
+    **Authentication:** Required
+
+    **Query Parameters:**
+    - `skip`: Pagination offset (default: 0)
+    - `limit`: Results per page (default: 20, max: 100)
+    - `category`: Filter by category
+    - `sort_by`: Sort field (published_at | revenue | views | rating)
+    - `sort_order`: Sort direction (asc | desc)
+
+    **Returns:**
+    - 200: List of my published books with stats
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Build query for published books
+        query = {
+            "user_id": user_id,
+            "is_deleted": False,
+            "community_config.is_public": True,
+        }
+
+        # Filter by category
+        if category:
+            query["community_config.category"] = category
+
+        # Determine sort field
+        sort_field_map = {
+            "published_at": "community_config.published_at",
+            "revenue": "stats.total_revenue_points",
+            "views": "community_config.total_views",
+            "rating": "community_config.average_rating",
+        }
+        sort_field = sort_field_map.get(sort_by, "community_config.published_at")
+        sort_direction = -1 if sort_order == "desc" else 1
+
+        # Count total
+        total = db.online_books.count_documents(query)
+
+        # Get books
+        books_cursor = (
+            db.online_books.find(query)
+            .sort(sort_field, sort_direction)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        books = []
+        for book in books_cursor:
+            # Get community config
+            community_config = book.get("community_config", {})
+            access_config = book.get("access_config", {})
+            stats = book.get("stats", {})
+
+            # Calculate stats
+            total_revenue = stats.get("total_revenue_points", 0)
+            owner_reward = stats.get("owner_reward_points", 0)
+            system_fee = stats.get("system_fee_points", 0)
+
+            # Get author info (first author or user)
+            authors = book.get("authors", [])
+            author_name = None
+            if authors:
+                # TODO: Query author name from authors collection
+                author_name = authors[0]  # For now, use author_id
+
+            books.append(
+                MyPublishedBookResponse(
+                    book_id=book["book_id"],
+                    title=book["title"],
+                    slug=book["slug"],
+                    description=book.get("description"),
+                    author_name=author_name,
+                    authors=authors,
+                    category=community_config.get("category"),
+                    tags=community_config.get("tags", []),
+                    difficulty_level=community_config.get("difficulty_level"),
+                    cover_image_url=community_config.get("cover_image_url"),
+                    access_config=access_config if access_config else None,
+                    stats={
+                        "total_one_time_purchases": 0,  # TODO: Track this
+                        "total_forever_purchases": 0,  # TODO: Track this
+                        "total_pdf_downloads": community_config.get(
+                            "total_downloads", 0
+                        ),
+                        "total_purchases": community_config.get("total_purchases", 0),
+                        "total_revenue_points": total_revenue,
+                        "owner_reward_points": owner_reward,
+                        "system_fee_points": system_fee,
+                        "pending_transfer_points": owner_reward,  # All earnings pending for now
+                        "total_views": community_config.get("total_views", 0),
+                        "total_readers": community_config.get("total_purchases", 0),
+                        "average_rating": community_config.get("average_rating", 0.0),
+                        "rating_count": community_config.get("rating_count", 0),
+                    },
+                    published_at=community_config.get("published_at"),
+                    updated_at=book.get("updated_at"),
+                )
+            )
+
+        logger.info(
+            f"📊 User {user_id} listed {len(books)}/{total} published books "
+            f"(category={category}, sort={sort_by})"
+        )
+
+        return MyPublishedBooksListResponse(
+            books=books,
+            total=total,
+            pagination={"skip": skip, "limit": limit},
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Failed to list my published books: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list my published books",
+        )
+
+
+@router.post("/earnings/transfer", response_model=TransferEarningsResponse)
+async def transfer_book_earnings(
+    request: TransferEarningsRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Transfer book earnings to user wallet**
+
+    Transfer owner's reward points from book revenue to user's main wallet.
+
+    **Authentication:** Required
+
+    **Request Body:**
+    - `book_id`: Book ID to transfer earnings from
+    - `amount_points`: Amount to transfer (optional, default: all pending)
+
+    **Returns:**
+    - 200: Transfer successful with transaction details
+    - 403: Not book owner
+    - 404: Book not found
+    - 400: Insufficient balance
+    """
+    try:
+        user_id = current_user["uid"]
+        book_id = request.book_id
+
+        # Get book
+        book = book_manager.get_book(book_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        # Check ownership
+        if book["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only book owner can transfer earnings",
+            )
+
+        # Get current stats
+        stats = book.get("stats", {})
+        owner_reward_points = stats.get("owner_reward_points", 0)
+
+        # Determine transfer amount
+        transfer_amount = request.amount_points or owner_reward_points
+
+        if transfer_amount > owner_reward_points:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient balance. Available: {owner_reward_points} points",
+            )
+
+        if transfer_amount <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No earnings to transfer",
+            )
+
+        # TODO: Implement actual wallet transfer
+        # For now, just return mock response
+        import uuid
+        from datetime import datetime
+
+        transaction_id = f"tx_{uuid.uuid4().hex[:16]}"
+
+        # Update book stats (reduce owner_reward_points)
+        db.online_books.update_one(
+            {"book_id": book_id},
+            {"$inc": {"stats.owner_reward_points": -transfer_amount}},
+        )
+
+        # Get user's current wallet balance (mock for now)
+        # TODO: Integrate with actual wallet service
+        new_wallet_balance = 10000 + transfer_amount  # Mock balance
+
+        logger.info(
+            f"💰 User {user_id} transferred {transfer_amount} points from book {book_id}"
+        )
+
+        return TransferEarningsResponse(
+            book_id=book_id,
+            transferred_points=transfer_amount,
+            new_wallet_balance=new_wallet_balance,
+            transaction_id=transaction_id,
+            timestamp=datetime.utcnow(),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to transfer earnings: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to transfer earnings",
         )
 
 
