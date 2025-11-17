@@ -42,6 +42,7 @@ from src.models.book_models import (
     PurchaseType,
     PurchaseBookRequest,
     PurchaseBookResponse,
+    BookAccessResponse,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -824,13 +825,14 @@ async def purchase_book(
                     detail="You already have forever access to this book",
                 )
 
-        # TODO: Check user's wallet balance and deduct points
-        # For now, mock the payment
-        user_balance = 10000  # Mock balance
+        # Check user's wallet balance
+        user_points_doc = db.user_points.find_one({"user_id": user_id})
+        user_balance = user_points_doc.get("balance", 0) if user_points_doc else 0
+
         if user_balance < points_cost:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Insufficient balance. Need {points_cost} points",
+                detail=f"Insufficient balance. Required: {points_cost} points, Available: {user_balance}",
             )
 
         # Calculate revenue split (80% owner, 20% platform)
@@ -838,9 +840,20 @@ async def purchase_book(
         owner_reward = int(points_cost * 0.8)
         system_fee = points_cost - owner_reward
 
+        # Deduct points from buyer's wallet
+        from datetime import datetime, timedelta, timezone
+
+        db.user_points.update_one(
+            {"user_id": user_id},
+            {
+                "$inc": {"balance": -points_cost},
+                "$set": {"updated_at": datetime.now(timezone.utc)},
+            },
+            upsert=True,
+        )
+
         # Create purchase record
         import uuid
-        from datetime import datetime, timedelta
 
         purchase_id = f"purchase_{uuid.uuid4().hex[:16]}"
         purchase_time = datetime.utcnow()
@@ -907,6 +920,145 @@ async def purchase_book(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to purchase book",
+        )
+
+
+@router.get("/{book_id}/access", response_model=BookAccessResponse)
+async def check_book_access(
+    book_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Check user's access to a book**
+
+    Returns whether user has access, access type, expiry, and download permissions.
+
+    **Authentication:** Required
+
+    **Path Parameters:**
+    - `book_id`: Book ID to check access
+
+    **Returns:**
+    - 200: Access status details
+    - 404: Book not found
+    """
+    try:
+        user_id = current_user["uid"]
+        from datetime import datetime, timezone
+
+        # Get book
+        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        # Check if user is owner
+        is_owner = book.get("user_id") == user_id
+        if is_owner:
+            return BookAccessResponse(
+                has_access=True,
+                access_type="owner",
+                expires_at=None,
+                can_download_pdf=True,
+                is_owner=True,
+                purchase_details=None,
+            )
+
+        # Check book visibility
+        visibility = book.get("visibility")
+
+        # Public books - free access
+        if visibility == "public":
+            return BookAccessResponse(
+                has_access=True,
+                access_type="public",
+                expires_at=None,
+                can_download_pdf=False,  # Need to purchase PDF separately
+                is_owner=False,
+                purchase_details=None,
+            )
+
+        # Point-based books - check purchases
+        if visibility == "point_based":
+            # Check for forever access
+            forever_purchase = db.book_purchases.find_one(
+                {
+                    "user_id": user_id,
+                    "book_id": book_id,
+                    "purchase_type": PurchaseType.FOREVER,
+                }
+            )
+
+            if forever_purchase:
+                # Check if user also has PDF access
+                pdf_purchase = db.book_purchases.find_one(
+                    {
+                        "user_id": user_id,
+                        "book_id": book_id,
+                        "purchase_type": PurchaseType.PDF_DOWNLOAD,
+                    }
+                )
+
+                return BookAccessResponse(
+                    has_access=True,
+                    access_type="forever",
+                    expires_at=None,
+                    can_download_pdf=pdf_purchase is not None,
+                    is_owner=False,
+                    purchase_details={
+                        "purchase_id": forever_purchase.get("purchase_id"),
+                        "purchased_at": forever_purchase.get("purchased_at"),
+                        "points_spent": forever_purchase.get("points_spent"),
+                    },
+                )
+
+            # Check for active one-time access
+            one_time_purchase = db.book_purchases.find_one(
+                {
+                    "user_id": user_id,
+                    "book_id": book_id,
+                    "purchase_type": PurchaseType.ONE_TIME,
+                }
+            )
+
+            if one_time_purchase:
+                expires_at = one_time_purchase.get("access_expires_at")
+                now = datetime.now(timezone.utc)
+
+                # Check if not expired
+                if expires_at and expires_at > now:
+                    return BookAccessResponse(
+                        has_access=True,
+                        access_type="one_time",
+                        expires_at=expires_at,
+                        can_download_pdf=False,
+                        is_owner=False,
+                        purchase_details={
+                            "purchase_id": one_time_purchase.get("purchase_id"),
+                            "purchased_at": one_time_purchase.get("purchased_at"),
+                            "points_spent": one_time_purchase.get("points_spent"),
+                        },
+                    )
+
+        # No access
+        return BookAccessResponse(
+            has_access=False,
+            access_type=None,
+            expires_at=None,
+            can_download_pdf=False,
+            is_owner=False,
+            purchase_details=None,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to check book access: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check book access",
         )
 
 

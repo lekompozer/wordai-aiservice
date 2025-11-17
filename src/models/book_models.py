@@ -539,3 +539,16 @@ class PurchaseBookResponse(BaseModel):
         None, description="Expiry for one-time purchases"
     )
     timestamp: datetime
+
+
+class BookAccessResponse(BaseModel):
+    """Response for user's book access status"""
+
+    has_access: bool = Field(False, description="Whether user has any access")
+    access_type: Optional[str] = Field(
+        None, description="Type of access: one_time | forever | owner"
+    )
+    expires_at: Optional[datetime] = Field(None, description="Access expiry (one-time)")
+    can_download_pdf: bool = Field(False, description="Can download PDF")
+    is_owner: bool = Field(False, description="Is book owner")
+    purchase_details: Optional[dict] = Field(None, description="Purchase info if any")
