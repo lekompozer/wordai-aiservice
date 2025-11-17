@@ -4,7 +4,7 @@ Phase 1: Guide metadata and settings
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -274,7 +274,7 @@ class CommunityBookItem(BaseModel):
     short_description: Optional[str] = None
     cover_image_url: Optional[str] = None
     category: Optional[str] = "uncategorized"
-    tags: List[str] = []
+    tags: List[str] = Field(default_factory=list)  # Always array (not null)
     difficulty_level: Optional[str] = "beginner"
 
     # Pricing (if point_based)
@@ -286,9 +286,8 @@ class CommunityBookItem(BaseModel):
     average_rating: float = 0.0
     rating_count: int = 0
 
-    # Author
-    author_id: Optional[str] = None
-    author_name: Optional[str] = None
+    # Author - Use PreviewAuthor for consistency
+    author: Optional[Dict[str, Any]] = None  # {"author_id": "@user", "name": "Name"}
 
     # Timestamps
     published_at: Optional[datetime] = None
@@ -593,3 +592,93 @@ class MyPurchasesResponse(BaseModel):
     total_pages: int
     is_owner: bool = Field(False, description="Is book owner")
     purchase_details: Optional[dict] = Field(None, description="Purchase info if any")
+
+
+# ==============================================================================
+# BOOK PREVIEW MODELS (Community Books Preview Page)
+# ==============================================================================
+
+
+class PreviewAuthor(BaseModel):
+    """Author info for book preview"""
+
+    author_id: str = Field(..., description="Author ID (e.g., @username)")
+    name: str = Field(..., description="Author display name")
+    avatar_url: Optional[str] = None
+    bio: Optional[str] = None
+
+
+class PreviewChapterItem(BaseModel):
+    """Chapter item in preview (table of contents)"""
+
+    chapter_id: str
+    title: str
+    slug: str
+    order_index: int
+    depth: int = Field(default=0, description="Nesting level (0=root, 1=sub, 2=subsub)")
+    is_preview_free: bool = Field(
+        default=False, description="Can read without purchase"
+    )
+
+
+class PreviewStats(BaseModel):
+    """Book stats for preview page"""
+
+    total_views: int = 0
+    total_purchases: int = 0
+    forever_purchases: int = 0
+    one_time_purchases: int = 0
+    pdf_downloads: int = 0
+    average_rating: float = 0.0
+    rating_count: int = 0
+
+
+class BookPreviewResponse(BaseModel):
+    """Response for book preview page (public, no auth)"""
+
+    # Basic info
+    book_id: str
+    title: str
+    slug: str
+    description: Optional[str] = None
+
+    # Visual
+    cover_image_url: Optional[str] = None
+    icon: Optional[str] = None
+    color: Optional[str] = None
+
+    # Author (MUST be object, not null)
+    author: PreviewAuthor = Field(..., description="Book author info")
+    authors: List[str] = Field(
+        default_factory=list, description="All author IDs (for multi-author books)"
+    )
+
+    # Community metadata (MUST be array, not null)
+    category: Optional[str] = None
+    tags: List[str] = Field(default_factory=list, description="Tags array (not null)")
+    difficulty_level: Optional[str] = None
+
+    # Access config (can be null for free books)
+    access_config: Optional[AccessConfig] = Field(
+        None, description="null for public books"
+    )
+
+    # Chapters (table of contents)
+    chapters: List[PreviewChapterItem] = Field(
+        default_factory=list, description="Chapter list for TOC"
+    )
+
+    # Stats (MUST be object, not null)
+    stats: PreviewStats = Field(
+        default_factory=PreviewStats, description="Book stats (use 0 if no data)"
+    )
+
+    # Metadata
+    published_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    # User access (if authenticated)
+    user_access: Optional[dict] = Field(
+        None,
+        description="User's purchase status if logged in: {has_access, access_type, expires_at}",
+    )

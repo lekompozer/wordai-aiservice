@@ -31,6 +31,10 @@ class ChapterCreate(BaseModel):
         None, ge=0, description="Alias for order_index (for backward compatibility)"
     )
     is_published: bool = Field(default=True, description="Published status")
+    is_preview_free: bool = Field(
+        default=False,
+        description="Allow free preview on Community Books (no purchase required)",
+    )
 
     @property
     def get_order_index(self) -> int:
@@ -50,6 +54,9 @@ class ChapterUpdate(BaseModel):
     parent_id: Optional[str] = None
     order_index: Optional[int] = Field(None, ge=0)
     is_published: Optional[bool] = None
+    is_preview_free: Optional[bool] = Field(
+        None, description="Allow free preview on Community Books"
+    )
 
 
 class ChapterReorder(BaseModel):
@@ -78,6 +85,9 @@ class ChapterResponse(BaseModel):
     order_index: int
     depth: int
     is_published: bool
+    is_preview_free: bool = Field(
+        default=False, description="Free preview on Community Books"
+    )
     created_at: datetime
     updated_at: datetime
 
@@ -104,3 +114,11 @@ class ChapterListResponse(BaseModel):
 
     chapters: List[ChapterTreeNode]
     total_chapters: int
+
+
+class TogglePreviewRequest(BaseModel):
+    """Request to toggle chapter preview status"""
+
+    is_preview_free: bool = Field(
+        description="Set to true to allow free preview on Community Books"
+    )

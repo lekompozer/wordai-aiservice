@@ -23,6 +23,7 @@ from src.models.book_models import (
     BookResponse,
     BookListResponse,
     BookVisibility,
+    AccessConfig,
     # Phase 6: Community Books & Document Integration
     CommunityPublishRequest,
     CommunityBookItem,
@@ -46,6 +47,11 @@ from src.models.book_models import (
     BookAccessResponse,
     MyPurchaseItem,
     MyPurchasesResponse,
+    # Book Preview
+    BookPreviewResponse,
+    PreviewAuthor,
+    PreviewChapterItem,
+    PreviewStats,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -53,6 +59,7 @@ from src.models.book_chapter_models import (
     ChapterResponse,
     ChapterTreeNode,
     ChapterReorderBulk,
+    TogglePreviewRequest,
 )
 from src.models.book_permission_models import (
     PermissionCreate,
@@ -1723,12 +1730,22 @@ async def get_chapter_tree(
     include_unpublished: bool = Query(
         False, description="Include unpublished chapters (owner only)"
     ),
-    current_user: Dict[str, Any] = Depends(get_current_user),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
 ):
     """
     Get hierarchical tree structure of all chapters in a book
 
-    **Authentication:** Required
+    **Authentication:** Optional (public access for published Community books)
+
+    **Public Access:**
+    - If book is published to Community (is_public=true): Returns chapter TOC
+    - Chapter list includes is_preview_free flag
+    - No authentication required
+
+    **Authenticated Access:**
+    - Owner: Full access, can see unpublished chapters
+    - Shared users: Access based on permissions
+    - Buyers: Access based on purchase
 
     **Query Parameters:**
     - include_unpublished: Include unpublished chapters (default: false)
@@ -1746,9 +1763,7 @@ async def get_chapter_tree(
     - 404: Book not found
     """
     try:
-        user_id = current_user["uid"]
-
-        # Verify book access
+        # Verify book exists
         book = book_manager.get_book(book_id)
 
         if not book:
@@ -1757,19 +1772,38 @@ async def get_chapter_tree(
                 detail="Book not found",
             )
 
-        # Check access
-        is_owner = book["user_id"] == user_id
+        # Check if book is public (published to Community)
+        is_public = book.get("community_config", {}).get("is_public", False)
 
-        if not is_owner:
-            has_permission = permission_manager.check_permission(
-                book_id=book_id, user_id=user_id
+        # If no user and book not public, require authentication
+        if not current_user and not is_public:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required for this book",
             )
 
-            if not has_permission:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You don't have access to this book",
+        # Determine access level
+        is_owner = False
+        has_access = is_public  # Public books are accessible by default
+
+        if current_user:
+            user_id = current_user["uid"]
+            is_owner = book["user_id"] == user_id
+
+            if is_owner:
+                has_access = True
+            elif not is_public:
+                # Private book - check permissions
+                has_permission = permission_manager.check_permission(
+                    book_id=book_id, user_id=user_id
                 )
+                has_access = has_permission
+
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this book",
+            )
 
         # Owner always sees unpublished chapters
         show_unpublished = is_owner or include_unpublished
@@ -1783,7 +1817,7 @@ async def get_chapter_tree(
         total = chapter_manager.count_chapters(book_id)
 
         logger.info(
-            f"📄 User {user_id} retrieved chapter tree for book {book_id}: {total} chapters"
+            f"📄 {'User ' + current_user['uid'] if current_user else 'Anonymous'} retrieved chapter tree for book {book_id}: {total} chapters"
         )
 
         return {
@@ -1894,6 +1928,103 @@ async def update_chapter(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update chapter",
+        )
+
+
+@router.patch(
+    "/{book_id}/chapters/{chapter_id}/preview",
+    response_model=ChapterResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Toggle chapter preview status",
+)
+async def toggle_chapter_preview(
+    book_id: str,
+    chapter_id: str,
+    preview_data: TogglePreviewRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Toggle Free Preview Status for Chapter**
+
+    Allows book owner to mark/unmark chapters as free preview on Community Books.
+    Free preview chapters can be read without purchase on the preview page.
+
+    **Authentication:** Required (Owner only)
+
+    **Use Cases:**
+    - Mark first chapter as free to attract readers
+    - Unmark chapter to make it paid-only
+    - Change preview strategy based on engagement
+
+    **Path Parameters:**
+    - `book_id`: Book ID
+    - `chapter_id`: Chapter ID to toggle
+
+    **Request Body:**
+    - `is_preview_free`: true to allow free preview, false to require purchase
+
+    **Returns:**
+    - 200: Updated chapter with new preview status
+    - 403: User is not book owner
+    - 404: Book or chapter not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        if book["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only book owner can toggle chapter preview status",
+            )
+
+        # Verify chapter belongs to book
+        chapter = chapter_manager.get_chapter(chapter_id)
+
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chapter not found",
+            )
+
+        if chapter["book_id"] != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chapter does not belong to this book",
+            )
+
+        # Update preview status
+        update_data = ChapterUpdate(is_preview_free=preview_data.is_preview_free)
+        updated_chapter = chapter_manager.update_chapter(chapter_id, update_data)
+
+        if not updated_chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Failed to update chapter",
+            )
+
+        action = "enabled" if preview_data.is_preview_free else "disabled"
+        logger.info(
+            f"👁️ User {user_id} {action} free preview for chapter {chapter_id} in book {book_id}"
+        )
+
+        return updated_chapter
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to toggle chapter preview: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to toggle chapter preview",
         )
 
 
@@ -2999,6 +3130,29 @@ async def list_community_books(
             community_config = book.get("community_config", {})
             access_config = book.get("access_config") or {}  # Handle None case
 
+            # Get author info (ensure object format)
+            authors_list = book.get("authors", [])
+            primary_author_id = authors_list[0] if authors_list else None
+            author_obj = None
+
+            if primary_author_id:
+                # Try to get from book_authors collection
+                author_doc = db.book_authors.find_one({"author_id": primary_author_id})
+                if author_doc:
+                    author_obj = {
+                        "author_id": author_doc["author_id"],
+                        "name": author_doc["name"],
+                        "avatar_url": author_doc.get("avatar_url"),
+                    }
+                else:
+                    # Fallback: use author_id as name
+                    author_obj = {
+                        "author_id": primary_author_id,
+                        "name": primary_author_id.replace("@", "")
+                        .replace("_", " ")
+                        .title(),
+                    }
+
             item = CommunityBookItem(
                 book_id=book.get("book_id"),
                 title=book.get("title"),
@@ -3006,15 +3160,14 @@ async def list_community_books(
                 short_description=community_config.get("short_description"),
                 cover_image_url=book.get("cover_image_url"),
                 category=community_config.get("category", "uncategorized"),
-                tags=community_config.get("tags", []),
+                tags=community_config.get("tags", []),  # Always array
                 difficulty_level=community_config.get("difficulty_level", "beginner"),
                 forever_view_points=access_config.get("forever_view_points", 0),
                 total_views=community_config.get("total_views", 0),
                 total_purchases=community_config.get("total_purchases", 0),
                 average_rating=community_config.get("average_rating", 0.0),
                 rating_count=community_config.get("rating_count", 0),
-                author_id=community_config.get("author_id"),
-                author_name=community_config.get("author_name"),
+                author=author_obj,  # Object with author_id, name, avatar_url
                 published_at=community_config.get("published_at"),
             )
             items.append(item)
@@ -3037,6 +3190,204 @@ async def list_community_books(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list community books",
+        )
+
+
+@router.get(
+    "/{book_id}/preview",
+    response_model=BookPreviewResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get book preview (public, no auth required)",
+)
+async def get_book_preview(
+    book_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+):
+    """
+    **Book Preview Page (Public Endpoint)**
+
+    Returns full book information for preview page including:
+    - Book details (title, description, cover, author)
+    - Table of contents (chapter list)
+    - Free preview chapters
+    - Purchase options
+    - Stats and ratings
+
+    **No authentication required** - Anyone can view preview.
+    If user is authenticated, also returns their purchase status.
+
+    **Data Consistency Guarantees:**
+    - `tags`: Always array (never null)
+    - `author`: Always object with user_id and display_name
+    - `stats`: Always object with default 0 values
+    - `access_config`: Null for free books, object for paid books
+
+    **Path Parameters:**
+    - `book_id`: Book ID to preview
+
+    **Returns:**
+    - 200: Book preview data
+    - 404: Book not found or not published to Community
+    """
+    try:
+        # Get book (must be published to Community)
+        book = db.online_books.find_one({
+            "book_id": book_id,
+            "community_config.is_public": True,
+        })
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or not published to Community",
+            )
+
+        # Get author info (primary author)
+        authors_list = book.get("authors", [])
+        primary_author_id = authors_list[0] if authors_list else None
+
+        if primary_author_id:
+            # Get author details from authors collection
+            author_doc = db.book_authors.find_one({"author_id": primary_author_id})
+            if author_doc:
+                author = PreviewAuthor(
+                    author_id=author_doc["author_id"],
+                    name=author_doc["name"],
+                    avatar_url=author_doc.get("avatar_url"),
+                    bio=author_doc.get("bio"),
+                )
+            else:
+                # Fallback if author not found
+                author = PreviewAuthor(
+                    author_id=primary_author_id,
+                    name=primary_author_id.replace("@", "").replace("_", " ").title(),
+                )
+        else:
+            # No author - use book owner
+            author = PreviewAuthor(
+                author_id=f"@{book.get('user_id', 'unknown')}",
+                name="Unknown Author",
+            )
+
+        # Get chapters (table of contents)
+        chapters_cursor = db.book_chapters.find(
+            {"book_id": book_id, "is_published": True}
+        ).sort("order_index", 1)
+
+        chapters = []
+        for chapter in chapters_cursor:
+            chapters.append(
+                PreviewChapterItem(
+                    chapter_id=chapter["chapter_id"],
+                    title=chapter["title"],
+                    slug=chapter["slug"],
+                    order_index=chapter.get("order_index", 0),
+                    depth=chapter.get("depth", 0),
+                    is_preview_free=chapter.get("is_preview_free", False),
+                )
+            )
+
+        # Get community config and stats
+        community_config = book.get("community_config", {})
+        stats_data = book.get("stats", {})
+
+        # Build stats object (guaranteed non-null with defaults)
+        stats = PreviewStats(
+            total_views=community_config.get("total_views", 0),
+            total_purchases=stats_data.get("forever_purchases", 0)
+            + stats_data.get("one_time_purchases", 0)
+            + stats_data.get("pdf_downloads", 0),
+            forever_purchases=stats_data.get("forever_purchases", 0),
+            one_time_purchases=stats_data.get("one_time_purchases", 0),
+            pdf_downloads=stats_data.get("pdf_downloads", 0),
+            average_rating=community_config.get("average_rating", 0.0),
+            rating_count=community_config.get("rating_count", 0),
+        )
+
+        # Get access config (null for free books)
+        access_config = book.get("access_config")
+        if access_config:
+            access_config = AccessConfig(**access_config)
+
+        # Check user's access if authenticated
+        user_access = None
+        if current_user:
+            user_id = current_user["uid"]
+            is_owner = book.get("user_id") == user_id
+
+            if is_owner:
+                user_access = {
+                    "has_access": True,
+                    "access_type": "owner",
+                    "expires_at": None,
+                }
+            else:
+                # Check purchases
+                forever_purchase = db.book_purchases.find_one({
+                    "user_id": user_id,
+                    "book_id": book_id,
+                    "purchase_type": PurchaseType.FOREVER.value,
+                })
+
+                if forever_purchase:
+                    user_access = {
+                        "has_access": True,
+                        "access_type": "forever",
+                        "expires_at": None,
+                    }
+                else:
+                    # Check one-time purchase
+                    one_time_purchase = db.book_purchases.find_one({
+                        "user_id": user_id,
+                        "book_id": book_id,
+                        "purchase_type": PurchaseType.ONE_TIME.value,
+                    })
+
+                    if one_time_purchase:
+                        expires_at = one_time_purchase.get("access_expires_at")
+                        is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+
+                        user_access = {
+                            "has_access": not is_expired,
+                            "access_type": "one_time",
+                            "expires_at": expires_at.isoformat() if expires_at else None,
+                        }
+
+        # Build response
+        response = BookPreviewResponse(
+            book_id=book["book_id"],
+            title=book["title"],
+            slug=book["slug"],
+            description=book.get("description"),
+            cover_image_url=book.get("cover_image_url"),
+            icon=book.get("icon"),
+            color=book.get("color"),
+            author=author,
+            authors=authors_list,
+            category=community_config.get("category"),
+            tags=community_config.get("tags", []),  # Always array
+            difficulty_level=community_config.get("difficulty_level"),
+            access_config=access_config,
+            chapters=chapters,
+            stats=stats,
+            published_at=community_config.get("published_at"),
+            updated_at=book.get("updated_at"),
+            user_access=user_access,
+        )
+
+        logger.info(
+            f"📖 Preview page viewed for book {book_id} by user {current_user['uid'] if current_user else 'anonymous'}"
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get book preview: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get book preview",
         )
 
 
