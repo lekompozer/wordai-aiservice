@@ -196,7 +196,10 @@ async def list_guides(
         user_id = current_user["uid"]
 
         # Build query
-        query = {"user_id": user_id}
+        query = {
+            "user_id": user_id,
+            "is_deleted": False,  # Only show active books (not in trash)
+        }
 
         # Filter by visibility
         if visibility:
