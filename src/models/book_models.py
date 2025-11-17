@@ -56,6 +56,15 @@ class BookStats(BaseModel):
     owner_reward_points: int = 0  # Owner's share (80%)
     system_fee_points: int = 0  # System's share (20%)
 
+    # Purchase breakdown by type (NEW)
+    one_time_purchases: int = 0  # Count of one-time purchases
+    forever_purchases: int = 0  # Count of forever purchases
+    pdf_downloads: int = 0  # Count of PDF downloads
+
+    one_time_revenue: int = 0  # Revenue from one-time purchases
+    forever_revenue: int = 0  # Revenue from forever purchases
+    pdf_revenue: int = 0  # Revenue from PDF downloads
+
 
 class BookCreate(BaseModel):
     """Request model to create a new guide"""
@@ -495,3 +504,38 @@ class EarningsSummaryResponse(BaseModel):
     top_earning_book: Optional[TopEarningBook] = Field(
         None, description="Top earning book"
     )
+
+
+# ==============================================================================
+# BOOK PURCHASE MODELS (Point-based purchases)
+# ==============================================================================
+
+
+class PurchaseType(str, Enum):
+    """Types of book purchases"""
+
+    ONE_TIME = "one_time"  # One-time view access
+    FOREVER = "forever"  # Permanent view access
+    PDF_DOWNLOAD = "pdf_download"  # PDF download
+
+
+class PurchaseBookRequest(BaseModel):
+    """Request to purchase book access"""
+
+    book_id: str = Field(..., description="Book ID to purchase")
+    purchase_type: PurchaseType = Field(..., description="Type of purchase")
+
+
+class PurchaseBookResponse(BaseModel):
+    """Response after purchasing book"""
+
+    success: bool
+    purchase_id: str
+    book_id: str
+    purchase_type: PurchaseType
+    points_spent: int
+    remaining_balance: int
+    access_expires_at: Optional[datetime] = Field(
+        None, description="Expiry for one-time purchases"
+    )
+    timestamp: datetime

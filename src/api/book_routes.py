@@ -38,6 +38,10 @@ from src.models.book_models import (
     TransferEarningsRequest,
     TransferEarningsResponse,
     EarningsSummaryResponse,
+    # Book Purchases
+    PurchaseType,
+    PurchaseBookRequest,
+    PurchaseBookResponse,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -506,11 +510,11 @@ async def list_my_published_books(
                     cover_image_url=community_config.get("cover_image_url"),
                     access_config=access_config if access_config else None,
                     stats={
-                        "total_one_time_purchases": 0,  # TODO: Track this
-                        "total_forever_purchases": 0,  # TODO: Track this
-                        "total_pdf_downloads": community_config.get(
-                            "total_downloads", 0
+                        "total_one_time_purchases": stats.get(
+                            "one_time_purchases", 0
                         ),
+                        "total_forever_purchases": stats.get("forever_purchases", 0),
+                        "total_pdf_downloads": stats.get("pdf_downloads", 0),
                         "total_purchases": community_config.get("total_purchases", 0),
                         "total_revenue_points": total_revenue,
                         "owner_reward_points": owner_reward,
@@ -598,6 +602,11 @@ async def get_earnings_summary(
             total_revenue += book_revenue
             owner_reward += book_owner_reward
             platform_fee += book_system_fee
+
+            # Aggregate revenue breakdown by purchase type
+            one_time_revenue += stats.get("one_time_revenue", 0)
+            forever_revenue += stats.get("forever_revenue", 0)
+            pdf_revenue += stats.get("pdf_revenue", 0)
 
             # Track top earning book
             if book_revenue > max_revenue:
@@ -730,6 +739,174 @@ async def transfer_book_earnings(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to transfer earnings",
+        )
+
+
+@router.post("/{book_id}/purchase", response_model=PurchaseBookResponse)
+async def purchase_book(
+    book_id: str,
+    request: PurchaseBookRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Purchase book access with points**
+
+    Buy one-time, forever, or PDF download access to a book.
+
+    **Authentication:** Required
+
+    **Path Parameters:**
+    - `book_id`: Book ID to purchase
+
+    **Request Body:**
+    - `purchase_type`: "one_time" | "forever" | "pdf_download"
+
+    **Returns:**
+    - 200: Purchase successful with access details
+    - 400: Insufficient balance or invalid purchase type
+    - 404: Book not found
+    - 409: Already purchased (for forever access)
+    """
+    try:
+        user_id = current_user["uid"]
+        purchase_type = request.purchase_type
+
+        # Get book
+        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        # Check if book is published and has point-based access
+        visibility = book.get("visibility")
+        if visibility != "point_based":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Book is not available for purchase",
+            )
+
+        # Get access config
+        access_config = book.get("access_config", {})
+        if not access_config:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Book access config not found",
+            )
+
+        # Determine points cost
+        points_map = {
+            PurchaseType.ONE_TIME: access_config.get("one_time_view_points", 0),
+            PurchaseType.FOREVER: access_config.get("forever_view_points", 0),
+            PurchaseType.PDF_DOWNLOAD: access_config.get("download_pdf_points", 0),
+        }
+
+        points_cost = points_map.get(purchase_type, 0)
+        if points_cost <= 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Purchase type '{purchase_type}' not enabled for this book",
+            )
+
+        # Check if user already has forever access
+        if purchase_type == PurchaseType.FOREVER:
+            existing_purchase = db.book_purchases.find_one(
+                {
+                    "user_id": user_id,
+                    "book_id": book_id,
+                    "purchase_type": PurchaseType.FOREVER,
+                }
+            )
+            if existing_purchase:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="You already have forever access to this book",
+                )
+
+        # TODO: Check user's wallet balance and deduct points
+        # For now, mock the payment
+        user_balance = 10000  # Mock balance
+        if user_balance < points_cost:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Insufficient balance. Need {points_cost} points",
+            )
+
+        # Calculate revenue split (80% owner, 20% platform)
+        total_revenue = points_cost
+        owner_reward = int(points_cost * 0.8)
+        system_fee = points_cost - owner_reward
+
+        # Create purchase record
+        import uuid
+        from datetime import datetime, timedelta
+
+        purchase_id = f"purchase_{uuid.uuid4().hex[:16]}"
+        purchase_time = datetime.utcnow()
+
+        # Set expiry for one-time purchases (24 hours)
+        access_expires_at = None
+        if purchase_type == PurchaseType.ONE_TIME:
+            access_expires_at = purchase_time + timedelta(hours=24)
+
+        purchase_record = {
+            "purchase_id": purchase_id,
+            "user_id": user_id,
+            "book_id": book_id,
+            "purchase_type": purchase_type,
+            "points_spent": points_cost,
+            "access_expires_at": access_expires_at,
+            "purchased_at": purchase_time,
+        }
+
+        db.book_purchases.insert_one(purchase_record)
+
+        # Update book stats with purchase type breakdown
+        stats_update = {
+            "$inc": {
+                "stats.total_revenue_points": total_revenue,
+                "stats.owner_reward_points": owner_reward,
+                "stats.system_fee_points": system_fee,
+                "community_config.total_purchases": 1,
+            }
+        }
+
+        # Increment specific purchase type counters
+        if purchase_type == PurchaseType.ONE_TIME:
+            stats_update["$inc"]["stats.one_time_purchases"] = 1
+            stats_update["$inc"]["stats.one_time_revenue"] = total_revenue
+        elif purchase_type == PurchaseType.FOREVER:
+            stats_update["$inc"]["stats.forever_purchases"] = 1
+            stats_update["$inc"]["stats.forever_revenue"] = total_revenue
+        elif purchase_type == PurchaseType.PDF_DOWNLOAD:
+            stats_update["$inc"]["stats.pdf_downloads"] = 1
+            stats_update["$inc"]["stats.pdf_revenue"] = total_revenue
+
+        db.online_books.update_one({"book_id": book_id}, stats_update)
+
+        logger.info(
+            f"📚 User {user_id} purchased {purchase_type} access to book {book_id} for {points_cost} points"
+        )
+
+        return PurchaseBookResponse(
+            success=True,
+            purchase_id=purchase_id,
+            book_id=book_id,
+            purchase_type=purchase_type,
+            points_spent=points_cost,
+            remaining_balance=user_balance - points_cost,
+            access_expires_at=access_expires_at,
+            timestamp=purchase_time,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to purchase book: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to purchase book",
         )
 
 
