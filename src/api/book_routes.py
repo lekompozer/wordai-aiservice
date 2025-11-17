@@ -1061,9 +1061,15 @@ async def purchase_book(
                     detail="You already have forever access to this book",
                 )
 
-        # Check user's wallet balance
-        user_points_doc = db.user_points.find_one({"user_id": user_id})
-        user_balance = user_points_doc.get("balance", 0) if user_points_doc else 0
+        # Check user's wallet balance (from firebase_users collection)
+        user_doc = db.firebase_users.find_one({"uid": user_id})
+        if not user_doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        user_balance = user_doc.get("points_remaining", 0)
 
         if user_balance < points_cost:
             raise HTTPException(
@@ -1079,14 +1085,19 @@ async def purchase_book(
         # Deduct points from buyer's wallet
         from datetime import datetime, timedelta, timezone
 
-        db.user_points.update_one(
-            {"user_id": user_id},
+        result = db.firebase_users.update_one(
+            {"uid": user_id},
             {
-                "$inc": {"balance": -points_cost},
+                "$inc": {"points_remaining": -points_cost},
                 "$set": {"updated_at": datetime.now(timezone.utc)},
             },
-            upsert=True,
         )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to deduct points",
+            )
 
         # Create purchase record
         import uuid
@@ -1133,6 +1144,27 @@ async def purchase_book(
             stats_update["$inc"]["stats.pdf_revenue"] = total_revenue
 
         db.online_books.update_one({"book_id": book_id}, stats_update)
+
+        # Credit owner's earnings_points (80% revenue split - can be withdrawn to cash)
+        owner_id = book.get("user_id")
+        if owner_id and owner_id != user_id:  # Don't credit if buying own book
+            owner_earnings_result = db.firebase_users.update_one(
+                {"uid": owner_id},
+                {
+                    "$inc": {"earnings_points": owner_reward},
+                    "$set": {"updated_at": datetime.now(timezone.utc)}
+                }
+            )
+
+            if owner_earnings_result.modified_count > 0:
+                logger.info(
+                    f"💰 Credited {owner_reward} earnings points to book owner {owner_id} "
+                    f"(80% of {points_cost} points purchase)"
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Failed to credit earnings to owner {owner_id} - user not found"
+                )
 
         logger.info(
             f"📚 User {user_id} purchased {purchase_type} access to book {book_id} for {points_cost} points"
