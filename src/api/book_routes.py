@@ -11,6 +11,7 @@ Supports public/private/unlisted visibility, user permissions, and hierarchical 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional, Dict, Any
 import logging
+from datetime import datetime, timezone
 
 # Authentication
 from src.middleware.firebase_auth import get_current_user
@@ -43,6 +44,8 @@ from src.models.book_models import (
     PurchaseBookRequest,
     PurchaseBookResponse,
     BookAccessResponse,
+    MyPurchaseItem,
+    MyPurchasesResponse,
 )
 from src.models.book_chapter_models import (
     ChapterCreate,
@@ -335,6 +338,16 @@ async def list_trash(
             # Count chapters for this book
             chapters_count = chapter_manager.count_chapters(book["book_id"])
 
+            # Get published status and purchase counts (DELETE_PROTECTION_FLOW)
+            community_config = book.get("community_config", {})
+            is_published = community_config.get("is_public", False)
+
+            stats = book.get("stats", {})
+            forever_purchases = stats.get("forever_purchases", 0)
+            one_time_purchases = stats.get("one_time_purchases", 0)
+            pdf_downloads = stats.get("pdf_downloads", 0)
+            total_purchases = forever_purchases + one_time_purchases + pdf_downloads
+
             items.append(
                 TrashBookItem(
                     book_id=book["book_id"],
@@ -344,6 +357,11 @@ async def list_trash(
                     deleted_by=book.get("deleted_by", user_id),
                     chapters_count=chapters_count,
                     can_restore=True,
+                    is_published=is_published,
+                    total_purchases=total_purchases,
+                    forever_purchases=forever_purchases,
+                    one_time_purchases=one_time_purchases,
+                    pdf_downloads=pdf_downloads,
                 )
             )
 
@@ -372,6 +390,10 @@ async def list_trash(
 
 @router.delete("/trash/empty")
 async def empty_trash(
+    unpublish_all: bool = Query(
+        False,
+        description="Confirm unpublishing all published books from Community marketplace",
+    ),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
@@ -379,26 +401,105 @@ async def empty_trash(
 
     **Authentication:** Required
 
-    **Warning:** This action cannot be undone!
+    **⚠️ DELETE_PROTECTION_FLOW:**
+    - If trash contains published books, must set `unpublish_all=true`
+    - Published books will be unpublished from Community marketplace
+    - All buyer access (forever/one-time purchases) will be lost
+    - This action cannot be undone!
+
+    **Query Parameters:**
+    - `unpublish_all`: Must be `true` to delete published books (default: false)
 
     **Returns:**
     - 200: Trash emptied with deletion stats
+    - 400: Trash contains published books without confirmation
     """
     try:
         user_id = current_user["uid"]
+
+        # Get trash books to check for published books
+        books, total = book_manager.list_trash(user_id, skip=0, limit=10000, sort_by="deleted_at")
+
+        # Check for published books
+        published_books = []
+        total_affected_purchases = 0
+
+        for book in books:
+            community_config = book.get("community_config", {})
+            if community_config.get("is_public", False):
+                stats = book.get("stats", {})
+                forever = stats.get("forever_purchases", 0)
+                one_time = stats.get("one_time_purchases", 0)
+                pdf = stats.get("pdf_downloads", 0)
+                total_purchases = forever + one_time + pdf
+
+                published_books.append(
+                    {
+                        "book_id": book["book_id"],
+                        "title": book["title"],
+                        "total_purchases": total_purchases,
+                        "forever_purchases": forever,
+                        "one_time_purchases": one_time,
+                        "pdf_downloads": pdf,
+                    }
+                )
+                total_affected_purchases += total_purchases
+
+        # If published books exist and unpublish_all is not confirmed, block deletion
+        if published_books and not unpublish_all:
+            logger.warning(
+                f"⚠️ User {user_id} tried to empty trash with {len(published_books)} published books without confirmation"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "error": "Published books in trash require confirmation",
+                    "message": "Your trash contains published books with active purchases. Set unpublish_all=true to proceed.",
+                    "published_books_count": len(published_books),
+                    "total_affected_purchases": total_affected_purchases,
+                    "published_books": published_books,
+                    "action_required": "Call DELETE /books/trash/empty?unpublish_all=true",
+                },
+            )
+
+        # Unpublish all published books before deleting
+        if published_books:
+            for book_info in published_books:
+                try:
+                    # Unpublish from community
+                    db.online_books.update_one(
+                        {"book_id": book_info["book_id"]},
+                        {
+                            "$set": {
+                                "community_config.is_public": False,
+                                "visibility": "private",
+                            }
+                        },
+                    )
+                    logger.info(
+                        f"📤 Unpublished book {book_info['book_id']} before permanent deletion"
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"❌ Failed to unpublish book {book_info['book_id']}: {e}"
+                    )
 
         # Empty trash
         stats = book_manager.empty_trash(user_id)
 
         logger.info(
-            f"🧹 User {user_id} emptied trash: {stats['deleted_books']} books"
+            f"🧹 User {user_id} emptied trash: {stats['deleted_books']} books, {len(published_books)} unpublished"
         )
 
         return {
             "message": "Trash emptied successfully",
             **stats,
+            "unpublished_books": len(published_books),
+            "affected_purchases": total_affected_purchases,
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to empty trash: {e}", exc_info=True)
         raise HTTPException(
@@ -446,10 +547,10 @@ async def list_my_published_books(
     try:
         user_id = current_user["uid"]
 
-        # Build query for published books
+        # Build query for published books (including trashed ones per DELETE_PROTECTION_FLOW)
         query = {
             "user_id": user_id,
-            "is_deleted": False,
+            # NOTE: No is_deleted filter! Trashed published books still show here
             "community_config.is_public": True,
         }
 
@@ -526,6 +627,7 @@ async def list_my_published_books(
                         "average_rating": community_config.get("average_rating", 0.0),
                         "rating_count": community_config.get("rating_count", 0),
                     },
+                    is_deleted=book.get("is_deleted", False),  # DELETE_PROTECTION_FLOW
                     published_at=community_config.get("published_at"),
                     updated_at=book.get("updated_at"),
                 )
@@ -743,6 +845,133 @@ async def transfer_book_earnings(
         )
 
 
+@router.get("/my-purchases", response_model=MyPurchasesResponse)
+async def list_my_purchases(
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    purchase_type: Optional[PurchaseType] = Query(
+        None, description="Filter by purchase type"
+    ),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **List all books I've purchased**
+
+    Returns list of purchased books with access status, even if book is deleted.
+    Per DELETE_PROTECTION_FLOW: trashed books with purchases remain accessible.
+
+    **Authentication:** Required
+
+    **Query Parameters:**
+    - `page`: Page number (default: 1)
+    - `limit`: Items per page (default: 20, max: 100)
+    - `purchase_type`: Filter by type (one_time, forever, pdf_download)
+
+    **Returns:**
+    - 200: List of my purchases with book info and access status
+
+    **Access Status:**
+    - `active`: Currently accessible
+    - `expired`: One-time purchase expired
+    - `book_deleted_unpublished`: Book unpublished from Community (no access)
+    """
+    try:
+        user_id = current_user["uid"]
+        skip = (page - 1) * limit
+
+        # Build query
+        query = {"user_id": user_id}
+        if purchase_type:
+            query["purchase_type"] = purchase_type.value
+
+        # Count total
+        total = db.book_purchases.count_documents(query)
+
+        # Get purchases
+        purchases_cursor = (
+            db.book_purchases.find(query)
+            .sort("purchased_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        items = []
+        now = datetime.now(timezone.utc)
+
+        for purchase in purchases_cursor:
+            book_id = purchase["book_id"]
+
+            # Get book info (even if deleted!)
+            book = db.online_books.find_one({"book_id": book_id})
+
+            if not book:
+                # Book permanently deleted
+                access_status = "book_deleted_unpublished"
+                book_title = "Deleted Book"
+                book_slug = ""
+                book_cover = None
+                book_is_deleted = True
+            else:
+                # Check access status
+                book_is_deleted = book.get("is_deleted", False)
+                is_published = book.get("community_config", {}).get("is_public", False)
+
+                if not is_published:
+                    # Book unpublished - no access
+                    access_status = "book_deleted_unpublished"
+                elif purchase["purchase_type"] == PurchaseType.ONE_TIME.value:
+                    # Check expiry
+                    expires_at = purchase.get("access_expires_at")
+                    if expires_at and expires_at > now:
+                        access_status = "active"
+                    else:
+                        access_status = "expired"
+                else:
+                    # Forever or PDF - always active if published
+                    access_status = "active"
+
+                book_title = book["title"]
+                book_slug = book["slug"]
+                book_cover = book.get("cover_image_url")
+
+            items.append(
+                MyPurchaseItem(
+                    purchase_id=purchase["purchase_id"],
+                    book_id=book_id,
+                    book_title=book_title,
+                    book_slug=book_slug,
+                    book_cover_url=book_cover,
+                    book_is_deleted=book_is_deleted,
+                    purchase_type=PurchaseType(purchase["purchase_type"]),
+                    points_spent=purchase["points_spent"],
+                    purchased_at=purchase["purchased_at"],
+                    access_expires_at=purchase.get("access_expires_at"),
+                    access_status=access_status,
+                )
+            )
+
+        total_pages = (total + limit - 1) // limit
+
+        logger.info(
+            f"📚 User {user_id} listed {len(items)}/{total} purchases (page {page})"
+        )
+
+        return MyPurchasesResponse(
+            purchases=items,
+            total=total,
+            page=page,
+            limit=limit,
+            total_pages=total_pages,
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Failed to list my purchases: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list my purchases",
+        )
+
+
 @router.post("/{book_id}/purchase", response_model=PurchaseBookResponse)
 async def purchase_book(
     book_id: str,
@@ -946,12 +1175,25 @@ async def check_book_access(
         user_id = current_user["uid"]
         from datetime import datetime, timezone
 
-        # Get book
-        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
+        # Get book (DELETE_PROTECTION_FLOW: Check purchases even if book deleted)
+        book = db.online_books.find_one({"book_id": book_id})
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Book not found",
+            )
+
+        # Check if book is unpublished (no access for buyers)
+        is_published = book.get("community_config", {}).get("is_public", False)
+        if not is_published and book.get("user_id") != user_id:
+            # Book unpublished and user not owner
+            return BookAccessResponse(
+                has_access=False,
+                access_type=None,
+                expires_at=None,
+                can_download_pdf=False,
+                is_owner=False,
+                purchase_details=None,
             )
 
         # Check if user is owner
@@ -1326,80 +1568,6 @@ async def delete_book(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete book",
         )
-
-
-# ==============================================================================
-# TRASH SYSTEM API
-# ==============================================================================
-
-
-@router.get("/trash", response_model=TrashListResponse)
-async def list_trash(
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page (max 100)"),
-    sort_by: str = Query("deleted_at", description="Sort by field"),
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """
-    List books in trash
-
-    **Authentication:** Required
-
-    **Query Parameters:**
-    - `page`: Page number (default: 1)
-    - `limit`: Items per page (default: 20, max: 100)
-    - `sort_by`: Sort by field (default: deleted_at)
-
-    **Returns:**
-    - List of books in trash with pagination
-    """
-    try:
-        user_id = current_user["uid"]
-        skip = (page - 1) * limit
-
-        # Get trash books
-        books, total = book_manager.list_trash(user_id, skip, limit, sort_by)
-
-        # Transform to TrashBookItem
-        items = []
-        for book in books:
-            # Count chapters for this book
-            chapters_count = chapter_manager.count_chapters(book["book_id"])
-
-            items.append(
-                TrashBookItem(
-                    book_id=book["book_id"],
-                    title=book["title"],
-                    slug=book["slug"],
-                    deleted_at=book["deleted_at"],
-                    deleted_by=book.get("deleted_by", user_id),
-                    chapters_count=chapters_count,
-                    can_restore=True,
-                )
-            )
-
-        # Calculate total pages
-        total_pages = (total + limit - 1) // limit
-
-        logger.info(
-            f"🗑️ User {user_id} listed trash: {len(items)} books (total: {total})"
-        )
-
-        return TrashListResponse(
-            items=items,
-            total=total,
-            page=page,
-            limit=limit,
-            total_pages=total_pages,
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Failed to list trash: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to list trash",
-        )
-
 
 # ==============================================================================
 # PHASE 3: CHAPTER MANAGEMENT API

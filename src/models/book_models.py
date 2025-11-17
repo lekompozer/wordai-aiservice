@@ -333,6 +333,12 @@ class TrashBookItem(BaseModel):
     deleted_by: str
     chapters_count: int = 0
     can_restore: bool = True
+    # Published book info (for DELETE_PROTECTION_FLOW)
+    is_published: bool = False  # Still on Community marketplace
+    total_purchases: int = 0  # Total number of purchases
+    forever_purchases: int = 0  # Forever access purchases
+    one_time_purchases: int = 0  # One-time purchases
+    pdf_downloads: int = 0  # PDF download purchases
 
 
 class TrashListResponse(BaseModel):
@@ -443,6 +449,9 @@ class MyPublishedBookResponse(BaseModel):
     # Stats
     stats: MyPublishedBookStats
 
+    # Trash status (DELETE_PROTECTION_FLOW)
+    is_deleted: bool = Field(False, description="Book in trash but still on Community")
+
     # Metadata
     published_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -550,5 +559,37 @@ class BookAccessResponse(BaseModel):
     )
     expires_at: Optional[datetime] = Field(None, description="Access expiry (one-time)")
     can_download_pdf: bool = Field(False, description="Can download PDF")
+
+
+class MyPurchaseItem(BaseModel):
+    """Single purchase item in my purchases list"""
+
+    purchase_id: str
+    book_id: str
+    book_title: str
+    book_slug: str
+    book_cover_url: Optional[str] = None
+    book_is_deleted: bool = Field(
+        False, description="Book is in trash (still accessible)"
+    )
+    purchase_type: PurchaseType
+    points_spent: int
+    purchased_at: datetime
+    access_expires_at: Optional[datetime] = Field(
+        None, description="For one-time purchases"
+    )
+    access_status: str = Field(
+        ..., description="active | expired | book_deleted_unpublished"
+    )
+
+
+class MyPurchasesResponse(BaseModel):
+    """Response for listing user's purchases"""
+
+    purchases: List[MyPurchaseItem]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
     is_owner: bool = Field(False, description="Is book owner")
     purchase_details: Optional[dict] = Field(None, description="Purchase info if any")
