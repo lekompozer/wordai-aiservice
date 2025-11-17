@@ -2907,26 +2907,25 @@ async def publish_book_to_community(
 
     Publishes a book to the public community marketplace with author.
 
-    **Author Flow (Simplified):**
-    1. Provide `author_id` (e.g., @michael)
+    **Author Flow:**
+    1. Provide `authors` array (e.g., ["@michael"]) or legacy `author_id` (will be converted)
     2. If author exists: Use existing author (must be owned by user)
-    3. If author NOT exists: Auto-create new author with that ID
-    4. If `author_name` not provided: Auto-generate from user info or author_id
+    3. If author NOT exists: Auto-create with data from `new_authors` or auto-generate
 
     **Requirements:**
     - User must be the book owner
-    - author_id is required (will auto-create if doesn't exist)
+    - Either `authors` (array) or `author_id` (string) is required
     - Sets visibility (public or point_based) and access_config
     - Sets community_config.is_public = true
 
     **Request Body:**
-    - author_id: Author @username (e.g., @john_doe) [REQUIRED]
-    - author_name: Display name (optional - auto-generated if not provided)
-    - author_bio: Optional bio
-    - author_avatar_url: Optional avatar
+    - authors: Array of author IDs (e.g., ["@john_doe"]) [RECOMMENDED]
+    - author_id: (DEPRECATED) Single author ID - use `authors` instead
+    - new_authors: Optional dict with author data for new authors
+      * Format: {"@new_author": {"name": "...", "bio": "...", "avatar_url": "..."}}
     - visibility: "public" (free) or "point_based" (paid)
     - access_config: Required if visibility=point_based
-    - category, tags, difficulty_level, short_description
+    - category, tags, difficulty_level, short_description, cover_image_url
     """
     user_id = user["uid"]
 
@@ -2940,7 +2939,8 @@ async def publish_book_to_community(
             )
 
         # Handle Author: Use existing or auto-create new
-        author_id = publish_data.author_id
+        # After backward compatibility fix, authors is always a list
+        author_id = publish_data.authors[0]  # Primary author
 
         # Check if author already exists
         existing_author = author_manager.get_author(author_id)
@@ -2956,9 +2956,16 @@ async def publish_book_to_community(
 
         else:
             # Auto-create new author
-            # Use provided author_name or fallback to user info
-            author_name = publish_data.author_name
-            if not author_name:
+            # Check if author data provided in new_authors
+            new_author_data = publish_data.new_authors.get(author_id) if publish_data.new_authors else None
+            
+            if new_author_data:
+                # Use provided author data
+                author_name = new_author_data.get("name")
+                author_bio = new_author_data.get("bio", "")
+                author_avatar_url = new_author_data.get("avatar_url", "")
+            else:
+                # Auto-generate author data
                 # Fallback: use user's display name or extract from email
                 author_name = user.get("name") or user.get("email", "").split("@")[0]
                 # Clean up the @username to make a nice display name
@@ -2967,12 +2974,14 @@ async def publish_book_to_community(
                         author_id[1:].replace("_", " ").replace("-", " ").title()
                     )
                     author_name = fallback_name
+                author_bio = ""
+                author_avatar_url = ""
 
             author_data = {
                 "author_id": author_id,
                 "name": author_name,
-                "bio": publish_data.author_bio or "",
-                "avatar_url": publish_data.author_avatar_url or "",
+                "bio": author_bio,
+                "avatar_url": author_avatar_url,
                 "social_links": {},
             }
 
