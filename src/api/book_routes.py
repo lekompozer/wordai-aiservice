@@ -173,7 +173,7 @@ async def check_slug_availability(
             # Generate suggestions
             from datetime import datetime
             year = datetime.now().year
-            
+
             suggestions = [
                 f"{slug}-2",
                 f"{slug}-{year}",
@@ -181,13 +181,13 @@ async def check_slug_availability(
                 f"{slug}-copy",
                 f"{slug}-new"
             ]
-            
+
             # Filter out suggestions that are also taken
             available_suggestions = [
-                s for s in suggestions 
+                s for s in suggestions
                 if not book_manager.slug_exists(user_id, s)
             ][:3]  # Return top 3
-            
+
             return {
                 "available": False,
                 "slug": slug,
@@ -306,6 +306,13 @@ async def list_guides(
     try:
         user_id = current_user["uid"]
 
+        # DEBUG: Log all incoming parameters
+        logger.info(
+            f"🔍 DEBUG list_guides - User: {user_id}, "
+            f"is_published={is_published}, visibility={visibility}, "
+            f"search={search}, tags={tags}"
+        )
+
         # Build query
         query = {
             "user_id": user_id,
@@ -343,6 +350,10 @@ async def list_guides(
 
         # Count total with filters
         total = db.online_books.count_documents(query)
+
+        # DEBUG: Log query and count
+        logger.info(f"🔍 DEBUG MongoDB query: {query}")
+        logger.info(f"🔍 DEBUG Found {total} books matching query")
 
         # Get paginated results
         guides_cursor = (

@@ -6,7 +6,8 @@ The online_books collection has a legacy unique index on guide_id field (now nul
 This causes errors when creating new books. Need to drop this index.
 """
 import sys
-sys.path.insert(0, '/app/src')
+
+sys.path.insert(0, "/app/src")
 
 from src.config.database import get_database
 
@@ -23,15 +24,15 @@ for idx in indexes:
     print(f"   - {idx['name']}: {idx.get('key', {})}")
 
 # Check if guide_id_unique exists
-has_guide_id_index = any(idx['name'] == 'guide_id_unique' for idx in indexes)
+has_guide_id_index = any(idx["name"] == "guide_id_unique" for idx in indexes)
 
 if has_guide_id_index:
     print("\n⚠️  Found legacy guide_id_unique index")
     print("   This index causes duplicate key errors for guide_id: null")
     print("   Dropping index...")
-    
+
     try:
-        result = db.online_books.drop_index('guide_id_unique')
+        result = db.online_books.drop_index("guide_id_unique")
         print(f"✅ Successfully dropped guide_id_unique index")
     except Exception as e:
         print(f"❌ Failed to drop index: {e}")
