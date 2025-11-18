@@ -92,7 +92,7 @@ from src.services.document_manager import DocumentManager
 # Database
 from src.database.db_manager import DBManager
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/books", tags=["Online Books"])
 
