@@ -128,6 +128,9 @@ from src.api.ai_editor_routes import router as ai_editor_router
 # ✅ ADDED: Document Export API for PDF, DOCX, TXT export with pagination
 from src.api.document_export_routes import router as document_export_router
 
+# ✅ ADDED: Book Export API for exporting books and chapters to PDF, DOCX, TXT, HTML
+from src.api.book_export_routes import router as book_export_router
+
 # ✅ ADDED: Library Files API for Type 3 files (templates, guides, references, resources)
 from src.api.library_routes import router as library_router
 
@@ -642,6 +645,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Document Export API - Export to PDF, DOCX, TXT with pagination
     app.include_router(document_export_router, tags=["Document Export"])
+
+    # ✅ ADDED: Book Export API - Export books and chapters to PDF, DOCX, TXT, HTML
+    app.include_router(book_export_router, tags=["Book Export"])
 
     # ✅ ADDED: Test Sharing API - Online Test Phase 4 (Sharing & Collaboration)
     # IMPORTANT: Mount BEFORE online_test_router to prioritize specific routes like /shared-with-me
