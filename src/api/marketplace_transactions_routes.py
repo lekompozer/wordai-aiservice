@@ -141,12 +141,12 @@ async def purchase_test(test_id: str, user_info: dict = Depends(require_auth)):
                 upsert=True,
             )
 
-            # 7. Add to creator's marketplace earnings (NOT wallet yet)
+            # 7. Add to creator's marketplace earnings stats
             db.online_tests.update_one(
                 {"_id": ObjectId(test_id)},
                 {
                     "$inc": {
-                        "marketplace_config.total_earnings": creator_earnings,  # Changed from total_revenue
+                        "marketplace_config.total_earnings": creator_earnings,
                         "marketplace_config.total_purchases": 1,
                     },
                     "$set": {
@@ -154,6 +154,26 @@ async def purchase_test(test_id: str, user_info: dict = Depends(require_auth)):
                     },
                 },
             )
+
+            # 7.1. Credit creator's earnings (80% revenue split - can be withdrawn)
+            creator_earnings_result = db.user_subscriptions.update_one(
+                {"user_id": creator_id},
+                {
+                    "$inc": {"earnings_points": creator_earnings},
+                    "$set": {"updated_at": datetime.now(timezone.utc)},
+                },
+                upsert=False,  # Don't create if doesn't exist
+            )
+
+            if creator_earnings_result.modified_count > 0:
+                logger.info(
+                    f"💰 Credited {creator_earnings} earnings points to test creator {creator_id} "
+                    f"(80% of {price_points} points purchase)"
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Failed to credit earnings to creator {creator_id} - subscription not found"
+                )
 
             # 8. Record point transactions
             now = datetime.now(timezone.utc)

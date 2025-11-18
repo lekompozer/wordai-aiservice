@@ -1061,15 +1061,15 @@ async def purchase_book(
                     detail="You already have forever access to this book",
                 )
 
-        # Check user's wallet balance (from firebase_users collection)
-        user_doc = db.firebase_users.find_one({"uid": user_id})
-        if not user_doc:
+        # Check user's subscription and balance (from user_subscriptions collection)
+        subscription = db.user_subscriptions.find_one({"user_id": user_id})
+        if not subscription:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found",
+                detail="User subscription not found",
             )
 
-        user_balance = user_doc.get("points_remaining", 0)
+        user_balance = subscription.get("points_remaining", 0)
 
         if user_balance < points_cost:
             raise HTTPException(
@@ -1082,13 +1082,16 @@ async def purchase_book(
         owner_reward = int(points_cost * 0.8)
         system_fee = points_cost - owner_reward
 
-        # Deduct points from buyer's wallet
+        # Deduct points from buyer's subscription
         from datetime import datetime, timedelta, timezone
 
-        result = db.firebase_users.update_one(
-            {"uid": user_id},
+        result = db.user_subscriptions.update_one(
+            {"user_id": user_id},
             {
-                "$inc": {"points_remaining": -points_cost},
+                "$inc": {
+                    "points_remaining": -points_cost,
+                    "points_used": points_cost,
+                },
                 "$set": {"updated_at": datetime.now(timezone.utc)},
             },
         )
@@ -1145,15 +1148,16 @@ async def purchase_book(
 
         db.online_books.update_one({"book_id": book_id}, stats_update)
 
-        # Credit owner's earnings_points (80% revenue split - can be withdrawn to cash)
+        # Credit owner's earnings (80% revenue split - can be withdrawn to cash)
         owner_id = book.get("user_id")
         if owner_id and owner_id != user_id:  # Don't credit if buying own book
-            owner_earnings_result = db.firebase_users.update_one(
-                {"uid": owner_id},
+            owner_earnings_result = db.user_subscriptions.update_one(
+                {"user_id": owner_id},
                 {
                     "$inc": {"earnings_points": owner_reward},
                     "$set": {"updated_at": datetime.now(timezone.utc)}
-                }
+                },
+                upsert=False  # Don't create if doesn't exist
             )
 
             if owner_earnings_result.modified_count > 0:
@@ -1163,7 +1167,7 @@ async def purchase_book(
                 )
             else:
                 logger.warning(
-                    f"⚠️ Failed to credit earnings to owner {owner_id} - user not found"
+                    f"⚠️ Failed to credit earnings to owner {owner_id} - subscription not found"
                 )
 
         logger.info(
