@@ -129,7 +129,7 @@ class GuideBookBookPermissionManager:
         try:
             self.permissions_collection.insert_one(permission_doc)
             logger.info(
-                f"✅ Granted {access_level} permission to {user_id} for guide {guide_id}"
+                f"✅ Granted {access_level} permission to {user_id} for guide {book_id}"
             )
             # Return the document (remove _id for clean response)
             result = dict(permission_doc)
@@ -137,7 +137,7 @@ class GuideBookBookPermissionManager:
             return result
         except DuplicateKeyError:
             logger.error(
-                f"❌ User {user_id} already has permission for guide {guide_id}"
+                f"❌ User {user_id} already has permission for guide {book_id}"
             )
             raise
 
@@ -186,7 +186,7 @@ class GuideBookBookPermissionManager:
         }
 
         self.permissions_collection.insert_one(permission_doc)
-        logger.info(f"✅ Created invitation for {email} to guide {guide_id}")
+        logger.info(f"✅ Created invitation for {email} to guide {book_id}")
 
         # Return the document (remove _id for clean response)
         result = dict(permission_doc)
@@ -248,7 +248,7 @@ class GuideBookBookPermissionManager:
         )
 
         if result.deleted_count > 0:
-            logger.info(f"🗑️ Revoked permission for {user_id} on guide {guide_id}")
+            logger.info(f"🗑️ Revoked permission for {user_id} on guide {book_id}")
             return True
         return False
 
@@ -308,7 +308,7 @@ class GuideBookBookPermissionManager:
         Returns:
             List of permission documents
         """
-        query = {"book_id": guide_id}
+        query = {"book_id": book_id}
         if not include_pending:
             query["invitation_accepted"] = True
 
@@ -320,7 +320,7 @@ class GuideBookBookPermissionManager:
         )
 
         logger.info(
-            f"📊 Found {len(permissions)} permissions for guide {guide_id} (skip={skip}, limit={limit})"
+            f"📊 Found {len(permissions)} permissions for guide {book_id} (skip={skip}, limit={limit})"
         )
         return permissions
 
@@ -358,10 +358,10 @@ class GuideBookBookPermissionManager:
         Returns:
             Number of permissions deleted
         """
-        result = self.permissions_collection.delete_many({"book_id": guide_id})
+        result = self.permissions_collection.delete_many({"book_id": book_id})
         deleted_count = result.deleted_count
 
-        logger.info(f"🗑️ Deleted {deleted_count} permissions for guide {guide_id}")
+        logger.info(f"🗑️ Deleted {deleted_count} permissions for guide {book_id}")
         return deleted_count
 
     def count_permissions(self, book_id: str) -> int:
