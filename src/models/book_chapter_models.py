@@ -4,7 +4,7 @@ Phase 1: Chapter organization and nested structure
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -90,6 +90,24 @@ class ChapterResponse(BaseModel):
     )
     created_at: datetime
     updated_at: datetime
+    
+    # Content fields (when loading chapter content)
+    content: Optional[str] = Field(
+        default=None, 
+        description="Chapter content in HTML format (alias for content_html)"
+    )
+    content_html: Optional[str] = Field(
+        default=None,
+        description="Chapter content in HTML format (from document or inline)"
+    )
+    content_json: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Chapter content in JSON format (TipTap editor format)"
+    )
+    document_name: Optional[str] = Field(
+        default=None,
+        description="Name of linked document (if content_source='document')"
+    )
 
 
 class ChapterTreeNode(BaseModel):

@@ -759,16 +759,19 @@ class GuideBookBookChapterManager:
 
             if document:
                 # Inject document content into chapter response
-                chapter["content_html"] = document.get("content", "")
+                content_html = document.get("content", "")
+                chapter["content_html"] = content_html
+                chapter["content"] = content_html  # ✅ Also set 'content' field for frontend
                 chapter["content_json"] = None  # Not available for documents
                 chapter["document_name"] = document.get("name")
                 logger.info(
-                    f"📄 Loaded content from document: {chapter['document_id']}"
+                    f"📄 Loaded content from document: {chapter['document_id']} (length: {len(content_html)})"
                 )
             else:
                 logger.warning(
                     f"⚠️ Referenced document not found: {chapter['document_id']}"
                 )
                 chapter["content_html"] = "<p>Document content not available</p>"
+                chapter["content"] = "<p>Document content not available</p>"
 
         return chapter
