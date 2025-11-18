@@ -111,16 +111,36 @@ class GuideBookBookChapterManager:
         # Get order_index (support both 'order' and 'order_index' fields)
         order_index = data.get("order", data.get("order_index", 0))
 
+        # Determine content storage model
+        content_source = data.get("content_source", "inline")  # Default: inline
+        document_id = data.get("document_id")
+
+        # If document_id provided, force content_source to 'document'
+        if document_id:
+            content_source = "document"
+
         chapter_doc = {
             "chapter_id": chapter_id,
             "book_id": book_id,
-            "document_id": data.get("document_id"),  # Optional now
             "parent_id": parent_id,
             "title": data["title"],
             "slug": data["slug"],
             "order_index": order_index,
             "depth": depth,
+            # Content storage model
+            "content_source": content_source,  # "inline" or "document"
+            "document_id": document_id if content_source == "document" else None,
+            # Inline content (only for content_source="inline")
+            "content_html": (
+                data.get("content_html") if content_source == "inline" else None
+            ),
+            "content_json": (
+                data.get("content_json") if content_source == "inline" else None
+            ),
+            # Publishing & preview
             "is_published": data.get("is_published", True),
+            "is_preview_free": data.get("is_preview_free", False),
+            # Timestamps
             "created_at": now,
             "updated_at": now,
         }
@@ -516,6 +536,96 @@ class GuideBookBookChapterManager:
             logger.warning(f"⚠️ Chapter not found: {chapter_id}")
             return None
 
+    def update_chapter_content(
+        self,
+        chapter_id: str,
+        content_html: str,
+        content_json: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """
+        Update chapter content (handles both inline and document-linked chapters)
+
+        Args:
+            chapter_id: Chapter UUID
+            content_html: HTML content to save
+            content_json: Optional JSON content (TipTap format)
+
+        Returns:
+            True if updated successfully
+
+        Raises:
+            ValueError: If chapter not found or invalid content_source
+        """
+        # Get chapter to check content_source
+        chapter = self.chapters_collection.find_one(
+            {"chapter_id": chapter_id},
+            {"_id": 0, "content_source": 1, "document_id": 1, "book_id": 1},
+        )
+
+        if not chapter:
+            raise ValueError(f"Chapter not found: {chapter_id}")
+
+        content_source = chapter.get("content_source", "inline")
+        now = datetime.utcnow()
+
+        if content_source == "inline":
+            # Update content directly in chapter document
+            result = self.chapters_collection.update_one(
+                {"chapter_id": chapter_id},
+                {
+                    "$set": {
+                        "content_html": content_html,
+                        "content_json": content_json,
+                        "updated_at": now,
+                    }
+                },
+            )
+
+            if result.modified_count > 0:
+                logger.info(
+                    f"✅ Updated inline chapter content: {chapter_id} "
+                    f"({len(content_html)} chars)"
+                )
+                return True
+            return False
+
+        elif content_source == "document":
+            # Update content in linked document
+            document_id = chapter.get("document_id")
+            if not document_id:
+                raise ValueError(
+                    f"Chapter {chapter_id} has content_source='document' but no document_id"
+                )
+
+            result = self.db["documents"].update_one(
+                {"document_id": document_id},
+                {
+                    "$set": {
+                        "content_html": content_html,
+                        "file_size_bytes": len(content_html.encode("utf-8")),
+                        "last_saved_at": now,
+                        "updated_at": now,
+                    },
+                    "$inc": {"version": 1},
+                },
+            )
+
+            if result.modified_count > 0:
+                logger.info(
+                    f"✅ Updated document content for chapter {chapter_id}: "
+                    f"document {document_id} ({len(content_html)} chars)"
+                )
+
+                # Also update chapter's updated_at timestamp
+                self.chapters_collection.update_one(
+                    {"chapter_id": chapter_id}, {"$set": {"updated_at": now}}
+                )
+                return True
+            return False
+
+        else:
+            raise ValueError(f"Unknown content_source: {content_source}")
+
     def delete_chapter_cascade(self, chapter_id: str) -> List[str]:
         """
         Delete chapter and all descendants recursively
@@ -750,22 +860,36 @@ class GuideBookBookChapterManager:
         if not chapter:
             return None
 
-        # If chapter references a document, load content dynamically
-        if chapter.get("content_source") == "document" and chapter.get("document_id"):
+        content_source = chapter.get("content_source", "inline")
+
+        if content_source == "inline":
+            # Content already in chapter document
+            content_html = chapter.get("content_html", "")
+            chapter["content"] = (
+                content_html  # Set 'content' for frontend compatibility
+            )
+            logger.info(
+                f"📄 Loaded inline chapter content: {chapter_id} "
+                f"({len(content_html)} chars)"
+            )
+
+        elif content_source == "document" and chapter.get("document_id"):
+            # Load content from linked document
             document = self.db["documents"].find_one(
                 {"document_id": chapter["document_id"]},
-                {"_id": 0, "content": 1, "name": 1},
+                {"_id": 0, "content_html": 1, "name": 1, "title": 1},
             )
 
             if document:
                 # Inject document content into chapter response
-                content_html = document.get("content", "")
+                content_html = document.get("content_html", "")
                 chapter["content_html"] = content_html
-                chapter["content"] = content_html  # ✅ Also set 'content' field for frontend
+                chapter["content"] = content_html  # For frontend compatibility
                 chapter["content_json"] = None  # Not available for documents
-                chapter["document_name"] = document.get("name")
+                chapter["document_name"] = document.get("name") or document.get("title")
                 logger.info(
-                    f"📄 Loaded content from document: {chapter['document_id']} (length: {len(content_html)})"
+                    f"📄 Loaded content from document: {chapter['document_id']} "
+                    f"({len(content_html)} chars)"
                 )
             else:
                 logger.warning(
@@ -774,4 +898,160 @@ class GuideBookBookChapterManager:
                 chapter["content_html"] = "<p>Document content not available</p>"
                 chapter["content"] = "<p>Document content not available</p>"
 
+        else:
+            # Unknown content_source or missing data
+            logger.warning(
+                f"⚠️ Chapter {chapter_id} has invalid content configuration: "
+                f"content_source={content_source}, document_id={chapter.get('document_id')}"
+            )
+            chapter["content_html"] = ""
+            chapter["content"] = ""
+
         return chapter
+
+    def convert_document_to_chapter(
+        self,
+        document_id: str,
+        book_id: str,
+        user_id: str,
+        title: Optional[str] = None,
+        order_index: int = 0,
+        parent_id: Optional[str] = None,
+        copy_content: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Convert an existing document to a chapter in a book
+
+        Args:
+            document_id: Document UUID to convert
+            book_id: Target book UUID
+            user_id: User ID (for ownership verification)
+            title: Optional chapter title (uses document name if not provided)
+            order_index: Position in chapter list
+            parent_id: Parent chapter for nesting
+            copy_content: If True, copy content to chapter (inline). If False, link to document.
+
+        Returns:
+            Created chapter document or None
+
+        Raises:
+            ValueError: If document/book not found or user doesn't own them
+        """
+        # Verify document exists and user owns it
+        document = self.db["documents"].find_one(
+            {"document_id": document_id, "user_id": user_id, "is_deleted": False},
+            {"_id": 0},
+        )
+
+        if not document:
+            raise ValueError(f"Document not found or access denied: {document_id}")
+
+        # Verify book exists and user owns it
+        book = self.db["online_books"].find_one(
+            {"book_id": book_id, "user_id": user_id, "is_deleted": False},
+            {"_id": 0, "book_id": 1},
+        )
+
+        if not book:
+            raise ValueError(f"Book not found or access denied: {book_id}")
+
+        # Calculate depth
+        depth = self._calculate_depth(parent_id)
+        if depth > self.MAX_DEPTH:
+            raise ValueError(f"Max depth exceeded: {depth} > {self.MAX_DEPTH}")
+
+        # Create chapter
+        chapter_id = f"chapter_{uuid.uuid4().hex[:12]}"
+        now = datetime.utcnow()
+
+        # Use document name/title for chapter title if not provided
+        chapter_title = (
+            title or document.get("name") or document.get("title") or "Untitled Chapter"
+        )
+
+        # Generate slug from title
+        slug = chapter_title.lower().replace(" ", "-")
+        slug = "".join(c for c in slug if c.isalnum() or c == "-")
+
+        if copy_content:
+            # INLINE MODE: Copy content to chapter
+            content_html = document.get("content_html", "")
+
+            chapter_doc = {
+                "chapter_id": chapter_id,
+                "book_id": book_id,
+                "parent_id": parent_id,
+                "title": chapter_title,
+                "slug": slug,
+                "order_index": order_index,
+                "depth": depth,
+                # Inline content storage
+                "content_source": "inline",
+                "document_id": None,
+                "content_html": content_html,
+                "content_json": None,
+                # Metadata
+                "is_published": True,
+                "is_preview_free": False,
+                "converted_from_document": document_id,  # Track origin
+                # Timestamps
+                "created_at": now,
+                "updated_at": now,
+            }
+
+            logger.info(
+                f"✅ Converting document {document_id} to INLINE chapter "
+                f"(copied {len(content_html)} chars)"
+            )
+        else:
+            # LINKED MODE: Reference document
+            chapter_doc = {
+                "chapter_id": chapter_id,
+                "book_id": book_id,
+                "parent_id": parent_id,
+                "title": chapter_title,
+                "slug": slug,
+                "order_index": order_index,
+                "depth": depth,
+                # Document reference storage
+                "content_source": "document",
+                "document_id": document_id,
+                "content_html": None,
+                "content_json": None,
+                # Metadata
+                "is_published": True,
+                "is_preview_free": False,
+                # Timestamps
+                "created_at": now,
+                "updated_at": now,
+            }
+
+            # Update document's used_in_books array
+            self.db["documents"].update_one(
+                {"document_id": document_id},
+                {
+                    "$addToSet": {
+                        "used_in_books": {
+                            "book_id": book_id,
+                            "chapter_id": chapter_id,
+                            "added_at": now,
+                        }
+                    }
+                },
+            )
+
+            logger.info(
+                f"✅ Converting document {document_id} to LINKED chapter "
+                f"(references document)"
+            )
+
+        try:
+            self.chapters_collection.insert_one(chapter_doc)
+            logger.info(
+                f"✅ Created chapter {chapter_id} from document {document_id} "
+                f"(mode: {'inline' if copy_content else 'linked'})"
+            )
+            return chapter_doc
+        except DuplicateKeyError:
+            logger.error(f"❌ Slug '{slug}' already exists in book {book_id}")
+            raise

@@ -56,6 +56,8 @@ from src.models.book_models import (
 from src.models.book_chapter_models import (
     ChapterCreate,
     ChapterUpdate,
+    ChapterContentUpdate,
+    ConvertDocumentToChapterRequest,
     ChapterResponse,
     ChapterTreeNode,
     ChapterReorderBulk,
@@ -2245,6 +2247,87 @@ async def delete_chapter(
         )
 
 
+@router.patch(
+    "/{book_id}/chapters/{chapter_id}/content",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_200_OK,
+    summary="Update chapter content (inline or document-linked)"
+)
+async def update_chapter_content(
+    book_id: str,
+    chapter_id: str,
+    content_data: ChapterContentUpdate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Update chapter content (handles both inline and document-linked chapters)**
+
+    **Authentication:** Required (Owner only)
+
+    **Content Storage:**
+    - **Inline chapters** (`content_source='inline'`): Updates `book_chapters.content_html`
+    - **Document-linked chapters** (`content_source='document'`): Updates `documents.content_html`
+
+    **Request Body:**
+    - `content_html`: HTML content (required)
+    - `content_json`: Optional JSON content (TipTap editor format)
+
+    **Returns:**
+    - 200: Content updated successfully
+    - 403: User is not the book owner
+    - 404: Chapter or book not found
+    - 500: Update failed
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify book ownership
+        book = db.online_books.find_one(
+            {"book_id": book_id, "user_id": user_id, "is_deleted": False}
+        )
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Book not found or access denied"
+            )
+
+        # Update chapter content (handles both inline and document-linked)
+        success = chapter_manager.update_chapter_content(
+            chapter_id=chapter_id,
+            content_html=content_data.content_html,
+            content_json=content_data.content_json
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chapter not found or content not updated"
+            )
+
+        return {
+            "success": True,
+            "message": "Chapter content updated successfully",
+            "chapter_id": chapter_id,
+            "content_length": len(content_data.content_html)
+        }
+
+    except ValueError as e:
+        logger.error(f"❌ Invalid chapter content update: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update chapter content: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update chapter content"
+        )
+
+
 @router.post("/{book_id}/chapters/reorder", response_model=Dict[str, Any])
 async def reorder_chapters(
     book_id: str,
@@ -4210,4 +4293,92 @@ async def get_top_authors(
         raise HTTPException(
             status_code=500,
             detail="Failed to retrieve top authors",
+        )
+
+
+# ============================================================================
+# DOCUMENT TO CHAPTER CONVERSION
+# ============================================================================
+
+
+@router.post(
+    "/documents/{document_id}/convert-to-chapter",
+    response_model=ChapterResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Convert document to book chapter"
+)
+async def convert_document_to_chapter(
+    document_id: str,
+    request_data: ConvertDocumentToChapterRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Convert an existing document to a chapter in a book**
+
+    **Authentication:** Required (must own both document and book)
+
+    **Content Modes:**
+    - **Copy mode** (`copy_content=true`): Creates inline chapter with copied content
+      - Content duplicated from document to chapter
+      - Chapter becomes independent (editing chapter won't affect document)
+      - Document remains unchanged
+
+    - **Link mode** (`copy_content=false`): Creates linked chapter
+      - Chapter references original document
+      - Editing chapter updates the original document
+      - Document content not duplicated
+
+    **Request Body:**
+    - `book_id`: Target book ID (required)
+    - `title`: Chapter title (optional, uses document name if not provided)
+    - `order_index`: Position in chapter list (default: 0)
+    - `parent_id`: Parent chapter for nesting (optional)
+    - `copy_content`: Copy content vs link to document (default: true)
+
+    **Returns:**
+    - 201: Chapter created successfully
+    - 400: Invalid request or document/book not found
+    - 403: User doesn't own document or book
+    - 500: Conversion failed
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Convert document to chapter
+        chapter = chapter_manager.convert_document_to_chapter(
+            document_id=document_id,
+            book_id=request_data.book_id,
+            user_id=user_id,
+            title=request_data.title,
+            order_index=request_data.order_index,
+            parent_id=request_data.parent_id,
+            copy_content=request_data.copy_content,
+        )
+
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to convert document to chapter"
+            )
+
+        logger.info(
+            f"✅ Converted document {document_id} to chapter {chapter['chapter_id']} "
+            f"in book {request_data.book_id} (mode: {'copy' if request_data.copy_content else 'link'})"
+        )
+
+        return ChapterResponse(**chapter)
+
+    except ValueError as e:
+        logger.error(f"❌ Invalid document conversion: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to convert document to chapter: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to convert document to chapter"
         )

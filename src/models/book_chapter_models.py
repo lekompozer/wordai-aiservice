@@ -36,6 +36,18 @@ class ChapterCreate(BaseModel):
         description="Allow free preview on Community Books (no purchase required)",
     )
 
+    # Content fields (for inline chapters)
+    content_source: Optional[str] = Field(
+        default="inline",
+        description="Content storage: 'inline' (in chapter) or 'document' (linked document)",
+    )
+    content_html: Optional[str] = Field(
+        default=None, description="Chapter content in HTML format (for inline chapters)"
+    )
+    content_json: Optional[Dict[str, Any]] = Field(
+        default=None, description="Chapter content in JSON format (TipTap editor)"
+    )
+
     @property
     def get_order_index(self) -> int:
         """Get order index, preferring order_index but falling back to order"""
@@ -56,6 +68,30 @@ class ChapterUpdate(BaseModel):
     is_published: Optional[bool] = None
     is_preview_free: Optional[bool] = Field(
         None, description="Allow free preview on Community Books"
+    )
+
+
+class ChapterContentUpdate(BaseModel):
+    """Request model to update chapter content"""
+
+    content_html: str = Field(..., description="Chapter content in HTML format")
+    content_json: Optional[Dict[str, Any]] = Field(
+        default=None, description="Chapter content in JSON format (TipTap editor)"
+    )
+
+
+class ConvertDocumentToChapterRequest(BaseModel):
+    """Request to convert document to chapter"""
+
+    book_id: str = Field(..., description="Target book ID")
+    title: Optional[str] = Field(
+        None, description="Chapter title (uses document name if not provided)"
+    )
+    order_index: int = Field(default=0, ge=0, description="Position in chapter list")
+    parent_id: Optional[str] = Field(None, description="Parent chapter for nesting")
+    copy_content: bool = Field(
+        default=True,
+        description="If True, copy content to chapter (inline). If False, link to document.",
     )
 
 
@@ -90,23 +126,23 @@ class ChapterResponse(BaseModel):
     )
     created_at: datetime
     updated_at: datetime
-    
+
     # Content fields (when loading chapter content)
     content: Optional[str] = Field(
-        default=None, 
-        description="Chapter content in HTML format (alias for content_html)"
+        default=None,
+        description="Chapter content in HTML format (alias for content_html)",
     )
     content_html: Optional[str] = Field(
         default=None,
-        description="Chapter content in HTML format (from document or inline)"
+        description="Chapter content in HTML format (from document or inline)",
     )
     content_json: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Chapter content in JSON format (TipTap editor format)"
+        description="Chapter content in JSON format (TipTap editor format)",
     )
     document_name: Optional[str] = Field(
         default=None,
-        description="Name of linked document (if content_source='document')"
+        description="Name of linked document (if content_source='document')",
     )
 
 
