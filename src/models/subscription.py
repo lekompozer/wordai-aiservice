@@ -122,9 +122,12 @@ class UserSubscription(BaseModel):
     price: int = Field(default=0, description="Amount paid in VND")
 
     # Points
-    points_total: int = Field(default=0)
-    points_used: int = Field(default=0)
-    points_remaining: int = Field(default=0)
+    points_total: int = Field(default=0, description="Lifetime points received")
+    points_used: int = Field(default=0, description="Lifetime points spent")
+    points_remaining: int = Field(default=0, description="Current spending balance")
+    earnings_points: int = Field(
+        default=0, description="Revenue from Books + Tests sales (withdrawable)"
+    )
 
     # Subscription period
     started_at: Optional[datetime] = None

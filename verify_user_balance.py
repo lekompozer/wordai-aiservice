@@ -3,7 +3,8 @@
 Verify user balance after migration
 """
 import sys
-sys.path.insert(0, '/app/src')
+
+sys.path.insert(0, "/app/src")
 
 from src.config.database import get_database
 
@@ -33,10 +34,14 @@ if subscription:
     print(f"   user_id: {subscription.get('user_id')}")
     print(f"   plan: {subscription.get('plan')}")
     print(f"   is_active: {subscription.get('is_active')}")
-    print(f"   points_remaining: {subscription.get('points_remaining')} (spending balance)")
+    print(
+        f"   points_remaining: {subscription.get('points_remaining')} (spending balance)"
+    )
     print(f"   points_total: {subscription.get('points_total')} (lifetime received)")
     print(f"   points_used: {subscription.get('points_used')} (lifetime spent)")
-    print(f"   earnings_points: {subscription.get('earnings_points')} (revenue from sales)")
+    print(
+        f"   earnings_points: {subscription.get('earnings_points')} (revenue from sales)"
+    )
 else:
     print("   ❌ Subscription not found")
 

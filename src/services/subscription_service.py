@@ -137,6 +137,7 @@ class SubscriptionService:
             points_total=bonus_points,  # Updated: 10 bonus points
             points_used=0,
             points_remaining=bonus_points,  # Updated: 10 bonus points available
+            earnings_points=0,  # ✅ Revenue from sales (starts at 0)
             started_at=datetime.utcnow(),
             expires_at=None,  # Free never expires
             is_active=True,
@@ -214,6 +215,9 @@ class SubscriptionService:
             "points_total": points,
             "points_used": 0,
             "points_remaining": points,
+            "earnings_points": (
+                existing.get("earnings_points", 0) if existing else 0
+            ),  # ✅ Preserve earnings
             "started_at": started_at,
             "expires_at": expires_at,
             "is_active": True,
