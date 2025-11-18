@@ -110,6 +110,7 @@ class UserBookManager:
             "description": data.get("description"),
             "visibility": data.get("visibility", "private"),  # Default: private
             "is_published": data.get("is_published", False),
+            "is_deleted": False,  # ✅ CRITICAL: Mark as active (not deleted)
             # Point-based access (NEW)
             "access_config": data.get("access_config"),  # Will be None or dict
             # Community config (initialized, not public by default)
