@@ -113,6 +113,96 @@ document_manager = DocumentManager(db)
 # ==============================================================================
 
 
+@router.get("/check-slug/{slug}", response_model=Dict[str, Any])
+async def check_slug_availability(
+    slug: str,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    **Check if slug is available for current user**
+
+    Frontend should call this endpoint when user types title to generate slug.
+    Returns whether the slug is available and suggested alternatives if taken.
+
+    **Authentication:** Required
+
+    **Path Parameters:**
+    - `slug`: URL-friendly slug to check (e.g., "my-python-guide")
+
+    **Returns:**
+    - `available`: true if slug is available, false if taken
+    - `slug`: the slug that was checked
+    - `suggestions`: array of alternative slugs if taken (e.g., ["my-python-guide-2", "my-python-guide-3"])
+
+    **Example Response (Available):**
+    ```json
+    {
+      "available": true,
+      "slug": "python-mastery",
+      "message": "Slug is available"
+    }
+    ```
+
+    **Example Response (Taken):**
+    ```json
+    {
+      "available": false,
+      "slug": "python-guide",
+      "message": "Slug already exists",
+      "suggestions": [
+        "python-guide-2",
+        "python-guide-2025",
+        "python-guide-v2"
+      ]
+    }
+    ```
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Check if slug exists for this user
+        is_available = not book_manager.slug_exists(user_id, slug)
+
+        if is_available:
+            return {
+                "available": True,
+                "slug": slug,
+                "message": "Slug is available"
+            }
+        else:
+            # Generate suggestions
+            from datetime import datetime
+            year = datetime.now().year
+            
+            suggestions = [
+                f"{slug}-2",
+                f"{slug}-{year}",
+                f"{slug}-v2",
+                f"{slug}-copy",
+                f"{slug}-new"
+            ]
+            
+            # Filter out suggestions that are also taken
+            available_suggestions = [
+                s for s in suggestions 
+                if not book_manager.slug_exists(user_id, s)
+            ][:3]  # Return top 3
+            
+            return {
+                "available": False,
+                "slug": slug,
+                "message": "Slug already exists",
+                "suggestions": available_suggestions
+            }
+
+    except Exception as e:
+        logger.error(f"❌ Failed to check slug: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check slug availability"
+        )
+
+
 @router.post("", response_model=BookResponse, status_code=status.HTTP_201_CREATED)
 async def create_book(
     guide_data: BookCreate, current_user: Dict[str, Any] = Depends(get_current_user)
