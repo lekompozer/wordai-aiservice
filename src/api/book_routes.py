@@ -1668,7 +1668,7 @@ async def delete_book(
         if permanent:
             # Hard delete - delete everything
             deleted_chapters = chapter_manager.delete_guide_chapters(book_id)
-            deleted_permissions = permission_manager.delete_guide_permissions(book_id)
+            deleted_permissions = permission_manager.delete_permissions_by_guide(book_id)
             deleted = book_manager.delete_book(book_id)
 
             if not deleted:
