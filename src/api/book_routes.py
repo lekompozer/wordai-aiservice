@@ -3621,6 +3621,207 @@ async def get_book_preview(
         )
 
 
+@router.get(
+    "/slug/{slug}/preview",
+    response_model=BookPreviewResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get book preview by slug (public, no auth required)",
+)
+async def get_book_preview_by_slug(
+    slug: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    """
+    **Book Preview Page - Slug-based URL (Public Endpoint)**
+
+    Same as /{book_id}/preview but uses slug instead of book_id.
+    Enables SEO-friendly URLs like: /books/slug/word-ai-user-manual/preview
+
+    **URL Structure:**
+    - Frontend: https://wordai.pro/online-books/read/word-ai-user-manual
+    - API: https://ai.wordai.pro/api/v1/books/slug/word-ai-user-manual/preview
+
+    Returns full book information for preview page including:
+    - Book details (title, description, cover, author)
+    - Table of contents (chapter list)
+    - Free preview chapters
+    - Purchase options
+    - Stats and ratings
+
+    **No authentication required** - Anyone can view preview.
+    If user is authenticated, also returns their purchase status.
+
+    **Path Parameters:**
+    - `slug`: Book slug (e.g., "word-ai-user-manual")
+
+    **Returns:**
+    - 200: Book preview data
+    - 404: Book not found or not published to Community
+    """
+    try:
+        # Find book by slug (must be published to Community)
+        book = db.online_books.find_one({
+            "slug": slug,
+            "community_config.is_public": True,
+        })
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Book with slug '{slug}' not found or not published to Community",
+            )
+
+        book_id = book["book_id"]
+
+        # Get author info (primary author)
+        authors_list = book.get("authors", [])
+        primary_author_id = authors_list[0] if authors_list else None
+
+        if primary_author_id:
+            # Get author details from authors collection
+            author_doc = db.book_authors.find_one({"author_id": primary_author_id})
+            if author_doc:
+                author = PreviewAuthor(
+                    author_id=author_doc["author_id"],
+                    name=author_doc["name"],
+                    avatar_url=author_doc.get("avatar_url"),
+                    bio=author_doc.get("bio"),
+                )
+            else:
+                # Fallback if author not found
+                author = PreviewAuthor(
+                    author_id=primary_author_id,
+                    name=primary_author_id.replace("@", "").replace("_", " ").title(),
+                )
+        else:
+            # No author - use book owner
+            author = PreviewAuthor(
+                author_id=f"@{book.get('user_id', 'unknown')}",
+                name="Unknown Author",
+            )
+
+        # Get chapters (table of contents)
+        chapters_cursor = db.book_chapters.find(
+            {"book_id": book_id, "is_published": True}
+        ).sort("order_index", 1)
+
+        chapters = []
+        for chapter in chapters_cursor:
+            chapters.append(
+                PreviewChapterItem(
+                    chapter_id=chapter["chapter_id"],
+                    title=chapter["title"],
+                    slug=chapter["slug"],
+                    order_index=chapter.get("order_index", 0),
+                    depth=chapter.get("depth", 0),
+                    is_preview_free=chapter.get("is_preview_free", False),
+                )
+            )
+
+        # Get community config and stats
+        community_config = book.get("community_config", {})
+        stats_data = book.get("stats", {})
+
+        # Build stats object (guaranteed non-null with defaults)
+        stats = PreviewStats(
+            total_views=community_config.get("total_views", 0),
+            total_purchases=stats_data.get("forever_purchases", 0)
+            + stats_data.get("one_time_purchases", 0)
+            + stats_data.get("pdf_downloads", 0),
+            forever_purchases=stats_data.get("forever_purchases", 0),
+            one_time_purchases=stats_data.get("one_time_purchases", 0),
+            pdf_downloads=stats_data.get("pdf_downloads", 0),
+            average_rating=community_config.get("average_rating", 0.0),
+            rating_count=community_config.get("rating_count", 0),
+        )
+
+        # Get access config (null for free books)
+        access_config = book.get("access_config")
+        if access_config:
+            access_config = AccessConfig(**access_config)
+
+        # Check user's access if authenticated
+        user_access = None
+        if current_user:
+            user_id = current_user["uid"]
+            is_owner = book.get("user_id") == user_id
+
+            if is_owner:
+                user_access = {
+                    "has_access": True,
+                    "access_type": "owner",
+                    "expires_at": None,
+                }
+            else:
+                # Check purchases
+                forever_purchase = db.book_purchases.find_one({
+                    "user_id": user_id,
+                    "book_id": book_id,
+                    "purchase_type": PurchaseType.FOREVER.value,
+                })
+
+                if forever_purchase:
+                    user_access = {
+                        "has_access": True,
+                        "access_type": "forever",
+                        "expires_at": None,
+                    }
+                else:
+                    # Check one-time purchase
+                    one_time_purchase = db.book_purchases.find_one({
+                        "user_id": user_id,
+                        "book_id": book_id,
+                        "purchase_type": PurchaseType.ONE_TIME.value,
+                    })
+
+                    if one_time_purchase:
+                        expires_at = one_time_purchase.get("access_expires_at")
+                        is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+
+                        user_access = {
+                            "has_access": not is_expired,
+                            "access_type": "one_time",
+                            "expires_at": expires_at.isoformat() if expires_at else None,
+                        }
+
+        # Build response
+        response = BookPreviewResponse(
+            book_id=book["book_id"],
+            title=book["title"],
+            slug=book["slug"],
+            description=book.get("description"),
+            cover_image_url=book.get("cover_image_url"),
+            icon=book.get("icon"),
+            color=book.get("color"),
+            author=author,
+            authors=authors_list,
+            category=community_config.get("category"),
+            tags=community_config.get("tags", []),  # Always array
+            difficulty_level=community_config.get("difficulty_level"),
+            access_config=access_config,
+            chapters=chapters,
+            stats=stats,
+            published_at=community_config.get("published_at"),
+            updated_at=book.get("updated_at"),
+            user_access=user_access,
+        )
+
+        logger.info(
+            f"📖 Preview page (slug) viewed for book '{slug}' by user {current_user['uid'] if current_user else 'anonymous'}"
+        )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get book preview by slug: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get book preview",
+        )
+
+
 @router.post(
     "/{book_id}/chapters/from-document",
     response_model=ChapterResponse,
@@ -3817,6 +4018,167 @@ async def get_chapter_with_content(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get chapter content: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get chapter content",
+        )
+
+
+@router.get(
+    "/slug/{book_slug}/chapters/{chapter_slug}/content",
+    response_model=ChapterResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get chapter content by slug (public for preview chapters, auth for paid)",
+)
+async def get_chapter_content_by_slug(
+    book_slug: str,
+    chapter_slug: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
+):
+    """
+    **Get chapter content using slugs (SEO-friendly URLs)**
+
+    Same as /{book_id}/chapters/{chapter_id}/content but uses slugs instead of IDs.
+    Enables SEO-friendly URLs like: /books/slug/word-ai-user-manual/chapters/document-management/content
+
+    **URL Structure:**
+    - Frontend: https://wordai.pro/online-books/read/word-ai-user-manual/document-management
+    - API: https://ai.wordai.pro/api/v1/books/slug/word-ai-user-manual/chapters/document-management/content
+
+    Returns chapter content based on access permissions:
+    - **Free preview chapters** (`is_preview_free: true`): Public access, no auth required
+    - **Paid books**: Requires purchase or ownership
+    - **Private books**: Owner only
+
+    **Access Logic:**
+    1. If `is_preview_free: true` → Allow anyone (even anonymous)
+    2. If user is owner → Full access
+    3. If user has purchased book → Full access
+    4. If book is free (0 points) → Allow authenticated users
+    5. Otherwise → 403 Forbidden
+
+    **Path Parameters:**
+    - `book_slug`: Book slug (e.g., "word-ai-user-manual")
+    - `chapter_slug`: Chapter slug (e.g., "document-management")
+
+    **Authentication:** Optional (required for non-preview chapters)
+    """
+    try:
+        # Find book by slug (must be published to Community for public access)
+        book = db.online_books.find_one({
+            "slug": book_slug,
+            "is_deleted": False,
+        })
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Book with slug '{book_slug}' not found",
+            )
+
+        book_id = book["book_id"]
+
+        # Find chapter by slug within this book
+        chapter_doc = db.book_chapters.find_one({
+            "book_id": book_id,
+            "slug": chapter_slug,
+        })
+
+        if not chapter_doc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Chapter with slug '{chapter_slug}' not found in book '{book_slug}'",
+            )
+
+        chapter_id = chapter_doc["chapter_id"]
+
+        # Get full chapter content
+        chapter = chapter_manager.get_chapter_with_content(chapter_id)
+
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chapter content not found"
+            )
+
+        # Check if this is a free preview chapter
+        is_preview_free = chapter.get("is_preview_free", False)
+
+        if is_preview_free:
+            # Free preview - allow anonymous access
+            logger.info(
+                f"📖 Preview chapter (slug) accessed: {book_slug}/{chapter_slug} (anonymous: {current_user is None})"
+            )
+            return ChapterResponse(**chapter)
+
+        # For non-preview chapters, authentication is required
+        if not current_user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required to access this chapter",
+            )
+
+        user_id = current_user["uid"]
+
+        # Check access permissions
+        is_owner = book.get("user_id") == user_id
+
+        if is_owner:
+            # Owner has full access
+            logger.info(f"📄 Owner {user_id} accessed chapter (slug): {book_slug}/{chapter_slug}")
+            return ChapterResponse(**chapter)
+
+        # Check if book is public/free
+        visibility = book.get("visibility", "private")
+        community_config = book.get("community_config", {})
+        is_published = community_config.get("is_public", False)
+
+        if visibility == "public" or (is_published and visibility == "point_based"):
+            # Check if it's a free book (0 points for all access types)
+            access_config = book.get("access_config", {})
+            one_time_points = access_config.get("one_time_view_points", 0)
+            forever_points = access_config.get("forever_view_points", 0)
+
+            if one_time_points == 0 and forever_points == 0:
+                # Free book - allow all authenticated users
+                logger.info(f"📖 Free book (slug) accessed by {user_id}: {book_slug}/{chapter_slug}")
+                return ChapterResponse(**chapter)
+
+        # Check if user has purchased access
+        # Check forever access
+        forever_purchase = db.book_purchases.find_one({
+            "user_id": user_id,
+            "book_id": book_id,
+            "purchase_type": PurchaseType.FOREVER.value,
+        })
+
+        if forever_purchase:
+            logger.info(f"📄 User {user_id} accessed chapter (slug, forever): {book_slug}/{chapter_slug}")
+            return ChapterResponse(**chapter)
+
+        # Check one-time access (valid for 7 days)
+        one_time_purchase = db.book_purchases.find_one({
+            "user_id": user_id,
+            "book_id": book_id,
+            "purchase_type": PurchaseType.ONE_TIME.value,
+        })
+
+        if one_time_purchase:
+            expires_at = one_time_purchase.get("access_expires_at")
+            if expires_at and expires_at > datetime.now(timezone.utc):
+                logger.info(f"📄 User {user_id} accessed chapter (slug, one-time): {book_slug}/{chapter_slug}")
+                return ChapterResponse(**chapter)
+
+        # No access - user needs to purchase
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Purchase required to access this chapter",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get chapter content by slug: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get chapter content",
