@@ -956,6 +956,7 @@ async def transfer_book_earnings(
 
 
 @router.get("/my-purchases", response_model=MyPurchasesResponse)
+@router.get("/purchases/history", response_model=MyPurchasesResponse)
 async def list_my_purchases(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
