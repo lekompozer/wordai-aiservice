@@ -4955,7 +4955,7 @@ async def get_top_authors(
 
         # Get authors sorted by total_books and total_revenue_points
         authors_cursor = (
-            db.authors.find(match_query)
+            db.book_authors.find(match_query)
             .sort([("total_books", -1), ("total_revenue_points", -1)])
             .limit(limit)
         )
