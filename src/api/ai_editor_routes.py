@@ -237,6 +237,12 @@ class AIEditorResponse(BaseModel):
     success: bool = Field(..., description="Whether the operation was successful")
     edited_html: Optional[str] = Field(None, description="Edited HTML content")
     error: Optional[str] = Field(None, description="Error message if failed")
+    new_resource_id: Optional[str] = Field(
+        None, description="ID of newly created chapter/document (bilingual only)"
+    )
+    new_resource_title: Optional[str] = Field(
+        None, description="Title of newly created resource (bilingual only)"
+    )
 
 
 # ============ ENDPOINTS ============
@@ -596,6 +602,11 @@ async def bilingual_convert(
     **Cost: 2 points** (AI operation)
 
     **Supports**: document_id OR chapter_id
+
+    **NEW: Auto-generate feature**
+    - For chapters: Creates NEW chapter with bilingual content in same book
+    - For documents: Creates NEW document with bilingual content
+    - Original content unchanged
     """
     try:
         user_id = user_info["uid"]
@@ -701,6 +712,153 @@ Now, convert the following HTML document:
             f"✅ Bilingual conversion completed for {resource_type} {resource_id}"
         )
 
+        # === AUTO-GENERATE NEW CHAPTER/DOCUMENT ===
+        new_resource_id = None
+        new_resource_title = None
+
+        if request.chapter_id:
+            # Auto-generate NEW chapter with bilingual content
+            try:
+                chapter = db.book_chapters.find_one({"chapter_id": request.chapter_id})
+                if chapter:
+                    import uuid
+                    from datetime import datetime
+
+                    book_id = chapter["book_id"]
+                    original_title = chapter["title"]
+
+                    # Generate unique title
+                    suffix = f" ({request.source_language[:2].upper()}/{request.target_language[:2].upper()})"
+                    attempt = 0
+                    while True:
+                        if attempt == 0:
+                            new_title = f"{original_title}{suffix}"
+                        else:
+                            new_title = f"{original_title}{suffix}_{attempt}"
+
+                        existing = db.book_chapters.find_one(
+                            {"book_id": book_id, "title": new_title}
+                        )
+                        if not existing:
+                            break
+                        attempt += 1
+
+                    # Generate unique slug
+                    import re
+                    import unicodedata
+
+                    def slugify(text: str) -> str:
+                        text = unicodedata.normalize("NFKD", text)
+                        text = text.encode("ascii", "ignore").decode("ascii")
+                        text = text.lower()
+                        text = re.sub(r"[^\w\s-]", "", text)
+                        text = re.sub(r"[-\s]+", "-", text)
+                        return text.strip("-")[:100]
+
+                    base_slug = slugify(new_title)
+                    slug_attempt = 0
+                    while True:
+                        if slug_attempt == 0:
+                            new_slug = base_slug
+                        else:
+                            new_slug = f"{base_slug}-{slug_attempt}"
+
+                        existing_slug = db.book_chapters.find_one(
+                            {"book_id": book_id, "slug": new_slug}
+                        )
+                        if not existing_slug:
+                            break
+                        slug_attempt += 1
+
+                    # Create new chapter
+                    new_chapter_id = f"chapter_{uuid.uuid4().hex[:12]}"
+                    now = datetime.utcnow()
+
+                    new_chapter = {
+                        "chapter_id": new_chapter_id,
+                        "book_id": book_id,
+                        "parent_id": chapter.get("parent_id"),
+                        "title": new_title,
+                        "slug": new_slug,
+                        "order_index": chapter.get("order_index", 0) + 1,
+                        "depth": chapter.get("depth", 0),
+                        "content_source": "inline",
+                        "document_id": None,
+                        "content_html": bilingual_html.strip(),
+                        "content_json": None,
+                        "is_published": True,
+                        "is_preview_free": chapter.get("is_preview_free", False),
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+
+                    db.book_chapters.insert_one(new_chapter)
+                    new_resource_id = new_chapter_id
+                    new_resource_title = new_title
+
+                    logger.info(
+                        f"✅ Auto-generated bilingual chapter: {new_chapter_id} "
+                        f"(title: '{new_title}')"
+                    )
+            except Exception as chapter_error:
+                logger.error(f"❌ Failed to auto-generate chapter: {chapter_error}")
+
+        elif request.document_id:
+            # Auto-generate NEW document with bilingual content
+            try:
+                document = db.documents.find_one({"document_id": request.document_id})
+                if document:
+                    import uuid
+                    from datetime import datetime
+
+                    original_name = document.get("name") or document.get(
+                        "title", "Untitled"
+                    )
+
+                    # Generate unique name
+                    suffix = f" ({request.source_language[:2].upper()}/{request.target_language[:2].upper()})"
+                    attempt = 0
+                    while True:
+                        if attempt == 0:
+                            new_name = f"{original_name}{suffix}"
+                        else:
+                            new_name = f"{original_name}{suffix}_{attempt}"
+
+                        existing = db.documents.find_one(
+                            {"user_id": user_id, "name": new_name}
+                        )
+                        if not existing:
+                            break
+                        attempt += 1
+
+                    # Create new document
+                    new_document_id = f"doc_{uuid.uuid4().hex[:12]}"
+                    now = datetime.utcnow()
+
+                    new_document = {
+                        "document_id": new_document_id,
+                        "user_id": user_id,
+                        "name": new_name,
+                        "title": new_name,
+                        "content_html": bilingual_html.strip(),
+                        "content_json": None,
+                        "doc_type": document.get("doc_type", "doc"),
+                        "folder_id": document.get("folder_id"),
+                        "created_at": now,
+                        "updated_at": now,
+                    }
+
+                    db.documents.insert_one(new_document)
+                    new_resource_id = new_document_id
+                    new_resource_title = new_name
+
+                    logger.info(
+                        f"✅ Auto-generated bilingual document: {new_document_id} "
+                        f"(name: '{new_name}')"
+                    )
+            except Exception as doc_error:
+                logger.error(f"❌ Failed to auto-generate document: {doc_error}")
+
         # === DEDUCT POINTS AFTER SUCCESS ===
         try:
             await points_service.deduct_points(
@@ -714,7 +872,12 @@ Now, convert the following HTML document:
         except Exception as points_error:
             logger.error(f"❌ Error deducting points: {points_error}")
 
-        return AIEditorResponse(success=True, edited_html=bilingual_html.strip())
+        return AIEditorResponse(
+            success=True,
+            edited_html=bilingual_html.strip(),
+            new_resource_id=new_resource_id,
+            new_resource_title=new_resource_title,
+        )
 
     except HTTPException:
         raise

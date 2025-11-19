@@ -179,6 +179,9 @@ from src.api.pdf_document_routes import router as pdf_document_router
 # ✅ ADDED: Online Books API - GitBook-style documentation system (renamed from User Guides)
 from src.api.book_routes import router as book_router
 
+# ✅ ADDED: Book Advanced API - Translation & Duplication features
+from src.api.book_advanced_routes import router as book_advanced_router
+
 # ✅ ADDED: Author API - Community books author management
 from src.api.author_routes import router as author_router
 
@@ -731,6 +734,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_router,
         tags=["Online Books", "Documentation System"],
+    )
+
+    # ✅ NEW: Book Advanced API - Translation & Duplication features
+    app.include_router(
+        book_advanced_router,
+        tags=["Book Advanced", "Translation", "Duplication"],
     )
 
     # ✅ NEW: Author API - Community books author management
