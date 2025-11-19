@@ -662,7 +662,7 @@ async def bilingual_convert(
         # Check content length (bilingual output will be ~2x longer)
         content_length = len(content_html)
         MAX_CONTENT_LENGTH = 80000  # Conservative limit for bilingual conversion
-        
+
         if content_length > MAX_CONTENT_LENGTH:
             logger.warning(
                 f"⚠️ Content too large for bilingual conversion: {content_length:,} chars"
@@ -674,7 +674,7 @@ async def bilingual_convert(
                     "message": f"Nội dung quá dài để chuyển sang song ngữ ({content_length:,} ký tự). Vui lòng chia nhỏ nội dung hoặc chọn một phần để chuyển đổi.",
                     "content_length": content_length,
                     "max_length": MAX_CONTENT_LENGTH,
-                    "suggestion": "Hãy thử chuyển đổi từng chapter riêng lẻ thay vì toàn bộ document."
+                    "suggestion": "Hãy thử chuyển đổi từng chapter riêng lẻ thay vì toàn bộ document.",
                 },
             )
 
@@ -730,7 +730,10 @@ Now, convert the following HTML document:
         except Exception as ai_error:
             error_msg = str(ai_error).lower()
             # Check if error is due to content length
-            if any(keyword in error_msg for keyword in ['too long', 'token', 'length', 'size', 'quota', 'limit']):
+            if any(
+                keyword in error_msg
+                for keyword in ["too long", "token", "length", "size", "quota", "limit"]
+            ):
                 logger.error(f"❌ AI error (likely content too large): {ai_error}")
                 raise HTTPException(
                     status_code=400,
@@ -738,15 +741,14 @@ Now, convert the following HTML document:
                         "error": "content_processing_failed",
                         "message": "Nội dung quá dài hoặc phức tạp để xử lý. Vui lòng thử với nội dung ngắn hơn hoặc chia nhỏ tài liệu.",
                         "suggestion": "Hãy chuyển đổi từng phần nhỏ thay vì toàn bộ tài liệu.",
-                        "technical_details": "AI model token limit exceeded"
+                        "technical_details": "AI model token limit exceeded",
                     },
                 )
             else:
                 # Other AI errors
                 logger.error(f"❌ AI service error: {ai_error}")
                 raise HTTPException(
-                    status_code=500,
-                    detail=f"AI service error: {str(ai_error)}"
+                    status_code=500, detail=f"AI service error: {str(ai_error)}"
                 )
 
         logger.info(

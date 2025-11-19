@@ -2581,7 +2581,13 @@ async def bulk_update_chapters(
                 updated_chapter = db.book_chapters.find_one(
                     {"chapter_id": update.chapter_id}
                 )
-                updated_chapters.append(updated_chapter)
+                
+                # Convert to dict and remove _id for JSON serialization
+                chapter_dict = dict(updated_chapter)
+                if "_id" in chapter_dict:
+                    del chapter_dict["_id"]
+                
+                updated_chapters.append(chapter_dict)
 
                 logger.info(
                     f"✅ Updated chapter {update.chapter_id}: {list(update_fields.keys())}"
