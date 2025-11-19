@@ -78,7 +78,7 @@ async def get_content_context(
         logger.info(f"📖 Fetching content for chapter_id: {chapter_id}")
         try:
             chapter_data = chapter_manager.get_chapter_with_content(
-                chapter_id=chapter_id, user_id=user_id, check_ownership=True
+                chapter_id=chapter_id
             )
 
             if not chapter_data:
