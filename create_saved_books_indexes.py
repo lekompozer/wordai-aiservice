@@ -3,10 +3,14 @@ Create indexes for saved_books collection
 Run this to set up database indexes after deploying the new endpoints
 """
 
-from src.database import db
+from src.database.db_manager import DBManager
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Initialize DB
+db_manager = DBManager()
+db = db_manager.db
 
 
 def create_saved_books_indexes():
