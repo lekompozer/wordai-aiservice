@@ -656,11 +656,10 @@ async def list_author_books(
                 detail=f"Author {author_id} not found",
             )
 
-        # Build query
+        # Build query - lấy tất cả books đã publish lên community
         query = {
             "authors": author_id,  # authors is an array field
             "community_config.is_public": True,
-            "is_published": True,
             "deleted_at": None,
         }
 
