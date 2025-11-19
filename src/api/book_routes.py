@@ -61,6 +61,7 @@ from src.models.book_chapter_models import (
     ChapterResponse,
     ChapterTreeNode,
     ChapterReorderBulk,
+    ChapterBulkUpdate,
     TogglePreviewRequest,
 )
 from src.models.book_permission_models import (
@@ -2392,6 +2393,218 @@ async def reorder_chapters(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to reorder chapters",
+        )
+
+
+@router.post("/{book_id}/chapters/bulk-update", response_model=Dict[str, Any])
+async def bulk_update_chapters(
+    book_id: str,
+    update_data: ChapterBulkUpdate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Bulk update chapters (title, slug, order, parent) - For reorganizing book menu
+
+    **Authentication:** Required (Owner only)
+
+    **Use Case:**
+    Frontend displays chapter list → User edits titles, reorders, reparents → Submit all changes at once
+
+    **Request Body:**
+    - updates: Array of chapter updates
+      * chapter_id: Required (which chapter to update)
+      * title: Optional (new title)
+      * slug: Optional (new slug, must be unique in book)
+      * parent_id: Optional (new parent, null for root)
+      * order_index: Optional (new position)
+
+    **Features:**
+    - Update multiple chapters in single request
+    - Auto-generate slug from title if title changed but slug not provided
+    - Validate slug uniqueness within book
+    - Prevent circular parent references
+    - Validate max depth (3 levels)
+    - Atomic operation (all or nothing)
+
+    **Returns:**
+    - 200: Chapters updated successfully with list of updated chapters
+    - 400: Invalid data (circular reference, max depth, duplicate slug)
+    - 403: User is not the book owner
+    - 404: Book or chapter not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        logger.info(
+            f"📝 Bulk update {len(update_data.updates)} chapters in book {book_id}"
+        )
+
+        # 1. Verify book ownership
+        book = book_manager.get_book(book_id)
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        if book["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only book owner can update chapters",
+            )
+
+        # 2. Validate all chapters exist
+        chapter_ids = [u.chapter_id for u in update_data.updates]
+        chapters = list(
+            db.book_chapters.find(
+                {"chapter_id": {"$in": chapter_ids}, "book_id": book_id}
+            )
+        )
+
+        if len(chapters) != len(chapter_ids):
+            found_ids = {c["chapter_id"] for c in chapters}
+            missing_ids = set(chapter_ids) - found_ids
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Chapters not found: {', '.join(missing_ids)}",
+            )
+
+        # 3. Prepare slug generation function
+        def slugify(text: str) -> str:
+            import unicodedata
+            import re
+
+            text = unicodedata.normalize("NFKD", text)
+            text = text.encode("ascii", "ignore").decode("ascii")
+            text = text.lower()
+            text = re.sub(r"[^\w\s-]", "", text)
+            text = re.sub(r"[-\s]+", "-", text)
+            return text.strip("-")[:100]
+
+        # 4. Process each update
+        updated_chapters = []
+        slug_map = {}  # Track slug changes to validate uniqueness
+
+        for update in update_data.updates:
+            chapter = next(c for c in chapters if c["chapter_id"] == update.chapter_id)
+            update_fields = {}
+
+            # Update title
+            if update.title is not None:
+                update_fields["title"] = update.title
+                update_fields["updated_at"] = datetime.utcnow()
+
+            # Update slug (or auto-generate from new title)
+            if update.slug is not None:
+                new_slug = update.slug
+            elif update.title is not None:
+                # Auto-generate slug from new title
+                new_slug = slugify(update.title)
+            else:
+                new_slug = None
+
+            if new_slug:
+                # Check uniqueness (within book, excluding current chapter)
+                existing_slug = db.book_chapters.find_one(
+                    {
+                        "book_id": book_id,
+                        "slug": new_slug,
+                        "chapter_id": {"$ne": update.chapter_id},
+                    }
+                )
+
+                # Also check against other updates in this batch
+                if new_slug in slug_map and slug_map[new_slug] != update.chapter_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Duplicate slug in update batch: '{new_slug}'",
+                    )
+
+                if existing_slug:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Slug '{new_slug}' already exists in this book",
+                    )
+
+                update_fields["slug"] = new_slug
+                slug_map[new_slug] = update.chapter_id
+
+            # Update parent_id
+            if update.parent_id is not None:
+                # Validate not circular (chapter can't be parent of itself)
+                if update.parent_id == update.chapter_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Chapter {update.chapter_id} cannot be its own parent",
+                    )
+
+                # Check parent exists
+                if update.parent_id:  # Not null
+                    parent = db.book_chapters.find_one(
+                        {"chapter_id": update.parent_id, "book_id": book_id}
+                    )
+                    if not parent:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Parent chapter {update.parent_id} not found",
+                        )
+
+                    # Calculate new depth
+                    parent_depth = parent.get("depth", 0)
+                    new_depth = parent_depth + 1
+
+                    if new_depth > 2:  # Max depth is 2 (0, 1, 2)
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"Max nesting depth exceeded (max 3 levels). Parent depth: {parent_depth}",
+                        )
+
+                    update_fields["parent_id"] = update.parent_id
+                    update_fields["depth"] = new_depth
+                else:
+                    # Setting parent to null (root level)
+                    update_fields["parent_id"] = None
+                    update_fields["depth"] = 0
+
+            # Update order_index
+            if update.order_index is not None:
+                update_fields["order_index"] = update.order_index
+
+            # Apply updates
+            if update_fields:
+                db.book_chapters.update_one(
+                    {"chapter_id": update.chapter_id}, {"$set": update_fields}
+                )
+
+                # Get updated chapter
+                updated_chapter = db.book_chapters.find_one(
+                    {"chapter_id": update.chapter_id}
+                )
+                updated_chapters.append(updated_chapter)
+
+                logger.info(
+                    f"✅ Updated chapter {update.chapter_id}: {list(update_fields.keys())}"
+                )
+
+        logger.info(
+            f"✅ Bulk updated {len(updated_chapters)} chapters in book {book_id}"
+        )
+
+        return {
+            "success": True,
+            "updated_count": len(updated_chapters),
+            "chapters": updated_chapters,
+            "message": f"Successfully updated {len(updated_chapters)} chapters",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to bulk update chapters: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to bulk update chapters: {str(e)}",
         )
 
 

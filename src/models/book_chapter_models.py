@@ -109,6 +109,32 @@ class ChapterReorderBulk(BaseModel):
     updates: List[ChapterReorder]
 
 
+class ChapterBulkUpdateItem(BaseModel):
+    """Single chapter update in bulk operation"""
+
+    chapter_id: str = Field(..., description="Chapter ID to update")
+    title: Optional[str] = Field(
+        None, min_length=1, max_length=200, description="New chapter title"
+    )
+    slug: Optional[str] = Field(
+        None, pattern="^[a-z0-9-]+$", description="New chapter slug"
+    )
+    parent_id: Optional[str] = Field(
+        None, description="New parent chapter ID (null for root)"
+    )
+    order_index: Optional[int] = Field(
+        None, ge=0, description="New position at current level"
+    )
+
+
+class ChapterBulkUpdate(BaseModel):
+    """Bulk update chapters (title, slug, order, parent)"""
+
+    updates: List[ChapterBulkUpdateItem] = Field(
+        ..., min_items=1, description="List of chapter updates"
+    )
+
+
 class ChapterResponse(BaseModel):
     """Response model for chapter"""
 
