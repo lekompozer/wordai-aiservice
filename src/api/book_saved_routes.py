@@ -308,3 +308,50 @@ async def unsave_book(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to remove saved book: {str(e)}",
         )
+
+
+@router.get("/check/{book_id}")
+async def check_book_saved(
+    book_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Check if user has saved a book
+
+    **Authentication:** Required
+
+    **Path Parameters:**
+    - book_id: Book ID to check
+
+    **Returns:**
+    - 200: Check result with is_saved status
+    """
+    try:
+        user_id = current_user["uid"]
+
+        logger.info(f"🔍 User {user_id} checking if book {book_id} is saved")
+
+        # Check if book is saved
+        saved_doc = db.saved_books.find_one(
+            {"user_id": user_id, "book_id": book_id, "deleted_at": None}
+        )
+
+        is_saved = saved_doc is not None
+        saved_at = saved_doc.get("saved_at") if saved_doc else None
+
+        logger.info(f"✅ Book {book_id} saved status: {is_saved}")
+
+        return {
+            "book_id": book_id,
+            "is_saved": is_saved,
+            "saved_at": saved_at,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to check saved status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to check saved status: {str(e)}",
+        )

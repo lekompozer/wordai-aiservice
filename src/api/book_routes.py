@@ -203,6 +203,67 @@ async def check_slug_availability(
         )
 
 
+@router.get("/{book_id}/save-count")
+async def get_book_save_count(book_id: str):
+    """
+    Get total number of users who saved this book (public endpoint)
+
+    **Authentication:** Not required (public)
+
+    **Path Parameters:**
+    - book_id: Book ID
+
+    **Returns:**
+    - 200: Save count with book info
+    - 404: Book not found
+
+    **Example Response:**
+    ```json
+    {
+      "book_id": "book_df213acf187b",
+      "total_saves": 250,
+      "book_title": "Python Advanced Guide"
+    }
+    ```
+    """
+    try:
+        logger.info(f"📊 Getting save count for book {book_id}")
+
+        # Get book (must be published to community)
+        book = db.online_books.find_one(
+            {
+                "book_id": book_id,
+                "community_config.is_public": True,
+            }
+        )
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or not published to community",
+            )
+
+        # Get save count from community_config
+        total_saves = book.get("community_config", {}).get("total_saves", 0)
+
+        logger.info(f"✅ Book {book_id} has {total_saves} saves")
+
+        return {
+            "book_id": book_id,
+            "total_saves": total_saves,
+            "book_title": book.get("title"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get save count: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get save count: {str(e)}",
+        )
+
+
 @router.post("", response_model=BookResponse, status_code=status.HTTP_201_CREATED)
 async def create_book(
     guide_data: BookCreate, current_user: Dict[str, Any] = Depends(get_current_user)
