@@ -94,7 +94,7 @@ async def check_author_availability(author_id: str):
 
     Returns whether the provided @username is available for registration.
 
-    - **author_id**: The @username to check (e.g., @john_doe)
+    - **author_id**: The @username to check (e.g., @john_doe or john_doe)
 
     Returns:
     ```json
@@ -105,6 +105,10 @@ async def check_author_availability(author_id: str):
     ```
     """
     try:
+        # Normalize author_id: ensure it starts with @
+        if not author_id.startswith("@"):
+            author_id = f"@{author_id}"
+        
         # Check if author exists
         existing = author_manager.get_author(author_id)
         available = existing is None
@@ -160,9 +164,16 @@ async def get_author(author_id: str):
     """
     **Get author profile by ID (public endpoint)**
 
-    - author_id: Author username (e.g., @john_doe)
+    - author_id: Author username (e.g., @john_doe or john_doe)
+    
+    Note: Accepts both @username and username formats. The @ symbol may be
+    URL-encoded as %40 by the client.
     """
     try:
+        # Normalize author_id: ensure it starts with @
+        if not author_id.startswith("@"):
+            author_id = f"@{author_id}"
+        
         author = author_manager.get_author(author_id)
 
         if not author:
