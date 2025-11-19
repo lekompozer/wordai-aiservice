@@ -658,7 +658,7 @@ async def list_author_books(
 
         # Build query
         query = {
-            "author_id": author_id,
+            "authors": author_id,  # authors is an array field
             "community_config.is_public": True,
             "is_published": True,
             "deleted_at": None,
@@ -675,7 +675,7 @@ async def list_author_books(
                 query["community_config.tags"] = {"$in": tag_list}
 
         # Get total count
-        total = db.books.count_documents(query)
+        total = db.online_books.count_documents(query)
 
         # Determine sort order
         sort_order = []
@@ -687,7 +687,9 @@ async def list_author_books(
             sort_order = [("community_config.published_at", -1)]
 
         # Get books
-        books_cursor = db.books.find(query).sort(sort_order).skip(skip).limit(limit)
+        books_cursor = (
+            db.online_books.find(query).sort(sort_order).skip(skip).limit(limit)
+        )
 
         books = []
         for book in books_cursor:
