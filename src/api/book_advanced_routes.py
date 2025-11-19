@@ -18,12 +18,12 @@ from src.middleware.firebase_auth import get_current_user
 
 # Services
 from src.services.book_chapter_manager import GuideBookBookChapterManager
-from src.services.ai_chat_service import get_ai_chat_service
+from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.services.points_service import get_points_service
 from config.config import get_mongodb
 
 # Models
-from src.api.ai_editor_routes import BilingualStyle, AIProvider
+from src.api.ai_editor_routes import BilingualStyle
 
 logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api/v1/books", tags=["Book Advanced"])
@@ -31,7 +31,7 @@ router = APIRouter(prefix="/api/v1/books", tags=["Book Advanced"])
 # MongoDB
 db = get_mongodb()
 chapter_manager = GuideBookBookChapterManager(db)
-ai_chat_service = get_ai_chat_service()
+# ai_chat_service imported from src.services.ai_chat_service
 
 
 # ============ MODELS ============
