@@ -410,11 +410,22 @@ async def get_avatar_presigned_url(
             )
 
         # Validate content type
-        allowed_types = ["image/jpeg", "image/png", "image/webp"]
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/avif"]
         if content_type not in allowed_types:
+            logger.warning(f"❌ Invalid content type '{content_type}' for author {author_id}")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid content type. Allowed: {', '.join(allowed_types)}",
+                detail=f"Invalid content type '{content_type}'. Allowed types: {', '.join(allowed_types)}",
+            )
+
+        # Validate filename extension
+        valid_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.avif']
+        file_ext = filename.lower().split('.')[-1] if '.' in filename else ''
+        if not any(filename.lower().endswith(ext) for ext in valid_extensions):
+            logger.warning(f"❌ Invalid filename extension '{filename}' for author {author_id}")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid filename extension. File must end with: {', '.join(valid_extensions)}",
             )
 
         # Get R2 service
@@ -445,7 +456,7 @@ async def get_avatar_presigned_url(
         logger.error(f"❌ R2 configuration error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Avatar upload service not configured properly",
+            detail=f"Avatar upload service not configured properly: {str(e)}",
         )
     except Exception as e:
         logger.error(f"❌ Failed to generate presigned URL: {e}", exc_info=True)
