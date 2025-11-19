@@ -185,11 +185,11 @@ async def translate_chapter(
     """
     Translate chapter to another language and optionally create new chapter
 
-    **Cost: 3 points** (AI translation operation)
+    **Cost: 2 points** (AI translation operation)
 
     **Workflow:**
     1. Verify user owns the book
-    2. Check sufficient points (3 points)
+    2. Check sufficient points (2 points)
     3. Get chapter content
     4. AI translates content to target language
     5. Create new chapter with translated content (if create_new_chapter=true)
@@ -227,9 +227,9 @@ async def translate_chapter(
                 detail=f"Chapter {chapter_id} not found in book {book_id}",
             )
 
-        # 3. Check points (3 points for translation)
+        # 3. Check points (2 points for translation)
         points_service = get_points_service()
-        points_needed = 3
+        points_needed = 2
 
         check_result = await points_service.check_sufficient_points(
             user_id=user_id, points_needed=points_needed, service="ai_translation"

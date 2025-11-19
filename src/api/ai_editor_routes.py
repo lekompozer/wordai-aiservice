@@ -599,7 +599,7 @@ async def bilingual_convert(
     Convert entire document or chapter to bilingual format
     Uses Gemini 2.5 Pro for handling large context and complex formatting
 
-    **Cost: 2 points** (AI operation)
+    **Cost: 3 points** (AI operation with large output)
 
     **Supports**: document_id OR chapter_id
 
@@ -621,9 +621,9 @@ async def bilingual_convert(
         # Validate IDs
         request.validate_ids()
 
-        # === CHECK POINTS (AI OPERATION: 2 points) ===
+        # === CHECK POINTS (AI OPERATION: 3 points) ===
         points_service = get_points_service()
-        points_needed = 2
+        points_needed = 3
 
         check_result = await points_service.check_sufficient_points(
             user_id=user_id, points_needed=points_needed, service="ai_dual_language"
@@ -657,6 +657,25 @@ async def bilingual_convert(
             raise HTTPException(
                 status_code=404,
                 detail=f"{resource_type.capitalize()} content not found",
+            )
+
+        # Check content length (bilingual output will be ~2x longer)
+        content_length = len(content_html)
+        MAX_CONTENT_LENGTH = 80000  # Conservative limit for bilingual conversion
+        
+        if content_length > MAX_CONTENT_LENGTH:
+            logger.warning(
+                f"⚠️ Content too large for bilingual conversion: {content_length:,} chars"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "content_too_large",
+                    "message": f"Nội dung quá dài để chuyển sang song ngữ ({content_length:,} ký tự). Vui lòng chia nhỏ nội dung hoặc chọn một phần để chuyển đổi.",
+                    "content_length": content_length,
+                    "max_length": MAX_CONTENT_LENGTH,
+                    "suggestion": "Hãy thử chuyển đổi từng chapter riêng lẻ thay vì toàn bộ document."
+                },
             )
 
         # Build style-specific examples
@@ -701,12 +720,34 @@ Now, convert the following HTML document:
         ]
 
         # Get response from AI (non-streaming)
-        bilingual_html = await ai_chat_service.chat(
-            provider=AIProvider.GEMINI_PRO,
-            messages=messages,
-            temperature=0.3,
-            max_tokens=16000,  # Larger token limit for full documents
-        )
+        try:
+            bilingual_html = await ai_chat_service.chat(
+                provider=AIProvider.GEMINI_PRO,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=16000,  # Larger token limit for full documents
+            )
+        except Exception as ai_error:
+            error_msg = str(ai_error).lower()
+            # Check if error is due to content length
+            if any(keyword in error_msg for keyword in ['too long', 'token', 'length', 'size', 'quota', 'limit']):
+                logger.error(f"❌ AI error (likely content too large): {ai_error}")
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "content_processing_failed",
+                        "message": "Nội dung quá dài hoặc phức tạp để xử lý. Vui lòng thử với nội dung ngắn hơn hoặc chia nhỏ tài liệu.",
+                        "suggestion": "Hãy chuyển đổi từng phần nhỏ thay vì toàn bộ tài liệu.",
+                        "technical_details": "AI model token limit exceeded"
+                    },
+                )
+            else:
+                # Other AI errors
+                logger.error(f"❌ AI service error: {ai_error}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"AI service error: {str(ai_error)}"
+                )
 
         logger.info(
             f"✅ Bilingual conversion completed for {resource_type} {resource_id}"
