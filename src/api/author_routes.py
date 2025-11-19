@@ -297,42 +297,71 @@ async def list_authors(
 
 
 @router.post(
-    "/{author_id}/avatar",
-    summary="Upload author avatar",
+    "/{author_id}/avatar/presigned-url",
+    summary="Generate presigned URL for avatar upload",
 )
-async def upload_author_avatar(
+async def get_avatar_presigned_url(
     author_id: str,
+    filename: str = Query(..., description="Avatar filename (e.g., avatar.jpg)"),
+    content_type: str = Query(..., description="MIME type (e.g., image/jpeg)"),
     user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    **Upload author avatar image**
+    **Generate presigned URL for author avatar upload**
 
-    - Only the owner can upload
-    - Accepts: JPEG, PNG, WebP (max 5MB)
-    - Returns: Base64 data URL
+    This endpoint generates a presigned URL for uploading author avatar directly to R2 storage.
 
-    **Request:**
-    - Content-Type: multipart/form-data
-    - Field: file (image file)
+    **Supported Image Types:**
+    - JPEG (image/jpeg)
+    - PNG (image/png)
+    - WebP (image/webp)
+
+    **Flow:**
+    1. Frontend calls this endpoint with filename and content_type
+    2. Backend validates ownership and generates presigned URL (valid for 5 minutes)
+    3. Frontend uploads file directly to presigned URL using PUT request
+    4. Frontend calls /avatar/confirm with file_url to save to database
+
+    **Image Constraints:**
+    - Max file size: 5MB
+    - Recommended size: 512x512px (square)
 
     **Returns:**
-    ```json
-    {
-        "success": true,
-        "message": "Avatar uploaded successfully",
-        "avatar_url": "data:image/jpeg;base64,...",
-        "size_bytes": 12345
-    }
+    - `presigned_url`: URL for uploading file (use PUT request)
+    - `file_url`: Public CDN URL to use in confirm endpoint
+    - `expires_in`: Presigned URL expiration time in seconds (300 = 5 minutes)
+
+    **Example Usage:**
+    ```javascript
+    // 1. Get presigned URL
+    const response = await fetch('/api/v1/authors/@john_doe/avatar/presigned-url?filename=avatar.jpg&content_type=image/jpeg', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
+    const { presigned_url, file_url } = await response.json()
+
+    // 2. Upload file to presigned URL
+    await fetch(presigned_url, {
+        method: 'PUT',
+        body: fileBlob,
+        headers: { 'Content-Type': 'image/jpeg' }
+    })
+
+    // 3. Confirm upload
+    await fetch('/api/v1/authors/@john_doe/avatar/confirm', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ avatar_url: file_url })
+    })
     ```
     """
-    from fastapi import UploadFile, File
-    import base64
-    from io import BytesIO
-    from PIL import Image
+    from src.services.r2_storage_service import get_r2_service
 
     user_id = user["uid"]
 
-    logger.info(f"📸 User {user_id} uploading avatar for author {author_id}")
+    logger.info(
+        f"📸 Generating presigned URL for avatar: {filename} - Author: {author_id}, User: {user_id}"
+    )
 
     try:
         # Get author
@@ -351,23 +380,201 @@ async def upload_author_avatar(
                 detail="You don't have permission to update this author profile",
             )
 
-        # Note: This endpoint expects multipart/form-data
-        # Frontend should send FormData with file field
-        # For now, return placeholder - implement with actual file upload
+        # Validate content type
+        allowed_types = ["image/jpeg", "image/png", "image/webp"]
+        if content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid content type. Allowed: {', '.join(allowed_types)}",
+            )
+
+        # Get R2 service
+        r2_service = get_r2_service()
+
+        # Generate presigned URL with custom folder
+        result = r2_service.generate_presigned_upload_url(
+            filename=filename,
+            content_type=content_type,
+            folder="author-avatars",  # Store in organized folder
+        )
+
+        logger.info(
+            f"✅ Generated presigned URL for avatar: {result['file_url']} - Author: {author_id}"
+        )
 
         return {
-            "success": False,
-            "message": "Avatar upload endpoint ready - send multipart/form-data with 'file' field",
+            "success": True,
+            "presigned_url": result["presigned_url"],
+            "file_url": result["file_url"],
+            "expires_in": result["expires_in"],
             "author_id": author_id,
         }
 
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"❌ Failed to upload avatar: {e}", exc_info=True)
+    except ValueError as e:
+        logger.error(f"❌ R2 configuration error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to upload avatar: {str(e)}",
+            detail="Avatar upload service not configured properly",
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to generate presigned URL: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate presigned URL: {str(e)}",
+        )
+
+
+@router.post(
+    "/{author_id}/avatar/confirm",
+    summary="Confirm avatar upload",
+)
+async def confirm_avatar_upload(
+    author_id: str,
+    avatar_url: str = Query(..., description="Public CDN URL from presigned upload"),
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Confirm avatar upload and save to database**
+
+    Call this endpoint after successfully uploading file to presigned URL.
+
+    **Parameters:**
+    - `avatar_url`: The file_url returned from presigned-url endpoint
+
+    **Returns:**
+    ```json
+    {
+        "success": true,
+        "message": "Avatar updated successfully",
+        "author_id": "@john_doe",
+        "avatar_url": "https://cdn.wordai.vn/author-avatars/..."
+    }
+    ```
+    """
+    from datetime import datetime
+
+    user_id = user["uid"]
+
+    logger.info(f"💾 Confirming avatar upload for author {author_id}: {avatar_url}")
+
+    try:
+        # Get author
+        author = author_manager.get_author(author_id)
+
+        if not author:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Author {author_id} not found",
+            )
+
+        # Check ownership
+        if author["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to update this author profile",
+            )
+
+        # Update author avatar
+        result = db.book_authors.update_one(
+            {"author_id": author_id},
+            {"$set": {"avatar_url": avatar_url, "updated_at": datetime.now()}},
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Author {author_id} not found",
+            )
+
+        logger.info(f"✅ Avatar updated for author {author_id}")
+
+        return {
+            "success": True,
+            "message": "Avatar updated successfully",
+            "author_id": author_id,
+            "avatar_url": avatar_url,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to confirm avatar upload: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to confirm avatar upload: {str(e)}",
+        )
+
+
+@router.patch(
+    "/{author_id}/profile",
+    response_model=AuthorResponse,
+    summary="Update author profile",
+)
+async def update_author_profile(
+    author_id: str,
+    update_data: AuthorUpdate,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Update author profile information**
+
+    - Only the owner can update
+    - Update: name, bio, website_url, social_links
+
+    **Request Body:**
+    ```json
+    {
+        "name": "John Doe",
+        "bio": "Full-stack developer with 10+ years experience",
+        "website_url": "https://johndoe.com",
+        "social_links": {
+            "twitter": "https://twitter.com/johndoe",
+            "github": "https://github.com/johndoe",
+            "linkedin": "https://linkedin.com/in/johndoe"
+        }
+    }
+    ```
+
+    **Returns:**
+    Updated author profile
+    """
+    user_id = user["uid"]
+
+    logger.info(f"📝 User {user_id} updating profile for author {author_id}")
+
+    try:
+        # Get author
+        author = author_manager.get_author(author_id)
+
+        if not author:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Author {author_id} not found",
+            )
+
+        # Check ownership
+        if author["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to update this author profile",
+            )
+
+        # Update author using manager
+        updated_author = author_manager.update_author(author_id, update_data, user)
+
+        logger.info(f"✅ Profile updated for author {author_id}")
+
+        return AuthorResponse(**updated_author)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update author profile: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update author profile: {str(e)}",
         )
 
 
