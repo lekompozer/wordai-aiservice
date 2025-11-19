@@ -24,7 +24,7 @@ class AuthorManager:
             db: PyMongo Database object
         """
         self.db = db
-        self.authors_collection = db["authors"]
+        self.authors_collection = db["book_authors"]
 
     def create_indexes(self):
         """Create indexes for authors collection"""
