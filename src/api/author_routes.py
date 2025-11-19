@@ -105,9 +105,10 @@ async def check_author_availability(author_id: str):
     ```
     """
     try:
-        # Normalize author_id: ensure it starts with @
+        # Normalize author_id: ensure it starts with @ and is lowercase
         if not author_id.startswith("@"):
             author_id = f"@{author_id}"
+        author_id = author_id.lower()
 
         # Check if author exists
         existing = author_manager.get_author(author_id)
@@ -170,9 +171,10 @@ async def get_author(author_id: str):
     URL-encoded as %40 by the client.
     """
     try:
-        # Normalize author_id: ensure it starts with @
+        # Normalize author_id: ensure it starts with @ and is lowercase
         if not author_id.startswith("@"):
             author_id = f"@{author_id}"
+        author_id = author_id.lower()
 
         author = author_manager.get_author(author_id)
 
@@ -370,9 +372,10 @@ async def get_avatar_presigned_url(
 
     user_id = user["uid"]
 
-    # Normalize author_id: ensure it starts with @
+    # Normalize author_id: ensure it starts with @ and is lowercase
     if not author_id.startswith("@"):
         author_id = f"@{author_id}"
+    author_id = author_id.lower()
 
     logger.info(
         f"📸 Generating presigned URL for avatar: {filename} - Author: {author_id}, User: {user_id}"
@@ -557,9 +560,10 @@ async def update_author_profile(
     """
     user_id = user["uid"]
 
-    # Normalize author_id: ensure it starts with @
+    # Normalize author_id: ensure it starts with @ and is lowercase
     if not author_id.startswith("@"):
         author_id = f"@{author_id}"
+    author_id = author_id.lower()
 
     logger.info(f"📝 User {user_id} updating profile for author {author_id}")
 
@@ -637,10 +641,11 @@ async def list_author_books(
     ```
     """
     try:
-        # Normalize author_id: ensure it starts with @
+        # Normalize author_id: ensure it starts with @ and is lowercase
         if not author_id.startswith("@"):
             author_id = f"@{author_id}"
-        
+        author_id = author_id.lower()
+
         logger.info(f"📚 Listing books by author {author_id} (sort={sort})")
 
         # Check author exists
