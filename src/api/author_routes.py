@@ -227,7 +227,7 @@ async def update_author(
 
     try:
         updated_author = author_manager.update_author(
-            author_id, user_id, update_data.dict(exclude_unset=True)
+            author_id, update_data.dict(exclude_unset=True), user_id
         )
 
         if not updated_author:
@@ -596,7 +596,7 @@ async def update_author_profile(
             )
 
         # Update author using manager
-        updated_author = author_manager.update_author(author_id, update_data, user)
+        updated_author = author_manager.update_author(author_id, update_data, user_id)
 
         logger.info(f"✅ Profile updated for author {author_id}")
 

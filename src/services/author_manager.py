@@ -136,21 +136,27 @@ class AuthorManager:
         return authors, total
 
     def update_author(
-        self, author_id: str, user_id: str, update_data: Dict[str, Any]
+        self, author_id: str, update_data: Any, user_id: str
     ) -> Optional[Dict[str, Any]]:
         """
         Update author profile
 
         Args:
             author_id: Author ID
+            update_data: AuthorUpdate data (Pydantic model or dict)
             user_id: Firebase UID (must be owner)
-            update_data: AuthorUpdate data
 
         Returns:
             Updated author or None
         """
-        # Convert Pydantic model to dict, excluding None values
-        update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
+        # Convert to dict if it's a Pydantic model
+        if hasattr(update_data, 'model_dump'):
+            update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
+        elif isinstance(update_data, dict):
+            update_dict = {k: v for k, v in update_data.items() if v is not None}
+        else:
+            update_dict = {}
+            
         if not update_dict:
             return self.get_author(author_id)
 
