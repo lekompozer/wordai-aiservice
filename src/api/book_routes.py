@@ -118,8 +118,7 @@ document_manager = DocumentManager(db)
 
 @router.get("/check-slug/{slug}", response_model=Dict[str, Any])
 async def check_slug_availability(
-    slug: str,
-    current_user: Dict[str, Any] = Depends(get_current_user)
+    slug: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """
     **Check if slug is available for current user**
@@ -167,14 +166,11 @@ async def check_slug_availability(
         is_available = not book_manager.slug_exists(user_id, slug)
 
         if is_available:
-            return {
-                "available": True,
-                "slug": slug,
-                "message": "Slug is available"
-            }
+            return {"available": True, "slug": slug, "message": "Slug is available"}
         else:
             # Generate suggestions
             from datetime import datetime
+
             year = datetime.now().year
 
             suggestions = [
@@ -182,27 +178,28 @@ async def check_slug_availability(
                 f"{slug}-{year}",
                 f"{slug}-v2",
                 f"{slug}-copy",
-                f"{slug}-new"
+                f"{slug}-new",
             ]
 
             # Filter out suggestions that are also taken
             available_suggestions = [
-                s for s in suggestions
-                if not book_manager.slug_exists(user_id, s)
-            ][:3]  # Return top 3
+                s for s in suggestions if not book_manager.slug_exists(user_id, s)
+            ][
+                :3
+            ]  # Return top 3
 
             return {
                 "available": False,
                 "slug": slug,
                 "message": "Slug already exists",
-                "suggestions": available_suggestions
+                "suggestions": available_suggestions,
             }
 
     except Exception as e:
         logger.error(f"❌ Failed to check slug: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to check slug availability"
+            detail="Failed to check slug availability",
         )
 
 
@@ -529,7 +526,9 @@ async def empty_trash(
         user_id = current_user["uid"]
 
         # Get trash books to check for published books
-        books, total = book_manager.list_trash(user_id, skip=0, limit=10000, sort_by="deleted_at")
+        books, total = book_manager.list_trash(
+            user_id, skip=0, limit=10000, sort_by="deleted_at"
+        )
 
         # Check for published books
         published_books = []
@@ -723,9 +722,7 @@ async def list_my_published_books(
                     cover_image_url=community_config.get("cover_image_url"),
                     access_config=access_config if access_config else None,
                     stats={
-                        "total_one_time_purchases": stats.get(
-                            "one_time_purchases", 0
-                        ),
+                        "total_one_time_purchases": stats.get("one_time_purchases", 0),
                         "total_forever_purchases": stats.get("forever_purchases", 0),
                         "total_pdf_downloads": stats.get("pdf_downloads", 0),
                         "total_purchases": community_config.get("total_purchases", 0),
@@ -1260,9 +1257,9 @@ async def purchase_book(
                 {"user_id": owner_id},
                 {
                     "$inc": {"earnings_points": owner_reward},
-                    "$set": {"updated_at": datetime.now(timezone.utc)}
+                    "$set": {"updated_at": datetime.now(timezone.utc)},
                 },
-                upsert=False  # Don't create if doesn't exist
+                upsert=False,  # Don't create if doesn't exist
             )
 
             if owner_earnings_result.modified_count > 0:
@@ -1670,7 +1667,9 @@ async def delete_book(
         if permanent:
             # Hard delete - delete everything
             deleted_chapters = chapter_manager.delete_guide_chapters(book_id)
-            deleted_permissions = permission_manager.delete_permissions_by_guide(book_id)
+            deleted_permissions = permission_manager.delete_permissions_by_guide(
+                book_id
+            )
             deleted = book_manager.delete_book(book_id)
 
             if not deleted:
@@ -1716,6 +1715,7 @@ async def delete_book(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete book",
         )
+
 
 # ==============================================================================
 # PHASE 3: CHAPTER MANAGEMENT API
@@ -2253,7 +2253,7 @@ async def delete_chapter(
     "/{book_id}/chapters/{chapter_id}/content",
     response_model=Dict[str, Any],
     status_code=status.HTTP_200_OK,
-    summary="Update chapter content (inline or document-linked)"
+    summary="Update chapter content (inline or document-linked)",
 )
 async def update_chapter_content(
     book_id: str,
@@ -2291,42 +2291,39 @@ async def update_chapter_content(
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Book not found or access denied"
+                detail="Book not found or access denied",
             )
 
         # Update chapter content (handles both inline and document-linked)
         success = chapter_manager.update_chapter_content(
             chapter_id=chapter_id,
             content_html=content_data.content_html,
-            content_json=content_data.content_json
+            content_json=content_data.content_json,
         )
 
         if not success:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chapter not found or content not updated"
+                detail="Chapter not found or content not updated",
             )
 
         return {
             "success": True,
             "message": "Chapter content updated successfully",
             "chapter_id": chapter_id,
-            "content_length": len(content_data.content_html)
+            "content_length": len(content_data.content_html),
         }
 
     except ValueError as e:
         logger.error(f"❌ Invalid chapter content update: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Failed to update chapter content: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update chapter content"
+            detail="Failed to update chapter content",
         )
 
 
@@ -2581,12 +2578,12 @@ async def bulk_update_chapters(
                 updated_chapter = db.book_chapters.find_one(
                     {"chapter_id": update.chapter_id}
                 )
-                
+
                 # Convert to dict and remove _id for JSON serialization
                 chapter_dict = dict(updated_chapter)
                 if "_id" in chapter_dict:
                     del chapter_dict["_id"]
-                
+
                 updated_chapters.append(chapter_dict)
 
                 logger.info(
@@ -3397,7 +3394,11 @@ async def publish_book_to_community(
         else:
             # Auto-create new author
             # Check if author data provided in new_authors
-            new_author_data = publish_data.new_authors.get(author_id) if publish_data.new_authors else None
+            new_author_data = (
+                publish_data.new_authors.get(author_id)
+                if publish_data.new_authors
+                else None
+            )
 
             if new_author_data:
                 # Use provided author data
@@ -3680,10 +3681,12 @@ async def get_book_preview(
     """
     try:
         # Get book (must be published to Community)
-        book = db.online_books.find_one({
-            "book_id": book_id,
-            "community_config.is_public": True,
-        })
+        book = db.online_books.find_one(
+            {
+                "book_id": book_id,
+                "community_config.is_public": True,
+            }
+        )
 
         if not book:
             raise HTTPException(
@@ -3749,6 +3752,7 @@ async def get_book_preview(
             forever_purchases=stats_data.get("forever_purchases", 0),
             one_time_purchases=stats_data.get("one_time_purchases", 0),
             pdf_downloads=stats_data.get("pdf_downloads", 0),
+            total_saves=community_config.get("total_saves", 0),
             average_rating=community_config.get("average_rating", 0.0),
             rating_count=community_config.get("rating_count", 0),
         )
@@ -3772,11 +3776,13 @@ async def get_book_preview(
                 }
             else:
                 # Check purchases
-                forever_purchase = db.book_purchases.find_one({
-                    "user_id": user_id,
-                    "book_id": book_id,
-                    "purchase_type": PurchaseType.FOREVER.value,
-                })
+                forever_purchase = db.book_purchases.find_one(
+                    {
+                        "user_id": user_id,
+                        "book_id": book_id,
+                        "purchase_type": PurchaseType.FOREVER.value,
+                    }
+                )
 
                 if forever_purchase:
                     user_access = {
@@ -3786,20 +3792,26 @@ async def get_book_preview(
                     }
                 else:
                     # Check one-time purchase
-                    one_time_purchase = db.book_purchases.find_one({
-                        "user_id": user_id,
-                        "book_id": book_id,
-                        "purchase_type": PurchaseType.ONE_TIME.value,
-                    })
+                    one_time_purchase = db.book_purchases.find_one(
+                        {
+                            "user_id": user_id,
+                            "book_id": book_id,
+                            "purchase_type": PurchaseType.ONE_TIME.value,
+                        }
+                    )
 
                     if one_time_purchase:
                         expires_at = one_time_purchase.get("access_expires_at")
-                        is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+                        is_expired = expires_at and expires_at < datetime.now(
+                            timezone.utc
+                        )
 
                         user_access = {
                             "has_access": not is_expired,
                             "access_type": "one_time",
-                            "expires_at": expires_at.isoformat() if expires_at else None,
+                            "expires_at": (
+                                expires_at.isoformat() if expires_at else None
+                            ),
                         }
 
         # Build response
@@ -3879,10 +3891,12 @@ async def get_book_preview_by_slug(
     """
     try:
         # Find book by slug (must be published to Community)
-        book = db.online_books.find_one({
-            "slug": slug,
-            "community_config.is_public": True,
-        })
+        book = db.online_books.find_one(
+            {
+                "slug": slug,
+                "community_config.is_public": True,
+            }
+        )
 
         if not book:
             raise HTTPException(
@@ -3950,6 +3964,7 @@ async def get_book_preview_by_slug(
             forever_purchases=stats_data.get("forever_purchases", 0),
             one_time_purchases=stats_data.get("one_time_purchases", 0),
             pdf_downloads=stats_data.get("pdf_downloads", 0),
+            total_saves=community_config.get("total_saves", 0),
             average_rating=community_config.get("average_rating", 0.0),
             rating_count=community_config.get("rating_count", 0),
         )
@@ -3973,11 +3988,13 @@ async def get_book_preview_by_slug(
                 }
             else:
                 # Check purchases
-                forever_purchase = db.book_purchases.find_one({
-                    "user_id": user_id,
-                    "book_id": book_id,
-                    "purchase_type": PurchaseType.FOREVER.value,
-                })
+                forever_purchase = db.book_purchases.find_one(
+                    {
+                        "user_id": user_id,
+                        "book_id": book_id,
+                        "purchase_type": PurchaseType.FOREVER.value,
+                    }
+                )
 
                 if forever_purchase:
                     user_access = {
@@ -3987,20 +4004,26 @@ async def get_book_preview_by_slug(
                     }
                 else:
                     # Check one-time purchase
-                    one_time_purchase = db.book_purchases.find_one({
-                        "user_id": user_id,
-                        "book_id": book_id,
-                        "purchase_type": PurchaseType.ONE_TIME.value,
-                    })
+                    one_time_purchase = db.book_purchases.find_one(
+                        {
+                            "user_id": user_id,
+                            "book_id": book_id,
+                            "purchase_type": PurchaseType.ONE_TIME.value,
+                        }
+                    )
 
                     if one_time_purchase:
                         expires_at = one_time_purchase.get("access_expires_at")
-                        is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+                        is_expired = expires_at and expires_at < datetime.now(
+                            timezone.utc
+                        )
 
                         user_access = {
                             "has_access": not is_expired,
                             "access_type": "one_time",
-                            "expires_at": expires_at.isoformat() if expires_at else None,
+                            "expires_at": (
+                                expires_at.isoformat() if expires_at else None
+                            ),
                         }
 
         # Build response
@@ -4147,8 +4170,7 @@ async def get_chapter_with_content(
 
         if not chapter or chapter.get("book_id") != book_id:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chapter not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
             )
 
         # Check if this is a free preview chapter
@@ -4204,27 +4226,35 @@ async def get_chapter_with_content(
 
         # Check if user has purchased access
         # Check forever access
-        forever_purchase = db.book_purchases.find_one({
-            "user_id": user_id,
-            "book_id": book_id,
-            "purchase_type": PurchaseType.FOREVER.value,
-        })
+        forever_purchase = db.book_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_id": book_id,
+                "purchase_type": PurchaseType.FOREVER.value,
+            }
+        )
 
         if forever_purchase:
-            logger.info(f"📄 User {user_id} accessed chapter (forever access): {chapter_id}")
+            logger.info(
+                f"📄 User {user_id} accessed chapter (forever access): {chapter_id}"
+            )
             return ChapterResponse(**chapter)
 
         # Check one-time access (valid for 7 days)
-        one_time_purchase = db.book_purchases.find_one({
-            "user_id": user_id,
-            "book_id": book_id,
-            "purchase_type": PurchaseType.ONE_TIME.value,
-        })
+        one_time_purchase = db.book_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_id": book_id,
+                "purchase_type": PurchaseType.ONE_TIME.value,
+            }
+        )
 
         if one_time_purchase:
             expires_at = one_time_purchase.get("access_expires_at")
             if expires_at and expires_at > datetime.now(timezone.utc):
-                logger.info(f"📄 User {user_id} accessed chapter (one-time access): {chapter_id}")
+                logger.info(
+                    f"📄 User {user_id} accessed chapter (one-time access): {chapter_id}"
+                )
                 return ChapterResponse(**chapter)
 
         # No access - user needs to purchase
@@ -4284,10 +4314,12 @@ async def get_chapter_content_by_slug(
     """
     try:
         # Find book by slug (must be published to Community for public access)
-        book = db.online_books.find_one({
-            "slug": book_slug,
-            "is_deleted": False,
-        })
+        book = db.online_books.find_one(
+            {
+                "slug": book_slug,
+                "is_deleted": False,
+            }
+        )
 
         if not book:
             raise HTTPException(
@@ -4298,10 +4330,12 @@ async def get_chapter_content_by_slug(
         book_id = book["book_id"]
 
         # Find chapter by slug within this book
-        chapter_doc = db.book_chapters.find_one({
-            "book_id": book_id,
-            "slug": chapter_slug,
-        })
+        chapter_doc = db.book_chapters.find_one(
+            {
+                "book_id": book_id,
+                "slug": chapter_slug,
+            }
+        )
 
         if not chapter_doc:
             raise HTTPException(
@@ -4317,7 +4351,7 @@ async def get_chapter_content_by_slug(
         if not chapter:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Chapter content not found"
+                detail="Chapter content not found",
             )
 
         # Check if this is a free preview chapter
@@ -4344,7 +4378,9 @@ async def get_chapter_content_by_slug(
 
         if is_owner:
             # Owner has full access
-            logger.info(f"📄 Owner {user_id} accessed chapter (slug): {book_slug}/{chapter_slug}")
+            logger.info(
+                f"📄 Owner {user_id} accessed chapter (slug): {book_slug}/{chapter_slug}"
+            )
             return ChapterResponse(**chapter)
 
         # Check if book is public/free
@@ -4360,32 +4396,42 @@ async def get_chapter_content_by_slug(
 
             if one_time_points == 0 and forever_points == 0:
                 # Free book - allow all authenticated users
-                logger.info(f"📖 Free book (slug) accessed by {user_id}: {book_slug}/{chapter_slug}")
+                logger.info(
+                    f"📖 Free book (slug) accessed by {user_id}: {book_slug}/{chapter_slug}"
+                )
                 return ChapterResponse(**chapter)
 
         # Check if user has purchased access
         # Check forever access
-        forever_purchase = db.book_purchases.find_one({
-            "user_id": user_id,
-            "book_id": book_id,
-            "purchase_type": PurchaseType.FOREVER.value,
-        })
+        forever_purchase = db.book_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_id": book_id,
+                "purchase_type": PurchaseType.FOREVER.value,
+            }
+        )
 
         if forever_purchase:
-            logger.info(f"📄 User {user_id} accessed chapter (slug, forever): {book_slug}/{chapter_slug}")
+            logger.info(
+                f"📄 User {user_id} accessed chapter (slug, forever): {book_slug}/{chapter_slug}"
+            )
             return ChapterResponse(**chapter)
 
         # Check one-time access (valid for 7 days)
-        one_time_purchase = db.book_purchases.find_one({
-            "user_id": user_id,
-            "book_id": book_id,
-            "purchase_type": PurchaseType.ONE_TIME.value,
-        })
+        one_time_purchase = db.book_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_id": book_id,
+                "purchase_type": PurchaseType.ONE_TIME.value,
+            }
+        )
 
         if one_time_purchase:
             expires_at = one_time_purchase.get("access_expires_at")
             if expires_at and expires_at > datetime.now(timezone.utc):
-                logger.info(f"📄 User {user_id} accessed chapter (slug, one-time): {book_slug}/{chapter_slug}")
+                logger.info(
+                    f"📄 User {user_id} accessed chapter (slug, one-time): {book_slug}/{chapter_slug}"
+                )
                 return ChapterResponse(**chapter)
 
         # No access - user needs to purchase
@@ -4887,7 +4933,7 @@ async def get_top_authors(
     "/documents/{document_id}/convert-to-chapter",
     response_model=ChapterResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Convert document to book chapter"
+    summary="Convert document to book chapter",
 )
 async def convert_document_to_chapter(
     document_id: str,
@@ -4940,7 +4986,7 @@ async def convert_document_to_chapter(
         if not chapter:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Failed to convert document to chapter"
+                detail="Failed to convert document to chapter",
             )
 
         logger.info(
@@ -4952,15 +4998,12 @@ async def convert_document_to_chapter(
 
     except ValueError as e:
         logger.error(f"❌ Invalid document conversion: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Failed to convert document to chapter: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to convert document to chapter"
+            detail="Failed to convert document to chapter",
         )

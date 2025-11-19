@@ -185,6 +185,9 @@ from src.api.book_advanced_routes import router as book_advanced_router
 # ✅ ADDED: Author API - Community books author management
 from src.api.author_routes import router as author_router
 
+# ✅ ADDED: Saved Books API - User's bookmarked books
+from src.api.book_saved_routes import router as saved_books_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -746,6 +749,13 @@ def create_app() -> FastAPI:
     app.include_router(
         author_router,
         tags=["Authors", "Community Books"],
+    )
+
+    # ✅ NEW: Saved Books API - User's bookmarked books
+    app.include_router(
+        saved_books_router,
+        prefix="/api/v1",
+        tags=["Saved Books", "Bookmarks"],
     )
 
     # ✅ ADDED: Internal CORS management for chat-plugin

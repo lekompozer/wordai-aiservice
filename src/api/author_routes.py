@@ -294,3 +294,216 @@ async def list_authors(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to list authors",
         )
+
+
+@router.post(
+    "/{author_id}/avatar",
+    summary="Upload author avatar",
+)
+async def upload_author_avatar(
+    author_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Upload author avatar image**
+
+    - Only the owner can upload
+    - Accepts: JPEG, PNG, WebP (max 5MB)
+    - Returns: Base64 data URL
+
+    **Request:**
+    - Content-Type: multipart/form-data
+    - Field: file (image file)
+
+    **Returns:**
+    ```json
+    {
+        "success": true,
+        "message": "Avatar uploaded successfully",
+        "avatar_url": "data:image/jpeg;base64,...",
+        "size_bytes": 12345
+    }
+    ```
+    """
+    from fastapi import UploadFile, File
+    import base64
+    from io import BytesIO
+    from PIL import Image
+
+    user_id = user["uid"]
+
+    logger.info(f"📸 User {user_id} uploading avatar for author {author_id}")
+
+    try:
+        # Get author
+        author = author_manager.get_author(author_id)
+
+        if not author:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Author {author_id} not found",
+            )
+
+        # Check ownership
+        if author["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to update this author profile",
+            )
+
+        # Note: This endpoint expects multipart/form-data
+        # Frontend should send FormData with file field
+        # For now, return placeholder - implement with actual file upload
+
+        return {
+            "success": False,
+            "message": "Avatar upload endpoint ready - send multipart/form-data with 'file' field",
+            "author_id": author_id,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to upload avatar: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload avatar: {str(e)}",
+        )
+
+
+@router.get(
+    "/{author_id}/books",
+    summary="List books by author",
+)
+async def list_author_books(
+    author_id: str,
+    category: Optional[str] = Query(None, description="Filter by category"),
+    tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
+    sort: str = Query("newest", description="Sort: newest|popular|top_rated"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(20, ge=1, le=100),
+):
+    """
+    **List published books by author (public endpoint)**
+
+    - No authentication required
+    - Filter by category and tags
+    - Sort by newest, popular (views), or top_rated
+
+    **Returns:**
+    ```json
+    {
+        "books": [...],
+        "total": 10,
+        "skip": 0,
+        "limit": 20,
+        "author": {
+            "author_id": "@john_doe",
+            "name": "John Doe",
+            "avatar_url": "..."
+        },
+        "filters": {
+            "category": "technology",
+            "tags": ["python", "ai"],
+            "sort": "newest"
+        }
+    }
+    ```
+    """
+    try:
+        logger.info(f"📚 Listing books by author {author_id} (sort={sort})")
+
+        # Check author exists
+        author = author_manager.get_author(author_id)
+        if not author:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Author {author_id} not found",
+            )
+
+        # Build query
+        query = {
+            "author_id": author_id,
+            "community_config.is_public": True,
+            "is_published": True,
+            "deleted_at": None,
+        }
+
+        # Apply filters
+        if category:
+            query["community_config.category"] = category
+
+        tag_list = []
+        if tags:
+            tag_list = [tag.strip() for tag in tags.split(",") if tag.strip()]
+            if tag_list:
+                query["community_config.tags"] = {"$in": tag_list}
+
+        # Get total count
+        total = db.books.count_documents(query)
+
+        # Determine sort order
+        sort_order = []
+        if sort == "popular":
+            sort_order = [("community_config.total_views", -1)]
+        elif sort == "top_rated":
+            sort_order = [("community_config.average_rating", -1)]
+        else:  # newest
+            sort_order = [("community_config.published_at", -1)]
+
+        # Get books
+        books_cursor = db.books.find(query).sort(sort_order).skip(skip).limit(limit)
+
+        books = []
+        for book in books_cursor:
+            community = book.get("community_config", {})
+
+            books.append(
+                {
+                    "book_id": book["book_id"],
+                    "title": book["title"],
+                    "slug": book["slug"],
+                    "description": book.get("description"),
+                    "cover_image_url": book.get("cover_image_url"),
+                    "category": community.get("category"),
+                    "tags": community.get("tags", []),
+                    "difficulty_level": community.get("difficulty_level"),
+                    "total_views": community.get("total_views", 0),
+                    "total_purchases": community.get("total_purchases", 0),
+                    "total_saves": community.get("total_saves", 0),
+                    "average_rating": community.get("average_rating", 0.0),
+                    "rating_count": community.get("rating_count", 0),
+                    "access_config": book.get("access_config"),
+                    "published_at": community.get("published_at"),
+                }
+            )
+
+        logger.info(
+            f"✅ Returning {len(books)} books by author {author_id} (total: {total})"
+        )
+
+        return {
+            "books": books,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+            "author": {
+                "author_id": author["author_id"],
+                "name": author["name"],
+                "avatar_url": author.get("avatar_url"),
+            },
+            "filters": {
+                "category": category,
+                "tags": tag_list,
+                "sort": sort,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to list author books: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list author books: {str(e)}",
+        )

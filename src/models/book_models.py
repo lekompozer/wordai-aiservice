@@ -43,6 +43,7 @@ class CommunityConfig(BaseModel):
     total_views: int = 0
     total_downloads: int = 0
     total_purchases: int = 0
+    total_saves: int = 0  # NEW: Number of users who saved/bookmarked this book
     average_rating: float = 0.0
     rating_count: int = 0
     version: str = "1.0.0"
@@ -322,6 +323,7 @@ class CommunityBookItem(BaseModel):
     # Stats
     total_views: int = 0
     total_purchases: int = 0
+    total_saves: int = 0  # NEW: Number of users who saved/bookmarked
     average_rating: float = 0.0
     rating_count: int = 0
 
@@ -667,6 +669,7 @@ class PreviewStats(BaseModel):
     forever_purchases: int = 0
     one_time_purchases: int = 0
     pdf_downloads: int = 0
+    total_saves: int = 0  # NEW: Number of users who saved/bookmarked this book
     average_rating: float = 0.0
     rating_count: int = 0
 
