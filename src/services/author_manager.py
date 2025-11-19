@@ -149,15 +149,16 @@ class AuthorManager:
         Returns:
             Updated author or None
         """
-        update_fields = {k: v for k, v in update_data.items() if v is not None}
-        if not update_fields:
+        # Convert Pydantic model to dict, excluding None values
+        update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
+        if not update_dict:
             return self.get_author(author_id)
 
-        update_fields["updated_at"] = datetime.utcnow()
+        update_dict["updated_at"] = datetime.utcnow()
 
         updated_author = self.authors_collection.find_one_and_update(
             {"author_id": author_id.lower(), "user_id": user_id},
-            {"$set": update_fields},
+            {"$set": update_dict},
             return_document=ReturnDocument.AFTER,
         )
 
