@@ -55,12 +55,10 @@ async def save_book(
         logger.info(f"💾 User {user_id} saving book {book_id}")
 
         # 1. Check if book exists and is published to community
-        book = db.books.find_one(
+        book = db.online_books.find_one(
             {
                 "book_id": book_id,
                 "community_config.is_public": True,
-                "is_published": True,
-                "deleted_at": None,
             }
         )
 
@@ -93,7 +91,7 @@ async def save_book(
         db.saved_books.insert_one(save_doc)
 
         # 4. Increment book's save count
-        db.books.update_one(
+        db.online_books.update_one(
             {"book_id": book_id},
             {"$inc": {"community_config.total_saves": 1}},
         )
@@ -179,10 +177,10 @@ async def list_saved_books(
                 book_query["community_config.tags"] = {"$in": tag_list}
 
         # 3. Get total count
-        total = db.books.count_documents(book_query)
+        total = db.online_books.count_documents(book_query)
 
         # 4. Get books with pagination
-        books_cursor = db.books.find(book_query).skip(skip).limit(limit)
+        books_cursor = db.online_books.find(book_query).skip(skip).limit(limit)
 
         # 5. Build response
         saved_books = []
@@ -193,7 +191,7 @@ async def list_saved_books(
             author_avatar = None
 
             if "author_id" in book:
-                author = db.authors.find_one({"author_id": book["author_id"]})
+                author = db.book_authors.find_one({"author_id": book["author_id"]})
                 if author:
                     author_id = author["author_id"]
                     author_name = author.get("name")
@@ -287,7 +285,7 @@ async def unsave_book(
         )
 
         # 3. Decrement book's save count
-        db.books.update_one(
+        db.online_books.update_one(
             {"book_id": book_id},
             {"$inc": {"community_config.total_saves": -1}},
         )
