@@ -16,6 +16,7 @@ import logging
 
 from src.core.config import APP_CONFIG
 from src.api.health_routes import router as health_router
+from src.exceptions import InsufficientPointsError
 
 # ✅ COMMENTED: Chat routes - Firebase auth dependency
 # from src.api.chat_routes import router as chat_router
@@ -450,6 +451,35 @@ def create_app() -> FastAPI:
         logger.error("=" * 80)
 
         return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+    @app.exception_handler(InsufficientPointsError)
+    async def insufficient_points_handler(
+        request: Request, exc: InsufficientPointsError
+    ):
+        """
+        Global handler for insufficient points errors
+        
+        Returns HTTP 402 Payment Required with standardized format:
+        {
+            "error": "INSUFFICIENT_POINTS",
+            "message": "Vietnamese error message",
+            "points_needed": 2,
+            "points_available": 0,
+            "service": "ai_chat_chatgpt",
+            "action_required": "purchase_points",
+            "purchase_url": "/pricing"
+        }
+        
+        Frontend should detect error="INSUFFICIENT_POINTS" and show popup
+        prompting user to purchase more points.
+        """
+        logger.warning(f"💰 Insufficient points: {exc.message}")
+        logger.warning(f"   Service: {exc.service}")
+        logger.warning(
+            f"   Required: {exc.points_needed}, Available: {exc.points_available}"
+        )
+
+        return JSONResponse(status_code=402, content=exc.to_dict())
 
     # ===== CORS MIDDLEWARE REMOVED =====
     # CORS is now handled at the bottom of the file based on ENVIRONMENT variable

@@ -23,6 +23,7 @@ from src.models.payment import (
     PointsGrantRequest,
     PointsDeductRequest,
 )
+from src.exceptions import InsufficientPointsError
 
 logger = logging.getLogger(__name__)
 
@@ -226,7 +227,7 @@ class PointsService:
             PointsTransaction object
 
         Raises:
-            ValueError: If insufficient points
+            InsufficientPointsError: If insufficient points
         """
         # Get current subscription
         subscription = self.subscriptions.find_one({"user_id": user_id})
@@ -237,8 +238,11 @@ class PointsService:
         current_points = subscription.get("points_remaining", 0)
 
         if current_points < amount:
-            raise ValueError(
-                f"Insufficient points. Required: {amount}, Available: {current_points}"
+            raise InsufficientPointsError(
+                message=f"Không đủ điểm để thực hiện thao tác. Cần: {amount} điểm, Còn: {current_points} điểm",
+                points_needed=amount,
+                points_available=current_points,
+                service=service,
             )
 
         # Calculate new balances
@@ -366,7 +370,7 @@ class PointsService:
             PointsTransaction object
 
         Raises:
-            ValueError: If insufficient points
+            InsufficientPointsError: If insufficient points
         """
         subscription = self.subscriptions.find_one({"user_id": request.user_id})
 
@@ -376,8 +380,11 @@ class PointsService:
         balance_before = subscription.get("points_remaining", 0)
 
         if balance_before < request.amount:
-            raise ValueError(
-                f"Insufficient points. Required: {request.amount}, Available: {balance_before}"
+            raise InsufficientPointsError(
+                message=f"Không đủ điểm để trừ. Cần: {request.amount} điểm, Còn: {balance_before} điểm",
+                points_needed=request.amount,
+                points_available=balance_before,
+                service=f"admin_deduct_{request.user_id}",
             )
 
         balance_after = balance_before - request.amount
