@@ -5,7 +5,7 @@ Public endpoints for browsing community books
 
 from fastapi import APIRouter, Query, HTTPException, status
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from src.database.db_manager import DBManager
 from pydantic import BaseModel, Field
 
@@ -58,7 +58,6 @@ class CommunityBookItem(BaseModel):
     total_chapters: int = 0
     last_updated: Optional[datetime] = None
     recent_chapters: List[RecentChapterItem] = []  # 2 latest chapters
-    recent_chapters: List[RecentChapterItem] = []  # 2 latest chapters
 
 
 class FeaturedAuthorItem(BaseModel):
@@ -101,6 +100,40 @@ class PopularTagsResponse(BaseModel):
     """Popular tags response"""
 
     tags: List[PopularTagItem]
+    total: int
+
+
+class FeaturedBookItem(BaseModel):
+    """Featured book with full details"""
+
+    book_id: str
+    title: str
+    slug: str
+    cover_url: Optional[str] = None
+    authors: List[str] = []  # List of author_ids
+    author_names: List[str] = []  # Display names
+    category: Optional[str] = None
+    tags: List[str] = []
+    total_views: int = 0
+    average_rating: float = 0.0
+    total_chapters: int = 0
+    total_purchases: int = 0  # Total purchases (all types)
+    published_at: Optional[datetime] = None
+    last_updated: Optional[datetime] = None
+    recent_chapters: List[RecentChapterItem] = []  # 2 latest chapters
+
+
+class FeaturedBooksResponse(BaseModel):
+    """Featured books response (week)"""
+
+    books: List[FeaturedBookItem]
+    total: int
+
+
+class TrendingBooksResponse(BaseModel):
+    """Trending books response (today)"""
+
+    books: List[FeaturedBookItem]
     total: int
 
 
@@ -730,6 +763,341 @@ async def get_top_books(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get top books: {str(e)}",
+        )
+
+
+# ============================================================================
+# FEATURED BOOKS (WEEK)
+# ============================================================================
+
+
+@router.get(
+    "/books/featured-week",
+    response_model=FeaturedBooksResponse,
+    summary="Get 3 featured books of the week (2 most viewed + 1 most purchased)",
+)
+async def get_featured_books_week():
+    """
+    **Get 3 featured books of the week**
+
+    Selection criteria:
+    - 2 books with highest views in the last 7 days
+    - 1 book with most purchases in the last 7 days
+
+    Returns full book details including cover, authors, chapters, stats.
+
+    **Public endpoint** - No authentication required
+    """
+    try:
+        from datetime import timedelta
+
+        # Get date range for last 7 days
+        now = datetime.now(timezone.utc)
+        week_ago = now - timedelta(days=7)
+
+        featured_books = []
+        used_book_ids = set()
+
+        # 1. Get 2 books with most views in last 7 days
+        views_pipeline = [
+            {"$match": {"viewed_at": {"$gte": week_ago, "$lte": now}}},
+            {"$group": {"_id": "$book_id", "views_count": {"$sum": 1}}},
+            {"$sort": {"views_count": -1}},
+            {"$limit": 2},
+        ]
+
+        top_viewed = list(db.book_view_sessions.aggregate(views_pipeline))
+
+        for item in top_viewed:
+            book_id = item["_id"]
+            if book_id in used_book_ids:
+                continue
+
+            # Get book details
+            book = db.online_books.find_one(
+                {
+                    "book_id": book_id,
+                    "community_config.is_public": True,
+                    "deleted_at": None,
+                }
+            )
+
+            if not book:
+                continue
+
+            community_config = book.get("community_config", {})
+            stats = book.get("stats", {})
+
+            # Get author names
+            author_ids = book.get("authors", [])
+            author_names = []
+            for author_id in author_ids:
+                author = db.book_authors.find_one({"author_id": author_id.lower()})
+                if author:
+                    author_names.append(author.get("name", author_id))
+                else:
+                    author_names.append(author_id)
+
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters_cursor = (
+                db.book_chapters.find({"book_id": book_id, "deleted_at": None})
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters_cursor:
+                recent_chapters.append(
+                    RecentChapterItem(
+                        chapter_id=chapter["chapter_id"],
+                        title=chapter["title"],
+                        updated_at=chapter["updated_at"],
+                    )
+                )
+
+            # Calculate total purchases
+            total_purchases = (
+                stats.get("forever_purchases", 0)
+                + stats.get("one_time_purchases", 0)
+                + stats.get("pdf_downloads", 0)
+            )
+
+            featured_books.append(
+                FeaturedBookItem(
+                    book_id=book["book_id"],
+                    title=book["title"],
+                    slug=book["slug"],
+                    cover_url=book.get("cover_image_url"),
+                    authors=author_ids,
+                    author_names=author_names,
+                    category=community_config.get("category"),
+                    tags=community_config.get("tags", []),
+                    total_views=community_config.get("total_views", 0),
+                    average_rating=community_config.get("average_rating", 0.0),
+                    total_chapters=community_config.get("total_chapters", 0),
+                    total_purchases=total_purchases,
+                    published_at=community_config.get("published_at"),
+                    last_updated=community_config.get("last_chapter_updated_at"),
+                    recent_chapters=recent_chapters,
+                )
+            )
+            used_book_ids.add(book_id)
+
+        # 2. Get 1 book with most purchases in last 7 days
+        # Query book_purchases collection for recent purchases
+        purchases_pipeline = [
+            {"$match": {"purchased_at": {"$gte": week_ago, "$lte": now}}},
+            {"$group": {"_id": "$book_id", "purchase_count": {"$sum": 1}}},
+            {"$sort": {"purchase_count": -1}},
+            {"$limit": 10},  # Get more to filter out duplicates
+        ]
+
+        top_purchased = list(db.book_purchases.aggregate(purchases_pipeline))
+
+        # Find first book not already in featured_books
+        for item in top_purchased:
+            book_id = item["_id"]
+            if book_id in used_book_ids:
+                continue
+
+            # Get book details
+            book = db.online_books.find_one(
+                {
+                    "book_id": book_id,
+                    "community_config.is_public": True,
+                    "deleted_at": None,
+                }
+            )
+
+            if not book:
+                continue
+
+            community_config = book.get("community_config", {})
+            stats = book.get("stats", {})
+
+            # Get author names
+            author_ids = book.get("authors", [])
+            author_names = []
+            for author_id in author_ids:
+                author = db.book_authors.find_one({"author_id": author_id.lower()})
+                if author:
+                    author_names.append(author.get("name", author_id))
+                else:
+                    author_names.append(author_id)
+
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters_cursor = (
+                db.book_chapters.find({"book_id": book_id, "deleted_at": None})
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters_cursor:
+                recent_chapters.append(
+                    RecentChapterItem(
+                        chapter_id=chapter["chapter_id"],
+                        title=chapter["title"],
+                        updated_at=chapter["updated_at"],
+                    )
+                )
+
+            # Calculate total purchases
+            total_purchases = (
+                stats.get("forever_purchases", 0)
+                + stats.get("one_time_purchases", 0)
+                + stats.get("pdf_downloads", 0)
+            )
+
+            featured_books.append(
+                FeaturedBookItem(
+                    book_id=book["book_id"],
+                    title=book["title"],
+                    slug=book["slug"],
+                    cover_url=book.get("cover_image_url"),
+                    authors=author_ids,
+                    author_names=author_names,
+                    category=community_config.get("category"),
+                    tags=community_config.get("tags", []),
+                    total_views=community_config.get("total_views", 0),
+                    average_rating=community_config.get("average_rating", 0.0),
+                    total_chapters=community_config.get("total_chapters", 0),
+                    total_purchases=total_purchases,
+                    published_at=community_config.get("published_at"),
+                    last_updated=community_config.get("last_chapter_updated_at"),
+                    recent_chapters=recent_chapters,
+                )
+            )
+            used_book_ids.add(book_id)
+            break  # Only need 1 book
+
+        return FeaturedBooksResponse(
+            books=featured_books,
+            total=len(featured_books),
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get featured books: {str(e)}",
+        )
+
+
+# ============================================================================
+# TRENDING BOOKS (TODAY)
+# ============================================================================
+
+
+@router.get(
+    "/books/trending-today",
+    response_model=TrendingBooksResponse,
+    summary="Get 5 trending books today (most viewed)",
+)
+async def get_trending_books_today():
+    """
+    **Get 5 trending books today (most viewed in last 24 hours)**
+
+    Returns books with highest view count today.
+    Includes full book details: cover, authors, chapters, stats.
+
+    **Public endpoint** - No authentication required
+    """
+    try:
+        # Get today's date range (00:00 - 23:59 UTC)
+        now = datetime.now(timezone.utc)
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start + timedelta(days=1)
+
+        # Get books with most views today
+        pipeline = [
+            {"$match": {"viewed_at": {"$gte": today_start, "$lt": today_end}}},
+            {"$group": {"_id": "$book_id", "views_today": {"$sum": 1}}},
+            {"$sort": {"views_today": -1}},
+            {"$limit": 5},
+        ]
+
+        top_today = list(db.book_view_sessions.aggregate(pipeline))
+
+        trending_books = []
+
+        for item in top_today:
+            book_id = item["_id"]
+
+            # Get book details
+            book = db.online_books.find_one(
+                {
+                    "book_id": book_id,
+                    "community_config.is_public": True,
+                    "deleted_at": None,
+                }
+            )
+
+            if not book:
+                continue
+
+            community_config = book.get("community_config", {})
+            stats = book.get("stats", {})
+
+            # Get author names
+            author_ids = book.get("authors", [])
+            author_names = []
+            for author_id in author_ids:
+                author = db.book_authors.find_one({"author_id": author_id.lower()})
+                if author:
+                    author_names.append(author.get("name", author_id))
+                else:
+                    author_names.append(author_id)
+
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters_cursor = (
+                db.book_chapters.find({"book_id": book_id, "deleted_at": None})
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters_cursor:
+                recent_chapters.append(
+                    RecentChapterItem(
+                        chapter_id=chapter["chapter_id"],
+                        title=chapter["title"],
+                        updated_at=chapter["updated_at"],
+                    )
+                )
+
+            # Calculate total purchases
+            total_purchases = (
+                stats.get("forever_purchases", 0)
+                + stats.get("one_time_purchases", 0)
+                + stats.get("pdf_downloads", 0)
+            )
+
+            trending_books.append(
+                FeaturedBookItem(
+                    book_id=book["book_id"],
+                    title=book["title"],
+                    slug=book["slug"],
+                    cover_url=book.get("cover_image_url"),
+                    authors=author_ids,
+                    author_names=author_names,
+                    category=community_config.get("category"),
+                    tags=community_config.get("tags", []),
+                    total_views=community_config.get("total_views", 0),
+                    average_rating=community_config.get("average_rating", 0.0),
+                    total_chapters=community_config.get("total_chapters", 0),
+                    total_purchases=total_purchases,
+                    published_at=community_config.get("published_at"),
+                    last_updated=community_config.get("last_chapter_updated_at"),
+                    recent_chapters=recent_chapters,
+                )
+            )
+
+        return TrendingBooksResponse(
+            books=trending_books,
+            total=len(trending_books),
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get trending books: {str(e)}",
         )
 
 

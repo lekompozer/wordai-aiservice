@@ -4,7 +4,7 @@
 
 Automatic server-side view tracking system for community books. Counts unique views with **1 view per book per day per user/browser** logic.
 
-**Date:** November 20, 2025  
+**Date:** November 20, 2025
 **Commit:** 71bc484
 
 ---
@@ -216,16 +216,16 @@ def track_book_view(
 // utils/browserTracking.js
 export function getBrowserId() {
   const STORAGE_KEY = 'wordai_browser_id';
-  
+
   // Check existing ID
   let browserId = localStorage.getItem(STORAGE_KEY);
-  
+
   if (!browserId) {
     // Generate new UUID
     browserId = crypto.randomUUID();
     localStorage.setItem(STORAGE_KEY, browserId);
   }
-  
+
   return browserId;
 }
 ```
@@ -241,10 +241,10 @@ export async function getBrowserId() {
   if (!fpPromise) {
     fpPromise = FingerprintJS.load();
   }
-  
+
   const fp = await fpPromise;
   const result = await fp.get();
-  
+
   return result.visitorId;  // Stable browser fingerprint
 }
 ```
@@ -289,22 +289,22 @@ export function useChapterContent(bookId: string, chapterId: string) {
   const [content, setContent] = useState(null);
   const [loading, setLoading] = useState(true);
   const { user, token } = useAuth();
-  
+
   useEffect(() => {
     async function fetchChapter() {
       try {
         const browserId = await getBrowserId();
         const url = new URL(`/api/v1/books/${bookId}/chapters/${chapterId}/content`, API_BASE);
         url.searchParams.set('browser_id', browserId);
-        
+
         const headers: any = {};
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
-        
+
         const response = await fetch(url.toString(), { headers });
         const data = await response.json();
-        
+
         setContent(data);
       } catch (error) {
         console.error('Failed to fetch chapter:', error);
@@ -312,10 +312,10 @@ export function useChapterContent(bookId: string, chapterId: string) {
         setLoading(false);
       }
     }
-    
+
     fetchChapter();
   }, [bookId, chapterId, token]);
-  
+
   return { content, loading };
 }
 ```
