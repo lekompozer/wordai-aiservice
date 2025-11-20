@@ -861,19 +861,16 @@ async def get_author_stats(
         if reviews:
             top_review_doc = max(reviews, key=lambda r: r.get("likes_count", 0))
             if top_review_doc.get("likes_count", 0) > 0:
-                reviewer = db.users.find_one(
-                    {"user_id": top_review_doc["reviewer_user_id"]}
-                )
+                # Get reviewer info from review document
+                reviewer_name = top_review_doc.get("reviewer_name", "Anonymous")
+                reviewer_avatar = top_review_doc.get("reviewer_avatar_url")
+
                 top_review = AuthorReviewResponse(
                     review_id=top_review_doc["review_id"],
                     author_id=top_review_doc["author_id"],
                     reviewer_user_id=top_review_doc["reviewer_user_id"],
-                    reviewer_name=(
-                        reviewer.get("name", "Anonymous") if reviewer else "Anonymous"
-                    ),
-                    reviewer_avatar_url=(
-                        reviewer.get("avatar_url") if reviewer else None
-                    ),
+                    reviewer_name=reviewer_name,
+                    reviewer_avatar_url=reviewer_avatar,
                     text=top_review_doc["text"],
                     image_url=top_review_doc.get("image_url"),
                     rating=top_review_doc["rating"],
@@ -1208,12 +1205,9 @@ async def list_author_reviews(
             user_likes = {like["review_id"] for like in likes}
 
         for review_doc in reviews_cursor:
-            # Get reviewer info
-            reviewer = db.users.find_one({"user_id": review_doc["reviewer_user_id"]})
-            reviewer_name = (
-                reviewer.get("name", "Anonymous") if reviewer else "Anonymous"
-            )
-            reviewer_avatar = reviewer.get("avatar_url") if reviewer else None
+            # Get reviewer info from review document (stored during creation)
+            reviewer_name = review_doc.get("reviewer_name", "Anonymous")
+            reviewer_avatar = review_doc.get("reviewer_avatar_url")
 
             reviews.append(
                 AuthorReviewResponse(
