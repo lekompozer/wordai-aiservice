@@ -1031,6 +1031,106 @@ async def create_author_review(
         )
 
 
+@router.post(
+    "/{author_id}/reviews/image/presigned-url",
+    summary="Generate presigned URL for review image upload",
+)
+async def get_review_image_presigned_url(
+    author_id: str,
+    filename: str = Query(..., description="Image filename (e.g., screenshot.jpg)"),
+    content_type: str = Query(..., description="MIME type (e.g., image/jpeg)"),
+    user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Generate presigned URL for review image upload**
+
+    Upload image to include in author review (optional).
+
+    **Supported Image Types:**
+    - JPEG (image/jpeg)
+    - PNG (image/png)
+    - WebP (image/webp)
+    - AVIF (image/avif)
+
+    **Flow:**
+    1. Call this endpoint to get presigned URL
+    2. Upload image directly to presigned URL (PUT request)
+    3. Use the file_url in review creation
+
+    **Image Constraints:**
+    - Max file size: 5MB
+    - Recommended: Screenshots, examples, or relevant images
+
+    **Returns:**
+    - `presigned_url`: URL for uploading file (use PUT request)
+    - `file_url`: Public CDN URL to use in review creation
+    - `expires_in`: Presigned URL expiration (300 seconds)
+    """
+    from src.services.r2_storage_service import get_r2_service
+
+    user_id = user["uid"]
+
+    # Normalize author_id
+    if not author_id.startswith("@"):
+        author_id = f"@{author_id}"
+    author_id = author_id.lower()
+
+    logger.info(f"📸 Generating presigned URL for review image: {filename} - User: {user_id}")
+
+    try:
+        # Validate content type
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/avif"]
+        if content_type not in allowed_types:
+            logger.warning(f"❌ Invalid content type '{content_type}' for review image")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid content type '{content_type}'. Allowed types: {', '.join(allowed_types)}",
+            )
+
+        # Validate filename extension
+        valid_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.avif']
+        if not any(filename.lower().endswith(ext) for ext in valid_extensions):
+            logger.warning(f"❌ Invalid filename extension '{filename}' for review image")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid filename extension. File must end with: {', '.join(valid_extensions)}",
+            )
+
+        # Get R2 service
+        r2_service = get_r2_service()
+
+        # Generate presigned URL for review images folder
+        result = r2_service.generate_presigned_upload_url(
+            filename=filename,
+            content_type=content_type,
+            folder="author-review-images",  # Separate folder for review images
+        )
+
+        logger.info(f"✅ Generated presigned URL for review image: {result['file_url']}")
+
+        return {
+            "success": True,
+            "presigned_url": result["presigned_url"],
+            "file_url": result["file_url"],
+            "expires_in": result["expires_in"],
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"❌ R2 configuration error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Image upload service not configured properly: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to generate presigned URL: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate presigned URL: {str(e)}",
+        )
+
+
 @router.get(
     "/{author_id}/reviews",
     response_model=AuthorReviewListResponse,
