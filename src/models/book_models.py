@@ -788,7 +788,9 @@ class GenerateBookCoverResponse(BaseModel):
     author: Optional[str] = Field(None, description="Author name")
     style: Optional[str] = Field(None, description="Style used")
     model: Optional[str] = Field(None, description="AI model used")
-    aspect_ratio: Optional[str] = Field(None, description="Image aspect ratio (e.g., 3:4)")
+    aspect_ratio: Optional[str] = Field(
+        None, description="Image aspect ratio (e.g., 3:4)"
+    )
     resolution: Optional[str] = Field(None, description="Image resolution (1K or 2K)")
     timestamp: Optional[str] = Field(
         None, description="Generation timestamp (ISO 8601)"
