@@ -134,6 +134,12 @@ class PointsService:
             Points cost (1 for deepseek, 2 for others)
         """
         provider_lower = provider.lower() if provider else "default"
+        
+        # Normalize provider name: remove _chat suffix if present
+        # Example: deepseek_chat -> deepseek
+        if provider_lower.endswith("_chat"):
+            provider_lower = provider_lower.replace("_chat", "")
+        
         service_key = f"ai_chat_{provider_lower}"
 
         # Return provider-specific cost or default to 2 points
