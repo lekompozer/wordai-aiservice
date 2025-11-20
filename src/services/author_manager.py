@@ -150,13 +150,13 @@ class AuthorManager:
             Updated author or None
         """
         # Convert to dict if it's a Pydantic model
-        if hasattr(update_data, 'model_dump'):
+        if hasattr(update_data, "model_dump"):
             update_dict = update_data.model_dump(exclude_unset=True, exclude_none=True)
         elif isinstance(update_data, dict):
             update_dict = {k: v for k, v in update_data.items() if v is not None}
         else:
             update_dict = {}
-            
+
         if not update_dict:
             return self.get_author(author_id)
 

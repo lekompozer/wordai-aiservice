@@ -14,6 +14,15 @@ class AuthorReviewCreate(BaseModel):
     text: str = Field(..., min_length=10, max_length=1000, description="Review text")
     image_url: Optional[str] = Field(None, description="Optional review image URL")
     rating: int = Field(..., ge=1, le=5, description="Rating 1-5 stars")
+    reviewer_name: Optional[str] = Field(
+        None,
+        max_length=100,
+        description="Custom reviewer name (fallback to Firebase if not provided)",
+    )
+    reviewer_avatar_url: Optional[str] = Field(
+        None,
+        description="Custom reviewer avatar URL (fallback to Firebase if not provided)",
+    )
 
 
 class AuthorReviewResponse(BaseModel):

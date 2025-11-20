@@ -412,17 +412,21 @@ async def get_avatar_presigned_url(
         # Validate content type
         allowed_types = ["image/jpeg", "image/png", "image/webp", "image/avif"]
         if content_type not in allowed_types:
-            logger.warning(f"❌ Invalid content type '{content_type}' for author {author_id}")
+            logger.warning(
+                f"❌ Invalid content type '{content_type}' for author {author_id}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid content type '{content_type}'. Allowed types: {', '.join(allowed_types)}",
             )
 
         # Validate filename extension
-        valid_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.avif']
-        file_ext = filename.lower().split('.')[-1] if '.' in filename else ''
+        valid_extensions = [".jpg", ".jpeg", ".png", ".webp", ".avif"]
+        file_ext = filename.lower().split(".")[-1] if "." in filename else ""
         if not any(filename.lower().endswith(ext) for ext in valid_extensions):
-            logger.warning(f"❌ Invalid filename extension '{filename}' for author {author_id}")
+            logger.warning(
+                f"❌ Invalid filename extension '{filename}' for author {author_id}"
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid filename extension. File must end with: {', '.join(valid_extensions)}",
@@ -986,10 +990,18 @@ async def create_author_review(
         review_id = f"review_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
 
+        # Get reviewer info: use custom name/avatar if provided, otherwise fallback to Firebase
+        reviewer_name = review_data.reviewer_name or user.get(
+            "name", user.get("email", "Anonymous")
+        )
+        reviewer_avatar = review_data.reviewer_avatar_url or user.get("picture")
+
         review_doc = {
             "review_id": review_id,
             "author_id": author_id,
             "reviewer_user_id": user_id,
+            "reviewer_name": reviewer_name,  # Store in DB
+            "reviewer_avatar_url": reviewer_avatar,  # Store in DB
             "text": review_data.text,
             "image_url": review_data.image_url,
             "rating": review_data.rating,
@@ -999,10 +1011,6 @@ async def create_author_review(
         }
 
         db.author_reviews.insert_one(review_doc)
-
-        # Get reviewer info
-        reviewer_name = user.get("name", user.get("email", "Anonymous"))
-        reviewer_avatar = user.get("picture")
 
         logger.info(f"✅ User {user_id} created review for author {author_id}")
 
@@ -1075,7 +1083,9 @@ async def get_review_image_presigned_url(
         author_id = f"@{author_id}"
     author_id = author_id.lower()
 
-    logger.info(f"📸 Generating presigned URL for review image: {filename} - User: {user_id}")
+    logger.info(
+        f"📸 Generating presigned URL for review image: {filename} - User: {user_id}"
+    )
 
     try:
         # Validate content type
@@ -1088,9 +1098,11 @@ async def get_review_image_presigned_url(
             )
 
         # Validate filename extension
-        valid_extensions = ['.jpg', '.jpeg', '.png', '.webp', '.avif']
+        valid_extensions = [".jpg", ".jpeg", ".png", ".webp", ".avif"]
         if not any(filename.lower().endswith(ext) for ext in valid_extensions):
-            logger.warning(f"❌ Invalid filename extension '{filename}' for review image")
+            logger.warning(
+                f"❌ Invalid filename extension '{filename}' for review image"
+            )
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid filename extension. File must end with: {', '.join(valid_extensions)}",
@@ -1106,7 +1118,9 @@ async def get_review_image_presigned_url(
             folder="author-review-images",  # Separate folder for review images
         )
 
-        logger.info(f"✅ Generated presigned URL for review image: {result['file_url']}")
+        logger.info(
+            f"✅ Generated presigned URL for review image: {result['file_url']}"
+        )
 
         return {
             "success": True,
