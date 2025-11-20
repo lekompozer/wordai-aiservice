@@ -19,6 +19,7 @@ from src.models.book_models import (
 
 # Services
 from src.services.ai_image_service import AIImageService
+from src.services.points_service import get_points_service
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +102,38 @@ async def generate_book_cover_ai(
             f"🎨 User {user_id} generating book cover: {request.prompt[:50]}..."
         )
 
+        # ===== STEP 1: Check and deduct points (2 points) =====
+        points_service = get_points_service()
+        points_cost = 2  # Fixed 2 points for book cover AI generation
+
+        # Check sufficient points
+        check_result = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=points_cost,
+            service="ai_book_cover_generation",
+        )
+
+        if not check_result["has_points"]:
+            logger.warning(
+                f"💰 Insufficient points for book cover AI - User: {user_id}, Need: {points_cost}, Have: {check_result['points_available']}"
+            )
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "INSUFFICIENT_POINTS",
+                    "message": f"Không đủ điểm để tạo bìa sách bằng AI. Cần: {points_cost}, Còn: {check_result['points_available']}",
+                    "points_needed": points_cost,
+                    "points_available": check_result["points_available"],
+                    "service": "ai_book_cover_generation",
+                    "action_required": "purchase_points",
+                    "purchase_url": "/pricing",
+                },
+            )
+
+        logger.info(
+            f"💰 Points check passed - User: {user_id}, Cost: {points_cost} points"
+        )
+
         # Initialize AI service
         ai_service = AIImageService()
 
@@ -115,6 +148,22 @@ async def generate_book_cover_ai(
         logger.info(
             f"✅ Generated book cover for user {user_id} in {generation_time_ms}ms"
         )
+
+        # ===== STEP 2: Deduct points after success =====
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_cost,
+                service="ai_book_cover_generation",
+                resource_id=f"book_cover_{int(time.time())}",
+                description="AI book cover generation",
+            )
+            logger.info(
+                f"💸 Deducted {points_cost} points for book cover generation"
+            )
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+            # Don't fail the request, just log the error
 
         return GenerateBookCoverResponse(
             success=True,

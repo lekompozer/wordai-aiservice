@@ -25,6 +25,7 @@ from src.services.token_management_service import TokenManagementService
 from src.services.gemini_pdf_handler import GeminiPDFHandler
 from src.services.file_download_service import FileDownloadService
 from src.services.user_manager import get_user_manager as get_global_user_manager
+from src.services.points_service import get_points_service
 from src.providers.ai_provider_manager import AIProviderManager
 from src.middleware.auth import verify_firebase_token
 from src.core.config import get_app_config
@@ -194,7 +195,39 @@ async def edit_content(
             f"   Operation: {request.operationType}, Provider: {request.provider}"
         )
 
-        # ===== STEP 1: Resolve R2 URL from fileId if needed =====
+        # ===== STEP 1: Check and deduct points (2 points) =====
+        points_service = get_points_service()
+        points_cost = 2  # Fixed 2 points for content edit
+
+        # Check sufficient points
+        check_result = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=points_cost,
+            service="ai_content_edit",
+        )
+
+        if not check_result["has_points"]:
+            logger.warning(
+                f"💰 Insufficient points for content edit - User: {user_id}, Need: {points_cost}, Have: {check_result['points_available']}"
+            )
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "INSUFFICIENT_POINTS",
+                    "message": f"Không đủ điểm để chỉnh sửa nội dung. Cần: {points_cost}, Còn: {check_result['points_available']}",
+                    "points_needed": points_cost,
+                    "points_available": check_result["points_available"],
+                    "service": "ai_content_edit",
+                    "action_required": "purchase_points",
+                    "purchase_url": "/pricing",
+                },
+            )
+
+        logger.info(
+            f"💰 Points check passed - User: {user_id}, Cost: {points_cost} points"
+        )
+
+        # ===== STEP 2: Resolve R2 URL from fileId if needed =====
         if request.currentFile and request.currentFile.fileId:
             # Check if we need to resolve URL from fileId
             if (
@@ -533,6 +566,22 @@ async def edit_content(
         )
 
         logger.info(f"✅ Content edit completed in {processing_time}ms")
+
+        # ===== Deduct points after success =====
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_cost,
+                service="ai_content_edit",
+                resource_id=request.conversationId or f"content_edit_{uuid.uuid4().hex[:8]}",
+                description=f"Content edit: {request.operationType}",
+            )
+            logger.info(
+                f"💸 Deducted {points_cost} points for content edit"
+            )
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+            # Don't fail the request, just log the error
 
         # Save to history
         await _save_content_edit_history(

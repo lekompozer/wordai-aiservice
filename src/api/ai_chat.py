@@ -26,6 +26,7 @@ from src.services.gemini_pdf_handler import GeminiPDFHandler
 from src.services.file_download_service import FileDownloadService
 from src.providers.ai_provider_manager import AIProviderManager
 from src.services.user_manager import get_user_manager as get_global_user_manager
+from src.services.points_service import get_points_service
 from src.middleware.auth import verify_firebase_token
 from src.core.config import get_app_config
 
@@ -477,6 +478,39 @@ async def chat_complete(
         logger.info(f"💬 Chat complete request from {user_email}")
         logger.info(f"   Provider: {request.provider}")
 
+        # ===== STEP 1: Check and deduct points =====
+        points_service = get_points_service()
+        provider_name = request.provider.lower()
+        points_cost = points_service.get_chat_points_cost(provider_name)
+
+        # Check sufficient points
+        check_result = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=points_cost,
+            service=f"ai_chat_{provider_name}",
+        )
+
+        if not check_result["has_points"]:
+            logger.warning(
+                f"💰 Insufficient points for AI chat - User: {user_id}, Provider: {provider_name}, Need: {points_cost}, Have: {check_result['points_available']}"
+            )
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "INSUFFICIENT_POINTS",
+                    "message": f"Không đủ điểm để chat với {request.provider}. Cần: {points_cost}, Còn: {check_result['points_available']}",
+                    "points_needed": points_cost,
+                    "points_available": check_result["points_available"],
+                    "service": f"ai_chat_{provider_name}",
+                    "action_required": "purchase_points",
+                    "purchase_url": "/pricing",
+                },
+            )
+
+        logger.info(
+            f"💰 Points check passed - User: {user_id}, Provider: {provider_name}, Cost: {points_cost} points"
+        )
+
         # Build prompt (same as streaming)
         selected_text = (
             request.selectedContent.text if request.selectedContent else None
@@ -554,6 +588,22 @@ async def chat_complete(
         }
 
         logger.info(f"   ✅ Chat complete in {processing_time}ms")
+
+        # ===== STEP 2: Deduct points after success =====
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_cost,
+                service=f"ai_chat_{provider_name}",
+                resource_id=request.conversationId or f"chat_{uuid.uuid4().hex[:8]}",
+                description=f"AI chat with {request.provider}",
+            )
+            logger.info(
+                f"💸 Deducted {points_cost} points for AI chat with {request.provider}"
+            )
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+            # Don't fail the request, just log the error
 
         # Save to chat history
         await _save_chat_history(
