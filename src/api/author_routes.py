@@ -856,11 +856,18 @@ async def get_author_stats(
             else 0.0
         )
 
-        # Get top review (most liked)
+        # Get top review: highest rating first, then most liked among those
         top_review = None
         if reviews:
-            top_review_doc = max(reviews, key=lambda r: r.get("likes_count", 0))
-            if top_review_doc.get("likes_count", 0) > 0:
+            # Sort by rating (descending), then by likes_count (descending)
+            top_review_doc = max(
+                reviews, key=lambda r: (r.get("rating", 0), r.get("likes_count", 0))
+            )
+            # Only show if review has at least 1 like or is 5-star
+            if (
+                top_review_doc.get("likes_count", 0) > 0
+                or top_review_doc.get("rating", 0) == 5
+            ):
                 # Get reviewer info from review document
                 reviewer_name = top_review_doc.get("reviewer_name", "Anonymous")
                 reviewer_avatar = top_review_doc.get("reviewer_avatar_url")
