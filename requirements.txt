@@ -1,7 +1,8 @@
 # Core FastAPI and web framework
 fastapi==0.115.0
 uvicorn[standard]==0.30.0
-pydantic==2.8.0
+pydantic==2.12.4
+pydantic-core==2.41.5
 pydantic-settings==2.4.0
 email-validator==2.3.0
 
@@ -33,6 +34,7 @@ firebase-admin==6.2.0
 openai>=1.40.0,<2.0.0
 anthropic>=0.71.0,<1.0.0
 google-generativeai>=0.8.0
+typing-inspection==0.4.2
 # Document processing and conversion
 python-docx==1.1.0
 python-pptx==0.6.21  # PowerPoint generation
@@ -101,5 +103,5 @@ passlib==1.7.4
 orjson==3.9.10
 
 # Document processing and PDF conversion
-# google-genai>=1.25.0,<1.32.0  # Temporarily commented due to anyio conflict
+google-genai==1.47.0  # Gemini 3 Pro Image support
 docx2txt==0.9
