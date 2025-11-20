@@ -747,7 +747,13 @@ class GenerateBookCoverRequest(BaseModel):
         None,
         max_length=100,
         description="Optional style modifier (e.g., 'fantasy art', 'minimalist', 'photorealistic')",
-        examples=["fantasy art", "minimalist", "photorealistic", "watercolor", "3D render"],
+        examples=[
+            "fantasy art",
+            "minimalist",
+            "photorealistic",
+            "watercolor",
+            "3D render",
+        ],
     )
 
 
@@ -761,7 +767,9 @@ class GenerateBookCoverResponse(BaseModel):
     prompt_used: Optional[str] = Field(None, description="Full prompt sent to AI")
     style: Optional[str] = Field(None, description="Style used")
     model: Optional[str] = Field(None, description="AI model used")
-    timestamp: Optional[str] = Field(None, description="Generation timestamp (ISO 8601)")
+    timestamp: Optional[str] = Field(
+        None, description="Generation timestamp (ISO 8601)"
+    )
     error: Optional[str] = Field(None, description="Error message if failed")
 
     # Usage statistics

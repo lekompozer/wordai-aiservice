@@ -11,6 +11,7 @@ from datetime import datetime
 
 try:
     from openai import OpenAI
+
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
@@ -89,7 +90,9 @@ class AIImageService:
 
             image_base64 = image_data[0]
 
-            logger.info(f"Successfully generated book cover image ({len(image_base64)} bytes)")
+            logger.info(
+                f"Successfully generated book cover image ({len(image_base64)} bytes)"
+            )
 
             return {
                 "image_base64": image_base64,

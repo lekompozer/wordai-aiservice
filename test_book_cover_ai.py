@@ -128,7 +128,9 @@ def test_generate_cover_minimalist():
         print(f"Image Size: {len(image_base64)} bytes (base64)")
 
         # Save image
-        filename = f"test_minimalist_cover_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        filename = (
+            f"test_minimalist_cover_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+        )
         save_image(image_base64, filename)
 
         return True
@@ -208,10 +210,14 @@ def run_all_tests():
     print("BOOK COVER AI GENERATION API - TEST SUITE")
     print("=" * 80)
     print(f"Base URL: {BASE_URL}")
-    print(f"Auth Token: {'✅ Set' if FIREBASE_TOKEN != 'YOUR_FIREBASE_ID_TOKEN_HERE' else '❌ Not Set'}")
+    print(
+        f"Auth Token: {'✅ Set' if FIREBASE_TOKEN != 'YOUR_FIREBASE_ID_TOKEN_HERE' else '❌ Not Set'}"
+    )
 
     if FIREBASE_TOKEN == "YOUR_FIREBASE_ID_TOKEN_HERE":
-        print("\n⚠️  WARNING: Please set FIREBASE_TOKEN environment variable or update the script")
+        print(
+            "\n⚠️  WARNING: Please set FIREBASE_TOKEN environment variable or update the script"
+        )
         print("   You can get your token from browser DevTools after logging in")
         print("   Or run: export FIREBASE_TOKEN='your_token_here'\n")
 
