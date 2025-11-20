@@ -723,3 +723,48 @@ class BookPreviewResponse(BaseModel):
         None,
         description="User's purchase status if logged in: {has_access, access_type, expires_at}",
     )
+
+
+# ==============================================================================
+# AI IMAGE GENERATION MODELS
+# ==============================================================================
+
+
+class GenerateBookCoverRequest(BaseModel):
+    """Request to generate book cover using AI"""
+
+    prompt: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Description of the book cover to generate",
+        examples=[
+            "A fantasy book cover with a magical castle in the sky surrounded by dragons",
+            "Modern minimalist design for a business book about leadership",
+        ],
+    )
+    style: Optional[str] = Field(
+        None,
+        max_length=100,
+        description="Optional style modifier (e.g., 'fantasy art', 'minimalist', 'photorealistic')",
+        examples=["fantasy art", "minimalist", "photorealistic", "watercolor", "3D render"],
+    )
+
+
+class GenerateBookCoverResponse(BaseModel):
+    """Response from AI image generation"""
+
+    success: bool = Field(..., description="Generation success status")
+    image_base64: Optional[str] = Field(
+        None, description="Base64 encoded image data (PNG format)"
+    )
+    prompt_used: Optional[str] = Field(None, description="Full prompt sent to AI")
+    style: Optional[str] = Field(None, description="Style used")
+    model: Optional[str] = Field(None, description="AI model used")
+    timestamp: Optional[str] = Field(None, description="Generation timestamp (ISO 8601)")
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+    # Usage statistics
+    generation_time_ms: Optional[int] = Field(
+        None, description="Time taken to generate (milliseconds)"
+    )

@@ -182,6 +182,9 @@ from src.api.book_routes import router as book_router
 # ✅ ADDED: Book Advanced API - Translation & Duplication features
 from src.api.book_advanced_routes import router as book_advanced_router
 
+# ✅ ADDED: Book Cover AI - Generate covers using OpenAI gpt-image-1
+from src.api.book_cover_ai_routes import router as book_cover_ai_router
+
 # ✅ ADDED: Author API - Community books author management
 from src.api.author_routes import router as author_router
 
@@ -746,6 +749,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_advanced_router,
         tags=["Book Advanced", "Translation", "Duplication"],
+    )
+
+    # ✅ NEW: Book Cover AI - Generate covers using OpenAI gpt-image-1
+    app.include_router(
+        book_cover_ai_router,
+        tags=["AI Book Cover", "Image Generation"],
     )
 
     # ✅ NEW: Author API - Community books author management
