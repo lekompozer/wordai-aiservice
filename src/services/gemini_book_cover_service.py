@@ -158,11 +158,11 @@ class GeminiBookCoverService:
                 model="gemini-3-pro-image-preview",
                 contents=full_prompt,
                 config=types.GenerateContentConfig(
-                    response_modalities=["Image"],
-                    image_config=types.ImageConfig(
-                        aspect_ratio=self.BOOK_ASPECT_RATIO,
-                        image_size=resolution,
-                    ),
+                    response_modalities=["TEXT", "IMAGE"],
+                    image_config={
+                        "aspect_ratio": self.BOOK_ASPECT_RATIO,
+                        "image_size": resolution,
+                    },
                 ),
             )
 
