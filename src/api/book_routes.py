@@ -4205,18 +4205,18 @@ async def create_chapter_from_document(
 def track_book_view(book_id: str, user_id: Optional[str], browser_id: Optional[str]):
     """
     Track book view for community books (auto-increment total_views)
-    
+
     Rules:
     - 1 view per book per day per unique user/browser
     - Authenticated user: tracked by user_id
     - Anonymous user: tracked by browser_id (from frontend)
     - Only for community books (community_config.is_public = true)
-    
+
     Args:
         book_id: Book ID to track
         user_id: Firebase user ID (if authenticated)
         browser_id: Browser fingerprint ID (if anonymous)
-    
+
     Returns:
         bool: True if view was counted, False if already viewed today
     """
@@ -4224,56 +4224,56 @@ def track_book_view(book_id: str, user_id: Optional[str], browser_id: Optional[s
         # Must have either user_id or browser_id
         if not user_id and not browser_id:
             return False
-        
+
         # Check if book is community book
         book = db.online_books.find_one(
             {"book_id": book_id, "community_config.is_public": True}
         )
         if not book:
             return False  # Not a community book, don't track
-        
+
         # Create unique viewer identifier
         viewer_id = user_id if user_id else f"browser_{browser_id}"
-        
+
         # Get today's date range (00:00:00 to 23:59:59 UTC)
         today_start = datetime.now(timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
         )
         today_end = today_start + timedelta(days=1)
-        
+
         # Check if already viewed today
-        existing_view = db.book_view_sessions.find_one({
-            "book_id": book_id,
-            "viewer_id": viewer_id,
-            "viewed_at": {
-                "$gte": today_start,
-                "$lt": today_end
+        existing_view = db.book_view_sessions.find_one(
+            {
+                "book_id": book_id,
+                "viewer_id": viewer_id,
+                "viewed_at": {"$gte": today_start, "$lt": today_end},
             }
-        })
-        
+        )
+
         if existing_view:
             # Already viewed today - don't count
             return False
-        
+
         # First view today - record it
-        db.book_view_sessions.insert_one({
-            "book_id": book_id,
-            "viewer_id": viewer_id,
-            "user_id": user_id,  # Store for analytics (can be None)
-            "browser_id": browser_id,  # Store for analytics (can be None)
-            "viewed_at": datetime.now(timezone.utc),
-            "expires_at": today_end  # TTL cleanup
-        })
-        
+        db.book_view_sessions.insert_one(
+            {
+                "book_id": book_id,
+                "viewer_id": viewer_id,
+                "user_id": user_id,  # Store for analytics (can be None)
+                "browser_id": browser_id,  # Store for analytics (can be None)
+                "viewed_at": datetime.now(timezone.utc),
+                "expires_at": today_end,  # TTL cleanup
+            }
+        )
+
         # Increment book's total views
         db.online_books.update_one(
-            {"book_id": book_id},
-            {"$inc": {"community_config.total_views": 1}}
+            {"book_id": book_id}, {"$inc": {"community_config.total_views": 1}}
         )
-        
+
         logger.info(f"📊 View tracked: book={book_id}, viewer={viewer_id}")
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to track view: {e}", exc_info=True)
         return False
@@ -4295,7 +4295,9 @@ async def get_chapter_with_content(
     chapter_id: str,
     request: Request,
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
-    browser_id: Optional[str] = Query(None, description="Browser fingerprint ID for anonymous users"),
+    browser_id: Optional[str] = Query(
+        None, description="Browser fingerprint ID for anonymous users"
+    ),
 ):
     """
     **Get chapter content with access control**
@@ -4313,7 +4315,7 @@ async def get_chapter_with_content(
     5. Otherwise → 403 Forbidden
 
     **Authentication:** Optional (required for non-preview chapters)
-    
+
     **View Tracking:** Automatically tracks views for community books
     - 1 view per book per day per user/browser
     - Pass `browser_id` query param for anonymous users
@@ -4442,7 +4444,9 @@ async def get_chapter_content_by_slug(
     chapter_slug: str,
     request: Request,
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
-    browser_id: Optional[str] = Query(None, description="Browser fingerprint ID for anonymous users"),
+    browser_id: Optional[str] = Query(
+        None, description="Browser fingerprint ID for anonymous users"
+    ),
 ):
     """
     **Get chapter content using slugs (SEO-friendly URLs)**

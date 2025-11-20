@@ -29,13 +29,9 @@ try:
     # 1. Compound index for deduplication check (UNIQUE per book/viewer/day)
     # This ensures 1 view per viewer per book per day
     index1 = collection.create_index(
-        [
-            ("book_id", ASCENDING),
-            ("viewer_id", ASCENDING),
-            ("viewed_at", ASCENDING)
-        ],
+        [("book_id", ASCENDING), ("viewer_id", ASCENDING), ("viewed_at", ASCENDING)],
         name="book_viewer_date_unique",
-        background=True
+        background=True,
     )
     print(f"✅ Created index: {index1} (book_id, viewer_id, viewed_at)")
 
@@ -45,7 +41,7 @@ try:
         [("expires_at", ASCENDING)],
         name="view_session_ttl",
         expireAfterSeconds=0,  # Delete at expires_at time
-        background=True
+        background=True,
     )
     print(f"✅ Created TTL index: {index2} (expires_at)")
 
@@ -53,7 +49,7 @@ try:
     index3 = collection.create_index(
         [("book_id", ASCENDING), ("viewed_at", ASCENDING)],
         name="book_views_by_date",
-        background=True
+        background=True,
     )
     print(f"✅ Created index: {index3} (book_id, viewed_at)")
 
@@ -62,19 +58,19 @@ try:
         [("user_id", ASCENDING), ("viewed_at", ASCENDING)],
         name="user_views_by_date",
         sparse=True,  # Only for documents with user_id
-        background=True
+        background=True,
     )
     print(f"✅ Created index: {index4} (user_id, viewed_at)")
 
     print("\n✅ All indexes created successfully!")
-    
+
     # List all indexes
     print("\n📊 Current indexes on book_view_sessions:")
     for index in collection.list_indexes():
         print(f"  - {index['name']}: {index.get('key', {})}")
-        if 'expireAfterSeconds' in index:
+        if "expireAfterSeconds" in index:
             print(f"    TTL: {index['expireAfterSeconds']}s")
-    
+
     # Show collection stats
     stats = db.command("collStats", "book_view_sessions")
     print(f"\n📈 Collection stats:")
