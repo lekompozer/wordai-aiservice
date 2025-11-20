@@ -78,12 +78,12 @@ class GeminiBookCoverService:
         prompt_parts = [
             f"Create a professional book cover design with the following specifications:",
             f"",
-            f"TITLE: \"{title}\"",
-            f"AUTHOR: \"{author}\"",
+            f'TITLE: "{title}"',
+            f'AUTHOR: "{author}"',
             f"",
             f"DESIGN REQUIREMENTS:",
-            f"- The title \"{title}\" must be clearly visible and legible in large, bold typography",
-            f"- The author name \"{author}\" must be prominently displayed",
+            f'- The title "{title}" must be clearly visible and legible in large, bold typography',
+            f'- The author name "{author}" must be prominently displayed',
             f"- {description}",
         ]
 
@@ -159,10 +159,10 @@ class GeminiBookCoverService:
                 contents=full_prompt,
                 config=types.GenerateContentConfig(
                     response_modalities=["TEXT", "IMAGE"],
-                    image_config=types.ImageConfig(
-                        aspect_ratio=self.BOOK_ASPECT_RATIO,
-                        image_size=resolution,
-                    ),
+                    image_config={
+                        "aspect_ratio": self.BOOK_ASPECT_RATIO,
+                        "image_size": resolution,
+                    },
                 ),
             )
 
