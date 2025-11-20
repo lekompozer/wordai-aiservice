@@ -157,13 +157,11 @@ class GeminiBookCoverService:
             response = self.client.models.generate_content(
                 model="gemini-3-pro-image-preview",
                 contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["TEXT", "IMAGE"],
-                    image_config={
-                        "aspect_ratio": self.BOOK_ASPECT_RATIO,
-                        "image_size": resolution,
-                    },
-                ),
+                config={
+                    "response_modalities": ["TEXT", "IMAGE"],
+                    "aspect_ratio": self.BOOK_ASPECT_RATIO,
+                    "image_size": resolution,
+                },
             )
 
             # Extract image from response
