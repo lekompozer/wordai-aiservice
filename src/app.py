@@ -458,7 +458,7 @@ def create_app() -> FastAPI:
     ):
         """
         Global handler for insufficient points errors
-        
+
         Returns HTTP 402 Payment Required with standardized format:
         {
             "error": "INSUFFICIENT_POINTS",
@@ -469,7 +469,7 @@ def create_app() -> FastAPI:
             "action_required": "purchase_points",
             "purchase_url": "/pricing"
         }
-        
+
         Frontend should detect error="INSUFFICIENT_POINTS" and show popup
         prompting user to purchase more points.
         """

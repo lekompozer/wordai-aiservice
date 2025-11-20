@@ -731,16 +731,30 @@ class BookPreviewResponse(BaseModel):
 
 
 class GenerateBookCoverRequest(BaseModel):
-    """Request to generate book cover using AI"""
+    """Request to generate book cover using AI (Gemini 3 Pro Image)"""
 
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Book title (will be rendered on cover)",
+        examples=["The Dragon's Quest", "Modern Leadership Handbook"],
+    )
+    author: str = Field(
+        ...,
+        min_length=1,
+        max_length=100,
+        description="Author name (will be rendered on cover)",
+        examples=["John Smith", "Jane Doe"],
+    )
     prompt: str = Field(
         ...,
         min_length=10,
         max_length=1000,
-        description="Description of the book cover to generate",
+        description="Description of the book cover design (excluding title/author)",
         examples=[
-            "A fantasy book cover with a magical castle in the sky surrounded by dragons",
-            "Modern minimalist design for a business book about leadership",
+            "A fantasy scene with a magical castle in the sky surrounded by dragons",
+            "Modern minimalist design with clean lines and professional business theme",
         ],
     )
     style: Optional[str] = Field(
@@ -752,21 +766,30 @@ class GenerateBookCoverRequest(BaseModel):
             "minimalist",
             "photorealistic",
             "watercolor",
-            "3D render",
+            "professional",
         ],
+    )
+    resolution: Optional[str] = Field(
+        "1K",
+        description="Output resolution: 1K (1024x1366) or 2K (2048x2732)",
+        pattern="^(1K|2K)$",
     )
 
 
 class GenerateBookCoverResponse(BaseModel):
-    """Response from AI image generation"""
+    """Response from AI image generation (Gemini 3 Pro Image)"""
 
     success: bool = Field(..., description="Generation success status")
     image_base64: Optional[str] = Field(
         None, description="Base64 encoded image data (PNG format)"
     )
     prompt_used: Optional[str] = Field(None, description="Full prompt sent to AI")
+    title: Optional[str] = Field(None, description="Book title")
+    author: Optional[str] = Field(None, description="Author name")
     style: Optional[str] = Field(None, description="Style used")
     model: Optional[str] = Field(None, description="AI model used")
+    aspect_ratio: Optional[str] = Field(None, description="Image aspect ratio (e.g., 3:4)")
+    resolution: Optional[str] = Field(None, description="Image resolution (1K or 2K)")
     timestamp: Optional[str] = Field(
         None, description="Generation timestamp (ISO 8601)"
     )

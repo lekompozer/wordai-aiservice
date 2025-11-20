@@ -34,9 +34,13 @@ class AIImageService:
             raise ImportError("OpenAI package not installed. Run: pip install openai")
 
         # Try multiple env var names for OpenAI API key
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or os.getenv("CHATGPT_API_KEY")
+        self.api_key = (
+            api_key or os.getenv("OPENAI_API_KEY") or os.getenv("CHATGPT_API_KEY")
+        )
         if not self.api_key:
-            raise ValueError("OPENAI_API_KEY or CHATGPT_API_KEY not found in environment variables")
+            raise ValueError(
+                "OPENAI_API_KEY or CHATGPT_API_KEY not found in environment variables"
+            )
 
         self.client = OpenAI(api_key=self.api_key)
 

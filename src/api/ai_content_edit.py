@@ -573,12 +573,11 @@ async def edit_content(
                 user_id=user_id,
                 amount=points_cost,
                 service="ai_content_edit",
-                resource_id=request.conversationId or f"content_edit_{uuid.uuid4().hex[:8]}",
+                resource_id=request.conversationId
+                or f"content_edit_{uuid.uuid4().hex[:8]}",
                 description=f"Content edit: {request.operationType}",
             )
-            logger.info(
-                f"💸 Deducted {points_cost} points for content edit"
-            )
+            logger.info(f"💸 Deducted {points_cost} points for content edit")
         except Exception as points_error:
             logger.error(f"❌ Error deducting points: {points_error}")
             # Don't fail the request, just log the error
