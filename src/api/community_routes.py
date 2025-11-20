@@ -6,10 +6,14 @@ Public endpoints for browsing community books
 from fastapi import APIRouter, Query, HTTPException, status
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from src.database import db
+from src.database.db_manager import DBManager
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/community", tags=["Community Books"])
+
+# Initialize DB connection
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ============================================================================
