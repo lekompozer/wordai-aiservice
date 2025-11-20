@@ -21,6 +21,27 @@ db = db_manager.db
 # ============================================================================
 
 
+class RecentChapterItem(BaseModel):
+    """Recent chapter summary"""
+
+    chapter_id: str
+    title: str
+    updated_at: datetime
+
+
+# ============================================================================
+# RESPONSE MODELS
+# ============================================================================
+
+
+class RecentChapterItem(BaseModel):
+    """Recent chapter summary"""
+
+    chapter_id: str
+    title: str
+    updated_at: datetime
+
+
 class CommunityBookItem(BaseModel):
     """Community book item"""
 
@@ -36,6 +57,8 @@ class CommunityBookItem(BaseModel):
     average_rating: float = 0.0
     total_chapters: int = 0
     last_updated: Optional[datetime] = None
+    recent_chapters: List[RecentChapterItem] = []  # 2 latest chapters
+    recent_chapters: List[RecentChapterItem] = []  # 2 latest chapters
 
 
 class FeaturedAuthorItem(BaseModel):
@@ -171,12 +194,28 @@ async def search_community_books(
                 else:
                     author_names.append(author_id)
 
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters_cursor = (
+                db.book_chapters.find({"book_id": book["book_id"], "deleted_at": None})
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters_cursor:
+                recent_chapters.append(
+                    RecentChapterItem(
+                        chapter_id=chapter["chapter_id"],
+                        title=chapter["title"],
+                        updated_at=chapter["updated_at"],
+                    )
+                )
+
             books.append(
                 CommunityBookItem(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_url"),
+                    cover_url=book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -185,6 +224,7 @@ async def search_community_books(
                     average_rating=community_config.get("average_rating", 0.0),
                     total_chapters=community_config.get("total_chapters", 0),
                     last_updated=community_config.get("last_chapter_updated_at"),
+                    recent_chapters=recent_chapters,
                 )
             )
 
@@ -533,12 +573,28 @@ async def get_latest_books(
                 else:
                     author_names.append(author_id)
 
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters_cursor = (
+                db.book_chapters.find({"book_id": book["book_id"], "deleted_at": None})
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters_cursor:
+                recent_chapters.append(
+                    RecentChapterItem(
+                        chapter_id=chapter["chapter_id"],
+                        title=chapter["title"],
+                        updated_at=chapter["updated_at"],
+                    )
+                )
+
             books.append(
                 CommunityBookItem(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_url"),
+                    cover_url=book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -547,6 +603,7 @@ async def get_latest_books(
                     average_rating=community_config.get("average_rating", 0.0),
                     total_chapters=community_config.get("total_chapters", 0),
                     last_updated=community_config.get("last_chapter_updated_at"),
+                    recent_chapters=recent_chapters,
                 )
             )
 
@@ -628,12 +685,28 @@ async def get_top_books(
                 else:
                     author_names.append(author_id)
 
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters_cursor = (
+                db.book_chapters.find({"book_id": book["book_id"], "deleted_at": None})
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters_cursor:
+                recent_chapters.append(
+                    RecentChapterItem(
+                        chapter_id=chapter["chapter_id"],
+                        title=chapter["title"],
+                        updated_at=chapter["updated_at"],
+                    )
+                )
+
             books.append(
                 CommunityBookItem(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_url"),
+                    cover_url=book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -642,6 +715,7 @@ async def get_top_books(
                     average_rating=community_config.get("average_rating", 0.0),
                     total_chapters=community_config.get("total_chapters", 0),
                     last_updated=community_config.get("last_chapter_updated_at"),
+                    recent_chapters=recent_chapters,
                 )
             )
 
