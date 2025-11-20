@@ -32,11 +32,19 @@ logger = logging.getLogger(__name__)
 SERVICE_POINTS_COST = {
     # Chat operations - Variable pricing by provider
     "ai_chat_deepseek": 1,  # Deepseek: 1 point (cheaper)
+    "ai_chat_deepseek_chat": 1,  # DeepSeek Chat: 1 point (cheaper) - handle both variants
     "ai_chat_claude": 2,  # Claude: 2 points
     "ai_chat_chatgpt": 2,  # ChatGPT: 2 points
     "ai_chat_gemini": 2,  # Gemini: 2 points
     "ai_chat_cerebras": 2,  # Cerebras: 2 points
     "ai_chat_default": 2,  # Other providers: 2 points
+    # Document chat operations - Same pricing
+    "ai_document_chat_deepseek": 1,  # DeepSeek: 1 point
+    "ai_document_chat_deepseek_chat": 1,  # DeepSeek Chat: 1 point - handle both variants
+    "ai_document_chat_claude": 2,  # Claude: 2 points
+    "ai_document_chat_chatgpt": 2,  # ChatGPT: 2 points
+    "ai_document_chat_gemini": 2,  # Gemini: 2 points
+    "ai_document_chat_cerebras": 2,  # Cerebras: 2 points
     # Document AI operations
     "ai_edit": 2,
     "ai_translate": 2,
