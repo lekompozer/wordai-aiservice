@@ -54,18 +54,18 @@ async def save_book(
 
         logger.info(f"💾 User {user_id} saving book {book_id}")
 
-        # 1. Check if book exists and is published to community
+        # 1. Check if book exists (allow saving own books or community books)
         book = db.online_books.find_one(
             {
                 "book_id": book_id,
-                "community_config.is_public": True,
+                "deleted_at": None,
             }
         )
 
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Book not found or not available in community",
+                detail="Book not found",
             )
 
         # 2. Check if already saved
@@ -161,8 +161,6 @@ async def list_saved_books(
         # 2. Build book query with filters
         book_query = {
             "book_id": {"$in": book_ids},
-            "community_config.is_public": True,
-            "is_published": True,
             "deleted_at": None,
         }
 
