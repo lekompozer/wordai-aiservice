@@ -20,6 +20,7 @@ from src.middleware.firebase_auth import get_current_user
 from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.services.points_service import get_points_service
+from src.services.r2_storage_service import get_r2_service
 from config.config import get_mongodb
 
 # Models
@@ -837,4 +838,116 @@ async def duplicate_chapter(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Chapter duplication failed: {str(e)}",
+        )
+
+
+# ============ AUTHOR AVATAR UPLOAD (New Author Creation) ============
+
+
+class AuthorAvatarUploadRequest(BaseModel):
+    """Request model for avatar upload presigned URL"""
+
+    filename: str = Field(..., description="Avatar filename (e.g., avatar.jpg)")
+    content_type: str = Field(..., description="MIME type (e.g., image/jpeg)")
+
+
+@router.post(
+    "/authors/avatar/presigned-url",
+    summary="Generate presigned URL for avatar upload (before creating author)",
+)
+async def get_new_author_avatar_presigned_url(
+    request: AuthorAvatarUploadRequest,
+    user: dict = Depends(get_current_user),
+):
+    """
+    **Generate presigned URL for author avatar upload (NEW AUTHOR)**
+
+    Use this endpoint when creating a new author (before author_id exists).
+    For existing authors, use `/api/v1/authors/{author_id}/avatar/presigned-url` instead.
+
+    **Endpoint:** `POST /api/v1/books/authors/avatar/presigned-url`
+
+    **Supported Image Types:**
+    - JPEG (image/jpeg)
+    - PNG (image/png)
+    - WebP (image/webp)
+    - AVIF (image/avif)
+
+    **Flow:**
+    1. Frontend calls this endpoint with filename and content_type
+    2. Backend generates presigned URL (valid for 5 minutes)
+    3. Frontend uploads file directly to presigned URL using PUT request
+    4. Frontend uses returned file_url in avatar_url field when creating author
+
+    **Returns:**
+    - `presigned_url`: URL for uploading file (use PUT request)
+    - `file_url`: Public CDN URL to use in create author request
+    - `expires_in`: Presigned URL expiration time in seconds (300 = 5 minutes)
+    """
+    user_id = user["uid"]
+
+    filename = request.filename
+    content_type = request.content_type
+
+    logger.info(
+        f"📸 Generating presigned URL for new author avatar: {filename} - User: {user_id}"
+    )
+
+    try:
+        # Validate content type
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/avif"]
+        if content_type not in allowed_types:
+            logger.warning(
+                f"❌ Invalid content type '{content_type}' for user {user_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid content type. Allowed: {', '.join(allowed_types)}",
+            )
+
+        # Validate filename extension
+        valid_extensions = [".jpg", ".jpeg", ".png", ".webp", ".avif"]
+        if not any(filename.lower().endswith(ext) for ext in valid_extensions):
+            logger.warning(
+                f"❌ Invalid filename extension '{filename}' for user {user_id}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid filename. Allowed: {', '.join(valid_extensions)}",
+            )
+
+        # Get R2 service
+        r2_service = get_r2_service()
+
+        # Generate presigned URL
+        result = r2_service.generate_presigned_upload_url(
+            filename=filename,
+            content_type=content_type,
+            folder="author-avatars",
+        )
+
+        logger.info(
+            f"✅ Generated presigned URL for new author avatar: {result['file_url']} - User: {user_id}"
+        )
+
+        return {
+            "success": True,
+            "presigned_url": result["presigned_url"],
+            "file_url": result["file_url"],
+            "expires_in": result["expires_in"],
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"❌ R2 configuration error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"R2 service not configured: {str(e)}",
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to generate presigned URL: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate presigned URL: {str(e)}",
         )
