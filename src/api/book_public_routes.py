@@ -1361,7 +1361,7 @@ async def get_chapter_with_content(
 
         if visibility == "public" or (is_published and visibility == "point_based"):
             # Check if it's a free book (0 points for all access types)
-            access_config = book.get("access_config", {})
+            access_config = book.get("access_config") or {}
             one_time_points = access_config.get("one_time_view_points", 0)
             forever_points = access_config.get("forever_view_points", 0)
 
@@ -1547,7 +1547,7 @@ async def get_chapter_content_by_slug(
 
         if visibility == "public" or (is_published and visibility == "point_based"):
             # Check if it's a free book (0 points for all access types)
-            access_config = book.get("access_config", {})
+            access_config = book.get("access_config") or {}
             one_time_points = access_config.get("one_time_view_points", 0)
             forever_points = access_config.get("forever_view_points", 0)
 
