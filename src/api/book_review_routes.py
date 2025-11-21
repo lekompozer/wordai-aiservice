@@ -74,9 +74,7 @@ async def create_book_review(
         user_id = user["uid"]
 
         # Check book exists
-        book = db.online_books.find_one(
-            {"book_id": book_id, "deleted_at": None}
-        )
+        book = db.online_books.find_one({"book_id": book_id, "deleted_at": None})
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -132,7 +130,7 @@ async def create_book_review(
         # Update book's average rating and review count
         all_reviews = list(db.book_reviews.find({"book_id": book_id}))
         average_rating = sum(r.get("rating", 0) for r in all_reviews) / len(all_reviews)
-        
+
         db.online_books.update_one(
             {"book_id": book_id},
             {
@@ -314,9 +312,7 @@ async def list_book_reviews(
     """
     try:
         # Check book exists
-        book = db.online_books.find_one(
-            {"book_id": book_id, "deleted_at": None}
-        )
+        book = db.online_books.find_one({"book_id": book_id, "deleted_at": None})
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -460,10 +456,12 @@ async def delete_book_review(
         # Update book's average rating and review count
         all_reviews = list(db.book_reviews.find({"book_id": book_id}))
         if all_reviews:
-            average_rating = sum(r.get("rating", 0) for r in all_reviews) / len(all_reviews)
+            average_rating = sum(r.get("rating", 0) for r in all_reviews) / len(
+                all_reviews
+            )
         else:
             average_rating = 0.0
-        
+
         db.online_books.update_one(
             {"book_id": book_id},
             {

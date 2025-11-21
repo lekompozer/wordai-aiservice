@@ -207,6 +207,9 @@ from src.api.book_review_routes import router as book_review_router
 # ✅ ADDED: Community Books API - Public browsing and discovery
 from src.api.community_routes import router as community_router
 
+# ✅ ADDED: Image Generation API - AI-powered image generation using Gemini 2.5 Flash Image
+from src.api.image_generation_routes import router as image_generation_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -849,6 +852,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Internal CORS management for chat-plugin
     app.include_router(internal_cors_router, tags=["Internal CORS"])
+
+    # ✅ ADDED: Image Generation API - AI-powered image generation
+    app.include_router(image_generation_router, tags=["AI Image Generation"])
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
     app.include_router(
