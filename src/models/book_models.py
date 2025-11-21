@@ -253,7 +253,7 @@ class CommunityPublishRequest(BaseModel):
     difficulty_level: Optional[str] = Field(
         None, description="beginner|intermediate|advanced|expert (optional)"
     )
-    short_description: str = Field(..., min_length=10, max_length=200)
+    short_description: str = Field(..., min_length=10, max_length=5000)
     cover_image_url: Optional[str] = Field(None, description="Cover image URL")
 
     @model_validator(mode="before")
