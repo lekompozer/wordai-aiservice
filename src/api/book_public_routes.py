@@ -941,6 +941,9 @@ def _build_book_preview_response(
 
                 if one_time_purchase:
                     expires_at = one_time_purchase.get("access_expires_at")
+                    # Ensure expires_at is timezone-aware for comparison
+                    if expires_at and expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
                     is_expired = expires_at and expires_at < datetime.now(timezone.utc)
 
                     user_access = {
@@ -1394,6 +1397,9 @@ async def get_chapter_with_content(
 
         if one_time_purchase:
             expires_at = one_time_purchase.get("access_expires_at")
+            # Ensure expires_at is timezone-aware for comparison
+            if expires_at and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
             if expires_at and expires_at > datetime.now(timezone.utc):
                 logger.info(
                     f"📄 User {user_id} accessed chapter (one-time access): {chapter_id}"
@@ -1579,6 +1585,9 @@ async def get_chapter_content_by_slug(
 
         if one_time_purchase:
             expires_at = one_time_purchase.get("access_expires_at")
+            # Ensure expires_at is timezone-aware for comparison
+            if expires_at and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
             if expires_at and expires_at > datetime.now(timezone.utc):
                 logger.info(
                     f"📄 User {user_id} accessed chapter (slug, one-time): {book_slug}/{chapter_slug}"
