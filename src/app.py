@@ -180,6 +180,12 @@ from src.api.pdf_document_routes import router as pdf_document_router
 # ✅ NEW: Online Books API - GitBook-style documentation system (renamed from User Guides)
 from src.api.book_routes import router as book_router
 
+# ✅ NEW: Book Chapter Management API - Chapter CRUD, reordering, bulk updates
+from src.api.book_chapter_routes import router as book_chapter_router
+
+# ✅ NEW: Book Public & Community API - Public view, Community marketplace, Discovery
+from src.api.book_public_routes import router as book_public_router
+
 # ✅ NEW: Book Marketplace API - Earnings, Purchases, My Published Books
 from src.api.book_marketplace_routes import router as book_marketplace_router
 
@@ -776,6 +782,18 @@ def create_app() -> FastAPI:
     app.include_router(
         book_router,
         tags=["Online Books", "Documentation System"],
+    )
+
+    # ✅ NEW: Book Chapter Management API - Chapter CRUD, reordering, bulk updates
+    app.include_router(
+        book_chapter_router,
+        tags=["Online Books Chapters", "Chapter Management"],
+    )
+
+    # ✅ NEW: Book Public & Community API - Public view, Community marketplace, Discovery
+    app.include_router(
+        book_public_router,
+        tags=["Online Books Public & Community", "Book Discovery"],
     )
 
     # ✅ NEW: Book Marketplace API - Earnings, Purchases, My Published Books
