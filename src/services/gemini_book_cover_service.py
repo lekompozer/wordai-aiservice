@@ -162,10 +162,9 @@ class GeminiBookCoverService:
                     text_response = part.text
                     logger.info(f"📝 Gemini response text: {text_response[:100]}...")
                 elif image := part.as_image():
-                    # Convert PIL Image to base64
-                    buffered = BytesIO()
-                    image.save(buffered, format="PNG")
-                    image_bytes = buffered.getvalue()
+                    # Get bytes directly from Gemini Image object
+                    # Note: image is a google.genai.types.Image object, not PIL.Image
+                    image_bytes = image.image_bytes
                     image_data = base64.b64encode(image_bytes).decode("utf-8")
                     logger.info(
                         f"✅ Image generated successfully ({len(image_data)} bytes)"
