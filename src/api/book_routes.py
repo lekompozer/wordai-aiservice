@@ -266,6 +266,123 @@ async def get_book_save_count(book_id: str):
         )
 
 
+@router.get("/{book_id}/publish-config")
+async def get_book_publish_config(
+    book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    **Get book publish configuration for editing**
+
+    Returns only the config fields needed for edit form (not full content).
+
+    **Authentication:** Required (Firebase JWT)
+
+    **Returns:**
+    ```json
+    {
+        "book_id": "book_xxx",
+        "title": "Book Title",
+        "slug": "book-slug",
+        "authors": ["@author1"],
+        "visibility": "point_based",
+        "access_config": {
+            "forever_view_points": 100
+        },
+        "community_config": {
+            "category": "technology",
+            "tags": ["python", "ai"],
+            "difficulty_level": "intermediate",
+            "short_description": "...",
+            "cover_image_url": "https://..."
+        }
+    }
+    ```
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Get only config fields (not content)
+        book = db.online_books.find_one(
+            {"book_id": book_id, "user_id": user_id},
+            {
+                "_id": 0,
+                "book_id": 1,
+                "title": 1,
+                "slug": 1,
+                "authors": 1,
+                "author_id": 1,  # Legacy field
+                "visibility": 1,
+                "access_config": 1,
+                "community_config": 1,
+                "cover_image_url": 1,
+            },
+        )
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or you don't have access",
+            )
+
+        # Ensure authors is array (handle legacy author_id)
+        if not book.get("authors") and book.get("author_id"):
+            book["authors"] = [book["author_id"]]
+        elif not book.get("authors"):
+            book["authors"] = []
+
+        logger.info(f"✅ User {user_id} retrieved publish config for book: {book_id}")
+        return book
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get book publish config: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get book publish config",
+        )
+
+
+@router.get("/{book_id}", response_model=BookResponse)
+async def get_book_by_id(
+    book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    """
+    **Get book by ID**
+
+    Returns complete book information including community config for editing.
+
+    **Authentication:** Required (Firebase JWT)
+
+    **Returns:**
+    - 200: Book data with all fields
+    - 404: Book not found or you don't have access
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Get book (must be owner)
+        book = book_manager.get_book(book_id, user_id)
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found or you don't have access",
+            )
+
+        logger.info(f"✅ User {user_id} retrieved book: {book_id}")
+        return BookResponse(**book)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get book: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get book",
+        )
+
+
 @router.post("", response_model=BookResponse, status_code=status.HTTP_201_CREATED)
 async def create_book(
     guide_data: BookCreate, current_user: Dict[str, Any] = Depends(get_current_user)
