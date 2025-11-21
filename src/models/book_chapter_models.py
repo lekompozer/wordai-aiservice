@@ -65,6 +65,9 @@ class ChapterUpdate(BaseModel):
     slug: Optional[str] = Field(
         None, max_length=200, description="Chapter URL slug (will be auto-normalized)"
     )
+    description: Optional[str] = Field(
+        None, max_length=5000, description="Chapter description (for SEO and preview)"
+    )
     parent_id: Optional[str] = None
     order_index: Optional[int] = Field(None, ge=0)
     is_published: Optional[bool] = None
@@ -121,6 +124,9 @@ class ChapterBulkUpdateItem(BaseModel):
     slug: Optional[str] = Field(
         None, pattern="^[a-z0-9-]+$", description="New chapter slug"
     )
+    description: Optional[str] = Field(
+        None, max_length=5000, description="New chapter description"
+    )
     parent_id: Optional[str] = Field(
         None, description="New parent chapter ID (null for root)"
     )
@@ -144,6 +150,9 @@ class ChapterResponse(BaseModel):
     book_id: str
     title: str
     slug: str
+    description: Optional[str] = Field(
+        default=None, description="Chapter description (for SEO and preview)"
+    )
     document_id: Optional[str] = None
     parent_id: Optional[str] = None
     order_index: int

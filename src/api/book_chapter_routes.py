@@ -730,18 +730,19 @@ async def bulk_update_chapters(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Bulk update chapters (title, slug, order, parent) - For reorganizing book menu
+    Bulk update chapters (title, slug, description, order, parent) - For reorganizing book menu
 
     **Authentication:** Required (Owner only)
 
     **Use Case:**
-    Frontend displays chapter list → User edits titles, reorders, reparents → Submit all changes at once
+    Frontend displays chapter list → User edits titles, descriptions, reorders, reparents → Submit all changes at once
 
     **Request Body:**
     - updates: Array of chapter updates
       * chapter_id: Required (which chapter to update)
       * title: Optional (new title)
       * slug: Optional (new slug, must be unique in book)
+      * description: Optional (new description, max 5000 chars)
       * parent_id: Optional (new parent, null for root)
       * order_index: Optional (new position)
 
@@ -956,6 +957,11 @@ async def bulk_update_chapters(
             # Update title
             if update.title is not None:
                 update_fields["title"] = update.title
+                update_fields["updated_at"] = datetime.utcnow()
+
+            # Update description
+            if update.description is not None:
+                update_fields["description"] = update.description
                 update_fields["updated_at"] = datetime.utcnow()
 
             # Update slug (or auto-generate from new title)

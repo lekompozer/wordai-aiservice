@@ -278,6 +278,7 @@ async def get_book_publish_config(
         "book_id": "book_xxx",
         "title": "Book Title",
         "slug": "book-slug",
+        "description": "Full book description (long form)",
         "authors": ["@author1"],
         "visibility": "point_based",
         "access_config": {
@@ -287,7 +288,7 @@ async def get_book_publish_config(
             "category": "technology",
             "tags": ["python", "ai"],
             "difficulty_level": "intermediate",
-            "short_description": "...",
+            "short_description": "Brief description for marketplace listing",
             "cover_image_url": "https://..."
         }
     }
@@ -304,11 +305,12 @@ async def get_book_publish_config(
                 "book_id": 1,
                 "title": 1,
                 "slug": 1,
+                "description": 1,  # Full description
                 "authors": 1,
                 "author_id": 1,  # Legacy field
                 "visibility": 1,
                 "access_config": 1,
-                "community_config": 1,
+                "community_config": 1,  # Contains short_description
                 "cover_image_url": 1,
             },
         )
