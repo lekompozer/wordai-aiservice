@@ -201,6 +201,9 @@ from src.api.author_routes import router as author_router
 # ✅ ADDED: Saved Books API - User's bookmarked books
 from src.api.book_saved_routes import router as saved_books_router
 
+# ✅ ADDED: Book Reviews API - User reviews and ratings for books
+from src.api.book_review_routes import router as book_review_router
+
 # ✅ ADDED: Community Books API - Public browsing and discovery
 from src.api.community_routes import router as community_router
 
@@ -828,6 +831,13 @@ def create_app() -> FastAPI:
         saved_books_router,
         prefix="/api/v1",
         tags=["Saved Books", "Bookmarks"],
+    )
+
+    # ✅ NEW: Book Reviews API - User reviews and ratings for books
+    app.include_router(
+        book_review_router,
+        prefix="/api/v1",
+        tags=["Book Reviews", "Ratings"],
     )
 
     # ✅ NEW: Community Books API - Public browsing and discovery
