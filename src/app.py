@@ -177,8 +177,11 @@ from src.api.slide_share_routes import router as slide_share_router
 # ✅ ADDED: PDF Document API - Upload, Split, Merge, and AI Conversion
 from src.api.pdf_document_routes import router as pdf_document_router
 
-# ✅ ADDED: Online Books API - GitBook-style documentation system (renamed from User Guides)
+# ✅ NEW: Online Books API - GitBook-style documentation system (renamed from User Guides)
 from src.api.book_routes import router as book_router
+
+# ✅ NEW: Book Marketplace API - Earnings, Purchases, My Published Books
+from src.api.book_marketplace_routes import router as book_marketplace_router
 
 # ✅ ADDED: Book Advanced API - Translation & Duplication features
 from src.api.book_advanced_routes import router as book_advanced_router
@@ -773,6 +776,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_router,
         tags=["Online Books", "Documentation System"],
+    )
+
+    # ✅ NEW: Book Marketplace API - Earnings, Purchases, My Published Books
+    app.include_router(
+        book_marketplace_router,
+        tags=["Book Marketplace", "Earnings", "Purchases"],
     )
 
     # ✅ NEW: Book Advanced API - Translation & Duplication features
