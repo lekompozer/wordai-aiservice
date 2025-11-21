@@ -153,7 +153,6 @@ async def generate_book_cover_ai(
             author=request.author,
             description=request.prompt,
             style=request.style,
-            resolution=request.resolution or "1K",
         )
 
         generation_time_ms = int((time.time() - start_time) * 1000)
@@ -185,7 +184,7 @@ async def generate_book_cover_ai(
             style=result.get("style"),
             model=result.get("model"),
             aspect_ratio=result.get("aspect_ratio"),
-            resolution=result.get("resolution"),
+            resolution=None,  # Not supported by Gemini ImageConfig
             timestamp=result.get("timestamp"),
             generation_time_ms=generation_time_ms,
         )

@@ -28,10 +28,6 @@ class GeminiBookCoverService:
     # Aspect ratio for book covers (portrait orientation)
     BOOK_ASPECT_RATIO = "3:4"  # Standard book cover ratio (e.g., 6x8 inches)
 
-    # Available resolutions
-    RESOLUTION_1K = "1K"  # 896x1200 pixels
-    RESOLUTION_2K = "2K"  # 1792x2400 pixels
-
     def __init__(self, api_key: Optional[str] = None):
         """
         Initialize Gemini Book Cover Service
@@ -110,7 +106,6 @@ class GeminiBookCoverService:
         author: str,
         description: str,
         style: Optional[str] = None,
-        resolution: str = "1K",
     ) -> Dict[str, Any]:
         """
         Generate book cover using Gemini 3 Pro Image
@@ -120,7 +115,6 @@ class GeminiBookCoverService:
             author: Author name to display on cover
             description: Design description (visual elements, theme, colors, etc.)
             style: Optional style modifier
-            resolution: "1K" (896x1200) or "2K" (1792x2400)
 
         Returns:
             Dict with:
@@ -131,26 +125,18 @@ class GeminiBookCoverService:
                 - style: Style used
                 - model: "gemini-3-pro-image-preview"
                 - aspect_ratio: "3:4"
-                - resolution: "1K" or "2K"
                 - timestamp: ISO 8601 timestamp
 
         Raises:
-            ValueError: If invalid resolution or API error
+            ValueError: If API error
         """
         try:
-            # Validate resolution
-            if resolution not in [self.RESOLUTION_1K, self.RESOLUTION_2K]:
-                raise ValueError(
-                    f"Invalid resolution: {resolution}. Must be '1K' or '2K'"
-                )
-
             # Build prompt
             full_prompt = self._build_cover_prompt(title, author, description, style)
 
             logger.info(f"🎨 Generating book cover with Gemini 3 Pro Image")
             logger.info(f"   Title: {title}")
             logger.info(f"   Author: {author}")
-            logger.info(f"   Resolution: {resolution}")
             logger.info(f"   Aspect Ratio: {self.BOOK_ASPECT_RATIO}")
 
             # Generate image using Gemini
@@ -196,7 +182,6 @@ class GeminiBookCoverService:
                 "style": style,
                 "model": "gemini-3-pro-image-preview",
                 "aspect_ratio": self.BOOK_ASPECT_RATIO,
-                "resolution": resolution,
                 "timestamp": datetime.utcnow().isoformat(),
                 "gemini_response_text": text_response,
             }

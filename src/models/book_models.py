@@ -770,9 +770,8 @@ class GenerateBookCoverRequest(BaseModel):
         ],
     )
     resolution: Optional[str] = Field(
-        "1K",
-        description="Output resolution: 1K (1024x1366) or 2K (2048x2732)",
-        pattern="^(1K|2K)$",
+        None,
+        description="[IGNORED] Resolution parameter not supported by Gemini ImageConfig. Gemini auto-selects optimal resolution.",
     )
 
 
@@ -791,7 +790,9 @@ class GenerateBookCoverResponse(BaseModel):
     aspect_ratio: Optional[str] = Field(
         None, description="Image aspect ratio (e.g., 3:4)"
     )
-    resolution: Optional[str] = Field(None, description="Image resolution (1K or 2K)")
+    resolution: Optional[str] = Field(
+        None, description="[DEPRECATED] Not used by Gemini ImageConfig"
+    )
     timestamp: Optional[str] = Field(
         None, description="Generation timestamp (ISO 8601)"
     )
