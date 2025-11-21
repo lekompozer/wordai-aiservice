@@ -778,10 +778,12 @@ def create_app() -> FastAPI:
         tags=["PDF Documents", "AI Conversion", "Document Management"],
     )
 
-    # ✅ NEW: Online Books API - GitBook-style documentation system (renamed from User Guides)
+    # ✅ NEW: Book Marketplace API - Earnings, Purchases, My Published Books
+    # IMPORTANT: Register BEFORE book_router to prioritize specific routes like /my-published, /earnings
+    # over dynamic route /{book_id}
     app.include_router(
-        book_router,
-        tags=["Online Books", "Documentation System"],
+        book_marketplace_router,
+        tags=["Book Marketplace", "Earnings", "Purchases"],
     )
 
     # ✅ NEW: Book Chapter Management API - Chapter CRUD, reordering, bulk updates
@@ -796,10 +798,11 @@ def create_app() -> FastAPI:
         tags=["Online Books Public & Community", "Book Discovery"],
     )
 
-    # ✅ NEW: Book Marketplace API - Earnings, Purchases, My Published Books
+    # ✅ NEW: Online Books API - GitBook-style documentation system (renamed from User Guides)
+    # Contains dynamic route /{book_id} - must be registered AFTER specific routes
     app.include_router(
-        book_marketplace_router,
-        tags=["Book Marketplace", "Earnings", "Purchases"],
+        book_router,
+        tags=["Online Books", "Documentation System"],
     )
 
     # ✅ NEW: Book Advanced API - Translation & Duplication features
