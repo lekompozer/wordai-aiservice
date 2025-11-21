@@ -3705,9 +3705,14 @@ async def unpublish_book_from_community(
                 detail="Book not found or you don't have access",
             )
 
-        # Remove book from author's list (if has author)
-        if book.get("author_id"):
-            author_manager.remove_book_from_author(book["author_id"], book_id)
+        # Remove book from author's list (if has authors)
+        authors_list = book.get("authors", [])
+        if not authors_list and book.get("author_id"):
+            # Fallback to legacy author_id field
+            authors_list = [book.get("author_id")]
+
+        for author_id in authors_list:
+            author_manager.remove_book_from_author(author_id, book_id)
 
         # Unpublish from community
         updated_book = book_manager.unpublish_from_community(
