@@ -309,6 +309,16 @@ class CommunityPublishRequest(BaseModel):
         return v
 
 
+class RecentChapter(BaseModel):
+    """Recent chapter info for book listings"""
+
+    chapter_id: str
+    title: str
+    slug: str
+    order_index: int
+    created_at: datetime
+
+
 class CommunityBookItem(BaseModel):
     """Community book listing item"""
 
@@ -333,6 +343,11 @@ class CommunityBookItem(BaseModel):
 
     # Author - Use PreviewAuthor for consistency
     author: Optional[Dict[str, Any]] = None  # {"author_id": "@user", "name": "Name"}
+
+    # Recent chapters (NEW)
+    recent_chapters: List[RecentChapter] = Field(
+        default_factory=list, description="2 most recent chapters"
+    )
 
     # Timestamps
     published_at: Optional[datetime] = None

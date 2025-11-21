@@ -111,6 +111,8 @@ class UserBookManager:
             "visibility": data.get("visibility", "private"),  # Default: private
             "is_published": data.get("is_published", False),
             "is_deleted": False,  # ✅ CRITICAL: Mark as active (not deleted)
+            # Authors (NEW - Support multiple authors)
+            "authors": [],  # Empty array initially, populated when publishing to community
             # Point-based access (NEW)
             "access_config": data.get("access_config"),  # Will be None or dict
             # Community config (initialized, not public by default)
@@ -387,8 +389,10 @@ class UserBookManager:
 
         update_data = {
             "$set": {
-                # Set author
-                "author_id": author_id,
+                # Set authors (NEW - array format for multi-author support)
+                "authors": [author_id],  # Store as array
+                # Legacy field for backward compatibility
+                "author_id": author_id,  # Keep for old code that reads this field
                 # Set visibility & access config
                 "visibility": publish_data["visibility"],
                 "access_config": publish_data.get("access_config"),

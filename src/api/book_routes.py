@@ -3805,6 +3805,34 @@ async def list_community_books(
                         .title(),
                     }
 
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters = list(
+                db.book_chapters.find(
+                    {"book_id": book.get("book_id"), "is_deleted": False},
+                    {
+                        "chapter_id": 1,
+                        "title": 1,
+                        "slug": 1,
+                        "order_index": 1,
+                        "created_at": 1,
+                        "_id": 0,
+                    },
+                )
+                .sort("created_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters:
+                recent_chapters.append(
+                    {
+                        "chapter_id": chapter["chapter_id"],
+                        "title": chapter["title"],
+                        "slug": chapter["slug"],
+                        "order_index": chapter.get("order_index", 0),
+                        "created_at": chapter.get("created_at"),
+                    }
+                )
+
             item = CommunityBookItem(
                 book_id=book.get("book_id"),
                 title=book.get("title"),
@@ -3820,6 +3848,7 @@ async def list_community_books(
                 average_rating=community_config.get("average_rating", 0.0),
                 rating_count=community_config.get("rating_count", 0),
                 author=author_obj,  # Object with author_id, name, avatar_url
+                recent_chapters=recent_chapters,  # 2 most recent chapters
                 published_at=community_config.get("published_at"),
             )
             items.append(item)
