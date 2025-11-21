@@ -943,8 +943,10 @@ async def bulk_update_chapters(
             for vn_char, en_char in vietnamese_map.items():
                 text = text.replace(vn_char, en_char)
             text = text.lower()
-            text = re.sub(r"[^\w\s-:]", "", text)
-            text = re.sub(r"[-\s]+", "-", text)
+            text = re.sub(r"[^\w\s:.-]", "", text)  # Fixed: moved - to end
+            text = re.sub(
+                r"[\s:.-]+", "-", text
+            )  # Convert spaces, colons, dots to hyphens
             return text.strip("-")[:100]
 
         # 4. Process each update
