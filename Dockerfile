@@ -65,8 +65,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Cài đặt google-genai và cerebras riêng để tránh anyio conflict
-RUN pip install --no-cache-dir google-genai==1.29.0 --force-reinstall
+# Cài đặt cerebras riêng để tránh anyio conflict
 RUN pip install --no-cache-dir cerebras-cloud-sdk==1.29.0
 
 # Install Playwright browsers (Chromium only, deps already installed above)
