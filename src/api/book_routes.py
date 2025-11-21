@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from typing import List, Optional, Dict, Any
 import logging
 from datetime import datetime, timezone, timedelta
+import re
+import unicodedata
 
 # Authentication
 from src.middleware.firebase_auth import get_current_user, get_current_user_optional
@@ -1841,12 +1843,9 @@ async def create_chapter(
                 detail="Only book owner can create chapters",
             )
 
-        # Auto-generate slug if not provided
+        # Auto-generate or normalize slug
         if not chapter_data.slug:
-            import re
-            import unicodedata
-
-            # Convert title to slug: normalize, lowercase, replace spaces with hyphens
+            # Generate from title
             slug = chapter_data.title.lower()
             # Normalize unicode characters (Vietnamese → ASCII)
             slug = (
@@ -1858,22 +1857,28 @@ async def create_chapter(
             slug = re.sub(r"[^a-z0-9]+", "-", slug)
             # Remove leading/trailing hyphens
             slug = slug.strip("-")
-
-            # Ensure uniqueness by appending number if needed
-            original_slug = slug
-            counter = 1
-            while chapter_manager.slug_exists(book_id, slug):
-                slug = f"{original_slug}-{counter}"
-                counter += 1
-
-            chapter_data.slug = slug
         else:
-            # Check slug uniqueness within book if provided
-            if chapter_manager.slug_exists(book_id, chapter_data.slug):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=f"Slug '{chapter_data.slug}' already exists in this book",
-                )
+            # Normalize provided slug (remove Vietnamese diacritics, special chars)
+            slug = chapter_data.slug.lower()
+            # Normalize unicode characters (Vietnamese → ASCII)
+            slug = (
+                unicodedata.normalize("NFKD", slug)
+                .encode("ascii", "ignore")
+                .decode("ascii")
+            )
+            # Replace special chars (including :) with hyphens, keep only a-z0-9-
+            slug = re.sub(r"[^a-z0-9]+", "-", slug)
+            # Remove leading/trailing hyphens
+            slug = slug.strip("-")
+
+        # Ensure uniqueness by appending number if needed
+        original_slug = slug
+        counter = 1
+        while chapter_manager.slug_exists(book_id, slug):
+            slug = f"{original_slug}-{counter}"
+            counter += 1
+
+        chapter_data.slug = slug
 
         # Verify parent exists if provided
         if chapter_data.parent_id:
