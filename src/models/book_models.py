@@ -35,7 +35,11 @@ class CommunityConfig(BaseModel):
     is_public: bool = Field(False, description="Published to community?")
     category: Optional[str] = Field(None, description="Book category")
     tags: List[str] = Field(default_factory=list, description="Tags for search")
-    short_description: Optional[str] = Field(None, max_length=200)
+    short_description: Optional[str] = Field(
+        None,
+        max_length=5000,
+        description="Short description for community (max 5000 chars)",
+    )
     difficulty_level: Optional[str] = Field(
         None, description="beginner|intermediate|advanced|expert"
     )
