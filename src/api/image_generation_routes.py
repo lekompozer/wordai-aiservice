@@ -24,7 +24,7 @@ from src.models.image_generation_models import (
 # Services
 from src.services.gemini_image_service import get_gemini_image_service
 from src.services.points_service import get_points_service
-from src.config.database import get_mongodb
+from src.database.db_manager import DBManager
 
 # PIL for image processing
 try:
@@ -38,6 +38,10 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/images/generate", tags=["AI Image Generation"])
+
+# Initialize DB connection
+db_manager = DBManager()
+db = db_manager.db
 
 # Constants
 POINTS_PER_GENERATION = 2
@@ -154,7 +158,6 @@ async def generate_photorealistic_image(
         )
 
         # Save to library
-        db = get_mongodb()
         library_doc = await gemini_service.save_to_library(
             user_id=user_id,
             filename=filename,
@@ -305,7 +308,6 @@ async def generate_stylized_image(
         )
 
         # Save to library
-        db = get_mongodb()
         library_doc = await gemini_service.save_to_library(
             user_id=user_id,
             filename=filename,
@@ -466,7 +468,6 @@ async def generate_logo_image(
         )
 
         # Save to library
-        db = get_mongodb()
         library_doc = await gemini_service.save_to_library(
             user_id=user_id,
             filename=filename,
