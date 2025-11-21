@@ -154,6 +154,8 @@ class GeminiBookCoverService:
             logger.info(f"   Aspect Ratio: {self.BOOK_ASPECT_RATIO}")
 
             # Generate image using Gemini
+            # Note: image_size/resolution is not supported in google-genai 1.47.0 ImageConfig
+            # Only aspect_ratio is supported.
             response = self.client.models.generate_content(
                 model="gemini-3-pro-image-preview",
                 contents=full_prompt,
@@ -161,7 +163,6 @@ class GeminiBookCoverService:
                     response_modalities=["TEXT", "IMAGE"],
                     image_config=types.ImageConfig(
                         aspect_ratio=self.BOOK_ASPECT_RATIO,
-                        image_size=resolution,
                     ),
                 ),
             )
