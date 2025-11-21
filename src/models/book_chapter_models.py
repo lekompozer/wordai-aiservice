@@ -189,6 +189,9 @@ class ChapterTreeNode(BaseModel):
     chapter_id: str
     title: str
     slug: str
+    description: Optional[str] = Field(
+        default=None, description="Chapter description (for SEO and preview)"
+    )
     order_index: int
     depth: int
     is_published: bool

@@ -125,12 +125,15 @@ class BookUpdate(BaseModel):
     """Request model to update guide"""
 
     title: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=500)
+    description: Optional[str] = Field(None, max_length=5000)  # Increased to 5000 chars
     visibility: Optional[BookVisibility] = None
     is_published: Optional[bool] = None
 
     # Point-based access (NEW)
     access_config: Optional[AccessConfig] = None
+
+    # Community marketplace (NEW)
+    community_config: Optional[CommunityConfig] = None
 
     # Branding
     logo_url: Optional[str] = None
@@ -256,6 +259,11 @@ class CommunityPublishRequest(BaseModel):
     tags: List[str] = Field(..., min_items=1, max_items=10, description="Search tags")
     difficulty_level: Optional[str] = Field(
         None, description="beginner|intermediate|advanced|expert (optional)"
+    )
+    description: Optional[str] = Field(
+        None,
+        max_length=5000,
+        description="Full book description (long form). If not provided, keeps existing book description.",
     )
     short_description: str = Field(..., min_length=10, max_length=5000)
     cover_image_url: Optional[str] = Field(None, description="Cover image URL")

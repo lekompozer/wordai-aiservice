@@ -293,6 +293,7 @@ async def get_chapter_tree(
 
         return {
             "book_id": book_id,
+            "description": book.get("description"),  # Book's full description
             "chapters": chapters,
             "total_chapters": total,
         }

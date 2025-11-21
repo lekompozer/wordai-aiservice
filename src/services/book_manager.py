@@ -407,6 +407,10 @@ class UserBookManager:
             }
         }
 
+        # Update book description if provided (optional)
+        if publish_data.get("description") is not None:
+            update_data["$set"]["description"] = publish_data["description"]
+
         # Update cover image if provided
         if publish_data.get("cover_image_url"):
             update_data["$set"]["community_config.cover_image_url"] = publish_data[
