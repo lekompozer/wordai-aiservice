@@ -14,8 +14,8 @@ class ChapterCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200, description="Chapter title")
     slug: Optional[str] = Field(
         None,
-        pattern="^[a-z0-9-]+$",
-        description="Chapter URL slug (auto-generated from title if not provided)",
+        max_length=200,
+        description="Chapter URL slug (will be auto-normalized to a-z0-9- format)",
     )
     document_id: Optional[str] = Field(
         None,
@@ -63,7 +63,7 @@ class ChapterUpdate(BaseModel):
 
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     slug: Optional[str] = Field(
-        None, pattern="^[a-z0-9-]+$", description="Chapter URL slug"
+        None, max_length=200, description="Chapter URL slug (will be auto-normalized)"
     )
     parent_id: Optional[str] = None
     order_index: Optional[int] = Field(None, ge=0)
