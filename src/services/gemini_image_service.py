@@ -64,8 +64,8 @@ class GeminiImageService:
         self.r2_access_key = os.getenv("R2_ACCESS_KEY_ID")
         self.r2_secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
         self.r2_endpoint = os.getenv("R2_ENDPOINT")
-        self.r2_bucket = os.getenv("R2_BUCKET_NAME", "wordai-documents")
-        self.r2_public_url = os.getenv("R2_PUBLIC_URL", "https://cdn.wordai.vn")
+        self.r2_bucket = os.getenv("R2_BUCKET_NAME", "wordai")
+        self.r2_public_url = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
 
         if not all([self.r2_access_key, self.r2_secret_key, self.r2_endpoint]):
             raise ValueError("R2 storage credentials not configured")
