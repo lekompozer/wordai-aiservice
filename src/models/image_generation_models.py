@@ -14,13 +14,12 @@ from datetime import datetime
 class ImageGenerationMetadata(BaseModel):
     """Metadata stored with generated images in library_files"""
 
-    source: str = "gemini-2.5-flash-image"
+    source: str = "gemini-3-pro-image-preview"
     generation_type: str  # photorealistic, stylized, logo, etc.
     prompt: str
     aspect_ratio: Optional[str] = None
-    resolution: Optional[str] = None
     generation_time_ms: Optional[int] = None
-    model_version: str = "gemini-2.5-flash-image"
+    model_version: str = "gemini-3-pro-image-preview"
     reference_images_count: int = 0
     user_options: dict = {}  # Stores lighting, camera_angle, style_preset, etc.
 
@@ -36,7 +35,6 @@ class PhotorealisticRequest(BaseModel):
         None, description="Elements to exclude (blur, distortion, etc.)"
     )
     aspect_ratio: str = Field("16:9", description="Image aspect ratio")
-    resolution: str = Field("2K", description="Image resolution (1K, 2K, 4K)")
     lighting: Optional[str] = Field(
         None, description="Natural|Studio|Cinematic|Golden Hour"
     )
@@ -55,7 +53,6 @@ class PhotorealisticResponse(BaseModel):
     r2_key: str
     prompt_used: str  # Full prompt sent to Gemini
     aspect_ratio: str
-    resolution: str
     generation_time_ms: int
     points_deducted: int = 2
     metadata: ImageGenerationMetadata
@@ -76,7 +73,6 @@ class StylizedRequest(BaseModel):
         False, description="Enable sticker style (white bg, die-cut)"
     )
     aspect_ratio: str = Field("1:1", description="Image aspect ratio")
-    resolution: str = Field("2K", description="Image resolution")
 
 
 class StylizedResponse(BaseModel):
@@ -91,7 +87,6 @@ class StylizedResponse(BaseModel):
     style_preset: str
     sticker_mode: bool
     aspect_ratio: str
-    resolution: str
     generation_time_ms: int
     points_deducted: int = 2
     metadata: ImageGenerationMetadata
@@ -146,7 +141,6 @@ class BackgroundRequest(BaseModel):
     )
     color_mood: str = Field("Dark", description="Dark|Light|Pastel|Vibrant")
     aspect_ratio: str = Field("16:9", description="Image aspect ratio")
-    resolution: str = Field("2K", description="Image resolution")
 
 
 class BackgroundResponse(BaseModel):
@@ -179,7 +173,6 @@ class MockupRequest(BaseModel):
         "Tabletop", description="Tabletop|Model Wearing|Outdoor|Studio Backdrop"
     )
     aspect_ratio: str = Field("4:3", description="Image aspect ratio")
-    resolution: str = Field("2K", description="Image resolution")
 
 
 class MockupResponse(BaseModel):
@@ -209,7 +202,6 @@ class SequentialRequest(BaseModel):
     panel_count: int = Field(1, ge=1, le=4, description="Number of panels (1-4)")
     style: str = Field("Comic Book", description="Comic Book|Manga|Storyboard Sketch")
     aspect_ratio: str = Field("16:9", description="Image aspect ratio")
-    resolution: str = Field("2K", description="Image resolution")
 
 
 class SequentialResponse(BaseModel):

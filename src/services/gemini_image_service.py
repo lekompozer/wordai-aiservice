@@ -27,9 +27,12 @@ from src.models.image_generation_models import ImageGenerationMetadata
 
 logger = logging.getLogger(__name__)
 
+# Model name constant
+GEMINI_MODEL = "gemini-3-pro-image-preview"
+
 
 class GeminiImageService:
-    """Service for generating images using Gemini 2.5 Flash Image"""
+    """Service for generating images using Gemini 3 Pro Image"""
 
     def __init__(self, api_key: Optional[str] = None):
         """
@@ -153,18 +156,16 @@ class GeminiImageService:
         generation_type: str,
         user_options: Dict[str, Any],
         aspect_ratio: str = "16:9",
-        resolution: str = "2K",
         reference_images: Optional[List[Image.Image]] = None,
     ) -> Dict[str, Any]:
         """
-        Generate image using Gemini 2.5 Flash Image
+        Generate image using Gemini 3 Pro Image
 
         Args:
             prompt: User's text prompt
             generation_type: Type of generation (photorealistic, stylized, etc.)
             user_options: Additional user options
             aspect_ratio: Image aspect ratio
-            resolution: Image resolution (1K, 2K, 4K)
             reference_images: Optional list of PIL Images for reference
 
         Returns:
@@ -183,35 +184,36 @@ class GeminiImageService:
 
             logger.info(f"🎨 Generating {generation_type} image with Gemini...")
             logger.info(f"   Prompt: {full_prompt[:100]}...")
-            logger.info(f"   Aspect ratio: {aspect_ratio}, Resolution: {resolution}")
+            logger.info(f"   Aspect ratio: {aspect_ratio}")
 
-            # Call Gemini API
+            # Call Gemini API (same pattern as book_cover_service)
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash-image",
+                model=GEMINI_MODEL,
                 contents=contents,
                 config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE"],
+                    response_modalities=["TEXT", "IMAGE"],
                     image_config=types.ImageConfig(
                         aspect_ratio=aspect_ratio,
-                        image_size=resolution,
                     ),
                 ),
             )
 
-            # Extract image from response
-            image_data = None
+            # Extract image from response (same pattern as book_cover_service)
+            image_bytes = None
+            text_response = None
+
             for part in response.parts:
-                if part.inline_data is not None:
-                    image_data = part.as_image()
+                if part.text is not None:
+                    text_response = part.text
+                    logger.info(f"📝 Gemini response text: {text_response[:100]}...")
+                elif image := part.as_image():
+                    # Get bytes directly from Gemini Image object
+                    image_bytes = image.image_bytes
+                    logger.info(f"✅ Image generated ({len(image_bytes)} bytes)")
                     break
 
-            if not image_data:
+            if not image_bytes:
                 raise Exception("No image returned from Gemini API")
-
-            # Convert PIL Image to bytes
-            image_buffer = BytesIO()
-            image_data.save(image_buffer, format="PNG")
-            image_bytes = image_buffer.getvalue()
 
             generation_time_ms = int((time.time() - start_time) * 1000)
 
@@ -227,6 +229,7 @@ class GeminiImageService:
                 "reference_images_count": (
                     len(reference_images) if reference_images else 0
                 ),
+                "gemini_response_text": text_response,
             }
 
         except Exception as e:
@@ -303,6 +306,10 @@ class GeminiImageService:
 
             library_id = f"lib_{uuid.uuid4().hex[:12]}"
             now = datetime.now(timezone.utc)
+
+            # Update metadata model version to match actual model used
+            generation_metadata.model_version = GEMINI_MODEL
+            generation_metadata.source = GEMINI_MODEL
 
             library_doc = {
                 "file_id": library_id,

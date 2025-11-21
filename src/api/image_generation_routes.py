@@ -66,7 +66,6 @@ async def generate_photorealistic_image(
         "prompt": "A beautiful mountain landscape at sunset",
         "negative_prompt": "blur, distortion",
         "aspect_ratio": "16:9",
-        "resolution": "2K",
         "lighting": "Golden Hour",
         "camera_angle": "Wide Angle"
     }
@@ -78,7 +77,6 @@ async def generate_photorealistic_image(
     **Optional Fields:**
     - `negative_prompt`: Elements to exclude
     - `aspect_ratio`: "1:1", "3:4", "4:3", "16:9", "9:16" (default: "16:9")
-    - `resolution`: "1K", "2K", "4K" (default: "2K")
     - `lighting`: "Natural", "Studio", "Cinematic", "Golden Hour"
     - `camera_angle`: "Wide Angle", "Macro", "Drone View", "Eye Level"
 
@@ -129,7 +127,6 @@ async def generate_photorealistic_image(
             generation_type="photorealistic",
             user_options=user_options,
             aspect_ratio=request.aspect_ratio,
-            resolution=request.resolution,
         )
 
         # Upload to R2
@@ -142,13 +139,12 @@ async def generate_photorealistic_image(
 
         # Create metadata
         metadata = ImageGenerationMetadata(
-            source="gemini-2.5-flash-image",
+            source="gemini-3-pro-image-preview",
             generation_type="photorealistic",
             prompt=request.prompt,
             aspect_ratio=request.aspect_ratio,
-            resolution=request.resolution,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-2.5-flash-image",
+            model_version="gemini-3-pro-image-preview",
             reference_images_count=0,
             user_options={
                 "lighting": request.lighting,
@@ -179,7 +175,6 @@ async def generate_photorealistic_image(
             r2_key=upload_result["r2_key"],
             prompt_used=result["prompt_used"],
             aspect_ratio=request.aspect_ratio,
-            resolution=request.resolution,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,
@@ -230,7 +225,6 @@ async def generate_stylized_image(
     - `style_preset` (text): "Anime"|"Watercolor"|"Oil Painting"|"Flat Design"|"3D Render"|"Sticker Art"
     - `sticker_mode` (boolean): Enable sticker style (white bg, die-cut)
     - `aspect_ratio` (text): Default "1:1"
-    - `resolution` (text): Default "2K"
     - `reference_image` (file, optional): Image to influence the style
 
     **Response:**
@@ -287,7 +281,6 @@ async def generate_stylized_image(
             generation_type="stylized",
             user_options=user_options,
             aspect_ratio=request.aspect_ratio,
-            resolution=request.resolution,
             reference_images=reference_images,
         )
 
@@ -301,13 +294,12 @@ async def generate_stylized_image(
 
         # Create metadata
         metadata = ImageGenerationMetadata(
-            source="gemini-2.5-flash-image",
+            source="gemini-3-pro-image-preview",
             generation_type="stylized",
             prompt=request.prompt,
             aspect_ratio=request.aspect_ratio,
-            resolution=request.resolution,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-2.5-flash-image",
+            model_version="gemini-3-pro-image-preview",
             reference_images_count=result["reference_images_count"],
             user_options=user_options,
         )
@@ -336,7 +328,6 @@ async def generate_stylized_image(
             style_preset=request.style_preset,
             sticker_mode=request.sticker_mode,
             aspect_ratio=request.aspect_ratio,
-            resolution=request.resolution,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,
@@ -452,7 +443,6 @@ async def generate_logo_image(
             generation_type="logo",
             user_options=user_options,
             aspect_ratio=request.aspect_ratio,
-            resolution="2K",  # Logos always use 2K for quality
         )
 
         # Upload to R2
@@ -465,13 +455,12 @@ async def generate_logo_image(
 
         # Create metadata
         metadata = ImageGenerationMetadata(
-            source="gemini-2.5-flash-image",
+            source="gemini-3-pro-image-preview",
             generation_type="logo",
             prompt=prompt,
             aspect_ratio=request.aspect_ratio,
-            resolution="2K",
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-2.5-flash-image",
+            model_version="gemini-3-pro-image-preview",
             reference_images_count=0,
             user_options=user_options,
         )
