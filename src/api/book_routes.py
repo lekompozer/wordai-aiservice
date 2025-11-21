@@ -3810,7 +3810,8 @@ async def list_community_books(
                         .title(),
                     }
 
-            # Get 2 most recent chapters (by created_at DESC, fallback to order_index DESC)
+            # Get 2 most recent chapters (by order_index DESC - highest chapter numbers)
+            # Fallback to created_at DESC if order_index same
             recent_chapters = []
             chapters = list(
                 db.book_chapters.find(
@@ -3824,7 +3825,7 @@ async def list_community_books(
                         "_id": 0,
                     },
                 )
-                .sort([("created_at", -1), ("order_index", -1)])  # Sort by both fields
+                .sort([("order_index", -1), ("created_at", -1)])  # Order first, then created_at
                 .limit(2)
             )
             for chapter in chapters:
