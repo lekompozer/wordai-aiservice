@@ -106,9 +106,7 @@ class GeminiImageService:
             if user_options.get("camera_angle"):
                 prompt_parts.append(f"Camera angle: {user_options['camera_angle']}.")
             if user_options.get("negative_prompt"):
-                prompt_parts.append(
-                    f"Avoid: {user_options['negative_prompt']}."
-                )
+                prompt_parts.append(f"Avoid: {user_options['negative_prompt']}.")
 
         elif generation_type == "stylized":
             style = user_options.get("style_preset", "Anime")
@@ -126,9 +124,7 @@ class GeminiImageService:
             if user_options.get("style"):
                 prompt_parts.append(f"Logo style: {user_options['style']}.")
             if user_options.get("color_palette"):
-                prompt_parts.append(
-                    f"Color palette: {user_options['color_palette']}."
-                )
+                prompt_parts.append(f"Color palette: {user_options['color_palette']}.")
 
         elif generation_type == "background":
             if user_options.get("minimalist_mode"):
@@ -228,7 +224,9 @@ class GeminiImageService:
                 "format": "PNG",
                 "prompt_used": full_prompt,
                 "generation_time_ms": generation_time_ms,
-                "reference_images_count": len(reference_images) if reference_images else 0,
+                "reference_images_count": (
+                    len(reference_images) if reference_images else 0
+                ),
             }
 
         except Exception as e:
@@ -318,7 +316,9 @@ class GeminiImageService:
                 "r2_key": r2_key,
                 "file_url": file_url,
                 "category": "images",
-                "description": generation_metadata.prompt[:200],  # Truncate to 200 chars
+                "description": generation_metadata.prompt[
+                    :200
+                ],  # Truncate to 200 chars
                 "tags": ["ai-generated", generation_metadata.generation_type],
                 "metadata": generation_metadata.dict(),
                 "is_deleted": False,

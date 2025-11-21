@@ -430,9 +430,7 @@ async def generate_logo_image(
         logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
 
         # Build prompt for logo
-        prompt_parts = [
-            f"Create a professional logo for {request.industry} business."
-        ]
+        prompt_parts = [f"Create a professional logo for {request.industry} business."]
         if request.visual_elements:
             prompt_parts.append(f"Include visual elements: {request.visual_elements}.")
         if request.tagline:
