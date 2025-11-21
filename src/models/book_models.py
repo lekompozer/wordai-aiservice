@@ -72,7 +72,7 @@ class BookCreate(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=200, description="Guide title")
     description: Optional[str] = Field(
-        None, max_length=500, description="Guide description"
+        None, max_length=5000, description="Guide description"
     )
     slug: str = Field(
         ..., min_length=1, max_length=100, description="URL-friendly slug"
