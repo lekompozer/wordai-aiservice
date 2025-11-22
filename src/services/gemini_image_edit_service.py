@@ -211,12 +211,11 @@ class GeminiImageEditService:
             # Prepare reference images for new API
             reference_images = []
 
-            # Add original image as base reference
+            # Add original image as base reference (RawReferenceImage for editing)
             reference_images.append(
-                {
-                    "image": original_pil,
-                    "reference_type": "STYLE",  # or appropriate type
-                }
+                types.RawReferenceImage(
+                    reference_image=types.Image(image=original_pil),
+                )
             )
 
             # Add mask image if provided (for inpainting)
@@ -224,10 +223,9 @@ class GeminiImageEditService:
                 mask_bytes = await mask_image.read()
                 mask_pil = Image.open(io.BytesIO(mask_bytes))
                 reference_images.append(
-                    {
-                        "image": mask_pil,
-                        "reference_type": "MASK",
-                    }
+                    types.MaskReferenceImage(
+                        reference_image=types.Image(image=mask_pil),
+                    )
                 )
                 logger.info(f"🎭 Mask image added: {mask_pil.size}")
 
@@ -238,10 +236,9 @@ class GeminiImageEditService:
                     img_bytes = await img.read()
                     img_pil = Image.open(io.BytesIO(img_bytes))
                     reference_images.append(
-                        {
-                            "image": img_pil,
-                            "reference_type": "STYLE",
-                        }
+                        types.StyleReferenceImage(
+                            reference_image=types.Image(image=img_pil),
+                        )
                     )
                     logger.info(f"   - Image: {img_pil.size}")
 
@@ -259,13 +256,28 @@ class GeminiImageEditService:
 
             # Call Gemini API with new edit_image method
             logger.info(f"🤖 Calling Gemini API: {GEMINI_MODEL}")
+
+            # Determine edit mode based on edit type
+            edit_mode_map = {
+                "style_transfer": types.EditMode.EDIT_MODE_STYLE,
+                "object_edit": types.EditMode.EDIT_MODE_CONTROLLED_EDITING,
+                "inpainting": (
+                    types.EditMode.EDIT_MODE_INPAINT_INSERTION
+                    if params.get("action") == "add"
+                    else types.EditMode.EDIT_MODE_INPAINT_REMOVAL
+                ),
+                "composition": types.EditMode.EDIT_MODE_PRODUCT_IMAGE,
+            }
+            edit_mode = edit_mode_map.get(edit_type, types.EditMode.EDIT_MODE_DEFAULT)
+            logger.info(f"🎨 Edit mode: {edit_mode}")
+
             response = self.client.models.edit_image(
                 model=GEMINI_MODEL,
                 prompt=prompt,
                 reference_images=reference_images,
                 config=types.EditImageConfig(
                     aspect_ratio=gemini_aspect_ratio,
-                    edit_mode="edit-preset-1",  # or appropriate edit mode
+                    edit_mode=edit_mode,
                 ),
             )
             logger.info(f"✅ Gemini API response received")
