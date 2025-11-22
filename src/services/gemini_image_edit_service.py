@@ -319,11 +319,47 @@ class GeminiImageEditService:
             )
             logger.info(f"✅ Gemini API response received")
 
+            # Debug logging
+            logger.info(
+                f"🔍 Response structure: candidates={len(response.candidates) if response.candidates else 0}"
+            )
+            if response.candidates:
+                candidate = response.candidates[0]
+                logger.info(f"🔍 Candidate finish_reason: {candidate.finish_reason}")
+                logger.info(f"🔍 Candidate content: {candidate.content}")
+                if candidate.content:
+                    logger.info(
+                        f"🔍 Content parts: {len(candidate.content.parts) if candidate.content.parts else 0}"
+                    )
+
             # Extract image from response
             image_bytes = None
-            if response.candidates and response.candidates[0].content.parts:
-                for part in response.candidates[0].content.parts:
-                    if part.inline_data:
+            if response.candidates and len(response.candidates) > 0:
+                candidate = response.candidates[0]
+
+                # Check if content exists
+                if not candidate.content:
+                    logger.error(
+                        f"❌ No content in response. Finish reason: {candidate.finish_reason}"
+                    )
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"No content generated. Reason: {candidate.finish_reason}",
+                    )
+
+                # Check if parts exist
+                if not candidate.content.parts:
+                    logger.error(
+                        f"❌ No parts in content. Finish reason: {candidate.finish_reason}"
+                    )
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"No content parts generated. Reason: {candidate.finish_reason}",
+                    )
+
+                # Extract image
+                for part in candidate.content.parts:
+                    if hasattr(part, "inline_data") and part.inline_data:
                         logger.info(f"🖼️ Image extracted from response (inline_data)")
                         image_bytes = part.inline_data.data
                         logger.info(
