@@ -20,8 +20,9 @@ from src.models.image_generation_models import (
 from src.services.gemini_image_service import get_gemini_image_service
 from src.services.points_service import get_points_service
 from src.database.db_manager import DBManager
+from src.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 router = APIRouter(
     prefix="/api/v1/images/generate", tags=["AI Image Generation - Phase 2"]

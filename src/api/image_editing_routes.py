@@ -27,8 +27,9 @@ from src.models.image_editing_models import (
     CompositionRequest,
     CompositionResponse,
 )
+from src.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 
 router = APIRouter(prefix="/api/v1/images/edit")

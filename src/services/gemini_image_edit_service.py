@@ -27,8 +27,9 @@ from google import genai
 from google.genai import types
 
 from src.database.db_manager import DBManager
+from src.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger()
 
 
 # Gemini Model Configuration
