@@ -209,7 +209,12 @@ from src.api.community_routes import router as community_router
 
 # ✅ ADDED: Image Generation API - AI-powered image generation using Gemini 2.5 Flash Image
 from src.api.image_generation_routes import router as image_generation_router
-from src.api.image_generation_phase2_routes import router as image_generation_phase2_router
+from src.api.image_generation_phase2_routes import (
+    router as image_generation_phase2_router,
+)
+
+# ✅ ADDED: Image Editing API - AI-powered image editing using Gemini 3 Pro Image
+from src.api.image_editing_routes import router as image_editing_router
 
 # Global startup time for uptime tracking
 startup_time = time.time()
@@ -856,9 +861,14 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Image Generation API - AI-powered image generation (Phase 1: Photorealistic, Stylized, Logo)
     app.include_router(image_generation_router, tags=["AI Image Generation"])
-    
+
     # ✅ ADDED: Image Generation Phase 2 API - Background, Mockup, Sequential Art
-    app.include_router(image_generation_phase2_router, tags=["AI Image Generation - Phase 2"])
+    app.include_router(
+        image_generation_phase2_router, tags=["AI Image Generation - Phase 2"]
+    )
+
+    # ✅ ADDED: Image Editing API - Style Transfer, Object Edit, Inpainting, Composition
+    app.include_router(image_editing_router, tags=["AI Image Editing"])
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
     app.include_router(
