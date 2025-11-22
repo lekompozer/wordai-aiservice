@@ -22,7 +22,9 @@ from src.database.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1/images/generate", tags=["AI Image Generation - Phase 2"])
+router = APIRouter(
+    prefix="/api/v1/images/generate", tags=["AI Image Generation - Phase 2"]
+)
 
 # Initialize DB connection
 db_manager = DBManager()
@@ -136,7 +138,9 @@ async def generate_background_image(
             )
         except Exception:
             pass
-        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Image generation failed: {str(e)}"
+        )
 
 
 @router.post(
@@ -241,7 +245,9 @@ async def generate_mockup_image(
             )
         except Exception:
             pass
-        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Image generation failed: {str(e)}"
+        )
 
 
 @router.post(
@@ -348,4 +354,6 @@ async def generate_sequential_image(
             )
         except Exception:
             pass
-        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Image generation failed: {str(e)}"
+        )

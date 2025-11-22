@@ -159,7 +159,7 @@ async def edit_object_in_image(
 
     # Check and deduct points
     subscription_service = SubscriptionService()
-    points_required = 3
+    points_required = 2
 
     if not await subscription_service.check_and_deduct_points(
         user_id, points_required, "object_edit_image"
@@ -250,7 +250,7 @@ async def inpaint_image(
 
     # Check and deduct points
     subscription_service = SubscriptionService()
-    points_required = 3
+    points_required = 2
 
     if not await subscription_service.check_and_deduct_points(
         user_id, points_required, "inpainting_image"
@@ -357,7 +357,7 @@ async def compose_images(
 
     # Check and deduct points
     subscription_service = SubscriptionService()
-    points_required = 5
+    points_required = 2
 
     if not await subscription_service.check_and_deduct_points(
         user_id, points_required, "compose_images"
