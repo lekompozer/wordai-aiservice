@@ -126,6 +126,7 @@ class GeminiImageEditService:
             strength = params.get("strength", 80)
             preserve = params.get("preserve_structure", True)
             style = params.get("target_style")
+            aspect_ratio = params.get("aspect_ratio", "1:1")
 
             # Get detailed style definition
             style_description = STYLE_DEFINITIONS.get(
@@ -133,27 +134,32 @@ class GeminiImageEditService:
             )
 
             # Build comprehensive prompt with style details
-            prompt = f"Transform the provided image into {style_description} "
+            prompt = "Act as an expert digital artist. "
+            prompt += f"Generate a new image based on the provided input image, transforming it into the style of '{style}'.\n"
+            prompt += f"Style Description: {style_description}\n"
 
             if preserve:
-                prompt += "Preserve the original composition, layout, and structure of the scene. "
-
-            prompt += f"Apply the style transformation with {strength}% intensity. "
-
-            if strength > 80:
-                prompt += "Apply bold, dramatic stylistic changes with strong effect. "
-            elif strength < 40:
-                prompt += (
-                    "Apply subtle stylistic hints while keeping it mostly realistic. "
-                )
+                prompt += "CRITICAL INSTRUCTION: Preserve the original composition, subject pose, and structural layout exactly as they are. Only change the artistic style, textures, and lighting. "
             else:
-                prompt += "Balance between original and stylized aesthetic. "
+                prompt += "You may adapt the composition slightly to better fit the artistic style, but keep the main subject recognizable. "
 
-            prompt += "Ensure all elements are rendered in the target style with consistent artistic treatment. "
-            prompt += "Maintain high image quality and clarity. "
-            prompt += (
-                "Keep recognizable subjects while applying the artistic transformation."
-            )
+            prompt += f"Style Strength: {strength}%. "
+
+            if strength >= 80:
+                prompt += "Apply the style aggressively. The final image should look like a complete artwork in this style, not just a filter. "
+            elif strength <= 40:
+                prompt += "Apply the style subtly. The original photo realism should still be visible, with just a hint of the artistic style. "
+            else:
+                prompt += (
+                    "Balance the original image details with the new artistic style. "
+                )
+
+            prompt += f"Output Aspect Ratio: {aspect_ratio}. "
+            prompt += "Ensure high quality, detailed rendering, and consistent artistic application across the entire image. "
+            prompt += "Do not simply return the original image; you must generate a new image with the applied style."
+
+            # Add unique identifier to prevent caching
+            prompt += f" [Request ID: {uuid.uuid4()}]"
 
         elif edit_type == "object_edit":
             target = params.get("target_object")
@@ -213,7 +219,7 @@ class GeminiImageEditService:
         # Add negative prompt if provided
         negative = params.get("negative_prompt")
         if negative:
-            prompt += f" Avoid: {negative}."
+            prompt += f"\nNegative Prompt (Avoid these elements): {negative}."
 
         return prompt
 
@@ -364,11 +370,18 @@ class GeminiImageEditService:
             if response.candidates:
                 candidate = response.candidates[0]
                 logger.info(f"🔍 Candidate finish_reason: {candidate.finish_reason}")
-                logger.info(f"🔍 Candidate content: {candidate.content}")
-                if candidate.content:
-                    logger.info(
-                        f"🔍 Content parts: {len(candidate.content.parts) if candidate.content.parts else 0}"
-                    )
+                if candidate.content and candidate.content.parts:
+                    logger.info(f"🔍 Content parts: {len(candidate.content.parts)}")
+                    # Log part types without printing full binary data
+                    for i, part in enumerate(candidate.content.parts):
+                        if hasattr(part, "text") and part.text:
+                            logger.info(f"   Part {i}: text ({len(part.text)} chars)")
+                        elif hasattr(part, "inline_data") and part.inline_data:
+                            logger.info(
+                                f"   Part {i}: inline_data ({part.inline_data.mime_type})"
+                            )
+                else:
+                    logger.warning("🔍 No content parts in response")
 
             # Extract image from response
             image_bytes = None
