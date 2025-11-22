@@ -32,21 +32,35 @@ from src.utils.logger import setup_logger
 logger = setup_logger()
 
 
-# Gemini Model Configuration
-GEMINI_MODEL = "gemini-3-pro-image-preview"
+# Vertex AI Model Configuration for Image Editing
+# Imagen 3 is Google's latest image generation/editing model on Vertex AI
+GEMINI_MODEL = "imagen-3.0-generate-001"
 
 
 class GeminiImageEditService:
-    """Service for editing images using Gemini 3 Pro Image"""
+    """Service for editing images using Gemini 3 Pro Image via Vertex AI"""
 
     def __init__(self):
-        """Initialize Gemini client and database"""
-        # Initialize Gemini API client
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set")
+        """Initialize Vertex AI Gemini client and database"""
+        # Initialize Vertex AI client for image editing
+        # VERTEX_API_KEY is used for authentication
+        vertex_api_key = os.getenv("VERTEX_API_KEY")
+        if not vertex_api_key:
+            raise ValueError("VERTEX_API_KEY environment variable not set")
 
-        self.client = genai.Client(api_key=api_key)
+        # Initialize Vertex AI client
+        # Project: agent8-d1090 (from service account: vertex-express@agent8-d1090.iam.gserviceaccount.com)
+        try:
+            self.client = genai.Client(
+                vertexai=True,
+                api_key=vertex_api_key,
+                project="agent8-d1090",
+                location="us-central1",
+            )
+            logger.info("✅ Vertex AI Gemini client initialized successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize Vertex AI client: {e}")
+            raise
 
         # Initialize database
         db_manager = DBManager()
