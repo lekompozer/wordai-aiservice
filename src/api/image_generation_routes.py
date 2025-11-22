@@ -3,7 +3,7 @@ Image Generation Routes - Gemini 2.5 Flash Image API
 Endpoints for generating images using AI
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from typing import Optional, List
 import logging
 
@@ -211,8 +211,18 @@ async def generate_photorealistic_image(
     summary="Generate stylized illustration or sticker",
 )
 async def generate_stylized_image(
-    request: StylizedRequest,
-    reference_image: Optional[UploadFile] = File(None),
+    prompt: str = Form(..., description="Subject description"),
+    style_preset: str = Form(
+        ...,
+        description="Anime|Watercolor|Oil Painting|Flat Design|3D Render|Sticker Art",
+    ),
+    sticker_mode: bool = Form(
+        False, description="Enable sticker style (white bg, die-cut)"
+    ),
+    aspect_ratio: str = Form("1:1", description="Image aspect ratio"),
+    reference_image: Optional[UploadFile] = File(
+        None, description="Optional reference image"
+    ),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -247,7 +257,7 @@ async def generate_stylized_image(
             user_id=user_id,
             amount=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Stylized image ({request.style_preset}): {request.prompt[:50]}",
+            description=f"Stylized image ({style_preset}): {prompt[:50]}",
         )
 
         logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
@@ -267,22 +277,22 @@ async def generate_stylized_image(
 
         # Prepare user options
         user_options = {
-            "style_preset": request.style_preset,
-            "sticker_mode": request.sticker_mode,
+            "style_preset": style_preset,
+            "sticker_mode": sticker_mode,
         }
 
         # Generate image
         gemini_service = get_gemini_image_service()
         result = await gemini_service.generate_image(
-            prompt=request.prompt,
+            prompt=prompt,
             generation_type="stylized",
             user_options=user_options,
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
             reference_images=reference_images,
         )
 
         # Upload to R2
-        filename = f"stylized_{request.style_preset.lower().replace(' ', '_')}_{request.aspect_ratio.replace(':', 'x')}.png"
+        filename = f"stylized_{style_preset.lower().replace(' ', '_')}_{aspect_ratio.replace(':', 'x')}.png"
         upload_result = await gemini_service.upload_to_r2(
             image_bytes=result["image_bytes"],
             user_id=user_id,
@@ -293,8 +303,8 @@ async def generate_stylized_image(
         metadata = ImageGenerationMetadata(
             source="gemini-3-pro-image-preview",
             generation_type="stylized",
-            prompt=request.prompt,
-            aspect_ratio=request.aspect_ratio,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             model_version="gemini-3-pro-image-preview",
             reference_images_count=result["reference_images_count"],
@@ -321,9 +331,9 @@ async def generate_stylized_image(
             file_url=upload_result["file_url"],
             r2_key=upload_result["r2_key"],
             prompt_used=result["prompt_used"],
-            style_preset=request.style_preset,
-            sticker_mode=request.sticker_mode,
-            aspect_ratio=request.aspect_ratio,
+            style_preset=style_preset,
+            sticker_mode=sticker_mode,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,
