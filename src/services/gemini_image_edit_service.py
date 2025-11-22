@@ -49,12 +49,12 @@ class GeminiImageEditService:
             raise ValueError("VERTEX_API_KEY environment variable not set")
 
         # Initialize Vertex AI client
-        # Project: agent8-d1090 (from service account: vertex-express@agent8-d1090.iam.gserviceaccount.com)
+        # Project: wordai-6779e (from service account: vertex-express@wordai-6779e.iam.gserviceaccount.com)
         try:
             self.client = genai.Client(
                 vertexai=True,
                 api_key=vertex_api_key,
-                project="agent8-d1090",
+                project="wordai-6779e",
                 location="us-central1",
             )
             logger.info("✅ Vertex AI Gemini client initialized successfully")
