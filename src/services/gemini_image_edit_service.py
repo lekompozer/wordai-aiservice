@@ -36,6 +36,34 @@ logger = setup_logger()
 # Using Gemini 2.5 Flash Image for image generation/editing capabilities
 GEMINI_MODEL = "gemini-2.5-flash-image"
 
+# Style Definitions for Image Editing
+STYLE_DEFINITIONS = {
+    "Van Gogh": "Post-impressionist style with distinctive swirling brushstrokes, vivid colors and intense emotions.",
+    "Picasso": "Cubist style with fragmented forms, multiple perspectives and abstract representation.",
+    "Monet": "Impressionist style with natural light, soft brushstrokes and blended colors.",
+    "Pop Art": "Vibrant colors, high contrast, mass culture style with bold printed outlines.",
+    "Watercolor": "Transparent watercolor effect with soft color bleeds, gentle outlines and airy feeling.",
+    "Oil Painting": "Thick oil paint strokes, rich texture, deep colors and classical depth.",
+    "Sketch": "Pencil or charcoal sketch with free lines, black and white tones and draft feeling.",
+    "Anime: Shonen": "Dynamic, powerful, action-packed. Sharp lines, determined poses and expressions.",
+    "Anime: Shojo": "Romantic, gentle, delicate beauty. Large sparkling eyes, intricate details, bright colors.",
+    "Anime: Seinen": "Mature, realistic and complex. Body proportions closer to real, refined lines.",
+    "Anime: Chibi": "Big head, small body, cute and adorable. Perfect for selfies and cute expressions.",
+    "Anime: Manga": "Traditional manga style, black and white with screening, paper drawing effect.",
+    "Anime: Studio Ghibli": "Beautiful natural scenery, soft film colors, simple yet lively characters.",
+    "Anime: Cyberpunk": "Futuristic high-tech. Neon lights, mechanical details, digital effects.",
+    "Anime: Dark Fantasy": "Mysterious dark, sometimes scary. Dark colors, strong contrast, magic and monster elements.",
+    "Anime: Watercolor": "Watercolor effect with soft bleeds, blurred outlines, clear and dreamy feeling.",
+    "Anime: Pixel Art": "Early video game graphics simulation. Large pixel blocks, retro nostalgic style.",
+    "3D: Final Fantasy": "High-detail 3D with JRPG style. 3D anime characters, cinematic lighting, intricate textures.",
+    "3D: Marvel Comics": "Marvel superhero 3D style. Muscular physique, heroic poses, powerful energy effects.",
+    # Aliases for common naming variations
+    "Cyberpunk": "Futuristic high-tech. Neon lights, mechanical details, digital effects.",
+    "Studio Ghibli": "Beautiful natural scenery, soft film colors, simple yet lively characters.",
+    "Chibi": "Big head, small body, cute and adorable. Perfect for selfies and cute expressions.",
+    "Dark Fantasy": "Mysterious dark, sometimes scary. Dark colors, strong contrast, magic and monster elements.",
+}
+
 
 class GeminiImageEditService:
     """Service for editing images using Gemini 3 Pro Image via Vertex AI"""
@@ -99,14 +127,21 @@ class GeminiImageEditService:
             preserve = params.get("preserve_structure", True)
             style = params.get("target_style")
 
-            prompt = (
-                f"Transform the provided image into the artistic style of {style}. "
+            # Get detailed style definition
+            style_description = STYLE_DEFINITIONS.get(
+                style, f"the artistic style of {style}"
             )
+
+            # Build comprehensive prompt with style details
+            prompt = f"Transform the provided image into {style_description} "
+
             if preserve:
                 prompt += "Preserve the original composition, layout, and structure of the scene. "
-            prompt += f"Style strength: {strength}%. "
+
+            prompt += f"Apply the style transformation with {strength}% intensity. "
+
             if strength > 80:
-                prompt += "Apply bold, dramatic stylistic changes. "
+                prompt += "Apply bold, dramatic stylistic changes with strong effect. "
             elif strength < 40:
                 prompt += (
                     "Apply subtle stylistic hints while keeping it mostly realistic. "
@@ -115,7 +150,10 @@ class GeminiImageEditService:
                 prompt += "Balance between original and stylized aesthetic. "
 
             prompt += "Ensure all elements are rendered in the target style with consistent artistic treatment. "
-            prompt += "Maintain image quality and clarity."
+            prompt += "Maintain high image quality and clarity. "
+            prompt += (
+                "Keep recognizable subjects while applying the artistic transformation."
+            )
 
         elif edit_type == "object_edit":
             target = params.get("target_object")
