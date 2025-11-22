@@ -156,7 +156,8 @@ class GeminiImageEditService:
 
             prompt += f"Output Aspect Ratio: {aspect_ratio}. "
             prompt += "Ensure high quality, detailed rendering, and consistent artistic application across the entire image. "
-            prompt += "Do not simply return the original image; you must generate a new image with the applied style."
+            prompt += "The output MUST be a new image with the requested style applied, not just a copy of the original. "
+            prompt += "Make the style transformation obvious and distinct. "
 
             # Add unique identifier to prevent caching
             prompt += f" [Request ID: {uuid.uuid4()}]"
@@ -359,6 +360,24 @@ class GeminiImageEditService:
                 contents=contents,
                 config=types.GenerateContentConfig(
                     response_modalities=["IMAGE", "TEXT"],
+                    safety_settings=[
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HATE_SPEECH",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                        types.SafetySetting(
+                            category="HARM_CATEGORY_HARASSMENT",
+                            threshold="BLOCK_ONLY_HIGH",
+                        ),
+                    ],
                 ),
             )
             logger.info(f"✅ Gemini API response received")
