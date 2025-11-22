@@ -51,11 +51,11 @@ class GeminiImageEditService:
         # Initialize Vertex AI client
         # Project: wordai-6779e (from service account: vertex-express@wordai-6779e.iam.gserviceaccount.com)
         try:
+            # When using API key with Vertex AI, project and location must NOT be specified
+            # as they are mutually exclusive with api_key in the client initializer
             self.client = genai.Client(
                 vertexai=True,
                 api_key=vertex_api_key,
-                project="wordai-6779e",
-                location="us-central1",
             )
             logger.info("✅ Vertex AI Gemini client initialized successfully")
         except Exception as e:
