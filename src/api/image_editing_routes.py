@@ -13,6 +13,7 @@ All endpoints require authentication and deduct points from user's subscription.
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import Optional, List
 import json
+import logging
 from src.middleware.firebase_auth import get_current_user
 from src.services.gemini_image_edit_service import GeminiImageEditService
 from src.services.points_service import get_points_service
@@ -26,6 +27,8 @@ from src.models.image_editing_models import (
     CompositionRequest,
     CompositionResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api/v1/images/edit")
@@ -51,12 +54,18 @@ async def validate_file_size(file: UploadFile, max_size: int = MAX_FILE_SIZE) ->
     contents = await file.read()
     file_size = len(contents)
 
+    logger.info(f"📎 Validating file: {file.filename}, size: {file_size // 1024}KB")
+
     if file_size > max_size:
+        logger.error(
+            f"❌ File too large: {file_size // (1024 * 1024)}MB exceeds {max_size // (1024 * 1024)}MB limit"
+        )
         raise HTTPException(
             status_code=413,
             detail=f"Image file size exceeds {max_size // (1024 * 1024)}MB limit. Current size: {file_size // (1024 * 1024)}MB",
         )
 
+    logger.info(f"✅ File validation passed")
     # Reset file pointer for reuse
     await file.seek(0)
     return contents
@@ -108,6 +117,10 @@ async def style_transfer_image(
     """
     user_id = current_user["user_id"]
 
+    logger.info(
+        f"🎨 Style Transfer Request - User: {user_id}, Style: {target_style}, File: {original_image.filename}"
+    )
+
     # Validate file size
     await validate_file_size(original_image)
 
@@ -122,6 +135,8 @@ async def style_transfer_image(
         description=f"Style transfer: {target_style}",
     )
 
+    logger.info(f"✅ Points deducted: {points_required}")
+
     try:
         # Initialize service
         edit_service = GeminiImageEditService()
@@ -135,6 +150,8 @@ async def style_transfer_image(
             "negative_prompt": negative_prompt,
         }
 
+        logger.info(f"🔧 Calling Gemini edit service with params: {params}")
+
         # Edit image
         result = await edit_service.edit_image(
             edit_type="style_transfer",
@@ -143,9 +160,11 @@ async def style_transfer_image(
             params=params,
         )
 
+        logger.info(f"✅ Style transfer completed: {result.get('file_id')}")
         return StyleTransferResponse(**result)
 
     except Exception as e:
+        logger.error(f"❌ Style transfer failed: {str(e)}")
         # Refund points on failure
         await points_service.refund_points(
             user_id=user_id,
@@ -153,6 +172,7 @@ async def style_transfer_image(
             reason="Refund for failed style transfer",
             original_transaction_id=str(transaction.id) if transaction else None,
         )
+        logger.info(f"💰 Points refunded: {points_required}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -193,6 +213,10 @@ async def edit_object_in_image(
     """
     user_id = current_user["user_id"]
 
+    logger.info(
+        f"✏️ Object Edit Request - User: {user_id}, Object: {target_object}, Modification: {modification}"
+    )
+
     # Validate file size
     await validate_file_size(original_image)
 
@@ -207,6 +231,8 @@ async def edit_object_in_image(
         description=f"Object edit: {target_object}",
     )
 
+    logger.info(f"✅ Points deducted: {points_required}")
+
     try:
         # Initialize service
         edit_service = GeminiImageEditService()
@@ -220,6 +246,8 @@ async def edit_object_in_image(
             "negative_prompt": negative_prompt,
         }
 
+        logger.info(f"🔧 Calling Gemini edit service")
+
         # Edit image
         result = await edit_service.edit_image(
             edit_type="object_edit",
@@ -228,9 +256,11 @@ async def edit_object_in_image(
             params=params,
         )
 
+        logger.info(f"✅ Object edit completed: {result.get('file_id')}")
         return ObjectEditResponse(**result)
 
     except Exception as e:
+        logger.error(f"❌ Object edit failed: {str(e)}")
         # Refund points on failure
         await points_service.refund_points(
             user_id=user_id,
@@ -238,6 +268,7 @@ async def edit_object_in_image(
             reason="Refund for failed object edit",
             original_transaction_id=str(transaction.id) if transaction else None,
         )
+        logger.info(f"💰 Points refunded: {points_required}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -289,9 +320,14 @@ async def inpaint_image(
     """
     user_id = current_user["user_id"]
 
+    logger.info(
+        f"🎨 Inpainting Request - User: {user_id}, Action: {action}, Has mask: {mask_image is not None}"
+    )
+
     # Validate file sizes
     await validate_file_size(original_image)
     if mask_image:
+        logger.info(f"👉 Mask image provided: {mask_image.filename}")
         await validate_file_size(mask_image)
 
     # Check and deduct points
@@ -304,6 +340,8 @@ async def inpaint_image(
         service="ai_image_edit",
         description=f"Inpainting: {action}",
     )
+
+    logger.info(f"✅ Points deducted: {points_required}")
 
     try:
         # Initialize service
@@ -318,6 +356,8 @@ async def inpaint_image(
             "negative_prompt": negative_prompt,
         }
 
+        logger.info(f"🔧 Calling Gemini edit service for inpainting")
+
         # Edit image
         result = await edit_service.edit_image(
             edit_type="inpainting",
@@ -327,9 +367,11 @@ async def inpaint_image(
             mask_image=mask_image,
         )
 
+        logger.info(f"✅ Inpainting completed: {result.get('file_id')}")
         return InpaintingResponse(**result)
 
     except Exception as e:
+        logger.error(f"❌ Inpainting failed: {str(e)}")
         # Refund points on failure
         await points_service.refund_points(
             user_id=user_id,
@@ -337,6 +379,7 @@ async def inpaint_image(
             reason="Refund for failed inpainting",
             original_transaction_id=str(transaction.id) if transaction else None,
         )
+        logger.info(f"💰 Points refunded: {points_required}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -396,8 +439,13 @@ async def compose_images(
     """
     user_id = current_user["user_id"]
 
+    logger.info(
+        f"🎭 Composition Request - User: {user_id}, Overlay count: {len(overlay_images) if overlay_images else 0}"
+    )
+
     # Validate: at least 2 images total (base + 1 overlay)
     if not overlay_images or len(overlay_images) == 0:
+        logger.error("❌ No overlay images provided")
         raise HTTPException(
             status_code=400,
             detail="At least one overlay image is required for composition",
@@ -405,7 +453,8 @@ async def compose_images(
 
     # Validate file sizes
     await validate_file_size(base_image)
-    for overlay in overlay_images:
+    for idx, overlay in enumerate(overlay_images):
+        logger.info(f"   - Overlay {idx + 1}: {overlay.filename}")
         await validate_file_size(overlay)
 
     # Check and deduct points
@@ -418,6 +467,8 @@ async def compose_images(
         service="ai_image_edit",
         description="Image composition",
     )
+
+    logger.info(f"✅ Points deducted: {points_required}")
 
     try:
         # Initialize service
@@ -432,6 +483,8 @@ async def compose_images(
             "negative_prompt": negative_prompt,
         }
 
+        logger.info(f"🔧 Calling Gemini edit service for composition")
+
         # Edit image (composition)
         result = await edit_service.edit_image(
             edit_type="composition",
@@ -441,9 +494,11 @@ async def compose_images(
             additional_images=overlay_images,
         )
 
+        logger.info(f"✅ Composition completed: {result.get('file_id')}")
         return CompositionResponse(**result)
 
     except Exception as e:
+        logger.error(f"❌ Composition failed: {str(e)}")
         # Refund points on failure
         await points_service.refund_points(
             user_id=user_id,
@@ -451,4 +506,5 @@ async def compose_images(
             reason="Refund for failed composition",
             original_transaction_id=str(transaction.id) if transaction else None,
         )
+        logger.info(f"💰 Points refunded: {points_required}")
         raise HTTPException(status_code=500, detail=str(e))

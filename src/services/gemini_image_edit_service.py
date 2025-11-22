@@ -16,6 +16,7 @@ All edited images are:
 import os
 import time
 import uuid
+import logging
 from typing import Optional, List, Dict, Any, BinaryIO
 from fastapi import UploadFile, HTTPException
 from PIL import Image
@@ -26,6 +27,8 @@ from google import genai
 from google.genai import types
 
 from src.database.db_manager import DBManager
+
+logger = logging.getLogger(__name__)
 
 
 # Gemini Model Configuration
@@ -188,15 +191,21 @@ class GeminiImageEditService:
         """
         start_time = time.time()
 
+        logger.info(f"🚀 Starting {edit_type} operation for user {user_id}")
+
         try:
             # Read and validate original image
             original_bytes = await original_image.read()
             original_pil = Image.open(io.BytesIO(original_bytes))
+            logger.info(
+                f"🖼️ Original image loaded: {original_pil.size} ({original_pil.mode})"
+            )
 
             # Build prompt
             prompt = self._build_edit_prompt(
                 edit_type, params, has_mask=mask_image is not None
             )
+            logger.info(f"📝 Generated prompt: {prompt[:200]}...")
 
             # Prepare content for Gemini API
             contents = [prompt, original_pil]
@@ -206,13 +215,16 @@ class GeminiImageEditService:
                 mask_bytes = await mask_image.read()
                 mask_pil = Image.open(io.BytesIO(mask_bytes))
                 contents.append(mask_pil)
+                logger.info(f"🎭 Mask image added: {mask_pil.size}")
 
             # Add additional images if provided (for composition)
             if additional_images:
+                logger.info(f"🖼️ Adding {len(additional_images)} additional images")
                 for img in additional_images:
                     img_bytes = await img.read()
                     img_pil = Image.open(io.BytesIO(img_bytes))
                     contents.append(img_pil)
+                    logger.info(f"   - Image: {img_pil.size}")
 
             # Get aspect ratio configuration
             aspect_ratio = params.get("aspect_ratio", "1:1")
@@ -224,8 +236,10 @@ class GeminiImageEditService:
                 "3:4": "3:4",
             }
             gemini_aspect_ratio = aspect_ratio_map.get(aspect_ratio, "1:1")
+            logger.info(f"📊 Aspect ratio: {aspect_ratio} -> {gemini_aspect_ratio}")
 
             # Call Gemini API
+            logger.info(f"🤖 Calling Gemini API: {GEMINI_MODEL}")
             response = self.client.models.generate_content(
                 model=GEMINI_MODEL,
                 contents=contents,
@@ -236,6 +250,7 @@ class GeminiImageEditService:
                     ),
                 ),
             )
+            logger.info(f"✅ Gemini API response received")
 
             # Extract image from response
             image_bytes = None
@@ -243,20 +258,25 @@ class GeminiImageEditService:
                 if hasattr(part, "inline_data") and part.inline_data:
                     # Extract bytes from Gemini Image object
                     gemini_image = part.as_image()
+                    logger.info(f"🖼️ Image extracted from response: {gemini_image.size}")
                     # Convert PIL Image to bytes
                     img_byte_arr = io.BytesIO()
                     gemini_image.save(img_byte_arr, format="JPEG", quality=95)
                     image_bytes = img_byte_arr.getvalue()
+                    logger.info(f"📦 Image bytes size: {len(image_bytes) // 1024}KB")
                     break
 
             if not image_bytes:
+                logger.error("❌ No image generated from Gemini API")
                 raise HTTPException(
                     status_code=500, detail="No image generated from Gemini API"
                 )
 
             generation_time = time.time() - start_time
+            logger.info(f"⏱️ Generation time: {generation_time:.2f}s")
 
             # Upload to R2 and save to library
+            logger.info("📤 Uploading to R2...")
             file_data = await self.upload_to_r2(image_bytes, user_id)
             file_size = len(image_bytes)
 
@@ -270,6 +290,7 @@ class GeminiImageEditService:
             points_used = points_map.get(edit_type, 3)
 
             # Save to library
+            logger.info(f"💾 Saving to library (points: {points_used})...")
             library_data = await self.save_to_library(
                 user_id=user_id,
                 file_url=file_data["file_url"],
@@ -290,6 +311,10 @@ class GeminiImageEditService:
                 },
             )
 
+            logger.info(
+                f"✅ Edit complete! File ID: {library_data['file_id']}, URL: {file_data['file_url']}"
+            )
+
             return {
                 "image_url": file_data["file_url"],
                 "file_id": library_data["file_id"],
@@ -305,6 +330,7 @@ class GeminiImageEditService:
             }
 
         except Exception as e:
+            logger.error(f"❌ Image editing failed: {str(e)}")
             raise HTTPException(
                 status_code=500, detail=f"Image editing failed: {str(e)}"
             )
@@ -325,6 +351,8 @@ class GeminiImageEditService:
             filename = f"{int(time.time())}_{uuid.uuid4().hex[:8]}.jpg"
             r2_key = f"ai-edited-images/{user_id}/{filename}"
 
+            logger.info(f"☁️ Uploading to R2: {r2_key}")
+
             # Upload to R2
             self.r2_client.put_object(
                 Bucket=self.r2_bucket_name,
@@ -336,12 +364,15 @@ class GeminiImageEditService:
             # Construct public URL
             file_url = f"{self.r2_public_url}/{r2_key}"
 
+            logger.info(f"✅ R2 upload complete: {file_url}")
+
             return {
                 "file_url": file_url,
                 "r2_key": r2_key,
             }
 
         except ClientError as e:
+            logger.error(f"❌ R2 upload failed: {str(e)}")
             raise HTTPException(status_code=500, detail=f"R2 upload failed: {str(e)}")
 
     async def save_to_library(
