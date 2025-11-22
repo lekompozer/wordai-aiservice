@@ -8,12 +8,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-api_key = os.getenv("VERTEX_API_KEY")
+# Try GEMINI_API_KEY instead of VERTEX_API_KEY
+api_key = os.getenv("GEMINI_API_KEY")
 if not api_key:
-    print("VERTEX_API_KEY not found")
+    print("GEMINI_API_KEY not found")
     exit(1)
 
-client = genai.Client(vertexai=True, api_key=api_key)
+# Use AI Studio (NOT vertexai) with GEMINI_API_KEY
+client = genai.Client(api_key=api_key)
 
 # Load the specific image requested by the user
 image_path = "docs/wordai/hoian.jpg"

@@ -32,7 +32,7 @@ from src.utils.logger import setup_logger
 logger = setup_logger()
 
 
-# Vertex AI Model Configuration for Image Editing
+# Gemini Model Configuration for Image Editing
 # Using Gemini 2.5 Flash Image for image generation/editing capabilities
 GEMINI_MODEL = "gemini-2.5-flash-image"
 
@@ -41,25 +41,23 @@ class GeminiImageEditService:
     """Service for editing images using Gemini 3 Pro Image via Vertex AI"""
 
     def __init__(self):
-        """Initialize Vertex AI Gemini client and database"""
-        # Initialize Vertex AI client for image editing
-        # VERTEX_API_KEY is used for authentication
-        vertex_api_key = os.getenv("VERTEX_API_KEY")
-        if not vertex_api_key:
-            raise ValueError("VERTEX_API_KEY environment variable not set")
+        """Initialize Gemini AI Studio client and database"""
+        # Initialize Gemini AI Studio client for image editing
+        # GEMINI_API_KEY is used for authentication (AI Studio, not Vertex AI)
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not gemini_api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set")
 
-        # Initialize Vertex AI client
-        # Project: wordai-6779e (from service account: vertex-express@wordai-6779e.iam.gserviceaccount.com)
+        # Initialize Gemini AI Studio client
+        # Using AI Studio API (not Vertex AI) for better model availability
         try:
-            # When using API key with Vertex AI, project and location must NOT be specified
-            # as they are mutually exclusive with api_key in the client initializer
+            # Using AI Studio (without vertexai=True) for global model access
             self.client = genai.Client(
-                vertexai=True,
-                api_key=vertex_api_key,
+                api_key=gemini_api_key,
             )
-            logger.info("✅ Vertex AI Gemini client initialized successfully")
+            logger.info("✅ Gemini AI Studio client initialized successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Vertex AI client: {e}")
+            logger.error(f"❌ Failed to initialize Gemini client: {e}")
             raise
 
         # Initialize database
@@ -298,49 +296,40 @@ class GeminiImageEditService:
             gemini_aspect_ratio = aspect_ratio_map.get(aspect_ratio, "1:1")
             logger.info(f"📊 Aspect ratio: {aspect_ratio} -> {gemini_aspect_ratio}")
 
-            # Call Gemini API with new edit_image method
+            # Call Gemini API with generate_content method (Gemini 2.5 Flash Image)
             logger.info(f"🤖 Calling Gemini API: {GEMINI_MODEL}")
 
-            # Determine edit mode based on edit type
-            edit_mode_map = {
-                "style_transfer": types.EditMode.EDIT_MODE_STYLE,
-                "object_edit": types.EditMode.EDIT_MODE_CONTROLLED_EDITING,
-                "inpainting": (
-                    types.EditMode.EDIT_MODE_INPAINT_INSERTION
-                    if params.get("action") == "add"
-                    else types.EditMode.EDIT_MODE_INPAINT_REMOVAL
-                ),
-                "composition": types.EditMode.EDIT_MODE_PRODUCT_IMAGE,
-            }
-            edit_mode = edit_mode_map.get(edit_type, types.EditMode.EDIT_MODE_DEFAULT)
-            logger.info(f"🎨 Edit mode: {edit_mode}")
+            # Construct contents for generate_content
+            contents = []
 
-            response = self.client.models.edit_image(
+            # Add original image
+            contents.append(
+                types.Part.from_bytes(data=original_img_bytes, mime_type="image/jpeg")
+            )
+
+            # Add prompt
+            contents.append(prompt)
+
+            response = self.client.models.generate_content(
                 model=GEMINI_MODEL,
-                prompt=prompt,
-                reference_images=reference_images,
-                config=types.EditImageConfig(
-                    aspect_ratio=gemini_aspect_ratio,
-                    edit_mode=edit_mode,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE", "TEXT"],
                 ),
             )
             logger.info(f"✅ Gemini API response received")
 
             # Extract image from response
             image_bytes = None
-            if response.generated_images:
-                generated_image = response.generated_images[0]
-                # Get image from response
-                if hasattr(generated_image, "image"):
-                    gemini_image = generated_image.image
-                    logger.info(f"🖼️ Image extracted from response")
-                    # Convert PIL Image to bytes
-                    img_byte_arr = io.BytesIO()
-                    gemini_image.save(img_byte_arr, format="JPEG", quality=95)
-                    image_bytes = img_byte_arr.getvalue()
-                    logger.info(f"📦 Image bytes size: {len(image_bytes) // 1024}KB")
-                else:
-                    logger.error("❌ Generated image has no image data")
+            if response.candidates and response.candidates[0].content.parts:
+                for part in response.candidates[0].content.parts:
+                    if part.inline_data:
+                        logger.info(f"🖼️ Image extracted from response (inline_data)")
+                        image_bytes = part.inline_data.data
+                        logger.info(
+                            f"📦 Image bytes size: {len(image_bytes) // 1024}KB"
+                        )
+                        break
 
             if not image_bytes:
                 logger.error("❌ No image generated from Gemini API")
