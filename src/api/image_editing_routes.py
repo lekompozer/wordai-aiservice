@@ -15,7 +15,7 @@ from typing import Optional, List
 import json
 from src.middleware.firebase_auth import get_current_user
 from src.services.gemini_image_edit_service import GeminiImageEditService
-from src.services.subscription_service import SubscriptionService
+from src.services.points_service import get_points_service
 from src.models.image_editing_models import (
     StyleTransferRequest,
     StyleTransferResponse,
@@ -29,6 +29,37 @@ from src.models.image_editing_models import (
 
 
 router = APIRouter(prefix="/api/v1/images/edit")
+
+# File size limit: 10MB
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB in bytes
+
+
+async def validate_file_size(file: UploadFile, max_size: int = MAX_FILE_SIZE) -> bytes:
+    """
+    Validate file size and return file contents
+
+    Args:
+        file: Uploaded file
+        max_size: Maximum file size in bytes (default 10MB)
+
+    Returns:
+        File contents as bytes
+
+    Raises:
+        HTTPException: If file size exceeds limit
+    """
+    contents = await file.read()
+    file_size = len(contents)
+
+    if file_size > max_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Image file size exceeds {max_size // (1024 * 1024)}MB limit. Current size: {file_size // (1024 * 1024)}MB",
+        )
+
+    # Reset file pointer for reuse
+    await file.seek(0)
+    return contents
 
 
 # ============================================================================
@@ -77,17 +108,19 @@ async def style_transfer_image(
     """
     user_id = current_user["user_id"]
 
+    # Validate file size
+    await validate_file_size(original_image)
+
     # Check and deduct points
-    subscription_service = SubscriptionService()
+    points_service = get_points_service()
     points_required = 2
 
-    if not await subscription_service.check_and_deduct_points(
-        user_id, points_required, "style_transfer_image"
-    ):
-        raise HTTPException(
-            status_code=402,
-            detail="Insufficient points. Please upgrade your subscription.",
-        )
+    transaction = await points_service.deduct_points(
+        user_id=user_id,
+        amount=points_required,
+        service="ai_image_edit",
+        description=f"Style transfer: {target_style}",
+    )
 
     try:
         # Initialize service
@@ -114,8 +147,11 @@ async def style_transfer_image(
 
     except Exception as e:
         # Refund points on failure
-        await subscription_service.refund_points(
-            user_id, points_required, "style_transfer_image_failed"
+        await points_service.refund_points(
+            user_id=user_id,
+            amount=points_required,
+            reason="Refund for failed style transfer",
+            original_transaction_id=str(transaction.id) if transaction else None,
         )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -157,17 +193,19 @@ async def edit_object_in_image(
     """
     user_id = current_user["user_id"]
 
+    # Validate file size
+    await validate_file_size(original_image)
+
     # Check and deduct points
-    subscription_service = SubscriptionService()
+    points_service = get_points_service()
     points_required = 2
 
-    if not await subscription_service.check_and_deduct_points(
-        user_id, points_required, "object_edit_image"
-    ):
-        raise HTTPException(
-            status_code=402,
-            detail="Insufficient points. Please upgrade your subscription.",
-        )
+    transaction = await points_service.deduct_points(
+        user_id=user_id,
+        amount=points_required,
+        service="ai_image_edit",
+        description=f"Object edit: {target_object}",
+    )
 
     try:
         # Initialize service
@@ -194,8 +232,11 @@ async def edit_object_in_image(
 
     except Exception as e:
         # Refund points on failure
-        await subscription_service.refund_points(
-            user_id, points_required, "object_edit_image_failed"
+        await points_service.refund_points(
+            user_id=user_id,
+            amount=points_required,
+            reason="Refund for failed object edit",
+            original_transaction_id=str(transaction.id) if transaction else None,
         )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -248,17 +289,21 @@ async def inpaint_image(
     """
     user_id = current_user["user_id"]
 
+    # Validate file sizes
+    await validate_file_size(original_image)
+    if mask_image:
+        await validate_file_size(mask_image)
+
     # Check and deduct points
-    subscription_service = SubscriptionService()
+    points_service = get_points_service()
     points_required = 2
 
-    if not await subscription_service.check_and_deduct_points(
-        user_id, points_required, "inpainting_image"
-    ):
-        raise HTTPException(
-            status_code=402,
-            detail="Insufficient points. Please upgrade your subscription.",
-        )
+    transaction = await points_service.deduct_points(
+        user_id=user_id,
+        amount=points_required,
+        service="ai_image_edit",
+        description=f"Inpainting: {action}",
+    )
 
     try:
         # Initialize service
@@ -286,8 +331,11 @@ async def inpaint_image(
 
     except Exception as e:
         # Refund points on failure
-        await subscription_service.refund_points(
-            user_id, points_required, "inpainting_image_failed"
+        await points_service.refund_points(
+            user_id=user_id,
+            amount=points_required,
+            reason="Refund for failed inpainting",
+            original_transaction_id=str(transaction.id) if transaction else None,
         )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -355,17 +403,21 @@ async def compose_images(
             detail="At least one overlay image is required for composition",
         )
 
+    # Validate file sizes
+    await validate_file_size(base_image)
+    for overlay in overlay_images:
+        await validate_file_size(overlay)
+
     # Check and deduct points
-    subscription_service = SubscriptionService()
+    points_service = get_points_service()
     points_required = 2
 
-    if not await subscription_service.check_and_deduct_points(
-        user_id, points_required, "compose_images"
-    ):
-        raise HTTPException(
-            status_code=402,
-            detail="Insufficient points. Please upgrade your subscription.",
-        )
+    transaction = await points_service.deduct_points(
+        user_id=user_id,
+        amount=points_required,
+        service="ai_image_edit",
+        description="Image composition",
+    )
 
     try:
         # Initialize service
@@ -393,7 +445,10 @@ async def compose_images(
 
     except Exception as e:
         # Refund points on failure
-        await subscription_service.refund_points(
-            user_id, points_required, "compose_images_failed"
+        await points_service.refund_points(
+            user_id=user_id,
+            amount=points_required,
+            reason="Refund for failed composition",
+            original_transaction_id=str(transaction.id) if transaction else None,
         )
         raise HTTPException(status_code=500, detail=str(e))

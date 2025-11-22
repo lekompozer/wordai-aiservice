@@ -55,10 +55,10 @@ async def generate_background_image(
 
     try:
         points_service = get_points_service()
-        success = await points_service.deduct_points(
+        transaction = await points_service.deduct_points(
             user_id=user_id,
-            points=POINTS_PER_GENERATION,
-            action="ai_image_generation",
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
             description=f"Background: {request.theme[:50]}",
         )
 
@@ -130,11 +130,11 @@ async def generate_background_image(
     except Exception as e:
         logger.error(f"❌ Error generating background: {e}")
         try:
-            await points_service.add_points(
+            await points_service.refund_points(
                 user_id=user_id,
-                points=POINTS_PER_GENERATION,
-                action="ai_image_generation_refund",
-                description="Refund for failed image generation",
+                amount=POINTS_PER_GENERATION,
+                reason="Refund for failed background generation",
+                original_transaction_id=str(transaction.id) if transaction else None,
             )
         except Exception:
             pass
@@ -164,10 +164,10 @@ async def generate_mockup_image(
 
     try:
         points_service = get_points_service()
-        success = await points_service.deduct_points(
+        transaction = await points_service.deduct_points(
             user_id=user_id,
-            points=POINTS_PER_GENERATION,
-            action="ai_image_generation",
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
             description=f"Mockup: {request.scene_description[:50]}",
         )
 
@@ -237,11 +237,11 @@ async def generate_mockup_image(
     except Exception as e:
         logger.error(f"❌ Error generating mockup: {e}")
         try:
-            await points_service.add_points(
+            await points_service.refund_points(
                 user_id=user_id,
-                points=POINTS_PER_GENERATION,
-                action="ai_image_generation_refund",
-                description="Refund for failed image generation",
+                amount=POINTS_PER_GENERATION,
+                reason="Refund for failed mockup generation",
+                original_transaction_id=str(transaction.id) if transaction else None,
             )
         except Exception:
             pass
@@ -271,10 +271,10 @@ async def generate_sequential_image(
 
     try:
         points_service = get_points_service()
-        success = await points_service.deduct_points(
+        transaction = await points_service.deduct_points(
             user_id=user_id,
-            points=POINTS_PER_GENERATION,
-            action="ai_image_generation",
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
             description=f"Sequential art: {request.story_script[:50]}",
         )
 
@@ -346,11 +346,11 @@ async def generate_sequential_image(
     except Exception as e:
         logger.error(f"❌ Error generating sequential art: {e}")
         try:
-            await points_service.add_points(
+            await points_service.refund_points(
                 user_id=user_id,
-                points=POINTS_PER_GENERATION,
-                action="ai_image_generation_refund",
-                description="Refund for failed image generation",
+                amount=POINTS_PER_GENERATION,
+                reason="Refund for failed sequential generation",
+                original_transaction_id=str(transaction.id) if transaction else None,
             )
         except Exception:
             pass
