@@ -211,10 +211,17 @@ class GeminiImageEditService:
             # Prepare reference images for new API
             reference_images = []
 
+            # Convert original PIL image to bytes for API
+            original_img_bytes = io.BytesIO()
+            original_pil.save(original_img_bytes, format="JPEG")
+            original_img_bytes = original_img_bytes.getvalue()
+
             # Add original image as base reference (RawReferenceImage for editing)
             reference_images.append(
                 types.RawReferenceImage(
-                    reference_image=types.Image(image=original_pil),
+                    reference_image=types.Image(
+                        image_bytes=original_img_bytes, mime_type="image/jpeg"
+                    ),
                 )
             )
 
@@ -222,9 +229,17 @@ class GeminiImageEditService:
             if mask_image:
                 mask_bytes = await mask_image.read()
                 mask_pil = Image.open(io.BytesIO(mask_bytes))
+
+                # Convert mask PIL to bytes
+                mask_img_bytes = io.BytesIO()
+                mask_pil.save(mask_img_bytes, format="PNG")
+                mask_img_bytes = mask_img_bytes.getvalue()
+
                 reference_images.append(
                     types.MaskReferenceImage(
-                        reference_image=types.Image(image=mask_pil),
+                        reference_image=types.Image(
+                            image_bytes=mask_img_bytes, mime_type="image/png"
+                        ),
                     )
                 )
                 logger.info(f"🎭 Mask image added: {mask_pil.size}")
@@ -235,9 +250,17 @@ class GeminiImageEditService:
                 for img in additional_images:
                     img_bytes = await img.read()
                     img_pil = Image.open(io.BytesIO(img_bytes))
+
+                    # Convert PIL to bytes
+                    add_img_bytes = io.BytesIO()
+                    img_pil.save(add_img_bytes, format="JPEG")
+                    add_img_bytes = add_img_bytes.getvalue()
+
                     reference_images.append(
                         types.StyleReferenceImage(
-                            reference_image=types.Image(image=img_pil),
+                            reference_image=types.Image(
+                                image_bytes=add_img_bytes, mime_type="image/jpeg"
+                            ),
                         )
                     )
                     logger.info(f"   - Image: {img_pil.size}")
