@@ -33,8 +33,8 @@ logger = setup_logger()
 
 
 # Vertex AI Model Configuration for Image Editing
-# Imagen 3 is Google's latest image generation/editing model on Vertex AI
-GEMINI_MODEL = "imagen-3.0-generate-001"
+# Using Gemini 2.5 Flash Image for image generation/editing capabilities
+GEMINI_MODEL = "gemini-2.5-flash-image"
 
 
 class GeminiImageEditService:
