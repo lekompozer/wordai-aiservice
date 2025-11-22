@@ -46,9 +46,9 @@ class DynamicCORSMiddleware(BaseHTTPMiddleware):
             return response
 
         except Exception as e:
-            logger.error(f"CORS middleware error: {e}")
-            # Pass through to regular middleware chain on error
-            return await call_next(request)
+            logger.error(f"CORS middleware error: {e}", exc_info=True)
+            # Return error response instead of calling call_next again
+            return Response(content=f"CORS middleware error: {str(e)}", status_code=500)
 
     async def handle_preflight(self, request: Request) -> Response:
         """Handle CORS preflight requests"""
