@@ -208,14 +208,27 @@ class GeminiImageEditService:
             )
             logger.info(f"📝 Generated prompt: {prompt[:200]}...")
 
-            # Prepare content for Gemini API
-            contents = [prompt, original_pil]
+            # Prepare reference images for new API
+            reference_images = []
+
+            # Add original image as base reference
+            reference_images.append(
+                {
+                    "image": original_pil,
+                    "reference_type": "STYLE",  # or appropriate type
+                }
+            )
 
             # Add mask image if provided (for inpainting)
             if mask_image:
                 mask_bytes = await mask_image.read()
                 mask_pil = Image.open(io.BytesIO(mask_bytes))
-                contents.append(mask_pil)
+                reference_images.append(
+                    {
+                        "image": mask_pil,
+                        "reference_type": "MASK",
+                    }
+                )
                 logger.info(f"🎭 Mask image added: {mask_pil.size}")
 
             # Add additional images if provided (for composition)
@@ -224,7 +237,12 @@ class GeminiImageEditService:
                 for img in additional_images:
                     img_bytes = await img.read()
                     img_pil = Image.open(io.BytesIO(img_bytes))
-                    contents.append(img_pil)
+                    reference_images.append(
+                        {
+                            "image": img_pil,
+                            "reference_type": "STYLE",
+                        }
+                    )
                     logger.info(f"   - Image: {img_pil.size}")
 
             # Get aspect ratio configuration
@@ -239,33 +257,34 @@ class GeminiImageEditService:
             gemini_aspect_ratio = aspect_ratio_map.get(aspect_ratio, "1:1")
             logger.info(f"📊 Aspect ratio: {aspect_ratio} -> {gemini_aspect_ratio}")
 
-            # Call Gemini API
+            # Call Gemini API with new edit_image method
             logger.info(f"🤖 Calling Gemini API: {GEMINI_MODEL}")
-            response = self.client.models.generate_content(
+            response = self.client.models.edit_image(
                 model=GEMINI_MODEL,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_modalities=["TEXT", "IMAGE"],
-                    image_generation_config=types.ImageGenerationConfig(
-                        aspect_ratio=gemini_aspect_ratio,
-                    ),
+                prompt=prompt,
+                reference_images=reference_images,
+                config=types.EditImageConfig(
+                    aspect_ratio=gemini_aspect_ratio,
+                    edit_mode="edit-preset-1",  # or appropriate edit mode
                 ),
             )
             logger.info(f"✅ Gemini API response received")
 
             # Extract image from response
             image_bytes = None
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, "inline_data") and part.inline_data:
-                    # Extract bytes from Gemini Image object
-                    gemini_image = part.as_image()
-                    logger.info(f"🖼️ Image extracted from response: {gemini_image.size}")
+            if response.generated_images:
+                generated_image = response.generated_images[0]
+                # Get image from response
+                if hasattr(generated_image, "image"):
+                    gemini_image = generated_image.image
+                    logger.info(f"🖼️ Image extracted from response")
                     # Convert PIL Image to bytes
                     img_byte_arr = io.BytesIO()
                     gemini_image.save(img_byte_arr, format="JPEG", quality=95)
                     image_bytes = img_byte_arr.getvalue()
                     logger.info(f"📦 Image bytes size: {len(image_bytes) // 1024}KB")
-                    break
+                else:
+                    logger.error("❌ Generated image has no image data")
 
             if not image_bytes:
                 logger.error("❌ No image generated from Gemini API")
