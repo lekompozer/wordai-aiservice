@@ -45,14 +45,14 @@ STYLE_DEFINITIONS = {
     "Watercolor": "Transparent watercolor effect with soft color bleeds, gentle outlines and airy feeling.",
     "Oil Painting": "Thick oil paint strokes, rich texture, deep colors and classical depth.",
     "Sketch": "Pencil or charcoal sketch with free lines, black and white tones and draft feeling.",
-    "Anime: Shonen": "Dynamic, powerful, action-packed. Sharp lines, determined poses and expressions.",
+    "Anime: Shonen": "Dynamic, powerful, action-oriented. Sharp lines, determined poses and expressions.",
     "Anime: Shojo": "Romantic, gentle, delicate beauty. Large sparkling eyes, intricate details, bright colors.",
-    "Anime: Seinen": "Mature, realistic and complex. Body proportions closer to real, refined lines.",
+    "Anime: Seinen": "High-quality realistic anime style. Complex details, realistic body proportions, refined lines, cinematic lighting.",
     "Anime: Chibi": "Big head, small body, cute and adorable. Perfect for selfies and cute expressions.",
     "Anime: Manga": "Traditional manga style, black and white with screening, paper drawing effect.",
     "Anime: Studio Ghibli": "Beautiful natural scenery, soft film colors, simple yet lively characters.",
     "Anime: Cyberpunk": "Futuristic high-tech. Neon lights, mechanical details, digital effects.",
-    "Anime: Dark Fantasy": "Mysterious dark, sometimes scary. Dark colors, strong contrast, magic and monster elements.",
+    "Anime: Dark Fantasy": "Mysterious, atmospheric, dark fantasy style. Dark colors, strong contrast, magic and supernatural elements.",
     "Anime: Watercolor": "Watercolor effect with soft bleeds, blurred outlines, clear and dreamy feeling.",
     "Anime: Pixel Art": "Early video game graphics simulation. Large pixel blocks, retro nostalgic style.",
     "3D: Final Fantasy": "High-detail 3D with JRPG style. 3D anime characters, cinematic lighting, intricate textures.",
@@ -355,32 +355,66 @@ class GeminiImageEditService:
             # Add prompt
             contents.append(prompt)
 
-            response = self.client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_modalities=["IMAGE", "TEXT"],
-                    safety_settings=[
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HATE_SPEECH",
-                            threshold="BLOCK_ONLY_HIGH",
+            # Retry logic for API calls
+            max_retries = 2
+            response = None
+
+            for attempt in range(max_retries):
+                try:
+                    logger.info(
+                        f"🤖 Calling Gemini API: {GEMINI_MODEL} (Attempt {attempt + 1}/{max_retries})"
+                    )
+                    response = self.client.models.generate_content(
+                        model=GEMINI_MODEL,
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            response_modalities=["IMAGE", "TEXT"],
+                            safety_settings=[
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_HATE_SPEECH",
+                                    threshold="BLOCK_ONLY_HIGH",
+                                ),
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                                    threshold="BLOCK_ONLY_HIGH",
+                                ),
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                    threshold="BLOCK_ONLY_HIGH",
+                                ),
+                                types.SafetySetting(
+                                    category="HARM_CATEGORY_HARASSMENT",
+                                    threshold="BLOCK_ONLY_HIGH",
+                                ),
+                            ],
                         ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                        types.SafetySetting(
-                            category="HARM_CATEGORY_HARASSMENT",
-                            threshold="BLOCK_ONLY_HIGH",
-                        ),
-                    ],
-                ),
-            )
-            logger.info(f"✅ Gemini API response received")
+                    )
+
+                    # Check if we got a valid response with content
+                    if response.candidates and response.candidates[0].content:
+                        logger.info(
+                            f"✅ Gemini API response received successfully on attempt {attempt + 1}"
+                        )
+                        break
+
+                    # If we got a response but no content (e.g. safety block or other reason)
+                    finish_reason = (
+                        response.candidates[0].finish_reason
+                        if response.candidates
+                        else "UNKNOWN"
+                    )
+                    logger.warning(
+                        f"⚠️ Attempt {attempt + 1} failed. Finish reason: {finish_reason}"
+                    )
+
+                    if attempt < max_retries - 1:
+                        time.sleep(1)
+
+                except Exception as e:
+                    logger.error(f"❌ Attempt {attempt + 1} exception: {e}")
+                    if attempt == max_retries - 1:
+                        raise
+                    time.sleep(1)
 
             # Debug logging
             logger.info(
