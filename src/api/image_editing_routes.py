@@ -116,7 +116,7 @@ async def style_transfer_image(
     - Pixel art
     - Abstract geometric
     """
-    user_id = current_user["user_id"]
+    user_id = current_user.get("uid")
 
     logger.info(
         f"🎨 Style Transfer Request - User: {user_id}, Style: {target_style}, File: {original_image.filename}"
@@ -212,7 +212,7 @@ async def edit_object_in_image(
     - Add details: "add racing stripes"
     - Change material: "make it wooden/metallic"
     """
-    user_id = current_user["user_id"]
+    user_id = current_user.get("uid")
 
     logger.info(
         f"✏️ Object Edit Request - User: {user_id}, Object: {target_object}, Modification: {modification}"
@@ -319,7 +319,7 @@ async def inpaint_image(
     - Replace elements (change a shirt, swap objects)
     - Fill empty areas with new content
     """
-    user_id = current_user["user_id"]
+    user_id = current_user.get("uid")
 
     logger.info(
         f"🎨 Inpainting Request - User: {user_id}, Action: {action}, Has mask: {mask_image is not None}"
@@ -438,7 +438,7 @@ async def compose_images(
     - Then upload overlay images (clothing/products)
     - Be specific in prompt about placement and integration
     """
-    user_id = current_user["user_id"]
+    user_id = current_user.get("uid")
 
     logger.info(
         f"🎭 Composition Request - User: {user_id}, Overlay count: {len(overlay_images) if overlay_images else 0}"
