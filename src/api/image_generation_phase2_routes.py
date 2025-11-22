@@ -3,7 +3,8 @@ Additional endpoints for Gemini Image Generation (Phase 2)
 Background, Mockup, and Sequential Art generation
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Form
+from typing import Optional
 import logging
 
 from src.middleware.firebase_auth import get_current_user
@@ -40,7 +41,13 @@ POINTS_PER_GENERATION = 2
     summary="Generate thematic background",
 )
 async def generate_background_image(
-    request: BackgroundRequest,
+    theme: str = Form(..., description="Background theme/description"),
+    aspect_ratio: str = Form("16:9", description="Image aspect ratio"),
+    minimalist_mode: bool = Form(False, description="Minimalist style"),
+    negative_space_position: Optional[str] = Form(
+        None, description="Text placement area"
+    ),
+    color_mood: Optional[str] = Form(None, description="Color mood"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -59,30 +66,24 @@ async def generate_background_image(
             user_id=user_id,
             amount=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Background: {request.theme[:50]}",
+            description=f"Background: {theme[:50]}",
         )
 
-        if not success:
-            raise HTTPException(
-                status_code=402,
-                detail=f"Insufficient points. Need {POINTS_PER_GENERATION} points.",
-            )
-
         user_options = {
-            "minimalist_mode": request.minimalist_mode,
-            "negative_space_position": request.negative_space_position,
-            "color_mood": request.color_mood,
+            "minimalist_mode": minimalist_mode,
+            "negative_space_position": negative_space_position,
+            "color_mood": color_mood,
         }
 
         gemini_service = get_gemini_image_service()
         result = await gemini_service.generate_image(
-            prompt=request.theme,
+            prompt=theme,
             generation_type="background",
             user_options=user_options,
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
         )
 
-        filename = f"background_{request.aspect_ratio.replace(':', 'x')}.png"
+        filename = f"background_{aspect_ratio.replace(':', 'x')}.png"
         upload_result = await gemini_service.upload_to_r2(
             image_bytes=result["image_bytes"],
             user_id=user_id,
@@ -92,8 +93,8 @@ async def generate_background_image(
         metadata = ImageGenerationMetadata(
             source="gemini-3-pro-image-preview",
             generation_type="background",
-            prompt=request.theme,
-            aspect_ratio=request.aspect_ratio,
+            prompt=theme,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             model_version="gemini-3-pro-image-preview",
             reference_images_count=0,
@@ -117,9 +118,9 @@ async def generate_background_image(
             file_url=upload_result["file_url"],
             r2_key=upload_result["r2_key"],
             prompt_used=result["prompt_used"],
-            theme=request.theme,
-            minimalist_mode=request.minimalist_mode,
-            aspect_ratio=request.aspect_ratio,
+            theme=theme,
+            minimalist_mode=minimalist_mode,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,
@@ -149,7 +150,9 @@ async def generate_background_image(
     summary="Generate product mockup",
 )
 async def generate_mockup_image(
-    request: MockupRequest,
+    scene_description: str = Form(..., description="Product scene description"),
+    placement_type: str = Form(..., description="Placement type"),
+    aspect_ratio: str = Form("16:9", description="Image aspect ratio"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -168,28 +171,22 @@ async def generate_mockup_image(
             user_id=user_id,
             amount=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Mockup: {request.scene_description[:50]}",
+            description=f"Mockup: {scene_description[:50]}",
         )
 
-        if not success:
-            raise HTTPException(
-                status_code=402,
-                detail=f"Insufficient points. Need {POINTS_PER_GENERATION} points.",
-            )
-
         user_options = {
-            "placement_type": request.placement_type,
+            "placement_type": placement_type,
         }
 
         gemini_service = get_gemini_image_service()
         result = await gemini_service.generate_image(
-            prompt=request.scene_description,
+            prompt=scene_description,
             generation_type="mockup",
             user_options=user_options,
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
         )
 
-        filename = f"mockup_{request.aspect_ratio.replace(':', 'x')}.png"
+        filename = f"mockup_{aspect_ratio.replace(':', 'x')}.png"
         upload_result = await gemini_service.upload_to_r2(
             image_bytes=result["image_bytes"],
             user_id=user_id,
@@ -199,8 +196,8 @@ async def generate_mockup_image(
         metadata = ImageGenerationMetadata(
             source="gemini-3-pro-image-preview",
             generation_type="mockup",
-            prompt=request.scene_description,
-            aspect_ratio=request.aspect_ratio,
+            prompt=scene_description,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             model_version="gemini-3-pro-image-preview",
             reference_images_count=0,
@@ -224,9 +221,9 @@ async def generate_mockup_image(
             file_url=upload_result["file_url"],
             r2_key=upload_result["r2_key"],
             prompt_used=result["prompt_used"],
-            scene_description=request.scene_description,
-            placement_type=request.placement_type,
-            aspect_ratio=request.aspect_ratio,
+            scene_description=scene_description,
+            placement_type=placement_type,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,
@@ -256,7 +253,10 @@ async def generate_mockup_image(
     summary="Generate sequential art (comic panels)",
 )
 async def generate_sequential_image(
-    request: SequentialRequest,
+    story_script: str = Form(..., description="Story script"),
+    panel_count: str = Form(..., description="Number of panels (1-4)"),
+    style: str = Form(..., description="Art style"),
+    aspect_ratio: str = Form("16:9", description="Image aspect ratio"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -275,29 +275,23 @@ async def generate_sequential_image(
             user_id=user_id,
             amount=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Sequential art: {request.story_script[:50]}",
+            description=f"Sequential art: {story_script[:50]}",
         )
 
-        if not success:
-            raise HTTPException(
-                status_code=402,
-                detail=f"Insufficient points. Need {POINTS_PER_GENERATION} points.",
-            )
-
         user_options = {
-            "style": request.style,
-            "panel_count": request.panel_count,
+            "style": style,
+            "panel_count": panel_count,
         }
 
         gemini_service = get_gemini_image_service()
         result = await gemini_service.generate_image(
-            prompt=request.story_script,
+            prompt=story_script,
             generation_type="sequential",
             user_options=user_options,
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
         )
 
-        filename = f"sequential_{request.panel_count}panel_{request.aspect_ratio.replace(':', 'x')}.png"
+        filename = f"sequential_{panel_count}panel_{aspect_ratio.replace(':', 'x')}.png"
         upload_result = await gemini_service.upload_to_r2(
             image_bytes=result["image_bytes"],
             user_id=user_id,
@@ -307,8 +301,8 @@ async def generate_sequential_image(
         metadata = ImageGenerationMetadata(
             source="gemini-3-pro-image-preview",
             generation_type="sequential",
-            prompt=request.story_script,
-            aspect_ratio=request.aspect_ratio,
+            prompt=story_script,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             model_version="gemini-3-pro-image-preview",
             reference_images_count=0,
@@ -332,10 +326,10 @@ async def generate_sequential_image(
             file_url=upload_result["file_url"],
             r2_key=upload_result["r2_key"],
             prompt_used=result["prompt_used"],
-            story_script=request.story_script,
-            panel_count=request.panel_count,
-            style=request.style,
-            aspect_ratio=request.aspect_ratio,
+            story_script=story_script,
+            panel_count=panel_count,
+            style=style,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,

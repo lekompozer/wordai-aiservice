@@ -53,7 +53,11 @@ POINTS_PER_GENERATION = 2
     summary="Generate photorealistic image",
 )
 async def generate_photorealistic_image(
-    request: PhotorealisticRequest,
+    prompt: str = Form(..., description="Detailed scene description"),
+    aspect_ratio: str = Form("16:9", description="Image aspect ratio"),
+    lighting: Optional[str] = Form(None, description="Lighting style"),
+    camera_angle: Optional[str] = Form(None, description="Camera angle"),
+    negative_prompt: Optional[str] = Form(None, description="Elements to exclude"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -106,35 +110,29 @@ async def generate_photorealistic_image(
             user_id=user_id,
             amount=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Photorealistic image: {request.prompt[:50]}",
+            description=f"Photorealistic image: {prompt[:50]}",
         )
-
-        if not success:
-            raise HTTPException(
-                status_code=402,
-                detail=f"Insufficient points. Need {POINTS_PER_GENERATION} points.",
-            )
 
         logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
 
         # Prepare user options for prompt building
         user_options = {
-            "lighting": request.lighting,
-            "camera_angle": request.camera_angle,
-            "negative_prompt": request.negative_prompt,
+            "lighting": lighting,
+            "camera_angle": camera_angle,
+            "negative_prompt": negative_prompt,
         }
 
         # Generate image using Gemini service
         gemini_service = get_gemini_image_service()
         result = await gemini_service.generate_image(
-            prompt=request.prompt,
+            prompt=prompt,
             generation_type="photorealistic",
             user_options=user_options,
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
         )
 
         # Upload to R2
-        filename = f"photorealistic_{request.aspect_ratio.replace(':', 'x')}.png"
+        filename = f"photorealistic_{aspect_ratio.replace(':', 'x')}.png"
         upload_result = await gemini_service.upload_to_r2(
             image_bytes=result["image_bytes"],
             user_id=user_id,
@@ -145,15 +143,15 @@ async def generate_photorealistic_image(
         metadata = ImageGenerationMetadata(
             source="gemini-3-pro-image-preview",
             generation_type="photorealistic",
-            prompt=request.prompt,
-            aspect_ratio=request.aspect_ratio,
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             model_version="gemini-3-pro-image-preview",
             reference_images_count=0,
             user_options={
-                "lighting": request.lighting,
-                "camera_angle": request.camera_angle,
-                "negative_prompt": request.negative_prompt,
+                "lighting": lighting,
+                "camera_angle": camera_angle,
+                "negative_prompt": negative_prompt,
             },
         )
 
@@ -177,7 +175,7 @@ async def generate_photorealistic_image(
             file_url=upload_result["file_url"],
             r2_key=upload_result["r2_key"],
             prompt_used=result["prompt_used"],
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,
@@ -367,7 +365,13 @@ async def generate_stylized_image(
     summary="Generate logo with text rendering",
 )
 async def generate_logo_image(
-    request: LogoRequest,
+    brand_name: str = Form(..., description="Brand name to render"),
+    industry: str = Form(..., description="Type of business"),
+    style: str = Form("Modern", description="Logo style"),
+    aspect_ratio: str = Form("1:1", description="Image aspect ratio"),
+    tagline: Optional[str] = Form(None, description="Optional tagline"),
+    color_palette: Optional[str] = Form(None, description="Color scheme"),
+    visual_elements: Optional[str] = Form(None, description="Icons/symbols to include"),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -415,25 +419,25 @@ async def generate_logo_image(
             user_id=user_id,
             amount=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Logo: {request.brand_name}",
+            description=f"Logo: {brand_name}",
         )
 
         logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
 
         # Build prompt for logo
-        prompt_parts = [f"Create a professional logo for {request.industry} business."]
-        if request.visual_elements:
-            prompt_parts.append(f"Include visual elements: {request.visual_elements}.")
-        if request.tagline:
-            prompt_parts.append(f'Optional tagline: "{request.tagline}".')
+        prompt_parts = [f"Create a professional logo for {industry} business."]
+        if visual_elements:
+            prompt_parts.append(f"Include visual elements: {visual_elements}.")
+        if tagline:
+            prompt_parts.append(f'Optional tagline: "{tagline}".')
 
         prompt = " ".join(prompt_parts)
 
         # Prepare user options
         user_options = {
-            "brand_name": request.brand_name,
-            "style": request.style,
-            "color_palette": request.color_palette,
+            "brand_name": brand_name,
+            "style": style,
+            "color_palette": color_palette,
         }
 
         # Generate image
@@ -442,11 +446,11 @@ async def generate_logo_image(
             prompt=prompt,
             generation_type="logo",
             user_options=user_options,
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
         )
 
         # Upload to R2
-        filename = f"logo_{request.brand_name.lower().replace(' ', '_')}.png"
+        filename = f"logo_{brand_name.lower().replace(' ', '_')}.png"
         upload_result = await gemini_service.upload_to_r2(
             image_bytes=result["image_bytes"],
             user_id=user_id,
@@ -458,7 +462,7 @@ async def generate_logo_image(
             source="gemini-3-pro-image-preview",
             generation_type="logo",
             prompt=prompt,
-            aspect_ratio=request.aspect_ratio,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             model_version="gemini-3-pro-image-preview",
             reference_images_count=0,
@@ -485,9 +489,9 @@ async def generate_logo_image(
             file_url=upload_result["file_url"],
             r2_key=upload_result["r2_key"],
             prompt_used=result["prompt_used"],
-            brand_name=request.brand_name,
-            style=request.style,
-            aspect_ratio=request.aspect_ratio,
+            brand_name=brand_name,
+            style=style,
+            aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
             points_deducted=POINTS_PER_GENERATION,
             metadata=metadata,
