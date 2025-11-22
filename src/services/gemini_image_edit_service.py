@@ -224,6 +224,7 @@ class GeminiImageEditService:
 
             # Prepare reference images for new API
             reference_images = []
+            next_ref_id = 1
 
             # Convert original PIL image to bytes for API
             original_img_bytes = io.BytesIO()
@@ -236,8 +237,10 @@ class GeminiImageEditService:
                     reference_image=types.Image(
                         image_bytes=original_img_bytes, mime_type="image/jpeg"
                     ),
+                    reference_id=next_ref_id,
                 )
             )
+            next_ref_id += 1
 
             # Add mask image if provided (for inpainting)
             if mask_image:
@@ -254,8 +257,10 @@ class GeminiImageEditService:
                         reference_image=types.Image(
                             image_bytes=mask_img_bytes, mime_type="image/png"
                         ),
+                        reference_id=next_ref_id,
                     )
                 )
+                next_ref_id += 1
                 logger.info(f"🎭 Mask image added: {mask_pil.size}")
 
             # Add additional images if provided (for composition)
@@ -275,8 +280,10 @@ class GeminiImageEditService:
                             reference_image=types.Image(
                                 image_bytes=add_img_bytes, mime_type="image/jpeg"
                             ),
+                            reference_id=next_ref_id,
                         )
                     )
+                    next_ref_id += 1
                     logger.info(f"   - Image: {img_pil.size}")
 
             # Get aspect ratio configuration
