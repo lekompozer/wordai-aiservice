@@ -539,6 +539,39 @@ def create_app() -> FastAPI:
 
         return response
 
+    # ===== IMAGE API REQUEST LOGGING MIDDLEWARE =====
+    @app.middleware("http")
+    async def log_image_api_requests(request: Request, call_next):
+        """
+        Log ALL requests to /api/v1/images/* endpoints to debug missing logs
+        This runs BEFORE authentication middleware
+        """
+        path = request.url.path
+
+        if "/api/v1/images/" in path:
+            logger = logging.getLogger("chatbot")
+            logger.info(f"🖼️ IMAGE API REQUEST RECEIVED:")
+            logger.info(f"   Path: {path}")
+            logger.info(f"   Method: {request.method}")
+            logger.info(f"   Origin: {request.headers.get('origin', 'none')}")
+            logger.info(
+                f"   Content-Type: {request.headers.get('content-type', 'none')}"
+            )
+            logger.info(
+                f"   Authorization: {'present' if request.headers.get('authorization') else 'MISSING'}"
+            )
+            logger.info(
+                f"   Client: {request.client.host if request.client else 'unknown'}"
+            )
+
+        response = await call_next(request)
+
+        if "/api/v1/images/" in path:
+            logger = logging.getLogger("chatbot")
+            logger.info(f"🖼️ IMAGE API RESPONSE: {response.status_code}")
+
+        return response
+
     # ===== REQUEST LOGGING MIDDLEWARE (for debugging suspicious requests) =====
     @app.middleware("http")
     async def log_suspicious_requests(request: Request, call_next):
