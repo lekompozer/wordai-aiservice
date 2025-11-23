@@ -860,52 +860,13 @@ class GuideBookBookChapterManager:
         if not chapter:
             return None
 
-        content_source = chapter.get("content_source", "inline")
+        # Only support inline content - chapters are independent from documents
+        content_html = chapter.get("content_html", "")
+        chapter["content"] = content_html  # Set 'content' for frontend compatibility
 
-        if content_source == "inline":
-            # Content already in chapter document
-            content_html = chapter.get("content_html", "")
-            chapter["content"] = (
-                content_html  # Set 'content' for frontend compatibility
-            )
-            logger.info(
-                f"📄 Loaded inline chapter content: {chapter_id} "
-                f"({len(content_html)} chars)"
-            )
-
-        elif content_source == "document" and chapter.get("document_id"):
-            # Load content from linked document
-            document = self.db["documents"].find_one(
-                {"document_id": chapter["document_id"]},
-                {"_id": 0, "content_html": 1, "name": 1, "title": 1},
-            )
-
-            if document:
-                # Inject document content into chapter response
-                content_html = document.get("content_html", "")
-                chapter["content_html"] = content_html
-                chapter["content"] = content_html  # For frontend compatibility
-                chapter["content_json"] = None  # Not available for documents
-                chapter["document_name"] = document.get("name") or document.get("title")
-                logger.info(
-                    f"📄 Loaded content from document: {chapter['document_id']} "
-                    f"({len(content_html)} chars)"
-                )
-            else:
-                logger.warning(
-                    f"⚠️ Referenced document not found: {chapter['document_id']}"
-                )
-                chapter["content_html"] = "<p>Document content not available</p>"
-                chapter["content"] = "<p>Document content not available</p>"
-
-        else:
-            # Unknown content_source or missing data
-            logger.warning(
-                f"⚠️ Chapter {chapter_id} has invalid content configuration: "
-                f"content_source={content_source}, document_id={chapter.get('document_id')}"
-            )
-            chapter["content_html"] = ""
-            chapter["content"] = ""
+        logger.info(
+            f"📄 Loaded chapter content: {chapter_id} ({len(content_html)} chars)"
+        )
 
         return chapter
 

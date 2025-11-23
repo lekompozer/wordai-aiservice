@@ -87,8 +87,8 @@ class ClaudeService:
 
         for attempt in range(max_retries):
             try:
-                # Increase timeout to 120 seconds for large documents
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                # Increase timeout to 180 seconds for large documents with Sonnet
+                async with httpx.AsyncClient(timeout=180.0) as client:
                     response = await client.post(
                         self.api_url,
                         headers={
@@ -132,7 +132,7 @@ class ClaudeService:
 
             except httpx.ReadTimeout as e:
                 logger.error(
-                    f"❌ Claude request timeout after 120s (attempt {attempt + 1}/{max_retries}): {e}"
+                    f"❌ Claude request timeout after 180s (attempt {attempt + 1}/{max_retries}): {e}"
                 )
                 if attempt < max_retries - 1:
                     wait_time = (2**attempt) + 1
@@ -201,7 +201,7 @@ class ClaudeService:
         logger.info(f"🤖 Calling Claude API (streaming): {model}")
 
         try:
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            async with httpx.AsyncClient(timeout=180.0) as client:
                 async with client.stream(
                     "POST",
                     self.api_url,
