@@ -46,7 +46,9 @@ from src.queue.task_models import ProductsExtractionTask, ExtractionTaskResponse
 # ✅ ADDED: CRUD operations dependencies
 from src.vector_store.qdrant_client import create_qdrant_manager
 from src.services.embedding_service import get_embedding_service
-from src.services.product_catalog_service import get_product_catalog_service  # ✅ ADD catalog service
+from src.services.product_catalog_service import (
+    get_product_catalog_service,
+)  # ✅ ADD catalog service
 from config.config import QDRANT_COLLECTION_NAME
 
 import os
@@ -1347,10 +1349,9 @@ async def delete_product(
             logger.info(f"�️ Deleting from MongoDB catalog: {product_id}")
 
             # Delete from catalog service (MongoDB)
-            delete_result = await catalog_service.collection.delete_one({
-                "product_id": product_id,
-                "company_id": company_id
-            })
+            delete_result = await catalog_service.collection.delete_one(
+                {"product_id": product_id, "company_id": company_id}
+            )
 
             if delete_result.deleted_count > 0:
                 catalog_deleted = True
@@ -1365,16 +1366,24 @@ async def delete_product(
         # Step 2: Find and delete from Qdrant by product_id
         qdrant_deleted_count = 0
         try:
-            logger.info(f"🎯 Searching and deleting from Qdrant by product_id: {product_id}")
+            logger.info(
+                f"🎯 Searching and deleting from Qdrant by product_id: {product_id}"
+            )
 
             # Use filter to find all points with this product_id
             from qdrant_client.models import Filter, FieldCondition, MatchValue
 
             filter_condition = Filter(
                 must=[
-                    FieldCondition(key="company_id", match=MatchValue(value=company_id)),
-                    FieldCondition(key="product_id", match=MatchValue(value=product_id)),
-                    FieldCondition(key="content_type", match=MatchValue(value="extracted_product"))
+                    FieldCondition(
+                        key="company_id", match=MatchValue(value=company_id)
+                    ),
+                    FieldCondition(
+                        key="product_id", match=MatchValue(value=product_id)
+                    ),
+                    FieldCondition(
+                        key="content_type", match=MatchValue(value="extracted_product")
+                    ),
                 ]
             )
 
@@ -1419,11 +1428,13 @@ async def delete_product(
                 "mongodb_catalog_deleted": catalog_deleted,
                 "qdrant_points_deleted": qdrant_deleted_count,
                 "storage_systems_cleaned": [
-                    system for system, deleted in [
+                    system
+                    for system, deleted in [
                         ("mongodb_catalog", catalog_deleted),
-                        ("qdrant", qdrant_deleted_count > 0)
-                    ] if deleted
-                ]
+                        ("qdrant", qdrant_deleted_count > 0),
+                    ]
+                    if deleted
+                ],
             },
         )
 
@@ -1472,10 +1483,9 @@ async def delete_service(
             logger.info(f"🗂️ Deleting from MongoDB catalog: {service_id}")
 
             # Delete from catalog service (MongoDB)
-            delete_result = await catalog_service.collection.delete_one({
-                "service_id": service_id,
-                "company_id": company_id
-            })
+            delete_result = await catalog_service.collection.delete_one(
+                {"service_id": service_id, "company_id": company_id}
+            )
 
             if delete_result.deleted_count > 0:
                 catalog_deleted = True
@@ -1490,16 +1500,24 @@ async def delete_service(
         # Step 2: Find and delete from Qdrant by service_id
         qdrant_deleted_count = 0
         try:
-            logger.info(f"🎯 Searching and deleting from Qdrant by service_id: {service_id}")
+            logger.info(
+                f"🎯 Searching and deleting from Qdrant by service_id: {service_id}"
+            )
 
             # Use filter to find all points with this service_id
             from qdrant_client.models import Filter, FieldCondition, MatchValue
 
             filter_condition = Filter(
                 must=[
-                    FieldCondition(key="company_id", match=MatchValue(value=company_id)),
-                    FieldCondition(key="service_id", match=MatchValue(value=service_id)),
-                    FieldCondition(key="content_type", match=MatchValue(value="extracted_service"))
+                    FieldCondition(
+                        key="company_id", match=MatchValue(value=company_id)
+                    ),
+                    FieldCondition(
+                        key="service_id", match=MatchValue(value=service_id)
+                    ),
+                    FieldCondition(
+                        key="content_type", match=MatchValue(value="extracted_service")
+                    ),
                 ]
             )
 
@@ -1544,11 +1562,13 @@ async def delete_service(
                 "mongodb_catalog_deleted": catalog_deleted,
                 "qdrant_points_deleted": qdrant_deleted_count,
                 "storage_systems_cleaned": [
-                    system for system, deleted in [
+                    system
+                    for system, deleted in [
                         ("mongodb_catalog", catalog_deleted),
-                        ("qdrant", qdrant_deleted_count > 0)
-                    ] if deleted
-                ]
+                        ("qdrant", qdrant_deleted_count > 0),
+                    ]
+                    if deleted
+                ],
             },
         )
 
@@ -1611,14 +1631,18 @@ async def delete_file_with_products_services(
 
             # Delete all items with this file_id from catalog service
             # Note: This assumes file_id is stored in catalog documents, might need adjustment
-            delete_result = await catalog_service.collection.delete_many({
-                "company_id": company_id,
-                "raw_ai_data.file_id": file_id  # Assuming file_id is stored in raw_ai_data
-            })
+            delete_result = await catalog_service.collection.delete_many(
+                {
+                    "company_id": company_id,
+                    "raw_ai_data.file_id": file_id,  # Assuming file_id is stored in raw_ai_data
+                }
+            )
 
             catalog_deleted_count = delete_result.deleted_count
             if catalog_deleted_count > 0:
-                logger.info(f"✅ Deleted {catalog_deleted_count} items from MongoDB catalog")
+                logger.info(
+                    f"✅ Deleted {catalog_deleted_count} items from MongoDB catalog"
+                )
             else:
                 logger.info(f"📭 No items found in MongoDB catalog for file {file_id}")
 
@@ -1664,7 +1688,9 @@ async def delete_file_with_products_services(
             logger.info(f"   📊 Total items deleted: {total_deleted}")
             logger.info(f"   🏢 Company: {company_id}")
             logger.info(f"   📄 File: {file_id}")
-            logger.info(f"   🗄️ Collections: MongoDB catalog + {UNIFIED_COLLECTION_NAME}")
+            logger.info(
+                f"   🗄️ Collections: MongoDB catalog + {UNIFIED_COLLECTION_NAME}"
+            )
 
             return {
                 "success": True,
@@ -1723,7 +1749,7 @@ async def delete_file_with_products_services(
     "/companies/{company_id}/files/{file_id}/status",
     dependencies=[Depends(verify_internal_api_key)],
 )
-async def check_file_status(
+async def check_company_file_status(
     company_id: str = Path(..., description="Company ID"),
     file_id: str = Path(..., description="File ID to check"),
     admin_service: AdminService = Depends(get_admin_service),

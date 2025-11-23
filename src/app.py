@@ -808,8 +808,8 @@ def create_app() -> FastAPI:
     # ✅ NEW: Notification API - InApp notification system
     app.include_router(notification_router, tags=["Notifications"])
 
-    # ✅ NEW: AI Content Edit API for Tiptap editor with AI providers
-    app.include_router(ai_content_edit_router, tags=["AI Content Editing"])
+    # ✅ REMOVED DUPLICATE: AI Content Edit API already included above (line 734)
+    # app.include_router(ai_content_edit_router, tags=["AI Content Editing"])
 
     # ✅ NEW: Gemini Slide Parser API - Native PDF support for presentations
     app.include_router(
