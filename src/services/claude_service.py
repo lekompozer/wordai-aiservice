@@ -87,7 +87,8 @@ class ClaudeService:
 
         for attempt in range(max_retries):
             try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
+                # Increase timeout to 120 seconds for large documents
+                async with httpx.AsyncClient(timeout=120.0) as client:
                     response = await client.post(
                         self.api_url,
                         headers={
@@ -129,8 +130,21 @@ class ClaudeService:
                     logger.error(f"❌ Claude API error: {status_code} - {error_text}")
                     raise
 
+            except httpx.ReadTimeout as e:
+                logger.error(
+                    f"❌ Claude request timeout after 120s (attempt {attempt + 1}/{max_retries}): {e}"
+                )
+                if attempt < max_retries - 1:
+                    wait_time = (2**attempt) + 1
+                    logger.info(f"⏳ Retrying in {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    logger.error("❌ Max retries exceeded for timeout")
+                    raise
+
             except Exception as e:
-                logger.error(f"❌ Claude request failed: {e}")
+                logger.error(f"❌ Claude request failed: {type(e).__name__}: {e}")
                 raise
 
         # Should not reach here

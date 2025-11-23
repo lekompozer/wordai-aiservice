@@ -89,7 +89,6 @@ class FontListResponse(BaseModel):
 
     fonts: List[FontResponse]
     total: int
-    user_id: str
 
 
 class FontDeleteResponse(BaseModel):
