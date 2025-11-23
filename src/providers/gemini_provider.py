@@ -17,7 +17,7 @@ try:
 except ImportError:
     GEMINI_AVAILABLE = False
 
-from src.core.config import get_config
+from src.core.config import get_app_config
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ class GeminiProvider:
     """
 
     def __init__(self):
-        self.config = get_config()
+        self.config = get_app_config()
         self.api_key = self.config.get("GEMINI_API_KEY")
         self.model_name = self.config.get("GEMINI_MODEL", "gemini-1.5-pro")
         self.enabled = GEMINI_AVAILABLE and bool(self.api_key)
