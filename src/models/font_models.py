@@ -112,5 +112,9 @@ class FontFaceRule(BaseModel):
 class FontFaceResponse(BaseModel):
     """Response model for @font-face rules"""
 
-    css_rules: List[str] = Field(..., description="Array of CSS @font-face rules")
-    fonts: List[FontFaceRule] = Field(..., description="Font metadata with CSS rules")
+    font_face_rules: List[FontFaceRule] = Field(
+        ..., description="Font metadata with CSS rules"
+    )
+    combined_css: str = Field(
+        ..., description="Combined CSS string ready for injection"
+    )

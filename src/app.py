@@ -219,6 +219,9 @@ from src.api.image_editing_routes import router as image_editing_router
 # ✅ ADDED: Font Upload API - Custom font upload and management with R2 storage
 from src.api.font_routes import router as font_router
 
+# ✅ ADDED: Media Upload API - Pre-signed URL for direct R2 image uploads (documents/chapters)
+from src.api.media_routes import router as media_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -908,6 +911,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Font Upload API - Custom font upload and management with R2 storage
     app.include_router(font_router, tags=["Custom Fonts", "Font Management"])
+
+    # ✅ ADDED: Media Upload API - Pre-signed URL for direct R2 image uploads
+    app.include_router(media_router, tags=["Media Upload", "Image Upload"])
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
     app.include_router(

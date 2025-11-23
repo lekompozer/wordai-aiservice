@@ -59,11 +59,11 @@ GEMINI_VISION_MODEL = os.getenv("GEMINI_VISION_MODEL", "gemini-1.5-flash")
 # Anthropic/Claude configs
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 CLAUDE_MODEL = os.getenv(
-    "CLAUDE_MODEL", "claude-haiku-4-5-20251001"
-)  # Haiku 4.5 - Fastest
+    "CLAUDE_MODEL", "claude-sonnet-4-5-20250929"
+)  # Sonnet 4.5 - Production model
 CLAUDE_SONNET_MODEL = os.getenv(
     "CLAUDE_SONNET_MODEL", "claude-sonnet-4-5-20250929"
-)  # Sonnet 4.5 - Smartest
+)  # Sonnet 4.5 - Production model
 
 # AI Provider setting
 DEFAULT_AI_PROVIDER = os.getenv("DEFAULT_AI_PROVIDER", "deepseek")
