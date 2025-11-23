@@ -324,6 +324,146 @@ JSON format:
             logger.error(f"❌ Gemini connection test failed: {e}")
             return False
 
+    async def format_document_html(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+    ) -> str:
+        """
+        Format and beautify document (A4) HTML content using Gemini
+        Optimized for standard document formatting
+
+        Args:
+            html_content: HTML to format
+            user_query: Optional additional user instruction
+
+        Returns:
+            Formatted HTML content
+        """
+        if not self.enabled:
+            raise Exception("Gemini Provider not available")
+
+        prompt = """You are an expert document formatter. Your task is to format and beautify document content for TipTap editor.
+
+FORMATTING RULES FOR DOCUMENTS:
+- Correct grammar, spelling, and punctuation
+- Ensure consistent spacing and capitalization
+- Fix paragraph alignment and indentation
+- Standardize heading hierarchy (H1, H2, H3)
+- Improve sentence structure for clarity and readability
+- Format lists with proper numbering/bullets
+- Maintain professional document styling
+- Clean up extra whitespace and line breaks
+- Preserve the original meaning and intent
+
+CRITICAL STYLING RULES (TipTap Compatibility):
+- Apply styles ONLY on BLOCK elements: <p>, <h1>, <h2>, <h3>, <h4>, <h5>, <h6>, <ul>, <ol>, <li>, <blockquote>, <div>
+- NEVER add style attributes to text marks: <strong>, <em>, <u>, <s>, <code>, <a>, <span>
+- Use semantic HTML for text formatting:
+  * Bold text: <strong>text</strong> (NO style attribute)
+  * Italic text: <em>text</em> (NO style attribute)
+  * Underline: <u>text</u> (NO style attribute)
+  * Strikethrough: <s>text</s> (NO style attribute)
+- Block element styles can include: text-align, margin, padding, line-height, color, background-color, font-size, font-family
+- Example CORRECT formatting:
+  * <p style="text-align: center; color: #333;">This is <strong>bold</strong> and <em>italic</em> text.</p>
+  * <h2 style="color: #1a73e8; margin-bottom: 16px;">Heading with <strong>emphasis</strong></h2>
+- Example WRONG formatting (DO NOT DO THIS):
+  * <p>This is <strong style="color: red;">bold</strong> text.</p> ❌
+  * <em style="font-size: 18px;">Italic</em> ❌
+
+OUTPUT REQUIREMENTS:
+- Return ONLY the formatted HTML
+- Preserve HTML structure with block elements
+- Apply styles ONLY to block elements
+- Use clean semantic markup for text marks (no style attributes)
+- Do not add explanations or markdown
+- Do not wrap in code blocks or backticks
+- Return clean, well-formatted HTML only
+
+"""
+
+        user_instruction = "Format and beautify this document content"
+        if user_query:
+            user_instruction += f". Additional instruction: {user_query}"
+
+        full_prompt = f"{prompt}\n{user_instruction}:\n\n{html_content}"
+
+        result = await self.get_completion(
+            prompt=full_prompt,
+            max_tokens=16384,
+            temperature=0.3,
+            timeout=120,  # 120s timeout for large documents
+        )
+
+        return result.strip()
+
+    async def format_slide_html(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+    ) -> str:
+        """
+        Format and beautify presentation slide HTML content using Gemini
+        Optimized for slide formatting (concise, visual)
+
+        Args:
+            html_content: Slide HTML to format
+            user_query: Optional additional user instruction
+
+        Returns:
+            Formatted slide HTML content
+        """
+        if not self.enabled:
+            raise Exception("Gemini Provider not available")
+
+        prompt = """You are an expert presentation formatter. Your task is to format and beautify slide content for TipTap editor.
+
+FORMATTING RULES FOR SLIDES:
+- Keep content concise and impactful
+- Use short, punchy sentences (avoid long paragraphs)
+- Create clear bullet points with proper hierarchy
+- Optimize text placement for 16:9 slide layout (1920x1080)
+- Use appropriate spacing and margins
+- Maintain professional slide aesthetics
+- Remove unnecessary words (slides should be scannable)
+- Use parallel structure in bullet points
+
+CRITICAL STYLING RULES (TipTap Compatibility):
+- Apply styles ONLY on BLOCK elements: <p>, <h1>, <h2>, <h3>, <h4>, <h5>, <h6>, <ul>, <ol>, <li>, <blockquote>, <div>
+- NEVER add style attributes to text marks: <strong>, <em>, <u>, <s>, <code>, <a>, <span>
+- Use semantic HTML for text formatting:
+  * Bold text: <strong>text</strong> (NO style attribute)
+  * Italic text: <em>text</em> (NO style attribute)
+  * Underline: <u>text</u> (NO style attribute)
+- Block element styles: text-align, margin, padding, line-height, color, font-size
+- Slide-specific styling: Center-align titles, use larger fonts for headers, generous spacing
+
+OUTPUT REQUIREMENTS:
+- Return ONLY the formatted HTML for slides
+- Keep content brief and visual
+- Use bullet points effectively
+- Apply styles ONLY to block elements
+- Do not add explanations
+- Return clean HTML only
+
+"""
+
+        user_instruction = "Format and beautify this presentation slide content"
+        if user_query:
+            user_instruction += f". Additional instruction: {user_query}"
+
+        full_prompt = f"{prompt}\n{user_instruction}:\n\n{html_content}"
+
+        result = await self.get_completion(
+            prompt=full_prompt,
+            max_tokens=16384,
+            temperature=0.3,
+            timeout=120,  # 120s timeout for slides
+        )
+
+        return result.strip()
+
 
 # Global instance
 gemini_provider = GeminiProvider()

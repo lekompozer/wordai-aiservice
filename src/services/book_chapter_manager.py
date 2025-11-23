@@ -868,12 +868,14 @@ class GuideBookBookChapterManager:
             if document_id:
                 document = self.db["documents"].find_one(
                     {"document_id": document_id},
-                    {"_id": 0, "content_html": 1, "content": 1}
+                    {"_id": 0, "content_html": 1, "content": 1},
                 )
-                
+
                 if document:
                     # Try content_html first, fallback to content
-                    content_html = document.get("content_html") or document.get("content", "")
+                    content_html = document.get("content_html") or document.get(
+                        "content", ""
+                    )
                     chapter["content_html"] = content_html
                     chapter["content"] = content_html  # Alias for compatibility
                     logger.info(
@@ -881,17 +883,23 @@ class GuideBookBookChapterManager:
                         f"{chapter_id} ({len(content_html)} chars)"
                     )
                 else:
-                    logger.warning(f"⚠️ Document {document_id} not found for chapter {chapter_id}")
+                    logger.warning(
+                        f"⚠️ Document {document_id} not found for chapter {chapter_id}"
+                    )
                     chapter["content_html"] = ""
                     chapter["content"] = ""
             else:
-                logger.warning(f"⚠️ Chapter {chapter_id} has content_source='document' but no document_id")
+                logger.warning(
+                    f"⚠️ Chapter {chapter_id} has content_source='document' but no document_id"
+                )
                 chapter["content_html"] = ""
                 chapter["content"] = ""
         else:
             # Inline content - already in chapter
             content_html = chapter.get("content_html") or ""
-            chapter["content"] = content_html  # Set 'content' for frontend compatibility
+            chapter["content"] = (
+                content_html  # Set 'content' for frontend compatibility
+            )
             logger.info(
                 f"📄 Loaded inline chapter content: {chapter_id} ({len(content_html)} chars)"
             )

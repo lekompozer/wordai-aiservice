@@ -312,7 +312,7 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
         content_length = len(request.context_html)
         logger.info(f"📊 Content HTML length: {content_length:,} chars")
 
-        # Check content size (Claude Haiku supports 200K tokens ≈ 800K chars)
+        # Check content size
         MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
         if content_length > MAX_CONTENT_SIZE:
             logger.error(f"❌ Content too large: {content_length:,} chars")
@@ -321,17 +321,54 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
                 detail=f"Content too large ({content_length:,} chars). Please edit in smaller chunks or use selection mode.",
             )
 
-        # Use Claude service for HTML editing with document type context
-        from src.services.claude_service import get_claude_service
+        # AI Provider Strategy:
+        # - Gemini: For documents & chapters (faster, more stable, 120s timeout)
+        # - Claude: For slides only (better editing for presentations)
 
-        claude = get_claude_service()
+        if doc_type == "slide":
+            # Use Claude for slide editing
+            logger.info("📊 Editing SLIDE with Claude Sonnet")
+            from src.services.claude_service import get_claude_service
 
-        # Call Claude with document type awareness
-        edited_html = await claude.edit_html(
-            html_content=request.context_html,
-            user_instruction=request.user_prompt,
-            document_type=doc_type,  # Pass document type for context-aware editing
-        )
+            claude = get_claude_service()
+            edited_html = await claude.edit_html(
+                html_content=request.context_html,
+                user_instruction=request.user_prompt,
+                document_type=doc_type,
+            )
+        else:
+            # Use Gemini for document & chapter editing
+            logger.info(f"📄 Editing DOCUMENT (type: {doc_type}) with Gemini 2.5 Flash")
+            from src.providers.gemini_provider import gemini_provider
+
+            if not gemini_provider.enabled:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Gemini service is not available. Please contact support.",
+                )
+
+            # Build prompt for Gemini editing
+            edit_prompt = f"""You are an expert HTML content editor. Your task is to edit the HTML content based on the user's instruction.
+
+USER INSTRUCTION: {request.user_prompt}
+
+CRITICAL RULES:
+- Make ONLY the changes requested by the user
+- Preserve all HTML structure and formatting
+- Return ONLY the edited HTML (no explanations, no markdown)
+- Apply styles ONLY to block elements (<p>, <h1-h6>, <ul>, <ol>, <li>, etc.)
+- NEVER add style attributes to text marks (<strong>, <em>, <u>, <s>, <a>, <span>)
+- Maintain professional document styling
+
+HTML CONTENT TO EDIT:
+{request.context_html}"""
+
+            edited_html = await gemini_provider.get_completion(
+                prompt=edit_prompt,
+                max_tokens=16384,
+                temperature=0.3,
+                timeout=120,
+            )
 
         logger.info(f"✅ Edit by AI completed for {resource_type} {resource_id}")
 
@@ -536,7 +573,7 @@ async def format_document(
         content_length = len(request.context_html)
         logger.info(f"📊 Content HTML length: {content_length:,} chars")
 
-        # Check content size (Claude Haiku supports 200K tokens ≈ 800K chars)
+        # Check content size (Gemini 2.5 Flash supports 1M tokens ≈ 4M chars)
         MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
         if content_length > MAX_CONTENT_SIZE:
             logger.error(
@@ -547,21 +584,34 @@ async def format_document(
                 detail=f"Content too large ({content_length:,} chars). Please format in smaller chunks or use selection mode.",
             )
 
-        # Use Claude service with appropriate formatting method
-        from src.services.claude_service import get_claude_service
+        # AI Provider Strategy:
+        # - Gemini: For documents & chapters (faster, more stable, 120s timeout)
+        # - Claude: For slides only (better formatting for presentations)
 
-        claude = get_claude_service()
-
-        # Call appropriate formatting method based on document type
         if doc_type == DocumentType.SLIDE:
-            logger.info("📊 Formatting as SLIDE (presentation)")
+            # Use Claude for slide formatting
+            logger.info("📊 Formatting as SLIDE with Claude Sonnet")
+            from src.services.claude_service import get_claude_service
+
+            claude = get_claude_service()
             formatted_html = await claude.format_slide_html(
                 html_content=request.context_html,
                 user_query=request.user_query,
             )
-        else:  # doc or note
-            logger.info(f"📄 Formatting as DOCUMENT (type: {doc_type})")
-            formatted_html = await claude.format_document_html(
+        else:
+            # Use Gemini for document & chapter formatting
+            logger.info(
+                f"📄 Formatting as DOCUMENT (type: {doc_type}) with Gemini 2.5 Flash"
+            )
+            from src.providers.gemini_provider import gemini_provider
+
+            if not gemini_provider.enabled:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Gemini service is not available. Please contact support.",
+                )
+
+            formatted_html = await gemini_provider.format_document_html(
                 html_content=request.context_html,
                 user_query=request.user_query,
             )
