@@ -41,7 +41,7 @@ class MediaUploadService:
         db_manager = DBManager()
         self.db: Database = db_manager.db
         self.documents_collection = self.db["documents"]
-        self.chapters_collection = self.db["online_book_chapters"]
+        self.chapters_collection = self.db["book_chapters"]
         self.media_collection = self.db["media_uploads"]
 
         # R2 Storage configuration

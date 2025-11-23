@@ -243,6 +243,12 @@ async def search_community_books(
                     )
                 )
 
+            # Count total chapters from database
+            total_chapters_count = db.book_chapters.count_documents({
+                "book_id": book["book_id"],
+                "deleted_at": None
+            })
+
             books.append(
                 CommunityBookItem(
                     book_id=book["book_id"],
@@ -256,7 +262,7 @@ async def search_community_books(
                     tags=community_config.get("tags", []),
                     total_views=community_config.get("total_views", 0),
                     average_rating=community_config.get("average_rating", 0.0),
-                    total_chapters=community_config.get("total_chapters", 0),
+                    total_chapters=total_chapters_count,
                     last_updated=community_config.get("last_chapter_updated_at"),
                     recent_chapters=recent_chapters,
                 )
@@ -623,6 +629,12 @@ async def get_latest_books(
                     )
                 )
 
+            # Count total chapters from database
+            total_chapters_count = db.book_chapters.count_documents({
+                "book_id": book["book_id"],
+                "deleted_at": None
+            })
+
             books.append(
                 CommunityBookItem(
                     book_id=book["book_id"],
@@ -636,7 +648,7 @@ async def get_latest_books(
                     tags=community_config.get("tags", []),
                     total_views=community_config.get("total_views", 0),
                     average_rating=community_config.get("average_rating", 0.0),
-                    total_chapters=community_config.get("total_chapters", 0),
+                    total_chapters=total_chapters_count,
                     last_updated=community_config.get("last_chapter_updated_at"),
                     recent_chapters=recent_chapters,
                 )
@@ -736,6 +748,12 @@ async def get_top_books(
                     )
                 )
 
+            # Count total chapters from database
+            total_chapters_count = db.book_chapters.count_documents({
+                "book_id": book["book_id"],
+                "deleted_at": None
+            })
+
             books.append(
                 CommunityBookItem(
                     book_id=book["book_id"],
@@ -749,7 +767,7 @@ async def get_top_books(
                     tags=community_config.get("tags", []),
                     total_views=community_config.get("total_views", 0),
                     average_rating=community_config.get("average_rating", 0.0),
-                    total_chapters=community_config.get("total_chapters", 0),
+                    total_chapters=total_chapters_count,
                     last_updated=community_config.get("last_chapter_updated_at"),
                     recent_chapters=recent_chapters,
                 )
@@ -864,6 +882,12 @@ async def get_featured_books_week():
                 + stats.get("pdf_downloads", 0)
             )
 
+            # Count total chapters from database
+            total_chapters_count = db.book_chapters.count_documents({
+                "book_id": book_id,
+                "deleted_at": None
+            })
+
             featured_books.append(
                 FeaturedBookItem(
                     book_id=book["book_id"],
@@ -877,7 +901,7 @@ async def get_featured_books_week():
                     tags=community_config.get("tags", []),
                     total_views=community_config.get("total_views", 0),
                     average_rating=community_config.get("average_rating", 0.0),
-                    total_chapters=community_config.get("total_chapters", 0),
+                    total_chapters=total_chapters_count,
                     total_purchases=total_purchases,
                     published_at=community_config.get("published_at"),
                     last_updated=community_config.get("last_chapter_updated_at"),
@@ -951,6 +975,12 @@ async def get_featured_books_week():
                 + stats.get("pdf_downloads", 0)
             )
 
+            # Count total chapters from database
+            total_chapters_count = db.book_chapters.count_documents({
+                "book_id": book_id,
+                "deleted_at": None
+            })
+
             featured_books.append(
                 FeaturedBookItem(
                     book_id=book["book_id"],
@@ -964,7 +994,7 @@ async def get_featured_books_week():
                     tags=community_config.get("tags", []),
                     total_views=community_config.get("total_views", 0),
                     average_rating=community_config.get("average_rating", 0.0),
-                    total_chapters=community_config.get("total_chapters", 0),
+                    total_chapters=total_chapters_count,
                     total_purchases=total_purchases,
                     published_at=community_config.get("published_at"),
                     last_updated=community_config.get("last_chapter_updated_at"),
@@ -1074,6 +1104,12 @@ async def get_trending_books_today():
                 + stats.get("pdf_downloads", 0)
             )
 
+            # Count total chapters from database
+            total_chapters_count = db.book_chapters.count_documents({
+                "book_id": book_id,
+                "deleted_at": None
+            })
+
             trending_books.append(
                 FeaturedBookItem(
                     book_id=book["book_id"],
@@ -1087,7 +1123,7 @@ async def get_trending_books_today():
                     tags=community_config.get("tags", []),
                     total_views=community_config.get("total_views", 0),
                     average_rating=community_config.get("average_rating", 0.0),
-                    total_chapters=community_config.get("total_chapters", 0),
+                    total_chapters=total_chapters_count,
                     total_purchases=total_purchases,
                     published_at=community_config.get("published_at"),
                     last_updated=community_config.get("last_chapter_updated_at"),
