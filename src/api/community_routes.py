@@ -244,10 +244,9 @@ async def search_community_books(
                 )
 
             # Count total chapters from database
-            total_chapters_count = db.book_chapters.count_documents({
-                "book_id": book["book_id"],
-                "deleted_at": None
-            })
+            total_chapters_count = db.book_chapters.count_documents(
+                {"book_id": book["book_id"], "deleted_at": None}
+            )
 
             books.append(
                 CommunityBookItem(
@@ -630,10 +629,9 @@ async def get_latest_books(
                 )
 
             # Count total chapters from database
-            total_chapters_count = db.book_chapters.count_documents({
-                "book_id": book["book_id"],
-                "deleted_at": None
-            })
+            total_chapters_count = db.book_chapters.count_documents(
+                {"book_id": book["book_id"], "deleted_at": None}
+            )
 
             books.append(
                 CommunityBookItem(
@@ -749,10 +747,9 @@ async def get_top_books(
                 )
 
             # Count total chapters from database
-            total_chapters_count = db.book_chapters.count_documents({
-                "book_id": book["book_id"],
-                "deleted_at": None
-            })
+            total_chapters_count = db.book_chapters.count_documents(
+                {"book_id": book["book_id"], "deleted_at": None}
+            )
 
             books.append(
                 CommunityBookItem(
@@ -883,10 +880,9 @@ async def get_featured_books_week():
             )
 
             # Count total chapters from database
-            total_chapters_count = db.book_chapters.count_documents({
-                "book_id": book_id,
-                "deleted_at": None
-            })
+            total_chapters_count = db.book_chapters.count_documents(
+                {"book_id": book_id, "deleted_at": None}
+            )
 
             featured_books.append(
                 FeaturedBookItem(
@@ -976,10 +972,9 @@ async def get_featured_books_week():
             )
 
             # Count total chapters from database
-            total_chapters_count = db.book_chapters.count_documents({
-                "book_id": book_id,
-                "deleted_at": None
-            })
+            total_chapters_count = db.book_chapters.count_documents(
+                {"book_id": book_id, "deleted_at": None}
+            )
 
             featured_books.append(
                 FeaturedBookItem(
@@ -1105,10 +1100,9 @@ async def get_trending_books_today():
             )
 
             # Count total chapters from database
-            total_chapters_count = db.book_chapters.count_documents({
-                "book_id": book_id,
-                "deleted_at": None
-            })
+            total_chapters_count = db.book_chapters.count_documents(
+                {"book_id": book_id, "deleted_at": None}
+            )
 
             trending_books.append(
                 FeaturedBookItem(
