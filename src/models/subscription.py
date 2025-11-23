@@ -290,15 +290,15 @@ PLAN_CONFIGS = {
         secret_files_limit=1,
         can_create_tests=False,
         daily_chat_limit=10,  # Updated: 10 chats/day with Deepseek
-        points_3_months=10,  # Updated: 10 bonus points to try AI features
-        points_12_months=10,  # Same bonus for any duration
+        points_3_months=20,  # Updated: 20 bonus points to try AI features
+        points_12_months=20,  # Same bonus for any duration
         price_3_months=0,
         price_12_months=0,
         description="Basic features for getting started",
         features_list=[
             "50MB Storage",
             "10 FREE Deepseek chats/day",
-            "10 bonus points to try AI features",
+            "20 bonus points to try AI features",
             "Join tests (cannot create)",
             "10 documents",
             "1 secret file (no share)",

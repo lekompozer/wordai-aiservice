@@ -110,10 +110,10 @@ async def register_user(
             # If this is a new subscription (just created), log it
             if (
                 existing_subscription.plan == "free"
-                and existing_subscription.points_total == 10
+                and existing_subscription.points_total == 20
             ):
                 logger.info(
-                    f"🎁 New FREE subscription created for user {firebase_uid} with 10 bonus points"
+                    f"🎁 New FREE subscription created for user {firebase_uid} with 20 bonus points"
                 )
             else:
                 logger.info(
@@ -147,7 +147,7 @@ async def register_user(
 
         return RegisterResponse(
             success=True,
-            message="User registered/updated successfully with FREE plan (10 bonus points)",
+            message="User registered/updated successfully with FREE plan (20 bonus points)",
             user=user_profile,
         )
 

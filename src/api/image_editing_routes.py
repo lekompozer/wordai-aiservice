@@ -17,6 +17,7 @@ import logging
 from src.middleware.firebase_auth import get_current_user
 from src.services.gemini_image_edit_service import GeminiImageEditService
 from src.services.points_service import get_points_service
+from src.exceptions import InsufficientPointsError
 from src.models.image_editing_models import (
     StyleTransferRequest,
     StyleTransferResponse,
@@ -129,14 +130,25 @@ async def style_transfer_image(
     points_service = get_points_service()
     points_required = 2
 
-    transaction = await points_service.deduct_points(
-        user_id=user_id,
-        amount=points_required,
-        service="ai_image_edit",
-        description=f"Style transfer: {target_style}",
-    )
-
-    logger.info(f"✅ Points deducted: {points_required}")
+    try:
+        transaction = await points_service.deduct_points(
+            user_id=user_id,
+            amount=points_required,
+            service="ai_image_edit",
+            description=f"Style transfer: {target_style}",
+        )
+        logger.info(f"✅ Points deducted: {points_required}")
+    except InsufficientPointsError as e:
+        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "insufficient_points",
+                "message": e.message,
+                "points_needed": e.points_needed,
+                "points_available": e.points_available,
+            },
+        )
 
     try:
         # Initialize service
@@ -225,14 +237,25 @@ async def edit_object_in_image(
     points_service = get_points_service()
     points_required = 2
 
-    transaction = await points_service.deduct_points(
-        user_id=user_id,
-        amount=points_required,
-        service="ai_image_edit",
-        description=f"Object edit: {target_object}",
-    )
-
-    logger.info(f"✅ Points deducted: {points_required}")
+    try:
+        transaction = await points_service.deduct_points(
+            user_id=user_id,
+            amount=points_required,
+            service="ai_image_edit",
+            description=f"Object edit: {target_object}",
+        )
+        logger.info(f"✅ Points deducted: {points_required}")
+    except InsufficientPointsError as e:
+        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "insufficient_points",
+                "message": e.message,
+                "points_needed": e.points_needed,
+                "points_available": e.points_available,
+            },
+        )
 
     try:
         # Initialize service
@@ -335,14 +358,25 @@ async def inpaint_image(
     points_service = get_points_service()
     points_required = 2
 
-    transaction = await points_service.deduct_points(
-        user_id=user_id,
-        amount=points_required,
-        service="ai_image_edit",
-        description=f"Inpainting: {action}",
-    )
-
-    logger.info(f"✅ Points deducted: {points_required}")
+    try:
+        transaction = await points_service.deduct_points(
+            user_id=user_id,
+            amount=points_required,
+            service="ai_image_edit",
+            description=f"Inpainting: {action}",
+        )
+        logger.info(f"✅ Points deducted: {points_required}")
+    except InsufficientPointsError as e:
+        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "insufficient_points",
+                "message": e.message,
+                "points_needed": e.points_needed,
+                "points_available": e.points_available,
+            },
+        )
 
     try:
         # Initialize service
@@ -462,14 +496,25 @@ async def compose_images(
     points_service = get_points_service()
     points_required = 2
 
-    transaction = await points_service.deduct_points(
-        user_id=user_id,
-        amount=points_required,
-        service="ai_image_edit",
-        description="Image composition",
-    )
-
-    logger.info(f"✅ Points deducted: {points_required}")
+    try:
+        transaction = await points_service.deduct_points(
+            user_id=user_id,
+            amount=points_required,
+            service="ai_image_edit",
+            description="Image composition",
+        )
+        logger.info(f"✅ Points deducted: {points_required}")
+    except InsufficientPointsError as e:
+        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "insufficient_points",
+                "message": e.message,
+                "points_needed": e.points_needed,
+                "points_available": e.points_available,
+            },
+        )
 
     try:
         # Initialize service

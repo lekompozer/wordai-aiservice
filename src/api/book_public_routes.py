@@ -789,7 +789,8 @@ async def list_community_books(
                 title=book.get("title"),
                 slug=book.get("slug"),  # ✅ SLUG INCLUDED
                 short_description=community_config.get("short_description"),
-                cover_image_url=community_config.get("cover_image_url") or book.get("cover_image_url"),
+                cover_image_url=community_config.get("cover_image_url")
+                or book.get("cover_image_url"),
                 category=community_config.get("category", "uncategorized"),
                 tags=community_config.get("tags", []),  # Always array
                 difficulty_level=community_config.get("difficulty_level", "beginner"),
@@ -959,7 +960,8 @@ def _build_book_preview_response(
         title=book["title"],
         slug=book["slug"],  # ✅ SLUG INCLUDED
         description=book.get("description"),
-        cover_image_url=community_config.get("cover_image_url") or book.get("cover_image_url"),
+        cover_image_url=community_config.get("cover_image_url")
+        or book.get("cover_image_url"),
         icon=book.get("icon"),
         color=book.get("color"),
         author=author,

@@ -114,7 +114,7 @@ class SubscriptionService:
         Create free tier subscription for new user
 
         FREE tier includes:
-        - 10 bonus points to try AI features (Claude, ChatGPT, AI operations)
+        - 20 bonus points to try AI features (Claude, ChatGPT, AI operations)
         - 10 FREE Deepseek chats/day (no points deduction)
         - Basic storage and document limits
 
@@ -126,8 +126,8 @@ class SubscriptionService:
         """
         free_config = PLAN_CONFIGS["free"]
 
-        # FREE tier gets 10 bonus points
-        bonus_points = free_config.points_3_months  # 10 points
+        # FREE tier gets 20 bonus points
+        bonus_points = free_config.points_3_months  # 20 points
 
         subscription = UserSubscription(
             user_id=user_id,
