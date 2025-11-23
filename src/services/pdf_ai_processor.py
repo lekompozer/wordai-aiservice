@@ -462,7 +462,7 @@ class PDFAIProcessor:
                     model="gemini-2.5-pro",
                     contents=[pdf_part, system_prompt],
                     config=types.GenerateContentConfig(
-                        max_output_tokens=8000,
+                        max_output_tokens=32000,  # 32k tokens for large documents/slides
                         temperature=0.1,  # Low temperature for accurate conversion
                         response_mime_type="text/plain",
                     ),

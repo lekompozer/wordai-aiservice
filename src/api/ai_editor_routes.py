@@ -337,8 +337,8 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
                 document_type=doc_type,
             )
         else:
-            # Use Gemini for document & chapter editing
-            logger.info(f"📄 Editing DOCUMENT (type: {doc_type}) with Gemini 2.5 Flash")
+            # Use Gemini 2.5 Pro for document & chapter editing
+            logger.info(f"📄 Editing DOCUMENT (type: {doc_type}) with Gemini 2.5 Pro")
             from src.providers.gemini_provider import gemini_provider
 
             if not gemini_provider.enabled:
@@ -347,27 +347,9 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
                     detail="Gemini service is not available. Please contact support.",
                 )
 
-            # Build prompt for Gemini editing
-            edit_prompt = f"""You are an expert HTML content editor. Your task is to edit the HTML content based on the user's instruction.
-
-USER INSTRUCTION: {request.user_prompt}
-
-CRITICAL RULES:
-- Make ONLY the changes requested by the user
-- Preserve all HTML structure and formatting
-- Return ONLY the edited HTML (no explanations, no markdown)
-- Apply styles ONLY to block elements (<p>, <h1-h6>, <ul>, <ol>, <li>, etc.)
-- NEVER add style attributes to text marks (<strong>, <em>, <u>, <s>, <a>, <span>)
-- Maintain professional document styling
-
-HTML CONTENT TO EDIT:
-{request.context_html}"""
-
-            edited_html = await gemini_provider.get_completion(
-                prompt=edit_prompt,
-                max_tokens=16384,
-                temperature=0.3,
-                timeout=120,
+            edited_html = await gemini_provider.edit_document_html(
+                html_content=request.context_html,
+                user_instruction=request.user_prompt,
             )
 
         logger.info(f"✅ Edit by AI completed for {resource_type} {resource_id}")

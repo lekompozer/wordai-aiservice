@@ -31,7 +31,7 @@ class GeminiProvider:
     def __init__(self):
         self.config = get_app_config()
         self.api_key = self.config.get("GEMINI_API_KEY")
-        self.model_name = self.config.get("GEMINI_MODEL", "gemini-1.5-pro")
+        self.model_name = self.config.get("GEMINI_MODEL", "gemini-2.5-pro")
         self.enabled = GEMINI_AVAILABLE and bool(self.api_key)
 
         if not GEMINI_AVAILABLE:
@@ -55,7 +55,7 @@ class GeminiProvider:
                     temperature=0.3,
                     top_p=0.9,
                     top_k=40,
-                    max_output_tokens=4000,
+                    max_output_tokens=8000,
                 ),
                 safety_settings={
                     HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
@@ -74,7 +74,7 @@ class GeminiProvider:
     async def get_completion(
         self,
         prompt: str,
-        max_tokens: int = 4000,
+        max_tokens: int = 8000,
         temperature: float = 0.3,
         timeout: int = 30,
     ) -> str:
@@ -186,7 +186,7 @@ class GeminiProvider:
             # Get analysis from Gemini
             response = await self.get_completion(
                 prompt=prompt,
-                max_tokens=4000,
+                max_tokens=8000,
                 temperature=0.2,  # Lower temperature for analysis consistency
             )
 
@@ -330,8 +330,8 @@ JSON format:
         user_query: Optional[str] = None,
     ) -> str:
         """
-        Format and beautify document (A4) HTML content using Gemini
-        Optimized for standard document formatting
+        Format and beautify document (A4) HTML content using Gemini 2.5 Flash
+        Optimized for fast document formatting
 
         Args:
             html_content: HTML to format
@@ -389,14 +389,77 @@ OUTPUT REQUIREMENTS:
 
         full_prompt = f"{prompt}\n{user_instruction}:\n\n{html_content}"
 
-        result = await self.get_completion(
-            prompt=full_prompt,
-            max_tokens=16384,
-            temperature=0.3,
-            timeout=120,  # 120s timeout for large documents
+        # Use Gemini 2.5 Flash for fast formatting
+        flash_model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            generation_config=genai.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=32384,
+            ),
         )
 
-        return result.strip()
+        try:
+            response = await asyncio.wait_for(
+                asyncio.create_task(flash_model.generate_content_async(full_prompt)),
+                timeout=120,
+            )
+            result = response.text if response.parts else ""
+            return result.strip()
+        except asyncio.TimeoutError:
+            raise Exception("Formatting timed out after 120 seconds")
+
+    async def edit_document_html(
+        self,
+        html_content: str,
+        user_instruction: str,
+    ) -> str:
+        """
+        Edit document HTML content based on user instruction using Gemini 2.5 Pro
+        Optimized for complex editing tasks
+
+        Args:
+            html_content: HTML to edit
+            user_instruction: User's editing instruction
+
+        Returns:
+            Edited HTML content
+        """
+        if not self.enabled:
+            raise Exception("Gemini Provider not available")
+
+        prompt = f"""You are an expert HTML content editor. Your task is to edit the HTML content based on the user's instruction.
+
+USER INSTRUCTION: {user_instruction}
+
+CRITICAL RULES:
+- Make ONLY the changes requested by the user
+- Preserve all HTML structure and formatting
+- Return ONLY the edited HTML (no explanations, no markdown)
+- Apply styles ONLY to block elements (<p>, <h1-h6>, <ul>, <ol>, <li>, etc.)
+- NEVER add style attributes to text marks (<strong>, <em>, <u>, <s>, <a>, <span>)
+- Maintain professional document styling
+
+HTML CONTENT TO EDIT:
+{html_content}"""
+
+        # Use Gemini 2.5 Pro for complex editing
+        pro_model = genai.GenerativeModel(
+            model_name="gemini-2.5-pro",
+            generation_config=genai.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=32000,
+            ),
+        )
+
+        try:
+            response = await asyncio.wait_for(
+                asyncio.create_task(pro_model.generate_content_async(prompt)),
+                timeout=120,
+            )
+            result = response.text if response.parts else ""
+            return result.strip()
+        except asyncio.TimeoutError:
+            raise Exception("Editing timed out after 120 seconds")
 
     async def format_slide_html(
         self,
@@ -404,8 +467,8 @@ OUTPUT REQUIREMENTS:
         user_query: Optional[str] = None,
     ) -> str:
         """
-        Format and beautify presentation slide HTML content using Gemini
-        Optimized for slide formatting (concise, visual)
+        Format and beautify presentation slide HTML content using Gemini 2.5 Flash
+        Optimized for fast slide formatting (concise, visual)
 
         Args:
             html_content: Slide HTML to format
@@ -455,14 +518,24 @@ OUTPUT REQUIREMENTS:
 
         full_prompt = f"{prompt}\n{user_instruction}:\n\n{html_content}"
 
-        result = await self.get_completion(
-            prompt=full_prompt,
-            max_tokens=16384,
-            temperature=0.3,
-            timeout=120,  # 120s timeout for slides
+        # Use Gemini 2.5 Flash for fast slide formatting
+        flash_model = genai.GenerativeModel(
+            model_name="gemini-2.5-flash",
+            generation_config=genai.GenerationConfig(
+                temperature=0.3,
+                max_output_tokens=32384,
+            ),
         )
 
-        return result.strip()
+        try:
+            response = await asyncio.wait_for(
+                asyncio.create_task(flash_model.generate_content_async(full_prompt)),
+                timeout=120,
+            )
+            result = response.text if response.parts else ""
+            return result.strip()
+        except asyncio.TimeoutError:
+            raise Exception("Slide formatting timed out after 120 seconds")
 
 
 # Global instance
