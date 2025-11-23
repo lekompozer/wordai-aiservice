@@ -216,6 +216,9 @@ from src.api.image_generation_phase2_routes import (
 # ✅ ADDED: Image Editing API - AI-powered image editing using Gemini 3 Pro Image
 from src.api.image_editing_routes import router as image_editing_router
 
+# ✅ ADDED: Font Upload API - Custom font upload and management with R2 storage
+from src.api.font_routes import router as font_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -902,6 +905,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Image Editing API - Style Transfer, Object Edit, Inpainting, Composition
     app.include_router(image_editing_router, tags=["AI Image Editing"])
+
+    # ✅ ADDED: Font Upload API - Custom font upload and management with R2 storage
+    app.include_router(font_router, tags=["Custom Fonts", "Font Management"])
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
     app.include_router(
