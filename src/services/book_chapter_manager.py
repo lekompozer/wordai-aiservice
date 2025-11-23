@@ -861,7 +861,7 @@ class GuideBookBookChapterManager:
             return None
 
         # Only support inline content - chapters are independent from documents
-        content_html = chapter.get("content_html", "")
+        content_html = chapter.get("content_html") or ""
         chapter["content"] = content_html  # Set 'content' for frontend compatibility
 
         logger.info(
