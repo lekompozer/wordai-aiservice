@@ -248,7 +248,8 @@ async def search_community_books(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_image_url"),
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -627,7 +628,8 @@ async def get_latest_books(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_image_url"),
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -739,7 +741,8 @@ async def get_top_books(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_image_url"),
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -866,7 +869,8 @@ async def get_featured_books_week():
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_image_url"),
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -952,7 +956,8 @@ async def get_featured_books_week():
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_image_url"),
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),
@@ -1074,7 +1079,8 @@ async def get_trending_books_today():
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
-                    cover_url=book.get("cover_image_url"),
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     category=community_config.get("category"),

@@ -269,6 +269,15 @@ class UserBookManager:
         else:
             raise ValueError("update_data must be a Pydantic model or dict")
 
+        # Sync community_config.cover_image_url to root cover_image_url if updated
+        if "community_config" in updates and isinstance(
+            updates["community_config"], dict
+        ):
+            if "cover_image_url" in updates["community_config"]:
+                updates["cover_image_url"] = updates["community_config"][
+                    "cover_image_url"
+                ]
+
         # Add updated_at
         updates["updated_at"] = datetime.utcnow()
 
@@ -413,9 +422,11 @@ class UserBookManager:
 
         # Update cover image if provided
         if publish_data.get("cover_image_url"):
+            # Update both community_config and root level for consistency
             update_data["$set"]["community_config.cover_image_url"] = publish_data[
                 "cover_image_url"
             ]
+            update_data["$set"]["cover_image_url"] = publish_data["cover_image_url"]
 
         updated_book = self.books_collection.find_one_and_update(
             {"book_id": book_id, "user_id": user_id},
