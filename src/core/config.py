@@ -79,10 +79,11 @@ def get_app_config():
                 "https://admin.agent8x.io.vn",
             ],
             # AI Provider keys
-            "deepseek_api_key": os.getenv("DEEPSEEK_API_KEY", ""),
-            "chatgpt_api_key": os.getenv("CHATGPT_API_KEY", ""),
-            "gemini_api_key": os.getenv("GEMINI_API_KEY", ""),
-            "cerebras_api_key": os.getenv("CEREBRAS_API_KEY", ""),
+            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY", ""),
+            "CHATGPT_API_KEY": os.getenv("CHATGPT_API_KEY", ""),
+            "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
+            "GEMINI_MODEL": os.getenv("GEMINI_MODEL", "gemini-2.5-pro"),
+            "CEREBRAS_API_KEY": os.getenv("CEREBRAS_API_KEY", ""),
             "default_ai_provider": os.getenv("DEFAULT_AI_PROVIDER", "cerebras"),
             # Qdrant configuration
             "qdrant_url": os.getenv("QDRANT_URL", "http://localhost:6333"),
@@ -145,10 +146,11 @@ def get_app_config():
                 ]
             ),
             # AI Provider keys
-            "deepseek_api_key": os.getenv("DEEPSEEK_API_KEY", ""),
-            "chatgpt_api_key": os.getenv("CHATGPT_API_KEY", ""),
-            "gemini_api_key": os.getenv("GEMINI_API_KEY", ""),
-            "cerebras_api_key": os.getenv("CEREBRAS_API_KEY", ""),
+            "DEEPSEEK_API_KEY": os.getenv("DEEPSEEK_API_KEY", ""),
+            "CHATGPT_API_KEY": os.getenv("CHATGPT_API_KEY", ""),
+            "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
+            "GEMINI_MODEL": os.getenv("GEMINI_MODEL", "gemini-2.5-pro"),
+            "CEREBRAS_API_KEY": os.getenv("CEREBRAS_API_KEY", ""),
             "default_ai_provider": os.getenv("DEFAULT_AI_PROVIDER", "cerebras"),
             # Qdrant configuration
             "qdrant_url": os.getenv("QDRANT_URL", "http://localhost:6333"),
