@@ -108,6 +108,35 @@ class GeminiImageEditService:
             region_name="auto",
         )
 
+    def _convert_to_rgb_if_needed(self, image: Image.Image) -> Image.Image:
+        """
+        Convert image to RGB if it has an alpha channel (RGBA, LA, P with transparency)
+        JPEG format does not support transparency, so we need RGB
+
+        Args:
+            image: PIL Image object
+
+        Returns:
+            PIL Image in RGB mode
+        """
+        if image.mode in ("RGBA", "LA", "P"):
+            logger.info(
+                f"🔄 Converting image from {image.mode} to RGB for JPEG compatibility"
+            )
+            # Create white background
+            rgb_image = Image.new("RGB", image.size, (255, 255, 255))
+            # Paste image on white background (handles transparency)
+            if image.mode == "P":
+                image = image.convert("RGBA")
+            rgb_image.paste(
+                image, mask=image.split()[-1] if image.mode in ("RGBA", "LA") else None
+            )
+            return rgb_image
+        elif image.mode != "RGB":
+            logger.info(f"🔄 Converting image from {image.mode} to RGB")
+            return image.convert("RGB")
+        return image
+
     def _build_edit_prompt(
         self, edit_type: str, params: Dict[str, Any], has_mask: bool = False
     ) -> str:
@@ -206,13 +235,46 @@ class GeminiImageEditService:
             style = params.get("composition_style", "realistic")
             adjust_lighting = params.get("lighting_adjustment", True)
 
-            prompt = f"Combine the provided images to create: {composition_prompt}. "
-            prompt += f"Composition style: {style}. "
+            # Build detailed composition prompt
+            prompt = "You are an expert image compositor. Your task is to seamlessly combine multiple images into one cohesive composition.\n\n"
+            prompt += f"**User Request:** {composition_prompt}\n\n"
+            prompt += f"**Composition Style:** {style}\n"
+
+            if style == "realistic":
+                prompt += "- Create a photorealistic result with natural lighting and shadows\n"
+                prompt += "- Match color temperature and tone across all elements\n"
+                prompt += "- Ensure realistic depth and perspective\n"
+            elif style == "artistic":
+                prompt += "- Create a creative, stylized composition\n"
+                prompt += "- Use artistic color grading and effects\n"
+                prompt += "- Allow for creative interpretation\n"
+            elif style == "professional":
+                prompt += "- Create e-commerce/marketing quality composition\n"
+                prompt += "- Studio lighting with clean, professional look\n"
+                prompt += (
+                    "- Perfect for product photography or professional portraits\n"
+                )
+            elif style == "collage":
+                prompt += "- Create an artistic collage style\n"
+                prompt += (
+                    "- Blend elements creatively with visible edges or transitions\n"
+                )
+                prompt += "- Artistic and expressive composition\n"
+
+            prompt += "\n**Requirements:**\n"
             if adjust_lighting:
-                prompt += "Adjust lighting, shadows, and color balance across all elements to create a cohesive, realistic scene. "
-            prompt += "Ensure seamless integration between all image elements. "
-            prompt += "Match perspectives and scales appropriately. "
-            prompt += "Create a professional, polished final composition."
+                prompt += "- Adjust lighting, shadows, and highlights to create unified scene\n"
+                prompt += "- Match color balance and tone across all elements\n"
+                prompt += "- Ensure consistent light direction and intensity\n"
+
+            prompt += "- Seamlessly integrate all provided images\n"
+            prompt += "- Match perspectives and scales appropriately\n"
+            prompt += "- Remove any visible seams or boundaries\n"
+            prompt += "- Create a professional, polished final result\n"
+            prompt += (
+                "- Ensure all elements look like they belong in the same scene\n\n"
+            )
+            prompt += "Generate the final composed image now."
 
         else:
             raise ValueError(f"Unknown edit type: {edit_type}")
@@ -270,6 +332,8 @@ class GeminiImageEditService:
             next_ref_id = 1
 
             # Convert original PIL image to bytes for API
+            # ✅ FIX: Convert RGBA to RGB before saving as JPEG
+            original_pil = self._convert_to_rgb_if_needed(original_pil)
             original_img_bytes = io.BytesIO()
             original_pil.save(original_img_bytes, format="JPEG")
             original_img_bytes = original_img_bytes.getvalue()
@@ -314,6 +378,8 @@ class GeminiImageEditService:
                     img_pil = Image.open(io.BytesIO(img_bytes))
 
                     # Convert PIL to bytes
+                    # ✅ FIX: Convert RGBA to RGB before saving as JPEG
+                    img_pil = self._convert_to_rgb_if_needed(img_pil)
                     add_img_bytes = io.BytesIO()
                     img_pil.save(add_img_bytes, format="JPEG")
                     add_img_bytes = add_img_bytes.getvalue()
