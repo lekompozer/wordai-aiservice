@@ -1332,7 +1332,31 @@ async def get_chapter_with_content(
             )
             return ChapterResponse(**chapter)
 
-        # For non-preview chapters, authentication is required
+        # ✅ FIX: Get book info BEFORE requiring authentication
+        # This allows us to check if book is free for all users
+        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        # Check if book is completely free (0 points for both access types)
+        visibility = book.get("visibility", "private")
+        community_config = book.get("community_config", {})
+        is_published = community_config.get("is_public", False)
+        access_config = book.get("access_config") or {}
+        one_time_points = access_config.get("one_time_view_points", 0)
+        forever_points = access_config.get("forever_view_points", 0)
+
+        # ✅ If book is public AND completely free (0 points) → Allow anonymous access
+        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+            logger.info(
+                f"📖 Free public book accessed: {chapter_id} (anonymous: {current_user is None})"
+            )
+            return ChapterResponse(**chapter)
+
+        # For paid/restricted books, authentication is required
         if not current_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1340,14 +1364,6 @@ async def get_chapter_with_content(
             )
 
         user_id = current_user["uid"]
-
-        # Get book to check access permissions
-        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
-        if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Book not found",
-            )
 
         # Check access permissions
         is_owner = book.get("user_id") == user_id
@@ -1357,21 +1373,12 @@ async def get_chapter_with_content(
             logger.info(f"📄 Owner {user_id} accessed chapter: {chapter_id}")
             return ChapterResponse(**chapter)
 
-        # Check if book is public/free
-        visibility = book.get("visibility", "private")
-        community_config = book.get("community_config", {})
-        is_published = community_config.get("is_public", False)
-
-        if visibility == "public" or (is_published and visibility == "point_based"):
-            # Check if it's a free book (0 points for all access types)
-            access_config = book.get("access_config") or {}
-            one_time_points = access_config.get("one_time_view_points", 0)
-            forever_points = access_config.get("forever_view_points", 0)
-
-            if one_time_points == 0 and forever_points == 0:
-                # Free book - allow all authenticated users
-                logger.info(f"📖 Free book accessed by {user_id}: chapter {chapter_id}")
-                return ChapterResponse(**chapter)
+        # ✅ Book is already checked for free access above for anonymous users
+        # For authenticated users with free books, allow access
+        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+            # Free book - allow all authenticated users too
+            logger.info(f"📖 Free book accessed by {user_id}: chapter {chapter_id}")
+            return ChapterResponse(**chapter)
 
         # Check if user has purchased access
         # Check forever access
@@ -1524,7 +1531,22 @@ async def get_chapter_content_by_slug(
             )
             return ChapterResponse(**chapter)
 
-        # For non-preview chapters, authentication is required
+        # ✅ FIX: Check if book is completely free BEFORE requiring authentication
+        visibility = book.get("visibility", "private")
+        community_config = book.get("community_config", {})
+        is_published = community_config.get("is_public", False)
+        access_config = book.get("access_config") or {}
+        one_time_points = access_config.get("one_time_view_points", 0)
+        forever_points = access_config.get("forever_view_points", 0)
+
+        # ✅ If book is public AND completely free (0 points) → Allow anonymous access
+        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+            logger.info(
+                f"📖 Free public book (slug) accessed: {book_slug}/{chapter_slug} (anonymous: {current_user is None})"
+            )
+            return ChapterResponse(**chapter)
+
+        # For paid/restricted books, authentication is required
         if not current_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1543,23 +1565,14 @@ async def get_chapter_content_by_slug(
             )
             return ChapterResponse(**chapter)
 
-        # Check if book is public/free
-        visibility = book.get("visibility", "private")
-        community_config = book.get("community_config", {})
-        is_published = community_config.get("is_public", False)
-
-        if visibility == "public" or (is_published and visibility == "point_based"):
-            # Check if it's a free book (0 points for all access types)
-            access_config = book.get("access_config") or {}
-            one_time_points = access_config.get("one_time_view_points", 0)
-            forever_points = access_config.get("forever_view_points", 0)
-
-            if one_time_points == 0 and forever_points == 0:
-                # Free book - allow all authenticated users
-                logger.info(
-                    f"📖 Free book (slug) accessed by {user_id}: {book_slug}/{chapter_slug}"
-                )
-                return ChapterResponse(**chapter)
+        # ✅ Book is already checked for free access above for anonymous users
+        # For authenticated users with free books, allow access
+        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+            # Free book - allow all authenticated users too
+            logger.info(
+                f"📖 Free book (slug) accessed by {user_id}: {book_slug}/{chapter_slug}"
+            )
+            return ChapterResponse(**chapter)
 
         # Check if user has purchased access
         # Check forever access
