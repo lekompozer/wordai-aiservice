@@ -138,7 +138,11 @@ class GeminiImageEditService:
         return image
 
     def _build_edit_prompt(
-        self, edit_type: str, params: Dict[str, Any], has_mask: bool = False
+        self,
+        edit_type: str,
+        params: Dict[str, Any],
+        has_mask: bool = False,
+        num_additional_images: int = 0,
     ) -> str:
         """
         Build Gemini prompt for image editing operations
@@ -147,6 +151,7 @@ class GeminiImageEditService:
             edit_type: Type of edit (style_transfer, object_edit, inpainting, composition)
             params: Request parameters
             has_mask: Whether a mask image is provided (for inpainting)
+            num_additional_images: Number of additional overlay images (for composition)
 
         Returns:
             Formatted prompt string
@@ -235,15 +240,26 @@ class GeminiImageEditService:
             style = params.get("composition_style", "realistic")
             adjust_lighting = params.get("lighting_adjustment", True)
 
-            # Build detailed composition prompt
-            prompt = "You are an expert image compositor. Your task is to seamlessly combine multiple images into one cohesive composition.\n\n"
-            prompt += f"**User Request:** {composition_prompt}\n\n"
+            # Build detailed composition prompt with clear image references
+            prompt = "You are an expert image compositor specializing in virtual try-on and product visualization.\n\n"
+            prompt += "**IMAGES PROVIDED:**\n"
+            prompt += (
+                "- Image 1 (BASE): The main subject (e.g., model, person, background)\n"
+            )
+
+            # Check if we have additional images
+            if num_additional_images > 0:
+                for i in range(num_additional_images):
+                    prompt += f"- Image {i + 2} (OVERLAY): Element to integrate (e.g., clothing, product, accessory)\n"
+
+            prompt += f"\n**YOUR TASK:** {composition_prompt}\n\n"
             prompt += f"**Composition Style:** {style}\n"
 
             if style == "realistic":
                 prompt += "- Create a photorealistic result with natural lighting and shadows\n"
                 prompt += "- Match color temperature and tone across all elements\n"
                 prompt += "- Ensure realistic depth and perspective\n"
+                prompt += "- Make it look like a professional photograph\n"
             elif style == "artistic":
                 prompt += "- Create a creative, stylized composition\n"
                 prompt += "- Use artistic color grading and effects\n"
@@ -261,20 +277,28 @@ class GeminiImageEditService:
                 )
                 prompt += "- Artistic and expressive composition\n"
 
-            prompt += "\n**Requirements:**\n"
-            if adjust_lighting:
-                prompt += "- Adjust lighting, shadows, and highlights to create unified scene\n"
-                prompt += "- Match color balance and tone across all elements\n"
-                prompt += "- Ensure consistent light direction and intensity\n"
+            prompt += "\n**CRITICAL REQUIREMENTS:**\n"
+            prompt += "1. **Seamless Integration**: Combine elements from ALL provided images naturally\n"
+            prompt += "2. **Preserve Identity**: Keep the identity and key features of the base subject (Image 1)\n"
+            prompt += "3. **Transfer Elements**: Apply clothing/products from overlay images (Image 2+) to the base subject\n"
 
-            prompt += "- Seamlessly integrate all provided images\n"
-            prompt += "- Match perspectives and scales appropriately\n"
-            prompt += "- Remove any visible seams or boundaries\n"
-            prompt += "- Create a professional, polished final result\n"
-            prompt += (
-                "- Ensure all elements look like they belong in the same scene\n\n"
-            )
-            prompt += "Generate the final composed image now."
+            if adjust_lighting:
+                prompt += "4. **Unified Lighting**: Adjust lighting, shadows, and highlights to create a cohesive scene\n"
+                prompt += "   - Match color balance and tone across all elements\n"
+                prompt += "   - Ensure consistent light direction and intensity\n"
+                prompt += (
+                    "   - Add realistic shadows and highlights where elements meet\n"
+                )
+
+            prompt += "5. **Perfect Fit**: Ensure clothing/products fit naturally on the subject's body\n"
+            prompt += "   - Adapt to body shape and pose\n"
+            prompt += "   - Show natural folds and wrinkles\n"
+            prompt += "   - Respect perspective and depth\n"
+            prompt += "6. **Clean Result**: Remove any visible seams, boundaries, or artifacts\n"
+            prompt += "7. **Professional Quality**: Create a polished, publication-ready final image\n\n"
+
+            prompt += "**IMPORTANT:** Generate a NEW composed image where the base subject (Image 1) is wearing/using elements from overlay images (Image 2+). "
+            prompt += "The result should look natural and professional, as if photographed together originally."
 
         else:
             raise ValueError(f"Unknown edit type: {edit_type}")
@@ -321,9 +345,15 @@ class GeminiImageEditService:
                 f"🖼️ Original image loaded: {original_pil.size} ({original_pil.mode})"
             )
 
+            # Count additional images for prompt building
+            num_additional = len(additional_images) if additional_images else 0
+
             # Build prompt
             prompt = self._build_edit_prompt(
-                edit_type, params, has_mask=mask_image is not None
+                edit_type,
+                params,
+                has_mask=mask_image is not None,
+                num_additional_images=num_additional,
             )
             logger.info(f"📝 Generated prompt: {prompt[:200]}...")
 
@@ -371,9 +401,10 @@ class GeminiImageEditService:
                 logger.info(f"🎭 Mask image added: {mask_pil.size}")
 
             # Add additional images if provided (for composition)
+            additional_img_bytes_list = []  # Store for later use in contents
             if additional_images:
                 logger.info(f"🖼️ Adding {len(additional_images)} additional images")
-                for img in additional_images:
+                for idx, img in enumerate(additional_images):
                     img_bytes = await img.read()
                     img_pil = Image.open(io.BytesIO(img_bytes))
 
@@ -384,6 +415,9 @@ class GeminiImageEditService:
                     img_pil.save(add_img_bytes, format="JPEG")
                     add_img_bytes = add_img_bytes.getvalue()
 
+                    # Store for sending to API
+                    additional_img_bytes_list.append(add_img_bytes)
+
                     reference_images.append(
                         types.StyleReferenceImage(
                             reference_image=types.Image(
@@ -393,7 +427,7 @@ class GeminiImageEditService:
                         )
                     )
                     next_ref_id += 1
-                    logger.info(f"   - Image: {img_pil.size}")
+                    logger.info(f"   - Overlay {idx + 1}: {img_pil.size}")
 
             # Get aspect ratio configuration
             aspect_ratio = params.get("aspect_ratio", "1:1")
@@ -413,13 +447,31 @@ class GeminiImageEditService:
             # Construct contents for generate_content
             contents = []
 
-            # Add original image
+            # ✅ CRITICAL FIX: Add ALL images to contents (not just original)
+            # Add original/base image (Image 1)
             contents.append(
                 types.Part.from_bytes(data=original_img_bytes, mime_type="image/jpeg")
             )
 
-            # Add prompt
+            # Add overlay images (Image 2, 3, ...) for composition
+            if additional_img_bytes_list:
+                logger.info(
+                    f"📎 Adding {len(additional_img_bytes_list)} overlay images to API contents"
+                )
+                for idx, overlay_bytes in enumerate(additional_img_bytes_list):
+                    contents.append(
+                        types.Part.from_bytes(
+                            data=overlay_bytes, mime_type="image/jpeg"
+                        )
+                    )
+                    logger.info(f"   ✅ Overlay {idx + 1} added to contents")
+
+            # Add prompt (should be last to reference all images)
             contents.append(prompt)
+
+            logger.info(
+                f"📦 Total contents parts: {len(contents)} ({len(contents) - 1} images + 1 prompt)"
+            )
 
             # Retry logic for API calls
             max_retries = 2
