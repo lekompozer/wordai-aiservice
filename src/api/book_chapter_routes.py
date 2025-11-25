@@ -231,6 +231,7 @@ async def get_chapter_tree(
     **Response Fields:**
     - book_id: Book ID
     - title: Book title (NEW)
+    - slug: Book slug (NEW)
     - cover: Book cover image URL (NEW)
     - description: Book description
     - chapters: Hierarchical chapter tree
@@ -302,6 +303,7 @@ async def get_chapter_tree(
         return {
             "book_id": book_id,
             "title": book.get("title"),  # Book title
+            "slug": book.get("slug"),  # Book slug
             "cover": book.get("cover_image_url"),  # Book cover image URL
             "description": book.get("description"),  # Book's full description
             "chapters": chapters,
@@ -758,13 +760,15 @@ async def bulk_update_chapters(
       * order_index: Optional (new position)
     - book_info: Optional book information update
       * title: Optional (new book title)
+      * slug: Optional (new book slug, auto-generated from title if not provided)
       * cover_image_url: Optional (new book cover URL)
 
     **Features:**
     - Update multiple chapters in single request
-    - Update book title and cover in same request (NEW)
-    - Auto-generate slug from title if title changed but slug not provided
-    - Validate slug uniqueness within book
+    - Update book title, slug, and cover in same request (NEW)
+    - Auto-generate book slug from title if title changed but slug not provided
+    - Auto-generate chapter slug from title if title changed but slug not provided
+    - Validate slug uniqueness within book (for chapters) and user's books (for book)
     - Prevent circular parent references
     - Validate max depth (3 levels)
     - Atomic operation (all or nothing)
@@ -963,13 +967,41 @@ async def bulk_update_chapters(
             )  # Convert spaces, colons, dots to hyphens
             return text.strip("-")[:100]
 
-        # 4. Update book info if provided (title and/or cover)
+        # 4. Update book info if provided (title, slug, and/or cover)
         if update_data.book_info:
             book_update_fields = {}
 
             if update_data.book_info.title is not None:
                 book_update_fields["title"] = update_data.book_info.title
                 logger.info(f"📝 Updating book title to: {update_data.book_info.title}")
+
+            # Update slug (or auto-generate from new title)
+            if update_data.book_info.slug is not None:
+                new_book_slug = update_data.book_info.slug
+            elif update_data.book_info.title is not None:
+                # Auto-generate slug from new title
+                new_book_slug = slugify(update_data.book_info.title)
+            else:
+                new_book_slug = None
+
+            if new_book_slug:
+                # Check uniqueness (within user's books, excluding current book)
+                existing_book = db.online_books.find_one(
+                    {
+                        "user_id": user_id,
+                        "slug": new_book_slug,
+                        "book_id": {"$ne": book_id},
+                    }
+                )
+
+                if existing_book:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=f"Book slug '{new_book_slug}' already exists in your books",
+                    )
+
+                book_update_fields["slug"] = new_book_slug
+                logger.info(f"🔗 Updating book slug to: {new_book_slug}")
 
             if update_data.book_info.cover_image_url is not None:
                 book_update_fields["cover_image_url"] = (

@@ -136,10 +136,13 @@ class ChapterBulkUpdateItem(BaseModel):
 
 
 class BookInfoUpdate(BaseModel):
-    """Book information update (title and cover)"""
+    """Book information update (title, slug, and cover)"""
 
     title: Optional[str] = Field(
         None, min_length=1, max_length=200, description="New book title"
+    )
+    slug: Optional[str] = Field(
+        None, pattern="^[a-z0-9-]+$", description="New book slug (URL-friendly)"
     )
     cover_image_url: Optional[str] = Field(None, description="New book cover image URL")
 
