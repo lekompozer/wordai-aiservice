@@ -228,8 +228,16 @@ async def get_chapter_tree(
     - Ordered by order_index at each level
     - Unpublished chapters hidden for non-owners
 
+    **Response Fields:**
+    - book_id: Book ID
+    - title: Book title (NEW)
+    - cover: Book cover image URL (NEW)
+    - description: Book description
+    - chapters: Hierarchical chapter tree
+    - total_chapters: Total chapter count
+
     **Returns:**
-    - 200: Chapter tree structure
+    - 200: Chapter tree structure with book info
     - 403: User doesn't have access to book
     - 404: Book not found
     """
@@ -293,6 +301,8 @@ async def get_chapter_tree(
 
         return {
             "book_id": book_id,
+            "title": book.get("title"),  # Book title
+            "cover": book.get("cover_image_url"),  # Book cover image URL
             "description": book.get("description"),  # Book's full description
             "chapters": chapters,
             "total_chapters": total,
@@ -731,7 +741,7 @@ async def bulk_update_chapters(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Bulk update chapters (title, slug, description, order, parent) - For reorganizing book menu
+    Bulk update chapters (title, slug, description, order, parent) and optionally book info - For reorganizing book menu
 
     **Authentication:** Required (Owner only)
 
@@ -746,9 +756,13 @@ async def bulk_update_chapters(
       * description: Optional (new description, max 5000 chars)
       * parent_id: Optional (new parent, null for root)
       * order_index: Optional (new position)
+    - book_info: Optional book information update
+      * title: Optional (new book title)
+      * cover_image_url: Optional (new book cover URL)
 
     **Features:**
     - Update multiple chapters in single request
+    - Update book title and cover in same request (NEW)
     - Auto-generate slug from title if title changed but slug not provided
     - Validate slug uniqueness within book
     - Prevent circular parent references
@@ -949,7 +963,32 @@ async def bulk_update_chapters(
             )  # Convert spaces, colons, dots to hyphens
             return text.strip("-")[:100]
 
-        # 4. Process each update
+        # 4. Update book info if provided (title and/or cover)
+        if update_data.book_info:
+            book_update_fields = {}
+
+            if update_data.book_info.title is not None:
+                book_update_fields["title"] = update_data.book_info.title
+                logger.info(f"📝 Updating book title to: {update_data.book_info.title}")
+
+            if update_data.book_info.cover_image_url is not None:
+                book_update_fields["cover_image_url"] = (
+                    update_data.book_info.cover_image_url
+                )
+                logger.info(
+                    f"🖼️  Updating book cover to: {update_data.book_info.cover_image_url}"
+                )
+
+            if book_update_fields:
+                book_update_fields["updated_at"] = datetime.now(timezone.utc)
+                db.online_books.update_one(
+                    {"book_id": book_id}, {"$set": book_update_fields}
+                )
+                logger.info(
+                    f"✅ Updated book {book_id} fields: {list(book_update_fields.keys())}"
+                )
+
+        # 5. Process each chapter update
         updated_chapters = []
         slug_map = {}  # Track slug changes to validate uniqueness
 
