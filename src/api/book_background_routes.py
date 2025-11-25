@@ -18,8 +18,6 @@ from src.models.book_background_models import (
     UpdateBookBackgroundRequest,
     UpdateChapterBackgroundRequest,
     BackgroundResponse,
-    ThemesResponse,
-    ThemeItem,
 )
 
 logger = logging.getLogger(__name__)
@@ -471,93 +469,3 @@ async def delete_chapter_background(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete chapter background",
         )
-
-
-# ==================== PRESET THEMES ENDPOINT ====================
-
-
-@router.get(
-    "/backgrounds/themes",
-    response_model=ThemesResponse,
-    tags=["Background Themes"],
-    summary="Get available background themes",
-)
-async def get_background_themes():
-    """
-    Get list of available preset background themes
-
-    **Authentication:** Not required
-
-    **Returns:**
-    - themes: Array of theme objects with id, name, preview_colors, type, direction
-
-    **Available Themes:**
-    - ocean: Ocean Blue gradient
-    - forest: Forest Green gradient
-    - sunset: Warm Sunset gradient
-    - minimal: Minimal White solid
-    - dark: Dark Mode solid
-    - light: Light Gray solid
-    - tech: Tech Purple gradient
-    - vintage: Vintage Sepia gradient
-    """
-    themes = [
-        ThemeItem(
-            id="ocean",
-            name="Ocean Blue",
-            preview_colors=["#0077be", "#1e90ff", "#87ceeb"],
-            type="gradient",
-            direction="to-br",
-        ),
-        ThemeItem(
-            id="forest",
-            name="Forest Green",
-            preview_colors=["#228b22", "#32cd32", "#90ee90"],
-            type="gradient",
-            direction="to-br",
-        ),
-        ThemeItem(
-            id="sunset",
-            name="Warm Sunset",
-            preview_colors=["#ff6b6b", "#ee5a6f", "#c44569"],
-            type="gradient",
-            direction="to-br",
-        ),
-        ThemeItem(
-            id="minimal",
-            name="Minimal White",
-            preview_colors=["#ffffff"],
-            type="solid",
-            direction=None,
-        ),
-        ThemeItem(
-            id="dark",
-            name="Dark Mode",
-            preview_colors=["#1f2937"],
-            type="solid",
-            direction=None,
-        ),
-        ThemeItem(
-            id="light",
-            name="Light Gray",
-            preview_colors=["#f9fafb"],
-            type="solid",
-            direction=None,
-        ),
-        ThemeItem(
-            id="tech",
-            name="Tech Purple",
-            preview_colors=["#667eea", "#764ba2"],
-            type="gradient",
-            direction="to-br",
-        ),
-        ThemeItem(
-            id="vintage",
-            name="Vintage Sepia",
-            preview_colors=["#f4e7d7", "#d4a574", "#8b6f47"],
-            type="gradient",
-            direction="to-br",
-        ),
-    ]
-
-    return ThemesResponse(themes=themes)

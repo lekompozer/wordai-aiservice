@@ -20,6 +20,47 @@ class AIMetadata(BaseModel):
     cost_points: int = Field(default=2, description="Points deducted for generation")
 
 
+class GradientConfig(BaseModel):
+    """Gradient configuration"""
+
+    colors: List[str] = Field(
+        ...,
+        min_length=2,
+        max_length=2,
+        description="Array of 2 hex colors for gradient",
+    )
+    type: Literal["linear", "radial", "conic"] = Field(
+        "linear", description="Gradient type"
+    )
+    angle: Optional[int] = Field(
+        135, ge=0, le=360, description="Gradient angle in degrees (for linear)"
+    )
+
+    @field_validator("colors")
+    @classmethod
+    def validate_colors(cls, v):
+        """Validate gradient colors are valid hex codes"""
+        import re
+
+        hex_pattern = re.compile(r"^#[0-9A-Fa-f]{6}$")
+        for color in v:
+            if not hex_pattern.match(color):
+                raise ValueError(f"Invalid hex color: {color}")
+        return v
+
+
+class ImageConfig(BaseModel):
+    """Image configuration for ai_image or custom_image"""
+
+    url: str = Field(..., description="Image URL")
+    overlay_opacity: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Overlay opacity (0.0-1.0)"
+    )
+    overlay_color: Optional[str] = Field(
+        None, pattern="^#[0-9A-Fa-f]{6}$", description="Overlay hex color"
+    )
+
+
 class BackgroundConfig(BaseModel):
     """Background configuration for book or chapter"""
 
@@ -28,26 +69,20 @@ class BackgroundConfig(BaseModel):
         ..., description="Type of background"
     )
 
-    # Type: solid
+    # Type: solid - just hex color
     color: Optional[str] = Field(
         None,
         pattern="^#[0-9A-Fa-f]{6}$",
         description="Hex color for solid background",
     )
 
-    # Type: gradient
-    gradient_colors: Optional[List[str]] = Field(
-        None,
-        min_length=2,
-        max_length=4,
-        description="Array of hex colors for gradient",
+    # Type: gradient - nested object
+    gradient: Optional[GradientConfig] = Field(
+        None, description="Gradient configuration"
     )
-    gradient_direction: Optional[
-        Literal["to-br", "to-tr", "to-bl", "to-tl", "to-r", "to-b", "to-t", "to-l"]
-    ] = Field(None, description="Tailwind gradient direction")
 
-    # Type: theme
-    theme_id: Optional[
+    # Type: theme - just theme name (frontend handles rendering)
+    theme: Optional[
         Literal[
             "ocean",
             "forest",
@@ -58,60 +93,13 @@ class BackgroundConfig(BaseModel):
             "tech",
             "vintage",
         ]
-    ] = Field(None, description="Preset theme ID")
+    ] = Field(None, description="Theme name (frontend renders)")
 
-    # Type: ai_image or custom_image
-    image_url: Optional[str] = Field(None, description="Image URL")
-    image_opacity: Optional[float] = Field(
-        0.3, ge=0.0, le=1.0, description="Image overlay opacity"
-    )
-    image_size: Optional[Literal["cover", "contain", "auto"]] = Field(
-        "cover", description="CSS background-size"
-    )
-
-    # Text overlay
-    show_text_overlay: bool = Field(
-        False, description="Show text overlay on background"
-    )
-    overlay_text: Optional[str] = Field(None, max_length=200)
-    overlay_position: Optional[
-        Literal[
-            "center",
-            "top",
-            "bottom",
-            "top-left",
-            "top-right",
-            "bottom-left",
-            "bottom-right",
-        ]
-    ] = Field("center")
-    overlay_text_color: Optional[str] = Field("#FFFFFF", pattern="^#[0-9A-Fa-f]{6}$")
-    overlay_text_size: Optional[
-        Literal["sm", "base", "lg", "xl", "2xl", "3xl", "4xl"]
-    ] = Field("2xl")
-    overlay_font_weight: Optional[Literal["normal", "medium", "semibold", "bold"]] = (
-        Field("bold")
-    )
-
-    # Page settings
-    page_size: Optional[Literal["A4", "A5", "Letter", "Legal"]] = Field("A4")
-    orientation: Optional[Literal["portrait", "landscape"]] = Field("portrait")
+    # Type: ai_image or custom_image - nested object
+    image: Optional[ImageConfig] = Field(None, description="Image configuration")
 
     # AI metadata (only for ai_image type)
     ai_metadata: Optional[AIMetadata] = None
-
-    @field_validator("gradient_colors")
-    @classmethod
-    def validate_gradient_colors(cls, v):
-        """Validate gradient colors are valid hex codes"""
-        if v is not None:
-            import re
-
-            hex_pattern = re.compile(r"^#[0-9A-Fa-f]{6}$")
-            for color in v:
-                if not hex_pattern.match(color):
-                    raise ValueError(f"Invalid hex color: {color}")
-        return v
 
 
 class GenerateBackgroundRequest(BaseModel):
@@ -189,19 +177,3 @@ class GenerateBackgroundResponse(BaseModel):
     ai_metadata: Optional[AIMetadata] = Field(
         None, description="AI generation metadata"
     )
-
-
-class ThemeItem(BaseModel):
-    """Preset theme item"""
-
-    id: str = Field(..., description="Theme ID")
-    name: str = Field(..., description="Theme display name")
-    preview_colors: List[str] = Field(..., description="Preview colors")
-    type: Literal["solid", "gradient"] = Field(..., description="Theme type")
-    direction: Optional[str] = Field(None, description="Gradient direction")
-
-
-class ThemesResponse(BaseModel):
-    """Response with available themes"""
-
-    themes: List[ThemeItem] = Field(..., description="List of available themes")
