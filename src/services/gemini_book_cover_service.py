@@ -9,11 +9,14 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 import base64
 from io import BytesIO
+import uuid
 
 try:
     from google import genai
     from google.genai import types
     from PIL import Image
+    import boto3
+    from botocore.client import Config
 
     GENAI_AVAILABLE = True
 except ImportError:
@@ -53,6 +56,26 @@ class GeminiBookCoverService:
 
         # Initialize Gemini client
         self.client = genai.Client(api_key=self.api_key)
+
+        # Initialize R2 client for storage
+        self.r2_access_key = os.getenv("R2_ACCESS_KEY_ID")
+        self.r2_secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
+        self.r2_endpoint = os.getenv("R2_ENDPOINT")
+        self.r2_bucket = os.getenv("R2_BUCKET_NAME", "wordai")
+        self.r2_public_url = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+
+        if not all([self.r2_access_key, self.r2_secret_key, self.r2_endpoint]):
+            raise ValueError("R2 storage credentials not configured")
+
+        self.s3_client = boto3.client(
+            "s3",
+            endpoint_url=self.r2_endpoint,
+            aws_access_key_id=self.r2_access_key,
+            aws_secret_access_key=self.r2_secret_key,
+            config=Config(signature_version="s3v4"),
+            region_name="auto",
+        )
+
         logger.info("✅ Gemini Book Cover Service initialized")
 
     def _build_cover_prompt(
@@ -188,3 +211,140 @@ class GeminiBookCoverService:
         except Exception as e:
             logger.error(f"❌ Gemini book cover generation failed: {e}", exc_info=True)
             raise ValueError(f"Book cover generation failed: {str(e)}")
+
+    async def upload_to_r2(
+        self, image_bytes: bytes, user_id: str, filename: str
+    ) -> Dict[str, str]:
+        """
+        Upload generated book cover to R2 storage
+
+        Args:
+            image_bytes: Image data as bytes
+            user_id: Firebase user ID
+            filename: Filename for the image
+
+        Returns:
+            Dict with r2_key and file_url
+        """
+        try:
+            # Generate R2 key for book covers
+            unique_id = uuid.uuid4().hex[:12]
+            r2_key = f"ai-generated-images/{user_id}/{unique_id}_{filename}"
+
+            logger.info(f"☁️  Uploading book cover to R2: {r2_key}")
+
+            # Upload to R2
+            self.s3_client.put_object(
+                Bucket=self.r2_bucket,
+                Key=r2_key,
+                Body=image_bytes,
+                ContentType="image/png",
+            )
+
+            # Generate public URL
+            file_url = f"{self.r2_public_url}/{r2_key}"
+
+            logger.info(f"✅ Book cover uploaded to R2: {file_url}")
+
+            return {"r2_key": r2_key, "file_url": file_url}
+
+        except Exception as e:
+            logger.error(f"❌ Failed to upload book cover to R2: {e}")
+            raise Exception(f"R2 upload failed: {str(e)}")
+
+    async def save_to_library(
+        self,
+        user_id: str,
+        filename: str,
+        file_size: int,
+        r2_key: str,
+        file_url: str,
+        title: str,
+        author: str,
+        description: str,
+        style: Optional[str],
+        prompt_used: str,
+        db,
+    ) -> Dict[str, Any]:
+        """
+        Save generated book cover metadata to library_files collection
+
+        Args:
+            user_id: Firebase user ID
+            filename: Image filename
+            file_size: File size in bytes
+            r2_key: R2 storage key
+            file_url: Public URL
+            title: Book title
+            author: Author name
+            description: Cover description
+            style: Style used
+            prompt_used: Full prompt sent to Gemini
+            db: MongoDB database instance
+
+        Returns:
+            Library file document
+        """
+        try:
+            from datetime import timezone
+
+            library_id = f"lib_{uuid.uuid4().hex[:12]}"
+            now = datetime.now(timezone.utc)
+
+            # Build metadata for book cover
+            metadata = {
+                "source": "gemini-3-pro-image-preview",
+                "generation_type": "book_cover",
+                "model_version": "gemini-3-pro-image-preview",
+                "prompt": prompt_used,
+                "aspect_ratio": self.BOOK_ASPECT_RATIO,
+                "book_title": title,
+                "book_author": author,
+                "cover_description": description,
+                "style": style,
+            }
+
+            library_doc = {
+                "file_id": library_id,
+                "library_id": library_id,
+                "user_id": user_id,
+                "filename": filename,
+                "original_name": filename,
+                "file_type": "image/png",
+                "file_size": file_size,
+                "folder_id": None,
+                "r2_key": r2_key,
+                "file_url": file_url,
+                "category": "images",
+                "description": f"Book cover for '{title}' by {author}",
+                "tags": ["ai-generated", "book-cover", title, author],
+                "metadata": metadata,
+                "is_deleted": False,
+                "deleted_at": None,
+                "uploaded_at": now,
+                "updated_at": now,
+            }
+
+            result = db["library_files"].insert_one(library_doc)
+
+            if result.inserted_id:
+                logger.info(f"📚 Book cover saved to library: {library_id}")
+                return library_doc
+            else:
+                raise Exception("Failed to insert into library_files")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to save book cover to library: {e}")
+            raise Exception(f"Library save failed: {str(e)}")
+
+
+# Singleton instance
+_gemini_book_cover_service = None
+
+
+def get_gemini_book_cover_service() -> GeminiBookCoverService:
+    """Get or create GeminiBookCoverService singleton"""
+    global _gemini_book_cover_service
+    if _gemini_book_cover_service is None:
+        _gemini_book_cover_service = GeminiBookCoverService()
+    return _gemini_book_cover_service

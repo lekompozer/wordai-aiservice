@@ -1350,7 +1350,11 @@ async def get_chapter_with_content(
         forever_points = access_config.get("forever_view_points", 0)
 
         # ✅ If book is public AND completely free (0 points) → Allow anonymous access
-        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+        if (
+            (visibility == "public" or (is_published and visibility == "point_based"))
+            and one_time_points == 0
+            and forever_points == 0
+        ):
             logger.info(
                 f"📖 Free public book accessed: {chapter_id} (anonymous: {current_user is None})"
             )
@@ -1375,7 +1379,11 @@ async def get_chapter_with_content(
 
         # ✅ Book is already checked for free access above for anonymous users
         # For authenticated users with free books, allow access
-        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+        if (
+            (visibility == "public" or (is_published and visibility == "point_based"))
+            and one_time_points == 0
+            and forever_points == 0
+        ):
             # Free book - allow all authenticated users too
             logger.info(f"📖 Free book accessed by {user_id}: chapter {chapter_id}")
             return ChapterResponse(**chapter)
@@ -1540,7 +1548,11 @@ async def get_chapter_content_by_slug(
         forever_points = access_config.get("forever_view_points", 0)
 
         # ✅ If book is public AND completely free (0 points) → Allow anonymous access
-        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+        if (
+            (visibility == "public" or (is_published and visibility == "point_based"))
+            and one_time_points == 0
+            and forever_points == 0
+        ):
             logger.info(
                 f"📖 Free public book (slug) accessed: {book_slug}/{chapter_slug} (anonymous: {current_user is None})"
             )
@@ -1567,7 +1579,11 @@ async def get_chapter_content_by_slug(
 
         # ✅ Book is already checked for free access above for anonymous users
         # For authenticated users with free books, allow access
-        if (visibility == "public" or (is_published and visibility == "point_based")) and one_time_points == 0 and forever_points == 0:
+        if (
+            (visibility == "public" or (is_published and visibility == "point_based"))
+            and one_time_points == 0
+            and forever_points == 0
+        ):
             # Free book - allow all authenticated users too
             logger.info(
                 f"📖 Free book (slug) accessed by {user_id}: {book_slug}/{chapter_slug}"

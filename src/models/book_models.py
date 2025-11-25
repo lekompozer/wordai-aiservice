@@ -825,6 +825,13 @@ class GenerateBookCoverResponse(BaseModel):
     )
     error: Optional[str] = Field(None, description="Error message if failed")
 
+    # Library storage fields (NEW)
+    file_id: Optional[str] = Field(
+        None, description="Library file ID for accessing from library"
+    )
+    file_url: Optional[str] = Field(None, description="Direct URL to download image")
+    r2_key: Optional[str] = Field(None, description="R2 storage key")
+
     # Usage statistics
     generation_time_ms: Optional[int] = Field(
         None, description="Time taken to generate (milliseconds)"

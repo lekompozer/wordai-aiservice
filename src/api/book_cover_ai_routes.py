@@ -7,9 +7,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional
 import logging
 import time
+import base64
 
 # Authentication
 from src.middleware.firebase_auth import get_current_user
+
+# Database
+from src.database.db_manager import DBManager
 
 # Models
 from src.models.book_models import (
@@ -18,12 +22,19 @@ from src.models.book_models import (
 )
 
 # Services
-from src.services.gemini_book_cover_service import GeminiBookCoverService
+from src.services.gemini_book_cover_service import (
+    GeminiBookCoverService,
+    get_gemini_book_cover_service,
+)
 from src.services.points_service import get_points_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/books/ai/cover", tags=["AI Book Cover"])
+
+# Initialize DB
+db_manager = DBManager()
+db = db_manager.db
 
 
 @router.post(
@@ -144,8 +155,8 @@ async def generate_book_cover_ai(
             f"💰 Points check passed - User: {user_id}, Cost: {points_cost} points"
         )
 
-        # Initialize Gemini service
-        gemini_service = GeminiBookCoverService()
+        # Initialize Gemini service (use singleton)
+        gemini_service = get_gemini_book_cover_service()
 
         # Generate image
         result = await gemini_service.generate_book_cover(
@@ -161,7 +172,49 @@ async def generate_book_cover_ai(
             f"✅ Generated book cover for user {user_id} in {generation_time_ms}ms"
         )
 
-        # ===== STEP 2: Deduct points after success =====
+        # ===== STEP 2: Upload to R2 and save to library =====
+        try:
+            # Decode base64 to bytes
+            image_bytes = base64.b64decode(result["image_base64"])
+            file_size = len(image_bytes)
+
+            # Generate filename
+            safe_title = "".join(
+                c for c in request.title if c.isalnum() or c in (" ", "-", "_")
+            )[:30]
+            filename = f"book_cover_{safe_title}_{int(time.time())}.png"
+
+            # Upload to R2
+            upload_result = await gemini_service.upload_to_r2(
+                image_bytes=image_bytes,
+                user_id=user_id,
+                filename=filename,
+            )
+
+            logger.info(f"☁️  Uploaded book cover to R2: {upload_result['file_url']}")
+
+            # Save to library
+            library_doc = await gemini_service.save_to_library(
+                user_id=user_id,
+                filename=filename,
+                file_size=file_size,
+                r2_key=upload_result["r2_key"],
+                file_url=upload_result["file_url"],
+                title=request.title,
+                author=request.author,
+                description=request.prompt,
+                style=request.style,
+                prompt_used=result["prompt_used"],
+                db=db,
+            )
+
+            logger.info(f"📚 Saved book cover to library: {library_doc['file_id']}")
+
+        except Exception as storage_error:
+            logger.error(f"❌ Failed to save to R2/library: {storage_error}")
+            # Continue with response even if storage fails
+
+        # ===== STEP 3: Deduct points after success =====
         try:
             await points_service.deduct_points(
                 user_id=user_id,
@@ -187,6 +240,11 @@ async def generate_book_cover_ai(
             resolution=None,  # Not supported by Gemini ImageConfig
             timestamp=result.get("timestamp"),
             generation_time_ms=generation_time_ms,
+            file_id=library_doc.get("file_id") if "library_doc" in locals() else None,
+            file_url=(
+                upload_result.get("file_url") if "upload_result" in locals() else None
+            ),
+            r2_key=upload_result.get("r2_key") if "upload_result" in locals() else None,
         )
 
     except ImportError as e:
