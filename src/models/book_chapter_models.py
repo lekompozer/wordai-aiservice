@@ -182,17 +182,17 @@ class ChapterResponse(BaseModel):
     is_preview_free: bool = Field(
         default=False, description="Free preview on Community Books"
     )
-    
+
     # Background Configuration (NEW)
     use_book_background: bool = Field(
         default=True,
-        description="If true, inherit background from book. If false, use chapter's own background_config"
+        description="If true, inherit background from book. If false, use chapter's own background_config",
     )
     background_config: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Chapter's own background config (only used if use_book_background=false)"
+        description="Chapter's own background config (only used if use_book_background=false)",
     )
-    
+
     created_at: datetime
     updated_at: datetime
 

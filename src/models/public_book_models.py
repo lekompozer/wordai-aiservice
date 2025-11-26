@@ -72,8 +72,7 @@ class PublicBookResponse(BaseModel):
     seo: SEOMetadata
     branding: Optional[GuideBranding] = None
     background_config: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Background configuration for book"
+        default=None, description="Background configuration for book"
     )
     created_at: datetime
     updated_at: datetime
@@ -111,12 +110,10 @@ class PublicChapterResponse(BaseModel):
     navigation: ChapterNavigation
     seo: SEOMetadata
     use_book_background: bool = Field(
-        default=True,
-        description="If true, inherit background from book"
+        default=True, description="If true, inherit background from book"
     )
     background_config: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="Chapter's own background config"
+        default=None, description="Chapter's own background config"
     )
     created_at: datetime
     updated_at: datetime

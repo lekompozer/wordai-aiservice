@@ -194,7 +194,7 @@ class BookResponse(BaseModel):
     # Background Configuration (NEW)
     background_config: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Background configuration for book (solid, gradient, theme, ai_image, custom_image)"
+        description="Background configuration for book (solid, gradient, theme, ai_image, custom_image)",
     )
 
     # Timestamps

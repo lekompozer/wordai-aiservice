@@ -82,18 +82,13 @@ class BackgroundConfig(BaseModel):
     )
 
     # Type: theme - just theme name (frontend handles rendering)
-    theme: Optional[
-        Literal[
-            "ocean",
-            "forest",
-            "sunset",
-            "minimal",
-            "dark",
-            "light",
-            "tech",
-            "vintage",
-        ]
-    ] = Field(None, description="Theme name (frontend renders)")
+    # Accept any string - frontend manages theme registry
+    theme: Optional[str] = Field(
+        None,
+        min_length=1,
+        max_length=50,
+        description="Theme name (any string, frontend manages rendering). Examples: ocean, forest, newspaper, book_page, leather, etc.",
+    )
 
     # Type: ai_image or custom_image - nested object
     image: Optional[ImageConfig] = Field(None, description="Image configuration")

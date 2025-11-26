@@ -49,7 +49,8 @@ Backend chỉ lưu minimal data, frontend tự xử lý rendering (đặc biệt
   },
 
   // Type: theme - CHỈ LƯU TÊN (frontend tự render)
-  "theme": "ocean | forest | sunset | minimal | dark | light | tech | vintage",
+  // Accept ANY string - frontend manages theme registry
+  "theme": "string",  // Examples: ocean, forest, newspaper, book_page, leather, lined_paper, vintage, etc.
 
   // Type: ai_image hoặc custom_image - nested object
   "image": {
@@ -80,8 +81,10 @@ Backend chỉ lưu minimal data, frontend tự xử lý rendering (đặc biệt
 - Optional: `gradient.angle` (0-360 degrees, default: 135)
 
 **Type: theme**
-- Required: `theme` (one of 8 theme names)
-- **Frontend handles rendering** - backend chỉ validate và lưu tên
+- Required: `theme` (any string, 1-50 characters)
+- **Frontend handles rendering** - backend chỉ validate string length
+- **Examples**: `ocean`, `forest`, `newspaper`, `book_page`, `leather`, `lined_paper`, `vintage`, etc.
+- **No hardcoded list** - frontend can add new themes without backend changes
 
 **Type: ai_image hoặc custom_image**
 - Required: `image.url` (R2 URL)
@@ -537,13 +540,15 @@ Upload hình ảnh tùy chỉnh để sử dụng làm background.
 
 ✅ **Frontend tự quản lý themes trong constants**
 
-Backend chỉ validate theme name khi update (1 trong 8 themes: `ocean`, `forest`, `sunset`, `minimal`, `dark`, `light`, `tech`, `vintage`)
+Backend chỉ validate theme name là string (1-50 chars). Frontend có thể thêm bất kỳ theme mới nào.
 
 **Frontend Theme Registry Example:**
 
 ```typescript
 // Frontend constants - không cần fetch từ backend
+// Có thể thêm theme mới bất kỳ lúc nào
 const THEMES = {
+  // Original 8 themes
   ocean: {
     name: "Ocean Blue",
     gradient: { colors: ["#667eea", "#764ba2"], type: "linear", angle: 135 }
@@ -575,14 +580,36 @@ const THEMES = {
   vintage: {
     name: "Vintage Paper",
     solid: { color: "#f4e5d3" }
+  },
+  
+  // NEW: Additional themes (backend automatically accepts)
+  book_page: {
+    name: "Trang Sách",
+    backgroundColor: "#fefdf5",  // trắng ngà
+    pattern: "paper-texture"  // vân giấy tự nhiên
+  },
+  newspaper: {
+    name: "Báo Cổ",
+    backgroundColor: "#e8dcc4",  // vàng giấy báo cũ
+    pattern: "newspaper-text"  // text mờ + đốm phong hóa
+  },
+  lined_paper: {
+    name: "Giấy Kẻ Ngang",
+    backgroundColor: "#ffffff",
+    pattern: "horizontal-lines"  // đường kẻ xanh + lề đỏ + lỗ đục
+  },
+  leather: {
+    name: "Giả Da",
+    backgroundColor: "#8b6f47",  // da nâu
+    pattern: "leather-texture"  // hạt da + lỗ chân lông + nếp nhăn
   }
 };
 ```
 
-**Backend validation:**
-- Khi `type === "theme"`, validate `theme` field chỉ chứa 1 trong 8 tên trên
-- Backend **KHÔNG** lưu gradient/color details của theme
-- Backend CHỈ lưu theme name
+**Backend behavior:**
+- Accepts **ANY** theme name (string, 1-50 chars)
+- No validation against specific theme list
+- Frontend has full control over theme registry
         "gradient_type": "linear",
         "gradient_angle": 45
       }
@@ -687,9 +714,10 @@ Tất cả error responses đều có format:
 - `gradient.angle`: Số từ 0-360 (degrees), optional default 135
 
 ### Theme Validation
-- `theme`: Phải là 1 trong 8 giá trị: `ocean`, `forest`, `sunset`, `minimal`, `dark`, `light`, `tech`, `vintage`
-- Backend **CHỈ** validate và lưu theme name
-- Frontend tự render theme dựa trên name
+- `theme`: Any string (1-50 characters)
+- Backend **DOES NOT** validate against specific theme list
+- Frontend has full control to add/remove themes
+- **No backend deployment needed** for new themes
 
 ### Image Validation
 - `image.url`: Bắt buộc, phải là valid URL (thường là R2 URL)
@@ -727,10 +755,11 @@ Tất cả error responses đều có format:
 - Cache theme constants locally
 
 ### Theme Handling
-- Backend stores **ONLY** theme name (e.g., `"ocean"`)
-- Backend validates theme name against 8 allowed values
+- Backend stores **ONLY** theme name as string (e.g., `"ocean"`, `"newspaper"`, `"book_page"`)
+- Backend **DOES NOT** validate theme name against hardcoded list
 - Frontend maintains theme registry with rendering details
-- Frontend can update theme appearance without backend deployment
+- Frontend can add new themes anytime without backend changes
+- **Maximum flexibility** - any string 1-50 chars accepted
 
 ### Chapter Background Inheritance
 
@@ -806,7 +835,7 @@ Tất cả error responses đều có format:
 type BackgroundConfig =
   | { type: "solid", color: string }
   | { type: "gradient", gradient: { colors: [string, string], type: "linear" | "radial" | "conic", angle?: number } }
-  | { type: "theme", theme: "ocean" | "forest" | "sunset" | "minimal" | "dark" | "light" | "tech" | "vintage" }
+  | { type: "theme", theme: string }  // Any string - frontend manages
   | { type: "ai_image" | "custom_image", image: { url: string, overlay_opacity?: number, overlay_color?: string }, ai_metadata?: AIMetadata }
 ```
 
@@ -884,7 +913,7 @@ Thêm field mới:
     },
 
     // Theme - CHỈ LƯU TÊN
-    "theme": "string",  // ocean | forest | sunset | minimal | dark | light | tech | vintage
+    "theme": "string",  // Any string (1-50 chars) - Examples: ocean, newspaper, book_page, leather, etc.
 
     // Image
     "image": {
@@ -985,14 +1014,14 @@ File `migrate_add_background_fields.py` đã được chạy trên production:
 
 ## Key Design Decisions
 
-### ✅ Simplified Theme Handling
-- **Backend**: Chỉ validate và lưu theme name (1 trong 8 tên)
-- **Frontend**: Tự quản lý theme registry, tự render themes
+### ✅ Flexible Theme System
+- **Backend**: Accepts any theme name (string, 1-50 chars) - no hardcoded validation
+- **Frontend**: Full control over theme registry and rendering
 - **Benefits**:
-  - Frontend có thể A/B test theme designs
-  - Không cần fetch themes từ backend
-  - Dễ dàng update theme appearance
-  - Cached themes - faster UX
+  - Add new themes without backend deployment
+  - A/B test theme designs easily
+  - No backend bottleneck for design changes
+  - Complete frontend autonomy
 
 ### ✅ Nested Object Structure
 - **Before**: Flat fields (`gradient_colors`, `gradient_type`, `image_url`, `overlay_opacity`)
@@ -1013,7 +1042,16 @@ File `migrate_add_background_fields.py` đã được chạy trên production:
 
 ## Version History
 
-### v1.1 - November 25, 2025 (Current)
+### v1.2 - November 26, 2025 (Current)
+- **BREAKING CHANGES:**
+  - Theme validation now accepts **ANY string** (1-50 chars)
+  - Removed hardcoded theme name validation (was limited to 8 themes)
+- **Benefits:**
+  - Frontend can add unlimited themes without backend changes
+  - Examples: `newspaper`, `book_page`, `lined_paper`, `leather`, etc.
+  - Complete flexibility for theme management
+
+### v1.1 - November 25, 2025
 - **BREAKING CHANGES:**
   - Removed `GET /backgrounds/themes` endpoint
   - Simplified schema: nested objects (gradient, image)
