@@ -126,27 +126,24 @@ async def style_transfer_image(
     # Validate file size
     await validate_file_size(original_image)
 
-    # Check and deduct points
+    # Check points availability first (but DON'T deduct yet)
     points_service = get_points_service()
     points_required = 2
 
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=points_required,
-            service="ai_image_edit",
-            description=f"Style transfer: {target_style}",
-        )
-        logger.info(f"✅ Points deducted: {points_required}")
-    except InsufficientPointsError as e:
-        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+    check = await points_service.check_sufficient_points(
+        user_id=user_id,
+        points_needed=points_required,
+        service="ai_image_edit",
+    )
+
+    if not check["has_points"]:
         raise HTTPException(
             status_code=402,
             detail={
                 "error": "insufficient_points",
-                "message": e.message,
-                "points_needed": e.points_needed,
-                "points_available": e.points_available,
+                "message": f"Không đủ điểm. Cần: {points_required}, Còn: {check['points_available']}",
+                "points_needed": points_required,
+                "points_available": check["points_available"],
             },
         )
 
@@ -174,18 +171,22 @@ async def style_transfer_image(
         )
 
         logger.info(f"✅ Style transfer completed: {result.get('file_id')}")
-        return StyleTransferResponse(**result)
 
-    except Exception as e:
-        logger.error(f"❌ Style transfer failed: {str(e)}")
-        # Refund points on failure
-        await points_service.refund_points(
+        # Deduct points AFTER successful edit
+        await points_service.deduct_points(
             user_id=user_id,
             amount=points_required,
-            reason="Refund for failed style transfer",
-            original_transaction_id=str(transaction.id) if transaction else None,
+            service="ai_image_edit",
+            description=f"Style transfer: {target_style}",
         )
-        logger.info(f"💰 Points refunded: {points_required}")
+        logger.info(f"✅ Points deducted: {points_required}")
+
+        return StyleTransferResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Style transfer failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -233,27 +234,24 @@ async def edit_object_in_image(
     # Validate file size
     await validate_file_size(original_image)
 
-    # Check and deduct points
+    # Check points availability first (but DON'T deduct yet)
     points_service = get_points_service()
     points_required = 2
 
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=points_required,
-            service="ai_image_edit",
-            description=f"Object edit: {target_object}",
-        )
-        logger.info(f"✅ Points deducted: {points_required}")
-    except InsufficientPointsError as e:
-        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+    check = await points_service.check_sufficient_points(
+        user_id=user_id,
+        points_needed=points_required,
+        service="ai_image_edit",
+    )
+
+    if not check["has_points"]:
         raise HTTPException(
             status_code=402,
             detail={
                 "error": "insufficient_points",
-                "message": e.message,
-                "points_needed": e.points_needed,
-                "points_available": e.points_available,
+                "message": f"Không đủ điểm. Cần: {points_required}, Còn: {check['points_available']}",
+                "points_needed": points_required,
+                "points_available": check["points_available"],
             },
         )
 
@@ -281,18 +279,22 @@ async def edit_object_in_image(
         )
 
         logger.info(f"✅ Object edit completed: {result.get('file_id')}")
-        return ObjectEditResponse(**result)
 
-    except Exception as e:
-        logger.error(f"❌ Object edit failed: {str(e)}")
-        # Refund points on failure
-        await points_service.refund_points(
+        # Deduct points AFTER successful edit
+        await points_service.deduct_points(
             user_id=user_id,
             amount=points_required,
-            reason="Refund for failed object edit",
-            original_transaction_id=str(transaction.id) if transaction else None,
+            service="ai_image_edit",
+            description=f"Object edit: {target_object}",
         )
-        logger.info(f"💰 Points refunded: {points_required}")
+        logger.info(f"✅ Points deducted: {points_required}")
+
+        return ObjectEditResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Object edit failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -354,27 +356,24 @@ async def inpaint_image(
         logger.info(f"👉 Mask image provided: {mask_image.filename}")
         await validate_file_size(mask_image)
 
-    # Check and deduct points
+    # Check points availability first (but DON'T deduct yet)
     points_service = get_points_service()
     points_required = 2
 
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=points_required,
-            service="ai_image_edit",
-            description=f"Inpainting: {action}",
-        )
-        logger.info(f"✅ Points deducted: {points_required}")
-    except InsufficientPointsError as e:
-        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+    check = await points_service.check_sufficient_points(
+        user_id=user_id,
+        points_needed=points_required,
+        service="ai_image_edit",
+    )
+
+    if not check["has_points"]:
         raise HTTPException(
             status_code=402,
             detail={
                 "error": "insufficient_points",
-                "message": e.message,
-                "points_needed": e.points_needed,
-                "points_available": e.points_available,
+                "message": f"Không đủ điểm. Cần: {points_required}, Còn: {check['points_available']}",
+                "points_needed": points_required,
+                "points_available": check["points_available"],
             },
         )
 
@@ -403,18 +402,22 @@ async def inpaint_image(
         )
 
         logger.info(f"✅ Inpainting completed: {result.get('file_id')}")
-        return InpaintingResponse(**result)
 
-    except Exception as e:
-        logger.error(f"❌ Inpainting failed: {str(e)}")
-        # Refund points on failure
-        await points_service.refund_points(
+        # Deduct points AFTER successful edit
+        await points_service.deduct_points(
             user_id=user_id,
             amount=points_required,
-            reason="Refund for failed inpainting",
-            original_transaction_id=str(transaction.id) if transaction else None,
+            service="ai_image_edit",
+            description=f"Inpainting: {action}",
         )
-        logger.info(f"💰 Points refunded: {points_required}")
+        logger.info(f"✅ Points deducted: {points_required}")
+
+        return InpaintingResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Inpainting failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -492,27 +495,24 @@ async def compose_images(
         logger.info(f"   - Overlay {idx + 1}: {overlay.filename}")
         await validate_file_size(overlay)
 
-    # Check and deduct points
+    # Check points availability first (but DON'T deduct yet)
     points_service = get_points_service()
     points_required = 2
 
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=points_required,
-            service="ai_image_edit",
-            description="Image composition",
-        )
-        logger.info(f"✅ Points deducted: {points_required}")
-    except InsufficientPointsError as e:
-        logger.warning(f"⚠️ Insufficient points for user {user_id}: {e.message}")
+    check = await points_service.check_sufficient_points(
+        user_id=user_id,
+        points_needed=points_required,
+        service="ai_image_edit",
+    )
+
+    if not check["has_points"]:
         raise HTTPException(
             status_code=402,
             detail={
                 "error": "insufficient_points",
-                "message": e.message,
-                "points_needed": e.points_needed,
-                "points_available": e.points_available,
+                "message": f"Không đủ điểm. Cần: {points_required}, Còn: {check['points_available']}",
+                "points_needed": points_required,
+                "points_available": check["points_available"],
             },
         )
 
@@ -541,16 +541,20 @@ async def compose_images(
         )
 
         logger.info(f"✅ Composition completed: {result.get('file_id')}")
-        return CompositionResponse(**result)
 
-    except Exception as e:
-        logger.error(f"❌ Composition failed: {str(e)}")
-        # Refund points on failure
-        await points_service.refund_points(
+        # Deduct points AFTER successful edit
+        await points_service.deduct_points(
             user_id=user_id,
             amount=points_required,
-            reason="Refund for failed composition",
-            original_transaction_id=str(transaction.id) if transaction else None,
+            service="ai_image_edit",
+            description="Image composition",
         )
-        logger.info(f"💰 Points refunded: {points_required}")
+        logger.info(f"✅ Points deducted: {points_required}")
+
+        return CompositionResponse(**result)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Composition failed: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

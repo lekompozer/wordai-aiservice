@@ -109,14 +109,14 @@ class BookBackgroundService:
 
         except Exception as e:
             logger.error(f"❌ Failed to generate AI background: {e}", exc_info=True)
-            
+
             # Check if it's a 503 error (Gemini overloaded)
             error_str = str(e)
             if "503" in error_str or "overloaded" in error_str.lower():
                 raise Exception(
                     "Gemini API đang quá tải. Vui lòng thử lại sau. (Không trừ điểm)"
                 )
-            
+
             raise Exception(f"Background generation failed: {str(e)}")
 
     def _build_a4_prompt(self, user_prompt: str, style: Optional[str]) -> str:

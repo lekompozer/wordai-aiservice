@@ -105,16 +105,24 @@ async def generate_photorealistic_image(
     user_id = current_user.get("uid")
 
     try:
-        # Check and deduct points BEFORE generation
+        # Check points availability first (but DON'T deduct yet)
         points_service = get_points_service()
-        transaction = await points_service.deduct_points(
+        check = await points_service.check_sufficient_points(
             user_id=user_id,
-            amount=POINTS_PER_GENERATION,
+            points_needed=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Photorealistic image: {prompt[:50]}",
         )
 
-        logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_PER_GENERATION}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_PER_GENERATION,
+                    "points_available": check["points_available"],
+                },
+            )
 
         # Prepare user options for prompt building
         user_options = {
@@ -169,6 +177,16 @@ async def generate_photorealistic_image(
 
         logger.info(f"✅ Photorealistic image generated: {library_doc['file_id']}")
 
+        # Deduct points AFTER successful generation
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+            description=f"Photorealistic image: {prompt[:50]}",
+        )
+
+        logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
+
         return PhotorealisticResponse(
             success=True,
             file_id=library_doc["file_id"],
@@ -186,19 +204,6 @@ async def generate_photorealistic_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error generating photorealistic image: {e}")
-
-        # Refund points on failure
-        try:
-            await points_service.refund_points(
-                user_id=user_id,
-                amount=POINTS_PER_GENERATION,
-                reason="Refund for failed logo generation",
-                original_transaction_id=str(transaction.id) if transaction else None,
-            )
-            logger.info(f"💰 Refunded {POINTS_PER_GENERATION} points to {user_id}")
-        except Exception as refund_error:
-            logger.error(f"❌ Failed to refund points: {refund_error}")
-
         raise HTTPException(
             status_code=500, detail=f"Image generation failed: {str(e)}"
         )
@@ -250,16 +255,24 @@ async def generate_stylized_image(
     user_id = current_user.get("uid")
 
     try:
-        # Check and deduct points
+        # Check points availability first (but DON'T deduct yet)
         points_service = get_points_service()
-        transaction = await points_service.deduct_points(
+        check = await points_service.check_sufficient_points(
             user_id=user_id,
-            amount=POINTS_PER_GENERATION,
+            points_needed=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Stylized image ({style_preset}): {prompt[:50]}",
         )
 
-        logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_PER_GENERATION}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_PER_GENERATION,
+                    "points_available": check["points_available"],
+                },
+            )
 
         # Process reference image if provided
         reference_images = None
@@ -323,6 +336,16 @@ async def generate_stylized_image(
 
         logger.info(f"✅ Stylized image generated: {library_doc['file_id']}")
 
+        # Deduct points AFTER successful generation
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+            description=f"Stylized image ({style_preset}): {prompt[:50]}",
+        )
+
+        logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
+
         return StylizedResponse(
             success=True,
             file_id=library_doc["file_id"],
@@ -342,19 +365,6 @@ async def generate_stylized_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error generating stylized image: {e}")
-
-        # Refund points
-        try:
-            await points_service.refund_points(
-                user_id=user_id,
-                amount=POINTS_PER_GENERATION,
-                reason="Refund for failed stylized generation",
-                original_transaction_id=str(transaction.id) if transaction else None,
-            )
-            logger.info(f"💰 Refunded {POINTS_PER_GENERATION} points to {user_id}")
-        except Exception as refund_error:
-            logger.error(f"❌ Failed to refund points: {refund_error}")
-
         raise HTTPException(
             status_code=500, detail=f"Image generation failed: {str(e)}"
         )
@@ -414,16 +424,24 @@ async def generate_logo_image(
     user_id = current_user.get("uid")
 
     try:
-        # Check and deduct points
+        # Check points availability first (but DON'T deduct yet)
         points_service = get_points_service()
-        transaction = await points_service.deduct_points(
+        check = await points_service.check_sufficient_points(
             user_id=user_id,
-            amount=POINTS_PER_GENERATION,
+            points_needed=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Logo: {brand_name}",
         )
 
-        logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_PER_GENERATION}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_PER_GENERATION,
+                    "points_available": check["points_available"],
+                },
+            )
 
         # Build prompt for logo
         prompt_parts = [f"Create a professional logo for {industry} business."]
@@ -483,6 +501,16 @@ async def generate_logo_image(
 
         logger.info(f"✅ Logo generated: {library_doc['file_id']}")
 
+        # Deduct points AFTER successful generation
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+            description=f"Logo: {brand_name}",
+        )
+
+        logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
+
         return LogoResponse(
             success=True,
             file_id=library_doc["file_id"],
@@ -502,19 +530,9 @@ async def generate_logo_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error generating logo: {e}")
-
-        # Refund points
-        try:
-            await points_service.refund_points(
-                user_id=user_id,
-                amount=POINTS_PER_GENERATION,
-                reason="Refund for failed logo generation",
-                original_transaction_id=str(transaction.id) if transaction else None,
-            )
-            logger.info(f"💰 Refunded {POINTS_PER_GENERATION} points to {user_id}")
-        except Exception as refund_error:
-            logger.error(f"❌ Failed to refund points: {refund_error}")
-
         raise HTTPException(
             status_code=500, detail=f"Image generation failed: {str(e)}"
         )
+
+
+# Export router

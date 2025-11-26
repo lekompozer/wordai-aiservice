@@ -62,13 +62,24 @@ async def generate_background_image(
     user_id = current_user.get("uid")
 
     try:
+        # Check points availability first (but DON'T deduct yet)
         points_service = get_points_service()
-        transaction = await points_service.deduct_points(
+        check = await points_service.check_sufficient_points(
             user_id=user_id,
-            amount=POINTS_PER_GENERATION,
+            points_needed=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Background: {theme[:50]}",
         )
+
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_PER_GENERATION}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_PER_GENERATION,
+                    "points_available": check["points_available"],
+                },
+            )
 
         user_options = {
             "minimalist_mode": minimalist_mode,
@@ -112,6 +123,14 @@ async def generate_background_image(
             db=db,
         )
 
+        # Deduct points AFTER successful generation
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+            description=f"Background: {theme[:50]}",
+        )
+
         return BackgroundResponse(
             success=True,
             file_id=library_doc["file_id"],
@@ -131,15 +150,6 @@ async def generate_background_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error generating background: {e}")
-        try:
-            await points_service.refund_points(
-                user_id=user_id,
-                amount=POINTS_PER_GENERATION,
-                reason="Refund for failed background generation",
-                original_transaction_id=str(transaction.id) if transaction else None,
-            )
-        except Exception:
-            pass
         raise HTTPException(
             status_code=500, detail=f"Image generation failed: {str(e)}"
         )
@@ -167,13 +177,24 @@ async def generate_mockup_image(
     user_id = current_user.get("uid")
 
     try:
+        # Check points availability first (but DON'T deduct yet)
         points_service = get_points_service()
-        transaction = await points_service.deduct_points(
+        check = await points_service.check_sufficient_points(
             user_id=user_id,
-            amount=POINTS_PER_GENERATION,
+            points_needed=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Mockup: {scene_description[:50]}",
         )
+
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_PER_GENERATION}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_PER_GENERATION,
+                    "points_available": check["points_available"],
+                },
+            )
 
         user_options = {
             "placement_type": placement_type,
@@ -215,6 +236,14 @@ async def generate_mockup_image(
             db=db,
         )
 
+        # Deduct points AFTER successful generation
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+            description=f"Mockup: {scene_description[:50]}",
+        )
+
         return MockupResponse(
             success=True,
             file_id=library_doc["file_id"],
@@ -234,15 +263,6 @@ async def generate_mockup_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error generating mockup: {e}")
-        try:
-            await points_service.refund_points(
-                user_id=user_id,
-                amount=POINTS_PER_GENERATION,
-                reason="Refund for failed mockup generation",
-                original_transaction_id=str(transaction.id) if transaction else None,
-            )
-        except Exception:
-            pass
         raise HTTPException(
             status_code=500, detail=f"Image generation failed: {str(e)}"
         )
@@ -271,13 +291,24 @@ async def generate_sequential_image(
     user_id = current_user.get("uid")
 
     try:
+        # Check points availability first (but DON'T deduct yet)
         points_service = get_points_service()
-        transaction = await points_service.deduct_points(
+        check = await points_service.check_sufficient_points(
             user_id=user_id,
-            amount=POINTS_PER_GENERATION,
+            points_needed=POINTS_PER_GENERATION,
             service="ai_image_generation",
-            description=f"Sequential art: {story_script[:50]}",
         )
+
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_PER_GENERATION}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_PER_GENERATION,
+                    "points_available": check["points_available"],
+                },
+            )
 
         user_options = {
             "style": style,
@@ -320,6 +351,14 @@ async def generate_sequential_image(
             db=db,
         )
 
+        # Deduct points AFTER successful generation
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+            description=f"Sequential art: {story_script[:50]}",
+        )
+
         return SequentialResponse(
             success=True,
             file_id=library_doc["file_id"],
@@ -340,15 +379,6 @@ async def generate_sequential_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error generating sequential art: {e}")
-        try:
-            await points_service.refund_points(
-                user_id=user_id,
-                amount=POINTS_PER_GENERATION,
-                reason="Refund for failed sequential generation",
-                original_transaction_id=str(transaction.id) if transaction else None,
-            )
-        except Exception:
-            pass
         raise HTTPException(
             status_code=500, detail=f"Image generation failed: {str(e)}"
         )
