@@ -100,7 +100,7 @@ async def generate_book_background(
                 detail="Only book owner can generate background",
             )
 
-        # Check and deduct points
+        # Check points availability first (but DON'T deduct yet)
         points_service = get_points_service()
         check = await points_service.check_sufficient_points(
             user_id=user_id,
@@ -121,11 +121,11 @@ async def generate_book_background(
 
         logger.info(f"🎨 User {user_id} generating AI background for book {book_id}")
 
-        # Generate background
+        # Generate background (may fail with 503 or other errors)
         bg_service = get_book_background_service(db)
         result = await bg_service.generate_ai_background(user_id, request)
 
-        # Deduct points
+        # Only deduct points AFTER successful generation
         await points_service.deduct_points(
             user_id=user_id,
             amount=POINTS_COST_BACKGROUND,
