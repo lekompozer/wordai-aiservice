@@ -581,7 +581,7 @@ const THEMES = {
     name: "Vintage Paper",
     solid: { color: "#f4e5d3" }
   },
-  
+
   // NEW: Additional themes (backend automatically accepts)
   book_page: {
     name: "Trang Sách",

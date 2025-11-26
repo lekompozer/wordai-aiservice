@@ -401,12 +401,12 @@ OUTPUT REQUIREMENTS:
         try:
             response = await asyncio.wait_for(
                 asyncio.create_task(flash_model.generate_content_async(full_prompt)),
-                timeout=120,
+                timeout=240,
             )
             result = response.text if response.parts else ""
             return result.strip()
         except asyncio.TimeoutError:
-            raise Exception("Formatting timed out after 120 seconds")
+            raise Exception("Formatting timed out after 240 seconds")
 
     async def edit_document_html(
         self,
@@ -454,12 +454,12 @@ HTML CONTENT TO EDIT:
         try:
             response = await asyncio.wait_for(
                 asyncio.create_task(pro_model.generate_content_async(prompt)),
-                timeout=120,
+                timeout=240,
             )
             result = response.text if response.parts else ""
             return result.strip()
         except asyncio.TimeoutError:
-            raise Exception("Editing timed out after 120 seconds")
+            raise Exception("Editing timed out after 240 seconds")
 
     async def format_slide_html(
         self,
@@ -530,12 +530,12 @@ OUTPUT REQUIREMENTS:
         try:
             response = await asyncio.wait_for(
                 asyncio.create_task(flash_model.generate_content_async(full_prompt)),
-                timeout=120,
+                timeout=240,
             )
             result = response.text if response.parts else ""
             return result.strip()
         except asyncio.TimeoutError:
-            raise Exception("Slide formatting timed out after 120 seconds")
+            raise Exception("Slide formatting timed out after 240 seconds")
 
 
 # Global instance
