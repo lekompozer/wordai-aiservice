@@ -527,9 +527,9 @@ async def upload_background_image(
         
         # Upload to R2
         r2_client = create_r2_client()
-        r2_client.upload_file(
-            key=r2_key,
-            file_content=file_content,
+        await r2_client.upload_file_from_bytes(
+            file_bytes=file_content,
+            remote_path=r2_key,
             content_type=file.content_type,
         )
         
