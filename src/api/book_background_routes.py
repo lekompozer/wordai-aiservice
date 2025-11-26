@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import Dict, Any, Optional
 import logging
 import time
+import os
 from datetime import datetime
 
 from src.middleware.firebase_auth import get_current_user
@@ -24,6 +25,9 @@ from src.models.book_background_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# R2 public URL from environment (same as other services)
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
 
 router = APIRouter(prefix="/api/v1/books", tags=["Book Backgrounds"])
 
@@ -533,8 +537,8 @@ async def upload_background_image(
             content_type=file.content_type,
         )
         
-        # Generate CDN URL
-        image_url = f"https://r2.wordai.vn/{r2_key}"
+        # Generate public URL (using R2_PUBLIC_URL env variable)
+        image_url = f"{R2_PUBLIC_URL}/{r2_key}"
         
         # Save to library_files collection
         library_file = {

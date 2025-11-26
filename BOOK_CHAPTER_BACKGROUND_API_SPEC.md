@@ -53,7 +53,7 @@ Backend chỉ lưu minimal data, frontend tự xử lý rendering (đặc biệt
 
   // Type: ai_image hoặc custom_image - nested object
   "image": {
-    "url": "https://r2.wordai.vn/...",
+    "url": "https://static.wordai.pro/...",  // R2 public URL from env
     "overlay_opacity": 0.3,
     "overlay_color": "#000000"
   },
@@ -122,7 +122,7 @@ Tạo background bằng AI dựa trên text prompt. Tốn **2 points** từ user
 ```json
 {
   "success": true,
-  "image_url": "https://r2.wordai.vn/backgrounds/user123/bg_a1b2c3d4.png",
+  "image_url": "https://static.wordai.pro/backgrounds/user123/bg_a1b2c3d4.png",
   "r2_key": "backgrounds/user123/bg_a1b2c3d4.png",
   "file_id": "674...",
   "prompt_used": "Full optimized prompt sent to AI...",
@@ -210,7 +210,7 @@ Cập nhật background configuration cho sách.
   "background_config": {
     "type": "ai_image",
     "image": {
-      "url": "https://r2.wordai.vn/backgrounds/user123/bg_abc123.png",
+      "url": "https://static.wordai.pro/backgrounds/user123/bg_abc123.png",
       "overlay_opacity": 0.3,
       "overlay_color": "#000000"
     }
@@ -473,6 +473,64 @@ Reset chapter về trạng thái kế thừa background từ sách.
 
 ---
 
+### 8. Upload Custom Background Image
+
+Upload hình ảnh tùy chỉnh để sử dụng làm background.
+
+**Endpoint:** `POST /upload-background`
+
+**Note:** Endpoint này **KHÔNG có prefix** `/api/v1/books`
+
+**Full URL:** `https://ai.wordai.pro/upload-background` (production) hoặc `http://localhost:8000/upload-background` (local)
+
+**Authentication:** Required (Bearer token)
+
+**Request:** Multipart form data
+
+**Form Fields:**
+- `file` (file, required): Image file to upload
+
+**File Requirements:**
+- **Format**: JPG, PNG, WebP
+- **Max size**: 10MB
+- **Recommended resolution**: 1754x2480px (3:4 aspect ratio for A4 portrait)
+
+**Success Response (200):**
+
+```json
+{
+  "success": true,
+  "image_url": "https://static.wordai.pro/backgrounds/user123/bg_1234567890.png",
+  "r2_key": "backgrounds/user123/bg_1234567890.png",
+  "file_id": "674...",
+  "file_size": 524288,
+  "content_type": "image/png"
+}
+```
+
+**Usage:** Sau khi upload thành công, sử dụng `image_url` trong background config:
+
+```json
+{
+  "background_config": {
+    "type": "custom_image",
+    "image": {
+      "url": "https://static.wordai.pro/backgrounds/user123/bg_1234567890.png",
+      "overlay_opacity": 0.2,
+      "overlay_color": "#000000"
+    }
+  }
+}
+```
+
+**Error Responses:**
+
+- `400 Bad Request`: Invalid file type hoặc file quá lớn
+- `401 Unauthorized`: Token không hợp lệ
+- `500 Internal Server Error`: Upload failed
+
+---
+
 ## Preset Themes (Frontend Handles)
 
 ❌ **Không có endpoint GET /backgrounds/themes** - Backend không cung cấp themes list
@@ -693,7 +751,7 @@ Tất cả error responses đều có format:
 - **Deduct after success**: Points chỉ bị trừ sau khi generate thành công
 - **Library file**: Tất cả AI-generated backgrounds đều được lưu vào `library_files` collection
 
-### Image Storage
+**Image Storage**
 
 - **Service**: Cloudflare R2
 - **Path format**: `backgrounds/{user_id}/{timestamp}_{random}.png`
@@ -701,7 +759,9 @@ Tất cả error responses đều có format:
   - Format: PNG
   - Quality: High
   - Size: Tùy aspect_ratio (A4 = 1754x2480px for 3:4)
-- **CDN URL**: `https://r2.wordai.vn/...`
+- **Public URL**: Configured via `R2_PUBLIC_URL` env variable
+  - Production default: `https://static.wordai.pro`
+  - Can also use: `https://cdn.wordai.vn` or custom domain
 
 ### Ownership & Permissions
 
@@ -906,7 +966,7 @@ File `migrate_add_background_fields.py` đã được chạy trên production:
 
 ## API Summary
 
-**Total Endpoints: 7** (đã bỏ GET /backgrounds/themes)
+**Total Endpoints: 8** (7 main endpoints + 1 upload endpoint)
 
 | Method | Endpoint | Auth | Full URL Example |
 |--------|----------|------|------------------|
@@ -917,6 +977,9 @@ File `migrate_add_background_fields.py` đã được chạy trên production:
 | PUT | `/{book_id}/chapters/{chapter_id}/background` | Required | `PUT https://ai.wordai.pro/api/v1/books/{book_id}/chapters/{chapter_id}/background` |
 | GET | `/{book_id}/chapters/{chapter_id}/background` | Optional | `GET https://ai.wordai.pro/api/v1/books/{book_id}/chapters/{chapter_id}/background` |
 | DELETE | `/{book_id}/chapters/{chapter_id}/background` | Required | `DELETE https://ai.wordai.pro/api/v1/books/{book_id}/chapters/{chapter_id}/background` |
+| POST | `/upload-background` | Required | `POST https://ai.wordai.pro/upload-background` |
+
+**Note:** Upload endpoint **không có prefix** `/api/v1/books`
 
 ---
 
