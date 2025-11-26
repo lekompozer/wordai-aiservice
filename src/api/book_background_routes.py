@@ -3,15 +3,18 @@ Book Background API Routes
 Endpoints for managing book and chapter backgrounds
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from typing import Dict, Any, Optional
 import logging
+import time
+from datetime import datetime
 
 from src.middleware.firebase_auth import get_current_user
 from src.database.db_manager import DBManager
 from src.services.book_background_service import get_book_background_service
 from src.services.book_manager import UserBookManager
 from src.services.points_service import get_points_service
+from src.storage.r2_client import create_r2_client
 from src.models.book_background_models import (
     GenerateBackgroundRequest,
     GenerateBackgroundResponse,
@@ -23,6 +26,9 @@ from src.models.book_background_models import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/books", tags=["Book Backgrounds"])
+
+# Separate router for upload endpoint (no prefix)
+upload_router = APIRouter(tags=["Book Background Upload"])
 
 # Initialize services
 db_manager = DBManager()
@@ -468,4 +474,103 @@ async def delete_chapter_background(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to delete chapter background",
+        )
+
+
+# ==================== BACKGROUND IMAGE UPLOAD ====================
+
+
+@upload_router.post("/upload-background")
+async def upload_background_image(
+    file: UploadFile = File(...),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Upload custom background image to R2 storage
+    
+    Returns R2 URL that can be used with custom_image background type
+    
+    **File Requirements:**
+    - Format: JPG, PNG, WebP
+    - Max size: 10MB
+    - Recommended: High resolution for A4 pages (1754x2480px for 3:4)
+    """
+    try:
+        user_id = current_user.get("uid")
+        
+        # Validate file type
+        allowed_types = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid file type: {file.content_type}. Allowed: JPG, PNG, WebP",
+            )
+        
+        # Read file content
+        file_content = await file.read()
+        file_size = len(file_content)
+        
+        # Validate file size (max 10MB)
+        max_size = 10 * 1024 * 1024  # 10MB
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File too large: {file_size / (1024*1024):.2f}MB. Max: 10MB",
+            )
+        
+        logger.info(f"📤 Uploading background image for user {user_id}: {file.filename} ({file_size / 1024:.2f}KB)")
+        
+        # Generate R2 key
+        timestamp = int(time.time())
+        file_ext = file.filename.split(".")[-1] if "." in file.filename else "png"
+        r2_key = f"backgrounds/{user_id}/bg_{timestamp}.{file_ext}"
+        
+        # Upload to R2
+        r2_client = create_r2_client()
+        r2_client.upload_file(
+            key=r2_key,
+            file_content=file_content,
+            content_type=file.content_type,
+        )
+        
+        # Generate CDN URL
+        image_url = f"https://r2.wordai.vn/{r2_key}"
+        
+        # Save to library_files collection
+        library_file = {
+            "user_id": user_id,
+            "file_url": image_url,
+            "r2_key": r2_key,
+            "file_type": "background",
+            "file_name": file.filename,
+            "content_type": file.content_type,
+            "file_size": file_size,
+            "created_at": datetime.utcnow(),
+            "metadata": {
+                "upload_type": "custom_background",
+                "original_filename": file.filename,
+            },
+        }
+        
+        result = db.library_files.insert_one(library_file)
+        file_id = str(result.inserted_id)
+        
+        logger.info(f"✅ Background uploaded: {image_url} (Library ID: {file_id})")
+        
+        return {
+            "success": True,
+            "image_url": image_url,
+            "r2_key": r2_key,
+            "file_id": file_id,
+            "file_size": file_size,
+            "content_type": file.content_type,
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to upload background: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload background image",
         )

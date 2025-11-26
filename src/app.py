@@ -197,6 +197,7 @@ from src.api.book_cover_ai_routes import router as book_cover_ai_router
 
 # ✅ ADDED: Book Background API - AI-powered A4 backgrounds for books and chapters
 from src.api.book_background_routes import router as book_background_router
+from src.api.book_background_routes import upload_router as book_background_upload_router
 
 # ✅ ADDED: Author API - Community books author management
 from src.api.author_routes import router as author_router
@@ -875,6 +876,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_background_router,
         tags=["Book Backgrounds", "Chapter Backgrounds", "AI Background Generation"],
+    )
+    
+    # ✅ Background image upload endpoint (no prefix)
+    app.include_router(
+        book_background_upload_router,
+        tags=["Book Background Upload"],
     )
 
     # ✅ NEW: Author API - Community books author management

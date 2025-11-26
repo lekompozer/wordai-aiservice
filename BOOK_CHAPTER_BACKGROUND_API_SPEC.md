@@ -4,9 +4,11 @@
 
 API endpoints cho phép quản lý background (hình nền) của sách và chương, bao gồm tạo background bằng AI, sử dụng preset themes, hoặc tùy chỉnh màu sắc/gradient. Chapter có thể kế thừa background từ sách hoặc sử dụng background riêng.
 
-**Base URL:** `https://wordai.vn/api/v1/books`
+**Base URL Production:** `https://ai.wordai.pro/api/v1/books`
 
-**Version:** 1.0
+**Base URL Local:** `http://localhost:8000/api/v1/books`
+
+**Version:** 1.1
 
 **Authentication:** Bearer token trong header `Authorization: Bearer {token}`
 
@@ -93,6 +95,8 @@ Backend chỉ lưu minimal data, frontend tự xử lý rendering (đặc biệt
 ---
 
 ## API Endpoints
+
+**Note:** Tất cả endpoints đều có prefix `/api/v1/books` (VD: `https://ai.wordai.pro/api/v1/books/{book_id}/background`)
 
 ### 1. Generate AI Background
 
@@ -904,15 +908,15 @@ File `migrate_add_background_fields.py` đã được chạy trên production:
 
 **Total Endpoints: 7** (đã bỏ GET /backgrounds/themes)
 
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/{book_id}/background/generate` | Required | Generate AI background (2 points) |
-| PUT | `/{book_id}/background` | Required | Update book background |
-| GET | `/{book_id}/background` | Optional | Get book background |
-| DELETE | `/{book_id}/background` | Required | Reset book background |
-| PUT | `/{book_id}/chapters/{chapter_id}/background` | Required | Update chapter background |
-| GET | `/{book_id}/chapters/{chapter_id}/background` | Optional | Get chapter background |
-| DELETE | `/{book_id}/chapters/{chapter_id}/background` | Required | Reset chapter background |
+| Method | Endpoint | Auth | Full URL Example |
+|--------|----------|------|------------------|
+| POST | `/{book_id}/background/generate` | Required | `POST https://ai.wordai.pro/api/v1/books/{book_id}/background/generate` |
+| PUT | `/{book_id}/background` | Required | `PUT https://ai.wordai.pro/api/v1/books/{book_id}/background` |
+| GET | `/{book_id}/background` | Optional | `GET https://ai.wordai.pro/api/v1/books/{book_id}/background` |
+| DELETE | `/{book_id}/background` | Required | `DELETE https://ai.wordai.pro/api/v1/books/{book_id}/background` |
+| PUT | `/{book_id}/chapters/{chapter_id}/background` | Required | `PUT https://ai.wordai.pro/api/v1/books/{book_id}/chapters/{chapter_id}/background` |
+| GET | `/{book_id}/chapters/{chapter_id}/background` | Optional | `GET https://ai.wordai.pro/api/v1/books/{book_id}/chapters/{chapter_id}/background` |
+| DELETE | `/{book_id}/chapters/{chapter_id}/background` | Required | `DELETE https://ai.wordai.pro/api/v1/books/{book_id}/chapters/{chapter_id}/background` |
 
 ---
 
