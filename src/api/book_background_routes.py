@@ -491,9 +491,9 @@ async def upload_background_image(
 ):
     """
     Upload custom background image to R2 storage
-    
+
     Returns R2 URL that can be used with custom_image background type
-    
+
     **File Requirements:**
     - Format: JPG, PNG, WebP
     - Max size: 10MB
@@ -501,7 +501,7 @@ async def upload_background_image(
     """
     try:
         user_id = current_user.get("uid")
-        
+
         # Validate file type
         allowed_types = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
         if file.content_type not in allowed_types:
@@ -509,11 +509,11 @@ async def upload_background_image(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid file type: {file.content_type}. Allowed: JPG, PNG, WebP",
             )
-        
+
         # Read file content
         file_content = await file.read()
         file_size = len(file_content)
-        
+
         # Validate file size (max 10MB)
         max_size = 10 * 1024 * 1024  # 10MB
         if file_size > max_size:
@@ -521,14 +521,16 @@ async def upload_background_image(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"File too large: {file_size / (1024*1024):.2f}MB. Max: 10MB",
             )
-        
-        logger.info(f"📤 Uploading background image for user {user_id}: {file.filename} ({file_size / 1024:.2f}KB)")
-        
+
+        logger.info(
+            f"📤 Uploading background image for user {user_id}: {file.filename} ({file_size / 1024:.2f}KB)"
+        )
+
         # Generate R2 key
         timestamp = int(time.time())
         file_ext = file.filename.split(".")[-1] if "." in file.filename else "png"
         r2_key = f"backgrounds/{user_id}/bg_{timestamp}.{file_ext}"
-        
+
         # Upload to R2
         r2_client = create_r2_client()
         await r2_client.upload_file_from_bytes(
@@ -536,10 +538,10 @@ async def upload_background_image(
             remote_path=r2_key,
             content_type=file.content_type,
         )
-        
+
         # Generate public URL (using R2_PUBLIC_URL env variable)
         image_url = f"{R2_PUBLIC_URL}/{r2_key}"
-        
+
         # Save to library_files collection
         library_file = {
             "user_id": user_id,
@@ -555,12 +557,12 @@ async def upload_background_image(
                 "original_filename": file.filename,
             },
         }
-        
+
         result = db.library_files.insert_one(library_file)
         file_id = str(result.inserted_id)
-        
+
         logger.info(f"✅ Background uploaded: {image_url} (Library ID: {file_id})")
-        
+
         return {
             "success": True,
             "image_url": image_url,
@@ -569,7 +571,7 @@ async def upload_background_image(
             "file_size": file_size,
             "content_type": file.content_type,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:

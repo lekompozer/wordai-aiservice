@@ -7,6 +7,12 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+# Import BackgroundConfig for type hints
+try:
+    from src.models.book_background_models import BackgroundConfig
+except ImportError:
+    BackgroundConfig = Any  # Fallback for circular import
+
 
 class ChapterCreate(BaseModel):
     """Request model to add chapter to guide"""
@@ -176,6 +182,17 @@ class ChapterResponse(BaseModel):
     is_preview_free: bool = Field(
         default=False, description="Free preview on Community Books"
     )
+    
+    # Background Configuration (NEW)
+    use_book_background: bool = Field(
+        default=True,
+        description="If true, inherit background from book. If false, use chapter's own background_config"
+    )
+    background_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Chapter's own background config (only used if use_book_background=false)"
+    )
+    
     created_at: datetime
     updated_at: datetime
 

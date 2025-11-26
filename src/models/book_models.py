@@ -8,6 +8,12 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
+# Import BackgroundConfig for type hints
+try:
+    from src.models.book_background_models import BackgroundConfig
+except ImportError:
+    BackgroundConfig = Any  # Fallback for circular import
+
 
 class BookVisibility(str, Enum):
     """Guide visibility options"""
@@ -184,6 +190,12 @@ class BookResponse(BaseModel):
     is_deleted: bool = False
     deleted_at: Optional[datetime] = None
     deleted_by: Optional[str] = None
+
+    # Background Configuration (NEW)
+    background_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Background configuration for book (solid, gradient, theme, ai_image, custom_image)"
+    )
 
     # Timestamps
     created_at: datetime
