@@ -540,7 +540,7 @@ async def export_book(
                 isinstance(background_result, dict)
                 and background_result.get("type") == "image"
             ):
-                # Image background with overlay - use absolute positioning for full page
+                # Image background with overlay - use fixed positioning to repeat on every page
                 image_url = background_result["image_url"]
                 overlay_color = background_result["overlay_color"]
                 overlay_opacity = background_result["overlay_opacity"]
@@ -554,47 +554,56 @@ async def export_book(
                 )
                 overlay_rgba = f"rgba({r}, {g}, {b}, {overlay_opacity})"
 
+                # Use unique class name for this chapter's background
+                bg_class = f"chapter-bg-{chapter_id}"
+
                 chapter_html = f"""
-                <div class="chapter" id="chapter-{chapter_id}" style="
-                    position: relative;
-                    page-break-before: {'always' if idx > 1 else 'auto'};
-                    min-height: 297mm;
-                    width: 210mm;
-                    overflow: hidden;
-                    margin: 0;
-                    padding: 0;
-                ">
-                    <!-- Background image (full page) -->
-                    <div style="
-                        position: absolute;
+                <style>
+                    /* Background image repeats on every printed page */
+                    .{bg_class} {{
+                        position: relative;
+                        page-break-before: {'always' if idx > 1 else 'auto'};
+                        width: 210mm;
+                        margin: 0;
+                        padding: 0;
+                    }}
+
+                    /* Fixed background that appears on every page */
+                    .{bg_class}::before {{
+                        content: '';
+                        position: fixed;
                         top: 0;
                         left: 0;
-                        width: 100%;
-                        height: 100%;
+                        width: 210mm;
+                        height: 297mm;
                         background-image: url('{image_url}');
                         background-size: cover;
                         background-position: center;
                         background-repeat: no-repeat;
                         z-index: 1;
-                    "></div>
+                    }}
 
-                    <!-- Overlay layer -->
-                    <div style="
-                        position: absolute;
+                    /* Fixed overlay that appears on every page */
+                    .{bg_class}::after {{
+                        content: '';
+                        position: fixed;
                         top: 0;
                         left: 0;
-                        width: 100%;
-                        height: 100%;
+                        width: 210mm;
+                        height: 297mm;
                         background-color: {overlay_rgba};
                         z-index: 2;
-                    "></div>
+                    }}
 
-                    <!-- Content layer -->
-                    <div class="chapter-content" style="
+                    /* Content with proper z-index */
+                    .{bg_class} .chapter-content {{
                         position: relative;
                         z-index: 3;
                         padding: 2em;
-                    ">
+                    }}
+                </style>
+                <div class="chapter {bg_class}" id="chapter-{chapter_id}">
+                    <div class="chapter-content">
                         {content_html}
                     </div>
                 </div>
