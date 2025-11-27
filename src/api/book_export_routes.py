@@ -6,7 +6,7 @@ Supports both single-chapter and multi-chapter exports
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
-from typing import Optional, List, Literal
+from typing import Optional, List, Literal, Dict, Any
 from enum import Enum
 from datetime import datetime
 
@@ -20,6 +20,88 @@ from src.utils.logger import setup_logger
 
 logger = setup_logger()
 router = APIRouter(prefix="/api/v1/books", tags=["Book Export"])
+
+
+# ============ HELPER FUNCTIONS ============
+
+
+def render_background_css(background_config: Optional[Dict[str, Any]]) -> str:
+    """
+    Render CSS styles for background configuration
+    
+    Args:
+        background_config: BackgroundConfig dict from database
+        
+    Returns:
+        CSS string for inline styles
+    """
+    if not background_config:
+        return "background: white;"
+    
+    bg_type = background_config.get("type")
+    
+    # Type: solid
+    if bg_type == "solid":
+        color = background_config.get("color", "#ffffff")
+        return f"background-color: {color};"
+    
+    # Type: gradient
+    elif bg_type == "gradient":
+        gradient = background_config.get("gradient", {})
+        colors = gradient.get("colors", ["#ffffff", "#f0f0f0"])
+        gradient_type = gradient.get("type", "linear")
+        angle = gradient.get("angle", 135)
+        
+        if gradient_type == "linear":
+            return f"background: linear-gradient({angle}deg, {colors[0]}, {colors[1]});"
+        elif gradient_type == "radial":
+            return f"background: radial-gradient(circle, {colors[0]}, {colors[1]});"
+        elif gradient_type == "conic":
+            return f"background: conic-gradient(from {angle}deg, {colors[0]}, {colors[1]});"
+    
+    # Type: theme (use simple background - frontend handles full theme rendering)
+    elif bg_type == "theme":
+        theme = background_config.get("theme", "")
+        # Simple theme mapping for PDF export
+        theme_colors = {
+            "ocean": "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            "forest": "linear-gradient(135deg, #134e5e 0%, #71b280 100%)",
+            "sunset": "linear-gradient(135deg, #fa709a 0%, #fee140 100%)",
+            "midnight": "linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%)",
+            "newspaper": "background-color: #f5f1e8; background-image: repeating-linear-gradient(0deg, transparent, transparent 35px, rgba(0,0,0,.05) 35px, rgba(0,0,0,.05) 36px);",
+            "book_page": "background-color: #faf8f3;",
+            "leather": "background: linear-gradient(135deg, #8b4513 0%, #654321 100%);",
+            "modern": "background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);",
+        }
+        theme_style = theme_colors.get(theme, "background-color: #ffffff;")
+        return theme_style
+    
+    # Type: ai_image or custom_image
+    elif bg_type in ["ai_image", "custom_image"]:
+        image = background_config.get("image", {})
+        image_url = image.get("url")
+        overlay_opacity = image.get("overlay_opacity", 0)
+        overlay_color = image.get("overlay_color", "#000000")
+        
+        if not image_url:
+            return "background: white;"
+        
+        # Base image style
+        style = f"background-image: url('{image_url}'); background-size: cover; background-position: center; background-repeat: no-repeat;"
+        
+        # Add overlay if specified
+        if overlay_opacity and overlay_opacity > 0:
+            # Note: CSS doesn't support overlay easily in inline styles
+            # We'll use a semi-transparent background-color blend
+            # For better results, need to use pseudo-elements (not possible in inline)
+            hex_color = overlay_color.lstrip('#')
+            r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
+            style += f" background-blend-mode: overlay; background-color: rgba({r}, {g}, {b}, {overlay_opacity});"
+        
+        return style
+    
+    # Default: white background
+    return "background: white;"
 
 
 # ============ ENUMS ============
@@ -429,6 +511,8 @@ async def export_book(
             html_parts.append(toc_html)
 
         # 4. Chapter contents
+        book_background_config = book.get("background_config")
+        
         for idx, chapter in enumerate(chapters, 1):
             chapter_id = chapter["chapter_id"]
 
@@ -445,6 +529,13 @@ async def export_book(
                 logger.warning(f"⚠️ Chapter {chapter_id} has no content")
                 content_html = "<p><em>No content</em></p>"
 
+            # Get background config (chapter overrides book)
+            chapter_background = chapter_with_content.get("background_config")
+            effective_background = chapter_background if chapter_background else book_background_config
+            
+            # Render background CSS
+            background_style = render_background_css(effective_background)
+
             # Wrap chapter content
             depth = chapter.get("depth", 0)
             heading_level = min(depth + 1, 6)  # H1-H6
@@ -453,6 +544,8 @@ async def export_book(
             <div class="chapter" id="chapter-{chapter_id}" style="
                 page-break-before: {'always' if idx > 1 else 'auto'};
                 padding: 2em;
+                {background_style}
+                min-height: 100vh;
             ">
                 <h{heading_level} style="
                     font-size: {3 - (depth * 0.3)}em;
