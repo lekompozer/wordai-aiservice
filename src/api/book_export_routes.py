@@ -5,7 +5,7 @@ Supports both single-chapter and multi-chapter exports
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Literal, Dict, Any
 from enum import Enum
 from datetime import datetime
@@ -146,6 +146,16 @@ class BookExportRequest(BaseModel):
         True, description="Include book metadata (author, description, etc.)"
     )
 
+    @validator("chapter_ids", always=True)
+    def validate_chapter_ids(cls, v, values):
+        """Validate chapter_ids is provided when scope is selected_chapters"""
+        scope = values.get("scope")
+        if scope == ExportScope.SELECTED_CHAPTERS and not v:
+            raise ValueError(
+                "chapter_ids is required when scope is 'selected_chapters'"
+            )
+        return v
+
 
 class BookExportResponse(BaseModel):
     """Response model for book export"""
@@ -258,8 +268,27 @@ async def export_book(
 
         logger.info(
             f"📚 Book export request: book_id={book_id}, "
-            f"user_id={user_id}, format={request.format}, scope={request.scope}"
+            f"user_id={user_id}, format={request.format.value}, scope={request.scope.value}"
         )
+
+        # Validate format
+        valid_formats = ["pdf", "docx", "txt", "html"]
+        if request.format.value not in valid_formats:
+            logger.error(f"❌ Invalid format: {request.format.value}")
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid export format. Supported: {', '.join(valid_formats)}",
+            )
+
+        # Validate scope
+        if request.scope == ExportScope.SELECTED_CHAPTERS and not request.chapter_ids:
+            logger.error(
+                f"❌ Invalid scope configuration: scope=selected_chapters but no chapter_ids provided"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="chapter_ids required when scope=selected_chapters",
+            )
 
         # Get book (don't filter by user_id yet - we'll check access separately)
         book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
@@ -392,11 +421,21 @@ async def export_book(
 
         if request.scope == ExportScope.FULL_BOOK:
             # Export all published chapters
-            chapters_cursor = db.book_chapters.find(
-                {"book_id": book_id, "is_published": True}
-            ).sort("order_index", 1)
+            # Debug: Log query details
+            query = {"book_id": book_id, "is_published": True}
+            logger.info(f"📋 Querying chapters with: {query}")
+
+            chapters_cursor = db.book_chapters.find(query).sort("order_index", 1)
 
             chapters = list(chapters_cursor)
+
+            # Debug: Log all chapter titles
+            if chapters:
+                logger.info(f"📚 Found {len(chapters)} published chapters:")
+                for ch in chapters:
+                    logger.info(
+                        f"  - {ch.get('title')} (published: {ch.get('is_published')}, order: {ch.get('order_index')})"
+                    )
 
             if not chapters:
                 raise HTTPException(
@@ -407,6 +446,9 @@ async def export_book(
 
         else:  # SELECTED_CHAPTERS
             if not request.chapter_ids:
+                logger.error(
+                    f"❌ Export validation failed: scope=selected_chapters but chapter_ids is empty"
+                )
                 raise HTTPException(
                     status_code=400,
                     detail="chapter_ids required when scope=selected_chapters",
@@ -500,7 +542,7 @@ async def export_book(
                     margin-left: {indent}em;
                     {f'font-weight: bold;' if depth == 0 else ''}
                 ">
-                    {idx}. {chapter["title"]}
+                    {chapter["title"]}
                 </li>
                 """
 
