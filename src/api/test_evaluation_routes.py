@@ -56,7 +56,7 @@ async def evaluate_test_result(
     - Considers evaluation criteria from test creator
     - Provides actionable recommendations
     - Specific feedback for each question
-    - Free service (no points cost)
+    - Costs 1 point per evaluation
 
     **Authentication:** Required
 
@@ -106,14 +106,46 @@ async def evaluate_test_result(
                 detail="You can only evaluate your own submissions",
             )
 
-        # ===== STEP 3: Get test details =====
+        # ===== STEP 3: Check and deduct points (1 point) =====
+        points_service = get_points_service()
+        points_cost = 1  # 1 point for AI evaluation
+
+        # Check sufficient points
+        check_result = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=points_cost,
+            service="ai_test_evaluation",
+        )
+
+        if not check_result["has_points"]:
+            logger.warning(
+                f"💰 Insufficient points for test evaluation - User: {user_id}, Need: {points_cost}, Have: {check_result['points_available']}"
+            )
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "INSUFFICIENT_POINTS",
+                    "message": f"Không đủ điểm để đánh giá kết quả bằng AI. Cần: {points_cost}, Còn: {check_result['points_available']}",
+                    "points_needed": points_cost,
+                    "points_available": check_result["points_available"],
+                    "service": "ai_test_evaluation",
+                    "action_required": "purchase_points",
+                    "purchase_url": "/pricing",
+                },
+            )
+
+        logger.info(
+            f"💰 Points check passed - User: {user_id}, Cost: {points_cost} point"
+        )
+
+        # ===== STEP 4: Get test details =====
         test_id = submission.get("test_id")
         test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
 
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        # ===== STEP 4: Get evaluation criteria (if available) =====
+        # ===== STEP 5: Get evaluation criteria (if available) =====
         marketplace_config = test_doc.get("marketplace_config", {})
         evaluation_criteria = marketplace_config.get("evaluation_criteria")
 
@@ -124,7 +156,7 @@ async def evaluate_test_result(
             f"   Evaluation criteria: {'Provided' if evaluation_criteria else 'Not provided'}"
         )
 
-        # ===== STEP 5: Prepare data for AI evaluation =====
+        # ===== STEP 6: Prepare data for AI evaluation =====
         questions = test_doc.get("questions", [])
         user_answers_list = submission.get("user_answers", [])
 
@@ -139,7 +171,7 @@ async def evaluate_test_result(
         correct_answers = submission.get("correct_answers", 0)
         is_passed = submission.get("is_passed", False)
 
-        # ===== STEP 6: Call AI evaluation service =====
+        # ===== STEP 7: Call AI evaluation service =====
         evaluation_service = get_gemini_evaluation_service()
 
         evaluation_result = await evaluation_service.evaluate_test_result(
@@ -156,7 +188,21 @@ async def evaluate_test_result(
 
         logger.info(f"✅ AI evaluation completed in {generation_time_ms}ms")
 
-        # ===== STEP 7: Build response =====
+        # ===== STEP 8: Deduct points after success =====
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_cost,
+                service="ai_test_evaluation",
+                resource_id=submission_id,
+                description=f"AI evaluation for test: {test_doc.get('title', 'Untitled')}",
+            )
+            logger.info(f"💸 Deducted {points_cost} point for AI evaluation")
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+            # Don't fail the request, just log the error
+
+        # ===== STEP 9: Build response =====
         # Map question evaluations to include full question data
         question_evaluations = []
         ai_feedbacks = {
