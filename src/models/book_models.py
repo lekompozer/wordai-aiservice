@@ -848,3 +848,69 @@ class GenerateBookCoverResponse(BaseModel):
     generation_time_ms: Optional[int] = Field(
         None, description="Time taken to generate (milliseconds)"
     )
+
+
+class GenerateTestCoverRequest(BaseModel):
+    """Request to generate online test cover using AI (Gemini 3 Pro Image)"""
+
+    title: str = Field(
+        ...,
+        min_length=1,
+        max_length=200,
+        description="Test title (will be rendered on cover)",
+        examples=["IELTS Practice Test 2024", "Math Final Exam"],
+    )
+    description: str = Field(
+        ...,
+        min_length=10,
+        max_length=1000,
+        description="Description of the test cover design",
+        examples=[
+            "Modern educational design with books and pencils",
+            "Professional exam atmosphere with clean minimalist style",
+        ],
+    )
+    style: Optional[str] = Field(
+        None,
+        max_length=100,
+        description="Optional style modifier (e.g., 'modern', 'minimalist', 'professional')",
+        examples=[
+            "modern",
+            "minimalist",
+            "professional",
+            "educational",
+            "academic",
+        ],
+    )
+
+
+class GenerateTestCoverResponse(BaseModel):
+    """Response from AI test cover generation (Gemini 3 Pro Image)"""
+
+    success: bool = Field(..., description="Generation success status")
+    image_base64: Optional[str] = Field(
+        None, description="Base64 encoded image data (PNG format)"
+    )
+    prompt_used: Optional[str] = Field(None, description="Full prompt sent to AI")
+    title: Optional[str] = Field(None, description="Test title")
+    style: Optional[str] = Field(None, description="Style used")
+    model: Optional[str] = Field(None, description="AI model used")
+    aspect_ratio: Optional[str] = Field(
+        None, description="Image aspect ratio (16:9 for tests)"
+    )
+    timestamp: Optional[str] = Field(
+        None, description="Generation timestamp (ISO 8601)"
+    )
+    error: Optional[str] = Field(None, description="Error message if failed")
+
+    # Library storage fields
+    file_id: Optional[str] = Field(
+        None, description="Library file ID for accessing from library"
+    )
+    file_url: Optional[str] = Field(None, description="Direct URL to download image")
+    r2_key: Optional[str] = Field(None, description="R2 storage key")
+
+    # Usage statistics
+    generation_time_ms: Optional[int] = Field(
+        None, description="Time taken to generate (milliseconds)"
+    )
