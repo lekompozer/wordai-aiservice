@@ -163,6 +163,26 @@ User doesn't have enough points to purchase PDF access.
 
 ## Implementation Notes
 
+### Background Rendering
+- **Chapter backgrounds**: Applied to each chapter in exported PDF
+- **Book-level background**: Used as default for all chapters
+- **Chapter-level override**: Chapter's background_config takes precedence
+- **Supported types**:
+  - `solid`: Hex color backgrounds
+  - `gradient`: Linear, radial, conic gradients with custom angles
+  - `theme`: Preset themes (ocean, forest, sunset, newspaper, book_page, etc.)
+  - `ai_image`/`custom_image`: Images with overlay support (color + opacity)
+
+### Background CSS Rendering
+```python
+# Helper function converts BackgroundConfig to inline CSS
+def render_background_css(background_config):
+    # Solid: background-color: #ff0000
+    # Gradient: background: linear-gradient(135deg, #color1, #color2)
+    # Theme: Mapped to simplified CSS (e.g., newspaper gets lined pattern)
+    # Image: background-image + overlay with background-blend-mode
+```
+
 ### Purchase Deduplication
 - System checks for existing `pdf_download` purchase before charging
 - If user already purchased, export is free (no duplicate charge)
