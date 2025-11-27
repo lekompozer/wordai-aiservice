@@ -1424,6 +1424,12 @@ async def get_test(
                 # Marketplace (if published)
                 "is_published": is_published,
                 "marketplace_config": marketplace_config if is_published else None,
+                # AI Evaluation
+                "evaluation_criteria": (
+                    marketplace_config.get("evaluation_criteria")
+                    if is_published
+                    else None
+                ),
                 # Timestamps
                 "created_at": test.get("created_at").isoformat(),
                 "updated_at": (
@@ -1493,6 +1499,8 @@ async def get_test(
                     else None
                 ),
                 "creator_id": test.get("creator_id"),
+                # AI Evaluation
+                "evaluation_criteria": marketplace_config.get("evaluation_criteria"),
                 # User-specific info
                 "already_participated": already_participated,
                 "attempts_used": attempts_used,
@@ -2903,6 +2911,11 @@ class FullTestEditRequest(BaseModel):
     category: Optional[str] = None
     tags: Optional[str] = None
     difficulty_level: Optional[str] = None
+    evaluation_criteria: Optional[str] = Field(
+        None,
+        description="AI evaluation criteria for test results (max 5000 chars)",
+        max_length=5000,
+    )
 
 
 class TestPreviewResponse(BaseModel):
@@ -3765,6 +3778,12 @@ async def full_edit_test(
                 )
                 logger.info(f"   Update difficulty: {request.difficulty_level}")
 
+            if request.evaluation_criteria is not None:
+                marketplace_updates["marketplace_config.evaluation_criteria"] = (
+                    request.evaluation_criteria
+                )
+                logger.info(f"   Update evaluation_criteria")
+
         elif any(
             [
                 request.marketplace_title,
@@ -3774,6 +3793,7 @@ async def full_edit_test(
                 request.category,
                 request.tags,
                 request.difficulty_level,
+                request.evaluation_criteria,
             ]
         ):
             raise HTTPException(
