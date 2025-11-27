@@ -626,13 +626,21 @@ async def export_book(
             <meta charset="UTF-8">
             <title>{book_title}</title>
             <style>
+                * {{
+                    margin: 0;
+                    padding: 0;
+                    box-sizing: border-box;
+                }}
+                html, body {{
+                    width: 100%;
+                    height: 100%;
+                    margin: 0;
+                    padding: 0;
+                }}
                 body {{
                     font-family: Arial, sans-serif;
                     line-height: 1.6;
                     color: #333;
-                    max-width: 210mm;
-                    margin: 0 auto;
-                    padding: 20mm;
                 }}
                 h1, h2, h3, h4, h5, h6 {{
                     margin-top: 1em;
@@ -643,8 +651,15 @@ async def export_book(
                     margin-bottom: 1em;
                 }}
                 @media print {{
-                    body {{
-                        max-width: 100%;
+                    html, body {{
+                        width: 210mm;
+                        height: 297mm;
+                        margin: 0;
+                        padding: 0;
+                    }}
+                    @page {{
+                        size: A4;
+                        margin: 0;
                     }}
                 }}
             </style>
