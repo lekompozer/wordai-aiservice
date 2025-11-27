@@ -25,40 +25,41 @@ router = APIRouter(prefix="/api/v1/books", tags=["Book Export"])
 # ============ HELPER FUNCTIONS ============
 
 
-def render_background_css(background_config: Optional[Dict[str, Any]]) -> str:
+def render_background_css(background_config: Optional[Dict[str, Any]]):
     """
     Render CSS styles for background configuration
-    
+
     Args:
         background_config: BackgroundConfig dict from database
-        
+
     Returns:
-        CSS string for inline styles
+        - For image backgrounds: dict with 'image_url', 'overlay_color', 'overlay_opacity'
+        - For other backgrounds: CSS string for inline styles
     """
     if not background_config:
         return "background: white;"
-    
+
     bg_type = background_config.get("type")
-    
+
     # Type: solid
     if bg_type == "solid":
         color = background_config.get("color", "#ffffff")
         return f"background-color: {color};"
-    
+
     # Type: gradient
     elif bg_type == "gradient":
         gradient = background_config.get("gradient", {})
         colors = gradient.get("colors", ["#ffffff", "#f0f0f0"])
         gradient_type = gradient.get("type", "linear")
         angle = gradient.get("angle", 135)
-        
+
         if gradient_type == "linear":
             return f"background: linear-gradient({angle}deg, {colors[0]}, {colors[1]});"
         elif gradient_type == "radial":
             return f"background: radial-gradient(circle, {colors[0]}, {colors[1]});"
         elif gradient_type == "conic":
             return f"background: conic-gradient(from {angle}deg, {colors[0]}, {colors[1]});"
-    
+
     # Type: theme (use simple background - frontend handles full theme rendering)
     elif bg_type == "theme":
         theme = background_config.get("theme", "")
@@ -75,31 +76,25 @@ def render_background_css(background_config: Optional[Dict[str, Any]]) -> str:
         }
         theme_style = theme_colors.get(theme, "background-color: #ffffff;")
         return theme_style
-    
-    # Type: ai_image or custom_image
+
+    # Type: ai_image or custom_image - return dict for proper overlay rendering
     elif bg_type in ["ai_image", "custom_image"]:
         image = background_config.get("image", {})
         image_url = image.get("url")
         overlay_opacity = image.get("overlay_opacity", 0)
         overlay_color = image.get("overlay_color", "#000000")
-        
+
         if not image_url:
             return "background: white;"
-        
-        # Base image style
-        style = f"background-image: url('{image_url}'); background-size: cover; background-position: center; background-repeat: no-repeat;"
-        
-        # Add overlay if specified
-        if overlay_opacity and overlay_opacity > 0:
-            # Note: CSS doesn't support overlay easily in inline styles
-            # We'll use a semi-transparent background-color blend
-            # For better results, need to use pseudo-elements (not possible in inline)
-            hex_color = overlay_color.lstrip('#')
-            r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
-            style += f" background-blend-mode: overlay; background-color: rgba({r}, {g}, {b}, {overlay_opacity});"
-        
-        return style
-    
+
+        # Return dict for special handling with overlay layer
+        return {
+            "type": "image",
+            "image_url": image_url,
+            "overlay_color": overlay_color,
+            "overlay_opacity": overlay_opacity if overlay_opacity else 0,
+        }
+
     # Default: white background
     return "background: white;"
 
@@ -512,7 +507,7 @@ async def export_book(
 
         # 4. Chapter contents
         book_background_config = book.get("background_config")
-        
+
         for idx, chapter in enumerate(chapters, 1):
             chapter_id = chapter["chapter_id"]
 
@@ -531,35 +526,92 @@ async def export_book(
 
             # Get background config (chapter overrides book)
             chapter_background = chapter_with_content.get("background_config")
-            effective_background = chapter_background if chapter_background else book_background_config
-            
+            effective_background = (
+                chapter_background if chapter_background else book_background_config
+            )
+
             # Render background CSS
-            background_style = render_background_css(effective_background)
+            background_result = render_background_css(effective_background)
 
-            # Wrap chapter content
-            depth = chapter.get("depth", 0)
-            heading_level = min(depth + 1, 6)  # H1-H6
+            # Check if it's an image background (returns dict)
+            if (
+                isinstance(background_result, dict)
+                and background_result.get("type") == "image"
+            ):
+                # Image background with overlay - use absolute positioning for full page
+                image_url = background_result["image_url"]
+                overlay_color = background_result["overlay_color"]
+                overlay_opacity = background_result["overlay_opacity"]
 
-            chapter_html = f"""
-            <div class="chapter" id="chapter-{chapter_id}" style="
-                page-break-before: {'always' if idx > 1 else 'auto'};
-                padding: 2em;
-                {background_style}
-                min-height: 100vh;
-            ">
-                <h{heading_level} style="
-                    font-size: {3 - (depth * 0.3)}em;
-                    margin-bottom: 1em;
-                    color: #1a1a1a;
+                # Convert hex to rgba
+                hex_color = overlay_color.lstrip("#")
+                r, g, b = (
+                    int(hex_color[0:2], 16),
+                    int(hex_color[2:4], 16),
+                    int(hex_color[4:6], 16),
+                )
+                overlay_rgba = f"rgba({r}, {g}, {b}, {overlay_opacity})"
+
+                chapter_html = f"""
+                <div class="chapter" id="chapter-{chapter_id}" style="
+                    position: relative;
+                    page-break-before: {'always' if idx > 1 else 'auto'};
+                    min-height: 297mm;
+                    width: 210mm;
+                    overflow: hidden;
+                    margin: 0;
+                    padding: 0;
                 ">
-                    Chapter {idx}: {chapter["title"]}
-                </h{heading_level}>
+                    <!-- Background image (full page) -->
+                    <div style="
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-image: url('{image_url}');
+                        background-size: cover;
+                        background-position: center;
+                        background-repeat: no-repeat;
+                        z-index: 1;
+                    "></div>
 
-                <div class="chapter-content">
-                    {content_html}
+                    <!-- Overlay layer -->
+                    <div style="
+                        position: absolute;
+                        top: 0;
+                        left: 0;
+                        width: 100%;
+                        height: 100%;
+                        background-color: {overlay_rgba};
+                        z-index: 2;
+                    "></div>
+
+                    <!-- Content layer -->
+                    <div class="chapter-content" style="
+                        position: relative;
+                        z-index: 3;
+                        padding: 2em;
+                    ">
+                        {content_html}
+                    </div>
                 </div>
-            </div>
-            """
+                """
+            else:
+                # Regular background (solid, gradient, theme) - use inline CSS
+                chapter_html = f"""
+                <div class="chapter" id="chapter-{chapter_id}" style="
+                    page-break-before: {'always' if idx > 1 else 'auto'};
+                    padding: 2em;
+                    {background_result}
+                    min-height: 297mm;
+                    width: 210mm;
+                ">
+                    <div class="chapter-content">
+                        {content_html}
+                    </div>
+                </div>
+                """
 
             html_parts.append(chapter_html)
 
