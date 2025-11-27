@@ -103,7 +103,8 @@ async def export_book(
     - ✅ Selective chapter export
     - ✅ Optional cover page, TOC, and metadata
     - ✅ Multiple formats: PDF, DOCX, TXT, HTML
-    - ✅ Owner-only access
+    - ✅ Owner access (free) or paid PDF download access
+    - ✅ Points-based payment for non-owners
 
     **Export Scope:**
     1. **Full Book** (`scope: "full_book"`):
@@ -137,7 +138,7 @@ async def export_book(
       - ...
     ```
 
-    **Authentication:** Required (Owner only)
+    **Authentication:** Required (Owner or user with sufficient points for PDF purchase)
 
     **Path Parameters:**
     - `book_id`: Book UUID
@@ -167,8 +168,8 @@ async def export_book(
 
     **Returns:**
     - 200: Export successful with download URL
-    - 400: Invalid request (e.g., no chapters specified)
-    - 403: Not book owner
+    - 400: Invalid request (e.g., no chapters specified, insufficient points)
+    - 403: No access permission (not owner and insufficient points)
     - 404: Book or chapters not found
     - 500: Export failed
 
@@ -183,16 +184,126 @@ async def export_book(
             f"user_id={user_id}, format={request.format}, scope={request.scope}"
         )
 
-        # Get book and verify ownership
-        book = db.online_books.find_one(
-            {"book_id": book_id, "user_id": user_id, "is_deleted": False}
-        )
+        # Get book (don't filter by user_id yet - we'll check access separately)
+        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
 
         if not book:
             raise HTTPException(
-                status_code=403,
-                detail="Book not found or you don't have permission to export it",
+                status_code=404,
+                detail="Book not found",
             )
+
+        book_owner_id = book.get("user_id")
+        is_owner = book_owner_id == user_id
+
+        # Case 1: Owner can export for free
+        if is_owner:
+            logger.info(f"✅ Owner {user_id} exporting book {book_id} (free)")
+
+        # Case 2: Non-owner must pay with points
+        else:
+            access_config = book.get("access_config", {})
+            pdf_price = access_config.get("download_pdf_points", 0)
+
+            # Check if PDF download is enabled and has a price
+            if pdf_price <= 0 or not access_config.get("is_download_enabled", False):
+                raise HTTPException(
+                    status_code=403,
+                    detail="PDF download is not available for this book",
+                )
+
+            # Check if user already purchased PDF access
+            existing_purchase = db.book_purchases.find_one(
+                {
+                    "user_id": user_id,
+                    "book_id": book_id,
+                    "purchase_type": "pdf_download",
+                }
+            )
+
+            if existing_purchase:
+                logger.info(
+                    f"✅ User {user_id} already purchased PDF access to book {book_id}"
+                )
+            else:
+                # Need to purchase - check balance and deduct points
+                subscription = db.user_subscriptions.find_one({"user_id": user_id})
+                if not subscription:
+                    raise HTTPException(
+                        status_code=404,
+                        detail="User subscription not found",
+                    )
+
+                user_balance = subscription.get("points_remaining", 0)
+
+                if user_balance < pdf_price:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Insufficient points. Required: {pdf_price} points, Available: {user_balance}",
+                    )
+
+                # Calculate revenue split (80% owner, 20% platform)
+                owner_reward = int(pdf_price * 0.8)
+                system_fee = pdf_price - owner_reward
+
+                # Deduct points from buyer
+                from datetime import timezone
+
+                result = db.user_subscriptions.update_one(
+                    {"user_id": user_id},
+                    {
+                        "$inc": {
+                            "points_remaining": -pdf_price,
+                            "points_used": pdf_price,
+                        },
+                        "$set": {"updated_at": datetime.now(timezone.utc)},
+                    },
+                )
+
+                if result.modified_count == 0:
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Failed to deduct points",
+                    )
+
+                # Create purchase record
+                import uuid
+
+                purchase_id = f"purchase_{uuid.uuid4().hex[:16]}"
+                purchase_time = datetime.utcnow()
+
+                purchase_record = {
+                    "purchase_id": purchase_id,
+                    "user_id": user_id,
+                    "book_id": book_id,
+                    "purchase_type": "pdf_download",
+                    "points_spent": pdf_price,
+                    "access_expires_at": None,  # PDF download never expires
+                    "purchased_at": purchase_time,
+                }
+
+                db.book_purchases.insert_one(purchase_record)
+
+                # Update book stats
+                db.online_books.update_one(
+                    {"book_id": book_id},
+                    {
+                        "$inc": {
+                            "stats.total_revenue_points": pdf_price,
+                            "stats.owner_reward_points": owner_reward,
+                            "stats.system_fee_points": system_fee,
+                            "stats.pdf_downloads": 1,
+                            "stats.pdf_revenue": pdf_price,
+                            "community_config.total_purchases": 1,
+                            "community_config.total_downloads": 1,
+                        }
+                    },
+                )
+
+                logger.info(
+                    f"💰 User {user_id} purchased PDF access to book {book_id} "
+                    f"for {pdf_price} points (owner: {owner_reward}, fee: {system_fee})"
+                )
 
         book_title = book.get("title", "Untitled Book")
         book_description = book.get("description", "")
