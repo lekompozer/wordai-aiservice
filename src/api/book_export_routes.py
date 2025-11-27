@@ -435,22 +435,24 @@ async def export_book(
         # Build combined HTML content
         html_parts = []
 
-        # 1. Cover page (optional)
-        if request.include_cover:
+        # 1. Cover page (optional) - Full page image only, no text
+        if request.include_cover and book_cover_url:
             cover_html = f"""
             <div class="book-cover" style="
+                position: relative;
                 page-break-after: always;
-                text-align: center;
-                padding: 4em 2em;
-                display: flex;
-                flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                min-height: 80vh;
+                width: 210mm;
+                height: 297mm;
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
             ">
-                {f'<img src="{book_cover_url}" style="max-width: 400px; margin-bottom: 2em;" />' if book_cover_url else ''}
-                <h1 style="font-size: 3em; margin-bottom: 0.5em;">{book_title}</h1>
-                {f'<p style="font-size: 1.2em; color: #666;">{book_description}</p>' if book_description else ''}
+                <img src="{book_cover_url}" style="
+                    width: 100%;
+                    height: 100%;
+                    object-fit: cover;
+                    object-position: center;
+                " />
             </div>
             """
             html_parts.append(cover_html)
