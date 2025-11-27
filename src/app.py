@@ -198,6 +198,9 @@ from src.api.book_cover_ai_routes import router as book_cover_ai_router
 # ✅ ADDED: Test Cover AI - Generate covers for online tests using Gemini 3 Pro Image
 from src.api.test_cover_ai_routes import router as test_cover_ai_router
 
+# ✅ ADDED: Test Evaluation AI - AI-powered evaluation of test results
+from src.api.test_evaluation_routes import router as test_evaluation_router
+
 # ✅ ADDED: Book Background API - AI-powered A4 backgrounds for books and chapters
 from src.api.book_background_routes import router as book_background_router
 from src.api.book_background_routes import (
@@ -881,6 +884,12 @@ def create_app() -> FastAPI:
     app.include_router(
         test_cover_ai_router,
         tags=["AI Test Cover", "Online Tests"],
+    )
+
+    # ✅ NEW: Test Evaluation AI - AI-powered evaluation of test results
+    app.include_router(
+        test_evaluation_router,
+        tags=["AI Test Evaluation", "Feedback"],
     )
 
     # ✅ NEW: Book Background API - AI-powered A4 backgrounds for books and chapters

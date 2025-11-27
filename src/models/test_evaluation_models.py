@@ -1,0 +1,91 @@
+"""
+Pydantic Models for Test Result AI Evaluation
+"""
+
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+
+
+class EvaluateTestResultRequest(BaseModel):
+    """Request to evaluate test result using AI"""
+
+    submission_id: str = Field(
+        ...,
+        description="Submission ID to evaluate",
+        examples=["507f1f77bcf86cd799439011"],
+    )
+
+
+class QuestionEvaluation(BaseModel):
+    """AI evaluation for a single question"""
+
+    question_id: str = Field(..., description="Question ID")
+    question_text: str = Field(..., description="Question text")
+    user_answer: Optional[str] = Field(None, description="User's answer (A/B/C/D)")
+    correct_answer: str = Field(..., description="Correct answer (A/B/C/D)")
+    is_correct: bool = Field(..., description="Whether user answered correctly")
+    explanation: Optional[str] = Field(None, description="Question explanation")
+    ai_feedback: str = Field(
+        ...,
+        description="AI feedback on this specific question (why wrong, how to improve)",
+    )
+
+
+class OverallEvaluation(BaseModel):
+    """Overall AI evaluation of test performance"""
+
+    strengths: List[str] = Field(
+        ...,
+        description="Areas where user performed well",
+        examples=[["Good understanding of basic concepts", "Fast response time"]],
+    )
+    weaknesses: List[str] = Field(
+        ...,
+        description="Areas that need improvement",
+        examples=[["Struggled with advanced topics", "Careless mistakes"]],
+    )
+    recommendations: List[str] = Field(
+        ...,
+        description="Specific recommendations for improvement",
+        examples=[
+            [
+                "Review chapter 3 on algorithms",
+                "Practice more coding exercises",
+            ]
+        ],
+    )
+    study_plan: Optional[str] = Field(
+        None,
+        description="Suggested study plan based on performance",
+    )
+
+
+class EvaluateTestResultResponse(BaseModel):
+    """Response from AI test result evaluation"""
+
+    success: bool = Field(..., description="Evaluation success status")
+    submission_id: str = Field(..., description="Submission ID evaluated")
+    test_title: str = Field(..., description="Test title")
+    score: float = Field(..., description="Test score (0-10)")
+    score_percentage: float = Field(..., description="Test score percentage (0-100)")
+    total_questions: int = Field(..., description="Total questions in test")
+    correct_answers: int = Field(..., description="Number of correct answers")
+    is_passed: bool = Field(..., description="Whether user passed the test")
+
+    # AI Evaluation
+    overall_evaluation: OverallEvaluation = Field(
+        ..., description="Overall performance evaluation"
+    )
+    question_evaluations: List[QuestionEvaluation] = Field(
+        ..., description="Detailed evaluation for each question"
+    )
+
+    # Evaluation metadata
+    evaluation_criteria: Optional[str] = Field(
+        None, description="Evaluation criteria used by AI (from test creator)"
+    )
+    model: str = Field(..., description="AI model used for evaluation")
+    generation_time_ms: int = Field(
+        ..., description="Time taken to generate evaluation (milliseconds)"
+    )
+    timestamp: str = Field(..., description="Evaluation timestamp (ISO 8601)")

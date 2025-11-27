@@ -4377,6 +4377,7 @@ async def publish_test_to_marketplace(
     category: str = Form(...),
     tags: str = Form(...),
     difficulty_level: str = Form(...),
+    evaluation_criteria: Optional[str] = Form(None),
     user_info: dict = Depends(require_auth),
 ):
     """
@@ -4389,6 +4390,7 @@ async def publish_test_to_marketplace(
     - Cover image: (Optional) JPG/PNG, max 5MB, min 800x600
     - Short description: (Optional) Brief summary for listing cards
     - Price: 0 (FREE) or any positive integer
+    - Evaluation criteria: (Optional) Criteria for AI evaluation, max 5000 chars
 
     Returns:
     - marketplace_url: Public marketplace URL
@@ -4447,6 +4449,13 @@ async def publish_test_to_marketplace(
 
         if price_points < 0:
             raise HTTPException(status_code=400, detail="Price must be >= 0")
+
+        # Validate evaluation_criteria length if provided
+        if evaluation_criteria and len(evaluation_criteria) > 5000:
+            raise HTTPException(
+                status_code=400,
+                detail="Evaluation criteria must not exceed 5000 characters",
+            )
 
         # Validate category
         valid_categories = [
@@ -4535,6 +4544,7 @@ async def publish_test_to_marketplace(
             "category": category,
             "tags": tags_list,
             "difficulty_level": difficulty_level,
+            "evaluation_criteria": evaluation_criteria,  # Optional criteria for AI evaluation
             "published_at": datetime.utcnow(),
             "total_participants": 0,
             "total_earnings": 0,
@@ -4597,6 +4607,7 @@ async def update_marketplace_config(
     category: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     difficulty_level: Optional[str] = Form(None),
+    evaluation_criteria: Optional[str] = Form(None),
     is_public: Optional[bool] = Form(None),
     user_info: dict = Depends(require_auth),
 ):
@@ -4612,6 +4623,7 @@ async def update_marketplace_config(
     - category: Test category
     - tags: Comma-separated tags
     - difficulty_level: Difficulty (beginner/intermediate/advanced/expert)
+    - evaluation_criteria: Criteria for AI evaluation (max 5000 chars)
     - is_public: Set to False to unpublish test
 
     **Access:**
@@ -4726,6 +4738,18 @@ async def update_marketplace_config(
                 )
             update_data["marketplace_config.difficulty_level"] = difficulty_level
             logger.info(f"   Update difficulty: {difficulty_level}")
+
+        # Validate and update evaluation criteria
+        if evaluation_criteria is not None:
+            if len(evaluation_criteria) > 5000:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Evaluation criteria must not exceed 5000 characters",
+                )
+            update_data["marketplace_config.evaluation_criteria"] = evaluation_criteria
+            logger.info(
+                f"   Update evaluation_criteria (length: {len(evaluation_criteria)})"
+            )
 
         # Update public status (unpublish if False)
         if is_public is not None:
