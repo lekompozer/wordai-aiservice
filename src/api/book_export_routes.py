@@ -540,7 +540,7 @@ async def export_book(
                 isinstance(background_result, dict)
                 and background_result.get("type") == "image"
             ):
-                # Image background with overlay - use fixed positioning to repeat on every page
+                # Image background with overlay - use layered divs with background attachment
                 image_url = background_result["image_url"]
                 overlay_color = background_result["overlay_color"]
                 overlay_opacity = background_result["overlay_opacity"]
@@ -554,56 +554,26 @@ async def export_book(
                 )
                 overlay_rgba = f"rgba({r}, {g}, {b}, {overlay_opacity})"
 
-                # Use unique class name for this chapter's background
-                bg_class = f"chapter-bg-{chapter_id}"
-
                 chapter_html = f"""
-                <style>
-                    /* Background image repeats on every printed page */
-                    .{bg_class} {{
+                <div class="chapter chapter-with-image-bg" id="chapter-{chapter_id}" style="
+                    position: relative;
+                    page-break-before: {'always' if idx > 1 else 'auto'};
+                    width: 210mm;
+                    margin: 0;
+                    padding: 0;
+                    background-image:
+                        linear-gradient({overlay_rgba}, {overlay_rgba}),
+                        url('{image_url}');
+                    background-size: cover;
+                    background-position: center;
+                    background-repeat: repeat;
+                    background-attachment: local;
+                ">
+                    <div class="chapter-content" style="
                         position: relative;
-                        page-break-before: {'always' if idx > 1 else 'auto'};
-                        width: 210mm;
-                        margin: 0;
-                        padding: 0;
-                    }}
-
-                    /* Fixed background that appears on every page */
-                    .{bg_class}::before {{
-                        content: '';
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 210mm;
-                        height: 297mm;
-                        background-image: url('{image_url}');
-                        background-size: cover;
-                        background-position: center;
-                        background-repeat: no-repeat;
-                        z-index: 1;
-                    }}
-
-                    /* Fixed overlay that appears on every page */
-                    .{bg_class}::after {{
-                        content: '';
-                        position: fixed;
-                        top: 0;
-                        left: 0;
-                        width: 210mm;
-                        height: 297mm;
-                        background-color: {overlay_rgba};
-                        z-index: 2;
-                    }}
-
-                    /* Content with proper z-index */
-                    .{bg_class} .chapter-content {{
-                        position: relative;
-                        z-index: 3;
                         padding: 2em;
-                    }}
-                </style>
-                <div class="chapter {bg_class}" id="chapter-{chapter_id}">
-                    <div class="chapter-content">
+                        min-height: 297mm;
+                    ">
                         {content_html}
                     </div>
                 </div>
@@ -653,14 +623,82 @@ async def export_book(
                     line-height: 1.6;
                     color: #333;
                 }}
+
+                /* Typography */
                 h1, h2, h3, h4, h5, h6 {{
                     margin-top: 1em;
                     margin-bottom: 0.5em;
                     line-height: 1.2;
                 }}
+
                 p {{
                     margin-bottom: 1em;
+                    line-height: 1.8;
                 }}
+
+                /* Lists */
+                ul, ol {{
+                    margin: 1em 0;
+                    padding-left: 2em;
+                }}
+
+                li {{
+                    margin-bottom: 0.5em;
+                    line-height: 1.6;
+                }}
+
+                /* Tables */
+                table {{
+                    margin: 1em 0;
+                    border-collapse: collapse;
+                    width: 100%;
+                }}
+
+                td, th {{
+                    padding: 0.5em;
+                    border: 1px solid #ddd;
+                }}
+
+                /* Code blocks */
+                pre {{
+                    margin: 1em 0;
+                    padding: 1em;
+                    background: #f5f5f5;
+                    border-radius: 4px;
+                    overflow-x: auto;
+                }}
+
+                code {{
+                    font-family: 'Courier New', monospace;
+                    background: #f5f5f5;
+                    padding: 0.2em 0.4em;
+                    border-radius: 3px;
+                }}
+
+                /* Images */
+                img {{
+                    max-width: 100%;
+                    height: auto;
+                    margin: 1em 0;
+                }}
+
+                /* Blockquotes */
+                blockquote {{
+                    margin: 1em 0;
+                    padding-left: 1em;
+                    border-left: 4px solid #ddd;
+                    color: #666;
+                }}
+
+                /* Chapter content spacing */
+                .chapter-content > * {{
+                    margin-top: 0;
+                }}
+
+                .chapter-content > * + * {{
+                    margin-top: 1em;
+                }}
+
                 @media print {{
                     html, body {{
                         width: 210mm;
