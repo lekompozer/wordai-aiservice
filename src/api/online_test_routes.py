@@ -2356,24 +2356,44 @@ async def get_my_tests(
                 {"test_id": test_id}
             )
 
-            result.append(
-                {
-                    "test_id": test_id,
-                    "title": test["title"],
-                    "description": test.get("description"),  # Optional field
-                    "num_questions": len(test.get("questions", [])),
-                    "time_limit_minutes": test["time_limit_minutes"],
-                    "status": test.get(
-                        "status", "ready"
-                    ),  # pending, generating, ready, failed, draft
-                    "is_active": test.get("is_active", True),
-                    "created_at": test["created_at"].isoformat(),
-                    "updated_at": test.get(
-                        "updated_at", test["created_at"]
-                    ).isoformat(),
-                    "total_submissions": attempts_count,
+            # Get marketplace config if exists
+            marketplace_config = test.get("marketplace_config", {})
+            is_public = marketplace_config.get("is_public", False)
+
+            test_info = {
+                "test_id": test_id,
+                "title": test["title"],
+                "description": test.get("description"),  # Optional field
+                "num_questions": len(test.get("questions", [])),
+                "time_limit_minutes": test["time_limit_minutes"],
+                "status": test.get(
+                    "status", "ready"
+                ),  # pending, generating, ready, failed, draft
+                "is_active": test.get("is_active", True),
+                "created_at": test["created_at"].isoformat(),
+                "updated_at": test.get("updated_at", test["created_at"]).isoformat(),
+                "total_submissions": attempts_count,
+            }
+
+            # Add marketplace info if published
+            if is_public:
+                test_info["is_public"] = True
+                test_info["marketplace"] = {
+                    "price_points": marketplace_config.get("price_points", 0),
+                    "category": marketplace_config.get("category"),
+                    "difficulty_level": marketplace_config.get("difficulty_level"),
+                    "total_participants": marketplace_config.get(
+                        "total_participants", 0
+                    ),
+                    "average_rating": marketplace_config.get("average_rating", 0.0),
+                    "evaluation_criteria": marketplace_config.get(
+                        "evaluation_criteria"
+                    ),
                 }
-            )
+            else:
+                test_info["is_public"] = False
+
+            result.append(test_info)
 
         return {
             "tests": result,
@@ -2817,6 +2837,11 @@ class UpdateTestConfigRequest(BaseModel):
     description: Optional[str] = Field(
         None, description="Test description", max_length=1000
     )
+    evaluation_criteria: Optional[str] = Field(
+        None,
+        description="AI evaluation criteria for test results (max 5000 chars)",
+        max_length=5000,
+    )
 
 
 class UpdateTestQuestionsRequest(BaseModel):
@@ -2951,6 +2976,17 @@ async def update_test_config(
 
         if request.description is not None:
             update_data["description"] = request.description
+
+        if request.evaluation_criteria is not None:
+            # Update in marketplace_config if test is published
+            marketplace_config = test_doc.get("marketplace_config", {})
+            if marketplace_config.get("is_public", False):
+                update_data["marketplace_config.evaluation_criteria"] = (
+                    request.evaluation_criteria
+                )
+                logger.info(
+                    f"📝 Updating evaluation_criteria for published test {test_id}"
+                )
 
         # Update in database
         result = mongo_service.db["online_tests"].update_one(
@@ -4939,6 +4975,8 @@ async def get_public_test_details(
                 else None
             ),
             "creator_id": test_doc.get("creator_id"),
+            # AI Evaluation
+            "evaluation_criteria": marketplace_config.get("evaluation_criteria"),
             # User-specific info
             "is_creator": is_creator,
             "already_participated": already_participated,
