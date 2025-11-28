@@ -7,6 +7,7 @@ import os
 import sys
 from pymongo import MongoClient
 from datetime import datetime
+from urllib.parse import urlparse
 
 # MongoDB connection
 MONGO_URI = os.getenv(
@@ -14,7 +15,11 @@ MONGO_URI = os.getenv(
 )
 
 client = MongoClient(MONGO_URI)
-db = client["wordai"]
+
+# Parse database name from URI
+parsed_uri = urlparse(MONGO_URI)
+db_name = parsed_uri.path.lstrip('/').split('?')[0] or "wordai"
+db = client[db_name]
 
 users_collection = db["users"]
 subscriptions_collection = db["user_subscriptions"]
