@@ -3843,11 +3843,11 @@ def calculate_final_score(submission: dict, test_doc: dict, essay_grades: list) 
     Returns:
         dict with score, score_percentage, is_passed
     """
-    # Get MCQ score
-    mcq_score = submission.get("mcq_score", 0)
+    # Get MCQ score (handle None case)
+    mcq_score = submission.get("mcq_score") or 0
 
-    # Calculate essay score
-    essay_score = sum(grade["points_awarded"] for grade in essay_grades)
+    # Calculate essay score (handle None points_awarded)
+    essay_score = sum(grade.get("points_awarded") or 0 for grade in essay_grades)
 
     # Calculate total
     total_score = mcq_score + essay_score
