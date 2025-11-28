@@ -271,7 +271,7 @@ async function createPointsPurchase(req, res) {
 
     try {
         const db = getDb();
-        const subscriptionsCollection = db.collection('subscriptions');
+        const subscriptionsCollection = db.collection('user_subscriptions');
         const paymentsCollection = db.collection('payments');
 
         // Check user subscription status (may not exist for new/free users)
@@ -279,7 +279,11 @@ async function createPointsPurchase(req, res) {
 
         const currentPlan = subscription?.current_plan || 'free';
         const subscriptionExpiry = subscription?.subscription_expires_at;
-        const isSubscriptionActive = subscriptionExpiry && new Date(subscriptionExpiry) > new Date();
+        
+        // Properly check if subscription is active (convert to boolean)
+        const isSubscriptionActive = subscriptionExpiry 
+            ? new Date(subscriptionExpiry) > new Date() 
+            : false;
 
         // Count completed points purchases
         const completedPointsPurchases = await paymentsCollection.countDocuments({
@@ -288,7 +292,7 @@ async function createPointsPurchase(req, res) {
             status: 'completed'
         });
 
-        logger.info(`User ${user_id} - Plan: ${currentPlan}, Active: ${isSubscriptionActive}, Points purchases: ${completedPointsPurchases}`);
+        logger.info(`User ${user_id} - Plan: ${currentPlan}, Active: ${isSubscriptionActive}, Expiry: ${subscriptionExpiry}, Points purchases: ${completedPointsPurchases}`);
 
         // BUSINESS RULES:
         // 1. FREE user (no subscription): Only 1 point purchase allowed
