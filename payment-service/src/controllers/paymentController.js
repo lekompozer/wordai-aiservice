@@ -277,12 +277,12 @@ async function createPointsPurchase(req, res) {
         // Check user subscription status (may not exist for new/free users)
         const subscription = await subscriptionsCollection.findOne({ user_id });
 
-        const currentPlan = subscription?.current_plan || 'free';
-        const subscriptionExpiry = subscription?.subscription_expires_at;
-        
+        const currentPlan = subscription?.plan || 'free';
+        const subscriptionExpiry = subscription?.expires_at;
+
         // Properly check if subscription is active (convert to boolean)
-        const isSubscriptionActive = subscriptionExpiry 
-            ? new Date(subscriptionExpiry) > new Date() 
+        const isSubscriptionActive = subscriptionExpiry
+            ? new Date(subscriptionExpiry) > new Date()
             : false;
 
         // Count completed points purchases
