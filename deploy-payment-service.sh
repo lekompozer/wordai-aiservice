@@ -16,13 +16,13 @@ SERVICE_NAME="payment-service"
 SERVICE_DIR="payment-service"
 SERVICE_PORT="3000"
 
-# Detect ${DOCKER_COMPOSE} command (v1 vs v2)
-if command -v ${DOCKER_COMPOSE} &> /dev/null; then
-    DOCKER_COMPOSE="${DOCKER_COMPOSE}"
+# Detect docker-compose command (v1 vs v2)
+if command -v docker-compose &> /dev/null; then
+    DOCKER_COMPOSE="docker-compose"
 elif docker compose version &> /dev/null; then
     DOCKER_COMPOSE="docker compose"
 else
-    echo -e "${RED}❌ Neither '${DOCKER_COMPOSE}' nor 'docker compose' found!${NC}"
+    echo -e "${RED}❌ Neither 'docker-compose' nor 'docker compose' found!${NC}"
     exit 1
 fi
 
@@ -119,10 +119,10 @@ if ! docker ps | grep -q ${CONTAINER_NAME}; then
         ${DOCKER_COMPOSE} stop ${SERVICE_NAME}
         ${DOCKER_COMPOSE} rm -f ${SERVICE_NAME}
 
-        # Temporarily update ${DOCKER_COMPOSE}.yml to use old image
-        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" ${DOCKER_COMPOSE}.yml
+        # Temporarily update docker-compose.yml to use old image
+        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" docker-compose.yml
         ${DOCKER_COMPOSE} up -d ${SERVICE_NAME}
-        mv ${DOCKER_COMPOSE}.yml.bak ${DOCKER_COMPOSE}.yml
+        mv docker-compose.yml.bak docker-compose.yml
 
         echo -e "${GREEN}✅ Rollback completed${NC}"
     fi
@@ -146,9 +146,9 @@ else
         ${DOCKER_COMPOSE} stop ${SERVICE_NAME}
         ${DOCKER_COMPOSE} rm -f ${SERVICE_NAME}
 
-        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" ${DOCKER_COMPOSE}.yml
+        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" docker-compose.yml
         ${DOCKER_COMPOSE} up -d ${SERVICE_NAME}
-        mv ${DOCKER_COMPOSE}.yml.bak ${DOCKER_COMPOSE}.yml
+        mv docker-compose.yml.bak docker-compose.yml
 
         echo -e "${GREEN}✅ Rollback completed${NC}"
     fi
