@@ -14,6 +14,7 @@ from src.services.subscription_service import get_subscription_service
 from src.models.subscription import PLAN_CONFIGS
 
 router = APIRouter(prefix="/api/v1/subscriptions", tags=["Payment Activation"])
+points_router = APIRouter(prefix="/api/v1/points", tags=["Points Management"])
 logger = logging.getLogger(__name__)
 
 # Service secret for inter-service authentication
@@ -204,7 +205,7 @@ async def activate_subscription(
         )
 
 
-@router.post("/points/add")
+@points_router.post("/add")
 async def add_points(
     request: Request,
     user_id: str = Body(...),

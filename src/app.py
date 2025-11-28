@@ -91,6 +91,7 @@ from src.api.support_routes import router as support_router
 
 # ✅ ADDED: Payment Activation API for subscription activation from payment service
 from src.api.payment_activation_routes import router as payment_activation_router
+from src.api.payment_activation_routes import points_router
 
 # ✅ ADDED: E2EE Secret Documents - Key Management API
 from src.api.secret_key_routes import router as secret_key_router
@@ -644,6 +645,9 @@ def create_app() -> FastAPI:
 
     # ✅ Payment Activation endpoint - IPN subscription activation from payment service
     app.include_router(payment_activation_router, tags=["Payment Activation"])
+
+    # ✅ Points Management endpoint - Points purchase from payment service
+    app.include_router(points_router, tags=["Points Management"])
 
     # ✅ Billing History endpoints - Payment history
     app.include_router(billing_router, tags=["Billing & Payments"])

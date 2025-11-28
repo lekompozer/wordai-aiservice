@@ -32,7 +32,7 @@ User → Frontend → Payment Service → SePay → Webhook → Payment Service 
 
 ### 1. Create Points Purchase Checkout
 
-**Endpoint**: `POST /api/v1/checkout/points`
+**Endpoint**: `POST /api/v1/payments/checkout/points`
 
 **Authentication**: Firebase ID token required
 
@@ -46,19 +46,38 @@ User → Frontend → Payment Service → SePay → Webhook → Payment Service 
 **Response**:
 ```json
 {
-  "payment_url": "https://portal.sepay.vn/...",
-  "order_invoice_number": "POINTS_UID_1234567890",
-  "amount": 50000,
-  "points": 50
+  "success": true,
+  "data": {
+    "payment_id": "673e8f2a1b2c3d4e5f6a7b8c",
+    "order_invoice_number": "WA-1234567890-abcd1234",
+    "checkout_url": "https://pay.sepay.vn/v1/checkout/init",
+    "form_fields": {
+      "merchant": "your_merchant_id",
+      "operation": "PURCHASE",
+      "payment_method": "BANK_TRANSFER",
+      "order_amount": "50000",
+      "currency": "VND",
+      "order_invoice_number": "WA-1234567890-abcd1234",
+      "order_description": "Mua 50 điểm WordAI",
+      "customer_id": "firebase_uid",
+      "success_url": "https://wordai.pro/payment/success",
+      "error_url": "https://wordai.pro/payment/error",
+      "cancel_url": "https://wordai.pro/payment/cancel",
+      "signature": "base64_encoded_signature"
+    },
+    "amount": 50000,
+    "payment_type": "points_purchase",
+    "points": 50
+  }
 }
 ```
 
 **Flow**:
 1. User selects points package (50/100/200)
-2. Frontend calls `/checkout/points` with Firebase token
-3. Payment service creates SePay checkout session
-4. Returns payment URL
-5. Frontend redirects user to SePay payment page
+2. Frontend calls `/api/v1/payments/checkout/points` with Firebase token
+3. Payment service creates SePay checkout session and returns `form_fields`
+4. **Frontend submits HTML form with form_fields to checkout_url**
+5. User completes payment on SePay payment page
 
 ### 2. Add Points (Webhook Callback)
 
@@ -223,7 +242,7 @@ The `/api/v1/points/add` endpoint updates two collections:
 
 1. **Create Checkout**:
 ```bash
-curl -X POST http://localhost:4000/api/v1/checkout/points \
+curl -X POST http://localhost:3000/api/v1/payments/checkout/points \
   -H "Authorization: Bearer <FIREBASE_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"points": "50"}'
@@ -317,7 +336,7 @@ async function purchasePoints(pointsPackage) {
     const token = await firebase.auth().currentUser.getIdToken();
 
     // Create checkout
-    const response = await fetch('http://localhost:4000/api/v1/checkout/points', {
+    const response = await fetch('https://ai.wordai.pro/api/v1/payments/checkout/points', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -326,13 +345,35 @@ async function purchasePoints(pointsPackage) {
       body: JSON.stringify({ points: pointsPackage }) // "50", "100", or "200"
     });
 
-    const data = await response.json();
+    const result = await response.json();
 
-    // Redirect to SePay
-    window.location.href = data.payment_url;
+    if (!result.success || !result.data) {
+      throw new Error('Failed to create checkout');
+    }
+
+    const { checkout_url, form_fields } = result.data;
+
+    // Create and submit form to SePay (same as subscription checkout)
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = checkout_url;
+
+    // Add all form fields as hidden inputs
+    Object.entries(form_fields).forEach(([key, value]) => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = key;
+      input.value = value;
+      form.appendChild(input);
+    });
+
+    // Append form to body and submit
+    document.body.appendChild(form);
+    form.submit();
 
   } catch (error) {
     console.error('Failed to create checkout:', error);
+    alert('Không thể tạo thanh toán. Vui lòng thử lại.');
   }
 }
 ```
