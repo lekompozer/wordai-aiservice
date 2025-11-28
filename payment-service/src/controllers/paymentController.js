@@ -26,6 +26,13 @@ const PLAN_PRICING = {
     },
 };
 
+// Points packages pricing (NEW)
+const POINTS_PRICING = {
+    '50': 50000,    // 50 điểm = 50,000 VND
+    '100': 95000,   // 100 điểm = 95,000 VND
+    '200': 180000,  // 200 điểm = 180,000 VND
+};
+
 /**
  * Generate order invoice number
  * Format: WA-{timestamp}-{user_short}
@@ -242,8 +249,102 @@ async function getUserPayments(req, res) {
     }
 }
 
+/**
+ * Create Points Purchase Checkout
+ * REQUIRES AUTHENTICATION - user_id extracted from Firebase token
+ */
+async function createPointsPurchase(req, res) {
+    // Get authenticated user from Firebase token
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    // Use authenticated user's information
+    const user_id = authenticatedUser.uid;
+    const user_email = authenticatedUser.email;
+    const user_name = authenticatedUser.name || authenticatedUser.email?.split('@')[0];
+
+    // Get points amount from request body
+    const { points } = req.body;
+
+    try {
+        // Get price
+        const price = POINTS_PRICING[points];
+        if (!price) {
+            throw new AppError('Invalid points amount. Valid: 50, 100, 200', 400);
+        }
+
+        // Generate order invoice number
+        const orderInvoiceNumber = generateOrderInvoiceNumber(user_id);
+
+        // Create payment record in database
+        const db = getDb();
+        const paymentsCollection = db.collection('payments');
+
+        const paymentDoc = {
+            user_id,
+            order_invoice_number: orderInvoiceNumber,
+            payment_type: 'points_purchase',  // NEW: Distinguish from subscription
+            points: parseInt(points),
+            price,
+            status: 'pending',
+            payment_method: 'SEPAY_BANK_TRANSFER',
+            user_email: user_email || null,
+            user_name: user_name || null,
+            sepay_transaction_id: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+        };
+
+        const result = await paymentsCollection.insertOne(paymentDoc);
+        const paymentId = result.insertedId.toString();
+
+        logger.info(`Created points purchase payment: ${paymentId} for user: ${user_id} (${points} points)`);
+
+        // Prepare form fields for SePay checkout
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: price.toString(),
+            currency: 'VND',
+            order_invoice_number: orderInvoiceNumber,
+            order_description: `Mua ${points} điểm WordAI`,
+            customer_id: user_id,
+            success_url: `https://wordai.pro/payment/success`,
+            error_url: `https://wordai.pro/payment/error`,
+            cancel_url: `https://wordai.pro/payment/cancel`,
+        };
+
+        // Generate signature
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
+
+        logger.info(`Generated points purchase checkout: ${orderInvoiceNumber}`);
+
+        // Return form fields for frontend
+        res.status(201).json({
+            success: true,
+            data: {
+                payment_id: paymentId,
+                order_invoice_number: orderInvoiceNumber,
+                checkout_url: config.sepay.checkoutUrl,
+                form_fields: formFields,
+                amount: price,
+                payment_type: 'points_purchase',
+                points: parseInt(points),
+            },
+        });
+    } catch (error) {
+        logger.error(`Points purchase checkout error: ${error.message}`);
+        throw error;
+    }
+}
+
 module.exports = {
     createCheckout,
+    createPointsPurchase,
     getPaymentStatus,
     getUserPayments,
 };

@@ -576,13 +576,13 @@ Content-Type: application/json
    C. Essay có media (câu 3):
    - User gõ text: "Đây là câu trả lời..."
    - User click "Upload image"
-   
+
    → POST /api/v1/tests/submissions/answer-media/presigned-url
    Body: {filename: "diagram.png", file_size_mb: 2.5, content_type: "image/png"}
    ← {presigned_url, file_url}
-   
+
    → PUT presigned_url (upload file to R2)
-   
+
    - Update local: answers = {
        q1: {...}, q2: {...},
        q3: {

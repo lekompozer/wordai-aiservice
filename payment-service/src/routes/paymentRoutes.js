@@ -17,6 +17,14 @@ router.post(
     asyncHandler(paymentController.createCheckout)
 );
 
+// Create points purchase - REQUIRES AUTHENTICATION (NEW)
+router.post(
+    '/checkout/points',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    validateBody(schemas.pointsPurchase),
+    asyncHandler(paymentController.createPointsPurchase)
+);
+
 // Get payment status
 router.get(
     '/status/:order_invoice_number',

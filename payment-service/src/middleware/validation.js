@@ -34,6 +34,11 @@ const schemas = {
         duration: Joi.string().valid('3_months', '12_months').required(),
     }),
 
+    // Points purchase request (NEW)
+    pointsPurchase: Joi.object({
+        points: Joi.string().valid('50', '100', '200').required(),
+    }),
+
     // Webhook payload (basic validation, SePay signature will be verified separately)
     webhook: Joi.object().unknown(true),
 };

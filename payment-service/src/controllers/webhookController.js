@@ -94,77 +94,150 @@ async function handleWebhook(req, res) {
 
             logger.info(`Payment marked as completed: ${order_invoice_number}`);
 
-            // Activate subscription via Python service
-            try {
-                logger.info(`Activating subscription for user: ${payment.user_id}`);
+            // Check payment type: subscription or points purchase
+            const paymentType = payment.payment_type || 'subscription';
 
-                const activationResponse = await axios.post(
-                    `${config.pythonService.url}/api/v1/subscriptions/activate`,
-                    {
-                        user_id: payment.user_id,
-                        plan: payment.plan,
-                        duration_months: payment.duration_months,
-                        payment_id: payment._id.toString(),
-                        order_invoice_number,
-                        payment_method: 'SEPAY_BANK_TRANSFER',
-                        amount: payment.price,
-                    },
-                    {
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Service-Secret': config.security.apiSecretKey,
+            if (paymentType === 'points_purchase') {
+                // NEW: Handle points purchase
+                try {
+                    logger.info(`Adding ${payment.points} points for user: ${payment.user_id}`);
+
+                    const pointsResponse = await axios.post(
+                        `${config.pythonService.url}/api/v1/points/add`,
+                        {
+                            user_id: payment.user_id,
+                            points: payment.points,
+                            payment_id: payment._id.toString(),
+                            order_invoice_number,
+                            payment_method: 'SEPAY_BANK_TRANSFER',
+                            amount: payment.price,
+                            reason: `Mua ${payment.points} điểm qua SePay`,
                         },
-                        timeout: config.pythonService.timeout,
+                        {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Service-Secret': config.security.apiSecretKey,
+                            },
+                            timeout: config.pythonService.timeout,
+                        }
+                    );
+
+                    logger.info(`Points added: ${JSON.stringify(pointsResponse.data)}`);
+
+                    // Mark payment as points_added
+                    await paymentsCollection.updateOne(
+                        { order_invoice_number },
+                        {
+                            $set: {
+                                points_added: true,
+                                points_response: pointsResponse.data,
+                                updated_at: new Date(),
+                            },
+                        }
+                    );
+
+                    logger.info(`Points addition completed for order: ${order_invoice_number}`);
+                } catch (error) {
+                    logger.error(`Failed to add points: ${error.message}`);
+                    if (error.response) {
+                        logger.error(`Python service error: ${JSON.stringify(error.response.data)}`);
                     }
-                );
 
-                logger.info(`Subscription activated: ${JSON.stringify(activationResponse.data)}`);
+                    await paymentsCollection.updateOne(
+                        { order_invoice_number },
+                        {
+                            $set: {
+                                points_added: false,
+                                points_error: error.message,
+                                points_error_details: error.response?.data || null,
+                                updated_at: new Date(),
+                            },
+                        }
+                    );
 
-                // Mark payment as subscription_activated
-                await paymentsCollection.updateOne(
-                    { order_invoice_number },
-                    {
-                        $set: {
-                            subscription_activated: true,
-                            subscription_id: activationResponse.data.subscription_id,
-                            activation_response: activationResponse.data,
-                            updated_at: new Date(),
-                        },
-                    }
-                );
-
-                logger.info(`Subscription activation completed for order: ${order_invoice_number}`);
-            } catch (error) {
-                logger.error(`Failed to activate subscription: ${error.message}`);
-                if (error.response) {
-                    logger.error(`Python service error: ${JSON.stringify(error.response.data)}`);
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Payment completed, points addition pending retry',
+                    });
                 }
 
-                // Don't fail webhook response, we can retry activation later
-                await paymentsCollection.updateOne(
-                    { order_invoice_number },
-                    {
-                        $set: {
-                            subscription_activated: false,
-                            activation_error: error.message,
-                            activation_error_details: error.response?.data || null,
-                            updated_at: new Date(),
-                        },
-                    }
-                );
-
-                // Still return success to SePay to prevent retries
                 return res.status(200).json({
                     success: true,
-                    message: 'Payment completed, subscription activation pending retry',
+                    message: 'Payment and points processed successfully',
+                });
+            } else {
+                // Original: Handle subscription activation
+                try {
+                    logger.info(`Activating subscription for user: ${payment.user_id}`);
+
+                    const activationResponse = await axios.post(
+                        `${config.pythonService.url}/api/v1/subscriptions/activate`,
+                        {
+                            user_id: payment.user_id,
+                            plan: payment.plan,
+                            duration_months: payment.duration_months,
+                            payment_id: payment._id.toString(),
+                            order_invoice_number,
+                            payment_method: 'SEPAY_BANK_TRANSFER',
+                            amount: payment.price,
+                        },
+                        {
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Service-Secret': config.security.apiSecretKey,
+                            },
+                            timeout: config.pythonService.timeout,
+                        }
+                    );
+
+                    logger.info(`Subscription activated: ${JSON.stringify(activationResponse.data)}`);
+
+                    // Mark payment as subscription_activated
+                    await paymentsCollection.updateOne(
+                        { order_invoice_number },
+                        {
+                            $set: {
+                                subscription_activated: true,
+                                subscription_id: activationResponse.data.subscription_id,
+                                activation_response: activationResponse.data,
+                                updated_at: new Date(),
+                            },
+                        }
+                    );
+
+                    logger.info(`Subscription activation completed for order: ${order_invoice_number}`);
+                } catch (error) {
+                    logger.error(`Failed to activate subscription: ${error.message}`);
+                    if (error.response) {
+                        logger.error(`Python service error: ${JSON.stringify(error.response.data)}`);
+                    }
+
+                    // Don't fail webhook response, we can retry activation later
+                    await paymentsCollection.updateOne(
+                        { order_invoice_number },
+                        {
+                            $set: {
+                                subscription_activated: false,
+                                activation_error: error.message,
+                                activation_error_details: error.response?.data || null,
+                                updated_at: new Date(),
+                            },
+                        }
+                    );
+
+                    // Still return success to SePay to prevent retries
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Payment completed, subscription activation pending retry',
+                    });
+                }
+
+                // Success response to SePay
+                return res.status(200).json({
+                    success: true,
+                    message: 'Payment and subscription processed successfully',
                 });
             }
-
-            // Success response to SePay
-            return res.status(200).json({
-                success: true,
-                message: 'Payment and subscription processed successfully',
-            });
         } else {
             // Other notification types (ORDER_CANCELLED, ORDER_EXPIRED, etc.)
             logger.info(`Unhandled notification type: ${notification_type}`);
