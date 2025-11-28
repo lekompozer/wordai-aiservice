@@ -22,7 +22,7 @@ from fastapi import (
     Form,
     Query,
 )
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.services.test_generator_service import get_test_generator_service
@@ -290,18 +290,77 @@ class GenerateTestRequest(BaseModel):
 
 
 class ManualTestQuestion(BaseModel):
-    """Manual question model - flexible validation for user-created tests"""
+    """Manual question model - flexible validation for user-created tests
 
-    question_text: str = Field(..., min_length=1, max_length=1000)
-    options: list = Field(
-        ..., description="List of options with 'key' and 'text'", min_length=2
+    Supports 3 question types:
+    - "mcq": Multiple choice questions (default)
+    - "essay": Essay questions requiring text answers
+    - "mixed": Combination of MCQ and Essay (determined by questions array)
+    """
+
+    question_type: str = Field(
+        default="mcq",
+        description="Question type: 'mcq' or 'essay'",
     )
-    correct_answer_key: str = Field(
-        ..., description="Correct answer key (A, B, C, D, etc.)"
+    question_text: str = Field(..., min_length=1, max_length=2000)
+
+    # MCQ-specific fields (required only if question_type='mcq')
+    options: Optional[list] = Field(
+        None,
+        description="List of options with 'key' and 'text' (required for MCQ)",
+        min_length=2,
     )
+    correct_answer_key: Optional[str] = Field(
+        None, description="Correct answer key (A, B, C, D, etc.) (required for MCQ)"
+    )
+
+    # Common fields
     explanation: Optional[str] = Field(
-        None, description="Optional explanation", max_length=500
+        None, description="Optional explanation or solution", max_length=1000
     )
+
+    # Essay-specific fields
+    max_points: Optional[int] = Field(
+        default=1,
+        description="Maximum points for this question (used for weighted scoring)",
+        ge=1,
+        le=100,
+    )
+    grading_rubric: Optional[str] = Field(
+        None, description="Grading criteria/rubric for essay questions", max_length=2000
+    )
+
+    @field_validator("question_type")
+    @classmethod
+    def validate_question_type(cls, v):
+        if v not in ["mcq", "essay"]:
+            raise ValueError("question_type must be 'mcq' or 'essay'")
+        return v
+
+    @model_validator(mode="after")
+    def validate_question_fields(self):
+        """Validate that required fields are present based on question_type"""
+        if self.question_type == "mcq":
+            # MCQ requires options and correct_answer_key
+            if not self.options or len(self.options) < 2:
+                raise ValueError("MCQ questions must have at least 2 options")
+            if not self.correct_answer_key:
+                raise ValueError("MCQ questions must have correct_answer_key")
+            # Validate correct_answer_key exists in options
+            option_keys = [
+                opt.get("key") if isinstance(opt, dict) else opt for opt in self.options
+            ]
+            if self.correct_answer_key not in option_keys:
+                raise ValueError(
+                    f"correct_answer_key '{self.correct_answer_key}' not found in options"
+                )
+        elif self.question_type == "essay":
+            # Essay should NOT have options or correct_answer_key
+            if self.options is not None and len(self.options) > 0:
+                raise ValueError("Essay questions should not have options")
+            if self.correct_answer_key is not None:
+                raise ValueError("Essay questions should not have correct_answer_key")
+        return self
 
 
 class TestAttachment(BaseModel):
@@ -384,6 +443,17 @@ class CreateManualTestRequest(BaseModel):
         default=[],
         description="List of PDF attachments for reading comprehension (optional)",
     )
+    grading_config: Optional[dict] = Field(
+        default=None,
+        description="""Grading configuration for mixed-format tests. Optional.
+        {
+            "mcq_weight": 0.6,  // MCQ portion weight (0-1)
+            "essay_weight": 0.4,  // Essay portion weight (0-1)
+            "auto_calculate_weights": true  // Auto-calculate from max_points
+        }
+        If not provided, weights calculated equally by question count.
+        """,
+    )
 
 
 class DuplicateTestRequest(BaseModel):
@@ -425,22 +495,78 @@ class TestStatusResponse(BaseModel):
 
 
 class SubmitTestRequest(BaseModel):
-    """Request model for test submission"""
+    """Request model for test submission
+
+    Supports both MCQ and Essay answers:
+    - MCQ: {question_id, question_type: 'mcq', selected_answer_key}
+    - Essay: {question_id, question_type: 'essay', essay_answer}
+    """
 
     user_answers: list = Field(
-        ..., description="List of {question_id, selected_answer_key}"
+        ...,
+        description="""List of answers with format:
+        MCQ: {"question_id": "q1", "question_type": "mcq", "selected_answer_key": "A"}
+        Essay: {"question_id": "q2", "question_type": "essay", "essay_answer": "text..."}
+        """,
     )
 
 
+class EssayGrade(BaseModel):
+    """Model for essay question grade"""
+
+    question_id: str = Field(..., description="ID of the essay question")
+    points_awarded: float = Field(
+        ..., ge=0, description="Points awarded (0 to max_points)"
+    )
+    max_points: int = Field(
+        ..., ge=1, le=100, description="Maximum points for this question"
+    )
+    feedback: Optional[str] = Field(
+        default=None, max_length=5000, description="Grader's feedback"
+    )
+    graded_by: str = Field(..., description="User ID of the grader")
+    graded_at: str = Field(..., description="ISO timestamp when graded")
+
+
+class GradingStatusEnum(str):
+    """Enum for grading status"""
+
+    AUTO_GRADED = "auto_graded"  # All MCQ, no manual grading needed
+    PENDING_GRADING = "pending_grading"  # Contains essay questions, not graded yet
+    PARTIALLY_GRADED = "partially_graded"  # Some essay questions graded
+    FULLY_GRADED = "fully_graded"  # All questions graded
+
+
 class TestResultResponse(BaseModel):
-    """Response model for test results"""
+    """Response model for test results
+
+    For auto-graded tests (MCQ only):
+    - score and correct_answers are immediately available
+    - grading_status: auto_graded
+
+    For tests with essays:
+    - score and correct_answers may be partial or None
+    - grading_status: pending_grading, partially_graded, or fully_graded
+    - essay_grades: list of graded essay questions
+    """
 
     submission_id: str
-    score: float
+    score: Optional[float] = Field(
+        default=None, description="Final score (None if pending grading)"
+    )
     total_questions: int
-    correct_answers: int
+    correct_answers: Optional[int] = Field(
+        default=None, description="Number correct (MCQ only)"
+    )
     time_taken_seconds: int
     results: list
+    grading_status: str = Field(
+        default="auto_graded",
+        description="auto_graded|pending_grading|partially_graded|fully_graded",
+    )
+    essay_grades: Optional[list[EssayGrade]] = Field(
+        default=None, description="Grades for essay questions"
+    )
 
 
 class TestSummary(BaseModel):
@@ -452,6 +578,45 @@ class TestSummary(BaseModel):
     time_limit_minutes: int
     created_at: str
     attempts_count: int
+
+
+class GradingQueueItem(BaseModel):
+    """Model for grading queue entries
+
+    Represents a test submission waiting for manual grading
+    """
+
+    submission_id: str = Field(..., description="ID of the test submission")
+    test_id: str = Field(..., description="ID of the test")
+    test_title: str = Field(..., description="Title of the test")
+    student_id: str = Field(..., description="User ID of the student")
+    student_name: Optional[str] = Field(default=None, description="Name of the student")
+    submitted_at: str = Field(..., description="ISO timestamp of submission")
+    essay_question_count: int = Field(
+        ..., ge=1, description="Number of essay questions to grade"
+    )
+    graded_count: int = Field(default=0, ge=0, description="Number already graded")
+    assigned_to: Optional[str] = Field(
+        default=None, description="User ID of assigned grader"
+    )
+    priority: int = Field(
+        default=0, description="Priority level for grading (higher = more urgent)"
+    )
+    status: str = Field(default="pending", description="pending|in_progress|completed")
+
+
+class TestProgressUpdate(BaseModel):
+    """Model for updating test progress
+
+    Used when tracking partial saves of essay answers during test
+    """
+
+    test_id: str = Field(..., description="ID of the test")
+    user_id: str = Field(..., description="ID of the user taking the test")
+    current_answers: list = Field(
+        ..., description="Current state of answers (same format as SubmitTestRequest)"
+    )
+    last_updated: str = Field(..., description="ISO timestamp of last update")
 
 
 # ========== Endpoints ==========
@@ -986,14 +1151,21 @@ async def create_manual_test(
     """
     Create a test with manually entered questions
 
-    **UPDATED**: Questions are now optional - can create empty draft test
+    **UPDATED**:
+    - Questions are now optional - can create empty draft test
+    - Supports Essay and Mixed-format questions (Phase 2)
 
     User can:
     1. Create empty test with just title → Add questions later
-    2. Create test with initial questions → Continue editing
+    2. Create test with MCQ, Essay, or Mixed questions → Continue editing
     3. Duplicate existing test → Modify copy
 
     Test is immediately set to status='ready' (no AI generation needed).
+
+    **Question Types:**
+    - MCQ: Traditional multiple-choice (auto-graded)
+    - Essay: Free-text response (manual grading required)
+    - Mixed: Combination of MCQ and Essay
 
     **Use Cases:**
     - Teacher creates draft quiz, adds questions gradually
@@ -1008,18 +1180,42 @@ async def create_manual_test(
         # Validate questions if provided
         if request.questions:
             for idx, q in enumerate(request.questions):
-                if len(q.options) < 2:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Question {idx+1}: Must have at least 2 options",
-                    )
+                q_type = getattr(q, "question_type", "mcq")
 
-                # Validate correct_answer_key exists in options
-                option_keys = [opt["key"] for opt in q.options]
-                if q.correct_answer_key not in option_keys:
+                if q_type == "mcq":
+                    # MCQ validation
+                    if not q.options or len(q.options) < 2:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx+1}: MCQ must have at least 2 options",
+                        )
+
+                    # Validate correct_answer_key exists in options
+                    option_keys = [opt["key"] for opt in q.options]
+                    if q.correct_answer_key not in option_keys:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx+1}: correct_answer_key '{q.correct_answer_key}' not found in options",
+                        )
+
+                elif q_type == "essay":
+                    # Essay validation
+                    if q.options or q.correct_answer_key:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx+1}: Essay questions cannot have options or correct_answer_key",
+                        )
+
+                    if not q.max_points or q.max_points < 1 or q.max_points > 100:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx+1}: Essay max_points must be between 1 and 100",
+                        )
+
+                else:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx+1}: correct_answer_key '{q.correct_answer_key}' not found in options",
+                        detail=f"Question {idx+1}: Invalid question_type '{q_type}'. Must be 'mcq' or 'essay'",
                     )
 
         # Create test record
@@ -1032,15 +1228,31 @@ async def create_manual_test(
         formatted_questions = []
         if request.questions:
             for q in request.questions:
-                formatted_questions.append(
-                    {
-                        "question_id": str(uuid.uuid4())[:8],
-                        "question_text": q.question_text,
-                        "options": q.options,
-                        "correct_answer_key": q.correct_answer_key,
-                        "explanation": q.explanation,
-                    }
-                )
+                q_type = getattr(q, "question_type", "mcq")
+
+                question_dict = {
+                    "question_id": str(uuid.uuid4())[:8],
+                    "question_text": q.question_text,
+                    "question_type": q_type,
+                    "max_points": getattr(q, "max_points", 1),
+                }
+
+                # Add MCQ-specific fields
+                if q_type == "mcq":
+                    question_dict.update(
+                        {
+                            "options": q.options,
+                            "correct_answer_key": q.correct_answer_key,
+                            "explanation": q.explanation,
+                        }
+                    )
+
+                # Add Essay-specific fields
+                elif q_type == "essay":
+                    if hasattr(q, "grading_rubric") and q.grading_rubric:
+                        question_dict["grading_rubric"] = q.grading_rubric
+
+                formatted_questions.append(question_dict)
 
         # Determine status based on whether test has questions
         status = "ready" if len(formatted_questions) > 0 else "draft"
@@ -1079,6 +1291,7 @@ async def create_manual_test(
             "progress_percent": 100 if len(formatted_questions) > 0 else 0,
             "questions": formatted_questions,
             "attachments": formatted_attachments,  # NEW: PDF attachments for reading comprehension
+            "grading_config": request.grading_config,  # NEW: Weighted scoring configuration
             "is_active": True,
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
@@ -1882,17 +2095,23 @@ async def submit_test(
     """
     Submit test answers and get results
 
-    **UPDATED Phase 4**: Now supports shared access and sends completion notifications
+    **UPDATED Phase 3 (Essay Support)**: Now supports MCQ, Essay, and Mixed-format tests
 
-    Scores the test and returns detailed results with explanations.
+    **Scoring Logic:**
+    - MCQ questions: Auto-graded immediately
+    - Essay questions: Require manual grading (score = None until graded)
+    - Mixed tests: Partial score shown for MCQ, pending for Essay
 
-    **Access Control:**
-    - Owner: Can submit (for testing purposes)
-    - Shared: Can submit according to max_retries limit
+    **Grading Status:**
+    - auto_graded: All MCQ, scores available immediately
+    - pending_grading: Has essay questions, no grading done yet
+    - partially_graded: Some essays graded (not implemented yet)
+    - fully_graded: All essays graded, final score available
 
     **Phase 4 Features:**
     - Marks shared test as "completed" status
     - Sends email notification to test owner when shared user completes
+    - Creates grading queue entry for tests with essay questions
     """
     try:
         logger.info(f"📤 Submit test: {test_id} from user {user_info['uid']}")
@@ -1913,55 +2132,120 @@ async def submit_test(
         logger.info(f"   ✅ Access granted: type={access_info['access_type']}")
 
         # Check is_active ONLY for non-public tests
-        # Public marketplace tests are always available regardless of is_active status
         if access_info["access_type"] != "public" and not test_doc.get(
             "is_active", False
         ):
             raise HTTPException(status_code=410, detail="Test is no longer active")
 
-        # Score the test
+        # ========== NEW: Separate MCQ and Essay questions ==========
         questions = test_doc["questions"]
         total_questions = len(questions)
-        correct_count = 0
+
+        mcq_questions = [q for q in questions if q.get("question_type", "mcq") == "mcq"]
+        essay_questions = [
+            q for q in questions if q.get("question_type", "mcq") == "essay"
+        ]
+
+        has_essay = len(essay_questions) > 0
+        has_mcq = len(mcq_questions) > 0
+
+        logger.info(
+            f"   📊 Test format: {len(mcq_questions)} MCQ, {len(essay_questions)} Essay"
+        )
+
+        # Create answer maps
+        user_answers_map = {}
+        for ans in request.user_answers:
+            q_id = ans.get("question_id")
+            ans_type = ans.get("question_type", "mcq")
+
+            if ans_type == "mcq":
+                user_answers_map[q_id] = {
+                    "type": "mcq",
+                    "selected_answer_key": ans.get("selected_answer_key"),
+                }
+            elif ans_type == "essay":
+                user_answers_map[q_id] = {
+                    "type": "essay",
+                    "essay_answer": ans.get("essay_answer", ""),
+                }
+
+        # ========== Auto-grade MCQ questions only ==========
+        mcq_correct_count = 0
+        mcq_score = 0
         results = []
 
-        # Create answer map for quick lookup
-        user_answers_map = {
-            ans["question_id"]: ans["selected_answer_key"]
-            for ans in request.user_answers
-        }
-
-        for q in questions:
+        for q in mcq_questions:
             question_id = q["question_id"]
             correct_answer = q["correct_answer_key"]
-            user_answer = user_answers_map.get(question_id, None)
+            user_answer_data = user_answers_map.get(question_id, {})
+            user_answer = user_answer_data.get("selected_answer_key")
 
             is_correct = user_answer == correct_answer
             if is_correct:
-                correct_count += 1
+                mcq_correct_count += 1
+                mcq_score += q.get("max_points", 1)
 
             results.append(
                 {
                     "question_id": question_id,
                     "question_text": q["question_text"],
+                    "question_type": "mcq",
                     "your_answer": user_answer,
                     "correct_answer": correct_answer,
                     "is_correct": is_correct,
-                    "explanation": q["explanation"],
+                    "explanation": q.get("explanation"),
+                    "max_points": q.get("max_points", 1),
+                    "points_awarded": q.get("max_points", 1) if is_correct else 0,
                 }
             )
 
-        # Calculate score (thang điểm 10)
-        score_percentage = (
-            (correct_count / total_questions * 100) if total_questions > 0 else 0
-        )
-        score_out_of_10 = (
-            round(correct_count / total_questions * 10, 2) if total_questions > 0 else 0
-        )
+        # ========== Add essay questions to results (not graded yet) ==========
+        for q in essay_questions:
+            question_id = q["question_id"]
+            user_answer_data = user_answers_map.get(question_id, {})
+            essay_answer = user_answer_data.get("essay_answer", "")
+
+            results.append(
+                {
+                    "question_id": question_id,
+                    "question_text": q["question_text"],
+                    "question_type": "essay",
+                    "your_answer": essay_answer,
+                    "max_points": q.get("max_points", 1),
+                    "grading_status": "pending",
+                    "points_awarded": None,  # Not graded yet
+                }
+            )
+
+        # ========== Determine grading status ==========
+        if has_essay:
+            grading_status = "pending_grading"
+            # Final score is None until all essays are graded
+            final_score = None
+            score_percentage = None
+        else:
+            grading_status = "auto_graded"
+            # Calculate final score for MCQ-only tests
+            total_max_points = sum(q.get("max_points", 1) for q in mcq_questions)
+            final_score = (
+                round(mcq_score / total_max_points * 10, 2)
+                if total_max_points > 0
+                else 0
+            )
+            score_percentage = (
+                round(mcq_score / total_max_points * 100, 2)
+                if total_max_points > 0
+                else 0
+            )
 
         # Check if passed based on test's passing_score setting
-        passing_score = test_doc.get("passing_score", 70)  # Default 70%
-        is_passed = score_percentage >= passing_score
+        passing_score_threshold = test_doc.get("passing_score", 70)  # Default 70%
+        is_passed = (
+            score_percentage >= passing_score_threshold
+            if score_percentage is not None
+            else False
+        )
 
         # ========== Validate time limit ==========
         # Get session to check started_at time
@@ -2006,9 +2290,12 @@ async def submit_test(
                         "time_limit_seconds": time_limit_seconds,
                         "latest_submission": {
                             "submission_id": str(latest_submission["_id"]),
-                            "score": latest_submission.get("score", 0),
+                            "score": latest_submission.get("score"),
                             "score_percentage": latest_submission.get(
-                                "score_percentage", 0
+                                "score_percentage"
+                            ),
+                            "grading_status": latest_submission.get(
+                                "grading_status", "auto_graded"
                             ),
                             "is_passed": latest_submission.get("is_passed", False),
                             "submitted_at": latest_submission.get(
@@ -2047,21 +2334,90 @@ async def submit_test(
             "test_id": test_id,
             "user_id": user_info["uid"],
             "user_answers": request.user_answers,
-            "score": score_out_of_10,  # Thang điểm 10
-            "score_percentage": score_percentage,  # Phần trăm (for reference)
+            "grading_status": grading_status,  # NEW: auto_graded or pending_grading
+            "score": final_score,  # None if has essay, score/10 if MCQ only
+            "score_percentage": score_percentage,  # None if has essay
+            "mcq_score": mcq_score if has_mcq else None,  # NEW: Separate MCQ score
+            "mcq_correct_count": mcq_correct_count if has_mcq else None,  # NEW
             "total_questions": total_questions,
-            "correct_answers": correct_count,
-            "time_taken_seconds": time_taken_seconds,  # Calculated from started_at
+            "correct_answers": (
+                mcq_correct_count if not has_essay else None
+            ),  # Only MCQ for now
+            "time_taken_seconds": time_taken_seconds,
             "attempt_number": attempt_number,
-            "is_passed": is_passed,  # ✅ Fixed: Use test's passing_score
+            "is_passed": is_passed,
+            "essay_grades": [],  # Will be populated later by grading endpoint
             "submitted_at": datetime.now(),
         }
 
         result = submissions_collection.insert_one(submission_doc)
         submission_id = str(result.inserted_id)
 
+        # ========== NEW: Add to grading queue if has essay questions ==========
+        if has_essay:
+            grading_queue = mongo_service.db["grading_queue"]
+
+            # Get student name
+            user_doc = mongo_service.db.users.find_one(
+                {"firebase_uid": user_info["uid"]}
+            )
+            student_name = (
+                user_doc.get("name") or user_doc.get("display_name")
+                if user_doc
+                else None
+            )
+
+            queue_entry = {
+                "submission_id": submission_id,
+                "test_id": test_id,
+                "test_title": test_doc.get("title", "Untitled Test"),
+                "student_id": user_info["uid"],
+                "student_name": student_name,
+                "submitted_at": datetime.now().isoformat(),
+                "essay_question_count": len(essay_questions),
+                "graded_count": 0,
+                "assigned_to": None,
+                "priority": 0,
+                "status": "pending",
+            }
+
+            grading_queue.insert_one(queue_entry)
+            logger.info(
+                f"   📋 Added to grading queue: {len(essay_questions)} essays to grade"
+            )
+
+            # ========== Phase 5: Send notification to owner about new submission ==========
+            async def send_new_submission_notification():
+                try:
+                    from src.services.brevo_email_service import get_brevo_service
+
+                    # Get owner info
+                    owner_id = test_doc.get("creator_id")
+                    owner = mongo_service.db.users.find_one({"firebase_uid": owner_id})
+
+                    if owner and owner.get("email"):
+                        brevo = get_brevo_service()
+                        await asyncio.to_thread(
+                            brevo.send_new_submission_notification,
+                            to_email=owner["email"],
+                            owner_name=owner.get("name")
+                            or owner.get("display_name")
+                            or "Teacher",
+                            student_name=student_name or "Unknown Student",
+                            test_title=test_doc["title"],
+                            essay_count=len(essay_questions),
+                        )
+                        logger.info(
+                            f"   📧 Sent new submission notification to owner {owner['email']}"
+                        )
+                except Exception as e:
+                    logger.error(
+                        f"   ⚠️ Failed to send new submission notification: {e}"
+                    )
+
+            background_tasks.add_task(send_new_submission_notification)
+
         # Mark session as completed (if exists)
-        progress_collection = mongo_service.db["test_progress"]
         progress_collection.update_many(
             {"test_id": test_id, "user_id": user_info["uid"], "is_completed": False},
             {"$set": {"is_completed": True, "last_saved_at": datetime.now()}},
@@ -2110,7 +2466,7 @@ async def submit_test(
                             owner_name=owner_name,
                             user_name=user_name,
                             test_title=test_doc["title"],
-                            score=score_out_of_10,
+                            score=final_score if final_score is not None else 0,
                             is_passed=submission_doc["is_passed"],
                             time_taken_minutes=max(1, time_taken_minutes),
                         )
@@ -2123,8 +2479,9 @@ async def submit_test(
             background_tasks.add_task(send_completion_notification)
 
         logger.info(
-            f"✅ Test submitted: score={score_out_of_10:.2f}/10 "
-            f"({score_percentage:.1f}%), attempt={attempt_number}"
+            f"✅ Test submitted: grading_status={grading_status}, "
+            f"score={final_score if final_score is not None else 'pending'}, "
+            f"attempt={attempt_number}"
         )
 
         # ========== NEW: Check show_answers_timing setting ==========
@@ -2146,29 +2503,40 @@ async def submit_test(
                     f"   🔒 Hiding answers until deadline: {deadline.isoformat()}"
                 )
 
-        # Build response based on show_answers_timing
+        # Build response based on show_answers_timing and grading_status
         if not should_hide_answers:
             # Full response - show everything
             response = {
                 "success": True,
                 "submission_id": submission_id,
-                "score": score_out_of_10,  # Thang điểm 10
-                "score_percentage": score_percentage,  # Phần trăm
+                "grading_status": grading_status,  # NEW
+                "score": final_score,  # None if pending grading
+                "score_percentage": score_percentage,  # None if pending grading
                 "total_questions": total_questions,
-                "correct_answers": correct_count,
+                "correct_answers": (
+                    mcq_correct_count if has_mcq else 0
+                ),  # Only MCQ count
                 "attempt_number": attempt_number,
                 "is_passed": is_passed,
                 "results": results,
+                "essay_grades": None if has_essay else [],  # Null until graded
             }
+
+            # Add message if pending grading
+            if grading_status == "pending_grading":
+                response["message"] = (
+                    "Bài thi chứa câu hỏi tự luận và đang chờ được chấm điểm."
+                )
         else:
-            # Limited response - hide detailed results and attempt number
+            # Limited response - hide detailed results until deadline
             response = {
                 "success": True,
                 "submission_id": submission_id,
-                "score": score_out_of_10,  # Thang điểm 10
-                "score_percentage": score_percentage,  # Phần trăm
+                "grading_status": grading_status,
+                "score": final_score,
+                "score_percentage": score_percentage,
                 "total_questions": total_questions,
-                "correct_answers": correct_count,  # Still show total correct count
+                "correct_answers": mcq_correct_count if has_mcq else 0,
                 "is_passed": is_passed,
                 "results_hidden_until_deadline": deadline.isoformat(),
                 "message": "Detailed answers will be revealed after the deadline",
@@ -2475,15 +2843,19 @@ async def get_submission_detail(
     """
     Get detailed results of a specific submission
 
-    **Phase 1 Feature**
+    **UPDATED Phase 3**: Now supports Essay and Mixed-format tests
+
+    **Response includes:**
+    - grading_status: auto_graded, pending_grading, partially_graded, fully_graded
+    - MCQ results with auto-grading
+    - Essay results with grading status and feedback (if graded)
+    - Conditional score (None if pending grading)
     """
     try:
         logger.info(f"🔍 Get submission detail: {submission_id}")
 
         mongo_service = get_mongodb_service()
-        submissions_collection = mongo_service.db[
-            "test_submissions"
-        ]  # ✅ Correct collection
+        submissions_collection = mongo_service.db["test_submissions"]
 
         submission = submissions_collection.find_one({"_id": ObjectId(submission_id)})
 
@@ -2500,29 +2872,93 @@ async def get_submission_detail(
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        # Build results with explanations
+        # ========== Build results (MCQ and Essay) ==========
         results = []
-        user_answers_map = {
-            ans["question_id"]: ans["selected_answer_key"]
-            for ans in submission["user_answers"]
-        }
+
+        # Create maps for quick lookup
+        user_answers_map = {}
+        for ans in submission["user_answers"]:
+            q_id = ans.get("question_id")
+            ans_type = ans.get("question_type", "mcq")
+
+            if ans_type == "mcq":
+                user_answers_map[q_id] = {
+                    "type": "mcq",
+                    "selected_answer_key": ans.get("selected_answer_key"),
+                }
+            elif ans_type == "essay":
+                user_answers_map[q_id] = {
+                    "type": "essay",
+                    "essay_answer": ans.get("essay_answer", ""),
+                }
+
+        # Get essay grades if available
+        essay_grades_map = {}
+        if submission.get("essay_grades"):
+            for grade in submission["essay_grades"]:
+                essay_grades_map[grade["question_id"]] = grade
 
         for q in test_doc["questions"]:
             question_id = q["question_id"]
-            user_answer = user_answers_map.get(question_id)
-            is_correct = user_answer == q["correct_answer_key"]
+            q_type = q.get("question_type", "mcq")
+            user_answer_data = user_answers_map.get(question_id, {})
 
-            results.append(
-                {
+            if q_type == "mcq":
+                # MCQ result
+                user_answer = user_answer_data.get("selected_answer_key")
+                is_correct = user_answer == q["correct_answer_key"]
+
+                results.append(
+                    {
+                        "question_id": question_id,
+                        "question_text": q["question_text"],
+                        "question_type": "mcq",
+                        "options": q.get("options", []),
+                        "your_answer": user_answer,
+                        "correct_answer": q["correct_answer_key"],
+                        "is_correct": is_correct,
+                        "explanation": q.get("explanation"),
+                        "max_points": q.get("max_points", 1),
+                        "points_awarded": q.get("max_points", 1) if is_correct else 0,
+                    }
+                )
+
+            elif q_type == "essay":
+                # Essay result
+                essay_answer = user_answer_data.get("essay_answer", "")
+                essay_grade = essay_grades_map.get(question_id)
+
+                result = {
                     "question_id": question_id,
                     "question_text": q["question_text"],
-                    "options": q["options"],
-                    "your_answer": user_answer,
-                    "correct_answer": q["correct_answer_key"],
-                    "is_correct": is_correct,
-                    "explanation": q["explanation"],
+                    "question_type": "essay",
+                    "your_answer": essay_answer,
+                    "max_points": q.get("max_points", 1),
+                    "grading_rubric": q.get("grading_rubric"),
                 }
-            )
+
+                if essay_grade:
+                    # Graded
+                    result.update(
+                        {
+                            "grading_status": "graded",
+                            "points_awarded": essay_grade.get("points_awarded"),
+                            "feedback": essay_grade.get("feedback"),
+                            "graded_by": essay_grade.get("graded_by"),
+                            "graded_at": essay_grade.get("graded_at"),
+                        }
+                    )
+                else:
+                    # Not graded yet
+                    result.update(
+                        {
+                            "grading_status": "pending",
+                            "points_awarded": None,
+                            "feedback": None,
+                        }
+                    )
+
+                results.append(result)
 
         # ========== NEW: Check show_answers_timing setting ==========
         show_answers_timing = test_doc.get("show_answers_timing", "immediate")
@@ -2543,35 +2979,48 @@ async def get_submission_detail(
                     f"   🔒 Hiding detailed answers until deadline: {deadline.isoformat()}"
                 )
 
+        # Get grading status
+        grading_status = submission.get("grading_status", "auto_graded")
+
         # Build response based on show_answers_timing
         if not should_hide_answers:
             # Full response - show everything
             response = {
                 "submission_id": submission_id,
                 "test_title": test_doc["title"],
-                "score": submission["score"],  # Thang điểm 10
+                "grading_status": grading_status,  # NEW
+                "score": submission.get("score"),  # None if pending grading
                 "score_percentage": submission.get(
-                    "score_percentage", submission["score"] * 10
-                ),  # Fallback for old data
+                    "score_percentage"
+                ),  # None if pending
+                "mcq_score": submission.get("mcq_score"),  # NEW: Separate MCQ score
+                "mcq_correct_count": submission.get("mcq_correct_count"),  # NEW
                 "total_questions": submission["total_questions"],
-                "correct_answers": submission["correct_answers"],
+                "correct_answers": submission.get("correct_answers"),  # MCQ only
                 "time_taken_seconds": submission.get("time_taken_seconds", 0),
-                "attempt_number": submission["attempt_number"],
+                "attempt_number": submission.get("attempt_number", 1),
                 "is_passed": submission.get("is_passed", False),
                 "submitted_at": submission["submitted_at"].isoformat(),
                 "results": results,
             }
+
+            # Add message if pending grading
+            if grading_status == "pending_grading":
+                response["message"] = (
+                    "Bài thi chứa câu hỏi tự luận và đang chờ được chấm điểm."
+                )
         else:
             # Limited response - only basic info, NO detailed results
             response = {
                 "submission_id": submission_id,
                 "test_title": test_doc["title"],
-                "score": submission["score"],  # Thang điểm 10
-                "score_percentage": submission.get(
-                    "score_percentage", submission["score"] * 10
-                ),
+                "grading_status": grading_status,
+                "score": submission.get("score"),
+                "score_percentage": submission.get("score_percentage"),
                 "total_questions": submission["total_questions"],
-                "correct_answers": submission["correct_answers"],  # Still show count
+                "correct_answers": submission.get(
+                    "correct_answers"
+                ),  # Still show count
                 "is_passed": submission.get("is_passed", False),
                 "submitted_at": submission["submitted_at"].isoformat(),
                 "results_hidden_until_deadline": deadline.isoformat(),
@@ -2815,6 +3264,823 @@ async def resume_test_session(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to resume session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Phase 4: Essay Grading Interface ==========
+
+
+class GradeEssayRequest(BaseModel):
+    """Request model for grading a single essay question"""
+
+    question_id: str = Field(..., description="ID of the essay question to grade")
+    points_awarded: float = Field(
+        ..., ge=0, description="Points awarded (0 to max_points)"
+    )
+    feedback: Optional[str] = Field(
+        default=None, max_length=5000, description="Grader's feedback"
+    )
+
+
+class GradeAllEssaysRequest(BaseModel):
+    """Request model for grading all essay questions at once"""
+
+    grades: list[GradeEssayRequest] = Field(
+        ..., description="List of grades for all essay questions"
+    )
+
+
+@router.get("/{test_id}/grading-queue", tags=["Phase 4 - Grading"])
+async def get_grading_queue(
+    test_id: str,
+    status: Optional[str] = None,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get list of submissions pending grading for a specific test
+
+    **Access:** Only test owner can view grading queue
+
+    **Query Params:**
+    - status: Filter by status (pending, in_progress, completed)
+
+    **Returns:**
+    - List of submissions with essay questions needing grading
+    - Sorted by submission time (oldest first)
+    """
+    try:
+        mongo_service = get_mongodb_service()
+
+        # Verify test exists and user is owner
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can view grading queue"
+            )
+
+        # Query grading queue
+        grading_queue = mongo_service.db["grading_queue"]
+
+        query = {"test_id": test_id}
+        if status:
+            if status not in ["pending", "in_progress", "completed"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid status. Must be: pending, in_progress, or completed",
+                )
+            query["status"] = status
+
+        queue_items = list(grading_queue.find(query).sort("submitted_at", 1))
+
+        # Format response
+        results = []
+        for item in queue_items:
+            results.append(
+                {
+                    "submission_id": item["submission_id"],
+                    "student_id": item["student_id"],
+                    "student_name": item.get("student_name"),
+                    "submitted_at": item["submitted_at"],
+                    "essay_question_count": item["essay_question_count"],
+                    "graded_count": item["graded_count"],
+                    "assigned_to": item.get("assigned_to"),
+                    "priority": item.get("priority", 0),
+                    "status": item["status"],
+                }
+            )
+
+        logger.info(
+            f"📋 Grading queue for test {test_id}: {len(results)} items (status={status or 'all'})"
+        )
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "test_title": test_doc.get("title"),
+            "total_count": len(results),
+            "queue": results,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get grading queue: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/submissions/{submission_id}/grading-view", tags=["Phase 4 - Grading"])
+async def get_submission_for_grading(
+    submission_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get submission details for grading interface
+
+    **Access:** Only test owner can view submissions for grading
+
+    **Returns:**
+    - Student's essay answers
+    - Grading rubrics for each question
+    - Current grades (if any)
+    - MCQ results (for context)
+    """
+    try:
+        mongo_service = get_mongodb_service()
+
+        # Get submission
+        submission = mongo_service.db["test_submissions"].find_one(
+            {"_id": ObjectId(submission_id)}
+        )
+        if not submission:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        # Get test and verify owner
+        test_doc = mongo_service.db["online_tests"].find_one(
+            {"_id": ObjectId(submission["test_id"])}
+        )
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can grade submissions"
+            )
+
+        # Get student info
+        student = mongo_service.db.users.find_one(
+            {"firebase_uid": submission["user_id"]}
+        )
+        student_name = (
+            student.get("name") or student.get("display_name") if student else "Unknown"
+        )
+        student_email = student.get("email") if student else None
+
+        # Build essay questions for grading
+        essay_questions = []
+        user_answers_map = {}
+
+        for ans in submission["user_answers"]:
+            q_id = ans.get("question_id")
+            ans_type = ans.get("question_type", "mcq")
+            if ans_type == "essay":
+                user_answers_map[q_id] = ans.get("essay_answer", "")
+
+        # Get existing grades
+        essay_grades_map = {}
+        if submission.get("essay_grades"):
+            for grade in submission["essay_grades"]:
+                essay_grades_map[grade["question_id"]] = grade
+
+        for q in test_doc["questions"]:
+            if q.get("question_type") == "essay":
+                question_id = q["question_id"]
+                existing_grade = essay_grades_map.get(question_id)
+
+                essay_questions.append(
+                    {
+                        "question_id": question_id,
+                        "question_text": q["question_text"],
+                        "max_points": q.get("max_points", 1),
+                        "grading_rubric": q.get("grading_rubric"),
+                        "student_answer": user_answers_map.get(question_id, ""),
+                        "current_grade": (
+                            {
+                                "points_awarded": existing_grade.get("points_awarded"),
+                                "feedback": existing_grade.get("feedback"),
+                                "graded_by": existing_grade.get("graded_by"),
+                                "graded_at": existing_grade.get("graded_at"),
+                            }
+                            if existing_grade
+                            else None
+                        ),
+                    }
+                )
+
+        # MCQ summary for context
+        mcq_summary = {
+            "mcq_score": submission.get("mcq_score"),
+            "mcq_correct_count": submission.get("mcq_correct_count"),
+        }
+
+        logger.info(
+            f"📝 Grading view for submission {submission_id}: {len(essay_questions)} essays"
+        )
+
+        return {
+            "success": True,
+            "submission_id": submission_id,
+            "test_id": submission["test_id"],
+            "test_title": test_doc.get("title"),
+            "student_id": submission["user_id"],
+            "student_name": student_name,
+            "student_email": student_email,
+            "submitted_at": submission["submitted_at"].isoformat(),
+            "time_taken_seconds": submission.get("time_taken_seconds", 0),
+            "grading_status": submission.get("grading_status", "pending_grading"),
+            "mcq_summary": mcq_summary,
+            "essay_questions": essay_questions,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get submission for grading: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/submissions/{submission_id}/grade-essay", tags=["Phase 4 - Grading"])
+async def grade_single_essay(
+    submission_id: str,
+    request: GradeEssayRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Grade a single essay question in a submission
+
+    **Access:** Only test owner can grade
+
+    **Updates:**
+    - Adds/updates grade for specific essay question
+    - Updates grading_status (partially_graded or fully_graded)
+    - Recalculates final score if all essays are graded
+    - Updates grading queue
+    """
+    try:
+        mongo_service = get_mongodb_service()
+
+        # Get submission
+        submission = mongo_service.db["test_submissions"].find_one(
+            {"_id": ObjectId(submission_id)}
+        )
+        if not submission:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        # Get test and verify owner
+        test_doc = mongo_service.db["online_tests"].find_one(
+            {"_id": ObjectId(submission["test_id"])}
+        )
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can grade submissions"
+            )
+
+        # Verify question exists and is essay type
+        question = None
+        for q in test_doc["questions"]:
+            if q["question_id"] == request.question_id:
+                question = q
+                break
+
+        if not question:
+            raise HTTPException(status_code=404, detail="Question not found")
+
+        if question.get("question_type") != "essay":
+            raise HTTPException(
+                status_code=400, detail="Can only grade essay questions"
+            )
+
+        # Validate points_awarded
+        max_points = question.get("max_points", 1)
+        if request.points_awarded > max_points:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Points awarded ({request.points_awarded}) cannot exceed max_points ({max_points})",
+            )
+
+        # Create/update grade
+        new_grade = {
+            "question_id": request.question_id,
+            "points_awarded": request.points_awarded,
+            "max_points": max_points,
+            "feedback": request.feedback,
+            "graded_by": user_info["uid"],
+            "graded_at": datetime.now().isoformat(),
+        }
+
+        # Update or add grade
+        essay_grades = submission.get("essay_grades", [])
+        grade_updated = False
+
+        for i, grade in enumerate(essay_grades):
+            if grade["question_id"] == request.question_id:
+                essay_grades[i] = new_grade
+                grade_updated = True
+                break
+
+        if not grade_updated:
+            essay_grades.append(new_grade)
+
+        # Count essay questions
+        essay_questions = [
+            q for q in test_doc["questions"] if q.get("question_type") == "essay"
+        ]
+        total_essays = len(essay_questions)
+        graded_essays = len(essay_grades)
+
+        # Determine new grading status
+        if graded_essays == total_essays:
+            new_status = "fully_graded"
+            # Calculate final score
+            final_score = calculate_final_score(submission, test_doc, essay_grades)
+        elif graded_essays > 0:
+            new_status = "partially_graded"
+            final_score = None  # Don't calculate until all graded
+        else:
+            new_status = "pending_grading"
+            final_score = None
+
+        # Update submission
+        update_data = {
+            "essay_grades": essay_grades,
+            "grading_status": new_status,
+        }
+
+        if final_score is not None:
+            update_data["score"] = final_score["score"]
+            update_data["score_percentage"] = final_score["score_percentage"]
+            update_data["is_passed"] = final_score["is_passed"]
+
+        mongo_service.db["test_submissions"].update_one(
+            {"_id": ObjectId(submission_id)}, {"$set": update_data}
+        )
+
+        # Update grading queue
+        mongo_service.db["grading_queue"].update_one(
+            {"submission_id": submission_id},
+            {
+                "$set": {
+                    "graded_count": graded_essays,
+                    "status": (
+                        "completed" if new_status == "fully_graded" else "in_progress"
+                    ),
+                }
+            },
+        )
+
+        logger.info(
+            f"✅ Graded essay {request.question_id} in submission {submission_id}: "
+            f"{request.points_awarded}/{max_points} points, status={new_status}"
+        )
+
+        return {
+            "success": True,
+            "submission_id": submission_id,
+            "question_id": request.question_id,
+            "points_awarded": request.points_awarded,
+            "max_points": max_points,
+            "grading_status": new_status,
+            "graded_essays": graded_essays,
+            "total_essays": total_essays,
+            "final_score": final_score,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to grade essay: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def calculate_final_score(submission: dict, test_doc: dict, essay_grades: list) -> dict:
+    """
+    Calculate final score when all questions are graded
+
+    Returns:
+        dict with score, score_percentage, is_passed
+    """
+    # Get MCQ score
+    mcq_score = submission.get("mcq_score", 0)
+
+    # Calculate essay score
+    essay_score = sum(grade["points_awarded"] for grade in essay_grades)
+
+    # Calculate total
+    total_score = mcq_score + essay_score
+
+    # Calculate max possible score
+    mcq_questions = [
+        q for q in test_doc["questions"] if q.get("question_type", "mcq") == "mcq"
+    ]
+    essay_questions = [
+        q for q in test_doc["questions"] if q.get("question_type") == "essay"
+    ]
+
+    max_mcq = sum(q.get("max_points", 1) for q in mcq_questions)
+    max_essay = sum(q.get("max_points", 1) for q in essay_questions)
+    max_total = max_mcq + max_essay
+
+    # Calculate percentage and score out of 10
+    score_percentage = round(total_score / max_total * 100, 2) if max_total > 0 else 0
+    score_out_of_10 = round(total_score / max_total * 10, 2) if max_total > 0 else 0
+
+    # Check if passed
+    passing_score = test_doc.get("passing_score", 70)
+    is_passed = score_percentage >= passing_score
+
+    return {
+        "score": score_out_of_10,
+        "score_percentage": score_percentage,
+        "is_passed": is_passed,
+        "total_score": total_score,
+        "max_total": max_total,
+    }
+
+
+@router.post(
+    "/submissions/{submission_id}/grade-all-essays", tags=["Phase 4 - Grading"]
+)
+async def grade_all_essays(
+    submission_id: str,
+    request: GradeAllEssaysRequest,
+    background_tasks: BackgroundTasks,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Grade all essay questions in a submission at once
+
+    **Access:** Only test owner can grade
+
+    **Updates:**
+    - Adds grades for all essay questions
+    - Sets grading_status to fully_graded
+    - Calculates final score
+    - Sends notification email to student
+    """
+    try:
+        mongo_service = get_mongodb_service()
+
+        # Get submission
+        submission = mongo_service.db["test_submissions"].find_one(
+            {"_id": ObjectId(submission_id)}
+        )
+        if not submission:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        # Get test and verify owner
+        test_doc = mongo_service.db["online_tests"].find_one(
+            {"_id": ObjectId(submission["test_id"])}
+        )
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can grade submissions"
+            )
+
+        # Validate all grades
+        essay_questions_map = {
+            q["question_id"]: q
+            for q in test_doc["questions"]
+            if q.get("question_type") == "essay"
+        }
+
+        essay_grades = []
+        for grade_req in request.grades:
+            if grade_req.question_id not in essay_questions_map:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {grade_req.question_id} not found or not an essay question",
+                )
+
+            question = essay_questions_map[grade_req.question_id]
+            max_points = question.get("max_points", 1)
+
+            if grade_req.points_awarded > max_points:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Points for {grade_req.question_id} ({grade_req.points_awarded}) exceed max ({max_points})",
+                )
+
+            essay_grades.append(
+                {
+                    "question_id": grade_req.question_id,
+                    "points_awarded": grade_req.points_awarded,
+                    "max_points": max_points,
+                    "feedback": grade_req.feedback,
+                    "graded_by": user_info["uid"],
+                    "graded_at": datetime.now().isoformat(),
+                }
+            )
+
+        # Calculate final score
+        final_score = calculate_final_score(submission, test_doc, essay_grades)
+
+        # Update submission
+        mongo_service.db["test_submissions"].update_one(
+            {"_id": ObjectId(submission_id)},
+            {
+                "$set": {
+                    "essay_grades": essay_grades,
+                    "grading_status": "fully_graded",
+                    "score": final_score["score"],
+                    "score_percentage": final_score["score_percentage"],
+                    "is_passed": final_score["is_passed"],
+                }
+            },
+        )
+
+        # Update grading queue
+        mongo_service.db["grading_queue"].update_one(
+            {"submission_id": submission_id},
+            {
+                "$set": {
+                    "graded_count": len(essay_grades),
+                    "status": "completed",
+                }
+            },
+        )
+
+        # Send notification email to student (Phase 5)
+        async def send_grading_complete_notification():
+            try:
+                from src.services.brevo_email_service import get_brevo_service
+
+                student = mongo_service.db.users.find_one(
+                    {"firebase_uid": submission["user_id"]}
+                )
+                if student and student.get("email"):
+                    brevo = get_brevo_service()
+                    await asyncio.to_thread(
+                        brevo.send_grading_complete_notification,
+                        to_email=student["email"],
+                        student_name=student.get("name")
+                        or student.get("display_name")
+                        or "Student",
+                        test_title=test_doc["title"],
+                        score=final_score["score"],
+                        is_passed=final_score["is_passed"],
+                    )
+                    logger.info(
+                        f"   📧 Sent grading complete email to {student['email']}"
+                    )
+            except Exception as e:
+                logger.error(f"   ⚠️ Failed to send grading notification: {e}")
+
+        background_tasks.add_task(send_grading_complete_notification)
+
+        logger.info(
+            f"✅ Graded all essays in submission {submission_id}: "
+            f"{len(essay_grades)} essays, final_score={final_score['score']}/10"
+        )
+
+        return {
+            "success": True,
+            "submission_id": submission_id,
+            "grading_status": "fully_graded",
+            "graded_essays": len(essay_grades),
+            "final_score": final_score,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to grade all essays: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/me/grading-dashboard", tags=["Phase 4 - Grading"])
+async def get_grading_dashboard(
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get grading dashboard for test owner
+
+    **Returns:**
+    - Summary of all tests with pending grading
+    - Total pending submissions across all tests
+    - Recently graded submissions
+    """
+    try:
+        mongo_service = get_mongodb_service()
+
+        # Get all tests owned by user
+        owned_tests = list(
+            mongo_service.db["online_tests"].find({"creator_id": user_info["uid"]})
+        )
+
+        test_ids = [str(test["_id"]) for test in owned_tests]
+
+        # Get grading queue for all owned tests
+        grading_queue = mongo_service.db["grading_queue"]
+
+        pending_items = list(
+            grading_queue.find(
+                {
+                    "test_id": {"$in": test_ids},
+                    "status": {"$in": ["pending", "in_progress"]},
+                }
+            ).sort("submitted_at", 1)
+        )
+
+        # Group by test
+        tests_summary = {}
+        for item in pending_items:
+            test_id = item["test_id"]
+            if test_id not in tests_summary:
+                test = next((t for t in owned_tests if str(t["_id"]) == test_id), None)
+                tests_summary[test_id] = {
+                    "test_id": test_id,
+                    "test_title": test.get("title") if test else "Unknown",
+                    "pending_count": 0,
+                    "oldest_submission": None,
+                }
+
+            tests_summary[test_id]["pending_count"] += 1
+            if tests_summary[test_id]["oldest_submission"] is None:
+                tests_summary[test_id]["oldest_submission"] = item["submitted_at"]
+
+        # Get recently graded (last 10)
+        recently_graded = list(
+            grading_queue.find({"test_id": {"$in": test_ids}, "status": "completed"})
+            .sort("submitted_at", -1)
+            .limit(10)
+        )
+
+        recent_summary = []
+        for item in recently_graded:
+            test = next(
+                (t for t in owned_tests if str(t["_id"]) == item["test_id"]), None
+            )
+            recent_summary.append(
+                {
+                    "submission_id": item["submission_id"],
+                    "test_title": test.get("title") if test else "Unknown",
+                    "student_name": item.get("student_name"),
+                    "submitted_at": item["submitted_at"],
+                    "graded_count": item["graded_count"],
+                    "essay_question_count": item["essay_question_count"],
+                }
+            )
+
+        total_pending = sum(t["pending_count"] for t in tests_summary.values())
+
+        logger.info(
+            f"📊 Grading dashboard for {user_info['uid']}: {total_pending} pending"
+        )
+
+        return {
+            "success": True,
+            "total_pending": total_pending,
+            "tests_with_pending": list(tests_summary.values()),
+            "recently_graded": recent_summary,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get grading dashboard: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch(
+    "/submissions/{submission_id}/update-essay-grade", tags=["Phase 4 - Grading"]
+)
+async def update_essay_grade(
+    submission_id: str,
+    request: GradeEssayRequest,
+    background_tasks: BackgroundTasks,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Update an existing essay grade (edit previously graded essay)
+
+    **Access:** Only test owner can update grades
+
+    **Updates:**
+    - Updates grade for specific essay question
+    - Recalculates final score
+    - Sends update notification email to student
+    """
+    try:
+        mongo_service = get_mongodb_service()
+
+        # Get submission
+        submission = mongo_service.db["test_submissions"].find_one(
+            {"_id": ObjectId(submission_id)}
+        )
+        if not submission:
+            raise HTTPException(status_code=404, detail="Submission not found")
+
+        # Get test and verify owner
+        test_doc = mongo_service.db["online_tests"].find_one(
+            {"_id": ObjectId(submission["test_id"])}
+        )
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test_doc["creator_id"] != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can update grades"
+            )
+
+        # Find existing grade
+        essay_grades = submission.get("essay_grades", [])
+        grade_found = False
+
+        for i, grade in enumerate(essay_grades):
+            if grade["question_id"] == request.question_id:
+                # Update grade
+                question = next(
+                    (
+                        q
+                        for q in test_doc["questions"]
+                        if q["question_id"] == request.question_id
+                    ),
+                    None,
+                )
+                if not question:
+                    raise HTTPException(status_code=404, detail="Question not found")
+
+                max_points = question.get("max_points", 1)
+                if request.points_awarded > max_points:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Points awarded ({request.points_awarded}) cannot exceed max_points ({max_points})",
+                    )
+
+                essay_grades[i] = {
+                    "question_id": request.question_id,
+                    "points_awarded": request.points_awarded,
+                    "max_points": max_points,
+                    "feedback": request.feedback,
+                    "graded_by": user_info["uid"],
+                    "graded_at": datetime.now().isoformat(),
+                }
+                grade_found = True
+                break
+
+        if not grade_found:
+            raise HTTPException(
+                status_code=404,
+                detail="Grade not found. Use /grade-essay to create a new grade.",
+            )
+
+        # Recalculate final score
+        final_score = calculate_final_score(submission, test_doc, essay_grades)
+
+        # Update submission
+        mongo_service.db["test_submissions"].update_one(
+            {"_id": ObjectId(submission_id)},
+            {
+                "$set": {
+                    "essay_grades": essay_grades,
+                    "score": final_score["score"],
+                    "score_percentage": final_score["score_percentage"],
+                    "is_passed": final_score["is_passed"],
+                }
+            },
+        )
+
+        # Send update notification email
+        async def send_grade_updated_notification():
+            try:
+                from src.services.brevo_email_service import get_brevo_service
+
+                student = mongo_service.db.users.find_one(
+                    {"firebase_uid": submission["user_id"]}
+                )
+                if student and student.get("email"):
+                    brevo = get_brevo_service()
+                    await asyncio.to_thread(
+                        brevo.send_grade_updated_notification,
+                        to_email=student["email"],
+                        student_name=student.get("name")
+                        or student.get("display_name")
+                        or "Student",
+                        test_title=test_doc["title"],
+                        score=final_score["score"],
+                        is_passed=final_score["is_passed"],
+                    )
+                    logger.info(f"   📧 Sent grade update email to {student['email']}")
+            except Exception as e:
+                logger.error(f"   ⚠️ Failed to send grade update notification: {e}")
+
+        background_tasks.add_task(send_grade_updated_notification)
+
+        logger.info(
+            f"✅ Updated essay grade for {request.question_id} in submission {submission_id}: "
+            f"{request.points_awarded} points, new_score={final_score['score']}/10"
+        )
+
+        return {
+            "success": True,
+            "submission_id": submission_id,
+            "question_id": request.question_id,
+            "points_awarded": request.points_awarded,
+            "final_score": final_score,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update essay grade: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -3069,53 +4335,90 @@ async def update_test_questions(
                     detail=f"Question {idx + 1}: question_text is required",
                 )
 
-            if not q.get("options") or len(q["options"]) < 2:
+            q_type = q.get("question_type", "mcq")
+
+            if q_type not in ["mcq", "essay"]:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Question {idx + 1}: At least 2 options are required",
+                    detail=f"Question {idx + 1}: question_type must be 'mcq' or 'essay'",
                 )
 
-            # Support both correct_answer_key (string) and correct_answer_keys (array)
-            has_correct_answer_key = q.get("correct_answer_key")
-            has_correct_answer_keys = q.get("correct_answer_keys")
-
-            if not has_correct_answer_key and not has_correct_answer_keys:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Question {idx + 1}: correct_answer_key or correct_answer_keys is required",
-                )
-
-            # Get option keys for validation
-            option_keys = [opt.get("key") for opt in q["options"]]
-
-            # Normalize to correct_answer_keys array format
-            if has_correct_answer_keys:
-                # Ensure it's an array
-                if isinstance(q["correct_answer_keys"], str):
-                    q["correct_answer_keys"] = [q["correct_answer_keys"]]
-
-                # Validate all correct answers exist in options
-                for ans in q["correct_answer_keys"]:
-                    if ans not in option_keys:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}: correct answer '{ans}' not found in options {option_keys}",
-                        )
-
-                # Also set correct_answer_key for backwards compatibility (first correct answer)
-                q["correct_answer_key"] = q["correct_answer_keys"][0]
-
-            elif has_correct_answer_key:
-                # Old format: single correct answer
-                if q["correct_answer_key"] not in option_keys:
+            if q_type == "mcq":
+                # MCQ validation
+                if not q.get("options") or len(q["options"]) < 2:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
-                        f"not found in options {option_keys}",
+                        detail=f"Question {idx + 1}: MCQ requires at least 2 options",
                     )
 
-                # Convert to new format
-                q["correct_answer_keys"] = [q["correct_answer_key"]]
+                # Support both correct_answer_key (string) and correct_answer_keys (array)
+                has_correct_answer_key = q.get("correct_answer_key")
+                has_correct_answer_keys = q.get("correct_answer_keys")
+
+                if not has_correct_answer_key and not has_correct_answer_keys:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: MCQ requires correct_answer_key or correct_answer_keys",
+                    )
+
+                # Get option keys for validation
+                option_keys = [opt.get("key") for opt in q["options"]]
+
+                # Normalize to correct_answer_keys array format
+                if has_correct_answer_keys:
+                    # Ensure it's an array
+                    if isinstance(q["correct_answer_keys"], str):
+                        q["correct_answer_keys"] = [q["correct_answer_keys"]]
+
+                    # Validate all correct answers exist in options
+                    for ans in q["correct_answer_keys"]:
+                        if ans not in option_keys:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}: correct answer '{ans}' not found in options {option_keys}",
+                            )
+
+                    # Also set correct_answer_key for backwards compatibility (first correct answer)
+                    q["correct_answer_key"] = q["correct_answer_keys"][0]
+
+                elif has_correct_answer_key:
+                    # Old format: single correct answer
+                    if q["correct_answer_key"] not in option_keys:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
+                            f"not found in options {option_keys}",
+                        )
+
+                    # Convert to new format
+                    q["correct_answer_keys"] = [q["correct_answer_key"]]
+
+            elif q_type == "essay":
+                # Essay validation
+                if (
+                    q.get("options")
+                    or q.get("correct_answer_key")
+                    or q.get("correct_answer_keys")
+                ):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Essay questions cannot have options or correct answers",
+                    )
+
+                max_points = q.get("max_points", 1)
+                if (
+                    not isinstance(max_points, (int, float))
+                    or max_points < 1
+                    or max_points > 100
+                ):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: max_points must be between 1 and 100",
+                    )
+
+                # Set default max_points if not provided
+                if "max_points" not in q:
+                    q["max_points"] = 1
 
             # Ensure question_id exists (generate if missing)
             if not q.get("question_id"):
@@ -3634,7 +4937,7 @@ async def full_edit_test(
                     status_code=400, detail="Maximum 100 questions allowed"
                 )
 
-            # Validate questions structure
+            # Validate questions structure (support MCQ and Essay)
             for idx, q in enumerate(request.questions):
                 if not q.get("question_text"):
                     raise HTTPException(
@@ -3642,11 +4945,50 @@ async def full_edit_test(
                         detail=f"Question {idx + 1}: question_text is required",
                     )
 
-                if not q.get("options") or len(q["options"]) < 2:
+                q_type = q.get("question_type", "mcq")
+
+                if q_type not in ["mcq", "essay"]:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: At least 2 options are required",
+                        detail=f"Question {idx + 1}: question_type must be 'mcq' or 'essay'",
                     )
+
+                if q_type == "mcq":
+                    # MCQ validation
+                    if not q.get("options") or len(q["options"]) < 2:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: MCQ requires at least 2 options",
+                        )
+
+                    if not q.get("correct_answer_key"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: MCQ requires correct_answer_key",
+                        )
+
+                elif q_type == "essay":
+                    # Essay validation
+                    if q.get("options") or q.get("correct_answer_key"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Essay questions cannot have options or correct_answer_key",
+                        )
+
+                    max_points = q.get("max_points", 1)
+                    if (
+                        not isinstance(max_points, (int, float))
+                        or max_points < 1
+                        or max_points > 100
+                    ):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: max_points must be between 1 and 100",
+                        )
+
+                    # Set default max_points if not provided
+                    if "max_points" not in q:
+                        q["max_points"] = 1
 
                 # Ensure question_id exists
                 if not q.get("question_id"):

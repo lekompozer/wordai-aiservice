@@ -649,6 +649,296 @@ class BrevoEmailService:
 
         return self.send_email(to_email, subject, html_body, text_body)
 
+    def send_grading_complete_notification(
+        self,
+        to_email: str,
+        student_name: str,
+        test_title: str,
+        score: float,
+        is_passed: bool,
+    ) -> bool:
+        """
+        Send notification to student when essay grading is completed
+
+        Args:
+            to_email: Student's email
+            student_name: Student's name
+            test_title: Test title
+            score: Final score (0-10 scale)
+            is_passed: Whether student passed
+
+        Returns:
+            True if email sent successfully
+        """
+        status_emoji = "🎉" if is_passed else "📚"
+        status_text = "Đạt yêu cầu" if is_passed else "Chưa đạt yêu cầu"
+        status_color = "#28a745" if is_passed else "#dc3545"
+        message = "Chúc mừng bạn!" if is_passed else "Hãy tiếp tục cố gắng!"
+
+        subject = f"{status_emoji} Bài thi '{test_title}' đã được chấm điểm!"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; }}
+                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .result-box {{ background: white; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center; border: 2px solid {status_color}; }}
+                .score-badge {{ display: inline-block; background: {status_color}; color: white; padding: 15px 30px; border-radius: 25px; font-size: 32px; font-weight: bold; margin: 15px 0; }}
+                .status-message {{ color: {status_color}; font-size: 20px; font-weight: bold; margin: 10px 0; }}
+                .button {{ display: inline-block; background: #667eea; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }}
+                .button:hover {{ background: #5568d3; }}
+                .footer {{ text-align: center; padding: 20px; color: #888; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>📝 Kết quả chấm điểm</h1>
+                </div>
+                <div class="content">
+                    <p>Xin chào <strong>{student_name}</strong>,</p>
+
+                    <p>Bài thi <strong>"{test_title}"</strong> của bạn đã được giáo viên chấm điểm xong!</p>
+
+                    <div class="result-box">
+                        <h3 style="margin-top: 0; color: #667eea;">{status_emoji} Kết quả của bạn</h3>
+                        <div class="score-badge">{score:.1f}/10</div>
+                        <p class="status-message">{status_text}</p>
+                        <p style="font-size: 16px; color: #666; margin-top: 10px;">{message}</p>
+                    </div>
+
+                    <p style="text-align: center;">
+                        <a href="https://wordai.pro/tests/results" class="button">Xem chi tiết kết quả</a>
+                    </p>
+
+                    <p>Bạn có thể xem chi tiết điểm số từng câu hỏi, nhận xét của giáo viên và đáp án đúng tại trang kết quả.</p>
+
+                    <p>Trân trọng,<br><strong>Đội ngũ WordAI</strong></p>
+                </div>
+                <div class="footer">
+                    <p>Email này được gửi từ WordAI - Nền tảng AI thông minh</p>
+                    <p>© 2025 WordAI. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Kết quả chấm điểm - WordAI
+
+        Xin chào {student_name},
+
+        Bài thi "{test_title}" của bạn đã được giáo viên chấm điểm xong!
+
+        Điểm số: {score:.1f}/10
+        Kết quả: {status_text}
+        {message}
+
+        Xem chi tiết tại: https://wordai.pro/tests/results
+
+        Trân trọng,
+        Đội ngũ WordAI
+        """
+
+        return self.send_email(to_email, subject, html_body, text_body)
+
+    def send_grade_updated_notification(
+        self,
+        to_email: str,
+        student_name: str,
+        test_title: str,
+        score: float,
+        is_passed: bool,
+    ) -> bool:
+        """
+        Send notification to student when a grade is updated
+
+        Args:
+            to_email: Student's email
+            student_name: Student's name
+            test_title: Test title
+            score: Updated score (0-10 scale)
+            is_passed: Whether student passed
+
+        Returns:
+            True if email sent successfully
+        """
+        status_emoji = "🎉" if is_passed else "📚"
+        status_text = "Đạt yêu cầu" if is_passed else "Chưa đạt yêu cầu"
+        status_color = "#28a745" if is_passed else "#dc3545"
+
+        subject = f"📝 Điểm bài thi '{test_title}' đã được cập nhật"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; }}
+                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .result-box {{ background: white; padding: 25px; border-radius: 8px; margin: 20px 0; text-align: center; border: 2px solid {status_color}; }}
+                .score-badge {{ display: inline-block; background: {status_color}; color: white; padding: 15px 30px; border-radius: 25px; font-size: 32px; font-weight: bold; margin: 15px 0; }}
+                .status-message {{ color: {status_color}; font-size: 18px; font-weight: bold; margin: 10px 0; }}
+                .button {{ display: inline-block; background: #667eea; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }}
+                .button:hover {{ background: #5568d3; }}
+                .footer {{ text-align: center; padding: 20px; color: #888; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>🔄 Cập nhật điểm số</h1>
+                </div>
+                <div class="content">
+                    <p>Xin chào <strong>{student_name}</strong>,</p>
+
+                    <p>Giáo viên đã cập nhật lại điểm cho bài thi <strong>"{test_title}"</strong> của bạn.</p>
+
+                    <div class="result-box">
+                        <h3 style="margin-top: 0; color: #667eea;">{status_emoji} Điểm mới</h3>
+                        <div class="score-badge">{score:.1f}/10</div>
+                        <p class="status-message">{status_text}</p>
+                    </div>
+
+                    <p style="text-align: center;">
+                        <a href="https://wordai.pro/tests/results" class="button">Xem chi tiết</a>
+                    </p>
+
+                    <p>Vui lòng kiểm tra lại kết quả và nhận xét của giáo viên.</p>
+
+                    <p>Trân trọng,<br><strong>Đội ngũ WordAI</strong></p>
+                </div>
+                <div class="footer">
+                    <p>Email này được gửi từ WordAI - Nền tảng AI thông minh</p>
+                    <p>© 2025 WordAI. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Cập nhật điểm số - WordAI
+
+        Xin chào {student_name},
+
+        Giáo viên đã cập nhật lại điểm cho bài thi "{test_title}" của bạn.
+
+        Điểm mới: {score:.1f}/10
+        Kết quả: {status_text}
+
+        Xem chi tiết tại: https://wordai.pro/tests/results
+
+        Trân trọng,
+        Đội ngũ WordAI
+        """
+
+        return self.send_email(to_email, subject, html_body, text_body)
+
+    def send_new_submission_notification(
+        self,
+        to_email: str,
+        owner_name: str,
+        student_name: str,
+        test_title: str,
+        essay_count: int,
+    ) -> bool:
+        """
+        Send notification to test owner when new essay submission arrives
+
+        Args:
+            to_email: Test owner's email
+            owner_name: Test owner's name
+            student_name: Student who submitted
+            test_title: Test title
+            essay_count: Number of essay questions to grade
+
+        Returns:
+            True if email sent successfully
+        """
+        subject = f"📝 Có bài thi mới cần chấm: {test_title}"
+
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .header h1 {{ margin: 0; font-size: 24px; }}
+                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .info-box {{ background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #667eea; }}
+                .button {{ display: inline-block; background: #667eea; color: white; padding: 15px 40px; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold; }}
+                .button:hover {{ background: #5568d3; }}
+                .footer {{ text-align: center; padding: 20px; color: #888; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>📝 Bài thi mới cần chấm</h1>
+                </div>
+                <div class="content">
+                    <p>Xin chào <strong>{owner_name}</strong>,</p>
+
+                    <p>Bạn có bài thi mới cần chấm điểm!</p>
+
+                    <div class="info-box">
+                        <h3 style="margin-top: 0; color: #667eea;">📋 Thông tin bài thi</h3>
+                        <p><strong>Bài thi:</strong> {test_title}</p>
+                        <p><strong>Học viên:</strong> {student_name}</p>
+                        <p><strong>Số câu tự luận:</strong> {essay_count} câu</p>
+                    </div>
+
+                    <p style="text-align: center;">
+                        <a href="https://wordai.pro/tests/grading" class="button">Chấm điểm ngay</a>
+                    </p>
+
+                    <p>Vui lòng chấm điểm sớm để học viên nhận được kết quả.</p>
+
+                    <p>Trân trọng,<br><strong>Đội ngũ WordAI</strong></p>
+                </div>
+                <div class="footer">
+                    <p>Email này được gửi từ WordAI - Nền tảng AI thông minh</p>
+                    <p>© 2025 WordAI. All rights reserved.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+        Bài thi mới cần chấm - WordAI
+
+        Xin chào {owner_name},
+
+        Bạn có bài thi mới cần chấm điểm!
+
+        Bài thi: {test_title}
+        Học viên: {student_name}
+        Số câu tự luận: {essay_count} câu
+
+        Chấm điểm tại: https://wordai.pro/tests/grading
+
+        Trân trọng,
+        Đội ngũ WordAI
+        """
+
+        return self.send_email(to_email, subject, html_body, text_body)
+
 
 # Singleton instance
 _brevo_service: Optional[BrevoEmailService] = None
