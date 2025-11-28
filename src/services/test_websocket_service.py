@@ -266,14 +266,21 @@ class TestWebSocketService:
             Frontend gửi FULL answers mỗi lần để đảm bảo không mất data nếu đứt kết nối.
             Backend sẽ overwrite toàn bộ current_answers với data mới.
 
+            **UPDATED**: Hỗ trợ cả MCQ và Essay với media attachments
+
             Data: {
                 session_id: str,
                 answers: {
-                    "question_id_1": "A",
-                    "question_id_2": "B",
-                    ...
+                    "q1": {"question_type": "mcq", "selected_answer_key": "A"},
+                    "q2": {
+                        "question_type": "essay",
+                        "essay_answer": "text...",
+                        "media_attachments": [{"media_type": "image", "media_url": "..."}]
+                    }
                 }
             }
+
+            Legacy format (vẫn hỗ trợ): answers: {"q1": "A", "q2": "B"}
             """
             try:
                 session_id = data.get("session_id")
@@ -306,6 +313,24 @@ class TestWebSocketService:
                     )
                     return
 
+                # Normalize answers (support both object and legacy string format)
+                normalized_answers = {}
+                for question_id, answer_data in answers.items():
+                    if isinstance(answer_data, str):
+                        # Legacy: simple string = MCQ answer key
+                        normalized_answers[question_id] = {
+                            "question_type": "mcq",
+                            "selected_answer_key": answer_data,
+                        }
+                    elif isinstance(answer_data, dict):
+                        # New: full answer object (MCQ or Essay)
+                        normalized_answers[question_id] = answer_data
+                    else:
+                        logger.warning(
+                            f"Invalid answer format for {question_id}: {type(answer_data)}"
+                        )
+                        continue
+
                 # Update ALL answers in database (overwrite)
                 mongo = get_mongodb_service()
                 result = await asyncio.to_thread(
@@ -313,7 +338,7 @@ class TestWebSocketService:
                     {"session_id": session_id, "is_completed": False},
                     {
                         "$set": {
-                            "current_answers": answers,  # Overwrite với full data
+                            "current_answers": normalized_answers,
                             "last_saved_at": datetime.utcnow(),
                         }
                     },
@@ -351,22 +376,48 @@ class TestWebSocketService:
         @self.sio.event
         async def save_answer(sid, data):
             """
-            Save a single answer in real-time (legacy method)
+            Save a single answer in real-time
 
-            Khuyến nghị: Frontend nên dùng save_answers_batch để gửi FULL answers
-            mỗi lần thay vì chỉ gửi từng câu một.
+            **UPDATED**: Hỗ trợ MCQ và Essay với media attachments
 
-            Data: {session_id: str, question_id: str, answer_key: str}
+            Data (MCQ): {session_id, question_id, question_type: "mcq", selected_answer_key: "A"}
+            Data (Essay): {session_id, question_id, question_type: "essay", essay_answer: "...", media_attachments: [...]}
+            Legacy: {session_id, question_id, answer_key: "A"}
             """
             try:
                 session_id = data.get("session_id")
                 question_id = data.get("question_id")
-                answer_key = data.get("answer_key")
+                question_type = data.get("question_type", "mcq")
 
                 if not all([session_id, question_id]):
                     await self.sio.emit(
                         "error",
                         {"message": "Missing required fields: session_id, question_id"},
+                        to=sid,
+                    )
+                    return
+
+                # Build answer object
+                if "answer_key" in data:  # Legacy format
+                    answer_data = {
+                        "question_type": "mcq",
+                        "selected_answer_key": data["answer_key"],
+                    }
+                elif question_type == "mcq":
+                    answer_data = {
+                        "question_type": "mcq",
+                        "selected_answer_key": data.get("selected_answer_key"),
+                    }
+                elif question_type == "essay":
+                    answer_data = {
+                        "question_type": "essay",
+                        "essay_answer": data.get("essay_answer", ""),
+                        "media_attachments": data.get("media_attachments", []),
+                    }
+                else:
+                    await self.sio.emit(
+                        "error",
+                        {"message": f"Invalid question_type: {question_type}"},
                         to=sid,
                     )
                     return
@@ -397,7 +448,7 @@ class TestWebSocketService:
                     {"session_id": session_id, "is_completed": False},
                     {
                         "$set": {
-                            f"current_answers.{question_id}": answer_key,
+                            f"current_answers.{question_id}": answer_data,
                             "last_saved_at": datetime.utcnow(),
                         }
                     },
@@ -410,14 +461,14 @@ class TestWebSocketService:
                         {
                             "session_id": session_id,
                             "question_id": question_id,
-                            "answer_key": answer_key,
+                            "answer_data": answer_data,
                             "saved_at": datetime.utcnow().isoformat(),
                         },
                         to=sid,
                     )
                     logger.debug(
                         f"💾 Saved answer for session {session_id}, "
-                        f"question {question_id}: {answer_key}"
+                        f"question {question_id}: {question_type}"
                     )
                 else:
                     await self.sio.emit(

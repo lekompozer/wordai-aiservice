@@ -12,6 +12,94 @@ Hệ thống làm bài test online với WebSocket real-time sync và khả năn
 
 ---
 
+---
+
+## Media Upload for Essay Answers
+
+### Generate Presigned URL for Media Upload
+
+**Endpoint:** `POST /api/v1/tests/submissions/answer-media/presigned-url`
+
+**Headers:**
+```
+Authorization: Bearer {firebase_token}
+Content-Type: application/json
+```
+
+**Request Body:**
+```json
+{
+  "filename": "diagram.png",
+  "file_size_mb": 2.5,
+  "content_type": "image/png"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "success": true,
+  "presigned_url": "https://...",
+  "file_url": "https://static.wordai.pro/answer-media/user123/diagram.png",
+  "file_size_mb": 2.5,
+  "expires_in": 300
+}
+```
+
+**Supported Media Types:**
+- **Images**: JPG, PNG, GIF (`image/jpeg`, `image/png`, `image/gif`)
+- **Audio**: MP3, WAV, M4A (`audio/mpeg`, `audio/wav`, `audio/x-m4a`)
+- **Documents**: PDF, DOCX (`application/pdf`, `application/vnd.openxmlformats-officedocument.wordprocessingml.document`)
+
+**Upload Flow:**
+```javascript
+// Step 1: Get presigned URL
+const { presigned_url, file_url } = await fetch('/api/v1/tests/submissions/answer-media/presigned-url', {
+  method: 'POST',
+  headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    filename: file.name,
+    file_size_mb: file.size / (1024 * 1024),
+    content_type: file.type
+  })
+}).then(r => r.json());
+
+// Step 2: Upload file directly to R2
+await fetch(presigned_url, {
+  method: 'PUT',
+  body: file,
+  headers: { 'Content-Type': file.type }
+});
+
+// Step 3: Add to essay answer
+const mediaAttachment = {
+  media_type: getMediaType(file.type), // 'image', 'audio', 'document'
+  media_url: file_url,
+  filename: file.name,
+  file_size_mb: file.size / (1024 * 1024),
+  description: userDescription || ''
+};
+
+// Step 4: Save with WebSocket
+socket.emit('save_answers_batch', {
+  session_id: sessionId,
+  answers: {
+    [questionId]: {
+      question_type: 'essay',
+      essay_answer: essayText,
+      media_attachments: [mediaAttachment]
+    }
+  }
+});
+```
+
+**Storage Limits:**
+- Max file size: **20MB** per attachment
+- Multiple attachments per question: **Yes**
+- Storage counted toward user's quota: **Yes**
+
+---
+
 ## API Endpoints
 
 ### 1. Start Test Session
@@ -283,14 +371,45 @@ Content-Type: application/json
 **Event:** `save_answers_batch`
 
 **Emit:** (Gửi FULL answers mỗi lần)
+
+**NEW FORMAT** - Hỗ trợ MCQ và Essay với media attachments:
+```json
+{
+  "session_id": "uuid-string",
+  "answers": {
+    "q1": {
+      "question_type": "mcq",
+      "selected_answer_key": "A"
+    },
+    "q2": {
+      "question_type": "essay",
+      "essay_answer": "Câu trả lời của tôi...",
+      "media_attachments": [
+        {
+          "media_type": "image",
+          "media_url": "https://static.wordai.pro/answer-media/user123/diagram.png",
+          "filename": "diagram.png",
+          "file_size_mb": 2.5,
+          "description": "Biểu đồ minh họa"
+        }
+      ]
+    },
+    "q3": {
+      "question_type": "essay",
+      "essay_answer": "Text only, no media"
+    }
+  }
+}
+```
+
+**LEGACY FORMAT** (vẫn hỗ trợ backward compatibility):
 ```json
 {
   "session_id": "uuid-string",
   "answers": {
     "q1": "A",
     "q2": "B",
-    "q3": "C",
-    "q5": "A"
+    "q3": "C"
   }
 }
 ```
@@ -322,7 +441,36 @@ Content-Type: application/json
 
 **Event:** `save_answer`
 
-**Emit:**
+**NEW FORMAT** - MCQ:
+```json
+{
+  "session_id": "uuid-string",
+  "question_id": "q1",
+  "question_type": "mcq",
+  "selected_answer_key": "A"
+}
+```
+
+**NEW FORMAT** - Essay with media:
+```json
+{
+  "session_id": "uuid-string",
+  "question_id": "q2",
+  "question_type": "essay",
+  "essay_answer": "Câu trả lời của tôi...",
+  "media_attachments": [
+    {
+      "media_type": "image",
+      "media_url": "https://static.wordai.pro/answer-media/...",
+      "filename": "diagram.png",
+      "file_size_mb": 2.5,
+      "description": "Biểu đồ minh họa"
+    }
+  ]
+}
+```
+
+**LEGACY FORMAT** (vẫn hỗ trợ):
 ```json
 {
   "session_id": "uuid-string",
@@ -336,14 +484,17 @@ Content-Type: application/json
 {
   "session_id": "uuid-string",
   "question_id": "q1",
-  "answer_key": "A",
+  "answer_data": {
+    "question_type": "mcq",
+    "selected_answer_key": "A"
+  },
   "saved_at": "2025-11-15T10:15:00Z"
 }
 ```
 
 **Lưu ý:**
-- Method này chỉ save từng câu một
-- Khuyến nghị dùng `save_answers_batch` thay thế
+- Khuyến nghị dùng `save_answers_batch` để gửi FULL answers
+- Single answer chỉ nên dùng khi cần immediate feedback
 
 ---
 
@@ -385,12 +536,12 @@ Content-Type: application/json
 
 ## User Flows
 
-### Flow 1: Làm bài bình thường (không mất kết nối)
+### Flow 1: Làm bài bình thường (MCQ và Essay với media)
 
 ```
 1. User click "Bắt đầu làm bài"
    → POST /api/v1/tests/{test_id}/start
-   ← Nhận: session_id, questions, time_limit_seconds
+   ← Nhận: session_id, questions (có question_type), time_limit_seconds
 
 2. Frontend khởi tạo:
    - Countdown timer: time_limit_seconds
@@ -406,35 +557,62 @@ Content-Type: application/json
    - Hiển thị thời gian còn lại
 
 5. User trả lời câu hỏi:
-   - User chọn câu 1 → A
-   - Update local state: answers = { q1: "A" }
-   - emit: save_answers_batch { session_id, answers: { q1: "A" } }
 
-   - User chọn câu 2 → B
-   - Update local state: answers = { q1: "A", q2: "B" }
-   - emit: save_answers_batch { session_id, answers: { q1: "A", q2: "B" } }
+   A. MCQ (câu 1):
+   - User chọn A
+   - Update local: answers = {
+       q1: {question_type: "mcq", selected_answer_key: "A"}
+     }
+   - emit: save_answers_batch { session_id, answers }
 
-   - User chọn câu 3 → C
-   - Update local state: answers = { q1: "A", q2: "B", q3: "C" }
-   - emit: save_answers_batch { session_id, answers: { q1: "A", q2: "B", q3: "C" } }
+   B. Essay không có media (câu 2):
+   - User gõ text
+   - Update local: answers = {
+       q1: {...},
+       q2: {question_type: "essay", essay_answer: "text..."}
+     }
+   - emit: save_answers_batch { session_id, answers }
+
+   C. Essay có media (câu 3):
+   - User gõ text: "Đây là câu trả lời..."
+   - User click "Upload image"
+   
+   → POST /api/v1/tests/submissions/answer-media/presigned-url
+   Body: {filename: "diagram.png", file_size_mb: 2.5, content_type: "image/png"}
+   ← {presigned_url, file_url}
+   
+   → PUT presigned_url (upload file to R2)
+   
+   - Update local: answers = {
+       q1: {...}, q2: {...},
+       q3: {
+         question_type: "essay",
+         essay_answer: "Đây là câu trả lời...",
+         media_attachments: [
+           {media_type: "image", media_url: file_url, filename: "diagram.png", file_size_mb: 2.5}
+         ]
+       }
+     }
+   - emit: save_answers_batch { session_id, answers }
 
 6. Heartbeat tự động (mỗi 5-10s):
    → emit: heartbeat { session_id }
    ← listen: heartbeat_ack { time_remaining_seconds }
-   - (Optional) Sync timer nếu lệch quá nhiều
 
-7. Warning khi sắp hết giờ:
-   ← listen: time_warning { time_remaining_seconds: 180, message }
-   - Hiển thị cảnh báo "Chỉ còn 3 phút!"
-
-8. User click "Nộp bài":
+7. User click "Nộp bài":
    → POST /api/v1/tests/{test_id}/submit
-   Body: { user_answers: [{ question_id, selected_answer_key }] }
-   ← Nhận: score, results, is_passed
+   Body: {
+     user_answers: [
+       {question_id: "q1", question_type: "mcq", selected_answer_key: "A"},
+       {question_id: "q2", question_type: "essay", essay_answer: "...", media_attachments: [...]},
+       {question_id: "q3", question_type: "essay", essay_answer: "..."}
+     ]
+   }
+   ← Nhận: score (MCQ auto-graded), essay grading_status: "pending_grading"
 
-9. Hiển thị kết quả
-   - Đóng WebSocket connection
-   - Navigate to results page
+8. Hiển thị kết quả
+   - MCQ: Điểm ngay lập tức
+   - Essay: "Đang chờ chấm điểm"
 ```
 
 ---
@@ -442,8 +620,11 @@ Content-Type: application/json
 ### Flow 2: Mất kết nối giữa chừng (Reconnect)
 
 ```
-1. User đang làm bài (đã trả lời câu 1, 2, 3)
-   - Local state: answers = { q1: "A", q2: "B", q3: "C" }
+1. User đang làm bài (đã trả lời câu 1 MCQ, câu 2 Essay)
+   - Local state: answers = {
+       q1: {question_type: "mcq", selected_answer_key: "A"},
+       q2: {question_type: "essay", essay_answer: "...", media_attachments: [...]}
+     }
    - Timer đang chạy: còn 20 phút
 
 2. Mất kết nối Internet/WiFi:
@@ -453,8 +634,8 @@ Content-Type: application/json
    - Timer vẫn tiếp tục đếm (frontend)
 
 3. User tiếp tục làm bài offline:
-   - User chọn câu 4 → D
-   - Update local state: answers = { q1: "A", q2: "B", q3: "C", q4: "D" }
+   - User trả lời câu 3 (Essay)
+   - Update local state: answers = { q1: {...}, q2: {...}, q3: {...} }
    - emit: save_answers_batch → FAIL (no connection)
    - Lưu vào localStorage/memory
 
@@ -467,21 +648,22 @@ Content-Type: application/json
 
    Case A: Còn trong thời gian (18 phút còn lại)
    ← listen: session_joined {
-       current_answers: { q1: "A", q2: "B", q3: "C" },  // Từ lần save cuối
-       time_remaining_seconds: 1080  // Backend tính từ started_at
+       current_answers: {
+         q1: {question_type: "mcq", selected_answer_key: "A"},
+         q2: {question_type: "essay", essay_answer: "...", media_attachments: [...]}
+       },
+       time_remaining_seconds: 1080
      }
 
    - Merge local state với server state:
-     answers = { q1: "A", q2: "B", q3: "C", q4: "D" }  // q4 từ local
+     answers = { q1: {...}, q2: {...}, q3: {...} }  // q3 từ local
 
    - Sync lại với server:
      → POST /api/v1/tests/{test_id}/sync-answers
-     Body: { session_id, answers: { q1: "A", q2: "B", q3: "C", q4: "D" } }
-     ← { success: true, answers_count: 4 }
+     Body: { session_id, answers: { q1: {...}, q2: {...}, q3: {...} } }
+     ← { success: true, answers_count: 3 }
 
-   - Sync timer:
-     Frontend timer = 1080s (từ backend)
-
+   - Sync timer: Frontend timer = 1080s (từ backend)
    - Tiếp tục làm bài bình thường
 
    Case B: Hết thời gian (31 phút đã qua)

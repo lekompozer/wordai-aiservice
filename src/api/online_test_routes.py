@@ -2727,17 +2727,26 @@ async def sync_answers(
     Frontend gửi FULL answers để sync với backend. Backend sẽ overwrite
     toàn bộ current_answers của session.
 
+    **UPDATED**: Hỗ trợ MCQ và Essay với media attachments
+
     **Request Body:**
     ```json
     {
         "session_id": "uuid-string",
         "answers": {
-            "question_id_1": "A",
-            "question_id_2": "B",
-            ...
+            "q1": {"question_type": "mcq", "selected_answer_key": "A"},
+            "q2": {
+                "question_type": "essay",
+                "essay_answer": "text...",
+                "media_attachments": [
+                    {"media_type": "image", "media_url": "...", "filename": "..."}
+                ]
+            }
         }
     }
     ```
+
+    Legacy format (vẫn hỗ trợ): answers: {"q1": "A", "q2": "B"}
 
     **Response:**
     ```json
@@ -2805,12 +2814,30 @@ async def sync_answers(
                     },
                 )
 
+        # Normalize answers (support both object and legacy string format)
+        normalized_answers = {}
+        for question_id, answer_data in answers.items():
+            if isinstance(answer_data, str):
+                # Legacy: simple string = MCQ answer key
+                normalized_answers[question_id] = {
+                    "question_type": "mcq",
+                    "selected_answer_key": answer_data,
+                }
+            elif isinstance(answer_data, dict):
+                # New: full answer object (MCQ or Essay)
+                normalized_answers[question_id] = answer_data
+            else:
+                logger.warning(
+                    f"Invalid answer format for {question_id}: {type(answer_data)}"
+                )
+                continue
+
         # Update answers in database (overwrite)
         result = progress_collection.update_one(
             {"session_id": session_id, "is_completed": False},
             {
                 "$set": {
-                    "current_answers": answers,  # Overwrite với full data
+                    "current_answers": normalized_answers,
                     "last_saved_at": datetime.now(),
                 }
             },
