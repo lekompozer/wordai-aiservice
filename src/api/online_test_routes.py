@@ -306,9 +306,8 @@ class ManualTestQuestion(BaseModel):
 
     # MCQ-specific fields (required only if question_type='mcq')
     options: Optional[list] = Field(
-        None,
-        description="List of options with 'key' and 'text' (required for MCQ)",
-        min_length=2,
+        default=None,
+        description="List of options with 'key' and 'text' (required for MCQ, not needed for Essay)",
     )
     correct_answer_key: Optional[str] = Field(
         None, description="Correct answer key (A, B, C, D, etc.) (required for MCQ)"

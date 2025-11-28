@@ -19,7 +19,7 @@ client = MongoClient(MONGO_URI)
 
 # Parse database name from URI
 parsed_uri = urlparse(MONGO_URI)
-db_name = parsed_uri.path.lstrip('/').split('?')[0]
+db_name = parsed_uri.path.lstrip("/").split("?")[0]
 if not db_name:
     print("❌ Error: No database name in MONGO_URI")
     sys.exit(1)
@@ -62,16 +62,18 @@ def add_user_points(email: str, points_to_add: int):
     if not subscription_doc:
         print(f"❌ No subscription found for user: {firebase_uid}")
         print(f"   Creating new subscription with {points_to_add} points...")
-        
+
         # Create new subscription
-        subscriptions_collection.insert_one({
-            "user_id": firebase_uid,
-            "plan_type": "points",
-            "points_remaining": points_to_add,
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        })
-        
+        subscriptions_collection.insert_one(
+            {
+                "user_id": firebase_uid,
+                "plan_type": "points",
+                "points_remaining": points_to_add,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+        )
+
         # Update users collection
         users_collection.update_one(
             {"firebase_uid": firebase_uid},
@@ -82,7 +84,7 @@ def add_user_points(email: str, points_to_add: int):
                 }
             },
         )
-        
+
         print(f"\n✅ SUCCESS! Created subscription and added {points_to_add} points")
         print(f"   New total: {points_to_add} points")
         return
