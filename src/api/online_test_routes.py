@@ -6310,7 +6310,6 @@ async def update_marketplace_config(
 )
 async def get_public_test_details(
     test_id: str,
-    user_info: dict = Depends(require_auth),
 ):
     """
     Get full public test details for marketplace view (before starting test)
@@ -6319,21 +6318,19 @@ async def get_public_test_details(
     - Marketplace config (title, description, cover_image, price, difficulty)
     - Test statistics (num_questions, time_limit, passing_score)
     - Community stats (total_participants, average_participant_score, average_rating)
-    - User status (already_participated, attempts_used, user_best_score)
 
     **Access:**
     - Must be a public test (marketplace_config.is_public = true)
-    - Any authenticated user can view
+    - NO AUTHENTICATION REQUIRED - Anyone can view public marketplace tests
 
     **Note:**
     - This is for VIEWING details only (before starting)
-    - To start the test, use POST /{test_id}/start (which will deduct points)
+    - To start the test, use POST /{test_id}/start (authentication required, points deducted)
     """
     try:
-        user_id = user_info["uid"]
         mongo_service = get_mongodb_service()
 
-        logger.info(f"📋 Get public test details: {test_id} for user {user_id}")
+        logger.info(f"📋 Get public test details: {test_id} (no auth required)")
 
         # ========== Step 1: Get test document ==========
         test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
@@ -6349,27 +6346,7 @@ async def get_public_test_details(
                 detail="This test is not public. Only published marketplace tests can be viewed.",
             )
 
-        # ========== Step 3: Get user's participation history ==========
-        submissions_collection = mongo_service.db["test_submissions"]
-
-        user_submissions = list(
-            submissions_collection.find({"test_id": test_id, "user_id": user_id}).sort(
-                "submitted_at", -1
-            )
-        )
-
-        already_participated = len(user_submissions) > 0
-        attempts_used = len(user_submissions)
-        user_best_score = (
-            max([s.get("score_percentage", 0) for s in user_submissions])
-            if user_submissions
-            else None
-        )
-
-        # ========== Step 4: Check if user is creator ==========
-        is_creator = test_doc.get("creator_id") == user_id
-
-        # ========== Step 5: Build response ==========
+        # ========== Step 3: Build response ==========
         response = {
             "success": True,
             "test_id": test_id,
@@ -6409,11 +6386,6 @@ async def get_public_test_details(
             "creator_id": test_doc.get("creator_id"),
             # AI Evaluation
             "evaluation_criteria": marketplace_config.get("evaluation_criteria"),
-            # User-specific info
-            "is_creator": is_creator,
-            "already_participated": already_participated,
-            "attempts_used": attempts_used,
-            "user_best_score": user_best_score,
             # Additional metadata
             "creation_type": test_doc.get("creation_type"),
             "test_language": test_doc.get(
@@ -6423,9 +6395,6 @@ async def get_public_test_details(
 
         logger.info(f"✅ Public test details retrieved: {test_id}")
         logger.info(f"   Price: {response['price_points']} points")
-        logger.info(
-            f"   User participated: {already_participated} ({attempts_used} attempts)"
-        )
 
         return response
 
