@@ -5863,12 +5863,16 @@ async def publish_test_to_marketplace(
 
         # ========== Step 3: Validate test requirements ==========
         if not test_doc.get("is_active", False):
+            logger.warning(f"❌ Publish failed: Test {test_id} is not active")
             raise HTTPException(
                 status_code=400, detail="Test must be active before publishing"
             )
 
         questions = test_doc.get("questions", [])
         if len(questions) < 5:
+            logger.warning(
+                f"❌ Publish failed: Test {test_id} has {len(questions)} questions (min 5)"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Test must have at least 5 questions (current: {len(questions)})",
@@ -5876,20 +5880,26 @@ async def publish_test_to_marketplace(
 
         # ========== Step 4: Validate form inputs ==========
         if len(title) < 10:
+            logger.warning(f"❌ Publish failed: Title too short ({len(title)} chars)")
             raise HTTPException(
                 status_code=400, detail="Title must be at least 10 characters"
             )
 
         if len(description) < 50:
+            logger.warning(
+                f"❌ Publish failed: Description too short ({len(description)} chars)"
+            )
             raise HTTPException(
                 status_code=400, detail="Description must be at least 50 characters"
             )
 
         if price_points < 0:
+            logger.warning(f"❌ Publish failed: Invalid price {price_points}")
             raise HTTPException(status_code=400, detail="Price must be >= 0")
 
         # Validate evaluation_criteria length if provided
         if evaluation_criteria and len(evaluation_criteria) > 5000:
+            logger.warning(f"❌ Publish failed: Evaluation criteria too long")
             raise HTTPException(
                 status_code=400,
                 detail="Evaluation criteria must not exceed 5000 characters",
@@ -5909,6 +5919,7 @@ async def publish_test_to_marketplace(
             "other",
         ]
         if category not in valid_categories:
+            logger.warning(f"❌ Publish failed: Invalid category '{category}'")
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid category. Valid: {', '.join(valid_categories)}",
@@ -5917,6 +5928,9 @@ async def publish_test_to_marketplace(
         # Validate difficulty
         valid_difficulty = ["beginner", "intermediate", "advanced", "expert"]
         if difficulty_level not in valid_difficulty:
+            logger.warning(
+                f"❌ Publish failed: Invalid difficulty '{difficulty_level}'"
+            )
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid difficulty. Valid: {', '.join(valid_difficulty)}",
@@ -5925,14 +5939,19 @@ async def publish_test_to_marketplace(
         # Parse tags
         tags_list = [tag.strip().lower() for tag in tags.split(",") if tag.strip()]
         if len(tags_list) < 1:
+            logger.warning(f"❌ Publish failed: No tags provided")
             raise HTTPException(status_code=400, detail="At least 1 tag is required")
         if len(tags_list) > 10:
+            logger.warning(f"❌ Publish failed: Too many tags ({len(tags_list)})")
             raise HTTPException(status_code=400, detail="Maximum 10 tags allowed")
 
         # ========== Step 5: Validate cover image (optional) ==========
         cover_url = None
         if cover_image:
             if not cover_image.content_type in ["image/jpeg", "image/png", "image/jpg"]:
+                logger.warning(
+                    f"❌ Publish failed: Invalid image type {cover_image.content_type}"
+                )
                 raise HTTPException(
                     status_code=400,
                     detail="Cover image must be JPG or PNG",
@@ -5943,6 +5962,9 @@ async def publish_test_to_marketplace(
             cover_size_mb = len(cover_content) / (1024 * 1024)
 
             if cover_size_mb > 5:
+                logger.warning(
+                    f"❌ Publish failed: Image too large ({cover_size_mb:.2f}MB)"
+                )
                 raise HTTPException(
                     status_code=400,
                     detail=f"Cover image too large: {cover_size_mb:.2f}MB (max 5MB)",
