@@ -830,14 +830,28 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         # Remove correct answers and explanations
         questions_for_user = []
         for q in test_doc["questions"]:
+            # Get question_type (default to 'mcq' for backward compatibility)
+            q_type = q.get("question_type", "mcq")
+
             question_data = {
                 "question_id": q["question_id"],
                 "question_text": q["question_text"],
-                "options": q["options"],
+                "question_type": q_type,  # Include question type (mcq/essay)
                 # Do NOT include: correct_answer_key, explanation
             }
 
-            # Include media if present
+            # MCQ-specific fields
+            if q_type == "mcq":
+                question_data["options"] = q.get("options", [])
+
+            # Essay-specific fields
+            if q_type == "essay":
+                question_data["max_points"] = q.get("max_points", 1)
+                # Optionally include grading rubric for students to see expectations
+                if q.get("grading_rubric"):
+                    question_data["grading_rubric"] = q.get("grading_rubric")
+
+            # Include media if present (for both MCQ and Essay)
             if q.get("media_type"):
                 question_data["media_type"] = q["media_type"]
                 question_data["media_url"] = q.get("media_url")

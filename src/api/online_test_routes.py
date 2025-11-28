@@ -518,14 +518,41 @@ class SubmitTestRequest(BaseModel):
 
     Supports both MCQ and Essay answers:
     - MCQ: {question_id, question_type: 'mcq', selected_answer_key}
-    - Essay: {question_id, question_type: 'essay', essay_answer}
+    - Essay: {question_id, question_type: 'essay', essay_answer, media_attachments: [...]}
+
+    Essay answers can include optional media attachments:
+    - Images: JPG, PNG, GIF
+    - Audio: MP3, WAV, M4A
+    - Documents: PDF, DOCX
+
+    Media attachment format:
+    {
+        "media_type": "image|audio|document",
+        "media_url": "https://static.wordai.pro/answer-media/...",
+        "filename": "diagram.png",
+        "file_size_mb": 2.5,
+        "description": "Optional description"
+    }
     """
 
     user_answers: list = Field(
         ...,
         description="""List of answers with format:
         MCQ: {"question_id": "q1", "question_type": "mcq", "selected_answer_key": "A"}
-        Essay: {"question_id": "q2", "question_type": "essay", "essay_answer": "text..."}
+        Essay: {
+            "question_id": "q2",
+            "question_type": "essay",
+            "essay_answer": "text...",
+            "media_attachments": [
+                {
+                    "media_type": "image",
+                    "media_url": "https://...",
+                    "filename": "diagram.png",
+                    "file_size_mb": 2.5,
+                    "description": "My diagram explaining..."
+                }
+            ]
+        }
         """,
     )
 
@@ -1134,6 +1161,109 @@ async def get_presigned_upload_url(
         # Generate presigned URL
         result = r2_service.generate_presigned_upload_url(
             filename=request.filename, content_type=request.content_type
+        )
+
+        # Return presigned URL with file_size for tracking
+        return {
+            "success": True,
+            "presigned_url": result["presigned_url"],
+            "file_url": result["file_url"],
+            "file_size_mb": request.file_size_mb,  # Return for frontend tracking
+            "expires_in": result["expires_in"],
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"❌ R2 configuration error: {e}")
+        raise HTTPException(
+            status_code=500, detail="File upload service not configured properly"
+        )
+    except Exception as e:
+        logger.error(f"❌ Failed to generate presigned URL: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to generate upload URL: {str(e)}"
+        )
+
+
+# ========== NEW: Presigned URL for Essay Answer Media Upload ==========
+
+
+@router.post("/submissions/answer-media/presigned-url", tags=["Essay Answers"])
+async def get_answer_media_presigned_url(
+    request: PresignedURLRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Generate presigned URL for uploading media attachments with essay answers
+
+    **Purpose**: Allow students to attach images, audio, or documents to their essay answers
+
+    **Supported Media Types:**
+    - Images: JPG, PNG, GIF (for diagrams, photos, visual explanations)
+    - Audio: MP3, WAV, M4A (for voice recordings, language practice)
+    - Documents: PDF, DOCX (for supplementary materials)
+
+    **Storage Rules:**
+    - Attachments count toward student's storage quota
+    - Max file size: 20MB per attachment
+    - Files stored in R2 at: answer-media/{user_id}/{submission_id}/{filename}
+
+    **Flow:**
+    1. Student writes essay answer and wants to attach media
+    2. Frontend calls this endpoint with filename + file_size_mb
+    3. Backend checks storage quota and generates presigned URL
+    4. Frontend uploads file directly to R2 (PUT request)
+    5. Frontend includes file_url in submission's answer object
+
+    **Returns:**
+    - presigned_url: URL for uploading file (PUT request)
+    - file_url: Public URL to access file after upload
+    - expires_in: Expiration time in seconds (5 minutes)
+    """
+    try:
+        from src.services.r2_storage_service import get_r2_service
+        from src.services.subscription_service import get_subscription_service
+
+        user_id = user_info["uid"]
+        logger.info(
+            f"🔗 Generating presigned URL for essay answer media: user={user_id}, file={request.filename} ({request.file_size_mb}MB)"
+        )
+
+        # Validate file size (max 20MB for answer attachments)
+        if request.file_size_mb > 20:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large: {request.file_size_mb:.2f}MB (max 20MB for answer attachments)",
+            )
+
+        # Check storage limit
+        subscription_service = get_subscription_service()
+        if not await subscription_service.check_storage_limit(
+            user_id, request.file_size_mb
+        ):
+            subscription = await subscription_service.get_subscription(user_id)
+            remaining_mb = subscription.storage_limit_mb - subscription.storage_used_mb
+
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "Không đủ dung lượng lưu trữ",
+                    "message": f"Cần: {request.file_size_mb:.2f}MB, Còn lại: {remaining_mb:.2f}MB",
+                    "file_size_mb": request.file_size_mb,
+                    "storage_used_mb": round(subscription.storage_used_mb, 2),
+                    "storage_limit_mb": subscription.storage_limit_mb,
+                    "upgrade_url": "https://ai.wordai.pro/pricing",
+                },
+            )
+
+        # Get R2 service
+        r2_service = get_r2_service()
+
+        # Generate presigned URL with answer-media prefix
+        result = r2_service.generate_presigned_upload_url(
+            filename=f"answer-media/{user_id}/{request.filename}",
+            content_type=request.content_type,
         )
 
         # Return presigned URL with file_size for tracking
@@ -2195,6 +2325,9 @@ async def submit_test(
                 user_answers_map[q_id] = {
                     "type": "essay",
                     "essay_answer": ans.get("essay_answer", ""),
+                    "media_attachments": ans.get(
+                        "media_attachments", []
+                    ),  # Store media attachments (images, audio, documents)
                 }
 
         # ========== Auto-grade MCQ questions only ==========
@@ -2232,6 +2365,7 @@ async def submit_test(
             question_id = q["question_id"]
             user_answer_data = user_answers_map.get(question_id, {})
             essay_answer = user_answer_data.get("essay_answer", "")
+            media_attachments = user_answer_data.get("media_attachments", [])
 
             results.append(
                 {
@@ -2239,6 +2373,7 @@ async def submit_test(
                     "question_text": q["question_text"],
                     "question_type": "essay",
                     "your_answer": essay_answer,
+                    "media_attachments": media_attachments,  # Include student's media attachments
                     "max_points": q.get("max_points", 1),
                     "grading_status": "pending",
                     "points_awarded": None,  # Not graded yet
@@ -6365,9 +6500,9 @@ async def get_public_test_details(
             # Get user's participation history
             submissions_collection = mongo_service.db["test_submissions"]
             user_submissions = list(
-                submissions_collection.find({"test_id": test_id, "user_id": user_id}).sort(
-                    "submitted_at", -1
-                )
+                submissions_collection.find(
+                    {"test_id": test_id, "user_id": user_id}
+                ).sort("submitted_at", -1)
             )
 
             already_participated = len(user_submissions) > 0
