@@ -274,15 +274,11 @@ async function createPointsPurchase(req, res) {
         const subscriptionsCollection = db.collection('subscriptions');
         const paymentsCollection = db.collection('payments');
 
-        // Check user subscription status
+        // Check user subscription status (may not exist for new/free users)
         const subscription = await subscriptionsCollection.findOne({ user_id });
-        
-        if (!subscription) {
-            throw new AppError('Subscription not found. Please create an account first.', 404);
-        }
 
-        const currentPlan = subscription.current_plan || 'free';
-        const subscriptionExpiry = subscription.subscription_expires_at;
+        const currentPlan = subscription?.current_plan || 'free';
+        const subscriptionExpiry = subscription?.subscription_expires_at;
         const isSubscriptionActive = subscriptionExpiry && new Date(subscriptionExpiry) > new Date();
 
         // Count completed points purchases
@@ -295,7 +291,7 @@ async function createPointsPurchase(req, res) {
         logger.info(`User ${user_id} - Plan: ${currentPlan}, Active: ${isSubscriptionActive}, Points purchases: ${completedPointsPurchases}`);
 
         // BUSINESS RULES:
-        // 1. FREE user: Only 1 point purchase allowed
+        // 1. FREE user (no subscription): Only 1 point purchase allowed
         // 2. Expired subscription: Only 1 point purchase allowed after expiry
         // 3. Active subscription: Unlimited point purchases
 
@@ -307,7 +303,7 @@ async function createPointsPurchase(req, res) {
                     403
                 );
             }
-            
+
             logger.warn(`⚠️  User ${user_id} (${currentPlan}, expired/free) - Last chance point purchase`);
         } else {
             logger.info(`✅ User ${user_id} has active subscription - Point purchase allowed`);
