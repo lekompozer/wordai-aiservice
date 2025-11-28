@@ -47,18 +47,39 @@ fi
 echo -e "${GREEN}✅ Image built successfully${NC}"
 cd ..
 
+echo ""
+echo -e "${YELLOW}⚠️  IMPORTANT: This script will deploy with ROLLBACK capability${NC}"
+echo -e "${YELLOW}    - Current image: ${CURRENT_IMAGE}${NC}"
+echo -e "${YELLOW}    - New image: ${IMAGE_NAME}:${NEW_TAG}${NC}"
+echo ""
+read -p "Continue with deployment? (y/n): " -n 1 -r CONFIRM_DEPLOY
+echo
+if [[ ! $CONFIRM_DEPLOY =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}⏭️  Deployment cancelled${NC}"
+    exit 0
+fi
+
 # Get currently running image for rollback
 CURRENT_IMAGE=$(docker inspect --format='{{.Config.Image}}' ${CONTAINER_NAME} 2>/dev/null || echo "none")
 echo -e "${YELLOW}📌 Current image: ${CURRENT_IMAGE}${NC}"
 
-# Push new image to registry
-echo -e "${YELLOW}📤 Pushing image to registry...${NC}"
-docker push ${IMAGE_NAME}:${NEW_TAG}
-docker push ${IMAGE_NAME}:${LATEST_TAG}
+# Check if user wants to push to registry (optional for local deployment)
+read -p "Push image to Docker Hub? (y/n, default: n): " -n 1 -r PUSH_TO_REGISTRY
+echo
+if [[ $PUSH_TO_REGISTRY =~ ^[Yy]$ ]]; then
+    echo -e "${YELLOW}📤 Pushing image to registry...${NC}"
+    docker push ${IMAGE_NAME}:${NEW_TAG}
+    docker push ${IMAGE_NAME}:${LATEST_TAG}
 
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Failed to push image to registry!${NC}"
-    exit 1
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}❌ Failed to push image to registry!${NC}"
+        echo -e "${YELLOW}💡 Run 'docker login' first if needed${NC}"
+        echo -e "${YELLOW}⚠️  Continuing with local image...${NC}"
+    else
+        echo -e "${GREEN}✅ Image pushed successfully${NC}"
+    fi
+else
+    echo -e "${YELLOW}⏭️  Skipping push to registry (using local image)${NC}"
 fi
 
 echo -e "${GREEN}✅ Image pushed successfully${NC}"
