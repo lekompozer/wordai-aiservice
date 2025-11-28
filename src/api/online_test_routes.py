@@ -2980,7 +2980,10 @@ async def get_my_submissions(
     """
     Get list of test submissions by the current user
 
-    **Phase 1 Feature**
+    **Updated for test-history page:**
+    - Groups submissions by test_id
+    - Shows test details with submission count and scores
+    - Supports both owned tests and community/shared tests
     """
     try:
         logger.info(f"📊 Get my submissions for user {user_info['uid']}")
@@ -2996,28 +2999,69 @@ async def get_my_submissions(
             )
         )
 
-        # Enrich with test details
-        result = []
+        # Group submissions by test_id
+        test_submissions_map = {}
         for sub in submissions:
             test_id = sub["test_id"]
+            if test_id not in test_submissions_map:
+                test_submissions_map[test_id] = []
+            test_submissions_map[test_id].append(sub)
+
+        # Build response with test details
+        result = []
+        for test_id, test_subs in test_submissions_map.items():
             test_doc = test_collection.find_one({"_id": ObjectId(test_id)})
 
             if test_doc:
+                # Get best score and latest submission
+                sorted_subs = sorted(
+                    test_subs, key=lambda x: x.get("score") or 0, reverse=True
+                )
+                best_submission = sorted_subs[0]
+                latest_submission = sorted(
+                    test_subs, key=lambda x: x["submitted_at"], reverse=True
+                )[0]
+
+                # Build submission history
+                submission_history = []
+                for sub in sorted(
+                    test_subs, key=lambda x: x["submitted_at"], reverse=True
+                ):
+                    submission_history.append(
+                        {
+                            "submission_id": str(sub["_id"]),
+                            "attempt_number": sub.get("attempt_number", 1),
+                            "score": sub.get("score"),
+                            "score_percentage": sub.get("score_percentage"),
+                            "is_passed": sub.get("is_passed", False),
+                            "grading_status": sub.get("grading_status", "auto_graded"),
+                            "submitted_at": sub["submitted_at"].isoformat(),
+                        }
+                    )
+
                 result.append(
                     {
-                        "submission_id": str(sub["_id"]),
                         "test_id": test_id,
                         "test_title": test_doc["title"],
-                        "score": sub["score"],
-                        "correct_answers": sub["correct_answers"],
-                        "total_questions": sub["total_questions"],
-                        "is_passed": sub.get("is_passed", False),
-                        "attempt_number": sub["attempt_number"],
-                        "submitted_at": sub["submitted_at"].isoformat(),
+                        "test_description": test_doc.get("description"),
+                        "test_creator_id": test_doc.get("creator_id"),
+                        "is_owner": test_doc.get("creator_id") == user_info["uid"],
+                        "total_attempts": len(test_subs),
+                        "best_score": best_submission.get("score"),
+                        "best_score_percentage": best_submission.get(
+                            "score_percentage"
+                        ),
+                        "latest_attempt_at": latest_submission[
+                            "submitted_at"
+                        ].isoformat(),
+                        "submission_history": submission_history,
                     }
                 )
 
-        return {"submissions": result}
+        # Sort by latest attempt
+        result.sort(key=lambda x: x["latest_attempt_at"], reverse=True)
+
+        return {"tests": result}
 
     except Exception as e:
         logger.error(f"❌ Failed to get submissions: {e}")
@@ -3986,29 +4030,48 @@ async def grade_all_essays(
             },
         )
 
-        # Send notification email to student (Phase 5)
+        # Send notification email to student (Phase 5) + InApp notification
         async def send_grading_complete_notification():
             try:
                 from src.services.brevo_email_service import get_brevo_service
+                from src.services.notification_manager import NotificationManager
 
                 student = mongo_service.db.users.find_one(
                     {"firebase_uid": submission["user_id"]}
                 )
-                if student and student.get("email"):
-                    brevo = get_brevo_service()
-                    await asyncio.to_thread(
-                        brevo.send_grading_complete_notification,
-                        to_email=student["email"],
-                        student_name=student.get("name")
-                        or student.get("display_name")
-                        or "Student",
+                if student:
+                    # Send email notification
+                    if student.get("email"):
+                        brevo = get_brevo_service()
+                        await asyncio.to_thread(
+                            brevo.send_grading_complete_notification,
+                            to_email=student["email"],
+                            student_name=student.get("name")
+                            or student.get("display_name")
+                            or "Student",
+                            test_title=test_doc["title"],
+                            score=final_score["score"],
+                            is_passed=final_score["is_passed"],
+                        )
+                        logger.info(
+                            f"   📧 Sent grading complete email to {student['email']}"
+                        )
+
+                    # Create InApp notification
+                    notification_manager = NotificationManager(db=mongo_service.db)
+                    notification_manager.create_test_grading_notification(
+                        student_id=submission["user_id"],
+                        test_id=submission["test_id"],
                         test_title=test_doc["title"],
+                        submission_id=submission_id,
                         score=final_score["score"],
+                        score_percentage=final_score["score_percentage"],
                         is_passed=final_score["is_passed"],
                     )
                     logger.info(
-                        f"   📧 Sent grading complete email to {student['email']}"
+                        f"   🔔 Created InApp notification for user {submission['user_id']}"
                     )
+
             except Exception as e:
                 logger.error(f"   ⚠️ Failed to send grading notification: {e}")
 

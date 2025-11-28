@@ -269,6 +269,73 @@ class NotificationManager:
             logger.error(f"❌ Error deleting notification: {e}")
             return False
 
+    def create_test_grading_notification(
+        self,
+        student_id: str,
+        test_id: str,
+        test_title: str,
+        submission_id: str,
+        score: float,
+        score_percentage: float,
+        is_passed: bool,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Tạo InApp notification khi bài test được chấm điểm
+
+        Args:
+            student_id: Student's Firebase UID
+            test_id: Test ID
+            test_title: Test title
+            submission_id: Submission ID
+            score: Score out of 10
+            score_percentage: Score percentage (0-100)
+            is_passed: Whether student passed
+
+        Returns:
+            Notification document nếu thành công
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            notification_id = f"notif_{uuid.uuid4().hex[:16]}"
+
+            # Status message
+            status = "✅ Đạt" if is_passed else "❌ Chưa đạt"
+            message = f"Bài kiểm tra '{test_title}' đã được chấm điểm. Điểm: {score}/10 ({score_percentage}%) - {status}"
+
+            notification = {
+                "notification_id": notification_id,
+                "user_id": student_id,
+                "type": "test_graded",
+                "title": "Bài kiểm tra đã được chấm",
+                "message": message,
+                "data": {
+                    "test_id": test_id,
+                    "test_title": test_title,
+                    "submission_id": submission_id,
+                    "score": score,
+                    "score_percentage": score_percentage,
+                    "is_passed": is_passed,
+                },
+                "is_read": False,
+                "created_at": now,
+                "read_at": None,
+            }
+
+            result = self.notifications.insert_one(notification)
+
+            if result.inserted_id:
+                logger.info(
+                    f"✅ Created test grading notification {notification_id} for user {student_id}"
+                )
+                return notification
+            else:
+                logger.error("❌ Failed to create test grading notification")
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ Error creating test grading notification: {e}")
+            return None
+
     def send_share_email_notification(
         self,
         recipient_email: str,
