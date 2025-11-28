@@ -6310,6 +6310,7 @@ async def update_marketplace_config(
 )
 async def get_public_test_details(
     test_id: str,
+    user_info: Optional[dict] = Depends(lambda: None),
 ):
     """
     Get full public test details for marketplace view (before starting test)
@@ -6318,10 +6319,12 @@ async def get_public_test_details(
     - Marketplace config (title, description, cover_image, price, difficulty)
     - Test statistics (num_questions, time_limit, passing_score)
     - Community stats (total_participants, average_participant_score, average_rating)
+    - User-specific data (if authenticated): already_participated, attempts_used, user_best_score
 
     **Access:**
     - Must be a public test (marketplace_config.is_public = true)
     - NO AUTHENTICATION REQUIRED - Anyone can view public marketplace tests
+    - If authenticated, returns additional user-specific stats
 
     **Note:**
     - This is for VIEWING details only (before starting)
@@ -6329,8 +6332,11 @@ async def get_public_test_details(
     """
     try:
         mongo_service = get_mongodb_service()
+        user_id = user_info.get("uid") if user_info else None
 
-        logger.info(f"📋 Get public test details: {test_id} (no auth required)")
+        logger.info(
+            f"📋 Get public test details: {test_id} (user: {user_id or 'anonymous'})"
+        )
 
         # ========== Step 1: Get test document ==========
         test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
@@ -6346,7 +6352,33 @@ async def get_public_test_details(
                 detail="This test is not public. Only published marketplace tests can be viewed.",
             )
 
-        # ========== Step 3: Build response ==========
+        # ========== Step 3: Get user-specific data if authenticated ==========
+        is_creator = False
+        already_participated = None
+        attempts_used = None
+        user_best_score = None
+
+        if user_id:
+            # Check if user is creator
+            is_creator = test_doc.get("creator_id") == user_id
+
+            # Get user's participation history
+            submissions_collection = mongo_service.db["test_submissions"]
+            user_submissions = list(
+                submissions_collection.find({"test_id": test_id, "user_id": user_id}).sort(
+                    "submitted_at", -1
+                )
+            )
+
+            already_participated = len(user_submissions) > 0
+            attempts_used = len(user_submissions)
+            user_best_score = (
+                max([s.get("score_percentage", 0) for s in user_submissions])
+                if user_submissions
+                else None
+            )
+
+        # ========== Step 4: Build response ==========
         response = {
             "success": True,
             "test_id": test_id,
@@ -6393,8 +6425,23 @@ async def get_public_test_details(
             ),
         }
 
+        # Add user-specific fields only if authenticated
+        if user_id:
+            response.update(
+                {
+                    "is_creator": is_creator,
+                    "already_participated": already_participated,
+                    "attempts_used": attempts_used,
+                    "user_best_score": user_best_score,
+                }
+            )
+
         logger.info(f"✅ Public test details retrieved: {test_id}")
         logger.info(f"   Price: {response['price_points']} points")
+        if user_id:
+            logger.info(
+                f"   User {user_id}: participated={already_participated}, attempts={attempts_used}"
+            )
 
         return response
 
