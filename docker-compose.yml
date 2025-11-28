@@ -33,6 +33,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-credentials.json
       # DeepSeek API
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - SERVICE_SECRET=${SERVICE_SECRET}
       - USE_MOCK_EMBEDDING=${USE_MOCK_EMBEDDING:-false}
       # Redis Configuration (matching deploy-manual.sh)
       - REDIS_URL=redis://redis-server:6379
