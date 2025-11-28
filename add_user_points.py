@@ -9,16 +9,22 @@ from pymongo import MongoClient
 from datetime import datetime
 from urllib.parse import urlparse
 
-# MongoDB connection
-MONGO_URI = os.getenv(
-    "MONGO_URI", "mongodb://admin:wordai@localhost:27017/wordai?authSource=admin"
-)
+# MongoDB connection - will use MONGO_URI from environment
+MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI:
+    print("❌ Error: MONGO_URI environment variable not set")
+    sys.exit(1)
 
 client = MongoClient(MONGO_URI)
 
 # Parse database name from URI
 parsed_uri = urlparse(MONGO_URI)
-db_name = parsed_uri.path.lstrip('/').split('?')[0] or "wordai"
+db_name = parsed_uri.path.lstrip('/').split('?')[0]
+if not db_name:
+    print("❌ Error: No database name in MONGO_URI")
+    sys.exit(1)
+
+print(f"📊 Using database: {db_name}")
 db = client[db_name]
 
 users_collection = db["users"]
