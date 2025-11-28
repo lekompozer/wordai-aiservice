@@ -3,7 +3,7 @@ Payment Activation API Routes
 Handles subscription activation from payment service after successful payment
 """
 
-from fastapi import APIRouter, HTTPException, Header, Depends
+from fastapi import APIRouter, HTTPException, Header, Depends, Request, Body
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime, timedelta
@@ -78,9 +78,7 @@ async def activate_subscription(
         # Get plan configuration from PLAN_CONFIGS
         plan_config = PLAN_CONFIGS.get(request.plan)
         if not plan_config:
-            raise HTTPException(
-                status_code=400, detail=f"Invalid plan: {request.plan}"
-            )
+            raise HTTPException(status_code=400, detail=f"Invalid plan: {request.plan}")
 
         # Calculate expiration date
         expires_at = datetime.utcnow() + timedelta(days=30 * request.duration_months)
@@ -204,6 +202,101 @@ async def activate_subscription(
         raise HTTPException(
             status_code=500, detail=f"Failed to activate subscription: {str(e)}"
         )
+
+
+@router.post("/points/add")
+async def add_points(
+    request: Request,
+    user_id: str = Body(...),
+    points: int = Body(...),
+    payment_id: str = Body(...),
+    order_invoice_number: str = Body(...),
+    payment_method: str = Body(None),
+    amount: int = Body(...),
+    reason: str = Body("Points purchase via payment service"),
+):
+    """Add points to user account (called by payment service webhook)"""
+    try:
+        # Verify service secret
+        service_secret = request.headers.get("X-Service-Secret")
+        expected_secret = os.getenv("SERVICE_SECRET")
+
+        if not service_secret or service_secret != expected_secret:
+            logger.warning(
+                "❌ Unauthorized points add request - invalid service secret"
+            )
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+        logger.info(
+            f"🎯 Adding {points} points for user {user_id} (payment: {payment_id})"
+        )
+
+        # Get user subscription
+        subscription = subscription_service.subscriptions.find_one({"user_id": user_id})
+
+        if not subscription:
+            logger.error(f"❌ Subscription not found for user {user_id}")
+            raise HTTPException(status_code=404, detail="Subscription not found")
+
+        current_points = subscription.get("points_remaining", 0)
+        new_points_total = current_points + points
+
+        # Update subscription with new points
+        update_result = subscription_service.subscriptions.update_one(
+            {"user_id": user_id},
+            {
+                "$set": {
+                    "points_remaining": new_points_total,
+                    "updated_at": datetime.utcnow(),
+                },
+                "$push": {
+                    "payment_history": {
+                        "payment_id": payment_id,
+                        "order_invoice_number": order_invoice_number,
+                        "payment_method": payment_method,
+                        "amount_paid": amount,
+                        "points_purchased": points,
+                        "reason": reason,
+                        "timestamp": datetime.utcnow(),
+                    }
+                },
+            },
+        )
+
+        if update_result.modified_count == 0:
+            logger.error(f"❌ Failed to update points for user {user_id}")
+            raise HTTPException(status_code=500, detail="Failed to update points")
+
+        # Also update user document
+        subscription_service.users.update_one(
+            {"uid": user_id},
+            {
+                "$set": {
+                    "points_remaining": new_points_total,
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        logger.info(
+            f"✅ Points updated for user {user_id}: {current_points} → {new_points_total} (+{points})"
+        )
+
+        return {
+            "success": True,
+            "user_id": user_id,
+            "points_added": points,
+            "previous_balance": current_points,
+            "new_balance": new_points_total,
+            "payment_id": payment_id,
+            "message": f"Successfully added {points} points. New balance: {new_points_total}",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error adding points: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to add points: {str(e)}")
 
 
 @router.get("/activation/health")
