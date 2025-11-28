@@ -232,6 +232,8 @@ async def add_points(
             f"🎯 Adding {points} points for user {user_id} (payment: {payment_id})"
         )
 
+        subscription_service = get_subscription_service()
+
         # Get user subscription
         subscription = subscription_service.subscriptions.find_one({"user_id": user_id})
 
