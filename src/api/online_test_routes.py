@@ -329,6 +329,15 @@ class ManualTestQuestion(BaseModel):
         None, description="Grading criteria/rubric for essay questions", max_length=2000
     )
 
+    # Media fields (optional for all question types)
+    media_type: Optional[str] = Field(
+        None, description="Media type: 'image' or 'audio'"
+    )
+    media_url: Optional[str] = Field(None, description="Public URL to media file")
+    media_description: Optional[str] = Field(
+        None, description="Description of media content", max_length=500
+    )
+
     @field_validator("question_type")
     @classmethod
     def validate_question_type(cls, v):
@@ -357,8 +366,19 @@ class ManualTestQuestion(BaseModel):
             # Essay should NOT have options or correct_answer_key
             if self.options is not None and len(self.options) > 0:
                 raise ValueError("Essay questions should not have options")
-            if self.correct_answer_key is not None and len(self.correct_answer_key.strip()) > 0:
+            if (
+                self.correct_answer_key is not None
+                and len(self.correct_answer_key.strip()) > 0
+            ):
                 raise ValueError("Essay questions should not have correct_answer_key")
+
+        # Validate media fields
+        if self.media_type:
+            if self.media_type not in ["image", "audio"]:
+                raise ValueError("media_type must be 'image' or 'audio'")
+            if not self.media_url:
+                raise ValueError("media_url is required when media_type is set")
+
         return self
 
 
@@ -1250,6 +1270,14 @@ async def create_manual_test(
                 elif q_type == "essay":
                     if hasattr(q, "grading_rubric") and q.grading_rubric:
                         question_dict["grading_rubric"] = q.grading_rubric
+
+                # Add media fields if present
+                if hasattr(q, "media_type") and q.media_type:
+                    question_dict["media_type"] = q.media_type
+                    question_dict["media_url"] = q.media_url
+                    question_dict["media_description"] = getattr(
+                        q, "media_description", ""
+                    )
 
                 formatted_questions.append(question_dict)
 
@@ -4418,6 +4446,19 @@ async def update_test_questions(
                 # Set default max_points if not provided
                 if "max_points" not in q:
                     q["max_points"] = 1
+
+            # Validate media fields if present
+            if q.get("media_type"):
+                if q["media_type"] not in ["image", "audio"]:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: media_type must be 'image' or 'audio'",
+                    )
+                if not q.get("media_url"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: media_url is required when media_type is set",
+                    )
 
             # Ensure question_id exists (generate if missing)
             if not q.get("question_id"):
