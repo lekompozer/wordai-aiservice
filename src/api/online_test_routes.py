@@ -31,7 +31,7 @@ from src.services.test_sharing_service import get_test_sharing_service
 from src.models.subscription import SubscriptionUsageUpdate
 import config.config as config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 1-3"])
 
@@ -5869,13 +5869,21 @@ async def publish_test_to_marketplace(
             )
 
         questions = test_doc.get("questions", [])
-        if len(questions) < 5:
+
+        # Check minimum questions based on question types
+        min_questions = 5  # Default for MCQ/mixed tests
+        has_essay_only = all(q.get("question_type") == "essay" for q in questions)
+
+        if has_essay_only:
+            min_questions = 1  # Essay tests only need 1 question
+
+        if len(questions) < min_questions:
             logger.warning(
-                f"❌ Publish failed: Test {test_id} has {len(questions)} questions (min 5)"
+                f"❌ Publish failed: Test {test_id} has {len(questions)} questions (min {min_questions})"
             )
             raise HTTPException(
                 status_code=400,
-                detail=f"Test must have at least 5 questions (current: {len(questions)})",
+                detail=f"Test must have at least {min_questions} questions (current: {len(questions)})",
             )
 
         # ========== Step 4: Validate form inputs ==========
