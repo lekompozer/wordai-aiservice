@@ -270,6 +270,49 @@ async function createPointsPurchase(req, res) {
     const { points } = req.body;
 
     try {
+        const db = getDb();
+        const subscriptionsCollection = db.collection('subscriptions');
+        const paymentsCollection = db.collection('payments');
+
+        // Check user subscription status
+        const subscription = await subscriptionsCollection.findOne({ user_id });
+        
+        if (!subscription) {
+            throw new AppError('Subscription not found. Please create an account first.', 404);
+        }
+
+        const currentPlan = subscription.current_plan || 'free';
+        const subscriptionExpiry = subscription.subscription_expires_at;
+        const isSubscriptionActive = subscriptionExpiry && new Date(subscriptionExpiry) > new Date();
+
+        // Count completed points purchases
+        const completedPointsPurchases = await paymentsCollection.countDocuments({
+            user_id,
+            payment_type: 'points_purchase',
+            status: 'completed'
+        });
+
+        logger.info(`User ${user_id} - Plan: ${currentPlan}, Active: ${isSubscriptionActive}, Points purchases: ${completedPointsPurchases}`);
+
+        // BUSINESS RULES:
+        // 1. FREE user: Only 1 point purchase allowed
+        // 2. Expired subscription: Only 1 point purchase allowed after expiry
+        // 3. Active subscription: Unlimited point purchases
+
+        if (!isSubscriptionActive) {
+            // User is FREE or subscription expired
+            if (completedPointsPurchases >= 1) {
+                throw new AppError(
+                    'Bạn đã mua điểm 1 lần. Vui lòng nâng cấp lên gói Premium, Pro hoặc VIP để tiếp tục sử dụng và mua thêm điểm.',
+                    403
+                );
+            }
+            
+            logger.warn(`⚠️  User ${user_id} (${currentPlan}, expired/free) - Last chance point purchase`);
+        } else {
+            logger.info(`✅ User ${user_id} has active subscription - Point purchase allowed`);
+        }
+
         // Get price
         const price = POINTS_PRICING[points];
         if (!price) {
@@ -279,9 +322,7 @@ async function createPointsPurchase(req, res) {
         // Generate order invoice number
         const orderInvoiceNumber = generateOrderInvoiceNumber(user_id);
 
-        // Create payment record in database
-        const db = getDb();
-        const paymentsCollection = db.collection('payments');
+        // Create payment record
 
         const paymentDoc = {
             user_id,
