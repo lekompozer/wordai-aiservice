@@ -16,6 +16,18 @@ SERVICE_NAME="payment-service"
 SERVICE_DIR="payment-service"
 SERVICE_PORT="3000"
 
+# Detect ${DOCKER_COMPOSE} command (v1 vs v2)
+if command -v ${DOCKER_COMPOSE} &> /dev/null; then
+    DOCKER_COMPOSE="${DOCKER_COMPOSE}"
+elif docker compose version &> /dev/null; then
+    DOCKER_COMPOSE="docker compose"
+else
+    echo -e "${RED}❌ Neither '${DOCKER_COMPOSE}' nor 'docker compose' found!${NC}"
+    exit 1
+fi
+
+echo -e "${YELLOW}📌 Using: ${DOCKER_COMPOSE}${NC}"
+
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -86,12 +98,12 @@ echo -e "${GREEN}✅ Image pushed successfully${NC}"
 
 # Stop and remove old container
 echo -e "${YELLOW}🛑 Stopping old container...${NC}"
-docker-compose stop ${SERVICE_NAME}
-docker-compose rm -f ${SERVICE_NAME}
+${DOCKER_COMPOSE} stop ${SERVICE_NAME}
+${DOCKER_COMPOSE} rm -f ${SERVICE_NAME}
 
 # Start new container
 echo -e "${YELLOW}🚀 Starting new container...${NC}"
-docker-compose up -d ${SERVICE_NAME}
+${DOCKER_COMPOSE} up -d ${SERVICE_NAME}
 
 # Wait for container to be healthy
 echo -e "${YELLOW}⏳ Waiting for service to be healthy...${NC}"
@@ -104,13 +116,13 @@ if ! docker ps | grep -q ${CONTAINER_NAME}; then
     # Rollback
     if [ "$CURRENT_IMAGE" != "none" ]; then
         echo -e "${YELLOW}🔄 Rolling back to previous image: ${CURRENT_IMAGE}${NC}"
-        docker-compose stop ${SERVICE_NAME}
-        docker-compose rm -f ${SERVICE_NAME}
+        ${DOCKER_COMPOSE} stop ${SERVICE_NAME}
+        ${DOCKER_COMPOSE} rm -f ${SERVICE_NAME}
 
-        # Temporarily update docker-compose.yml to use old image
-        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" docker-compose.yml
-        docker-compose up -d ${SERVICE_NAME}
-        mv docker-compose.yml.bak docker-compose.yml
+        # Temporarily update ${DOCKER_COMPOSE}.yml to use old image
+        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" ${DOCKER_COMPOSE}.yml
+        ${DOCKER_COMPOSE} up -d ${SERVICE_NAME}
+        mv ${DOCKER_COMPOSE}.yml.bak ${DOCKER_COMPOSE}.yml
 
         echo -e "${GREEN}✅ Rollback completed${NC}"
     fi
@@ -131,12 +143,12 @@ else
     # Rollback
     if [ "$CURRENT_IMAGE" != "none" ]; then
         echo -e "${YELLOW}🔄 Rolling back to previous image...${NC}"
-        docker-compose stop ${SERVICE_NAME}
-        docker-compose rm -f ${SERVICE_NAME}
+        ${DOCKER_COMPOSE} stop ${SERVICE_NAME}
+        ${DOCKER_COMPOSE} rm -f ${SERVICE_NAME}
 
-        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" docker-compose.yml
-        docker-compose up -d ${SERVICE_NAME}
-        mv docker-compose.yml.bak docker-compose.yml
+        sed -i.bak "s|image: ${IMAGE_NAME}:.*|image: ${CURRENT_IMAGE}|g" ${DOCKER_COMPOSE}.yml
+        ${DOCKER_COMPOSE} up -d ${SERVICE_NAME}
+        mv ${DOCKER_COMPOSE}.yml.bak ${DOCKER_COMPOSE}.yml
 
         echo -e "${GREEN}✅ Rollback completed${NC}"
     fi
@@ -167,6 +179,6 @@ echo "📖 Health Check: http://localhost:${SERVICE_PORT}/health"
 echo ""
 echo "Useful commands:"
 echo "  - View logs: docker logs -f ${CONTAINER_NAME}"
-echo "  - Restart: docker-compose restart ${SERVICE_NAME}"
-echo "  - Stop: docker-compose stop ${SERVICE_NAME}"
+echo "  - Restart: ${DOCKER_COMPOSE} restart ${SERVICE_NAME}"
+echo "  - Stop: ${DOCKER_COMPOSE} stop ${SERVICE_NAME}"
 echo ""
