@@ -357,7 +357,7 @@ class ManualTestQuestion(BaseModel):
             # Essay should NOT have options or correct_answer_key
             if self.options is not None and len(self.options) > 0:
                 raise ValueError("Essay questions should not have options")
-            if self.correct_answer_key is not None:
+            if self.correct_answer_key is not None and len(self.correct_answer_key.strip()) > 0:
                 raise ValueError("Essay questions should not have correct_answer_key")
         return self
 
