@@ -19,7 +19,7 @@ from pymongo import MongoClient
 
 import config.config as config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class TestVersionService:

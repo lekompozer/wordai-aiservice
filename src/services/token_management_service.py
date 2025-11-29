@@ -8,7 +8,7 @@ import logging
 from typing import List, Dict, Tuple
 from bs4 import BeautifulSoup
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class TokenManagementService:

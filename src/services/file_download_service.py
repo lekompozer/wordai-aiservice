@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 # R2 Configuration
 R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")

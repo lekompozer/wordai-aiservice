@@ -10,7 +10,7 @@ from pymongo import MongoClient
 from pymongo.database import Database
 import uuid
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class LibraryManager:

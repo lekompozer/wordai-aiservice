@@ -11,7 +11,7 @@ from typing import Optional, Tuple, List, Dict
 from datetime import datetime, timedelta
 from io import BytesIO
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class DocumentExportService:

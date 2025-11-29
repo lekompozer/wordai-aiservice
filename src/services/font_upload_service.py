@@ -23,7 +23,7 @@ from src.models.font_models import (
     FontFaceRule,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class FontUploadService:

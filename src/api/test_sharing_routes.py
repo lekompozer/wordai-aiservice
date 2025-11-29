@@ -18,7 +18,7 @@ from src.services.brevo_email_service import get_brevo_service
 from src.services.notification_manager import NotificationManager
 from config.config import get_mongodb  # ✅ Use standard config function
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 4: Sharing"])
 

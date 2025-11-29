@@ -26,7 +26,7 @@ from src.models.test_evaluation_models import (
 from src.services.gemini_test_evaluation_service import get_gemini_evaluation_service
 from src.services.points_service import get_points_service
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 router = APIRouter(
     prefix="/api/v1/tests/submissions", tags=["Test Result AI Evaluation"]

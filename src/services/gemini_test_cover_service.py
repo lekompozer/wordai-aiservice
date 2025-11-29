@@ -20,7 +20,7 @@ try:
 except ImportError:
     GENAI_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class GeminiTestCoverService:

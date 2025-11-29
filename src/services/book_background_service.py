@@ -15,7 +15,7 @@ from src.models.book_background_models import (
     AIMetadata,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class BookBackgroundService:
