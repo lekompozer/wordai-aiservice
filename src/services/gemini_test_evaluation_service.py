@@ -88,10 +88,22 @@ class GeminiTestEvaluationService:
 
         # Detect test category based on description and title
         test_lower = (test_title + " " + test_description).lower()
-        is_personality_test = any(keyword in test_lower for keyword in [
-            "personality", "tính cách", "mbti", "16 personalities", "funny", "quiz",
-            "phong cách", "sở thích", "yêu thích", "bạn là ai", "bạn thuộc típ"
-        ])
+        is_personality_test = any(
+            keyword in test_lower
+            for keyword in [
+                "personality",
+                "tính cách",
+                "mbti",
+                "16 personalities",
+                "funny",
+                "quiz",
+                "phong cách",
+                "sở thích",
+                "yêu thích",
+                "bạn là ai",
+                "bạn thuộc típ",
+            ]
+        )
 
         # Build question analysis
         question_analysis = []
@@ -104,23 +116,27 @@ class GeminiTestEvaluationService:
                 correct_answer = q.get("correct_answer_key", "N/A")
                 is_correct = user_answer == correct_answer
 
-                question_analysis.append({
-                    "question_id": question_id,
-                    "question_type": "mcq",
-                    "question_text": q["question_text"],
-                    "user_answer": user_answer,
-                    "correct_answer": correct_answer,
-                    "is_correct": is_correct,
-                    "explanation": q.get("explanation", "No explanation provided"),
-                })
+                question_analysis.append(
+                    {
+                        "question_id": question_id,
+                        "question_type": "mcq",
+                        "question_text": q["question_text"],
+                        "user_answer": user_answer,
+                        "correct_answer": correct_answer,
+                        "is_correct": is_correct,
+                        "explanation": q.get("explanation", "No explanation provided"),
+                    }
+                )
             elif q_type == "essay":
-                question_analysis.append({
-                    "question_id": question_id,
-                    "question_type": "essay",
-                    "question_text": q["question_text"],
-                    "user_answer": user_answer,
-                    "grading_rubric": q.get("grading_rubric", "No rubric provided"),
-                })
+                question_analysis.append(
+                    {
+                        "question_id": question_id,
+                        "question_type": "essay",
+                        "question_text": q["question_text"],
+                        "user_answer": user_answer,
+                        "grading_rubric": q.get("grading_rubric", "No rubric provided"),
+                    }
+                )
 
         # Build prompt based on test type
         prompt_parts = [
@@ -139,37 +155,45 @@ class GeminiTestEvaluationService:
 
         # Add evaluation criteria if provided
         if evaluation_criteria:
-            prompt_parts.extend([
-                "## EVALUATION CRITERIA (from test creator)",
-                evaluation_criteria,
-                "",
-            ])
+            prompt_parts.extend(
+                [
+                    "## EVALUATION CRITERIA (from test creator)",
+                    evaluation_criteria,
+                    "",
+                ]
+            )
 
         # Add question-by-question analysis
-        prompt_parts.extend([
-            "## DETAILED QUESTION ANALYSIS",
-            "",
-        ])
+        prompt_parts.extend(
+            [
+                "## DETAILED QUESTION ANALYSIS",
+                "",
+            ]
+        )
 
         for idx, qa in enumerate(question_analysis, 1):
             if qa.get("question_type") == "mcq":
                 status = "✅ CORRECT" if qa["is_correct"] else "❌ INCORRECT"
-                prompt_parts.extend([
-                    f"### Question {idx} (MCQ) {status}",
-                    f"**Question:** {qa['question_text']}",
-                    f"**User's Answer:** {qa['user_answer']}",
-                    f"**Correct Answer:** {qa['correct_answer']}",
-                    f"**Explanation:** {qa['explanation']}",
-                    "",
-                ])
+                prompt_parts.extend(
+                    [
+                        f"### Question {idx} (MCQ) {status}",
+                        f"**Question:** {qa['question_text']}",
+                        f"**User's Answer:** {qa['user_answer']}",
+                        f"**Correct Answer:** {qa['correct_answer']}",
+                        f"**Explanation:** {qa['explanation']}",
+                        "",
+                    ]
+                )
             elif qa.get("question_type") == "essay":
-                prompt_parts.extend([
-                    f"### Question {idx} (Essay)",
-                    f"**Question:** {qa['question_text']}",
-                    f"**User's Answer:** {qa['user_answer']}",
-                    f"**Grading Rubric:** {qa['grading_rubric']}",
-                    "",
-                ])
+                prompt_parts.extend(
+                    [
+                        f"### Question {idx} (Essay)",
+                        f"**Question:** {qa['question_text']}",
+                        f"**User's Answer:** {qa['user_answer']}",
+                        f"**Grading Rubric:** {qa['grading_rubric']}",
+                        "",
+                    ]
+                )
 
         # Add evaluation instructions based on test category
         if is_personality_test:
@@ -194,105 +218,81 @@ class GeminiTestEvaluationService:
                 "6. For correct answers, suggest deeper understanding of concepts",
             ]
 
-        prompt_parts.extend([
-            "---",
-            "",
-            "## YOUR TASK",
-            "",
-        ] + evaluation_instructions + [
-            "",
-            "Provide a comprehensive evaluation in JSON format with the following structure:",
-            "",
-            "```json",
-            "{",
-            '  "overall_evaluation": {',
-        ])
-
-        if is_personality_test:
-            prompt_parts.extend([
-                '    "strengths": [',
-                '      "List 2-4 interesting patterns in their choices",',
-                '      "What their answers reveal about their preferences/personality"',
-                "    ],",
-                '    "weaknesses": [',
-                '      "Optional: Any surprising contradictions in choices (keep it light and fun)"',
-                "    ],",
-                '    "recommendations": [',
-                '      "Fun observations and insights about their result",',
-                '      "What type of person this result suggests they might be"',
-                "    ],",
-                '    "study_plan": "A fun summary of their personality type/quiz result (2-3 sentences)"',
-            ])
-        else:
-            prompt_parts.extend([
-                '    "strengths": [',
-                '      "List 2-4 specific knowledge areas where the student performed well",',
-                '      "Be specific about which concepts they mastered"',
-                "    ],",
-                '    "weaknesses": [',
-                '      "List 2-4 specific knowledge gaps that need attention",',
-                '      "Be specific about which concepts they struggled with"',
-                "    ],",
-                '    "recommendations": [',
-                '      "Provide 3-5 actionable study recommendations",',
-                '      "Suggest specific topics to review, resources, and practice strategies"',
-                "    ],",
-                '    "study_plan": "A practical 2-3 sentence study plan to improve their score"',
-            ])
-
-        prompt_parts.extend([
-            "  },",
-            '  "question_evaluations": [',
-            "    {",
-            '      "question_id": "question_1",',
-            '      "ai_feedback": "' + ('Fun insight about their choice (2-3 sentences)' if is_personality_test else 'Why they got it wrong/right and what to study (2-3 sentences)') + '"',
-            "    },",
-            "    // ... for each question",
-            "  ]",
-            "}",
-            "```",
-            "",
-            f"**CRITICAL:** This is a **{('PERSONALITY/QUIZ TEST' if is_personality_test else 'KNOWLEDGE ASSESSMENT')}**. Adjust your tone and feedback accordingly.",
-            "**Return ONLY the JSON object, no additional text.**",
-            "",
-            "Now provide your evaluation:",
-        ])
-
-        return "\n".join(prompt_parts)
+        prompt_parts.extend(
+            [
+                "---",
+                "",
+                "## YOUR TASK",
+                "",
+            ]
+            + evaluation_instructions
+            + [
+                "",
+                "Provide a comprehensive evaluation in JSON format with the following structure:",
+                "",
+                "```json",
                 "{",
                 '  "overall_evaluation": {',
-                '    "strengths": [',
-                '      "List 2-4 specific areas where the student performed well",',
-                '      "Be specific about which types of questions they excelled at"',
-                "    ],",
-                '    "weaknesses": [',
-                '      "List 2-4 specific areas that need improvement",',
-                '      "Be specific about which concepts they struggled with"',
-                "    ],",
-                '    "recommendations": [',
-                '      "Provide 3-5 actionable recommendations for improvement",',
-                '      "Be specific - mention resources, topics to review, practice strategies"',
-                "    ],",
-                '    "study_plan": "A brief 2-3 sentence study plan based on their performance"',
+            ]
+        )
+
+        if is_personality_test:
+            prompt_parts.extend(
+                [
+                    '    "strengths": [',
+                    '      "List 2-4 interesting patterns in their choices",',
+                    '      "What their answers reveal about their preferences/personality"',
+                    "    ],",
+                    '    "weaknesses": [',
+                    '      "Optional: Any surprising contradictions in choices (keep it light and fun)"',
+                    "    ],",
+                    '    "recommendations": [',
+                    '      "Fun observations and insights about their result",',
+                    '      "What type of person this result suggests they might be"',
+                    "    ],",
+                    '    "study_plan": "A fun summary of their personality type/quiz result (2-3 sentences)"',
+                ]
+            )
+        else:
+            prompt_parts.extend(
+                [
+                    '    "strengths": [',
+                    '      "List 2-4 specific knowledge areas where the student performed well",',
+                    '      "Be specific about which concepts they mastered"',
+                    "    ],",
+                    '    "weaknesses": [',
+                    '      "List 2-4 specific knowledge gaps that need attention",',
+                    '      "Be specific about which concepts they struggled with"',
+                    "    ],",
+                    '    "recommendations": [',
+                    '      "Provide 3-5 actionable study recommendations",',
+                    '      "Suggest specific topics to review, resources, and practice strategies"',
+                    "    ],",
+                    '    "study_plan": "A practical 2-3 sentence study plan to improve their score"',
+                ]
+            )
+
+        prompt_parts.extend(
+            [
                 "  },",
                 '  "question_evaluations": [',
                 "    {",
                 '      "question_id": "question_1",',
-                '      "ai_feedback": "Brief feedback on why they got it wrong/right and what to focus on (2-3 sentences)"',
+                '      "ai_feedback": "'
+                + (
+                    "Fun insight about their choice (2-3 sentences)"
+                    if is_personality_test
+                    else "Why they got it wrong/right and what to study (2-3 sentences)"
+                )
+                + '"',
                 "    },",
                 "    // ... for each question",
                 "  ]",
                 "}",
                 "```",
                 "",
-                "**IMPORTANT GUIDELINES:**",
-                "1. Be constructive and encouraging, even for poor performance",
-                "2. Focus on specific concepts and skills, not generic advice",
-                "3. For correct answers, briefly praise and suggest deeper understanding",
-                "4. For incorrect answers, explain the misconception and how to correct it",
-                f"5. Consider the evaluation criteria provided by the test creator: {evaluation_criteria or 'general educational standards'}",
-                "6. Tailor recommendations to the test topic and difficulty level",
-                "7. Return ONLY the JSON object, no additional text",
+                f"**CRITICAL:** This is a **{('PERSONALITY/QUIZ TEST' if is_personality_test else 'KNOWLEDGE ASSESSMENT')}**. Adjust your tone and feedback accordingly.",
+                "**Return ONLY the JSON object, no additional text.**",
                 "",
                 "Now provide your evaluation:",
             ]
