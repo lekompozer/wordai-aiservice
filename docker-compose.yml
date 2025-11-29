@@ -27,6 +27,7 @@ services:
       - ./chat_history.db:/app/chat_history.db
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     environment:
+      - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
@@ -78,6 +79,7 @@ services:
       - mongodb_data:/data/db
       - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     environment:
+      - TZ=Asia/Ho_Chi_Minh
       - MONGO_INITDB_ROOT_USERNAME=${MONGODB_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGODB_ROOT_PASSWORD}
       - MONGO_INITDB_DATABASE=${MONGODB_NAME:-ai_service_db}
@@ -123,6 +125,7 @@ services:
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro # Firebase credentials
     environment:
       # Server
+      - TZ=Asia/Ho_Chi_Minh
       - NODE_ENV=production
       - PORT=3000
       - SERVICE_NAME=wordai-payment-service
