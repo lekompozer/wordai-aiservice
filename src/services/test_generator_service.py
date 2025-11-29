@@ -7,7 +7,7 @@ import logging
 import asyncio
 import json
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from bson import ObjectId
 
@@ -121,16 +121,29 @@ class TestGeneratorService:
                 )
             test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
 
+        # Escape sequence instructions (can't use backslash in f-string)
+        escape_instructions = '''2. **IMPORTANT: Properly escape all special characters in JSON strings:**
+   - Use \\" for double quotes inside strings
+   - Use \\n for newlines inside strings
+   - Use \\\\ for backslashes inside strings'''
+
+        # Diagnostic criteria example (can't use \n in f-string expression)
+        if is_diagnostic:
+            diagnostic_criteria_json = ''',
+     "diagnostic_criteria": {
+       "result_types": [{"type_id": "string", "title": "string", "description": "string", "traits": ["string"]}],
+       "mapping_rules": "Detailed rules for mapping answer patterns to result types (e.g., mostly A -> Type 1, mostly B -> Type 2)"
+     }'''
+        else:
+            diagnostic_criteria_json = ''
+
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
 
 **TEST TYPE: {test_type_instruction}**
 
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
-2. **IMPORTANT: Properly escape all special characters in JSON strings:**
-   - Use \\" for double quotes inside strings
-   - Use \\n for newlines inside strings
-   - Use \\\\ for backslashes inside strings
+{escape_instructions}
 3. {lang_instruction}
 4. **IMPORTANT: If the user query specifies different requirements (e.g., number of options, correct answers, topics to focus on), follow the user's specifications FIRST, then use these defaults as fallback.**
 5. The JSON object must conform to the following structure:
@@ -143,7 +156,7 @@ class TestGeneratorService:
          ],{(' ' + correct_answer_example + ',') if correct_answer_example else ''}
          "explanation": "string ({'Explain what this question reveals about personality/preferences' if is_diagnostic else 'Explain WHY the correct answer(s) are right, based on the document'})."
        }}
-     ]{(',\n     "diagnostic_criteria": {{\n       "result_types": [{{"type_id": "string", "title": "string", "description": "string", "traits": ["string"]}}],\n       "mapping_rules": "Detailed rules for mapping answer patterns to result types (e.g., mostly A -> Type 1, mostly B -> Type 2)"\n     }}' if is_diagnostic else '')}
+     ]{diagnostic_criteria_json}
    }}
 6. Generate exactly {num_questions} questions (unless user query specifies otherwise).
 7. The questions must be relevant to the user's query: "{user_query}".
