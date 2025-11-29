@@ -89,7 +89,8 @@ class GeminiTestEvaluationService:
             test_type = "MCQ only"
 
         # Detect test category based on description and title
-        test_lower = (test_title + " " + test_description).lower()
+        # Handle None values for test_description
+        test_lower = (test_title + " " + (test_description or "")).lower()
         is_personality_test = any(
             keyword in test_lower
             for keyword in [
@@ -147,7 +148,7 @@ class GeminiTestEvaluationService:
             "",
             "## TEST INFORMATION",
             f"**Title:** {test_title}",
-            f"**Description:** {test_description}",
+            f"**Description:** {test_description or 'No description provided'}",
             f"**Test Type:** {test_type}",
             f"**Test Category:** {'Personality/Quiz Test' if is_personality_test else 'Knowledge Assessment'}",
             f"**Total Questions:** {len(questions)}",
