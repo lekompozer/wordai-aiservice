@@ -108,7 +108,7 @@ class TestGeneratorService:
 
         if is_diagnostic:
             correct_answer_instruction = 'DO NOT include "correct_answer_keys" field. Each option represents a different trait or preference - there is no "correct" answer.'
-            correct_answer_example = ''
+            correct_answer_example = ""
             test_type_instruction = "This is a DIAGNOSTIC/PERSONALITY test. Questions should reveal personality traits, preferences, or tendencies - NOT test knowledge."
         else:
             if num_correct_answers == 1:
@@ -122,20 +122,20 @@ class TestGeneratorService:
             test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
 
         # Escape sequence instructions (can't use backslash in f-string)
-        escape_instructions = '''2. **IMPORTANT: Properly escape all special characters in JSON strings:**
+        escape_instructions = """2. **IMPORTANT: Properly escape all special characters in JSON strings:**
    - Use \\" for double quotes inside strings
    - Use \\n for newlines inside strings
-   - Use \\\\ for backslashes inside strings'''
+   - Use \\\\ for backslashes inside strings"""
 
         # Diagnostic criteria example (can't use \n in f-string expression)
         if is_diagnostic:
-            diagnostic_criteria_json = ''',
+            diagnostic_criteria_json = """,
      "diagnostic_criteria": {
        "result_types": [{"type_id": "string", "title": "string", "description": "string", "traits": ["string"]}],
        "mapping_rules": "Detailed rules for mapping answer patterns to result types (e.g., mostly A -> Type 1, mostly B -> Type 2)"
-     }'''
+     }"""
         else:
-            diagnostic_criteria_json = ''
+            diagnostic_criteria_json = ""
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
 
@@ -222,7 +222,119 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 else:
                     contents = [prompt]
 
-                # Call Gemini with JSON Mode
+                # Define response schema for structured output
+                # This forces Gemini to output properly formatted JSON
+                is_diagnostic = test_category == "diagnostic"
+
+                if is_diagnostic:
+                    # Schema for diagnostic tests (no correct_answer_keys)
+                    response_schema = {
+                        "type": "object",
+                        "properties": {
+                            "questions": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "question_text": {"type": "string"},
+                                        "options": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "option_key": {"type": "string"},
+                                                    "option_text": {"type": "string"},
+                                                },
+                                                "required": [
+                                                    "option_key",
+                                                    "option_text",
+                                                ],
+                                            },
+                                        },
+                                        "explanation": {"type": "string"},
+                                    },
+                                    "required": [
+                                        "question_text",
+                                        "options",
+                                        "explanation",
+                                    ],
+                                },
+                            },
+                            "diagnostic_criteria": {
+                                "type": "object",
+                                "properties": {
+                                    "result_types": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "type_id": {"type": "string"},
+                                                "title": {"type": "string"},
+                                                "description": {"type": "string"},
+                                                "traits": {
+                                                    "type": "array",
+                                                    "items": {"type": "string"},
+                                                },
+                                            },
+                                            "required": [
+                                                "type_id",
+                                                "title",
+                                                "description",
+                                                "traits",
+                                            ],
+                                        },
+                                    },
+                                    "mapping_rules": {"type": "string"},
+                                },
+                                "required": ["result_types", "mapping_rules"],
+                            },
+                        },
+                        "required": ["questions", "diagnostic_criteria"],
+                    }
+                else:
+                    # Schema for academic tests (with correct_answer_keys)
+                    response_schema = {
+                        "type": "object",
+                        "properties": {
+                            "questions": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "question_text": {"type": "string"},
+                                        "options": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "option_key": {"type": "string"},
+                                                    "option_text": {"type": "string"},
+                                                },
+                                                "required": [
+                                                    "option_key",
+                                                    "option_text",
+                                                ],
+                                            },
+                                        },
+                                        "correct_answer_keys": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                        },
+                                        "explanation": {"type": "string"},
+                                    },
+                                    "required": [
+                                        "question_text",
+                                        "options",
+                                        "correct_answer_keys",
+                                        "explanation",
+                                    ],
+                                },
+                            }
+                        },
+                        "required": ["questions"],
+                    }
+
+                # Call Gemini with JSON Mode and response schema
                 response = self.client.models.generate_content(
                     model="gemini-2.5-pro",
                     contents=contents,
@@ -230,6 +342,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         max_output_tokens=8000,
                         temperature=0.3,
                         response_mime_type="application/json",
+                        response_schema=response_schema,
                     ),
                 )
 
@@ -348,11 +461,13 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
                 logger.info(f"   ✅ Generated {len(questions_list)} valid questions")
                 if diagnostic_criteria:
-                    logger.info(f"   ✅ Extracted diagnostic criteria with {len(diagnostic_criteria.get('result_types', []))} result types")
+                    logger.info(
+                        f"   ✅ Extracted diagnostic criteria with {len(diagnostic_criteria.get('result_types', []))} result types"
+                    )
 
                 return {
                     "questions": questions_list,
-                    "diagnostic_criteria": diagnostic_criteria
+                    "diagnostic_criteria": diagnostic_criteria,
                 }
 
             except json.JSONDecodeError as e:
