@@ -29,10 +29,11 @@ class GuideBookBookChapterManager:
         self.db = db
         self.chapters_collection = db["book_chapters"]
         self.book_manager = book_manager
-        
+
         # Lazy import to avoid circular dependency
         if book_manager is None:
             from src.services.book_manager import UserBookManager
+
             self.book_manager = UserBookManager(db)
 
     def create_indexes(self):
@@ -154,10 +155,10 @@ class GuideBookBookChapterManager:
 
         try:
             self.chapters_collection.insert_one(chapter_doc)
-            
+
             # Update parent book's updated_at timestamp
             self.book_manager.touch_book(book_id)
-            
+
             logger.info(
                 f"✅ Created chapter: {chapter_id} in guide {book_id} (depth: {depth})"
             )
@@ -399,7 +400,7 @@ class GuideBookBookChapterManager:
             chapter = self.chapters_collection.find_one(
                 {"chapter_id": chapter_id}, {"book_id": 1}
             )
-            
+
             result = self.chapters_collection.update_one(
                 {"chapter_id": chapter_id},
                 {
@@ -438,7 +439,7 @@ class GuideBookBookChapterManager:
         chapter = self.chapters_collection.find_one(
             {"chapter_id": chapter_id}, {"book_id": 1}
         )
-        
+
         result = self.chapters_collection.delete_one({"chapter_id": chapter_id})
 
         if result.deleted_count > 0:
@@ -663,7 +664,7 @@ class GuideBookBookChapterManager:
                 self.chapters_collection.update_one(
                     {"chapter_id": chapter_id}, {"$set": {"updated_at": now}}
                 )
-                
+
                 # Update parent book timestamp
                 self.book_manager.touch_book(chapter["book_id"])
                 return True
