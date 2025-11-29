@@ -21,13 +21,21 @@ class QuestionEvaluation(BaseModel):
 
     question_id: str = Field(..., description="Question ID")
     question_text: str = Field(..., description="Question text")
-    user_answer: Optional[str] = Field(None, description="User's answer (A/B/C/D)")
-    correct_answer: str = Field(..., description="Correct answer (A/B/C/D)")
-    is_correct: bool = Field(..., description="Whether user answered correctly")
-    explanation: Optional[str] = Field(None, description="Question explanation")
+    user_answer: Optional[str] = Field(
+        None, description="User's answer (MCQ: A/B/C/D, Essay: text)"
+    )
+    correct_answer: Optional[str] = Field(
+        None, description="Correct answer (only for MCQ)"
+    )
+    is_correct: Optional[bool] = Field(
+        None, description="Whether user answered correctly (only for MCQ)"
+    )
+    explanation: Optional[str] = Field(
+        None, description="Question explanation or grading rubric"
+    )
     ai_feedback: str = Field(
         ...,
-        description="AI feedback on this specific question (why wrong, how to improve)",
+        description="AI feedback on this specific question (why wrong, how to improve, or essay commentary)",
     )
 
 

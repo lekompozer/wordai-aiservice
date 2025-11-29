@@ -67,7 +67,7 @@ class GeminiTestEvaluationService:
             test_title: Test title
             test_description: Test description
             questions: List of questions with correct answers
-            user_answers: User's answers {question_id: answer_key}
+            user_answers: User's answers {question_id: answer}
             score_percentage: User's score percentage
             is_passed: Whether user passed
             evaluation_criteria: Custom evaluation criteria from test creator
@@ -75,32 +75,62 @@ class GeminiTestEvaluationService:
         Returns:
             Complete prompt for Gemini
         """
+        # Detect test type based on questions
+        has_mcq = any(q.get("question_type", "mcq") == "mcq" for q in questions)
+        has_essay = any(q.get("question_type") == "essay" for q in questions)
+
+        if has_mcq and has_essay:
+            test_type = "Mixed (MCQ + Essay)"
+        elif has_essay:
+            test_type = "Essay only"
+        else:
+            test_type = "MCQ only"
+
+        # Detect test category based on description and title
+        test_lower = (test_title + " " + test_description).lower()
+        is_personality_test = any(keyword in test_lower for keyword in [
+            "personality", "tính cách", "mbti", "16 personalities", "funny", "quiz",
+            "phong cách", "sở thích", "yêu thích", "bạn là ai", "bạn thuộc típ"
+        ])
+
         # Build question analysis
         question_analysis = []
         for q in questions:
             question_id = q["question_id"]
-            user_answer = user_answers.get(question_id)
-            correct_answer = q["correct_answer_key"]
-            is_correct = user_answer == correct_answer
+            q_type = q.get("question_type", "mcq")
+            user_answer = user_answers.get(question_id, "No answer")
 
-            question_analysis.append(
-                {
+            if q_type == "mcq":
+                correct_answer = q.get("correct_answer_key", "N/A")
+                is_correct = user_answer == correct_answer
+
+                question_analysis.append({
                     "question_id": question_id,
+                    "question_type": "mcq",
                     "question_text": q["question_text"],
-                    "user_answer": user_answer or "Not answered",
+                    "user_answer": user_answer,
                     "correct_answer": correct_answer,
                     "is_correct": is_correct,
                     "explanation": q.get("explanation", "No explanation provided"),
-                }
-            )
+                })
+            elif q_type == "essay":
+                question_analysis.append({
+                    "question_id": question_id,
+                    "question_type": "essay",
+                    "question_text": q["question_text"],
+                    "user_answer": user_answer,
+                    "grading_rubric": q.get("grading_rubric", "No rubric provided"),
+                })
 
-        # Build prompt
+        # Build prompt based on test type
         prompt_parts = [
             "You are an expert educational assessment evaluator. Your task is to provide detailed, constructive feedback on a student's test performance.",
             "",
             "## TEST INFORMATION",
             f"**Title:** {test_title}",
             f"**Description:** {test_description}",
+            f"**Test Type:** {test_type}",
+            f"**Test Category:** {'Personality/Quiz Test' if is_personality_test else 'Knowledge Assessment'}",
             f"**Total Questions:** {len(questions)}",
             f"**Score:** {score_percentage:.1f}%",
             f"**Result:** {'PASSED ✅' if is_passed else 'FAILED ❌'}",
@@ -109,45 +139,126 @@ class GeminiTestEvaluationService:
 
         # Add evaluation criteria if provided
         if evaluation_criteria:
-            prompt_parts.extend(
-                [
-                    "## EVALUATION CRITERIA (from test creator)",
-                    evaluation_criteria,
-                    "",
-                ]
-            )
+            prompt_parts.extend([
+                "## EVALUATION CRITERIA (from test creator)",
+                evaluation_criteria,
+                "",
+            ])
 
         # Add question-by-question analysis
-        prompt_parts.extend(
-            [
-                "## DETAILED QUESTION ANALYSIS",
-                "",
-            ]
-        )
+        prompt_parts.extend([
+            "## DETAILED QUESTION ANALYSIS",
+            "",
+        ])
 
         for idx, qa in enumerate(question_analysis, 1):
-            status = "✅ CORRECT" if qa["is_correct"] else "❌ INCORRECT"
-            prompt_parts.extend(
-                [
-                    f"### Question {idx} {status}",
+            if qa.get("question_type") == "mcq":
+                status = "✅ CORRECT" if qa["is_correct"] else "❌ INCORRECT"
+                prompt_parts.extend([
+                    f"### Question {idx} (MCQ) {status}",
                     f"**Question:** {qa['question_text']}",
                     f"**User's Answer:** {qa['user_answer']}",
                     f"**Correct Answer:** {qa['correct_answer']}",
                     f"**Explanation:** {qa['explanation']}",
                     "",
-                ]
-            )
+                ])
+            elif qa.get("question_type") == "essay":
+                prompt_parts.extend([
+                    f"### Question {idx} (Essay)",
+                    f"**Question:** {qa['question_text']}",
+                    f"**User's Answer:** {qa['user_answer']}",
+                    f"**Grading Rubric:** {qa['grading_rubric']}",
+                    "",
+                ])
 
-        # Add evaluation instructions
-        prompt_parts.extend(
-            [
-                "---",
-                "",
-                "## YOUR TASK",
-                "",
-                "Based on the above information, provide a comprehensive evaluation in JSON format with the following structure:",
-                "",
-                "```json",
+        # Add evaluation instructions based on test category
+        if is_personality_test:
+            evaluation_instructions = [
+                "**EVALUATION APPROACH FOR PERSONALITY/QUIZ TEST:**",
+                "1. This is a personality or fun quiz test - provide lighthearted, objective commentary",
+                "2. Focus on analyzing the pattern of choices and what they reveal",
+                "3. Avoid being judgmental - personality tests have no 'wrong' answers",
+                "4. Provide interesting insights about the user's choices",
+                "5. Keep the tone friendly, engaging, and entertaining",
+                "6. Don't provide 'study plans' or 'improvement recommendations' - this isn't a knowledge test",
+                "7. Instead, provide fun observations and what their results might say about them",
+            ]
+        else:
+            evaluation_instructions = [
+                "**EVALUATION APPROACH FOR KNOWLEDGE TEST:**",
+                "1. Focus on knowledge gaps and areas needing improvement",
+                "2. Provide specific study recommendations for incorrect answers",
+                "3. Suggest topics and concepts to review for better performance",
+                "4. Create a practical study plan to improve scores on similar tests",
+                "5. Be constructive and encouraging",
+                "6. For correct answers, suggest deeper understanding of concepts",
+            ]
+
+        prompt_parts.extend([
+            "---",
+            "",
+            "## YOUR TASK",
+            "",
+        ] + evaluation_instructions + [
+            "",
+            "Provide a comprehensive evaluation in JSON format with the following structure:",
+            "",
+            "```json",
+            "{",
+            '  "overall_evaluation": {',
+        ])
+
+        if is_personality_test:
+            prompt_parts.extend([
+                '    "strengths": [',
+                '      "List 2-4 interesting patterns in their choices",',
+                '      "What their answers reveal about their preferences/personality"',
+                "    ],",
+                '    "weaknesses": [',
+                '      "Optional: Any surprising contradictions in choices (keep it light and fun)"',
+                "    ],",
+                '    "recommendations": [',
+                '      "Fun observations and insights about their result",',
+                '      "What type of person this result suggests they might be"',
+                "    ],",
+                '    "study_plan": "A fun summary of their personality type/quiz result (2-3 sentences)"',
+            ])
+        else:
+            prompt_parts.extend([
+                '    "strengths": [',
+                '      "List 2-4 specific knowledge areas where the student performed well",',
+                '      "Be specific about which concepts they mastered"',
+                "    ],",
+                '    "weaknesses": [',
+                '      "List 2-4 specific knowledge gaps that need attention",',
+                '      "Be specific about which concepts they struggled with"',
+                "    ],",
+                '    "recommendations": [',
+                '      "Provide 3-5 actionable study recommendations",',
+                '      "Suggest specific topics to review, resources, and practice strategies"',
+                "    ],",
+                '    "study_plan": "A practical 2-3 sentence study plan to improve their score"',
+            ])
+
+        prompt_parts.extend([
+            "  },",
+            '  "question_evaluations": [',
+            "    {",
+            '      "question_id": "question_1",',
+            '      "ai_feedback": "' + ('Fun insight about their choice (2-3 sentences)' if is_personality_test else 'Why they got it wrong/right and what to study (2-3 sentences)') + '"',
+            "    },",
+            "    // ... for each question",
+            "  ]",
+            "}",
+            "```",
+            "",
+            f"**CRITICAL:** This is a **{('PERSONALITY/QUIZ TEST' if is_personality_test else 'KNOWLEDGE ASSESSMENT')}**. Adjust your tone and feedback accordingly.",
+            "**Return ONLY the JSON object, no additional text.**",
+            "",
+            "Now provide your evaluation:",
+        ])
+
+        return "\n".join(prompt_parts)
                 "{",
                 '  "overall_evaluation": {',
                 '    "strengths": [',

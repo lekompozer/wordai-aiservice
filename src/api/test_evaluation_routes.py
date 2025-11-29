@@ -160,10 +160,20 @@ async def evaluate_test_result(
         questions = test_doc.get("questions", [])
         user_answers_list = submission.get("user_answers", [])
 
-        # Convert user answers to dict {question_id: answer_key}
-        user_answers_dict = {
-            ans["question_id"]: ans["selected_answer_key"] for ans in user_answers_list
-        }
+        # Convert user answers to dict - handle both MCQ and Essay
+        user_answers_dict = {}
+        for ans in user_answers_list:
+            question_id = ans.get("question_id")
+            question_type = ans.get("question_type", "mcq")
+
+            if question_type == "mcq":
+                # MCQ: use selected_answer_key
+                user_answers_dict[question_id] = ans.get(
+                    "selected_answer_key", "No answer"
+                )
+            elif question_type == "essay":
+                # Essay: use essay_answer
+                user_answers_dict[question_id] = ans.get("essay_answer", "No answer")
 
         score = submission.get("score", 0)
         score_percentage = submission.get("score_percentage", 0)
@@ -212,23 +222,41 @@ async def evaluate_test_result(
 
         for q in questions:
             question_id = q["question_id"]
+            q_type = q.get("question_type", "mcq")
             user_answer = user_answers_dict.get(question_id)
-            correct_answer = q["correct_answer_key"]
-            is_correct = user_answer == correct_answer
 
-            question_evaluations.append(
-                QuestionEvaluation(
-                    question_id=question_id,
-                    question_text=q["question_text"],
-                    user_answer=user_answer,
-                    correct_answer=correct_answer,
-                    is_correct=is_correct,
-                    explanation=q.get("explanation"),
-                    ai_feedback=ai_feedbacks.get(
-                        question_id, "No feedback available for this question"
-                    ),
+            if q_type == "mcq":
+                correct_answer = q.get("correct_answer_key")
+                is_correct = user_answer == correct_answer
+
+                question_evaluations.append(
+                    QuestionEvaluation(
+                        question_id=question_id,
+                        question_text=q["question_text"],
+                        user_answer=user_answer,
+                        correct_answer=correct_answer,
+                        is_correct=is_correct,
+                        explanation=q.get("explanation"),
+                        ai_feedback=ai_feedbacks.get(
+                            question_id, "No feedback available for this question"
+                        ),
+                    )
                 )
-            )
+            elif q_type == "essay":
+                # For essay questions, we don't have correct_answer or is_correct
+                question_evaluations.append(
+                    QuestionEvaluation(
+                        question_id=question_id,
+                        question_text=q["question_text"],
+                        user_answer=user_answer,
+                        correct_answer=None,  # Essays don't have a single correct answer
+                        is_correct=None,  # Not applicable for essays
+                        explanation=q.get("grading_rubric"),
+                        ai_feedback=ai_feedbacks.get(
+                            question_id, "No feedback available for this question"
+                        ),
+                    )
+                )
 
         # Build overall evaluation
         overall_eval_data = evaluation_result.get("overall_evaluation", {})
