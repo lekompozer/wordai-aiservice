@@ -294,6 +294,26 @@ class UserBookManager:
             logger.warning(f"⚠️ Book not found: {book_id}")
             return None
 
+    def touch_book(self, book_id: str) -> bool:
+        """
+        Update the book's updated_at timestamp to current time.
+        Useful when chapters or related content changes.
+
+        Args:
+            book_id: Guide UUID
+
+        Returns:
+            True if updated, False if not found
+        """
+        result = self.books_collection.update_one(
+            {"book_id": book_id}, {"$set": {"updated_at": datetime.utcnow()}}
+        )
+
+        if result.modified_count > 0:
+            logger.debug(f"⏱️ Updated book timestamp: {book_id}")
+            return True
+        return False
+
     def delete_book(self, book_id: str) -> bool:
         """
         Delete book

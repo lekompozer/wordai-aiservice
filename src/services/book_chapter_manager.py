@@ -18,15 +18,22 @@ class GuideBookBookChapterManager:
 
     MAX_DEPTH = 2  # 0, 1, 2 = 3 levels total
 
-    def __init__(self, db):
+    def __init__(self, db, book_manager=None):
         """
         Initialize GuideBookBookChapterManager
 
         Args:
             db: PyMongo Database object (synchronous)
+            book_manager: Optional UserBookManager instance for updating book timestamps
         """
         self.db = db
         self.chapters_collection = db["book_chapters"]
+        self.book_manager = book_manager
+        
+        # Lazy import to avoid circular dependency
+        if book_manager is None:
+            from src.services.book_manager import UserBookManager
+            self.book_manager = UserBookManager(db)
 
     def create_indexes(self):
         """Tạo indexes cho collection guide_chapters"""
@@ -147,6 +154,10 @@ class GuideBookBookChapterManager:
 
         try:
             self.chapters_collection.insert_one(chapter_doc)
+            
+            # Update parent book's updated_at timestamp
+            self.book_manager.touch_book(book_id)
+            
             logger.info(
                 f"✅ Created chapter: {chapter_id} in guide {book_id} (depth: {depth})"
             )
@@ -342,11 +353,19 @@ class GuideBookBookChapterManager:
 
         updates["updated_at"] = datetime.utcnow()
 
+        # Get book_id before update
+        chapter = self.chapters_collection.find_one(
+            {"chapter_id": chapter_id}, {"book_id": 1}
+        )
+
         result = self.chapters_collection.update_one(
             {"chapter_id": chapter_id}, {"$set": updates}
         )
 
         if result.modified_count > 0:
+            # Update parent book timestamp
+            if chapter:
+                self.book_manager.touch_book(chapter["book_id"])
             logger.info(f"✅ Updated chapter: {chapter_id}")
             return True
         return False
@@ -363,6 +382,7 @@ class GuideBookBookChapterManager:
         """
         updated_count = 0
         now = datetime.utcnow()
+        affected_books = set()  # Track which books need timestamp update
 
         for chapter_data in chapters:
             chapter_id = chapter_data["chapter_id"]
@@ -375,6 +395,11 @@ class GuideBookBookChapterManager:
                 logger.warning(f"⚠️ Skipping chapter {chapter_id}: max depth exceeded")
                 continue
 
+            # Get book_id before update
+            chapter = self.chapters_collection.find_one(
+                {"chapter_id": chapter_id}, {"book_id": 1}
+            )
+            
             result = self.chapters_collection.update_one(
                 {"chapter_id": chapter_id},
                 {
@@ -389,6 +414,12 @@ class GuideBookBookChapterManager:
 
             if result.modified_count > 0:
                 updated_count += 1
+                if chapter:
+                    affected_books.add(chapter["book_id"])
+
+        # Update all affected books' timestamps
+        for book_id in affected_books:
+            self.book_manager.touch_book(book_id)
 
         logger.info(f"✅ Reordered {updated_count} chapters")
         return updated_count
@@ -403,9 +434,17 @@ class GuideBookBookChapterManager:
         Returns:
             True if deleted
         """
+        # Get book_id before delete
+        chapter = self.chapters_collection.find_one(
+            {"chapter_id": chapter_id}, {"book_id": 1}
+        )
+        
         result = self.chapters_collection.delete_one({"chapter_id": chapter_id})
 
         if result.deleted_count > 0:
+            # Update parent book timestamp
+            if chapter:
+                self.book_manager.touch_book(chapter["book_id"])
             logger.info(f"🗑️ Deleted chapter: {chapter_id}")
             return True
         return False
@@ -530,6 +569,8 @@ class GuideBookBookChapterManager:
         )
 
         if result:
+            # Update parent book timestamp
+            self.book_manager.touch_book(result["book_id"])
             logger.info(f"✅ Updated chapter: {chapter_id}")
             return result
         else:
@@ -582,6 +623,8 @@ class GuideBookBookChapterManager:
             )
 
             if result.modified_count > 0:
+                # Update parent book timestamp
+                self.book_manager.touch_book(chapter["book_id"])
                 logger.info(
                     f"✅ Updated inline chapter content: {chapter_id} "
                     f"({len(content_html)} chars)"
@@ -620,6 +663,9 @@ class GuideBookBookChapterManager:
                 self.chapters_collection.update_one(
                     {"chapter_id": chapter_id}, {"$set": {"updated_at": now}}
                 )
+                
+                # Update parent book timestamp
+                self.book_manager.touch_book(chapter["book_id"])
                 return True
             return False
 

@@ -502,11 +502,14 @@ async def list_guides(
 
         guides = []
         for book in guides_cursor:
+            book_id = book.get("book_id")
+
+            # Count chapters dynamically from book_chapters collection
+            chapter_count = db.book_chapters.count_documents({"book_id": book_id})
+
             guides.append(
                 {
-                    "book_id": book.get(
-                        "book_id"
-                    ),  # Use actual book_id field, not MongoDB _id
+                    "book_id": book_id,  # Use actual book_id field, not MongoDB _id
                     "title": book.get("title", ""),
                     "slug": book.get("slug", ""),
                     "description": book.get("description"),
@@ -514,9 +517,12 @@ async def list_guides(
                     "is_published": book.get("community_config", {}).get(
                         "is_public", False
                     ),
-                    "chapter_count": book.get("chapter_count", 0),
+                    "chapter_count": chapter_count,  # Count from book_chapters collection
                     "view_count": book.get("view_count", 0),
                     "updated_at": book.get("updated_at"),
+                    "created_at": book.get(
+                        "created_at"
+                    ),  # Add created_at for completeness
                     "last_published_at": book.get("community_config", {}).get(
                         "published_at"
                     ),
