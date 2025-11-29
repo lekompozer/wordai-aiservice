@@ -320,7 +320,7 @@ class ManualTestQuestion(BaseModel):
 
     # Common fields
     explanation: Optional[str] = Field(
-        None, description="Optional explanation or solution", max_length=1000
+        None, description="Optional explanation or solution", max_length=5000
     )
 
     # Essay-specific fields
@@ -441,7 +441,7 @@ class CreateManualTestRequest(BaseModel):
 
     title: str = Field(..., description="Test title", min_length=5, max_length=200)
     description: Optional[str] = Field(
-        None, description="Test description (optional)", max_length=1000
+        None, description="Test description (optional)", max_length=5000
     )
     test_category: str = Field(
         default="academic",
@@ -2018,6 +2018,7 @@ async def get_test(
                 # Basic info
                 "title": test.get("title"),
                 "description": test.get("description"),
+                "test_category": test.get("test_category", "academic"),
                 "is_active": test.get("is_active", True),
                 "status": test.get("status", "ready"),
                 # Test settings
@@ -2034,17 +2035,13 @@ async def get_test(
                 # Creation info
                 "creation_type": test.get("creation_type"),
                 "test_language": test.get("test_language", test.get("language", "vi")),
+                # Diagnostic/Evaluation (from root level, not marketplace_config)
+                "evaluation_criteria": test.get("evaluation_criteria"),
                 # Statistics
                 "total_submissions": total_submissions,
                 # Marketplace (if published)
                 "is_published": is_published,
                 "marketplace_config": marketplace_config if is_published else None,
-                # AI Evaluation
-                "evaluation_criteria": (
-                    marketplace_config.get("evaluation_criteria")
-                    if is_published
-                    else None
-                ),
                 # Timestamps
                 "created_at": test.get("created_at").isoformat(),
                 "updated_at": (
@@ -4721,7 +4718,7 @@ class UpdateTestConfigRequest(BaseModel):
     is_active: Optional[bool] = Field(None, description="Active status")
     title: Optional[str] = Field(None, description="Test title", max_length=200)
     description: Optional[str] = Field(
-        None, description="Test description", max_length=1000
+        None, description="Test description", max_length=5000
     )
     evaluation_criteria: Optional[str] = Field(
         None,
@@ -4762,7 +4759,7 @@ class FullTestEditRequest(BaseModel):
 
     # Basic config
     title: Optional[str] = Field(None, max_length=200)
-    description: Optional[str] = Field(None, max_length=1000)
+    description: Optional[str] = Field(None, max_length=5000)
     is_active: Optional[bool] = None
 
     # Test settings
