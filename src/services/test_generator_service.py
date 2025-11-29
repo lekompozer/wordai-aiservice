@@ -75,6 +75,7 @@ class TestGeneratorService:
         difficulty: Optional[str] = None,
         num_options: int = 4,
         num_correct_answers: int = 1,
+        test_category: str = "academic",
     ) -> str:
         """Build prompt for test generation with language support and flexible answer options"""
 
@@ -102,17 +103,27 @@ class TestGeneratorService:
         ]
         options_example = ",\n           ".join(option_examples)
 
-        # Correct answer instruction
-        if num_correct_answers == 1:
-            correct_answer_instruction = 'The "correct_answer_keys" field must be an array with exactly ONE correct option key.'
-            correct_answer_example = f'"correct_answer_keys": ["{option_keys[0]}"]'
+        # Correct answer instruction (different for diagnostic vs academic)
+        is_diagnostic = test_category == "diagnostic"
+
+        if is_diagnostic:
+            correct_answer_instruction = 'DO NOT include "correct_answer_keys" field. Each option represents a different trait or preference - there is no "correct" answer.'
+            correct_answer_example = ''
+            test_type_instruction = "This is a DIAGNOSTIC/PERSONALITY test. Questions should reveal personality traits, preferences, or tendencies - NOT test knowledge."
         else:
-            correct_answer_instruction = f'The "correct_answer_keys" field must be an array with exactly {num_correct_answers} correct option keys.'
-            correct_answer_example = (
-                f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
-            )
+            if num_correct_answers == 1:
+                correct_answer_instruction = 'The "correct_answer_keys" field must be an array with exactly ONE correct option key.'
+                correct_answer_example = f'"correct_answer_keys": ["{option_keys[0]}"]'
+            else:
+                correct_answer_instruction = f'The "correct_answer_keys" field must be an array with exactly {num_correct_answers} correct option keys.'
+                correct_answer_example = (
+                    f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
+                )
+            test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
+
+**TEST TYPE: {test_type_instruction}**
 
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
@@ -129,11 +140,10 @@ class TestGeneratorService:
          "question_text": "string",
          "options": [
            {options_example}
-         ],
-         {correct_answer_example},
-         "explanation": "string (Explain WHY the correct answer(s) are right, based on the document)."
+         ],{(' ' + correct_answer_example + ',') if correct_answer_example else ''}
+         "explanation": "string ({'Explain what this question reveals about personality/preferences' if is_diagnostic else 'Explain WHY the correct answer(s) are right, based on the document'})."
        }}
-     ]
+     ]{(',\n     "diagnostic_criteria": {{\n       "result_types": [{{"type_id": "string", "title": "string", "description": "string", "traits": ["string"]}}],\n       "mapping_rules": "Detailed rules for mapping answer patterns to result types (e.g., mostly A -> Type 1, mostly B -> Type 2)"\n     }}' if is_diagnostic else '')}
    }}
 6. Generate exactly {num_questions} questions (unless user query specifies otherwise).
 7. The questions must be relevant to the user's query: "{user_query}".
@@ -162,12 +172,13 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         gemini_pdf_bytes: Optional[bytes] = None,
         num_options: int = 4,
         num_correct_answers: int = 1,
-    ) -> list:
+        test_category: str = "academic",
+    ) -> Dict[str, Any]:
         """
         Generate questions using AI (used by background job)
 
         Returns:
-            list of question dictionaries
+            dict with 'questions' (list) and optionally 'diagnostic_criteria' (dict)
         """
         # Build prompt
         prompt = self._build_generation_prompt(
@@ -178,6 +189,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             difficulty=difficulty,
             num_options=num_options,
             num_correct_answers=num_correct_answers,
+            test_category=test_category,
         )
 
         # Generate with retry logic
@@ -275,7 +287,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         "Invalid JSON: 'questions' must be a non-empty array"
                     )
 
-                # Validate each question
+                # Validate each question (skip correct_answer validation for diagnostic)
+                is_diagnostic = test_category == "diagnostic"
+
                 for idx, q in enumerate(questions_list):
                     # Check for required fields (support both old and new format)
                     has_correct_answer_key = "correct_answer_key" in q
@@ -286,35 +300,47 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     ):
                         raise ValueError(f"Question {idx + 1} missing required fields")
 
-                    if not has_correct_answer_key and not has_correct_answer_keys:
-                        raise ValueError(
-                            f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
-                        )
+                    # Skip correct_answer validation for diagnostic tests
+                    if not is_diagnostic:
+                        if not has_correct_answer_key and not has_correct_answer_keys:
+                            raise ValueError(
+                                f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
+                            )
 
                     if len(q["options"]) < 2:
                         raise ValueError(
                             f"Question {idx + 1} must have at least 2 options"
                         )
 
-                    # Normalize to correct_answer_keys array format
-                    if has_correct_answer_key and not has_correct_answer_keys:
-                        q["correct_answer_keys"] = [q["correct_answer_key"]]
-                    elif has_correct_answer_keys:
-                        if isinstance(q["correct_answer_keys"], str):
-                            q["correct_answer_keys"] = [q["correct_answer_keys"]]
+                    # Normalize to correct_answer_keys array format (only for academic)
+                    if not is_diagnostic:
+                        if has_correct_answer_key and not has_correct_answer_keys:
+                            q["correct_answer_keys"] = [q["correct_answer_key"]]
+                        elif has_correct_answer_keys:
+                            if isinstance(q["correct_answer_keys"], str):
+                                q["correct_answer_keys"] = [q["correct_answer_keys"]]
 
-                    # Keep backwards compatibility
-                    q["correct_answer_key"] = (
-                        q["correct_answer_keys"][0]
-                        if q["correct_answer_keys"]
-                        else None
-                    )
+                        # Keep backwards compatibility
+                        q["correct_answer_key"] = (
+                            q["correct_answer_keys"][0]
+                            if q["correct_answer_keys"]
+                            else None
+                        )
 
                     # Add question_id
                     q["question_id"] = str(ObjectId())
 
+                # Extract diagnostic_criteria if present
+                diagnostic_criteria = questions_json.get("diagnostic_criteria")
+
                 logger.info(f"   ✅ Generated {len(questions_list)} valid questions")
-                return questions_list
+                if diagnostic_criteria:
+                    logger.info(f"   ✅ Extracted diagnostic criteria with {len(diagnostic_criteria.get('result_types', []))} result types")
+
+                return {
+                    "questions": questions_list,
+                    "diagnostic_criteria": diagnostic_criteria
+                }
 
             except json.JSONDecodeError as e:
                 logger.error(f"   ❌ JSON parsing error: {e}")

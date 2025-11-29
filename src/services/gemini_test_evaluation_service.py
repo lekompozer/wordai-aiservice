@@ -60,6 +60,7 @@ class GeminiTestEvaluationService:
         is_passed: bool,
         evaluation_criteria: Optional[str] = None,
         language: str = "vi",
+        test_category: str = "academic",
     ) -> str:
         """
         Build comprehensive prompt for test evaluation
@@ -73,6 +74,7 @@ class GeminiTestEvaluationService:
             is_passed: Whether user passed
             evaluation_criteria: Custom evaluation criteria from test creator
             language: Language for AI feedback (default: "vi")
+            test_category: "academic" or "personality"
 
         Returns:
             Complete prompt for Gemini
@@ -88,10 +90,14 @@ class GeminiTestEvaluationService:
         else:
             test_type = "MCQ only"
 
-        # Detect test category based on description and title
+        # Detect test category based on description and title if not provided or default
         # Handle None values for test_description
         test_lower = (test_title + " " + (test_description or "")).lower()
-        is_personality_test = any(
+
+        is_diagnostic_test = test_category == "diagnostic"
+
+        # Fallback detection if category is academic but keywords suggest diagnostic
+        if test_category == "academic" and any(
             keyword in test_lower
             for keyword in [
                 "personality",
@@ -105,8 +111,11 @@ class GeminiTestEvaluationService:
                 "yêu thích",
                 "bạn là ai",
                 "bạn thuộc típ",
+                "diagnostic",
+                "chẩn đoán",
             ]
-        )
+        ):
+            is_diagnostic_test = True
 
         # Build question analysis
         question_analysis = []
@@ -117,7 +126,10 @@ class GeminiTestEvaluationService:
 
             if q_type == "mcq":
                 correct_answer = q.get("correct_answer_key", "N/A")
-                is_correct = user_answer == correct_answer
+                # For diagnostic tests, there is no "correct" answer
+                is_correct = (
+                    user_answer == correct_answer if not is_diagnostic_test else None
+                )
 
                 question_analysis.append(
                     {
@@ -125,7 +137,11 @@ class GeminiTestEvaluationService:
                         "question_type": "mcq",
                         "question_text": q["question_text"],
                         "user_answer": user_answer,
-                        "correct_answer": correct_answer,
+                        "correct_answer": (
+                            correct_answer
+                            if not is_diagnostic_test
+                            else "N/A (Diagnostic)"
+                        ),
                         "is_correct": is_correct,
                         "explanation": q.get("explanation", "No explanation provided"),
                     }
@@ -150,7 +166,7 @@ class GeminiTestEvaluationService:
             f"**Title:** {test_title}",
             f"**Description:** {test_description or 'No description provided'}",
             f"**Test Type:** {test_type}",
-            f"**Test Category:** {'Personality/Quiz Test' if is_personality_test else 'Knowledge Assessment'}",
+            f"**Test Category:** {'Diagnostic/Quiz Test' if is_diagnostic_test else 'Knowledge Assessment'}",
             f"**Total Questions:** {len(questions)}",
             f"**Score:** {score_percentage:.1f}%",
             f"**Result:** {'PASSED ✅' if is_passed else 'FAILED ❌'}",
@@ -200,12 +216,12 @@ class GeminiTestEvaluationService:
                 )
 
         # Add evaluation instructions based on test category
-        if is_personality_test:
+        if is_diagnostic_test:
             evaluation_instructions = [
-                "**EVALUATION APPROACH FOR PERSONALITY/QUIZ TEST:**",
-                "1. This is a personality or fun quiz test - provide lighthearted, objective commentary",
+                "**EVALUATION APPROACH FOR DIAGNOSTIC/QUIZ TEST:**",
+                "1. This is a diagnostic or fun quiz test - provide lighthearted, objective commentary",
                 "2. Focus on analyzing the pattern of choices and what they reveal",
-                "3. Avoid being judgmental - personality tests have no 'wrong' answers",
+                "3. Avoid being judgmental - diagnostic tests have no 'wrong' answers",
                 "4. Provide interesting insights about the user's choices",
                 "5. Keep the tone friendly, engaging, and entertaining",
                 "6. Don't provide 'study plans' or 'improvement recommendations' - this isn't a knowledge test",
@@ -240,21 +256,24 @@ class GeminiTestEvaluationService:
             ]
         )
 
-        if is_personality_test:
+        if is_diagnostic_test:
             prompt_parts.extend(
                 [
-                    '    "strengths": [',
-                    '      "List 2-4 interesting patterns in their choices",',
-                    '      "What their answers reveal about their preferences/personality"',
+                    '    "result_title": "A catchy title for their result (e.g., \'The Creative Visionary\')",',
+                    '    "result_description": "A detailed description of their diagnostic type or result (3-5 sentences)",',
+                    '    "personality_traits": [',
+                    '      "Trait 1",',
+                    '      "Trait 2",',
+                    '      "Trait 3"',
                     "    ],",
-                    '    "weaknesses": [',
-                    '      "Optional: Any surprising contradictions in choices (keep it light and fun)"',
+                    '    "advice": [',
+                    '      "Fun advice item 1",',
+                    '      "Fun advice item 2"',
                     "    ],",
-                    '    "recommendations": [',
-                    '      "Fun observations and insights about their result",',
-                    '      "What type of person this result suggests they might be"',
-                    "    ],",
-                    '    "study_plan": "A fun summary of their personality type/quiz result (2-3 sentences)"',
+                    '    "strengths": [],',
+                    '    "weaknesses": [],',
+                    '    "recommendations": [],',
+                    '    "study_plan": ""',
                 ]
             )
         else:
@@ -272,7 +291,11 @@ class GeminiTestEvaluationService:
                     '      "Provide 3-5 actionable study recommendations",',
                     '      "Suggest specific topics to review, resources, and practice strategies"',
                     "    ],",
-                    '    "study_plan": "A practical 2-3 sentence study plan to improve their score"',
+                    '    "study_plan": "A practical 2-3 sentence study plan to improve their score",',
+                    '    "result_title": null,',
+                    '    "result_description": null,',
+                    '    "personality_traits": [],',
+                    '    "advice": null',
                 ]
             )
 
@@ -285,7 +308,7 @@ class GeminiTestEvaluationService:
                 '      "ai_feedback": "'
                 + (
                     "Fun insight about their choice (2-3 sentences)"
-                    if is_personality_test
+                    if is_diagnostic_test
                     else "Why they got it wrong/right and what to study (2-3 sentences)"
                 )
                 + '"',
@@ -295,7 +318,7 @@ class GeminiTestEvaluationService:
                 "}",
                 "```",
                 "",
-                f"**CRITICAL:** This is a **{('PERSONALITY/QUIZ TEST' if is_personality_test else 'KNOWLEDGE ASSESSMENT')}**. Adjust your tone and feedback accordingly.",
+                f"**CRITICAL:** This is a **{('DIAGNOSTIC/QUIZ TEST' if is_diagnostic_test else 'KNOWLEDGE ASSESSMENT')}**. Adjust your tone and feedback accordingly.",
                 "**Return ONLY the JSON object, no additional text.**",
                 "",
                 "Now provide your evaluation:",
@@ -314,6 +337,7 @@ class GeminiTestEvaluationService:
         is_passed: bool,
         evaluation_criteria: Optional[str] = None,
         language: str = "vi",
+        test_category: str = "academic",
     ) -> Dict[str, Any]:
         """
         Evaluate test result using Gemini AI
@@ -327,6 +351,7 @@ class GeminiTestEvaluationService:
             is_passed: Whether user passed
             evaluation_criteria: Optional evaluation criteria from creator
             language: Language for AI feedback (default: "vi")
+            test_category: "academic" or "personality"
 
         Returns:
             Dict with evaluation results
@@ -342,10 +367,12 @@ class GeminiTestEvaluationService:
                 is_passed=is_passed,
                 evaluation_criteria=evaluation_criteria,
                 language=language,
+                test_category=test_category,
             )
 
             logger.info(f"🤖 Evaluating test result with Gemini AI")
             logger.info(f"   Test: {test_title}")
+            logger.info(f"   Category: {test_category}")
             logger.info(f"   Questions: {len(questions)}")
             logger.info(f"   Score: {score_percentage:.1f}%")
             logger.info(f"   Language: {language}")

@@ -193,6 +193,7 @@ async def evaluate_test_result(
             is_passed=is_passed,
             evaluation_criteria=evaluation_criteria,
             language=request.language,
+            test_category=test_doc.get("test_category", "academic"),
         )
 
         generation_time_ms = int((time.time() - start_time) * 1000)

@@ -287,6 +287,10 @@ class GenerateTestRequest(BaseModel):
         ge=0,
         le=10,
     )
+    test_category: str = Field(
+        default="academic",
+        description="Test category: 'academic' (knowledge-based with correct answers) or 'diagnostic' (personality/assessment without correct answers)",
+    )
 
 
 class ManualTestQuestion(BaseModel):
@@ -310,7 +314,8 @@ class ManualTestQuestion(BaseModel):
         description="List of options with 'key' and 'text' (required for MCQ, not needed for Essay)",
     )
     correct_answer_key: Optional[str] = Field(
-        None, description="Correct answer key (A, B, C, D, etc.) (required for MCQ)"
+        None,
+        description="Correct answer key (A, B, C, D, etc.) (Optional for Diagnostic tests)",
     )
 
     # Common fields
@@ -349,19 +354,21 @@ class ManualTestQuestion(BaseModel):
     def validate_question_fields(self):
         """Validate that required fields are present based on question_type"""
         if self.question_type == "mcq":
-            # MCQ requires options and correct_answer_key
+            # MCQ requires options
             if not self.options or len(self.options) < 2:
                 raise ValueError("MCQ questions must have at least 2 options")
-            if not self.correct_answer_key:
-                raise ValueError("MCQ questions must have correct_answer_key")
-            # Validate correct_answer_key exists in options
-            option_keys = [
-                opt.get("key") if isinstance(opt, dict) else opt for opt in self.options
-            ]
-            if self.correct_answer_key not in option_keys:
-                raise ValueError(
-                    f"correct_answer_key '{self.correct_answer_key}' not found in options"
-                )
+
+            # NOTE: We allow correct_answer_key to be None for Diagnostic/Survey tests
+            # If it is provided, we validate it exists in options
+            if self.correct_answer_key:
+                option_keys = [
+                    opt.get("key") if isinstance(opt, dict) else opt
+                    for opt in self.options
+                ]
+                if self.correct_answer_key not in option_keys:
+                    raise ValueError(
+                        f"correct_answer_key '{self.correct_answer_key}' not found in options"
+                    )
         elif self.question_type == "essay":
             # Essay should NOT have options or correct_answer_key
             if self.options is not None and len(self.options) > 0:
@@ -436,6 +443,10 @@ class CreateManualTestRequest(BaseModel):
     description: Optional[str] = Field(
         None, description="Test description (optional)", max_length=1000
     )
+    test_category: str = Field(
+        default="academic",
+        description="Test category: 'academic' (default) or 'diagnostic'",
+    )
     language: str = Field(
         default="vi",
         description="Language for test content: specify any language (e.g., 'vi', 'en', 'zh', 'fr', 'es', etc.)",
@@ -473,6 +484,24 @@ class CreateManualTestRequest(BaseModel):
         If not provided, weights calculated equally by question count.
         """,
     )
+
+    @field_validator("test_category")
+    @classmethod
+    def validate_test_category(cls, v):
+        if v not in ["academic", "diagnostic"]:
+            raise ValueError("test_category must be 'academic' or 'diagnostic'")
+        return v
+
+    @model_validator(mode="after")
+    def validate_academic_questions(self):
+        """Ensure academic tests have correct answers for MCQs"""
+        if self.test_category == "academic" and self.questions:
+            for i, q in enumerate(self.questions):
+                if q.question_type == "mcq" and not q.correct_answer_key:
+                    raise ValueError(
+                        f"Question {i+1} (MCQ) must have a correct answer for academic tests"
+                    )
+        return self
 
 
 class DuplicateTestRequest(BaseModel):
@@ -686,6 +715,7 @@ async def generate_test_background(
     gemini_pdf_bytes: Optional[bytes],
     num_options: int = 4,
     num_correct_answers: int = 1,
+    test_category: str = "academic",
 ):
     """
     Background job to generate test questions with AI
@@ -720,7 +750,7 @@ async def generate_test_background(
         test_generator = get_test_generator_service()
 
         logger.info(f"🤖 Calling AI to generate {num_questions} questions...")
-        questions = await test_generator._generate_questions_with_ai(
+        result = await test_generator._generate_questions_with_ai(
             content=content,
             user_query=user_query,
             language=language,
@@ -729,7 +759,11 @@ async def generate_test_background(
             gemini_pdf_bytes=gemini_pdf_bytes,
             num_options=num_options,
             num_correct_answers=num_correct_answers,
+            test_category=test_category,
         )
+
+        questions = result["questions"]
+        diagnostic_criteria = result.get("diagnostic_criteria")
 
         # Update progress
         collection.update_one(
@@ -738,17 +772,26 @@ async def generate_test_background(
         )
 
         # Save questions
+        update_fields = {
+            "questions": questions,
+            "status": "ready",
+            "progress_percent": 100,
+            "generated_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        # Add evaluation_criteria for diagnostic tests
+        if test_category == "diagnostic" and diagnostic_criteria:
+            import json
+
+            update_fields["evaluation_criteria"] = json.dumps(
+                diagnostic_criteria, ensure_ascii=False
+            )
+            logger.info(f"✅ Saved diagnostic criteria for test {test_id}")
+
         collection.update_one(
             {"_id": ObjectId(test_id)},
-            {
-                "$set": {
-                    "questions": questions,
-                    "status": "ready",
-                    "progress_percent": 100,
-                    "generated_at": datetime.now(),
-                    "updated_at": datetime.now(),
-                }
-            },
+            {"$set": update_fields},
         )
 
         logger.info(f"✅ Test {test_id}: Generation completed successfully")
@@ -1020,6 +1063,7 @@ async def generate_test(
         test_doc = {
             "title": request.title,
             "description": request.description,
+            "test_category": request.test_category,
             "user_query": request.user_query,
             "test_language": request.language,  # Renamed from 'language' to avoid MongoDB text index conflict
             "source_type": request.source_type,
@@ -1071,6 +1115,7 @@ async def generate_test(
             num_correct_answers=(
                 request.num_correct_answers if request.num_correct_answers > 0 else 1
             ),
+            test_category=request.test_category,
         )
 
         logger.info(f"🚀 Background job queued for test {test_id}")
@@ -1092,6 +1137,186 @@ async def generate_test(
         raise
     except Exception as e:
         logger.error(f"❌ Test generation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== NEW: Generate Test from General Knowledge ==========
+
+
+class GenerateGeneralTestRequest(BaseModel):
+    """Request model for AI-generated test from general knowledge"""
+
+    title: str = Field(..., description="Test title", min_length=5, max_length=200)
+    description: Optional[str] = Field(
+        None,
+        description="Test description for test takers (optional, user-facing)",
+        max_length=1000,
+    )
+    topic: str = Field(
+        ...,
+        description="Topic/Category (e.g., 'Leadership Styles', 'Python Programming', 'MBTI Personality')",
+        min_length=3,
+        max_length=200,
+    )
+    user_query: str = Field(
+        ...,
+        description="Detailed instructions for AI (e.g., 'Focus on modern theories', 'Include practical examples')",
+        min_length=10,
+        max_length=500,
+    )
+    test_category: str = Field(
+        default="academic",
+        description="Test category: 'academic' or 'diagnostic'",
+    )
+    language: str = Field(
+        default="vi",
+        description="Language for test content: specify any language (e.g., 'vi', 'en', 'zh', 'fr', 'es', etc.)",
+    )
+    difficulty: Optional[str] = Field(
+        None,
+        description="Question difficulty level: 'easy', 'medium', 'hard' (optional, AI can infer if not provided)",
+    )
+    num_questions: int = Field(..., description="Number of questions", ge=1, le=100)
+    time_limit_minutes: int = Field(
+        30, description="Time limit in minutes", ge=1, le=300
+    )
+    max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
+    passing_score: int = Field(
+        70, description="Minimum score percentage to pass (0-100)", ge=0, le=100
+    )
+    deadline: Optional[datetime] = Field(
+        None, description="Global deadline for all users (ISO 8601 format)"
+    )
+    show_answers_timing: str = Field(
+        "immediate",
+        description="When to show answers: 'immediate' (show after submit) or 'after_deadline' (show only after deadline passes)",
+    )
+    num_options: int = Field(
+        4,
+        description="Number of answer options per question (e.g., 4 for A-D, 6 for A-F). Set to 0 or 'auto' to let AI decide.",
+        ge=0,
+        le=10,
+    )
+    num_correct_answers: int = Field(
+        1,
+        description="Number of correct answers per question. Set to 0 or 'auto' to let AI decide based on question complexity.",
+        ge=0,
+        le=10,
+    )
+
+
+@router.post("/generate/general")
+async def generate_test_from_general_knowledge(
+    request: GenerateGeneralTestRequest,
+    background_tasks: BackgroundTasks,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Generate a new test from general AI knowledge (no file/document required)
+
+    **NEW Endpoint**: Creates tests based on topic and user query without needing source material.
+
+    **Use Cases:**
+    - Personality/diagnostic tests (e.g., MBTI, leadership style assessment)
+    - General knowledge quizzes (e.g., history, science trivia)
+    - Skill assessments based on common knowledge
+
+    **Flow:**
+    1. Create test record with status='pending' and source_type='general_knowledge'
+    2. Return test_id immediately
+    3. Start background AI generation
+    4. Frontend polls status endpoint
+    """
+    try:
+        logger.info(f"📝 General test generation request from user {user_info['uid']}")
+        logger.info(f"   Topic: {request.topic}")
+        logger.info(f"   Category: {request.test_category}")
+        logger.info(f"   Title: {request.title}")
+
+        # Create test record
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
+
+        test_doc = {
+            "title": request.title,
+            "description": request.description,
+            "test_category": request.test_category,
+            "user_query": request.user_query,
+            "test_language": request.language,
+            "source_type": "general_knowledge",
+            "source_document_id": None,
+            "source_file_r2_key": None,
+            "topic": request.topic,  # NEW: Store topic
+            "creator_id": user_info["uid"],
+            "time_limit_minutes": request.time_limit_minutes,
+            "num_questions": request.num_questions,
+            "max_retries": request.max_retries,
+            "passing_score": request.passing_score,
+            "deadline": request.deadline,
+            "show_answers_timing": request.show_answers_timing,
+            "creation_type": "ai_generated",
+            "status": "pending",
+            "progress_percent": 0,
+            "questions": [],
+            "is_active": True,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        result = collection.insert_one(test_doc)
+        test_id = str(result.inserted_id)
+
+        logger.info(f"✅ Test record created: {test_id} with status='pending'")
+
+        # Build comprehensive content from topic and query
+        content = f"""Topic: {request.topic}
+
+Instructions: {request.user_query}
+
+Generate a comprehensive {request.test_category} test based on general knowledge of this topic."""
+
+        # Start background job
+        background_tasks.add_task(
+            generate_test_background,
+            test_id=test_id,
+            content=content,
+            title=request.title,
+            user_query=request.user_query,
+            language=request.language,
+            difficulty=request.difficulty,
+            num_questions=request.num_questions,
+            creator_id=user_info["uid"],
+            source_type="general_knowledge",
+            source_id=request.topic,
+            time_limit_minutes=request.time_limit_minutes,
+            gemini_pdf_bytes=None,
+            num_options=request.num_options if request.num_options > 0 else 4,
+            num_correct_answers=(
+                request.num_correct_answers if request.num_correct_answers > 0 else 1
+            ),
+            test_category=request.test_category,
+        )
+
+        logger.info(f"🚀 Background job queued for general test {test_id}")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "status": "pending",
+            "title": request.title,
+            "description": request.description,
+            "topic": request.topic,
+            "test_category": request.test_category,
+            "num_questions": request.num_questions,
+            "time_limit_minutes": request.time_limit_minutes,
+            "created_at": test_doc["created_at"].isoformat(),
+            "message": "Test created successfully. AI is generating questions from general knowledge...",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ General test generation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1340,12 +1565,20 @@ async def create_manual_test(
                         )
 
                     # Validate correct_answer_key exists in options
-                    option_keys = [opt["key"] for opt in q.options]
-                    if q.correct_answer_key not in option_keys:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx+1}: correct_answer_key '{q.correct_answer_key}' not found in options",
-                        )
+                    # For diagnostic tests, correct_answer_key is optional
+                    if request.test_category != "diagnostic":
+                        if not q.correct_answer_key:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx+1}: correct_answer_key is required for academic tests",
+                            )
+
+                        option_keys = [opt["key"] for opt in q.options]
+                        if q.correct_answer_key not in option_keys:
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx+1}: correct_answer_key '{q.correct_answer_key}' not found in options",
+                            )
 
                 elif q_type == "essay":
                     # Essay validation
@@ -1431,6 +1664,7 @@ async def create_manual_test(
         test_doc = {
             "title": request.title,
             "description": request.description,
+            "test_category": request.test_category,
             "user_query": None,  # N/A for manual tests
             "test_language": request.language,  # Renamed from 'language' to avoid MongoDB text index conflict
             "source_type": "manual",
@@ -1567,6 +1801,8 @@ async def duplicate_test(
         duplicated_doc = {
             "title": new_title,
             "description": original_test.get("description"),
+            "test_category": original_test.get("test_category", "academic"),
+            "evaluation_criteria": original_test.get("evaluation_criteria"),
             "user_query": original_test.get("user_query"),
             "test_language": original_test.get("test_language")
             or original_test.get(
@@ -1575,6 +1811,7 @@ async def duplicate_test(
             "source_type": original_test.get("source_type", "manual"),
             "source_document_id": original_test.get("source_document_id"),
             "source_file_r2_key": original_test.get("source_file_r2_key"),
+            "topic": original_test.get("topic"),  # For general_knowledge tests
             "creator_id": user_info["uid"],
             "time_limit_minutes": original_test.get("time_limit_minutes", 30),
             "num_questions": len(new_questions),
@@ -1590,6 +1827,14 @@ async def duplicate_test(
             "duplicated_from": test_id,
             "is_duplicate": True,
         }
+
+        # Log warning if diagnostic test missing evaluation_criteria
+        if duplicated_doc["test_category"] == "diagnostic" and not duplicated_doc.get(
+            "evaluation_criteria"
+        ):
+            logger.warning(
+                f"⚠️ Duplicating diagnostic test {test_id} without evaluation_criteria"
+            )
 
         result = collection.insert_one(duplicated_doc)
         new_test_id = str(result.inserted_id)
@@ -2297,6 +2542,8 @@ async def submit_test(
         # ========== NEW: Separate MCQ and Essay questions ==========
         questions = test_doc["questions"]
         total_questions = len(questions)
+        test_category = test_doc.get("test_category", "academic")
+        is_diagnostic = test_category == "diagnostic"
 
         mcq_questions = [q for q in questions if q.get("question_type", "mcq") == "mcq"]
         essay_questions = [
@@ -2309,6 +2556,7 @@ async def submit_test(
         logger.info(
             f"   📊 Test format: {len(mcq_questions)} MCQ, {len(essay_questions)} Essay"
         )
+        logger.info(f"   📊 Test category: {test_category}")
 
         # Create answer maps
         user_answers_map = {}
@@ -2330,35 +2578,58 @@ async def submit_test(
                     ),  # Store media attachments (images, audio, documents)
                 }
 
-        # ========== Auto-grade MCQ questions only ==========
+        # ========== Auto-grade MCQ questions only (or skip for diagnostic) ==========
         mcq_correct_count = 0
         mcq_score = 0
         results = []
 
-        for q in mcq_questions:
-            question_id = q["question_id"]
-            correct_answer = q["correct_answer_key"]
-            user_answer_data = user_answers_map.get(question_id, {})
-            user_answer = user_answer_data.get("selected_answer_key")
+        # For diagnostic tests, skip correct/incorrect scoring
+        if is_diagnostic:
+            # Diagnostic test - no scoring, just save answers
+            for q in mcq_questions:
+                question_id = q["question_id"]
+                user_answer_data = user_answers_map.get(question_id, {})
+                user_answer = user_answer_data.get("selected_answer_key")
 
-            is_correct = user_answer == correct_answer
-            if is_correct:
-                mcq_correct_count += 1
-                mcq_score += q.get("max_points", 1)
+                results.append(
+                    {
+                        "question_id": question_id,
+                        "question_text": q["question_text"],
+                        "question_type": "mcq",
+                        "your_answer": user_answer,
+                        "correct_answer": None,  # No correct answer for diagnostic
+                        "is_correct": None,
+                        "explanation": q.get("explanation"),
+                        "max_points": q.get("max_points", 1),
+                        "points_awarded": 0,  # No points for diagnostic
+                    }
+                )
+        else:
+            # Academic test - normal scoring
+            for q in mcq_questions:
+                question_id = q["question_id"]
+                correct_answer = q["correct_answer_key"]
+                user_answer_data = user_answers_map.get(question_id, {})
+                user_answer = user_answer_data.get("selected_answer_key")
 
-            results.append(
-                {
-                    "question_id": question_id,
-                    "question_text": q["question_text"],
-                    "question_type": "mcq",
-                    "your_answer": user_answer,
-                    "correct_answer": correct_answer,
-                    "is_correct": is_correct,
-                    "explanation": q.get("explanation"),
-                    "max_points": q.get("max_points", 1),
-                    "points_awarded": q.get("max_points", 1) if is_correct else 0,
-                }
-            )
+                is_correct = user_answer == correct_answer
+                if is_correct:
+                    mcq_correct_count += 1
+                    mcq_score += q.get("max_points", 1)
+
+                results.append(
+                    {
+                        "question_id": question_id,
+                        "question_text": q["question_text"],
+                        "question_type": "mcq",
+                        "your_answer": user_answer,
+                        "correct_answer": correct_answer,
+                        "is_correct": is_correct,
+                        "explanation": q.get("explanation"),
+                        "max_points": q.get("max_points", 1),
+                        "points_awarded": q.get("max_points", 1) if is_correct else 0,
+                    }
+                )
 
         # ========== Add essay questions to results (not graded yet) ==========
         for q in essay_questions:
@@ -2408,6 +2679,60 @@ async def submit_test(
             if score_percentage is not None
             else False
         )
+
+        # ========== NEW: Handle diagnostic test - deduct 1 point for AI evaluation ==========
+        has_sufficient_points_for_ai = True
+        if is_diagnostic and not is_owner:
+            users_collection = mongo_service.db["users"]
+            user_doc = users_collection.find_one({"firebase_uid": user_info["uid"]})
+
+            if not user_doc:
+                # Create user profile if doesn't exist
+                user_doc = {
+                    "firebase_uid": user_info["uid"],
+                    "uid": user_info["uid"],
+                    "email": user_info.get("email", ""),
+                    "display_name": user_info.get("name", ""),
+                    "points": 0,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow(),
+                }
+                users_collection.insert_one(user_doc)
+                logger.info(f"   ✅ Created user profile with 0 points")
+
+            current_points = user_doc.get("points", 0)
+            ai_evaluation_cost = 1  # 1 point for AI evaluation
+
+            if current_points < ai_evaluation_cost:
+                has_sufficient_points_for_ai = False
+                logger.warning(
+                    f"   ⚠️ User has {current_points} points, need {ai_evaluation_cost} for AI evaluation"
+                )
+                logger.info(
+                    f"   💾 Saving submission WITHOUT AI evaluation due to insufficient points"
+                )
+            else:
+                # Deduct point for AI evaluation
+                new_points = current_points - ai_evaluation_cost
+                users_collection.update_one(
+                    {"firebase_uid": user_info["uid"]},
+                    {
+                        "$set": {"points": new_points, "updated_at": datetime.utcnow()},
+                        "$push": {
+                            "point_transactions": {
+                                "type": "deduct",
+                                "amount": ai_evaluation_cost,
+                                "reason": f"AI evaluation for diagnostic test: {test_doc.get('title')}",
+                                "test_id": test_id,
+                                "timestamp": datetime.utcnow(),
+                                "balance_after": new_points,
+                            }
+                        },
+                    },
+                )
+                logger.info(
+                    f"   💸 Deducted {ai_evaluation_cost} point for AI evaluation (balance: {new_points})"
+                )
 
         # ========== Validate time limit ==========
         # Get session to check started_at time
@@ -2494,6 +2819,7 @@ async def submit_test(
         # Save submission
         submission_doc = {
             "test_id": test_id,
+            "test_category": test_category,  # NEW: Store test category
             "user_id": user_info["uid"],
             "user_answers": request.user_answers,
             "grading_status": grading_status,  # NEW: auto_graded or pending_grading
@@ -2510,6 +2836,12 @@ async def submit_test(
             "is_passed": is_passed,
             "essay_grades": [],  # Will be populated later by grading endpoint
             "submitted_at": datetime.now(),
+            # NEW: Diagnostic test fields
+            "is_diagnostic_test": is_diagnostic,
+            "has_ai_evaluation": is_diagnostic and has_sufficient_points_for_ai,
+            "evaluation_criteria": (
+                test_doc.get("evaluation_criteria") if is_diagnostic else None
+            ),
         }
 
         result = submissions_collection.insert_one(submission_doc)
@@ -2682,12 +3014,23 @@ async def submit_test(
                 "is_passed": is_passed,
                 "results": results,
                 "essay_grades": None if has_essay else [],  # Null until graded
+                # NEW: Diagnostic test fields
+                "is_diagnostic_test": is_diagnostic,
+                "has_ai_evaluation": is_diagnostic and has_sufficient_points_for_ai,
             }
 
             # Add message if pending grading
             if grading_status == "pending_grading":
                 response["message"] = (
                     "Bài thi chứa câu hỏi tự luận và đang chờ được chấm điểm."
+                )
+            elif is_diagnostic and not has_sufficient_points_for_ai:
+                response["message"] = (
+                    "Không đủ điểm để đánh giá AI. Câu trả lời đã được lưu nhưng bạn cần nạp thêm điểm để nhận kết quả phân tích từ AI."
+                )
+            elif is_diagnostic:
+                response["message"] = (
+                    "Đã lưu câu trả lời. AI đang phân tích kết quả của bạn. Vui lòng đợi trong giây lát để xem kết quả chi tiết."
                 )
         else:
             # Limited response - hide detailed results until deadline
@@ -2931,6 +3274,9 @@ async def get_my_tests(
                 "description": test.get("description"),  # Optional field
                 "num_questions": len(test.get("questions", [])),
                 "time_limit_minutes": test["time_limit_minutes"],
+                "test_category": test.get(
+                    "test_category", "academic"
+                ),  # Add diagnostic/academic indicator
                 "status": test.get(
                     "status", "ready"
                 ),  # pending, generating, ready, failed, draft
@@ -3034,6 +3380,8 @@ async def get_my_submissions(
                             "score": sub.get("score"),
                             "score_percentage": sub.get("score_percentage"),
                             "is_passed": sub.get("is_passed", False),
+                            "is_diagnostic_test": sub.get("is_diagnostic_test", False),
+                            "has_ai_evaluation": sub.get("has_ai_evaluation", True),
                             "grading_status": sub.get("grading_status", "auto_graded"),
                             "submitted_at": sub["submitted_at"].isoformat(),
                         }
@@ -3044,6 +3392,7 @@ async def get_my_submissions(
                         "test_id": test_id,
                         "test_title": test_doc["title"],
                         "test_description": test_doc.get("description"),
+                        "test_category": test_doc.get("test_category", "academic"),
                         "test_creator_id": test_doc.get("creator_id"),
                         "is_owner": test_doc.get("creator_id") == user_info["uid"],
                         "total_attempts": len(test_subs),
@@ -3221,6 +3570,9 @@ async def get_submission_detail(
             response = {
                 "submission_id": submission_id,
                 "test_title": test_doc["title"],
+                "test_category": test_doc.get("test_category", "academic"),
+                "is_diagnostic_test": submission.get("is_diagnostic_test", False),
+                "has_ai_evaluation": submission.get("has_ai_evaluation", True),
                 "grading_status": grading_status,  # NEW
                 "score": submission.get("score"),  # None if pending grading
                 "score_percentage": submission.get(
@@ -3241,6 +3593,14 @@ async def get_submission_detail(
             if grading_status == "pending_grading":
                 response["message"] = (
                     "Bài thi chứa câu hỏi tự luận và đang chờ được chấm điểm."
+                )
+
+            # Add message if diagnostic test without AI evaluation
+            if submission.get("is_diagnostic_test") and not submission.get(
+                "has_ai_evaluation"
+            ):
+                response["message"] = (
+                    "Câu trả lời của bạn đã được lưu nhưng chưa có đánh giá AI do không đủ điểm."
                 )
         else:
             # Limited response - only basic info, NO detailed results
@@ -4603,47 +4963,54 @@ async def update_test_questions(
                         detail=f"Question {idx + 1}: MCQ requires at least 2 options",
                     )
 
+                # Check if test is diagnostic
+                test_category = test_doc.get("test_category", "academic")
+                is_diagnostic = test_category == "diagnostic"
+
                 # Support both correct_answer_key (string) and correct_answer_keys (array)
                 has_correct_answer_key = q.get("correct_answer_key")
                 has_correct_answer_keys = q.get("correct_answer_keys")
 
-                if not has_correct_answer_key and not has_correct_answer_keys:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Question {idx + 1}: MCQ requires correct_answer_key or correct_answer_keys",
-                    )
+                # Skip correct_answer validation for diagnostic tests
+                if not is_diagnostic:
+                    if not has_correct_answer_key and not has_correct_answer_keys:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: MCQ requires correct_answer_key or correct_answer_keys",
+                        )
 
                 # Get option keys for validation
                 option_keys = [opt.get("key") for opt in q["options"]]
 
-                # Normalize to correct_answer_keys array format
-                if has_correct_answer_keys:
-                    # Ensure it's an array
-                    if isinstance(q["correct_answer_keys"], str):
-                        q["correct_answer_keys"] = [q["correct_answer_keys"]]
+                # Normalize to correct_answer_keys array format (only for academic tests)
+                if not is_diagnostic:
+                    if has_correct_answer_keys:
+                        # Ensure it's an array
+                        if isinstance(q["correct_answer_keys"], str):
+                            q["correct_answer_keys"] = [q["correct_answer_keys"]]
 
-                    # Validate all correct answers exist in options
-                    for ans in q["correct_answer_keys"]:
-                        if ans not in option_keys:
+                        # Validate all correct answers exist in options
+                        for ans in q["correct_answer_keys"]:
+                            if ans not in option_keys:
+                                raise HTTPException(
+                                    status_code=400,
+                                    detail=f"Question {idx + 1}: correct answer '{ans}' not found in options {option_keys}",
+                                )
+
+                        # Also set correct_answer_key for backwards compatibility (first correct answer)
+                        q["correct_answer_key"] = q["correct_answer_keys"][0]
+
+                    elif has_correct_answer_key:
+                        # Old format: single correct answer
+                        if q["correct_answer_key"] not in option_keys:
                             raise HTTPException(
                                 status_code=400,
-                                detail=f"Question {idx + 1}: correct answer '{ans}' not found in options {option_keys}",
+                                detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
+                                f"not found in options {option_keys}",
                             )
 
-                    # Also set correct_answer_key for backwards compatibility (first correct answer)
-                    q["correct_answer_key"] = q["correct_answer_keys"][0]
-
-                elif has_correct_answer_key:
-                    # Old format: single correct answer
-                    if q["correct_answer_key"] not in option_keys:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
-                            f"not found in options {option_keys}",
-                        )
-
-                    # Convert to new format
-                    q["correct_answer_keys"] = [q["correct_answer_key"]]
+                        # Convert to new format
+                        q["correct_answer_keys"] = [q["correct_answer_key"]]
 
             elif q_type == "essay":
                 # Essay validation

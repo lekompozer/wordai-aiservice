@@ -47,19 +47,20 @@ class QuestionEvaluation(BaseModel):
 class OverallEvaluation(BaseModel):
     """Overall AI evaluation of test performance"""
 
-    strengths: List[str] = Field(
-        ...,
-        description="Areas where user performed well",
+    # Academic Fields (for Knowledge Tests)
+    strengths: Optional[List[str]] = Field(
+        default=None,
+        description="Areas where user performed well (Academic)",
         examples=[["Good understanding of basic concepts", "Fast response time"]],
     )
-    weaknesses: List[str] = Field(
-        ...,
-        description="Areas that need improvement",
+    weaknesses: Optional[List[str]] = Field(
+        default=None,
+        description="Areas that need improvement (Academic)",
         examples=[["Struggled with advanced topics", "Careless mistakes"]],
     )
-    recommendations: List[str] = Field(
-        ...,
-        description="Specific recommendations for improvement",
+    recommendations: Optional[List[str]] = Field(
+        default=None,
+        description="Specific recommendations for improvement (Academic)",
         examples=[
             [
                 "Review chapter 3 on algorithms",
@@ -69,7 +70,25 @@ class OverallEvaluation(BaseModel):
     )
     study_plan: Optional[str] = Field(
         None,
-        description="Suggested study plan based on performance",
+        description="Suggested study plan based on performance (Academic)",
+    )
+
+    # Personality Fields (for Personality/Diagnostic Tests)
+    result_title: Optional[str] = Field(
+        None,
+        description="Title of the personality result (e.g., 'The Commander', 'Introvert')",
+    )
+    result_description: Optional[str] = Field(
+        None,
+        description="Detailed description of the personality type or result",
+    )
+    personality_traits: Optional[List[str]] = Field(
+        None,
+        description="Key personality traits identified",
+    )
+    advice: Optional[List[str]] = Field(
+        None,
+        description="Advice or insights for this personality type",
     )
 
 
