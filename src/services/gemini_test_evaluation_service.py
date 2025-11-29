@@ -158,7 +158,11 @@ class GeminiTestEvaluationService:
                 )
 
         # Build prompt based on test type
-        score_display = f"{score_percentage:.1f}%" if score_percentage is not None else "Pending (essay grading in progress)"
+        score_display = (
+            f"{score_percentage:.1f}%"
+            if score_percentage is not None
+            else "Pending (essay grading in progress)"
+        )
         prompt_parts = [
             "You are an expert educational assessment evaluator. Your task is to provide detailed, constructive feedback on a student's test performance.",
             f"**IMPORTANT:** You MUST provide your response in the following language: **{language}**.",
