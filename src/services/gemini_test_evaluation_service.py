@@ -212,10 +212,11 @@ class GeminiTestEvaluationService:
             elif qa.get("question_type") == "essay":
                 prompt_parts.extend(
                     [
-                        f"### Question {idx} (Essay)",
+                        f"### Question {idx} (Essay) ⏳ PENDING OFFICIAL GRADING",
                         f"**Question:** {qa['question_text']}",
                         f"**User's Answer:** {qa['user_answer']}",
                         f"**Grading Rubric:** {qa['grading_rubric']}",
+                        f"**Note:** This essay answer is awaiting official scoring by the test owner. Provide informal feedback on the response quality, relevance, and content.",
                         "",
                     ]
                 )
@@ -241,6 +242,7 @@ class GeminiTestEvaluationService:
                 "4. Create a practical study plan to improve scores on similar tests",
                 "5. Be constructive and encouraging",
                 "6. For correct answers, suggest deeper understanding of concepts",
+                "7. **For essay questions pending grading:** Provide informal feedback on content quality, relevance, structure, and areas to improve. Note that official scoring will be done by the test owner.",
             ]
 
         prompt_parts.extend(
