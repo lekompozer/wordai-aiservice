@@ -102,6 +102,75 @@ Hệ thống hỗ trợ 2 loại hình kiểm tra chính:
 
 ---
 
+### 4.1.1. GET /api/tests/{test_id} - Get Test Details (Owner View)
+
+**Endpoint**: `GET /api/v1/tests/{test_id}`
+
+**Purpose**: Lấy chi tiết test (owner view trả về đầy đủ thông tin bao gồm evaluation_criteria).
+
+#### Response (Success - 200 OK) - Owner View
+```json
+{
+  "success": true,
+  "test_id": "string",
+  "view_type": "owner",
+  "is_owner": true,
+  "access_type": "owner",
+  "title": "string",
+  "description": "string",
+  "test_category": "academic | diagnostic",
+  "is_active": "boolean",
+  "status": "ready | pending | generating | failed",
+  "max_retries": "number",
+  "time_limit_minutes": "number",
+  "passing_score": "number",
+  "deadline": "ISO datetime string (nullable)",
+  "show_answers_timing": "immediate | after_deadline",
+  "num_questions": "number",
+  "questions": [
+    {
+      "question_id": "string",
+      "question_text": "string",
+      "question_type": "mcq | essay",
+      "options": ["array (for MCQ)"],
+      "correct_answer_keys": ["array (for academic MCQ)"],
+      "explanation": "string"
+    }
+  ],
+  "creation_type": "manual | ai_generated",
+  "test_language": "vi | en",
+  "evaluation_criteria": "string (JSON string, only for diagnostic tests) - Contains result_types and mapping_rules for AI evaluation",
+  "total_submissions": "number",
+  "is_published": "boolean",
+  "marketplace_config": "object (if published)",
+  "created_at": "ISO datetime string",
+  "updated_at": "ISO datetime string"
+}
+```
+
+#### Evaluation Criteria Structure (for Diagnostic Tests)
+Trường `evaluation_criteria` là JSON string chứa:
+```json
+{
+  "result_types": [
+    {
+      "type_id": "string (e.g., 'high_iq', 'medium_iq', 'genius')",
+      "title": "string (e.g., 'Thiên tài', 'Trí tuệ xuất sắc')",
+      "description": "string (Mô tả chi tiết về loại kết quả này)",
+      "traits": ["array of strings (Các đặc điểm của loại này)"]
+    }
+  ],
+  "mapping_rules": "string (Chi tiết cách ánh xạ từ câu trả lời sang result_type, ví dụ: 'Nếu trả lời đúng 18-20/20 câu -> genius, 15-17/20 -> high_iq, ...')"
+}
+```
+
+**Behavior Notes:**
+- `evaluation_criteria` chỉ có giá trị với diagnostic tests
+- AI sử dụng evaluation_criteria này để phân loại user khi submit test
+- Owner có thể thấy tiêu chí này để hiểu cách AI sẽ đánh giá
+
+---
+
 ### 4.2. POST /api/tests/generate/general - Generate Test from General Knowledge
 
 **Endpoint**: `POST /api/v1/tests/generate/general`
