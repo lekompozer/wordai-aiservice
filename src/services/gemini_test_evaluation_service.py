@@ -59,6 +59,7 @@ class GeminiTestEvaluationService:
         score_percentage: float,
         is_passed: bool,
         evaluation_criteria: Optional[str] = None,
+        language: str = "vi",
     ) -> str:
         """
         Build comprehensive prompt for test evaluation
@@ -71,6 +72,7 @@ class GeminiTestEvaluationService:
             score_percentage: User's score percentage
             is_passed: Whether user passed
             evaluation_criteria: Custom evaluation criteria from test creator
+            language: Language for AI feedback (default: "vi")
 
         Returns:
             Complete prompt for Gemini
@@ -141,6 +143,7 @@ class GeminiTestEvaluationService:
         # Build prompt based on test type
         prompt_parts = [
             "You are an expert educational assessment evaluator. Your task is to provide detailed, constructive feedback on a student's test performance.",
+            f"**IMPORTANT:** You MUST provide your response in the following language: **{language}**.",
             "",
             "## TEST INFORMATION",
             f"**Title:** {test_title}",
@@ -309,6 +312,7 @@ class GeminiTestEvaluationService:
         score_percentage: float,
         is_passed: bool,
         evaluation_criteria: Optional[str] = None,
+        language: str = "vi",
     ) -> Dict[str, Any]:
         """
         Evaluate test result using Gemini AI
@@ -321,6 +325,7 @@ class GeminiTestEvaluationService:
             score_percentage: User's score percentage
             is_passed: Whether user passed
             evaluation_criteria: Optional evaluation criteria from creator
+            language: Language for AI feedback (default: "vi")
 
         Returns:
             Dict with evaluation results
@@ -335,12 +340,14 @@ class GeminiTestEvaluationService:
                 score_percentage=score_percentage,
                 is_passed=is_passed,
                 evaluation_criteria=evaluation_criteria,
+                language=language,
             )
 
             logger.info(f"🤖 Evaluating test result with Gemini AI")
             logger.info(f"   Test: {test_title}")
             logger.info(f"   Questions: {len(questions)}")
             logger.info(f"   Score: {score_percentage:.1f}%")
+            logger.info(f"   Language: {language}")
 
             # Call Gemini API
             response = self.client.models.generate_content(

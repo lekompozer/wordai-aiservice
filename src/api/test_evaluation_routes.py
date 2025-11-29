@@ -192,6 +192,7 @@ async def evaluate_test_result(
             score_percentage=score_percentage,
             is_passed=is_passed,
             evaluation_criteria=evaluation_criteria,
+            language=request.language,
         )
 
         generation_time_ms = int((time.time() - start_time) * 1000)

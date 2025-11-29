@@ -14,6 +14,11 @@ class EvaluateTestResultRequest(BaseModel):
         description="Submission ID to evaluate",
         examples=["507f1f77bcf86cd799439011"],
     )
+    language: str = Field(
+        default="vi",
+        description="Language for AI feedback (e.g., 'vi', 'en', 'fr')",
+        examples=["vi"],
+    )
 
 
 class QuestionEvaluation(BaseModel):
