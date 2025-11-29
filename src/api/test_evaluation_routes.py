@@ -176,7 +176,7 @@ async def evaluate_test_result(
                 user_answers_dict[question_id] = ans.get("essay_answer", "No answer")
 
         score = submission.get("score", 0)
-        score_percentage = submission.get("score_percentage", 0)
+        score_percentage = submission.get("score_percentage") or 0  # Handle None for pending grading
         total_questions = submission.get("total_questions", len(questions))
         correct_answers = submission.get("correct_answers") or 0  # Handle None case
         is_passed = submission.get("is_passed", False)
