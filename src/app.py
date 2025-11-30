@@ -148,6 +148,9 @@ from src.api.secret_images_routes import router as secret_images_router
 # ✅ ADDED: Online Test API for test generation and taking (Phase 1-3)
 from src.api.online_test_routes import router as online_test_router
 
+# ✅ ADDED: Test Statistics API for analytics and reporting
+from src.api.test_statistics_routes import router as test_statistics_router
+
 # ✅ ADDED: Test Sharing API for Online Test Phase 4 (Sharing & Collaboration)
 from src.api.test_sharing_routes import router as test_sharing_router
 
@@ -780,6 +783,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Online Test API - Test generation and taking (Phase 1-3)
     app.include_router(online_test_router, tags=["Online Tests - Phase 1-3"])
+
+    # ✅ ADDED: Test Statistics API - Analytics and reporting for tests and users
+    app.include_router(test_statistics_router, tags=["Online Tests - Statistics"])
 
     # ✅ ADDED: WebSocket support for Online Test Phase 2 (Real-time auto-save)
     websocket_service = get_websocket_service()

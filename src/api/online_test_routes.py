@@ -2813,11 +2813,24 @@ async def submit_test(
             + 1
         )
 
+        # Get user info for statistics
+        users_collection = mongo_service.db["users"]
+        user_doc = users_collection.find_one({"firebase_uid": user_info["uid"]})
+        user_name = None
+        if user_doc:
+            user_name = (
+                user_doc.get("display_name")
+                or user_doc.get("name")
+                or user_doc.get("email")
+            )
+
         # Save submission
         submission_doc = {
             "test_id": test_id,
+            "test_title": test_doc.get("title"),  # For statistics
             "test_category": test_category,  # NEW: Store test category
             "user_id": user_info["uid"],
+            "user_name": user_name,  # For statistics
             "user_answers": request.user_answers,
             "grading_status": grading_status,  # NEW: auto_graded or pending_grading
             "score": final_score,  # None if has essay, score/10 if MCQ only
@@ -3485,7 +3498,9 @@ async def get_submission_detail(
             if q_type == "mcq":
                 # MCQ result
                 user_answer = user_answer_data.get("selected_answer_key")
-                correct_answer = q.get("correct_answer_key")  # May be None for diagnostic tests
+                correct_answer = q.get(
+                    "correct_answer_key"
+                )  # May be None for diagnostic tests
                 is_correct = user_answer == correct_answer if correct_answer else None
 
                 result_data = {
@@ -3502,7 +3517,9 @@ async def get_submission_detail(
                 if correct_answer is not None:
                     result_data["correct_answer"] = correct_answer
                     result_data["is_correct"] = is_correct
-                    result_data["points_awarded"] = q.get("max_points", 1) if is_correct else 0
+                    result_data["points_awarded"] = (
+                        q.get("max_points", 1) if is_correct else 0
+                    )
                 else:
                     # Diagnostic test - no correct/incorrect concept
                     result_data["correct_answer"] = None
