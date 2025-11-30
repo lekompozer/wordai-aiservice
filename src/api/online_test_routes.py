@@ -3497,7 +3497,7 @@ async def get_submission_detail(
                     "explanation": q.get("explanation"),
                     "max_points": q.get("max_points", 1),
                 }
-                
+
                 # Only include correct_answer and is_correct for academic tests
                 if correct_answer is not None:
                     result_data["correct_answer"] = correct_answer
@@ -5030,20 +5030,21 @@ async def update_test_questions(
                         detail=f"Question {idx + 1}: Essay questions cannot have options or correct answers",
                     )
 
-                max_points = q.get("max_points", 1)
-                if (
-                    not isinstance(max_points, (int, float))
-                    or max_points < 1
-                    or max_points > 100
-                ):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Question {idx + 1}: max_points must be between 1 and 100",
-                    )
+            # Validate and set max_points for all question types
+            max_points = q.get("max_points", 1)
+            if (
+                not isinstance(max_points, (int, float))
+                or max_points < 1
+                or max_points > 100
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Question {idx + 1}: max_points must be between 1 and 100",
+                )
 
-                # Set default max_points if not provided
-                if "max_points" not in q:
-                    q["max_points"] = 1
+            # Set default max_points if not provided
+            if "max_points" not in q:
+                q["max_points"] = 1
 
             # Validate media fields if present
             if q.get("media_type"):
