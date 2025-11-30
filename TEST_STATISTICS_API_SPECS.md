@@ -301,3 +301,51 @@ Returns top 10 users who have submitted at least 5 tests.
 - **v1.0** (2025-11-30) - Initial release
   - Added `/popular` endpoint
   - Added `/active-users` endpoint
+
+---
+
+## Notes for Frontend Integration
+
+### Question-Level Feedback in Diagnostic Tests
+
+When displaying diagnostic test results with AI evaluation, the response includes `question_evaluations` array with feedback for each question:
+
+**Response Structure:**
+```json
+{
+  "overall_evaluation": {
+    "overall_rating": 4.0,
+    "result_title": "Người Tiên Phong Độc Lập",
+    "result_description": "...",
+    "personality_traits": [...],
+    "advice": [...]
+  },
+  "question_evaluations": [
+    {
+      "question_id": "67890abc123def456",
+      "ai_feedback": "Lựa chọn này cho thấy bạn có xu hướng..."
+    }
+  ]
+}
+```
+
+**Implementation Steps:**
+1. Map `question_evaluations` by `question_id`
+2. Display `ai_feedback` for each question in the results view
+3. Handle cases where `question_evaluations` is empty or missing `question_id`
+4. Show "No feedback available" as fallback
+
+**Example Code Pattern:**
+```javascript
+// Create a map for quick lookup
+const feedbackMap = {};
+data.question_evaluations.forEach(qe => {
+  feedbackMap[qe.question_id] = qe.ai_feedback;
+});
+
+// Display for each question
+questions.forEach(question => {
+  const feedback = feedbackMap[question.id] || "Không có nhận xét";
+  // Render feedback
+});
+```

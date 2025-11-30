@@ -6703,7 +6703,8 @@ async def unpublish_test_from_marketplace(
         # Check ownership
         if test_doc.get("creator_id") != user_id:
             raise HTTPException(
-                status_code=403, detail="Only test creator can unpublish from marketplace"
+                status_code=403,
+                detail="Only test creator can unpublish from marketplace",
             )
 
         # Check if currently published

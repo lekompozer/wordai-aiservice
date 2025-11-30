@@ -29,12 +29,12 @@ def get_mongodb_service():
         )
         _mongo_client = MongoClient(mongo_uri)
     db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-    
+
     # Return object with .db attribute for compatibility
     class MongoService:
         def __init__(self, client, db_name):
             self.db = client[db_name]
-    
+
     return MongoService(_mongo_client, db_name)
 
 
