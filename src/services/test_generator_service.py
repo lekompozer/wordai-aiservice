@@ -110,6 +110,8 @@ class TestGeneratorService:
             correct_answer_instruction = 'DO NOT include "correct_answer_keys" field. Each option represents a different trait or preference - there is no "correct" answer.'
             correct_answer_example = ""
             test_type_instruction = "This is a DIAGNOSTIC/PERSONALITY test. Questions should reveal personality traits, preferences, or tendencies - NOT test knowledge."
+            points_instruction = ""
+            points_example = ""
         else:
             if num_correct_answers == 1:
                 correct_answer_instruction = 'The "correct_answer_keys" field must be an array with exactly ONE correct option key.'
@@ -120,6 +122,8 @@ class TestGeneratorService:
                     f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
                 )
             test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
+            points_instruction = "Assign a 'max_points' value (integer) to each question based on difficulty (e.g., 1 for easy, 2 for medium, 3 for hard)."
+            points_example = ',\n         "max_points": 1'
 
         # Escape sequence instructions (can't use backslash in f-string)
         escape_instructions = """2. **IMPORTANT: Properly escape all special characters in JSON strings:**
@@ -154,7 +158,7 @@ class TestGeneratorService:
          "options": [
            {options_example}
          ],{(' ' + correct_answer_example + ',') if correct_answer_example else ''}
-         "explanation": "string ({'Explain what this question reveals about personality/preferences' if is_diagnostic else 'Explain WHY the correct answer(s) are right, based on the document'})."
+         "explanation": "string ({'Explain what this question reveals about personality/preferences' if is_diagnostic else 'Explain WHY the correct answer(s) are right, based on the document'})."{points_example}
        }}
      ]{diagnostic_criteria_json}
    }}
@@ -164,7 +168,8 @@ class TestGeneratorService:
 9. Each question should have {num_options} options by default ({", ".join(option_keys)}), but adjust if user query indicates otherwise.
 10. {correct_answer_instruction} However, if the question complexity requires it or user query specifies, you may adjust.
 11. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
-12. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
+12. {points_instruction}
+13. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
 
 **DOCUMENT CONTENT:**
 ---
@@ -321,6 +326,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                             "items": {"type": "string"},
                                         },
                                         "explanation": {"type": "string"},
+                                        "max_points": {"type": "integer"},
                                     },
                                     "required": [
                                         "question_text",

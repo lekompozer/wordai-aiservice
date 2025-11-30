@@ -265,10 +265,16 @@ async def evaluate_test_result(
         # Build overall evaluation
         overall_eval_data = evaluation_result.get("overall_evaluation", {})
         overall_evaluation = OverallEvaluation(
+            overall_rating=overall_eval_data.get("overall_rating"),
             strengths=overall_eval_data.get("strengths", []),
             weaknesses=overall_eval_data.get("weaknesses", []),
             recommendations=overall_eval_data.get("recommendations", []),
             study_plan=overall_eval_data.get("study_plan"),
+            # Diagnostic fields
+            result_title=overall_eval_data.get("result_title"),
+            result_description=overall_eval_data.get("result_description"),
+            personality_traits=overall_eval_data.get("personality_traits"),
+            advice=overall_eval_data.get("advice"),
         )
 
         return EvaluateTestResultResponse(

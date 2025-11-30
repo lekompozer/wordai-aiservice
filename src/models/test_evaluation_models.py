@@ -47,6 +47,13 @@ class QuestionEvaluation(BaseModel):
 class OverallEvaluation(BaseModel):
     """Overall AI evaluation of test performance"""
 
+    overall_rating: Optional[float] = Field(
+        None,
+        description="Overall rating score (0-10) based on performance or result type",
+        ge=0,
+        le=10,
+    )
+
     # Academic Fields (for Knowledge Tests)
     strengths: Optional[List[str]] = Field(
         default=None,

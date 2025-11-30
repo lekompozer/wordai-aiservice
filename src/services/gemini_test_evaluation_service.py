@@ -232,6 +232,7 @@ class GeminiTestEvaluationService:
                 "5. Keep the tone friendly, engaging, and entertaining",
                 "6. Don't provide 'study plans' or 'improvement recommendations' - this isn't a knowledge test",
                 "7. Instead, provide fun observations and what their results might say about them",
+                "8. **Calculate an 'overall_rating' (0-10)** representing how 'strong' or 'distinct' their personality/result type is.",
             ]
         else:
             evaluation_instructions = [
@@ -243,6 +244,7 @@ class GeminiTestEvaluationService:
                 "5. Be constructive and encouraging",
                 "6. For correct answers, suggest deeper understanding of concepts",
                 "7. **For essay questions pending grading:** Provide informal feedback on content quality, relevance, structure, and areas to improve. Note that official scoring will be done by the test owner.",
+                "8. **Calculate an 'overall_rating' (0-10)** based on their performance, question difficulty, and quality of answers.",
             ]
 
         prompt_parts.extend(
@@ -260,6 +262,7 @@ class GeminiTestEvaluationService:
                 "```json",
                 "{",
                 '  "overall_evaluation": {',
+                '    "overall_rating": 0.0, // Score from 0-10 (float)',
             ]
         )
 
