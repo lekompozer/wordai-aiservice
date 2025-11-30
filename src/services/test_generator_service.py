@@ -336,7 +336,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
                 # Call Gemini with JSON Mode and response schema
                 response = self.client.models.generate_content(
-                    model="gemini-2.5-pro",
+                    model="gemini-3-pro-preview",
                     contents=contents,
                     config=types.GenerateContentConfig(
                         max_output_tokens=8000,
@@ -739,7 +739,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
                     # Call Gemini with JSON Mode
                     response = self.client.models.generate_content(
-                        model="gemini-2.5-pro",
+                        model="gemini-3-pro-preview",
                         contents=contents,
                         config=types.GenerateContentConfig(
                             max_output_tokens=8000,

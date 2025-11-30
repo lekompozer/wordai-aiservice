@@ -201,12 +201,6 @@ async def evaluate_test_result(
         generation_time_ms = int((time.time() - start_time) * 1000)
 
         logger.info(f"✅ AI evaluation completed in {generation_time_ms}ms")
-        
-        # Debug: Log evaluation result structure
-        logger.info(f"   📋 Evaluation result keys: {list(evaluation_result.keys())}")
-        if "question_evaluations" in evaluation_result:
-            qe_sample = evaluation_result["question_evaluations"][:2] if len(evaluation_result["question_evaluations"]) > 0 else []
-            logger.info(f"   📋 Sample question_evaluations (first 2): {qe_sample}")
 
         # ===== STEP 8: Deduct points after success =====
         try:
@@ -225,16 +219,10 @@ async def evaluate_test_result(
         # ===== STEP 9: Build response =====
         # Map question evaluations to include full question data
         question_evaluations = []
-        
-        # Safely parse question evaluations with error handling
-        ai_feedbacks = {}
-        for qe in evaluation_result.get("question_evaluations", []):
-            if isinstance(qe, dict) and "question_id" in qe and "ai_feedback" in qe:
-                ai_feedbacks[qe["question_id"]] = qe["ai_feedback"]
-            else:
-                logger.warning(f"⚠️ Invalid question evaluation format: {qe}")
-        
-        logger.info(f"   📊 Parsed {len(ai_feedbacks)} question feedbacks from AI")
+        ai_feedbacks = {
+            qe["question_id"]: qe["ai_feedback"]
+            for qe in evaluation_result.get("question_evaluations", [])
+        }
 
         for q in questions:
             question_id = q["question_id"]
