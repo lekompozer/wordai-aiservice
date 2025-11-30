@@ -233,6 +233,13 @@ async def evaluate_test_result(
                 correct_answer = q.get("correct_answer_key")
                 is_correct = user_answer == correct_answer
 
+                # Extract options
+                options = []
+                for opt in q.get("options", []):
+                    options.append(
+                        {"key": opt.get("key"), "text": opt.get("text")}
+                    )
+
                 question_evaluations.append(
                     QuestionEvaluation(
                         question_id=question_id,
@@ -241,6 +248,7 @@ async def evaluate_test_result(
                         correct_answer=correct_answer,
                         is_correct=is_correct,
                         explanation=q.get("explanation"),
+                        options=options,
                         ai_feedback=ai_feedbacks.get(
                             question_id, "No feedback available for this question"
                         ),

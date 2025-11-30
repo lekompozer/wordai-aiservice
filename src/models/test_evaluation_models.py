@@ -38,6 +38,9 @@ class QuestionEvaluation(BaseModel):
     explanation: Optional[str] = Field(
         None, description="Question explanation or grading rubric"
     )
+    options: Optional[List[Dict[str, Any]]] = Field(
+        None, description="List of options for MCQ questions (key, text)"
+    )
     ai_feedback: str = Field(
         ...,
         description="AI feedback on this specific question (why wrong, how to improve, or essay commentary)",

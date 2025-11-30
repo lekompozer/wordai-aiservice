@@ -152,11 +152,19 @@ class GeminiTestEvaluationService:
                 if is_correct and not is_diagnostic_test:
                     user_earned_points += q_max_points
 
+                # Extract options for context
+                options_text = []
+                for opt in q.get("options", []):
+                    key = opt.get("key", "")
+                    text = opt.get("text", "")
+                    options_text.append(f"{key}: {text}")
+
                 question_analysis.append(
                     {
                         "question_id": question_id,
                         "question_type": "mcq",
                         "question_text": q["question_text"],
+                        "options": options_text,
                         "user_answer": user_answer,
                         "correct_answer": (
                             correct_answer
@@ -245,6 +253,7 @@ class GeminiTestEvaluationService:
                         f"### Question {idx} (MCQ) {status} {points_info}",
                         f"**ID:** {qa['question_id']}",
                         f"**Question:** {qa['question_text']}",
+                        f"**Options:** {'; '.join(qa.get('options', []))}",
                         f"**User's Answer:** {qa['user_answer']}",
                         f"**Correct Answer:** {qa['correct_answer']}",
                         f"**Max Points:** {qa.get('max_points', 1)}",
