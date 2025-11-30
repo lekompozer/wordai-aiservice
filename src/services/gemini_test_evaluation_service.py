@@ -243,6 +243,7 @@ class GeminiTestEvaluationService:
                 prompt_parts.extend(
                     [
                         f"### Question {idx} (MCQ) {status} {points_info}",
+                        f"**ID:** {qa['question_id']}",
                         f"**Question:** {qa['question_text']}",
                         f"**User's Answer:** {qa['user_answer']}",
                         f"**Correct Answer:** {qa['correct_answer']}",
@@ -256,6 +257,7 @@ class GeminiTestEvaluationService:
                 prompt_parts.extend(
                     [
                         f"### Question {idx} (Essay) ⏳ PENDING OFFICIAL GRADING",
+                        f"**ID:** {qa['question_id']}",
                         f"**Question:** {qa['question_text']}",
                         f"**User's Answer:** {qa['user_answer']}",
                         f"**Max Points:** {qa.get('max_points', 1)}",
@@ -277,6 +279,7 @@ class GeminiTestEvaluationService:
                 "6. Don't provide 'study plans' or 'improvement recommendations' - this isn't a knowledge test",
                 "7. Instead, provide fun observations and what their results might say about them",
                 "8. **Calculate an 'overall_rating' (0-10)** representing how 'strong' or 'distinct' their personality/result type is.",
+                "9. **CRITICAL:** You MUST provide specific 'ai_feedback' for EACH question in the 'question_evaluations' array. Explain what their specific choice for that question implies about them.",
             ]
         elif is_iq_test:
             evaluation_instructions = [
@@ -413,7 +416,7 @@ class GeminiTestEvaluationService:
                 "  },",
                 '  "question_evaluations": [',
                 "    {",
-                '      "question_id": "question_1",',
+                '      "question_id": "MUST_MATCH_EXACT_ID_FROM_ABOVE",',
                 '      "ai_feedback": "'
                 + (
                     "Fun insight about their choice (2-3 sentences)"
@@ -429,6 +432,7 @@ class GeminiTestEvaluationService:
                 "",
                 f"**CRITICAL:** This is a **{('DIAGNOSTIC/QUIZ TEST' if is_diagnostic_test else ('IQ TEST' if is_iq_test else 'KNOWLEDGE ASSESSMENT'))}**. Adjust your tone and feedback accordingly.",
                 "**SCORING REMINDER:** User's score is NOT (correct_count/total_questions)%. It is calculated as (sum_of_earned_points / sum_of_max_points) × 100%.",
+                "**IMPORTANT:** In 'question_evaluations', you MUST use the exact 'ID' provided for each question in the 'question_id' field. Do not use 'question_1', 'question_2', etc.",
                 "**Return ONLY the JSON object, no additional text.**",
                 "",
                 "Now provide your evaluation:",
