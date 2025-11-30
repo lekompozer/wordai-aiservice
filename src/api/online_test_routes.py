@@ -3485,22 +3485,31 @@ async def get_submission_detail(
             if q_type == "mcq":
                 # MCQ result
                 user_answer = user_answer_data.get("selected_answer_key")
-                is_correct = user_answer == q["correct_answer_key"]
+                correct_answer = q.get("correct_answer_key")  # May be None for diagnostic tests
+                is_correct = user_answer == correct_answer if correct_answer else None
 
-                results.append(
-                    {
-                        "question_id": question_id,
-                        "question_text": q["question_text"],
-                        "question_type": "mcq",
-                        "options": q.get("options", []),
-                        "your_answer": user_answer,
-                        "correct_answer": q["correct_answer_key"],
-                        "is_correct": is_correct,
-                        "explanation": q.get("explanation"),
-                        "max_points": q.get("max_points", 1),
-                        "points_awarded": q.get("max_points", 1) if is_correct else 0,
-                    }
-                )
+                result_data = {
+                    "question_id": question_id,
+                    "question_text": q["question_text"],
+                    "question_type": "mcq",
+                    "options": q.get("options", []),
+                    "your_answer": user_answer,
+                    "explanation": q.get("explanation"),
+                    "max_points": q.get("max_points", 1),
+                }
+                
+                # Only include correct_answer and is_correct for academic tests
+                if correct_answer is not None:
+                    result_data["correct_answer"] = correct_answer
+                    result_data["is_correct"] = is_correct
+                    result_data["points_awarded"] = q.get("max_points", 1) if is_correct else 0
+                else:
+                    # Diagnostic test - no correct/incorrect concept
+                    result_data["correct_answer"] = None
+                    result_data["is_correct"] = None
+                    result_data["points_awarded"] = 0
+
+                results.append(result_data)
 
             elif q_type == "essay":
                 # Essay result
