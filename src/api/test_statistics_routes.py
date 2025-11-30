@@ -7,13 +7,35 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
+from pymongo import MongoClient
+from bson import ObjectId
 import logging
-
-from src.services.mongodb_service import get_mongodb_service
+import config.config as config
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/tests/statistics", tags=["Test Statistics"])
+
+# MongoDB connection helper
+_mongo_client = None
+
+
+def get_mongodb_service():
+    """Get MongoDB database instance"""
+    global _mongo_client
+    if _mongo_client is None:
+        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
+            config, "MONGODB_URI", "mongodb://localhost:27017"
+        )
+        _mongo_client = MongoClient(mongo_uri)
+    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
+    
+    # Return object with .db attribute for compatibility
+    class MongoService:
+        def __init__(self, client, db_name):
+            self.db = client[db_name]
+    
+    return MongoService(_mongo_client, db_name)
 
 
 # ========== Response Models ==========
@@ -206,7 +228,14 @@ async def get_popular_tests(
             test_id = item["_id"]
 
             # Get additional test info from online_tests collection
-            test_doc = tests_collection.find_one({"_id": test_id})
+            # Handle both string and ObjectId formats
+            try:
+                if isinstance(test_id, str):
+                    test_doc = tests_collection.find_one({"_id": ObjectId(test_id)})
+                else:
+                    test_doc = tests_collection.find_one({"_id": test_id})
+            except Exception:
+                test_doc = None
 
             result_tests.append(
                 PopularTestItem(
