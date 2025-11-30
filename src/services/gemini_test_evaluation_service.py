@@ -94,6 +94,18 @@ class GeminiTestEvaluationService:
         # Handle None values for test_description
         test_lower = (test_title + " " + (test_description or "")).lower()
 
+        # Detect IQ test
+        is_iq_test = any(
+            keyword in test_lower
+            for keyword in [
+                "iq",
+                "intelligence quotient",
+                "chỉ số thông minh",
+                "kiểm tra iq",
+                "đo iq",
+            ]
+        )
+
         is_diagnostic_test = test_category == "diagnostic"
 
         # Fallback detection if category is academic but keywords suggest diagnostic
@@ -117,12 +129,17 @@ class GeminiTestEvaluationService:
         ):
             is_diagnostic_test = True
 
+        # Calculate scoring information
+        total_max_points = sum(q.get("max_points", 1) for q in questions)
+        user_earned_points = 0
+
         # Build question analysis
         question_analysis = []
         for q in questions:
             question_id = q["question_id"]
             q_type = q.get("question_type", "mcq")
             user_answer = user_answers.get(question_id, "No answer")
+            q_max_points = q.get("max_points", 1)
 
             if q_type == "mcq":
                 correct_answer = q.get("correct_answer_key", "N/A")
@@ -130,6 +147,10 @@ class GeminiTestEvaluationService:
                 is_correct = (
                     user_answer == correct_answer if not is_diagnostic_test else None
                 )
+
+                # Track earned points
+                if is_correct and not is_diagnostic_test:
+                    user_earned_points += q_max_points
 
                 question_analysis.append(
                     {
@@ -143,6 +164,8 @@ class GeminiTestEvaluationService:
                             else "N/A (Diagnostic)"
                         ),
                         "is_correct": is_correct,
+                        "max_points": q_max_points,
+                        "points_earned": q_max_points if is_correct else 0,
                         "explanation": q.get("explanation", "No explanation provided"),
                     }
                 )
@@ -153,6 +176,7 @@ class GeminiTestEvaluationService:
                         "question_type": "essay",
                         "question_text": q["question_text"],
                         "user_answer": user_answer,
+                        "max_points": q_max_points,
                         "grading_rubric": q.get("grading_rubric", "No rubric provided"),
                     }
                 )
@@ -163,6 +187,14 @@ class GeminiTestEvaluationService:
             if score_percentage is not None
             else "Pending (essay grading in progress)"
         )
+
+        # Calculate actual score based on max_points
+        actual_score_display = (
+            f"{user_earned_points}/{total_max_points} points ({score_percentage:.1f}%)"
+            if score_percentage is not None
+            else "Pending"
+        )
+
         prompt_parts = [
             "You are an expert educational assessment evaluator. Your task is to provide detailed, constructive feedback on a student's test performance.",
             f"**IMPORTANT:** You MUST provide your response in the following language: **{language}**.",
@@ -171,10 +203,16 @@ class GeminiTestEvaluationService:
             f"**Title:** {test_title}",
             f"**Description:** {test_description or 'No description provided'}",
             f"**Test Type:** {test_type}",
-            f"**Test Category:** {'Diagnostic/Quiz Test' if is_diagnostic_test else 'Knowledge Assessment'}",
+            f"**Test Category:** {'Diagnostic/Quiz Test' if is_diagnostic_test else ('IQ Test' if is_iq_test else 'Knowledge Assessment')}",
             f"**Total Questions:** {len(questions)}",
-            f"**Score:** {score_display}",
+            f"**Total Max Points:** {total_max_points} (each question may have different max_points)",
+            f"**User Score:** {actual_score_display}",
             f"**Result:** {'PASSED ✅' if is_passed else 'FAILED ❌'}",
+            "",
+            "**IMPORTANT SCORING NOTE:**",
+            "- Each question has a 'max_points' value (shown below)",
+            "- User's final score is calculated by: (sum of earned points) / (sum of all max_points) × 100%",
+            "- This is NOT a simple correct/total questions percentage!",
             "",
         ]
 
@@ -199,12 +237,17 @@ class GeminiTestEvaluationService:
         for idx, qa in enumerate(question_analysis, 1):
             if qa.get("question_type") == "mcq":
                 status = "✅ CORRECT" if qa["is_correct"] else "❌ INCORRECT"
+                points_info = (
+                    f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
+                )
                 prompt_parts.extend(
                     [
-                        f"### Question {idx} (MCQ) {status}",
+                        f"### Question {idx} (MCQ) {status} {points_info}",
                         f"**Question:** {qa['question_text']}",
                         f"**User's Answer:** {qa['user_answer']}",
                         f"**Correct Answer:** {qa['correct_answer']}",
+                        f"**Max Points:** {qa.get('max_points', 1)}",
+                        f"**Points Earned:** {qa.get('points_earned', 0)}",
                         f"**Explanation:** {qa['explanation']}",
                         "",
                     ]
@@ -215,6 +258,7 @@ class GeminiTestEvaluationService:
                         f"### Question {idx} (Essay) ⏳ PENDING OFFICIAL GRADING",
                         f"**Question:** {qa['question_text']}",
                         f"**User's Answer:** {qa['user_answer']}",
+                        f"**Max Points:** {qa.get('max_points', 1)}",
                         f"**Grading Rubric:** {qa['grading_rubric']}",
                         f"**Note:** This essay answer is awaiting official scoring by the test owner. Provide informal feedback on the response quality, relevance, and content.",
                         "",
@@ -234,6 +278,24 @@ class GeminiTestEvaluationService:
                 "7. Instead, provide fun observations and what their results might say about them",
                 "8. **Calculate an 'overall_rating' (0-10)** representing how 'strong' or 'distinct' their personality/result type is.",
             ]
+        elif is_iq_test:
+            evaluation_instructions = [
+                "**EVALUATION APPROACH FOR IQ TEST:**",
+                "1. This is an IQ (Intelligence Quotient) assessment test",
+                "2. Calculate the user's estimated IQ score based on their performance",
+                "3. Use the following IQ scoring guide:",
+                "   - Score < 40%: IQ 70-85 (Below Average)",
+                "   - Score 40-60%: IQ 85-100 (Average)",
+                "   - Score 60-75%: IQ 100-115 (Above Average)",
+                "   - Score 75-85%: IQ 115-130 (Superior)",
+                "   - Score 85-95%: IQ 130-145 (Very Superior/Gifted)",
+                "   - Score > 95%: IQ 145+ (Highly Gifted)",
+                "4. Provide insights about cognitive strengths shown in correct answers",
+                "5. Identify areas for cognitive development from incorrect answers",
+                "6. Be encouraging but realistic about the IQ assessment",
+                "7. **IMPORTANT: Use 'iq_score' field instead of 'overall_rating' for IQ tests**",
+                "8. **Remember: Score is calculated as (earned_points / total_max_points) × 100%, not simple question count!**",
+            ]
         else:
             evaluation_instructions = [
                 "**EVALUATION APPROACH FOR KNOWLEDGE TEST:**",
@@ -245,6 +307,7 @@ class GeminiTestEvaluationService:
                 "6. For correct answers, suggest deeper understanding of concepts",
                 "7. **For essay questions pending grading:** Provide informal feedback on content quality, relevance, structure, and areas to improve. Note that official scoring will be done by the test owner.",
                 "8. **Calculate an 'overall_rating' (0-10)** based on their performance, question difficulty, and quality of answers.",
+                "9. **Remember: Score is calculated as (earned_points / total_max_points) × 100%, not simple question count!**",
             ]
 
         prompt_parts.extend(
@@ -262,11 +325,20 @@ class GeminiTestEvaluationService:
                 "```json",
                 "{",
                 '  "overall_evaluation": {',
-                '    "overall_rating": 0.0, // Score from 0-10 (float)',
             ]
         )
 
-        if is_diagnostic_test:
+        # Different JSON structure for IQ tests
+        if is_iq_test:
+            prompt_parts.extend(
+                [
+                    '    "iq_score": 0, // Estimated IQ score (integer, e.g., 85, 100, 115, 130, 145)',
+                    '    "iq_category": "Category name (e.g., Average, Above Average, Superior, Gifted)",',
+                    '    "overall_rating": null, // Not used for IQ tests',
+                ]
+            )
+
+        elif is_diagnostic_test:
             prompt_parts.extend(
                 [
                     '    "result_title": "A catchy title for their result (e.g., \'The Creative Visionary\')",',
@@ -283,12 +355,37 @@ class GeminiTestEvaluationService:
                     '    "strengths": [],',
                     '    "weaknesses": [],',
                     '    "recommendations": [],',
-                    '    "study_plan": ""',
+                    '    "study_plan": "",',
+                    '    "iq_score": null,',
+                    '    "iq_category": null',
+                ]
+            )
+        elif is_iq_test:
+            prompt_parts.extend(
+                [
+                    '    "strengths": [',
+                    '      "List 2-4 cognitive strengths demonstrated (e.g., logical reasoning, pattern recognition)",',
+                    '      "Be specific about which types of problems they excelled at"',
+                    "    ],",
+                    '    "weaknesses": [',
+                    '      "List 2-4 areas for cognitive development",',
+                    '      "Be specific about which types of problems they struggled with"',
+                    "    ],",
+                    '    "recommendations": [',
+                    '      "Provide 3-5 suggestions for improving cognitive abilities",',
+                    '      "Suggest specific mental exercises, puzzle types, or learning strategies"',
+                    "    ],",
+                    '    "study_plan": "A practical plan for cognitive development (2-3 sentences)",',
+                    '    "result_title": null,',
+                    '    "result_description": null,',
+                    '    "personality_traits": [],',
+                    '    "advice": null',
                 ]
             )
         else:
             prompt_parts.extend(
                 [
+                    '    "overall_rating": 0.0, // Score from 0-10 (float)',
                     '    "strengths": [',
                     '      "List 2-4 specific knowledge areas where the student performed well",',
                     '      "Be specific about which concepts they mastered"',
@@ -305,7 +402,9 @@ class GeminiTestEvaluationService:
                     '    "result_title": null,',
                     '    "result_description": null,',
                     '    "personality_traits": [],',
-                    '    "advice": null',
+                    '    "advice": null,',
+                    '    "iq_score": null,',
+                    '    "iq_category": null',
                 ]
             )
 
@@ -328,7 +427,8 @@ class GeminiTestEvaluationService:
                 "}",
                 "```",
                 "",
-                f"**CRITICAL:** This is a **{('DIAGNOSTIC/QUIZ TEST' if is_diagnostic_test else 'KNOWLEDGE ASSESSMENT')}**. Adjust your tone and feedback accordingly.",
+                f"**CRITICAL:** This is a **{('DIAGNOSTIC/QUIZ TEST' if is_diagnostic_test else ('IQ TEST' if is_iq_test else 'KNOWLEDGE ASSESSMENT'))}**. Adjust your tone and feedback accordingly.",
+                "**SCORING REMINDER:** User's score is NOT (correct_count/total_questions)%. It is calculated as (sum_of_earned_points / sum_of_max_points) × 100%.",
                 "**Return ONLY the JSON object, no additional text.**",
                 "",
                 "Now provide your evaluation:",
