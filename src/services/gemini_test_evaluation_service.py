@@ -155,8 +155,9 @@ class GeminiTestEvaluationService:
                 # Extract options for context
                 options_text = []
                 for opt in q.get("options", []):
-                    key = opt.get("key", "")
-                    text = opt.get("text", "")
+                    # Database stores as option_key/option_text (from Gemini schema)
+                    key = opt.get("option_key") or opt.get("key", "")
+                    text = opt.get("option_text") or opt.get("text", "")
                     options_text.append(f"{key}: {text}")
 
                 question_analysis.append(

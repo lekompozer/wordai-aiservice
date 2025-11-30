@@ -236,8 +236,12 @@ async def evaluate_test_result(
                 # Extract options
                 options = []
                 for opt in q.get("options", []):
+                    # Database stores as option_key/option_text (from Gemini schema)
                     options.append(
-                        {"key": opt.get("key"), "text": opt.get("text")}
+                        {
+                            "key": opt.get("option_key") or opt.get("key"),
+                            "text": opt.get("option_text") or opt.get("text"),
+                        }
                     )
 
                 question_evaluations.append(
