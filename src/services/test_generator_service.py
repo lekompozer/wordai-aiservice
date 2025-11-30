@@ -345,7 +345,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     model="gemini-3-pro-preview",
                     contents=contents,
                     config=types.GenerateContentConfig(
-                        max_output_tokens=8000,
+                        max_output_tokens=25000,
                         temperature=0.3,
                         response_mime_type="application/json",
                         response_schema=response_schema,
@@ -593,7 +593,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 messages=messages,
                 response_format={"type": "json_object"},
                 temperature=0.3,
-                max_tokens=8000,
+                max_tokens=25000,
             )
 
             response_text = response.choices[0].message.content
@@ -748,7 +748,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         model="gemini-3-pro-preview",
                         contents=contents,
                         config=types.GenerateContentConfig(
-                            max_output_tokens=8000,
+                            max_output_tokens=25000,
                             temperature=0.3,  # Low temperature for consistent output
                             response_mime_type="application/json",  # JSON Mode
                         ),
