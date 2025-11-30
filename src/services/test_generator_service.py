@@ -7,6 +7,7 @@ import logging
 import asyncio
 import json
 import re
+import os
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from bson import ObjectId
@@ -358,6 +359,18 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     logger.info(
                         f"   ✅ Gemini response: {len(response_text)} characters"
                     )
+                    
+                    # 💾 Save full response for debugging (always save for analysis)
+                    try:
+                        debug_dir = "/tmp/gemini_test_responses"
+                        os.makedirs(debug_dir, exist_ok=True)
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                        response_file = f"{debug_dir}/test_gen_{timestamp}.json"
+                        with open(response_file, "w", encoding="utf-8") as f:
+                            f.write(response_text)
+                        logger.info(f"   💾 Saved full response to {response_file}")
+                    except Exception as save_error:
+                        logger.warning(f"   ⚠️ Could not save response file: {save_error}")
                 else:
                     raise Exception("No text response from Gemini API")
 
