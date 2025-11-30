@@ -6676,6 +6676,72 @@ async def publish_test_to_marketplace(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post(
+    "/{test_id}/marketplace/unpublish",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def unpublish_test_from_marketplace(
+    test_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Unpublish test from marketplace
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(f"🚫 Unpublishing test {test_id} from marketplace")
+        logger.info(f"   User: {user_id}")
+
+        # Check test exists
+        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        if not test_doc:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        # Check ownership
+        if test_doc.get("creator_id") != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test creator can unpublish from marketplace"
+            )
+
+        # Check if currently published
+        marketplace_config = test_doc.get("marketplace_config", {})
+        if not marketplace_config.get("is_public"):
+            raise HTTPException(
+                status_code=400, detail="Test is not currently published"
+            )
+
+        # Update
+        result = mongo_service.db["online_tests"].update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "marketplace_config.is_public": False,
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(status_code=500, detail="Failed to unpublish test")
+
+        logger.info(f"✅ Test {test_id} unpublished successfully")
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "message": "Test unpublished from marketplace",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to unpublish test: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.patch(
     "/{test_id}/marketplace/config",
     response_model=dict,
