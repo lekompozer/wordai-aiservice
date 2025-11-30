@@ -250,7 +250,7 @@ class GenerateTestRequest(BaseModel):
         None,
         description="Instructions to AI: what topics/concepts to test (optional for files, can be inferred from content)",
         min_length=10,
-        max_length=500,
+        max_length=2000,
     )
     language: str = Field(
         default="vi",
@@ -340,7 +340,7 @@ class ManualTestQuestion(BaseModel):
     )
     media_url: Optional[str] = Field(None, description="Public URL to media file")
     media_description: Optional[str] = Field(
-        None, description="Description of media content", max_length=500
+        None, description="Description of media content", max_length=1500
     )
 
     @field_validator("question_type")
@@ -399,7 +399,7 @@ class TestAttachment(BaseModel):
         max_length=200,
     )
     description: Optional[str] = Field(
-        None, description="Optional description of the attachment", max_length=500
+        None, description="Optional description of the attachment", max_length=1500
     )
     file_url: str = Field(
         ...,
@@ -1162,7 +1162,7 @@ class GenerateGeneralTestRequest(BaseModel):
         ...,
         description="Detailed instructions for AI (e.g., 'Focus on modern theories', 'Include practical examples')",
         min_length=10,
-        max_length=500,
+        max_length=2000,
     )
     test_category: str = Field(
         default="academic",
