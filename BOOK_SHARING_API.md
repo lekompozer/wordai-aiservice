@@ -115,7 +115,48 @@ Returns the full book details including chapters.
 
 ---
 
-## 4. List Permissions
+## 4. List Shared Books (Books I Can Access)
+
+**Endpoint:** `GET /shared`
+
+**Authentication:** Required
+
+**Purpose:** View all books that have been shared with you.
+
+**Query Parameters:**
+- `skip`: Offset (default 0)
+- `limit`: Limit (default 50, max 100)
+
+**Success Response (200 OK):**
+
+```json
+{
+  "shared_books": [
+    {
+      "book": {
+        "book_id": "book_abc123",
+        "title": "Shared Guide",
+        "description": "...",
+        "user_id": "owner_uid"
+      },
+      "permission": {
+        "permission_id": "perm_123",
+        "access_level": "viewer",
+        "granted_by": "owner_uid",
+        "created_at": "2025-12-02T10:00:00Z",
+        "expires_at": null
+      }
+    }
+  ],
+  "total": 1,
+  "skip": 0,
+  "limit": 50
+}
+```
+
+---
+
+## 5. List Permissions
 
 **Endpoint:** `GET /{book_id}/permissions/users`
 
@@ -146,17 +187,17 @@ Returns the full book details including chapters.
 
 ---
 
-## 5. Revoke Permission
+## 6. Revoke Permission
 
 **Endpoint:** `DELETE /{book_id}/permissions/users/{user_id}`
 
-**Authentication:** Required (Book Owner only)
+**Authentication:** Required (Book Owner OR Shared User)
 
-**Purpose:** Remove a user's access to the book.
+**Purpose:** Remove a user's access to the book. Both the book owner and the shared user themselves can revoke the permission.
 
 **Path Parameters:**
 - `book_id`: ID of the book.
-- `user_id`: Firebase UID of the user to remove (or the temporary ID for pending invitations).
+- `user_id`: Firebase UID of the user to remove.
 
 **Success Response (200 OK):**
 
@@ -170,6 +211,10 @@ Returns the full book details including chapters.
   }
 }
 ```
+
+**Error Responses:**
+- `403 Forbidden`: User is not authorized (not owner or the shared user themselves).
+- `404 Not Found`: Book or permission not found.
 
 ---
 

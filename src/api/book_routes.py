@@ -1158,12 +1158,14 @@ async def list_permissions(
                 detail="Only book owner can list permissions",
             )
 
-        # Get permissions
+        # Get permissions (include pending invitations)
         permissions = permission_manager.list_permissions(
-            book_id=book_id, skip=skip, limit=limit
+            book_id=book_id, include_pending=True, skip=skip, limit=limit
         )
 
-        total = permission_manager.count_permissions(book_id=book_id)
+        total = permission_manager.count_permissions(
+            book_id=book_id, include_pending=True
+        )
 
         logger.info(
             f"📋 User {user_id} listed permissions for book {book_id}: {len(permissions)} results"
@@ -1181,6 +1183,75 @@ async def list_permissions(
         )
 
 
+@router.get("/shared")
+async def list_shared_books(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    List all books shared with the current user
+
+    **Authentication:** Required
+
+    **Query Parameters:**
+    - skip: Offset for pagination (default 0)
+    - limit: Limit results (default 50, max 100)
+
+    **Returns:**
+    - 200: List of shared books with permission details
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Get all permissions for this user
+        permissions = permission_manager.list_permissions_by_user(
+            user_id=user_id, skip=skip, limit=limit
+        )
+
+        # Get book details for each permission
+        shared_books = []
+        for perm in permissions:
+            book_id = perm.get("book_id")
+            if book_id:
+                book = book_manager.get_book(book_id)
+                if book and not book.get("is_deleted", False):
+                    shared_books.append(
+                        {
+                            "book": book,
+                            "permission": {
+                                "permission_id": perm.get("permission_id"),
+                                "access_level": perm.get("access_level"),
+                                "granted_by": perm.get("granted_by"),
+                                "created_at": perm.get("created_at"),
+                                "expires_at": perm.get("expires_at"),
+                            },
+                        }
+                    )
+
+        total = permission_manager.count_permissions_by_user(user_id=user_id)
+
+        logger.info(
+            f"📚 User {user_id} listed shared books: {len(shared_books)}/{total} (skip={skip}, limit={limit})"
+        )
+
+        return {
+            "shared_books": shared_books,
+            "total": total,
+            "skip": skip,
+            "limit": limit,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to list shared books: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to list shared books",
+        )
+
+
 @router.delete("/{book_id}/permissions/users/{permission_user_id}")
 async def revoke_permission(
     book_id: str,
@@ -1190,7 +1261,7 @@ async def revoke_permission(
     """
     Revoke user permission to access a book
 
-    **Authentication:** Required (Owner only)
+    **Authentication:** Required (Book Owner or Shared User)
 
     **Path Parameters:**
     - book_id: Guide identifier
@@ -1198,13 +1269,13 @@ async def revoke_permission(
 
     **Returns:**
     - 200: Permission revoked successfully
-    - 403: User is not the book owner
+    - 403: User is not authorized (not owner or the shared user themselves)
     - 404: Guide or permission not found
     """
     try:
         user_id = current_user["uid"]
 
-        # Verify book ownership
+        # Verify book exists
         book = book_manager.get_book(book_id)
 
         if not book:
@@ -1213,10 +1284,14 @@ async def revoke_permission(
                 detail="Book not found",
             )
 
-        if book["user_id"] != user_id:
+        # Check authorization: must be book owner OR the user themselves
+        is_owner = book["user_id"] == user_id
+        is_self_revoke = permission_user_id == user_id
+
+        if not (is_owner or is_self_revoke):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only book owner can revoke permissions",
+                detail="Only book owner or the shared user can revoke this permission",
             )
 
         # Check if permission exists

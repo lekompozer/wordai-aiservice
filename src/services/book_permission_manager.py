@@ -171,15 +171,15 @@ class GuideBookBookPermissionManager:
         permission_doc = {
             "permission_id": permission_id,
             "book_id": book_id,
-            "user_id": "",  # Will be filled when invitation is accepted
+            "user_id": "",  # Will be filled when user registers with this email
             "granted_by": granted_by,
             "access_level": access_level,
             "invited_email": email,
             "invitation_token": invitation_token,
             "invitation_message": message,  # Store the personal message
-            "invitation_accepted": False,
+            "invitation_accepted": True,  # Auto-accept: permission is active immediately
             "invited_at": now,
-            "accepted_at": None,
+            "accepted_at": now,
             "expires_at": expires_at,
             "created_at": now,
             "updated_at": now,
@@ -308,9 +308,8 @@ class GuideBookBookPermissionManager:
         Returns:
             List of permission documents
         """
+        # Note: All invitations are auto-accepted, show all permissions
         query = {"book_id": book_id}
-        if not include_pending:
-            query["invitation_accepted"] = True
 
         permissions = list(
             self.permissions_collection.find(query)
@@ -336,10 +335,10 @@ class GuideBookBookPermissionManager:
         """
         now = datetime.utcnow()
 
+        # Note: All invitations are auto-accepted
         permissions = self.permissions_collection.find(
             {
                 "user_id": user_id,
-                "invitation_accepted": True,
                 "$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}],
             }
         )
@@ -364,11 +363,65 @@ class GuideBookBookPermissionManager:
         logger.info(f"🗑️ Deleted {deleted_count} permissions for guide {book_id}")
         return deleted_count
 
-    def count_permissions(self, book_id: str) -> int:
+    def count_permissions(self, book_id: str, include_pending: bool = False) -> int:
         """Count total permissions for guide"""
-        return self.permissions_collection.count_documents(
-            {"book_id": book_id, "invitation_accepted": True}
+        query = {"book_id": book_id}
+        # Note: All invitations are auto-accepted
+        return self.permissions_collection.count_documents(query)
+
+    def list_permissions_by_user(
+        self, user_id: str, skip: int = 0, limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        List all permissions for a specific user
+
+        Args:
+            user_id: User's Firebase UID
+            skip: Pagination offset
+            limit: Results per page
+
+        Returns:
+            List of permission documents
+        """
+        now = datetime.utcnow()
+
+        query = {
+            "user_id": user_id,
+            "$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}],
+        }
+
+        permissions = list(
+            self.permissions_collection.find(query)
+            .sort([("created_at", -1)])
+            .skip(skip)
+            .limit(limit)
         )
+
+        logger.info(
+            f"📊 Found {len(permissions)} permissions for user {user_id} (skip={skip}, limit={limit})"
+        )
+        return permissions
+
+    def count_permissions_by_user(self, user_id: str) -> int:
+        """
+        Count total permissions for a user
+
+        Args:
+            user_id: User's Firebase UID
+
+        Returns:
+            Number of active permissions
+        """
+        now = datetime.utcnow()
+
+        query = {
+            "user_id": user_id,
+            "$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}],
+        }
+
+        count = self.permissions_collection.count_documents(query)
+        logger.info(f"📊 User {user_id} has {count} total permissions")
+        return count
 
     def cleanup_expired(self) -> int:
         """
