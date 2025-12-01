@@ -8,8 +8,8 @@ from datetime import datetime
 import logging
 
 from src.models.contact_models import ContactRequest, ContactPurpose
-from src.services.mongodb_service import get_mongodb_service
-from src.services.brevo_email_service import send_email
+from src.services.online_test_utils import get_mongodb_service
+from src.services.brevo_email_service import get_brevo_service
 
 logger = logging.getLogger(__name__)
 
@@ -170,11 +170,11 @@ async def submit_contact_form(request: ContactRequest):
 
         # Send email to admin
         try:
-            email_sent = send_email(
+            brevo_service = get_brevo_service()
+            email_sent = brevo_service.send_email(
                 to_email=admin_email,
-                to_name="Admin WordAI",
                 subject=subject,
-                html_content=html_content,
+                html_body=html_content,
             )
 
             if email_sent:

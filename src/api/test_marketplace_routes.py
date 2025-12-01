@@ -1129,11 +1129,10 @@ async def withdraw_earnings(
             <p><a href="https://ai.wordai.pro/admin/withdrawals/{withdrawal_id}">https://ai.wordai.pro/admin/withdrawals/{withdrawal_id}</a></p>
             """
 
-            await brevo_service.send_email(
+            brevo_service.send_email(
                 to_email=admin_email,
-                to_name="Admin WordAI",
                 subject=f"🔔 Yêu cầu rút {amount:,} VNĐ từ {user_info.get('name', 'User')}",
-                html_content=email_body,
+                html_body=email_body,
             )
 
             logger.info(f"📧 Email notification sent to admin: {admin_email}")
