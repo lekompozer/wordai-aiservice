@@ -83,6 +83,18 @@ class OverallEvaluation(BaseModel):
         description="Suggested study plan based on performance (Academic)",
     )
 
+    # IQ Test Fields (for IQ Tests)
+    iq_score: Optional[int] = Field(
+        None,
+        description="Estimated IQ score (e.g., 85, 100, 115, 138) for IQ tests",
+        ge=50,
+        le=200,
+    )
+    iq_category: Optional[str] = Field(
+        None,
+        description="IQ category (e.g., Average, Above Average, Superior, Gifted)",
+    )
+
     # Personality Fields (for Personality/Diagnostic Tests)
     result_title: Optional[str] = Field(
         None,

@@ -282,6 +282,9 @@ async def evaluate_test_result(
             weaknesses=overall_eval_data.get("weaknesses", []),
             recommendations=overall_eval_data.get("recommendations", []),
             study_plan=overall_eval_data.get("study_plan"),
+            # IQ test fields
+            iq_score=overall_eval_data.get("iq_score"),
+            iq_category=overall_eval_data.get("iq_category"),
             # Diagnostic fields
             result_title=overall_eval_data.get("result_title"),
             result_description=overall_eval_data.get("result_description"),
