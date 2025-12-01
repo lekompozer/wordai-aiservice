@@ -145,8 +145,11 @@ from src.api.encrypted_folder_routes import router as encrypted_folder_router
 # ✅ ADDED: Secret Images API - Dedicated endpoints for secret images with folder support
 from src.api.secret_images_routes import router as secret_images_router
 
-# ✅ ADDED: Online Test API for test generation and taking (Phase 1-3)
-from src.api.online_test_routes import router as online_test_router
+# ✅ ADDED: Online Test API for test generation and taking (Phase 1-3) - Split into 4 modules
+from src.api.test_creation_routes import router as test_creation_router
+from src.api.test_taking_routes import router as test_taking_router
+from src.api.test_grading_routes import router as test_grading_router
+from src.api.test_marketplace_routes import router as test_marketplace_router
 
 # ✅ ADDED: Test Statistics API for analytics and reporting
 from src.api.test_statistics_routes import router as test_statistics_router
@@ -781,8 +784,11 @@ def create_app() -> FastAPI:
         marketplace_transactions_router, tags=["Online Tests - Phase 5: Transactions"]
     )
 
-    # ✅ ADDED: Online Test API - Test generation and taking (Phase 1-3)
-    app.include_router(online_test_router, tags=["Online Tests - Phase 1-3"])
+    # ✅ REFACTORED: Online Test API - Split into 4 specialized routers
+    app.include_router(test_creation_router, tags=["Online Tests - Creation"])
+    app.include_router(test_taking_router, tags=["Online Tests - Taking"])
+    app.include_router(test_grading_router, tags=["Online Tests - Grading"])
+    app.include_router(test_marketplace_router, tags=["Online Tests - Marketplace"])
 
     # ✅ ADDED: Test Statistics API - Analytics and reporting for tests and users
     app.include_router(test_statistics_router, tags=["Online Tests - Statistics"])
