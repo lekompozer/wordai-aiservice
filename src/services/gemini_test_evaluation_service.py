@@ -295,19 +295,20 @@ class GeminiTestEvaluationService:
             evaluation_instructions = [
                 "**EVALUATION APPROACH FOR IQ TEST:**",
                 "1. This is an IQ (Intelligence Quotient) assessment test",
-                "2. Calculate the user's estimated IQ score based on their performance",
-                "3. Use the following IQ scoring guide:",
+                "2. **CALCULATE SPECIFIC IQ SCORE:** You MUST estimate a specific integer IQ score (e.g., 105, 122, 138) based on the user's percentage score and the difficulty of questions.",
+                "3. **MAPPING GUIDE:** Use this guide to map percentage to IQ range, then pick a specific number within that range based on question difficulty:",
                 "   - Score < 40%: IQ 70-85 (Below Average)",
                 "   - Score 40-60%: IQ 85-100 (Average)",
                 "   - Score 60-75%: IQ 100-115 (Above Average)",
                 "   - Score 75-85%: IQ 115-130 (Superior)",
                 "   - Score 85-95%: IQ 130-145 (Very Superior/Gifted)",
                 "   - Score > 95%: IQ 145+ (Highly Gifted)",
-                "4. Provide insights about cognitive strengths shown in correct answers",
-                "5. Identify areas for cognitive development from incorrect answers",
-                "6. Be encouraging but realistic about the IQ assessment",
-                "7. **IMPORTANT: Use 'iq_score' field instead of 'overall_rating' for IQ tests**",
-                "8. **Remember: Score is calculated as (earned_points / total_max_points) × 100%, not simple question count!**",
+                "4. **MANDATORY:** You MUST provide at least 2 items for 'strengths', 'weaknesses', and 'recommendations'. Do not return empty arrays.",
+                "5. Provide insights about cognitive strengths shown in correct answers",
+                "6. Identify areas for cognitive development from incorrect answers",
+                "7. Be encouraging but realistic about the IQ assessment",
+                "8. **IMPORTANT: Use 'iq_score' field instead of 'overall_rating' for IQ tests**",
+                "9. **Remember: Score is calculated as (earned_points / total_max_points) × 100%, not simple question count!**",
             ]
         else:
             evaluation_instructions = [
@@ -345,7 +346,7 @@ class GeminiTestEvaluationService:
         if is_iq_test:
             prompt_parts.extend(
                 [
-                    '    "iq_score": 0, // Estimated IQ score (integer, e.g., 85, 100, 115, 130, 145)',
+                    '    "iq_score": 100, // REQUIRED: Specific integer IQ score (e.g., 85, 100, 115, 138). MUST NOT BE NULL.',
                     '    "iq_category": "Category name (e.g., Average, Above Average, Superior, Gifted)",',
                     '    "overall_rating": null, // Not used for IQ tests',
                 ]

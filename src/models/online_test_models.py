@@ -582,4 +582,3 @@ class FullTestEditRequest(BaseModel):
         description="AI evaluation criteria for test results (max 5000 chars)",
         max_length=5000,
     )
-
