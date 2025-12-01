@@ -184,6 +184,12 @@ from src.api.slide_share_routes import router as slide_share_router
 # ✅ ADDED: PDF Document API - Upload, Split, Merge, and AI Conversion
 from src.api.pdf_document_routes import router as pdf_document_router
 
+# ✅ ADDED: Public API routes (no auth) for wordai.pro homepage
+from src.api.public_routes import router as public_router
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
 # ✅ NEW: Online Books API - GitBook-style documentation system (renamed from User Guides)
 from src.api.book_routes import router as book_router
 
@@ -669,6 +675,9 @@ def create_app() -> FastAPI:
 
     # Health and status endpoints
     app.include_router(health_router, tags=["Health"])
+
+    # ✅ Public API endpoints (no auth) - For wordai.pro homepage
+    app.include_router(public_router, tags=["Public"])
 
     # ✅ COMMENTED: Chat endpoints - Firebase auth dependency
     # app.include_router(chat_router, prefix="/api/chat", tags=["Chat"])

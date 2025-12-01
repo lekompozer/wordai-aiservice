@@ -23,6 +23,7 @@ from fastapi import (
 
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
+from src.models.payment_models import PaymentInfoRequest, WithdrawEarningsRequest
 from src.services.online_test_utils import *
 
 logger = logging.getLogger("chatbot")
@@ -298,7 +299,6 @@ async def publish_test_to_marketplace(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.post(
     "/{test_id}/marketplace/unpublish",
     response_model=dict,
@@ -364,7 +364,6 @@ async def unpublish_test_from_marketplace(
     except Exception as e:
         logger.error(f"❌ Failed to unpublish test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.patch(
@@ -610,7 +609,6 @@ async def update_marketplace_config(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get(
     "/{test_id}/marketplace/details",
     response_model=dict,
@@ -760,6 +758,141 @@ async def get_public_test_details(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post(
+    "/me/payment-info",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def set_payment_info(
+    request: PaymentInfoRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Set up or update payment information for earnings withdrawal
+
+    **Purpose:**
+    - User must set up payment info before requesting withdrawal
+    - This information will be used for bank transfers
+    - Admin will use this info to transfer earnings
+
+    **Required Fields:**
+    - account_holder_name: Tên chủ tài khoản (exact match required for bank transfer)
+    - account_number: Số tài khoản ngân hàng
+    - bank_name: Tên ngân hàng (e.g., "Vietcombank", "Techcombank", "BIDV")
+    - bank_branch: Chi nhánh (optional)
+
+    **Security:**
+    - Payment info is stored securely in user profile
+    - Only the account owner can view/update their payment info
+    - Admin can only view payment info when processing withdrawals
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        logger.info(f"💳 Setting payment info for user: {user_id}")
+        logger.info(f"   Bank: {request.bank_name}")
+        logger.info(f"   Account: {request.account_number}")
+
+        # Get user document
+        users_collection = mongo_service.db["users"]
+        user_doc = users_collection.find_one({"firebase_uid": user_id})
+
+        if not user_doc:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Prepare payment info
+        payment_info = {
+            "account_holder_name": request.account_holder_name,
+            "account_number": request.account_number,
+            "bank_name": request.bank_name,
+            "bank_branch": request.bank_branch,
+            "updated_at": datetime.utcnow(),
+        }
+
+        # Update user document
+        users_collection.update_one(
+            {"firebase_uid": user_id},
+            {"$set": {"payment_info": payment_info}},
+        )
+
+        logger.info(f"✅ Payment info updated for user {user_id}")
+
+        return {
+            "success": True,
+            "message": "Thông tin thanh toán đã được cập nhật thành công",
+            "payment_info": {
+                "account_holder_name": payment_info["account_holder_name"],
+                "account_number": payment_info["account_number"],
+                "bank_name": payment_info["bank_name"],
+                "bank_branch": payment_info.get("bank_branch"),
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to set payment info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get(
+    "/me/payment-info",
+    response_model=dict,
+    tags=["Phase 5 - Marketplace"],
+)
+async def get_payment_info(
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Get current payment information
+
+    Returns user's saved payment info for earnings withdrawal.
+    If no payment info is set up, returns null.
+    """
+    try:
+        user_id = user_info["uid"]
+        mongo_service = get_mongodb_service()
+
+        # Get user document
+        users_collection = mongo_service.db["users"]
+        user_doc = users_collection.find_one({"firebase_uid": user_id})
+
+        if not user_doc:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        payment_info = user_doc.get("payment_info")
+
+        if not payment_info:
+            return {
+                "success": True,
+                "has_payment_info": False,
+                "payment_info": None,
+                "message": "Chưa thiết lập thông tin thanh toán",
+            }
+
+        return {
+            "success": True,
+            "has_payment_info": True,
+            "payment_info": {
+                "account_holder_name": payment_info.get("account_holder_name"),
+                "account_number": payment_info.get("account_number"),
+                "bank_name": payment_info.get("bank_name"),
+                "bank_branch": payment_info.get("bank_branch"),
+                "updated_at": (
+                    payment_info.get("updated_at").isoformat()
+                    if payment_info.get("updated_at")
+                    else None
+                ),
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get payment info: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @router.get(
     "/me/earnings",
@@ -847,14 +980,13 @@ async def get_my_earnings(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.post(
     "/me/earnings/withdraw",
     response_model=dict,
     tags=["Phase 5 - Marketplace"],
 )
 async def withdraw_earnings(
-    amount: int,
+    request: WithdrawEarningsRequest,
     user_info: dict = Depends(require_auth),
 ):
     """
@@ -863,13 +995,15 @@ async def withdraw_earnings(
     **Requirements:**
     - Minimum withdrawal: 100,000 points (100,000 VND)
     - earnings_points must be sufficient
+    - Payment info must be set up first (use POST /me/payment-info)
     - Withdrawal will be processed manually by admin
 
     **Process:**
-    1. User requests withdrawal
-    2. Points are held (deducted from earnings_points)
-    3. Admin reviews and transfers money
-    4. Transaction is recorded
+    1. User sets up payment info (bank account details)
+    2. User requests withdrawal
+    3. Points are deducted and marked as "pending"
+    4. Admin receives email notification
+    5. Admin transfers money and marks as "completed"
 
     **Note:**
     - This only works with earnings_points (not regular points)
@@ -878,17 +1012,10 @@ async def withdraw_earnings(
     """
     try:
         user_id = user_info["uid"]
+        amount = request.amount
         mongo_service = get_mongodb_service()
 
         logger.info(f"💸 Withdrawal request: {amount} points from user {user_id}")
-
-        # Minimum withdrawal check
-        MIN_WITHDRAWAL = 100000
-        if amount < MIN_WITHDRAWAL:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Minimum withdrawal is {MIN_WITHDRAWAL} points ({MIN_WITHDRAWAL:,} VND)",
-            )
 
         # Get user document (use firebase_uid)
         users_collection = mongo_service.db["users"]
@@ -897,26 +1024,34 @@ async def withdraw_earnings(
         if not user_doc:
             raise HTTPException(status_code=404, detail="User not found")
 
+        # Check if payment info is set up
+        payment_info = user_doc.get("payment_info")
+        if not payment_info:
+            raise HTTPException(
+                status_code=400,
+                detail="Vui lòng cài đặt thông tin thanh toán trước khi rút tiền. Sử dụng endpoint POST /api/v1/tests/me/payment-info",
+            )
+
         earnings_points = user_doc.get("earnings_points", 0)
 
         # Check sufficient balance
         if earnings_points < amount:
             raise HTTPException(
                 status_code=402,
-                detail=f"Insufficient earnings. You have {earnings_points:,} points but requested {amount:,} points.",
+                detail=f"Không đủ điểm thưởng. Bạn có {earnings_points:,} điểm nhưng yêu cầu rút {amount:,} điểm.",
             )
 
         # Deduct from earnings_points
         new_earnings = earnings_points - amount
         users_collection.update_one(
-            {"firebase_uid": user_id},  # Use firebase_uid
+            {"firebase_uid": user_id},
             {
                 "$set": {"earnings_points": new_earnings},
                 "$push": {
                     "earnings_transactions": {
                         "type": "withdraw",
                         "amount": amount,
-                        "reason": "Withdrawal to bank account",
+                        "reason": "Rút tiền về tài khoản ngân hàng",
                         "status": "pending",
                         "timestamp": datetime.utcnow(),
                         "balance_after": new_earnings,
@@ -936,6 +1071,13 @@ async def withdraw_earnings(
             "updated_at": datetime.utcnow(),
             "user_email": user_info.get("email"),
             "user_name": user_info.get("name"),
+            # Payment info from user profile
+            "payment_info": {
+                "account_holder_name": payment_info.get("account_holder_name"),
+                "account_number": payment_info.get("account_number"),
+                "bank_name": payment_info.get("bank_name"),
+                "bank_branch": payment_info.get("bank_branch"),
+            },
         }
 
         result = withdrawals_collection.insert_one(withdrawal_doc)
@@ -944,6 +1086,61 @@ async def withdraw_earnings(
         logger.info(f"✅ Withdrawal request created: {withdrawal_id}")
         logger.info(f"   Amount: {amount:,} points ({amount:,} VND)")
         logger.info(f"   User balance: {earnings_points:,} → {new_earnings:,}")
+        logger.info(
+            f"   Bank: {payment_info.get('bank_name')} - {payment_info.get('account_number')}"
+        )
+
+        # Send email notification to admin
+        try:
+            from src.services.brevo_email_service import get_brevo_service
+
+            brevo_service = get_brevo_service()
+            admin_email = "tienhoi.lh@gmail.com"
+
+            email_body = f"""
+            <h2>🔔 Yêu cầu rút tiền mới từ WordAI</h2>
+
+            <h3>Thông tin người yêu cầu:</h3>
+            <ul>
+                <li><strong>Tên:</strong> {user_info.get('name', 'N/A')}</li>
+                <li><strong>Email:</strong> {user_info.get('email', 'N/A')}</li>
+                <li><strong>User ID:</strong> {user_id}</li>
+            </ul>
+
+            <h3>Thông tin giao dịch:</h3>
+            <ul>
+                <li><strong>Số tiền:</strong> {amount:,} điểm ({amount:,} VNĐ)</li>
+                <li><strong>Trạng thái:</strong> Chờ thanh toán</li>
+                <li><strong>Mã giao dịch:</strong> {withdrawal_id}</li>
+                <li><strong>Thời gian:</strong> {datetime.utcnow().strftime('%d/%m/%Y %H:%M:%S')} UTC</li>
+            </ul>
+
+            <h3>Thông tin chuyển khoản:</h3>
+            <ul>
+                <li><strong>Tên chủ TK:</strong> {payment_info.get('account_holder_name')}</li>
+                <li><strong>Số tài khoản:</strong> {payment_info.get('account_number')}</li>
+                <li><strong>Ngân hàng:</strong> {payment_info.get('bank_name')}</li>
+                <li><strong>Chi nhánh:</strong> {payment_info.get('bank_branch', 'Không có')}</li>
+            </ul>
+
+            <p><strong>⚠️ Vui lòng xử lý yêu cầu này trong vòng 24-48 giờ.</strong></p>
+
+            <p>Để xác nhận đã chuyển tiền, truy cập:</p>
+            <p><a href="https://ai.wordai.pro/admin/withdrawals/{withdrawal_id}">https://ai.wordai.pro/admin/withdrawals/{withdrawal_id}</a></p>
+            """
+
+            await brevo_service.send_email(
+                to_email=admin_email,
+                to_name="Admin WordAI",
+                subject=f"🔔 Yêu cầu rút {amount:,} VNĐ từ {user_info.get('name', 'User')}",
+                html_content=email_body,
+            )
+
+            logger.info(f"📧 Email notification sent to admin: {admin_email}")
+
+        except Exception as email_error:
+            logger.error(f"⚠️ Failed to send admin email notification: {email_error}")
+            # Don't fail the withdrawal request if email fails
 
         return {
             "success": True,
@@ -951,8 +1148,13 @@ async def withdraw_earnings(
             "amount": amount,
             "amount_vnd": amount,
             "status": "pending",
-            "message": "Withdrawal request submitted. You will receive money within 24-48 hours.",
+            "message": "Yêu cầu rút tiền đã được gửi. Bạn sẽ nhận được tiền trong vòng 24-48 giờ.",
             "new_balance": new_earnings,
+            "payment_info": {
+                "account_holder_name": payment_info.get("account_holder_name"),
+                "account_number": payment_info.get("account_number"),
+                "bank_name": payment_info.get("bank_name"),
+            },
         }
 
     except HTTPException:
