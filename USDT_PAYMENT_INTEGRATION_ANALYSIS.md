@@ -1,95 +1,998 @@
 # USDT Cryptocurrency Payment Integration Analysis
 
-**Version:** 1.0
-**Last Updated:** December 1, 2025
-**Exchange Rate:** 1 USDT = 26,000 VND
+**Version:** 2.0
+**Last Updated:** December 2, 2025
+**Supported Networks:** BEP-20 (BSC), TRC-20 (Tron)
+**Exchange Rate:** 1 USDT ≈ 26,000 VND (dynamic)
 
 ---
 
 ## Executive Summary
 
-This document analyzes the integration of USDT (Tether) cryptocurrency payments for WordAI's subscription plans and points purchases. The integration will enable users to pay with crypto wallets (MetaMask, Trust Wallet, etc.) while maintaining existing VND pricing structures through automatic conversion.
+This document provides a comprehensive technical analysis for integrating USDT (Tether) cryptocurrency payments into WordAI, supporting both **BEP-20 (Binance Smart Chain)** and **TRC-20 (Tron)** networks. Users can purchase subscription plans and points using crypto wallets while the system automatically converts and validates transactions.
 
-**Key Benefits:**
-- ✅ Lower transaction fees (0-2% vs 2-4% for traditional gateways)
-- ✅ Instant settlement (blockchain confirmation ~1-5 minutes)
-- ✅ Global accessibility (no banking restrictions)
-- ✅ No chargebacks (blockchain transactions are irreversible)
-- ✅ Pseudonymous payments (wallet addresses, not personal info)
+### Supported Networks
 
-**Key Challenges:**
-- ⚠️ Exchange rate volatility (USDT/VND can fluctuate)
-- ⚠️ Smart contract security risks
-- ⚠️ Blockchain network congestion
-- ⚠️ User education (wallet setup, gas fees)
+| Network | Token Standard | Avg Fee | Confirmation Time | Security | Recommendation |
+|---------|---------------|---------|-------------------|----------|----------------|
+| **BSC** | BEP-20 | $0.10-$0.50 | 3 seconds | High | ⭐ Primary (Fast + Cheap) |
+| **Tron** | TRC-20 | $0.50-$2.00 | 3-10 seconds | High | ⭐ Alternative (Popular) |
 
----
+**Why these networks?**
+- ✅ **Low fees:** Both networks have negligible transaction costs compared to Ethereum ($20-$100)
+- ✅ **Fast confirmation:** 3-10 seconds vs 1-15 minutes on Ethereum
+- ✅ **High adoption:** Most crypto users have wallets supporting these networks
+- ✅ **USDT liquidity:** Both have deep USDT liquidity on exchanges
 
-# Phân tích tích hợp Crypto Wallet cho thanh toán USDT
+### Key Benefits
+- ✅ **0.1-2% transaction fees** (vs 2-4% for traditional gateways)
+- ✅ **Instant settlement** (3-10 seconds confirmation)
+- ✅ **Global accessibility** (no banking restrictions)
+- ✅ **No chargebacks** (blockchain finality)
+- ✅ **Automated processing** (smart contract + monitoring)
 
-**Version:** 1.0
-**Date:** December 1, 2025
-**Author:** AI Assistant
-**Purpose:** Phân tích kỹ thuật và implementation plan cho tính năng thanh toán bằng USDT
-
----
-
-## 📋 Tổng quan
-
-Tích hợp crypto wallet cho phép users thanh toán mua điểm (points) bằng USDT trên 2 mạng blockchain:
-- **TRC20** (Tron network) - Phí thấp, thời gian confirm 1-3 phút
-- **ERC20** (Ethereum network) - Nhanh hơn, thời gian confirm 30 giây - 2 phút
+### Key Challenges
+- ⚠️ **Exchange rate volatility** (solved by rate-locking mechanism)
+- ⚠️ **Network selection UX** (users must choose correct network)
+- ⚠️ **Gas fees education** (users need native tokens: BNB/TRX)
+- ⚠️ **Transaction monitoring complexity** (requires blockchain indexing)
 
 ---
 
-## 🎯 Mục tiêu
-
-### Business Goals:
-1. Mở rộng payment options cho users toàn cầu
-2. Giảm dependency vào payment gateway Việt Nam (SePay)
-3. Tăng conversion rate với users có crypto
-4. Tự động hóa payment processing (không cần manual confirm)
-5. Giảm phí transaction (đặc biệt với TRC20)
-
-### Technical Goals:
-1. Tích hợp Web3 wallet providers (Metamask, Trust Wallet, WalletConnect)
-2. Smart contract hoặc backend listener để verify transactions
-3. Real-time transaction monitoring
-4. Auto credit points sau khi confirm
-5. User-friendly UX với clear instructions
-
 ---
 
-## 🏗️ Kiến trúc hệ thống
+## 🏗️ System Architecture
 
-### High-level Architecture:
+### High-Level Architecture
 
 ```
-┌─────────────────┐         ┌──────────────────┐         ┌─────────────────┐
-│   User Browser  │         │   Backend API    │         │   Blockchain    │
-│                 │         │                  │         │   (Tron/ETH)    │
-└────────┬────────┘         └────────┬─────────┘         └────────┬────────┘
-         │                           │                            │
-         │ 1. Connect Wallet         │                            │
-         ├──────────────────────────>│                            │
-         │                           │                            │
-         │ 2. Create Payment Intent  │                            │
-         ├──────────────────────────>│                            │
-         │                           │                            │
-         │ 3. Return USDT Address    │                            │
-         │<──────────────────────────┤                            │
-         │                           │                            │
-         │ 4. Sign & Send TX         │                            │
-         ├───────────────────────────┼───────────────────────────>│
-         │                           │                            │
-         │                           │ 5. Listen for TX           │
-         │                           │<───────────────────────────┤
-         │                           │                            │
-         │                           │ 6. Verify & Credit Points  │
-         │ 7. Show Success           │                            │
-         │<──────────────────────────┤                            │
-         │                           │                            │
+┌─────────────────────┐         ┌──────────────────────┐         ┌─────────────────────┐
+│   User Browser      │         │   Backend API        │         │   Blockchain        │
+│   (Web3 Wallet)     │         │   (Python)           │         │   BSC / Tron        │
+└──────────┬──────────┘         └──────────┬───────────┘         └──────────┬──────────┘
+           │                               │                                │
+           │ 1. Select Network (BSC/Tron) │                                │
+           ├─────────────────────────────>│                                │
+           │                               │                                │
+           │ 2. Create Payment Intent      │                                │
+           │    (amount, network)          │                                │
+           ├─────────────────────────────>│                                │
+           │                               │                                │
+           │ 3. Return Payment Info        │                                │
+           │    (address, amount, timeout) │                                │
+           │<──────────────────────────────┤                                │
+           │                               │                                │
+           │ 4. Connect Wallet             │                                │
+           │    (MetaMask/TronLink)        │                                │
+           │                               │                                │
+           │ 5. Sign & Broadcast TX        │                                │
+           ├───────────────────────────────┼───────────────────────────────>│
+           │                               │                                │
+           │                               │ 6. Monitor Address             │
+           │                               │    (WebSocket/Polling)         │
+           │                               │<───────────────────────────────┤
+           │                               │                                │
+           │                               │ 7. Detect TX                   │
+           │                               │<───────────────────────────────┤
+           │                               │                                │
+           │                               │ 8. Verify:                     │
+           │                               │    - Correct amount            │
+           │                               │    - Correct address           │
+           │                               │    - Min confirmations         │
+           │                               │                                │
+           │                               │ 9. Credit Points/Subscription  │
+           │                               │    (Update Database)           │
+           │                               │                                │
+           │ 10. WebSocket Notification    │                                │
+           │<──────────────────────────────┤                                │
+           │     "Payment Confirmed!"      │                                │
+           │                               │                                │
 ```
+
+### Component Breakdown
+
+#### 1. Frontend (React/Next.js)
+- **Wallet Connection:** Web3Modal, WalletConnect
+- **Network Switching:** Detect and prompt user to switch networks
+- **Transaction Signing:** Use wallet's built-in signing
+- **Real-time Updates:** WebSocket for payment status
+
+#### 2. Backend (Python FastAPI)
+- **Payment Intent Creation:** Generate unique payment addresses
+- **Transaction Monitoring:** Blockchain scanners (BSCScan API, TronGrid API)
+- **Validation Logic:** Verify amount, sender, confirmations
+- **Database Updates:** Credit points/subscriptions after confirmation
+
+#### 3. Blockchain Monitoring Services
+- **BSC Monitor:** Web3.py + BSCScan API
+- **Tron Monitor:** TronPy + TronGrid API
+- **Webhook Support:** Optional instant notifications from blockchain explorers
+
+---
+
+## 🔐 Wallet & Network Configuration
+
+### BEP-20 (Binance Smart Chain)
+
+**Network Details:**
+```json
+{
+  "chainId": "0x38",
+  "chainIdDecimal": 56,
+  "chainName": "Binance Smart Chain Mainnet",
+  "nativeCurrency": {
+    "name": "BNB",
+    "symbol": "BNB",
+    "decimals": 18
+  },
+  "rpcUrls": [
+    "https://bsc-dataseed.binance.org/",
+    "https://bsc-dataseed1.defibit.io/",
+    "https://bsc-dataseed1.ninicoin.io/"
+  ],
+  "blockExplorerUrls": ["https://bscscan.com"]
+}
+```
+
+**USDT Token Contract:**
+- **Address:** `0x55d398326f99059fF775485246999027B3197955`
+- **Decimals:** 18
+- **Symbol:** USDT
+- **Gas Fee:** ~0.0002-0.0005 BNB ($0.10-$0.30)
+- **Confirmation Time:** ~3 seconds (1 block)
+
+### TRC-20 (Tron Network)
+
+**Network Details:**
+```json
+{
+  "chainId": "0x2b6653dc",
+  "chainName": "Tron Mainnet",
+  "nativeCurrency": {
+    "name": "TRX",
+    "symbol": "TRX",
+    "decimals": 6
+  },
+  "rpcUrls": ["https://api.trongrid.io"],
+  "blockExplorerUrls": ["https://tronscan.org"]
+}
+```
+
+**USDT Token Contract:**
+- **Address:** `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`
+- **Decimals:** 6
+- **Symbol:** USDT
+- **Gas Fee:** ~5-15 TRX ($0.50-$2.00)
+- **Confirmation Time:** ~3 seconds (1 block)
+
+---
+
+## 🔍 Transaction Monitoring & Verification System
+
+### Overview
+
+The transaction monitoring system is the **most critical component** for crypto payments. It must reliably detect, validate, and confirm USDT transfers to prevent fraud while providing a smooth user experience.
+
+### Monitoring Architecture Options
+
+#### Option 1: Dedicated Hot Wallet (Recommended)
+Each payment uses the **same hot wallet address**. System monitors incoming transactions to this address.
+
+**Pros:**
+- ✅ Simple implementation
+- ✅ Easy balance management
+- ✅ Lower monitoring overhead
+- ✅ Standard practice for exchanges
+
+**Cons:**
+- ⚠️ Requires payment_id in transaction memo/data (not all wallets support)
+- ⚠️ Manual reconciliation if memo missing
+
+#### Option 2: Unique Address Per Payment
+Generate a **new deposit address** for each payment intent.
+
+**Pros:**
+- ✅ Automatic payment matching (no memo needed)
+- ✅ Better privacy
+- ✅ Easier reconciliation
+
+**Cons:**
+- ⚠️ Complex address generation (HD wallets)
+- ⚠️ Must monitor many addresses simultaneously
+- ⚠️ Higher infrastructure cost
+
+**Recommendation:** Use **Option 1 (Hot Wallet)** with optional memo field. Fall back to manual matching via amount + timestamp for wallets without memo support.
+
+---
+
+### BSC (BEP-20) Transaction Monitoring
+
+#### Method 1: BSCScan API (Recommended)
+
+**Advantages:**
+- ✅ Free tier: 5 calls/second
+- ✅ Historical transaction data
+- ✅ No blockchain node required
+- ✅ Well-documented
+
+**API Endpoint:**
+```
+https://api.bscscan.com/api
+?module=account
+&action=tokentx
+&contractaddress=0x55d398326f99059fF775485246999027B3197955
+&address={YOUR_WALLET_ADDRESS}
+&startblock=0
+&endblock=99999999
+&sort=desc
+&apikey={YOUR_API_KEY}
+```
+
+**Python Implementation:**
+
+```python
+import httpx
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional
+
+class BSCTransactionMonitor:
+    """Monitor USDT BEP-20 transactions on Binance Smart Chain"""
+
+    BSC_API_URL = "https://api.bscscan.com/api"
+    USDT_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
+    MIN_CONFIRMATIONS = 12  # ~36 seconds on BSC
+
+    def __init__(self, api_key: str, wallet_address: str):
+        self.api_key = api_key
+        self.wallet_address = wallet_address
+        self.client = httpx.AsyncClient(timeout=30.0)
+
+    async def get_recent_transactions(
+        self,
+        since_timestamp: Optional[int] = None
+    ) -> List[Dict]:
+        """
+        Fetch recent USDT transactions to monitored address
+
+        Args:
+            since_timestamp: Unix timestamp to fetch transactions after
+
+        Returns:
+            List of transaction dictionaries
+        """
+        params = {
+            "module": "account",
+            "action": "tokentx",
+            "contractaddress": self.USDT_CONTRACT,
+            "address": self.wallet_address,
+            "startblock": 0,
+            "endblock": 99999999,
+            "sort": "desc",
+            "apikey": self.api_key
+        }
+
+        try:
+            response = await self.client.get(self.BSC_API_URL, params=params)
+            data = response.json()
+
+            if data["status"] != "1":
+                raise Exception(f"BSCScan API error: {data.get('message')}")
+
+            transactions = data["result"]
+
+            # Filter by timestamp if provided
+            if since_timestamp:
+                transactions = [
+                    tx for tx in transactions
+                    if int(tx["timeStamp"]) >= since_timestamp
+                ]
+
+            return transactions
+
+        except Exception as e:
+            print(f"❌ Error fetching BSC transactions: {e}")
+            return []
+
+    async def verify_transaction(
+        self,
+        tx_hash: str,
+        expected_amount: float,
+        expected_recipient: str,
+        tolerance: float = 0.01
+    ) -> Dict[str, any]:
+        """
+        Verify a specific transaction meets payment requirements
+
+        Args:
+            tx_hash: Transaction hash to verify
+            expected_amount: Expected USDT amount
+            expected_recipient: Expected recipient address
+            tolerance: Acceptable amount deviation (default 1%)
+
+        Returns:
+            Verification result with status and details
+        """
+        params = {
+            "module": "proxy",
+            "action": "eth_getTransactionReceipt",
+            "txhash": tx_hash,
+            "apikey": self.api_key
+        }
+
+        try:
+            response = await self.client.get(self.BSC_API_URL, params=params)
+            data = response.json()
+
+            if not data.get("result"):
+                return {
+                    "verified": False,
+                    "reason": "Transaction not found"
+                }
+
+            receipt = data["result"]
+
+            # Check if transaction succeeded
+            if receipt.get("status") != "0x1":
+                return {
+                    "verified": False,
+                    "reason": "Transaction failed on blockchain"
+                }
+
+            # Get transaction details
+            tx_details = await self._get_transaction_details(tx_hash)
+
+            # Verify recipient
+            if tx_details["to"].lower() != expected_recipient.lower():
+                return {
+                    "verified": False,
+                    "reason": f"Wrong recipient: {tx_details['to']}"
+                }
+
+            # Verify amount (USDT has 18 decimals on BSC)
+            actual_amount = int(tx_details["value"]) / 1e18
+            amount_diff = abs(actual_amount - expected_amount)
+
+            if amount_diff > (expected_amount * tolerance):
+                return {
+                    "verified": False,
+                    "reason": f"Amount mismatch: expected {expected_amount}, got {actual_amount}"
+                }
+
+            # Check confirmations
+            current_block = await self._get_current_block()
+            tx_block = int(receipt["blockNumber"], 16)
+            confirmations = current_block - tx_block
+
+            if confirmations < self.MIN_CONFIRMATIONS:
+                return {
+                    "verified": False,
+                    "reason": f"Insufficient confirmations: {confirmations}/{self.MIN_CONFIRMATIONS}",
+                    "confirmations": confirmations
+                }
+
+            # All checks passed
+            return {
+                "verified": True,
+                "tx_hash": tx_hash,
+                "from": tx_details["from"],
+                "to": tx_details["to"],
+                "amount": actual_amount,
+                "confirmations": confirmations,
+                "timestamp": int(receipt["timestamp"], 16) if "timestamp" in receipt else None,
+                "block_number": tx_block
+            }
+
+        except Exception as e:
+            return {
+                "verified": False,
+                "reason": f"Verification error: {str(e)}"
+            }
+
+    async def _get_transaction_details(self, tx_hash: str) -> Dict:
+        """Get detailed transaction information"""
+        params = {
+            "module": "proxy",
+            "action": "eth_getTransactionByHash",
+            "txhash": tx_hash,
+            "apikey": self.api_key
+        }
+
+        response = await self.client.get(self.BSC_API_URL, params=params)
+        return response.json()["result"]
+
+    async def _get_current_block(self) -> int:
+        """Get current block number"""
+        params = {
+            "module": "proxy",
+            "action": "eth_blockNumber",
+            "apikey": self.api_key
+        }
+
+        response = await self.client.get(self.BSC_API_URL, params=params)
+        return int(response.json()["result"], 16)
+
+    async def monitor_payment(
+        self,
+        payment_id: str,
+        expected_amount: float,
+        timeout_minutes: int = 30
+    ) -> Optional[Dict]:
+        """
+        Monitor for a specific payment with timeout
+
+        Args:
+            payment_id: Unique payment identifier
+            expected_amount: Expected USDT amount
+            timeout_minutes: How long to wait for payment
+
+        Returns:
+            Transaction details if found and verified, None otherwise
+        """
+        start_time = datetime.utcnow()
+        timeout = timedelta(minutes=timeout_minutes)
+        check_interval = 10  # Check every 10 seconds
+
+        print(f"🔍 Monitoring BSC for payment {payment_id}: {expected_amount} USDT")
+
+        while datetime.utcnow() - start_time < timeout:
+            # Fetch recent transactions
+            since_timestamp = int((start_time - timedelta(minutes=5)).timestamp())
+            transactions = await self.get_recent_transactions(since_timestamp)
+
+            # Check each transaction
+            for tx in transactions:
+                tx_amount = int(tx["value"]) / 1e18
+
+                # Amount match with 1% tolerance
+                if abs(tx_amount - expected_amount) <= (expected_amount * 0.01):
+                    # Verify the transaction
+                    verification = await self.verify_transaction(
+                        tx["hash"],
+                        expected_amount,
+                        self.wallet_address
+                    )
+
+                    if verification["verified"]:
+                        print(f"✅ Payment {payment_id} verified: {tx['hash']}")
+                        return verification
+
+            # Wait before next check
+            await asyncio.sleep(check_interval)
+
+        print(f"⏰ Payment {payment_id} monitoring timeout")
+        return None
+```
+
+#### Method 2: Web3.py Direct Node Connection
+
+**Use when:**
+- Need real-time updates (<1 second)
+- High transaction volume
+- Want full control
+
+**Python Implementation:**
+
+```python
+from web3 import Web3
+import json
+
+class BSCWeb3Monitor:
+    """Direct blockchain monitoring using Web3.py"""
+
+    BSC_RPC = "https://bsc-dataseed.binance.org/"
+    USDT_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
+
+    # USDT ABI (Transfer event signature)
+    TRANSFER_EVENT_SIGNATURE = Web3.keccak(text="Transfer(address,address,uint256)").hex()
+
+    def __init__(self, wallet_address: str):
+        self.w3 = Web3(Web3.HTTPProvider(self.BSC_RPC))
+        self.wallet_address = Web3.to_checksum_address(wallet_address)
+        self.contract = self.w3.eth.contract(
+            address=Web3.to_checksum_address(self.USDT_CONTRACT),
+            abi=self._get_usdt_abi()
+        )
+
+    def get_latest_block(self) -> int:
+        """Get current block number"""
+        return self.w3.eth.block_number
+
+    def get_usdt_balance(self, address: str) -> float:
+        """Get USDT balance for address"""
+        balance = self.contract.functions.balanceOf(
+            Web3.to_checksum_address(address)
+        ).call()
+        return balance / 1e18  # 18 decimals
+
+    def get_transfer_events(
+        self,
+        from_block: int,
+        to_block: int = 'latest'
+    ) -> List[Dict]:
+        """
+        Get USDT transfer events to monitored address
+
+        Args:
+            from_block: Starting block number
+            to_block: Ending block (default: latest)
+
+        Returns:
+            List of transfer events
+        """
+        # Filter for Transfer events to our address
+        transfer_filter = self.contract.events.Transfer.create_filter(
+            fromBlock=from_block,
+            toBlock=to_block,
+            argument_filters={'to': self.wallet_address}
+        )
+
+        events = transfer_filter.get_all_entries()
+
+        return [
+            {
+                "tx_hash": event["transactionHash"].hex(),
+                "from": event["args"]["from"],
+                "to": event["args"]["to"],
+                "amount": event["args"]["value"] / 1e18,
+                "block_number": event["blockNumber"],
+                "timestamp": self.w3.eth.get_block(event["blockNumber"])["timestamp"]
+            }
+            for event in events
+        ]
+
+    def _get_usdt_abi(self) -> List:
+        """Minimal USDT ABI for Transfer events"""
+        return [
+            {
+                "anonymous": False,
+                "inputs": [
+                    {"indexed": True, "name": "from", "type": "address"},
+                    {"indexed": True, "name": "to", "type": "address"},
+                    {"indexed": False, "name": "value", "type": "uint256"}
+                ],
+                "name": "Transfer",
+                "type": "event"
+            },
+            {
+                "constant": True,
+                "inputs": [{"name": "who", "type": "address"}],
+                "name": "balanceOf",
+                "outputs": [{"name": "", "type": "uint256"}],
+                "type": "function"
+            }
+        ]
+```
+
+---
+
+### Tron (TRC-20) Transaction Monitoring
+
+#### Method 1: TronGrid API (Recommended)
+
+**Advantages:**
+- ✅ Free tier available
+- ✅ Official Tron Foundation API
+- ✅ Real-time updates
+- ✅ No node required
+
+**API Endpoint:**
+```
+https://api.trongrid.io/v1/accounts/{address}/transactions/trc20
+?only_to=true
+&limit=20
+&contract_address=TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
+```
+
+**Python Implementation:**
+
+```python
+import httpx
+import base58
+from typing import List, Dict, Optional
+from datetime import datetime, timedelta
+
+class TronTransactionMonitor:
+    """Monitor USDT TRC-20 transactions on Tron network"""
+
+    TRON_API_URL = "https://api.trongrid.io"
+    USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+    MIN_CONFIRMATIONS = 19  # ~57 seconds on Tron (19 blocks * 3 sec)
+
+    def __init__(self, api_key: str, wallet_address: str):
+        self.api_key = api_key
+        self.wallet_address = wallet_address
+        self.client = httpx.AsyncClient(
+            timeout=30.0,
+            headers={"TRON-PRO-API-KEY": api_key} if api_key else {}
+        )
+
+    async def get_recent_transactions(
+        self,
+        only_to: bool = True,
+        limit: int = 20
+    ) -> List[Dict]:
+        """
+        Fetch recent USDT TRC-20 transactions
+
+        Args:
+            only_to: Only get incoming transactions
+            limit: Maximum number of transactions
+
+        Returns:
+            List of transaction dictionaries
+        """
+        endpoint = f"{self.TRON_API_URL}/v1/accounts/{self.wallet_address}/transactions/trc20"
+
+        params = {
+            "only_to": str(only_to).lower(),
+            "limit": limit,
+            "contract_address": self.USDT_CONTRACT
+        }
+
+        try:
+            response = await self.client.get(endpoint, params=params)
+            data = response.json()
+
+            if not data.get("success", True):
+                raise Exception(f"TronGrid API error: {data}")
+
+            return data.get("data", [])
+
+        except Exception as e:
+            print(f"❌ Error fetching Tron transactions: {e}")
+            return []
+
+    async def verify_transaction(
+        self,
+        tx_id: str,
+        expected_amount: float,
+        expected_recipient: str,
+        tolerance: float = 0.01
+    ) -> Dict[str, any]:
+        """
+        Verify a specific Tron transaction
+
+        Args:
+            tx_id: Transaction ID to verify
+            expected_amount: Expected USDT amount
+            expected_recipient: Expected recipient address
+            tolerance: Acceptable amount deviation
+
+        Returns:
+            Verification result
+        """
+        endpoint = f"{self.TRON_API_URL}/wallet/gettransactioninfobyid"
+
+        try:
+            # Get transaction info
+            response = await self.client.post(
+                endpoint,
+                json={"value": tx_id}
+            )
+            tx_info = response.json()
+
+            if not tx_info:
+                return {
+                    "verified": False,
+                    "reason": "Transaction not found"
+                }
+
+            # Check if transaction succeeded
+            if tx_info.get("receipt", {}).get("result") != "SUCCESS":
+                return {
+                    "verified": False,
+                    "reason": "Transaction failed on blockchain"
+                }
+
+            # Get transaction details
+            tx_response = await self.client.post(
+                f"{self.TRON_API_URL}/wallet/gettransactionbyid",
+                json={"value": tx_id}
+            )
+            tx_details = tx_response.json()
+
+            # Parse contract parameters
+            if "raw_data" not in tx_details:
+                return {
+                    "verified": False,
+                    "reason": "Invalid transaction format"
+                }
+
+            contract = tx_details["raw_data"]["contract"][0]
+            parameter = contract["parameter"]["value"]
+
+            # Verify recipient
+            to_address = self._hex_to_base58(parameter["to"])
+            if to_address != expected_recipient:
+                return {
+                    "verified": False,
+                    "reason": f"Wrong recipient: {to_address}"
+                }
+
+            # Verify amount (USDT has 6 decimals on Tron)
+            actual_amount = int(parameter["amount"]) / 1e6
+            amount_diff = abs(actual_amount - expected_amount)
+
+            if amount_diff > (expected_amount * tolerance):
+                return {
+                    "verified": False,
+                    "reason": f"Amount mismatch: expected {expected_amount}, got {actual_amount}"
+                }
+
+            # Check confirmations
+            current_block = await self._get_current_block()
+            tx_block = tx_info.get("blockNumber", 0)
+            confirmations = current_block - tx_block
+
+            if confirmations < self.MIN_CONFIRMATIONS:
+                return {
+                    "verified": False,
+                    "reason": f"Insufficient confirmations: {confirmations}/{self.MIN_CONFIRMATIONS}",
+                    "confirmations": confirmations
+                }
+
+            # All checks passed
+            return {
+                "verified": True,
+                "tx_id": tx_id,
+                "from": self._hex_to_base58(parameter["owner_address"]),
+                "to": to_address,
+                "amount": actual_amount,
+                "confirmations": confirmations,
+                "timestamp": tx_info.get("blockTimeStamp", 0) // 1000,
+                "block_number": tx_block,
+                "energy_fee": tx_info.get("receipt", {}).get("energy_fee", 0) / 1e6,
+                "energy_usage": tx_info.get("receipt", {}).get("energy_usage_total", 0)
+            }
+
+        except Exception as e:
+            return {
+                "verified": False,
+                "reason": f"Verification error: {str(e)}"
+            }
+
+    async def _get_current_block(self) -> int:
+        """Get current block height"""
+        response = await self.client.post(
+            f"{self.TRON_API_URL}/wallet/getnowblock"
+        )
+        data = response.json()
+        return data.get("block_header", {}).get("raw_data", {}).get("number", 0)
+
+    def _hex_to_base58(self, hex_address: str) -> str:
+        """Convert hex address to Base58 Tron address"""
+        if hex_address.startswith("41"):
+            hex_address = hex_address[2:]
+
+        # Add Tron prefix (0x41)
+        address_bytes = bytes.fromhex("41" + hex_address)
+        return base58.b58encode_check(address_bytes).decode()
+
+    async def monitor_payment(
+        self,
+        payment_id: str,
+        expected_amount: float,
+        timeout_minutes: int = 30
+    ) -> Optional[Dict]:
+        """
+        Monitor for a specific payment with timeout
+
+        Args:
+            payment_id: Unique payment identifier
+            expected_amount: Expected USDT amount
+            timeout_minutes: How long to wait for payment
+
+        Returns:
+            Transaction details if found and verified
+        """
+        start_time = datetime.utcnow()
+        timeout = timedelta(minutes=timeout_minutes)
+        check_interval = 5  # Check every 5 seconds (Tron is faster)
+
+        print(f"🔍 Monitoring Tron for payment {payment_id}: {expected_amount} USDT")
+
+        while datetime.utcnow() - start_time < timeout:
+            # Fetch recent transactions
+            transactions = await self.get_recent_transactions()
+
+            # Check each transaction
+            for tx in transactions:
+                # Amount is in smallest unit (6 decimals for USDT)
+                tx_amount = float(tx["value"]) / 1e6
+
+                # Amount match with 1% tolerance
+                if abs(tx_amount - expected_amount) <= (expected_amount * 0.01):
+                    # Verify the transaction
+                    verification = await self.verify_transaction(
+                        tx["transaction_id"],
+                        expected_amount,
+                        self.wallet_address
+                    )
+
+                    if verification["verified"]:
+                        print(f"✅ Payment {payment_id} verified: {tx['transaction_id']}")
+                        return verification
+
+            # Wait before next check
+            await asyncio.sleep(check_interval)
+
+        print(f"⏰ Payment {payment_id} monitoring timeout")
+        return None
+```
+
+---
+
+### Unified Payment Monitor Service
+
+**Integration of both BSC and Tron monitoring:**
+
+```python
+import asyncio
+from enum import Enum
+from typing import Optional, Dict
+
+class BlockchainNetwork(str, Enum):
+    BSC = "bsc"
+    TRON = "tron"
+
+class CryptoPaymentMonitor:
+    """Unified monitor for both BSC and Tron USDT payments"""
+
+    def __init__(
+        self,
+        bsc_api_key: str,
+        tron_api_key: str,
+        bsc_wallet: str,
+        tron_wallet: str
+    ):
+        self.bsc_monitor = BSCTransactionMonitor(bsc_api_key, bsc_wallet)
+        self.tron_monitor = TronTransactionMonitor(tron_api_key, tron_wallet)
+
+    async def monitor_payment(
+        self,
+        payment_id: str,
+        network: BlockchainNetwork,
+        expected_amount: float,
+        timeout_minutes: int = 30
+    ) -> Optional[Dict]:
+        """
+        Monitor payment on specified network
+
+        Args:
+            payment_id: Unique payment identifier
+            network: Which blockchain to monitor (BSC or Tron)
+            expected_amount: Expected USDT amount
+            timeout_minutes: How long to wait
+
+        Returns:
+            Verified transaction details or None
+        """
+        if network == BlockchainNetwork.BSC:
+            return await self.bsc_monitor.monitor_payment(
+                payment_id,
+                expected_amount,
+                timeout_minutes
+            )
+        elif network == BlockchainNetwork.TRON:
+            return await self.tron_monitor.monitor_payment(
+                payment_id,
+                expected_amount,
+                timeout_minutes
+            )
+        else:
+            raise ValueError(f"Unsupported network: {network}")
+
+    async def verify_transaction(
+        self,
+        network: BlockchainNetwork,
+        tx_hash: str,
+        expected_amount: float,
+        expected_recipient: str
+    ) -> Dict:
+        """Verify transaction on specified network"""
+        if network == BlockchainNetwork.BSC:
+            return await self.bsc_monitor.verify_transaction(
+                tx_hash,
+                expected_amount,
+                expected_recipient
+            )
+        elif network == BlockchainNetwork.TRON:
+            return await self.tron_monitor.verify_transaction(
+                tx_hash,
+                expected_amount,
+                expected_recipient
+            )
+        else:
+            raise ValueError(f"Unsupported network: {network}")
+```
+
+---
+
+### Background Monitoring Service (Celery Task)
+
+**For production deployment, run monitoring as background tasks:**
+
+```python
+from celery import Celery
+from datetime import datetime
+
+celery_app = Celery('crypto_payments', broker='redis://localhost:6379/0')
+
+@celery_app.task(bind=True, max_retries=3)
+def monitor_crypto_payment_task(
+    self,
+    payment_id: str,
+    network: str,
+    expected_amount: float,
+    user_id: str,
+    timeout_minutes: int = 30
+):
+    """
+    Background task to monitor crypto payment
+
+    This runs independently and updates database when payment is confirmed
+    """
+    try:
+        # Initialize monitor
+        monitor = CryptoPaymentMonitor(
+            bsc_api_key=settings.BSC_API_KEY,
+            tron_api_key=settings.TRON_API_KEY,
+            bsc_wallet=settings.BSC_WALLET_ADDRESS,
+            tron_wallet=settings.TRON_WALLET_ADDRESS
+        )
+
+        # Monitor payment (blocking call with timeout)
+        result = asyncio.run(
+            monitor.monitor_payment(
+                payment_id,
+                BlockchainNetwork(network),
+                expected_amount,
+                timeout_minutes
+            )
+        )
+
+        if result and result["verified"]:
+            # Payment confirmed - credit user account
+            credit_user_payment(
+                user_id=user_id,
+                payment_id=payment_id,
+                amount_usdt=expected_amount,
+                tx_hash=result["tx_hash"] if network == "bsc" else result["tx_id"],
+                network=network,
+                confirmations=result["confirmations"]
+            )
+
+            # Send notification
+            send_payment_success_notification(user_id, payment_id)
+
+            return {"status": "success", "tx": result}
+        else:
+            # Payment timeout or failed
+            mark_payment_timeout(payment_id)
+            send_payment_timeout_notification(user_id, payment_id)
+
+            return {"status": "timeout"}
+
+    except Exception as e:
+        # Retry on error
+        raise self.retry(exc=e, countdown=60)
+```
+
+---
+
+### Verification Checklist
+
+Before crediting user account, verify:
+
+1. ✅ **Correct Recipient:** Transaction sent to our wallet address
+2. ✅ **Correct Amount:** Matches expected amount (±1% tolerance)
+3. ✅ **Correct Token:** USDT contract address (not other tokens)
+4. ✅ **Sufficient Confirmations:**
+   - BSC: 12 confirmations (~36 seconds)
+   - Tron: 19 confirmations (~57 seconds)
+5. ✅ **Transaction Success:** Receipt status = SUCCESS
+6. ✅ **Not Already Processed:** Check database for duplicate tx_hash
+7. ✅ **Within Timeout:** Transaction timestamp < payment expiry time
 
 ---
 

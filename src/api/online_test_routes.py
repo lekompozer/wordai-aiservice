@@ -3253,12 +3253,18 @@ async def get_my_tests(
         test_collection = mongo_service.db["online_tests"]
         submissions_collection = mongo_service.db["test_submissions"]
 
-        # Get total count
-        total_count = test_collection.count_documents({"creator_id": user_info["uid"]})
+        # Query filter: only active tests (not soft-deleted)
+        query_filter = {
+            "creator_id": user_info["uid"],
+            "is_active": {"$ne": False}  # Include True and null (legacy tests)
+        }
+
+        # Get total count of active tests
+        total_count = test_collection.count_documents(query_filter)
 
         # Get user's created tests with pagination, sorted by updated_at (latest first)
         tests = list(
-            test_collection.find({"creator_id": user_info["uid"]})
+            test_collection.find(query_filter)
             .sort(
                 [("updated_at", -1), ("created_at", -1)]
             )  # Latest edited/created first
