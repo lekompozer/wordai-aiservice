@@ -99,17 +99,6 @@ async def translate_test_background(
         gemini_client = genai.Client(api_key=gemini_api_key)
 
         # Prepare content for translation
-
-        # Initialize Gemini client
-        gemini_api_key = getattr(config, "GEMINI_API_KEY", None)
-        if not gemini_api_key:
-            raise Exception("GEMINI_API_KEY not configured")
-
-        from src.clients.gemini_client import GeminiClient
-
-        gemini_client = GeminiClient(api_key=gemini_api_key)
-
-        # Prepare content for translation
         questions = original_test_doc.get("questions", [])
         test_category = original_test_doc.get("test_category", "academic")
         evaluation_criteria = original_test_doc.get(
