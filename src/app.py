@@ -151,6 +151,9 @@ from src.api.test_taking_routes import router as test_taking_router
 from src.api.test_grading_routes import router as test_grading_router
 from src.api.test_marketplace_routes import router as test_marketplace_router
 
+# ✅ ADDED: Test Translation API for translating tests to different languages
+from src.api.test_translation_routes import router as test_translation_router
+
 # ✅ ADDED: Test Statistics API for analytics and reporting
 from src.api.test_statistics_routes import router as test_statistics_router
 
@@ -798,6 +801,9 @@ def create_app() -> FastAPI:
     app.include_router(test_taking_router, tags=["Online Tests - Taking"])
     app.include_router(test_grading_router, tags=["Online Tests - Grading"])
     app.include_router(test_marketplace_router, tags=["Online Tests - Marketplace"])
+
+    # ✅ ADDED: Test Translation API - Translate tests to different languages
+    app.include_router(test_translation_router, tags=["Online Tests - Translation"])
 
     # ✅ ADDED: Test Statistics API - Analytics and reporting for tests and users
     app.include_router(test_statistics_router, tags=["Online Tests - Statistics"])
