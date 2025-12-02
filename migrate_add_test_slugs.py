@@ -17,7 +17,7 @@ import os
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.services.mongodb_service import get_mongodb_service
+from src.services.online_test_utils import get_mongodb_service
 from src.utils.slug_generator import generate_slug, generate_meta_description
 import logging
 
