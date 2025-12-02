@@ -340,19 +340,27 @@ async def unpublish_test(test_id: str, user_info: dict = Depends(require_auth)):
 @router.get("/tests")
 async def browse_marketplace(
     category: Optional[str] = Query(None, description="Filter by category"),
+    language: Optional[str] = Query(None, description="Filter by language (e.g., 'vi', 'en', 'ja')"),
     tag: Optional[str] = Query(None, description="Filter by tag"),
     min_price: Optional[int] = Query(None, ge=0, description="Min price points"),
     max_price: Optional[int] = Query(None, ge=0, description="Max price points"),
     sort_by: str = Query(
         "newest", regex="^(newest|oldest|popular|top_rated|price_low|price_high)$"
     ),
-    search: Optional[str] = Query(None, description="Search in title/description"),
+    search: Optional[str] = Query(None, min_length=4, description="Search in title/description (min 4 chars)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     authorization: Optional[str] = Header(None),
 ):
     """
     Browse marketplace tests with filters and sorting
+
+    Filters:
+    - category: Filter by test category
+    - language: Filter by test language (vi, en, ja, etc.)
+    - tag: Filter by specific tag
+    - min_price/max_price: Price range filter
+    - search: Search in title/description (minimum 4 characters)
 
     Sort options:
     - newest: Recently published
@@ -368,9 +376,15 @@ async def browse_marketplace(
         # Build query
         query = {"marketplace_config.is_public": True}
 
+        # Filter by category (case-insensitive exact match)
         if category:
-            query["marketplace_config.category"] = category
+            query["marketplace_config.category"] = {"$regex": f"^{category}$", "$options": "i"}
 
+        # Filter by language
+        if language:
+            query["test_language"] = language.lower()
+
+        # Filter by tag
         if tag:
             query["marketplace_config.tags"] = tag
 
@@ -383,10 +397,11 @@ async def browse_marketplace(
             else:
                 query["marketplace_config.price_points"] = {"$lte": max_price}
 
-        if search:
+        # Search validation (min 4 chars) is handled by Query param
+        if search and len(search.strip()) >= 4:
             query["$or"] = [
-                {"title": {"$regex": search, "$options": "i"}},
-                {"marketplace_config.description": {"$regex": search, "$options": "i"}},
+                {"title": {"$regex": search.strip(), "$options": "i"}},
+                {"marketplace_config.description": {"$regex": search.strip(), "$options": "i"}},
             ]
 
         # Build sort
@@ -454,10 +469,10 @@ async def browse_marketplace(
             results.append(
                 {
                     "test_id": test_id_str,
-                    "slug": test.get("slug"),  # ✅ NEW: SEO-friendly slug
+                    "slug": test.get("slug"),  # ✅ SEO-friendly slug
                     "meta_description": test.get(
                         "meta_description"
-                    ),  # ✅ NEW: SEO meta
+                    ),  # ✅ SEO meta
                     "title": test.get("title", "Untitled"),
                     "description": mc.get("description", ""),
                     "short_description": mc.get("short_description", ""),
@@ -466,11 +481,12 @@ async def browse_marketplace(
                     "category": mc.get("category"),
                     "tags": mc.get("tags", []),
                     "difficulty_level": mc.get("difficulty_level", "beginner"),
+                    "test_language": test.get("test_language", "vi"),  # ✅ NEW: Language filter support
                     "price_points": mc.get("price_points", 0),
                     "total_purchases": mc.get("total_purchases", 0),
                     "total_participants": mc.get(
                         "total_participants", 0
-                    ),  # ✅ NEW: Show number of participants
+                    ),  # ✅ Show number of participants
                     "avg_rating": mc.get("avg_rating", 0.0),
                     "rating_count": mc.get("rating_count", 0),
                     "published_at": mc.get("published_at"),
@@ -759,13 +775,14 @@ async def get_marketplace_test_detail(
 @router.get("/leaderboard/tests")
 async def get_top_completed_tests(
     category: Optional[str] = Query(None, description="Filter by category"),
+    language: Optional[str] = Query(None, description="Filter by language (e.g., 'vi', 'en', 'ja')"),
     period: str = Query("30d", regex="^(7d|30d|90d|all)$", description="Time period"),
 ):
     """
     Get top 10 most completed tests (public endpoint)
 
     Ranks tests by total_completions in specified period
-    Supports category filtering
+    Supports category and language filtering
     """
     try:
         db = get_database()
@@ -779,7 +796,9 @@ async def get_top_completed_tests(
         # Build match filter for marketplace tests
         match_filter = {"marketplace_config.is_public": True}
         if category and category != "all":
-            match_filter["marketplace_config.category"] = category
+            match_filter["marketplace_config.category"] = {"$regex": f"^{category}$", "$options": "i"}
+        if language:
+            match_filter["test_language"] = language.lower()
 
         # Aggregate completion counts from user_test_attempts
         pipeline = [
@@ -834,12 +853,13 @@ async def get_top_completed_tests(
             {
                 "$project": {
                     "test_id": {"$toString": "$_id"},
-                    "slug": "$slug",  # ✅ NEW: SEO-friendly slug
-                    "meta_description": "$meta_description",  # ✅ NEW: SEO meta
+                    "slug": "$slug",  # ✅ SEO-friendly slug
+                    "meta_description": "$meta_description",  # ✅ SEO meta
                     "title": 1,
                     "description": "$marketplace_config.description",
                     "category": "$marketplace_config.category",
                     "tags": "$marketplace_config.tags",
+                    "test_language": {"$ifNull": ["$test_language", "vi"]},  # ✅ NEW: Language support
                     "creator": {
                         "user_id": "$creator.uid",
                         "display_name": {
@@ -879,6 +899,7 @@ async def get_top_completed_tests(
             "data": {
                 "period": period,
                 "category": category or "all",
+                "language": language or "all",
                 "updated_at": datetime.now(timezone.utc).isoformat(),
                 "top_tests": results,
             },
