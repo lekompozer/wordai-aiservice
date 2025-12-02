@@ -65,7 +65,7 @@ async def translate_test_background(
     Updates status: pending → translating → ready/failed
     """
     from pymongo import MongoClient
-    from src.core.config import config
+    import config.config as config
 
     mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
         config, "MONGODB_URI", "mongodb://localhost:27017"
@@ -89,10 +89,25 @@ async def translate_test_background(
         )
         logger.info(f"🔄 Test {test_id}: Status updated to 'translating'")
 
-        # Import Gemini service
-        from src.services.gemini_service import get_gemini_service
+        # Initialize Gemini client (same way as evaluation service)
+        gemini_api_key = getattr(config, "GEMINI_API_KEY", None)
+        if not gemini_api_key:
+            raise Exception("GEMINI_API_KEY not configured")
 
-        gemini_service = get_gemini_service()
+        from google import genai
+
+        gemini_client = genai.Client(api_key=gemini_api_key)
+
+        # Prepare content for translation
+
+        # Initialize Gemini client
+        gemini_api_key = getattr(config, "GEMINI_API_KEY", None)
+        if not gemini_api_key:
+            raise Exception("GEMINI_API_KEY not configured")
+
+        from src.clients.gemini_client import GeminiClient
+
+        gemini_client = GeminiClient(api_key=gemini_api_key)
 
         # Prepare content for translation
         questions = original_test_doc.get("questions", [])
@@ -190,25 +205,41 @@ Return a JSON object with this exact structure:
 
 Return ONLY valid JSON, no markdown, no code blocks."""
 
-        # Call Gemini 2.5 Flash
+        # Call Gemini 2.0 Flash Exp (same way as evaluation service)
         collection.update_one(
             {"_id": ObjectId(test_id)},
             {"$set": {"progress_percent": 30, "updated_at": datetime.now()}},
         )
 
-        result = await gemini_service.generate_content(
-            prompt=prompt,
-            model_name="gemini-2.5-flash",  # Use Flash for translation
-            response_format="json",
+        logger.info(f"🤖 Calling Gemini 2.0 Flash Exp for translation")
+
+        response = gemini_client.models.generate_content(
+            model="gemini-2.0-flash-exp",
+            contents=prompt,
         )
+
+        # Extract response text
+        result = response.text
+
+        logger.info(f"✅ Gemini translation received")
+        logger.info(f"📝 Response preview (first 200 chars): {result[:200]}")
 
         # Parse response
         import json
+
+        # Remove markdown code blocks if present (same as evaluation service)
+        if "```json" in result:
+            result = result.split("```json")[1].split("```")[0]
+        elif "```" in result:
+            result = result.split("```")[1].split("```")[0]
+
+        result = result.strip()
 
         try:
             translated_data = json.loads(result)
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse Gemini response: {e}")
+            logger.error(f"Response text: {result[:500]}...")
             logger.error(f"Response: {result[:500]}")
             raise Exception(f"Invalid JSON response from AI: {str(e)}")
 
