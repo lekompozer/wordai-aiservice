@@ -28,6 +28,7 @@ from src.middleware.auth import verify_firebase_token as require_auth
 from src.services.test_generator_service import get_test_generator_service
 from src.services.document_manager import document_manager
 from src.services.test_sharing_service import get_test_sharing_service
+from src.services.creator_name_validator import validate_creator_name
 from src.models.subscription import SubscriptionUsageUpdate
 import config.config as config
 
@@ -96,6 +97,9 @@ def get_s3_client():
         logger.info("✅ R2 client initialized for marketplace")
 
     return _s3_client
+
+
+# ========== Test API Models ==========
 
 
 async def upload_cover_to_r2(
@@ -869,6 +873,11 @@ async def generate_test(
             f"   Questions: {request.num_questions}, Time: {request.time_limit_minutes}min"
         )
 
+        # Validate creator_name (uniqueness and reserved names)
+        validate_creator_name(
+            request.creator_name, user_info.get("email", ""), user_info["uid"]
+        )
+
         # Language validation removed - now supports ANY language for maximum flexibility
         # The AI model can generate questions in any language the user specifies
 
@@ -1252,6 +1261,11 @@ async def generate_test_from_general_knowledge(
         logger.info(f"   Category: {request.test_category}")
         logger.info(f"   Title: {request.title}")
 
+        # Validate creator_name (uniqueness and reserved names)
+        validate_creator_name(
+            request.creator_name, user_info.get("email", ""), user_info["uid"]
+        )
+
         # Create test record
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
@@ -1570,6 +1584,11 @@ async def create_manual_test(
         logger.info(f"📝 Manual test creation from user {user_info['uid']}")
         logger.info(f"   Title: {request.title}")
         logger.info(f"   Questions: {len(request.questions or [])}")
+
+        # Validate creator_name (uniqueness and reserved names)
+        validate_creator_name(
+            request.creator_name, user_info.get("email", ""), user_info["uid"]
+        )
 
         # Validate questions if provided
         if request.questions:
@@ -2042,6 +2061,9 @@ async def get_test(
                 "test_category": test.get("test_category", "academic"),
                 "is_active": test.get("is_active", True),
                 "status": test.get("status", "ready"),
+                # Creator info
+                "creator_id": test.get("creator_id"),
+                "creator_name": test.get("creator_name"),
                 # Test settings
                 "max_retries": test.get("max_retries"),
                 "time_limit_minutes": test.get("time_limit_minutes"),
@@ -2107,6 +2129,9 @@ async def get_test(
                 ),
                 "short_description": marketplace_config.get("short_description"),
                 "cover_image_url": marketplace_config.get("cover_image_url"),
+                # Creator info
+                "creator_id": test.get("creator_id"),
+                "creator_name": test.get("creator_name"),
                 # Test configuration (basic)
                 "num_questions": len(test.get("questions", [])),
                 "time_limit_minutes": test.get("time_limit_minutes"),
@@ -3321,6 +3346,7 @@ async def get_my_tests(
                 "created_at": test["created_at"].isoformat(),
                 "updated_at": test.get("updated_at", test["created_at"]).isoformat(),
                 "total_submissions": attempts_count,
+                "creator_name": test.get("creator_name"),
             }
 
             # Add marketplace info if published

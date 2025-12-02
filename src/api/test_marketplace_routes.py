@@ -25,6 +25,7 @@ from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
 from src.models.payment_models import PaymentInfoRequest, WithdrawEarningsRequest
 from src.services.online_test_utils import *
+from src.services.creator_name_validator import validate_creator_name
 
 logger = logging.getLogger("chatbot")
 
@@ -470,6 +471,15 @@ async def update_marketplace_config(
                     status_code=400,
                     detail="Creator name must be between 2 and 100 characters",
                 )
+
+            # Validate creator_name (uniqueness and reserved names)
+            validate_creator_name(
+                creator_name,
+                user_info.get("email", ""),
+                user_id,
+                test_id,  # Pass test_id to allow same name for same test
+            )
+
             update_data["creator_name"] = creator_name
             logger.info(f"   Update creator_name: {creator_name}")
 

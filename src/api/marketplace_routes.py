@@ -470,6 +470,7 @@ async def browse_marketplace(
                             if creator
                             else "Unknown"
                         ),
+                        "creator_name": test.get("creator_name"),
                     },
                     "has_purchased": has_purchased,
                 }
@@ -576,6 +577,7 @@ async def get_marketplace_test_detail(
                 "display_name": (
                     creator.get("display_name", "Unknown") if creator else "Unknown"
                 ),
+                "creator_name": test.get("creator_name"),
             },
             "question_count": len(test.get("questions", [])),
             "time_limit": test.get("time_limit"),
@@ -703,6 +705,7 @@ async def get_top_completed_tests(
                             "$ifNull": ["$creator.display_name", "Unknown"]
                         },
                         "avatar_url": "$creator.avatar_url",
+                        "creator_name": "$creator_name",
                     },
                     "stats": {
                         "total_completions": "$total_completions",

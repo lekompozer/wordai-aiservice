@@ -932,6 +932,7 @@ async def get_my_purchase_history(
                                 if creator
                                 else "Unknown"
                             ),
+                            "creator_name": test.get("creator_name"),
                         },
                     },
                     "purchase_info": {

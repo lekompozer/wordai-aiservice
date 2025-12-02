@@ -292,6 +292,7 @@ class TestSharingService:
                                 "passing_score", 50
                             ),  # Default 50% for old tests
                             "total_participants": total_participants,
+                            "creator_name": test.get("creator_name"),
                         },
                         "sharer": {
                             "name": sharer_name,

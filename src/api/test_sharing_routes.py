@@ -544,6 +544,7 @@ async def list_shared_tests(
                 "my_attempts": inv.get("my_attempts", 0),
                 "my_best_score": inv.get("my_best_score"),
                 "sharer_name": inv["sharer"]["name"],
+                "creator_name": inv["test"].get("creator_name"),
                 "status": inv["status"],
                 "deadline": inv.get("deadline"),
                 "has_completed": inv.get("has_completed", False),
