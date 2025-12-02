@@ -16,12 +16,14 @@ def generate_slug(text: str) -> str:
 
     Process:
     1. Convert to lowercase
-    2. Normalize Vietnamese characters to ASCII
-    3. Replace spaces and special characters with hyphens
-    4. Remove leading/trailing hyphens
+    2. Replace special Vietnamese characters (đ, Đ)
+    3. Normalize other Vietnamese characters to ASCII
+    4. Replace spaces and special characters with hyphens
+    5. Remove leading/trailing hyphens
 
     Examples:
         "Đánh Giá Kỹ Năng Mềm" → "danh-gia-ky-nang-mem"
+        "Điện Biên Phủ" → "dien-bien-phu"
         "Python Programming 101" → "python-programming-101"
         "Hello   World!!!" → "hello-world"
 
@@ -36,6 +38,16 @@ def generate_slug(text: str) -> str:
 
     # Convert to lowercase
     slug = text.lower()
+
+    # ✅ FIX: Manual replacement for Vietnamese characters that NFKD doesn't handle
+    vietnamese_map = {
+        "đ": "d",
+        "Đ": "d",
+        "ð": "d",  # Alternative đ character
+    }
+
+    for viet_char, ascii_char in vietnamese_map.items():
+        slug = slug.replace(viet_char, ascii_char)
 
     # Normalize Unicode characters (Vietnamese → ASCII)
     # NFKD: Compatibility decomposition
