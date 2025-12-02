@@ -26,6 +26,7 @@ from src.models.online_test_models import *
 from src.models.payment_models import PaymentInfoRequest, WithdrawEarningsRequest
 from src.services.online_test_utils import *
 from src.services.creator_name_validator import validate_creator_name
+from src.utils.slug_generator import generate_unique_slug, generate_meta_description
 
 logger = logging.getLogger("chatbot")
 
