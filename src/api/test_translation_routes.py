@@ -97,7 +97,9 @@ async def translate_test_background(
         # Prepare content for translation
         questions = original_test_doc.get("questions", [])
         test_category = original_test_doc.get("test_category", "academic")
-        evaluation_criteria = original_test_doc.get("evaluation_criteria")  # For diagnostic tests
+        evaluation_criteria = original_test_doc.get(
+            "evaluation_criteria"
+        )  # For diagnostic tests
 
         logger.info(
             f"🌍 Translating test to {target_language}: {len(questions)} questions, category: {test_category}"
@@ -124,9 +126,9 @@ async def translate_test_background(
                     if "option_score" in opt:
                         opt_data["option_score"] = opt.get("option_score")
                     options_data.append(opt_data)
-                
+
                 q_data["options"] = options_data
-                
+
                 # Academic tests have correct_answer_key
                 if q.get("correct_answer_key"):
                     q_data["correct_answer_key"] = q.get("correct_answer_key")
