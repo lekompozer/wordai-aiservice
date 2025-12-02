@@ -207,6 +207,27 @@ async def publish_test_to_marketplace(
             )
             logger.info(f"   Creator name: {creator_name}")
 
+        # ========== Step 5.5: Generate slug and meta description ==========
+        # Helper function to check if slug exists
+        def check_slug_exists(slug, exclude_id):
+            query = {"slug": slug}
+            if exclude_id:
+                query["_id"] = {"$ne": ObjectId(exclude_id)}
+            return mongo_service.db["online_tests"].count_documents(query) > 0
+
+        # Generate unique slug from title
+        slug = generate_unique_slug(
+            title, 
+            check_slug_exists,
+            max_length=100,
+            exclude_id=test_id
+        )
+        logger.info(f"   Generated slug: {slug}")
+
+        # Generate meta description for SEO
+        meta_description = generate_meta_description(description, max_length=160)
+        logger.info(f"   Meta description: {meta_description[:50]}...")
+
         # ========== Step 5: Validate cover image (optional) ==========
         cover_url = None
         if cover_image:
@@ -275,6 +296,8 @@ async def publish_test_to_marketplace(
             "tags": tags_list,
             "difficulty_level": difficulty_level,
             "evaluation_criteria": evaluation_criteria,  # Optional criteria for AI evaluation
+            "slug": slug,  # ✅ NEW: SEO-friendly URL slug
+            "meta_description": meta_description,  # ✅ NEW: SEO meta description
             "published_at": datetime.utcnow(),
             "total_participants": 0,
             "total_earnings": 0,
@@ -286,6 +309,8 @@ async def publish_test_to_marketplace(
         # ========== Step 9: Update test document ==========
         update_data = {
             "marketplace_config": marketplace_config,
+            "slug": slug,  # ✅ Store slug at root level for easy querying
+            "meta_description": meta_description,  # ✅ Store meta at root level
             "updated_at": datetime.utcnow(),
         }
 
@@ -467,6 +492,9 @@ async def update_marketplace_config(
 
         # ========== Step 3: Build update data ==========
         update_data = {}
+        regenerate_slug = False
+        new_title = None
+        new_description = None
 
         # Validate and update title
         if title is not None:
@@ -475,6 +503,8 @@ async def update_marketplace_config(
                     status_code=400, detail="Title must be at least 10 characters"
                 )
             update_data["marketplace_config.title"] = title
+            new_title = title
+            regenerate_slug = True  # Regenerate slug when title changes
             logger.info(f"   Update title: {title}")
 
         # Validate and update description
@@ -484,7 +514,39 @@ async def update_marketplace_config(
                     status_code=400, detail="Description must be at least 50 characters"
                 )
             update_data["marketplace_config.description"] = description
+            new_description = description
             logger.info(f"   Update description (length: {len(description)})")
+
+        # Regenerate slug and meta if title or description changed
+        if regenerate_slug or new_description:
+            # Use new title or existing title
+            slug_source = new_title or marketplace_config.get("title", test_doc.get("title", ""))
+            
+            # Helper function to check if slug exists
+            def check_slug_exists(slug, exclude_id):
+                query = {"slug": slug}
+                if exclude_id:
+                    query["_id"] = {"$ne": ObjectId(exclude_id)}
+                return mongo_service.db["online_tests"].count_documents(query) > 0
+            
+            # Generate new unique slug
+            new_slug = generate_unique_slug(
+                slug_source,
+                check_slug_exists,
+                max_length=100,
+                exclude_id=test_id
+            )
+            update_data["slug"] = new_slug
+            update_data["marketplace_config.slug"] = new_slug
+            logger.info(f"   Regenerated slug: {new_slug}")
+            
+            # Regenerate meta description if description changed
+            if new_description:
+                new_meta = generate_meta_description(new_description, max_length=160)
+                update_data["meta_description"] = new_meta
+                update_data["marketplace_config.meta_description"] = new_meta
+                logger.info(f"   Regenerated meta: {new_meta[:50]}...")
+
 
         # Update short description
         if short_description is not None:
@@ -1210,3 +1272,66 @@ async def withdraw_earnings(
     except Exception as e:
         logger.error(f"❌ Failed to process withdrawal: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/check-slug/{slug}", tags=["Test Marketplace - Slug"])
+async def check_slug_availability(
+    slug: str,
+    exclude_test_id: Optional[str] = Query(None, description="Test ID to exclude from check (for updates)"),
+):
+    """
+    ✅ NEW: Check if a slug is available for use
+    
+    Returns:
+    - available: True if slug is not in use
+    - suggestions: Alternative slugs if taken
+    - test_id: ID of test using this slug (if taken)
+    - title: Title of test using this slug (if taken)
+    """
+    try:
+        mongo_service = get_mongodb_service()
+        
+        # Build query
+        query = {"slug": slug, "marketplace_config.is_public": True}
+        if exclude_test_id:
+            try:
+                query["_id"] = {"$ne": ObjectId(exclude_test_id)}
+            except:
+                pass  # Invalid ObjectId, ignore
+        
+        # Check if slug exists
+        existing_test = mongo_service.db["online_tests"].find_one(
+            query,
+            {"_id": 1, "title": 1}
+        )
+        
+        if existing_test:
+            # Slug is taken, generate suggestions
+            from src.utils.slug_generator import generate_slug
+            
+            suggestions = []
+            for i in range(2, 6):  # Generate 4 alternatives
+                alt_slug = f"{slug}-{i}"
+                if not mongo_service.db["online_tests"].find_one({"slug": alt_slug, "marketplace_config.is_public": True}):
+                    suggestions.append(alt_slug)
+            
+            return {
+                "available": False,
+                "slug": slug,
+                "test_id": str(existing_test["_id"]),
+                "title": existing_test.get("title", "Unknown"),
+                "suggestions": suggestions[:3],  # Return top 3
+                "message": f"Slug '{slug}' đã được sử dụng"
+            }
+        else:
+            # Slug is available
+            return {
+                "available": True,
+                "slug": slug,
+                "message": f"Slug '{slug}' có thể sử dụng"
+            }
+            
+    except Exception as e:
+        logger.error(f"❌ Failed to check slug availability: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

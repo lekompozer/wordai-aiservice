@@ -454,6 +454,8 @@ async def browse_marketplace(
             results.append(
                 {
                     "test_id": test_id_str,
+                    "slug": test.get("slug"),  # ✅ NEW: SEO-friendly slug
+                    "meta_description": test.get("meta_description"),  # ✅ NEW: SEO meta
                     "title": test.get("title", "Untitled"),
                     "description": mc.get("description", ""),
                     "short_description": mc.get("short_description", ""),
@@ -498,6 +500,133 @@ async def browse_marketplace(
     except Exception as e:
         logger.error(f"Error browsing marketplace: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to browse marketplace")
+
+
+@router.get("/tests/by-slug/{slug}")
+async def get_marketplace_test_by_slug(
+    slug: str, authorization: Optional[str] = Header(None)
+):
+    """
+    Get marketplace test by SEO-friendly slug (NEW)
+    
+    Example: /marketplace/tests/by-slug/danh-gia-ky-nang-mem
+    
+    This endpoint provides the same data as GET /tests/{test_id} but uses
+    slug for SEO-friendly URLs.
+    
+    Returns:
+    - Full test details
+    - Sample questions (first 3) if not purchased
+    - Purchase status
+    """
+    try:
+        db = get_database()
+
+        # Get test by slug
+        test = db.online_tests.find_one(
+            {"slug": slug, "marketplace_config.is_public": True}
+        )
+
+        if not test:
+            raise HTTPException(
+                status_code=404, detail="Test not found or not published"
+            )
+
+        # Reuse the same logic as get_marketplace_test_detail
+        test_id = str(test["_id"])
+        
+        # Optionally verify token if provided
+        user_id = None
+        if authorization and authorization.startswith("Bearer "):
+            try:
+                from firebase_admin import auth as firebase_auth
+
+                token = authorization.split("Bearer ")[1]
+                decoded_token = firebase_auth.verify_id_token(
+                    token, check_revoked=False
+                )
+                user_id = decoded_token.get("uid")
+            except:
+                pass
+
+        # Check if user purchased
+        has_purchased = False
+        purchase_date = None
+        if user_id:
+            purchase = db.test_purchases.find_one(
+                {"test_id": test_id, "buyer_id": user_id}
+            )
+            if purchase:
+                has_purchased = True
+                purchase_date = purchase.get("purchased_at")
+
+        # Check if user is creator
+        is_creator = user_id == test["creator_id"]
+
+        # Get creator info
+        creator = db.users.find_one({"firebase_uid": test["creator_id"]})
+
+        mc = test.get("marketplace_config", {})
+
+        # Ưu tiên creator_name nếu có, fallback về display_name
+        display_name = test.get("creator_name")
+        if not display_name:
+            display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
+
+        # Build response
+        response_data = {
+            "test_id": test_id,
+            "slug": test.get("slug"),  # Include slug in response
+            "meta_description": test.get("meta_description"),  # Include meta
+            "title": test.get("title", "Untitled"),
+            "description": mc.get("description", ""),
+            "short_description": mc.get("short_description", ""),
+            "cover_image_url": mc.get("cover_image_url"),
+            "category": mc.get("category"),
+            "tags": mc.get("tags", []),
+            "difficulty_level": mc.get("difficulty_level", "beginner"),
+            "price_points": mc.get("price_points", 0),
+            "total_purchases": mc.get("total_purchases", 0),
+            "total_participants": mc.get("total_participants", 0),
+            "avg_rating": mc.get("avg_rating", 0.0),
+            "rating_count": mc.get("rating_count", 0),
+            "published_at": mc.get("published_at"),
+            "updated_at": mc.get("updated_at"),
+            "current_version": mc.get("current_version", "v1"),
+            "creator": {
+                "uid": test["creator_id"],
+                "display_name": display_name,
+            },
+            "question_count": len(test.get("questions", [])),
+            "time_limit": test.get("time_limit"),
+            "has_purchased": has_purchased,
+            "is_creator": is_creator,
+            "purchase_date": purchase_date,
+        }
+
+        # Add sample questions if not purchased/creator
+        if not has_purchased and not is_creator:
+            questions = test.get("questions", [])
+            sample_questions = questions[:3] if len(questions) >= 3 else questions
+
+            sanitized_samples = []
+            for q in sample_questions:
+                sanitized = {
+                    "question_text": q.get("question_text", ""),
+                    "question_type": q.get("question_type", "multiple_choice"),
+                    "options": q.get("options", []),
+                }
+                sanitized_samples.append(sanitized)
+
+            response_data["sample_questions"] = sanitized_samples
+
+        return {"success": True, "data": response_data}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting test by slug: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to get test detail")
 
 
 @router.get("/tests/{test_id}")
@@ -701,6 +830,8 @@ async def get_top_completed_tests(
             {
                 "$project": {
                     "test_id": {"$toString": "$_id"},
+                    "slug": "$slug",  # ✅ NEW: SEO-friendly slug
+                    "meta_description": "$meta_description",  # ✅ NEW: SEO meta
                     "title": 1,
                     "description": "$marketplace_config.description",
                     "category": "$marketplace_config.category",
