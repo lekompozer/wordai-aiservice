@@ -97,15 +97,14 @@ def migrate_tests():
             logger.info(f"   Title: {title}")
 
             try:
-                # Skip if already has slug
-                if test.get("slug"):
-                    logger.info(f"   ⏭️  Skipped: Already has slug '{test.get('slug')}'")
-                    skipped_count += 1
-                    continue
+                # ✅ REGENERATE: Always regenerate slug (even if exists) to fix đ/Đ bug
+                old_slug = test.get("slug")
+                if old_slug:
+                    logger.info(f"   🔄 Regenerating slug (old: '{old_slug}')")
 
                 # Generate slug
                 slug = generate_unique_test_slug(db, title, test_id)
-                logger.info(f"   ✨ Generated slug: {slug}")
+                logger.info(f"   ✨ New slug: {slug}")
 
                 # Generate meta description
                 meta = generate_meta_description(description, max_length=160)
