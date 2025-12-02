@@ -447,8 +447,10 @@ async def browse_marketplace(
             # Ưu tiên creator_name nếu có, fallback về display_name
             display_name = test.get("creator_name")
             if not display_name:
-                display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
-            
+                display_name = (
+                    creator.get("display_name", "Unknown") if creator else "Unknown"
+                )
+
             results.append(
                 {
                     "test_id": test_id_str,
@@ -555,7 +557,9 @@ async def get_marketplace_test_detail(
         # Ưu tiên creator_name nếu có, fallback về display_name
         display_name = test.get("creator_name")
         if not display_name:
-            display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
+            display_name = (
+                creator.get("display_name", "Unknown") if creator else "Unknown"
+            )
 
         # Build response
         response_data = {
@@ -706,7 +710,7 @@ async def get_top_completed_tests(
                         "display_name": {
                             "$ifNull": [
                                 "$creator_name",
-                                {"$ifNull": ["$creator.display_name", "Unknown"]}
+                                {"$ifNull": ["$creator.display_name", "Unknown"]},
                             ]
                         },
                         "avatar_url": "$creator.avatar_url",

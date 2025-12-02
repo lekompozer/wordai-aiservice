@@ -917,7 +917,9 @@ async def get_my_purchase_history(
             # Ưu tiên creator_name nếu có, fallback về display_name
             display_name = test.get("creator_name")
             if not display_name:
-                display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
+                display_name = (
+                    creator.get("display_name", "Unknown") if creator else "Unknown"
+                )
 
             results.append(
                 {
