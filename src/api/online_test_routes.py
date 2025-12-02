@@ -4840,6 +4840,9 @@ class FullTestEditRequest(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = Field(None, max_length=5000)
     is_active: Optional[bool] = None
+    creator_name: Optional[str] = Field(
+        None, min_length=2, max_length=100, description="Custom creator display name"
+    )
 
     # Test settings
     max_retries: Optional[int] = Field(None, ge=1, le=20)
@@ -5607,6 +5610,16 @@ async def full_edit_test(
         if request.is_active is not None:
             update_data["is_active"] = request.is_active
             logger.info(f"   Update is_active: {request.is_active}")
+
+        # Creator name update with validation
+        if request.creator_name is not None:
+            from src.services.creator_name_validator import validate_creator_name
+
+            user_email = user_info.get("email", "")
+            # Validate uniqueness and reserved names, allow same test to keep its name
+            validate_creator_name(request.creator_name, user_email, user_id, test_id)
+            update_data["creator_name"] = request.creator_name
+            logger.info(f"   Update creator_name: {request.creator_name}")
 
         # Test settings updates
         if request.max_retries is not None:

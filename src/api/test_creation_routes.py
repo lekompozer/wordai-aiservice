@@ -276,9 +276,17 @@ async def generate_test(
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
 
+        # Validate creator_name if provided
+        if request.creator_name:
+            from src.services.creator_name_validator import validate_creator_name
+
+            user_email = user_info.get("email", "")
+            validate_creator_name(request.creator_name, user_email, user_info["uid"])
+
         test_doc = {
             "title": request.title,
             "description": request.description,
+            "creator_name": request.creator_name,
             "test_category": request.test_category,
             "user_query": request.user_query,
             "test_language": request.language,  # Renamed from 'language' to avoid MongoDB text index conflict
@@ -368,6 +376,7 @@ class GenerateGeneralTestRequest(BaseModel):
         description="Test description for test takers (optional, user-facing)",
         max_length=1000,
     )
+    creator_name: Optional[str] = Field(None, min_length=2, max_length=100, description="Custom creator display name")
     topic: str = Field(
         ...,
         description="Topic/Category (e.g., 'Leadership Styles', 'Python Programming', 'MBTI Personality')",
@@ -453,9 +462,16 @@ async def generate_test_from_general_knowledge(
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
 
+        # Validate creator_name if provided
+        if request.creator_name:
+            from src.services.creator_name_validator import validate_creator_name
+            user_email = user_info.get("email", "")
+            validate_creator_name(request.creator_name, user_email, user_info["uid"])
+
         test_doc = {
             "title": request.title,
             "description": request.description,
+            "creator_name": request.creator_name,
             "test_category": request.test_category,
             "user_query": request.user_query,
             "test_language": request.language,
@@ -717,6 +733,13 @@ async def create_manual_test(
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
 
+        # Validate creator_name if provided
+        if request.creator_name:
+            from src.services.creator_name_validator import validate_creator_name
+
+            user_email = user_info.get("email", "")
+            validate_creator_name(request.creator_name, user_email, user_info["uid"])
+
         # Format questions with question_id
         import uuid
 
@@ -777,6 +800,7 @@ async def create_manual_test(
         test_doc = {
             "title": request.title,
             "description": request.description,
+            "creator_name": request.creator_name,
             "test_category": request.test_category,
             "user_query": None,  # N/A for manual tests
             "test_language": request.language,  # Renamed from 'language' to avoid MongoDB text index conflict
@@ -1856,6 +1880,16 @@ async def full_edit_test(
         if request.is_active is not None:
             update_data["is_active"] = request.is_active
             logger.info(f"   Update is_active: {request.is_active}")
+
+        # Creator name update with validation
+        if request.creator_name is not None:
+            from src.services.creator_name_validator import validate_creator_name
+
+            user_email = user_info.get("email", "")
+            # Validate uniqueness and reserved names, allow same test to keep its name
+            validate_creator_name(request.creator_name, user_email, user_id, test_id)
+            update_data["creator_name"] = request.creator_name
+            logger.info(f"   Update creator_name: {request.creator_name}")
 
         # Test settings updates
         if request.max_retries is not None:

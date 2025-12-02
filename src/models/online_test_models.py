@@ -19,6 +19,9 @@ class GenerateTestRequest(BaseModel):
         description="Test description for test takers (optional, user-facing)",
         max_length=1000,
     )
+    creator_name: Optional[str] = Field(
+        None, min_length=2, max_length=100, description="Custom creator display name"
+    )
     user_query: Optional[str] = Field(
         None,
         description="Instructions to AI: what topics/concepts to test (optional for files, can be inferred from content)",
@@ -215,6 +218,9 @@ class CreateManualTestRequest(BaseModel):
     title: str = Field(..., description="Test title", min_length=5, max_length=200)
     description: Optional[str] = Field(
         None, description="Test description (optional)", max_length=5000
+    )
+    creator_name: Optional[str] = Field(
+        None, min_length=2, max_length=100, description="Custom creator display name"
     )
     test_category: str = Field(
         default="academic",
@@ -552,6 +558,9 @@ class FullTestEditRequest(BaseModel):
     title: Optional[str] = Field(None, max_length=200)
     description: Optional[str] = Field(None, max_length=5000)
     is_active: Optional[bool] = None
+    creator_name: Optional[str] = Field(
+        None, min_length=2, max_length=100, description="Custom creator display name"
+    )
 
     # Test settings
     max_retries: Optional[int] = Field(None, ge=1, le=20)
