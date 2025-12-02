@@ -48,6 +48,7 @@ async def publish_test_to_marketplace(
     tags: str = Form(...),
     difficulty_level: str = Form(...),
     evaluation_criteria: Optional[str] = Form(None),
+    creator_name: Optional[str] = Form(None),
     user_info: dict = Depends(require_auth),
 ):
     """
@@ -185,6 +186,26 @@ async def publish_test_to_marketplace(
             logger.warning(f"❌ Publish failed: Too many tags ({len(tags_list)})")
             raise HTTPException(status_code=400, detail="Maximum 10 tags allowed")
 
+        # Validate creator_name if provided
+        if creator_name is not None:
+            if len(creator_name) < 2 or len(creator_name) > 100:
+                logger.warning(
+                    f"❌ Publish failed: Invalid creator_name length ({len(creator_name)} chars)"
+                )
+                raise HTTPException(
+                    status_code=400,
+                    detail="Creator name must be between 2 and 100 characters",
+                )
+
+            # Validate creator_name (uniqueness and reserved names)
+            validate_creator_name(
+                creator_name,
+                user_info.get("email", ""),
+                user_info["uid"],
+                test_id,  # Allow same test to keep its name
+            )
+            logger.info(f"   Creator name: {creator_name}")
+
         # ========== Step 5: Validate cover image (optional) ==========
         cover_url = None
         if cover_image:
@@ -262,14 +283,19 @@ async def publish_test_to_marketplace(
         }
 
         # ========== Step 9: Update test document ==========
+        update_data = {
+            "marketplace_config": marketplace_config,
+            "updated_at": datetime.utcnow(),
+        }
+
+        # Add creator_name to test document if provided
+        if creator_name is not None:
+            update_data["creator_name"] = creator_name
+            logger.info(f"   Saving creator_name: {creator_name}")
+
         result = mongo_service.db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
-            {
-                "$set": {
-                    "marketplace_config": marketplace_config,
-                    "updated_at": datetime.utcnow(),
-                }
-            },
+            {"$set": update_data},
         )
 
         if result.modified_count == 0:
@@ -277,7 +303,7 @@ async def publish_test_to_marketplace(
             raise HTTPException(status_code=500, detail="Failed to update test")
 
         # ========== Step 10: Return success response ==========
-        marketplace_url = f"https://wordai.vn/marketplace/tests/{test_id}"
+        marketplace_url = f"online-test?view=public&testId={test_id}"
 
         logger.info(f"✅ Test {test_id} published successfully!")
         logger.info(f"   Version: {new_version}")

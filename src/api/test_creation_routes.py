@@ -376,7 +376,9 @@ class GenerateGeneralTestRequest(BaseModel):
         description="Test description for test takers (optional, user-facing)",
         max_length=1000,
     )
-    creator_name: Optional[str] = Field(None, min_length=2, max_length=100, description="Custom creator display name")
+    creator_name: Optional[str] = Field(
+        None, min_length=2, max_length=100, description="Custom creator display name"
+    )
     topic: str = Field(
         ...,
         description="Topic/Category (e.g., 'Leadership Styles', 'Python Programming', 'MBTI Personality')",
@@ -465,6 +467,7 @@ async def generate_test_from_general_knowledge(
         # Validate creator_name if provided
         if request.creator_name:
             from src.services.creator_name_validator import validate_creator_name
+
             user_email = user_info.get("email", "")
             validate_creator_name(request.creator_name, user_email, user_info["uid"])
 
