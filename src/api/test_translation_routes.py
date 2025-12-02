@@ -182,7 +182,7 @@ Return ONLY valid JSON, no markdown, no code blocks."""
 
         result = await gemini_service.generate_content(
             prompt=prompt,
-            model_name="gemini-2.0-flash-exp",  # Use Flash for translation
+            model_name="gemini-2.5-flash",  # Use Flash for translation
             response_format="json",
         )
 
