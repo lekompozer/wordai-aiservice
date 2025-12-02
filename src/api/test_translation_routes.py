@@ -200,7 +200,7 @@ Return ONLY valid JSON, no markdown, no code blocks."""
             {"$set": {"progress_percent": 30, "updated_at": datetime.now()}},
         )
 
-        logger.info(f"🤖 Calling Gemini 2.0 Flash Exp for translation")
+        logger.info(f"🤖 Calling Gemini 2.5 Flash for translation")
 
         response = gemini_client.models.generate_content(
             model="gemini-2.0-flash-exp",
