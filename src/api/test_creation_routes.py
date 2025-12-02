@@ -409,7 +409,7 @@ class GenerateGeneralTestRequest(BaseModel):
     )
     max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
     passing_score: int = Field(
-        70, description="Minimum score percentage to pass (0-100)", ge=0, le=100
+        50, description="Minimum score percentage to pass (0-100)", ge=0, le=100
     )
     deadline: Optional[datetime] = Field(
         None, description="Global deadline for all users (ISO 8601 format)"
