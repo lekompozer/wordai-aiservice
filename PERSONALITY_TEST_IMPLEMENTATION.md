@@ -183,7 +183,7 @@ Trường `evaluation_criteria` là JSON string chứa:
   "title": "string (5-200 chars, required)",
   "description": "string (optional, max 1000 chars)",
   "topic": "string (3-200 chars, required) - Example: 'Leadership Styles', 'Python Programming', 'MBTI Diagnostic'",
-  "user_query": "string (10-500 chars, required) - Detailed instructions for AI - Example: 'Focus on modern leadership theories', 'Include questions about decorators and generators'",
+  "user_query": "string (10-2000 chars, required) - Detailed instructions for AI - Example: 'Focus on modern leadership theories', 'Include questions about decorators and generators'",
   "test_category": "academic | diagnostic (default: academic)",
   "language": "vi | en (default: vi)",
   "difficulty": "easy | medium | hard (optional)",

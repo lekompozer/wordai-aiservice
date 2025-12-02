@@ -11,12 +11,12 @@ from bson import ObjectId
 
 import socketio
 
-# Import MongoDB helper from online_test_routes
+# Import MongoDB helper from online_test_utils
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from api.online_test_routes import get_mongodb_service
+from services.online_test_utils import get_mongodb_service
 
 logger = logging.getLogger(__name__)
 
