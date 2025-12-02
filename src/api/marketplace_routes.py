@@ -340,14 +340,18 @@ async def unpublish_test(test_id: str, user_info: dict = Depends(require_auth)):
 @router.get("/tests")
 async def browse_marketplace(
     category: Optional[str] = Query(None, description="Filter by category"),
-    language: Optional[str] = Query(None, description="Filter by language (e.g., 'vi', 'en', 'ja')"),
+    language: Optional[str] = Query(
+        None, description="Filter by language (e.g., 'vi', 'en', 'ja')"
+    ),
     tag: Optional[str] = Query(None, description="Filter by tag"),
     min_price: Optional[int] = Query(None, ge=0, description="Min price points"),
     max_price: Optional[int] = Query(None, ge=0, description="Max price points"),
     sort_by: str = Query(
         "newest", regex="^(newest|oldest|popular|top_rated|price_low|price_high)$"
     ),
-    search: Optional[str] = Query(None, min_length=4, description="Search in title/description (min 4 chars)"),
+    search: Optional[str] = Query(
+        None, min_length=4, description="Search in title/description (min 4 chars)"
+    ),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     authorization: Optional[str] = Header(None),
@@ -378,7 +382,10 @@ async def browse_marketplace(
 
         # Filter by category (case-insensitive exact match)
         if category:
-            query["marketplace_config.category"] = {"$regex": f"^{category}$", "$options": "i"}
+            query["marketplace_config.category"] = {
+                "$regex": f"^{category}$",
+                "$options": "i",
+            }
 
         # Filter by language
         if language:
@@ -401,7 +408,12 @@ async def browse_marketplace(
         if search and len(search.strip()) >= 4:
             query["$or"] = [
                 {"title": {"$regex": search.strip(), "$options": "i"}},
-                {"marketplace_config.description": {"$regex": search.strip(), "$options": "i"}},
+                {
+                    "marketplace_config.description": {
+                        "$regex": search.strip(),
+                        "$options": "i",
+                    }
+                },
             ]
 
         # Build sort
@@ -470,9 +482,7 @@ async def browse_marketplace(
                 {
                     "test_id": test_id_str,
                     "slug": test.get("slug"),  # ✅ SEO-friendly slug
-                    "meta_description": test.get(
-                        "meta_description"
-                    ),  # ✅ SEO meta
+                    "meta_description": test.get("meta_description"),  # ✅ SEO meta
                     "title": test.get("title", "Untitled"),
                     "description": mc.get("description", ""),
                     "short_description": mc.get("short_description", ""),
@@ -481,7 +491,9 @@ async def browse_marketplace(
                     "category": mc.get("category"),
                     "tags": mc.get("tags", []),
                     "difficulty_level": mc.get("difficulty_level", "beginner"),
-                    "test_language": test.get("test_language", "vi"),  # ✅ NEW: Language filter support
+                    "test_language": test.get(
+                        "test_language", "vi"
+                    ),  # ✅ NEW: Language filter support
                     "price_points": mc.get("price_points", 0),
                     "total_purchases": mc.get("total_purchases", 0),
                     "total_participants": mc.get(
@@ -775,7 +787,9 @@ async def get_marketplace_test_detail(
 @router.get("/leaderboard/tests")
 async def get_top_completed_tests(
     category: Optional[str] = Query(None, description="Filter by category"),
-    language: Optional[str] = Query(None, description="Filter by language (e.g., 'vi', 'en', 'ja')"),
+    language: Optional[str] = Query(
+        None, description="Filter by language (e.g., 'vi', 'en', 'ja')"
+    ),
     period: str = Query("30d", regex="^(7d|30d|90d|all)$", description="Time period"),
 ):
     """
@@ -796,7 +810,10 @@ async def get_top_completed_tests(
         # Build match filter for marketplace tests
         match_filter = {"marketplace_config.is_public": True}
         if category and category != "all":
-            match_filter["marketplace_config.category"] = {"$regex": f"^{category}$", "$options": "i"}
+            match_filter["marketplace_config.category"] = {
+                "$regex": f"^{category}$",
+                "$options": "i",
+            }
         if language:
             match_filter["test_language"] = language.lower()
 
@@ -859,7 +876,9 @@ async def get_top_completed_tests(
                     "description": "$marketplace_config.description",
                     "category": "$marketplace_config.category",
                     "tags": "$marketplace_config.tags",
-                    "test_language": {"$ifNull": ["$test_language", "vi"]},  # ✅ NEW: Language support
+                    "test_language": {
+                        "$ifNull": ["$test_language", "vi"]
+                    },  # ✅ NEW: Language support
                     "creator": {
                         "user_id": "$creator.uid",
                         "display_name": {
