@@ -914,6 +914,11 @@ async def get_my_purchase_history(
             creator = db.users.find_one({"firebase_uid": test["creator_id"]})
             mc = test.get("marketplace_config", {})
 
+            # Ưu tiên creator_name nếu có, fallback về display_name
+            display_name = test.get("creator_name")
+            if not display_name:
+                display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
+
             results.append(
                 {
                     "purchase_id": str(purchase["_id"]),
@@ -927,12 +932,7 @@ async def get_my_purchase_history(
                         "thumbnail_url": mc.get("thumbnail_url"),
                         "creator": {
                             "user_id": test["creator_id"],
-                            "display_name": (
-                                creator.get("display_name", "Unknown")
-                                if creator
-                                else "Unknown"
-                            ),
-                            "creator_name": test.get("creator_name"),
+                            "display_name": display_name,
                         },
                     },
                     "purchase_info": {

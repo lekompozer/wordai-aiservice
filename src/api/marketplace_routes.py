@@ -444,6 +444,11 @@ async def browse_marketplace(
 
             mc = test.get("marketplace_config", {})
 
+            # Ưu tiên creator_name nếu có, fallback về display_name
+            display_name = test.get("creator_name")
+            if not display_name:
+                display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
+            
             results.append(
                 {
                     "test_id": test_id_str,
@@ -465,12 +470,7 @@ async def browse_marketplace(
                     "published_at": mc.get("published_at"),
                     "creator": {
                         "uid": test["creator_id"],
-                        "display_name": (
-                            creator.get("display_name", "Unknown")
-                            if creator
-                            else "Unknown"
-                        ),
-                        "creator_name": test.get("creator_name"),
+                        "display_name": display_name,
                     },
                     "has_purchased": has_purchased,
                 }
@@ -552,6 +552,11 @@ async def get_marketplace_test_detail(
 
         mc = test.get("marketplace_config", {})
 
+        # Ưu tiên creator_name nếu có, fallback về display_name
+        display_name = test.get("creator_name")
+        if not display_name:
+            display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
+
         # Build response
         response_data = {
             "test_id": str(test["_id"]),
@@ -574,10 +579,7 @@ async def get_marketplace_test_detail(
             "current_version": mc.get("current_version", "v1"),
             "creator": {
                 "uid": test["creator_id"],
-                "display_name": (
-                    creator.get("display_name", "Unknown") if creator else "Unknown"
-                ),
-                "creator_name": test.get("creator_name"),
+                "display_name": display_name,
             },
             "question_count": len(test.get("questions", [])),
             "time_limit": test.get("time_limit"),
@@ -702,10 +704,12 @@ async def get_top_completed_tests(
                     "creator": {
                         "user_id": "$creator.uid",
                         "display_name": {
-                            "$ifNull": ["$creator.display_name", "Unknown"]
+                            "$ifNull": [
+                                "$creator_name",
+                                {"$ifNull": ["$creator.display_name", "Unknown"]}
+                            ]
                         },
                         "avatar_url": "$creator.avatar_url",
-                        "creator_name": "$creator_name",
                     },
                     "stats": {
                         "total_completions": "$total_completions",
