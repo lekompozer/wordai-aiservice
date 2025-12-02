@@ -3256,7 +3256,7 @@ async def get_my_tests(
         # Query filter: only active tests (not soft-deleted)
         query_filter = {
             "creator_id": user_info["uid"],
-            "is_active": {"$ne": False}  # Include True and null (legacy tests)
+            "is_active": {"$ne": False},  # Include True and null (legacy tests)
         }
 
         # Get total count of active tests

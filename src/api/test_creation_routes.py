@@ -421,8 +421,6 @@ class GenerateGeneralTestRequest(BaseModel):
     )
 
 
-
-
 @router.post("/generate/general")
 async def generate_test_from_general_knowledge(
     request: GenerateGeneralTestRequest,
@@ -541,7 +539,6 @@ Generate a comprehensive {request.test_category} test based on general knowledge
 # ========== NEW: Presigned URL for File Upload ==========
 
 
-
 @router.post("/attachments/presigned-url", tags=["Attachments"])
 async def get_presigned_upload_url(
     request: PresignedURLRequest,
@@ -631,7 +628,6 @@ async def get_presigned_upload_url(
 
 
 # ========== NEW: Presigned URL for Essay Answer Media Upload ==========
-
 
 
 @router.post("/manual")
@@ -839,7 +835,6 @@ async def create_manual_test(
 # ========== Duplicate Test Endpoint ==========
 
 
-
 @router.post("/{test_id}/duplicate")
 async def duplicate_test(
     test_id: str,
@@ -978,7 +973,6 @@ async def duplicate_test(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/{test_id}/status")
 async def get_test_status(
     test_id: str,
@@ -1069,7 +1063,6 @@ async def get_test_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/me/tests")
 async def get_my_tests(
     limit: int = 10,
@@ -1107,7 +1100,7 @@ async def get_my_tests(
         # Query filter: only active tests (not soft-deleted)
         query_filter = {
             "creator_id": user_info["uid"],
-            "is_active": {"$ne": False}  # Include True and null (legacy tests)
+            "is_active": {"$ne": False},  # Include True and null (legacy tests)
         }
 
         # Get total count of active tests
@@ -1184,7 +1177,6 @@ async def get_my_tests(
     except Exception as e:
         logger.error(f"❌ Failed to get tests: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.patch("/{test_id}/config", response_model=dict, tags=["Phase 3 - Editing"])
@@ -1280,7 +1272,6 @@ async def update_test_config(
     except Exception as e:
         logger.error(f"❌ Failed to update test config: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.put("/{test_id}/questions", response_model=dict, tags=["Phase 3 - Editing"])
@@ -1463,8 +1454,6 @@ async def update_test_questions(
 # ========== Attachment Management (NEW) ==========
 
 
-
-
 @router.get("/{test_id}/attachments", response_model=dict, tags=["Phase 3 - Editing"])
 async def get_test_attachments(
     test_id: str,
@@ -1550,7 +1539,6 @@ async def get_test_attachments(
     except Exception as e:
         logger.error(f"❌ Failed to get attachments: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.post("/{test_id}/attachments", response_model=dict, tags=["Phase 3 - Editing"])
@@ -1640,7 +1628,6 @@ async def add_test_attachment(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.put(
     "/{test_id}/attachments/{attachment_id}",
     response_model=dict,
@@ -1717,7 +1704,6 @@ async def update_test_attachment(
     except Exception as e:
         logger.error(f"❌ Failed to update attachment: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.delete(
@@ -1808,7 +1794,6 @@ async def delete_test_attachment(
     except Exception as e:
         logger.error(f"❌ Failed to delete attachment: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.put("/{test_id}/edit", response_model=dict, tags=["Phase 3 - Editing"])
@@ -2182,8 +2167,6 @@ async def full_edit_test(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-
 @router.delete("/{test_id}", response_model=dict, tags=["Phase 3 - Editing"])
 async def delete_test(
     test_id: str,
@@ -2230,7 +2213,6 @@ async def delete_test(
     except Exception as e:
         logger.error(f"❌ Failed to delete test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.get("/{test_id}/attempts", response_model=dict, tags=["Phase 3 - Editing"])
@@ -2328,7 +2310,6 @@ async def get_test_attempts(
     except Exception as e:
         logger.error(f"❌ Failed to get attempts: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.post(
@@ -2476,7 +2457,6 @@ async def upload_question_media(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.delete(
     "/{test_id}/questions/{question_id}/media",
     response_model=dict,
@@ -2566,4 +2546,3 @@ async def delete_question_media(
 
 
 # ========== Phase 5: Marketplace Endpoints ==========
-
