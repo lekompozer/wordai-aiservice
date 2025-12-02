@@ -203,7 +203,7 @@ Return ONLY valid JSON, no markdown, no code blocks."""
         logger.info(f"🤖 Calling Gemini 2.5 Flash for translation")
 
         response = gemini_client.models.generate_content(
-            model="gemini-2.0-flash-exp",
+            model="gemini-2.5-flash",
             contents=prompt,
         )
 
