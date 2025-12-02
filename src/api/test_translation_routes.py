@@ -97,9 +97,10 @@ async def translate_test_background(
         # Prepare content for translation
         questions = original_test_doc.get("questions", [])
         test_category = original_test_doc.get("test_category", "academic")
+        evaluation_criteria = original_test_doc.get("evaluation_criteria")  # For diagnostic tests
 
         logger.info(
-            f"🌍 Translating test to {target_language}: {len(questions)} questions"
+            f"🌍 Translating test to {target_language}: {len(questions)} questions, category: {test_category}"
         )
 
         # Build translation prompt
@@ -112,14 +113,23 @@ async def translate_test_background(
             }
 
             if q.get("question_type") == "mcq":
-                q_data["options"] = [
-                    {
+                # Handle both academic (has correct_answer) and diagnostic (has option_score)
+                options_data = []
+                for opt in q.get("options", []):
+                    opt_data = {
                         "key": opt.get("option_key") or opt.get("key"),
                         "text": opt.get("option_text") or opt.get("text"),
                     }
-                    for opt in q.get("options", [])
-                ]
-                q_data["correct_answer_key"] = q.get("correct_answer_key")
+                    # For diagnostic tests, include option_score
+                    if "option_score" in opt:
+                        opt_data["option_score"] = opt.get("option_score")
+                    options_data.append(opt_data)
+                
+                q_data["options"] = options_data
+                
+                # Academic tests have correct_answer_key
+                if q.get("correct_answer_key"):
+                    q_data["correct_answer_key"] = q.get("correct_answer_key")
 
             if q.get("explanation"):
                 q_data["explanation"] = q.get("explanation")
@@ -148,6 +158,9 @@ Description: {original_test_doc.get('description', 'No description')}
 Category: {test_category}
 Language: {original_test_doc.get('test_language', 'unknown')}
 
+**Evaluation Criteria (for diagnostic tests):**
+{evaluation_criteria if evaluation_criteria else 'N/A - Academic test'}
+
 **Questions to Translate:**
 {json.dumps(questions_json, ensure_ascii=False, indent=2)}
 
@@ -156,6 +169,7 @@ Return a JSON object with this exact structure:
 {{
   "title": "translated title",
   "description": "translated description",
+  "evaluation_criteria": "translated criteria (only if original has evaluation_criteria)",
   "questions": [
     {{
       "question_id": "keep original",
@@ -220,17 +234,33 @@ Return ONLY valid JSON, no markdown, no code blocks."""
 
             # Merge MCQ fields
             if merged_q["question_type"] == "mcq":
-                # Translate options while preserving keys
+                # Translate options while preserving keys and scores
                 translated_options = []
+                orig_options_dict = {
+                    opt.get("option_key") or opt.get("key"): opt
+                    for opt in orig_q.get("options", [])
+                }
+
                 for trans_opt in trans_q.get("options", []):
-                    translated_options.append(
-                        {
-                            "option_key": trans_opt.get("key"),
-                            "option_text": trans_opt.get("text"),
-                        }
-                    )
+                    opt_key = trans_opt.get("key")
+                    orig_opt = orig_options_dict.get(opt_key, {})
+
+                    opt_data = {
+                        "option_key": opt_key,
+                        "option_text": trans_opt.get("text"),
+                    }
+
+                    # Preserve option_score for diagnostic tests
+                    if "option_score" in orig_opt:
+                        opt_data["option_score"] = orig_opt.get("option_score")
+
+                    translated_options.append(opt_data)
+
                 merged_q["options"] = translated_options
-                merged_q["correct_answer_key"] = orig_q.get("correct_answer_key")
+
+                # Only add correct_answer_key for academic tests
+                if orig_q.get("correct_answer_key"):
+                    merged_q["correct_answer_key"] = orig_q.get("correct_answer_key")
 
             # Add optional fields
             if trans_q.get("explanation"):
@@ -262,6 +292,13 @@ Return ONLY valid JSON, no markdown, no code blocks."""
             "translated_at": datetime.now(),
             "updated_at": datetime.now(),
         }
+
+        # Add translated evaluation_criteria for diagnostic tests
+        if evaluation_criteria and translated_data.get("evaluation_criteria"):
+            update_fields["evaluation_criteria"] = translated_data.get(
+                "evaluation_criteria"
+            )
+            logger.info(f"✅ Translated evaluation_criteria for diagnostic test")
 
         collection.update_one(
             {"_id": ObjectId(test_id)},
