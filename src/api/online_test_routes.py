@@ -246,6 +246,12 @@ class GenerateTestRequest(BaseModel):
         description="Test description for test takers (optional, user-facing)",
         max_length=1000,
     )
+    creator_name: Optional[str] = Field(
+        None,
+        description="Display name for test creator (optional, if not provided will use email/username)",
+        min_length=2,
+        max_length=100,
+    )
     user_query: Optional[str] = Field(
         None,
         description="Instructions to AI: what topics/concepts to test (optional for files, can be inferred from content)",
@@ -442,6 +448,12 @@ class CreateManualTestRequest(BaseModel):
     title: str = Field(..., description="Test title", min_length=5, max_length=200)
     description: Optional[str] = Field(
         None, description="Test description (optional)", max_length=5000
+    )
+    creator_name: Optional[str] = Field(
+        None,
+        description="Display name for test creator (optional, if not provided will use email/username)",
+        min_length=2,
+        max_length=100,
     )
     test_category: str = Field(
         default="academic",
@@ -1074,6 +1086,7 @@ async def generate_test(
                 request.source_id if request.source_type == "file" else None
             ),
             "creator_id": user_info["uid"],
+            "creator_name": request.creator_name,  # Optional custom display name
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": request.num_questions,
             "max_retries": request.max_retries,
@@ -1151,6 +1164,12 @@ class GenerateGeneralTestRequest(BaseModel):
         None,
         description="Test description for test takers (optional, user-facing)",
         max_length=1000,
+    )
+    creator_name: Optional[str] = Field(
+        None,
+        description="Display name for test creator (optional, if not provided will use email/username)",
+        min_length=2,
+        max_length=100,
     )
     topic: str = Field(
         ...,
@@ -1248,6 +1267,7 @@ async def generate_test_from_general_knowledge(
             "source_file_r2_key": None,
             "topic": request.topic,  # NEW: Store topic
             "creator_id": user_info["uid"],
+            "creator_name": request.creator_name,  # Optional custom display name
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": request.num_questions,
             "max_retries": request.max_retries,
@@ -1671,6 +1691,7 @@ async def create_manual_test(
             "source_document_id": None,
             "source_file_r2_key": None,
             "creator_id": user_info["uid"],
+            "creator_name": request.creator_name,  # Optional custom display name
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": len(formatted_questions),
             "max_retries": request.max_retries,

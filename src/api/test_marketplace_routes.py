@@ -377,6 +377,7 @@ async def update_marketplace_config(
     title: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
     short_description: Optional[str] = Form(None),
+    creator_name: Optional[str] = Form(None),
     price_points: Optional[int] = Form(None),
     category: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
@@ -393,6 +394,7 @@ async def update_marketplace_config(
     - title: Marketplace title (min 10 chars)
     - description: Full description (min 50 chars)
     - short_description: Brief summary for listing cards
+    - creator_name: Display name for test creator (2-100 chars)
     - price_points: Price in points (>= 0)
     - category: Test category
     - tags: Comma-separated tags
@@ -460,6 +462,16 @@ async def update_marketplace_config(
         if short_description is not None:
             update_data["marketplace_config.short_description"] = short_description
             logger.info(f"   Update short_description")
+
+        # Update creator name
+        if creator_name is not None:
+            if len(creator_name) < 2 or len(creator_name) > 100:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Creator name must be between 2 and 100 characters",
+                )
+            update_data["creator_name"] = creator_name
+            logger.info(f"   Update creator_name: {creator_name}")
 
         # Validate and update price
         if price_points is not None:
