@@ -455,7 +455,9 @@ async def browse_marketplace(
                 {
                     "test_id": test_id_str,
                     "slug": test.get("slug"),  # ✅ NEW: SEO-friendly slug
-                    "meta_description": test.get("meta_description"),  # ✅ NEW: SEO meta
+                    "meta_description": test.get(
+                        "meta_description"
+                    ),  # ✅ NEW: SEO meta
                     "title": test.get("title", "Untitled"),
                     "description": mc.get("description", ""),
                     "short_description": mc.get("short_description", ""),
@@ -508,12 +510,12 @@ async def get_marketplace_test_by_slug(
 ):
     """
     Get marketplace test by SEO-friendly slug (NEW)
-    
+
     Example: /marketplace/tests/by-slug/danh-gia-ky-nang-mem
-    
+
     This endpoint provides the same data as GET /tests/{test_id} but uses
     slug for SEO-friendly URLs.
-    
+
     Returns:
     - Full test details
     - Sample questions (first 3) if not purchased
@@ -534,7 +536,7 @@ async def get_marketplace_test_by_slug(
 
         # Reuse the same logic as get_marketplace_test_detail
         test_id = str(test["_id"])
-        
+
         # Optionally verify token if provided
         user_id = None
         if authorization and authorization.startswith("Bearer "):
@@ -571,7 +573,9 @@ async def get_marketplace_test_by_slug(
         # Ưu tiên creator_name nếu có, fallback về display_name
         display_name = test.get("creator_name")
         if not display_name:
-            display_name = creator.get("display_name", "Unknown") if creator else "Unknown"
+            display_name = (
+                creator.get("display_name", "Unknown") if creator else "Unknown"
+            )
 
         # Build response
         response_data = {

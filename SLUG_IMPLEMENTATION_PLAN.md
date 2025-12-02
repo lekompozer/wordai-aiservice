@@ -58,7 +58,7 @@ def check_slug_exists(slug, exclude_id):
 
 # Generate slug
 slug = generate_unique_slug(
-    title, 
+    title,
     check_slug_exists,
     exclude_id=test_id
 )
@@ -111,17 +111,17 @@ async def get_test_by_slug(
 ):
     """
     Get marketplace test by slug (SEO-friendly URL)
-    
+
     Example: /marketplace/tests/by-slug/danh-gia-ky-nang-mem
     """
     test = db.online_tests.find_one({
         "slug": slug,
         "marketplace_config.is_public": True
     })
-    
+
     if not test:
         raise HTTPException(404, "Test not found")
-    
+
     # Return same structure as get_marketplace_test_detail
     # ... (reuse existing logic)
 ```
@@ -175,20 +175,20 @@ async def check_test_slug_availability(
     exists = mongo_service.db["online_tests"].count_documents({
         "slug": slug
     }) > 0
-    
+
     if not exists:
         return {"available": True, "slug": slug}
-    
+
     # Generate suggestions
     from datetime import datetime
     year = datetime.now().year
-    
+
     suggestions = [
         f"{slug}-2",
         f"{slug}-{year}",
         f"{slug}-v2"
     ]
-    
+
     return {
         "available": False,
         "slug": slug,
@@ -203,7 +203,7 @@ async def check_test_slug_availability(
 // Before
 const url = `/online-test?view=public&testId=${testId}`
 
-// After  
+// After
 const url = `/online-test?view=community&testSlug=${slug}`
 ```
 
@@ -235,11 +235,11 @@ const response = await fetch(`/api/v1/marketplace/tests/by-slug/${slug}`)
 db.online_tests.find({ "marketplace_config.is_public": true }).forEach(test => {
   const slug = generateSlug(test.title)
   const meta = generateMeta(test.marketplace_config.description)
-  
+
   db.online_tests.updateOne(
     { _id: test._id },
-    { 
-      $set: { 
+    {
+      $set: {
         slug: ensureUnique(slug),
         meta_description: meta
       }
