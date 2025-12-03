@@ -232,7 +232,7 @@ Language: {original_test_doc.get('test_language', 'unknown')}
 
 Return ONLY valid JSON, no markdown, no code blocks, no explanations."""
 
-        # Call Gemini 2.0 Flash Exp (same way as evaluation service)
+        # Call Gemini 2.5 Pro Exp (same way as evaluation service)
         collection.update_one(
             {"_id": ObjectId(test_id)},
             {"$set": {"progress_percent": 30, "updated_at": datetime.now()}},
@@ -538,37 +538,33 @@ async def translate_test(
             )
 
         # 💰 Check and deduct points for AI translation (2 points)
-        users_collection = mongo_service.db["users"]
-        user = users_collection.find_one({"firebase_uid": user_id})
+        from src.services.points_service import PointsService
+        from src.exceptions import InsufficientPointsError
 
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-
+        points_service = PointsService(mongodb_client=mongo_service.client)
         translation_cost = 2  # 2 points for AI translation
-        current_points = user.get("points", 0)
 
-        if current_points < translation_cost:
-            logger.warning(
-                f"   ⚠️ User has {current_points} points, need {translation_cost} for translation"
-            )
-            raise HTTPException(
-                status_code=402,
-                detail=f"Insufficient points. Need {translation_cost} points for translation, you have {current_points}",
+        # Check if user has enough points
+        try:
+            balance_check = await points_service.check_sufficient_points(
+                user_id=user_id,
+                points_needed=translation_cost,
+                service="test_translation",
             )
 
-        # Deduct points
-        result_update = users_collection.update_one(
-            {"firebase_uid": user_id},
-            {
-                "$inc": {"points": -translation_cost},
-                "$set": {"updated_at": datetime.now()},
-            },
-        )
+            if not balance_check["has_points"]:
+                raise HTTPException(
+                    status_code=402,
+                    detail=f"Insufficient points. Need {translation_cost} points for translation, you have {balance_check['points_available']}",
+                )
 
-        new_points = current_points - translation_cost
-        logger.info(
-            f"   💸 Deducted {translation_cost} points for AI translation (balance: {new_points})"
-        )
+            logger.info(
+                f"   ✅ User has sufficient points: {balance_check['points_available']} >= {translation_cost}"
+            )
+
+        except InsufficientPointsError as e:
+            logger.warning(f"   ⚠️ {e.message}")
+            raise HTTPException(status_code=402, detail=e.message)
 
         # Generate new title
         original_title = original_test.get("title", "Untitled Test")
@@ -612,6 +608,24 @@ async def translate_test(
         logger.info(
             f"✅ Translation test record created: {new_test_id} with status='pending'"
         )
+
+        # === DEDUCT POINTS AFTER CREATING JOB ===
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=translation_cost,
+                service="test_translation",
+                resource_id=new_test_id,
+                description=f"Test Translation to {request.target_language}: {original_test.get('title', 'Untitled')}",
+            )
+            logger.info(f"💸 Deducted {translation_cost} points for test translation")
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+            # Rollback: Delete the created test record if points deduction fails
+            collection.delete_one({"_id": ObjectId(new_test_id)})
+            raise HTTPException(
+                status_code=500, detail=f"Failed to deduct points: {str(points_error)}"
+            )
 
         # Start background translation job
         background_tasks.add_task(
