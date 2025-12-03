@@ -46,7 +46,8 @@ class DocumentChatMessage(BaseModel):
 
 class DocumentChatRequest(BaseModel):
     provider: str = Field(
-        ..., description="AI provider: gemini-pro, gpt-4, deepseek, qwen"
+        ...,
+        description="AI provider: gemini-pro, gpt-4, deepseek, deepseek_reasoner, deepseek_chat, qwen",
     )
     user_query: str = Field(..., description="User's question about the document")
     selected_text: Optional[str] = Field(
@@ -78,10 +79,11 @@ PROVIDER_CONTEXT_LIMITS = {
     "claude": 200_000,  # Claude (if supported)
 }
 
-# Providers that support direct file upload
+# Providers that support direct file upload (PDF, images)
 FILE_SUPPORTED_PROVIDERS = ["gemini-pro", "gpt-4"]
 
-# Providers that need text conversion
+# Providers that need text conversion (no direct file/image support)
+# DeepSeek (both chat and reasoner) only accepts text - files must be converted to text first
 TEXT_ONLY_PROVIDERS = ["deepseek", "qwen"]
 
 
@@ -434,11 +436,22 @@ async def document_chat_stream(
 
         # Validate provider
         try:
-            provider = AIProvider(request.provider)
+            # Map provider names (support legacy "deepseek" → "deepseek_chat")
+            provider_mapping = {
+                "deepseek": "deepseek_chat",  # Legacy: default to chat model
+                "deepseek-chat": "deepseek_chat",
+                "deepseek-reasoner": "deepseek_reasoner",
+            }
+
+            # Apply mapping if exists, otherwise use as-is
+            mapped_provider = provider_mapping.get(request.provider, request.provider)
+            provider = AIProvider(mapped_provider)
+
         except ValueError:
             available = [p.value for p in AIProvider]
             raise HTTPException(
-                status_code=400, detail=f"Invalid provider. Available: {available}"
+                status_code=400,
+                detail=f"Invalid provider '{request.provider}'. Available: {', '.join(available)}",
             )
 
         # Validate max_tokens
@@ -453,8 +466,16 @@ async def document_chat_stream(
         subscription = await subscription_service.get_or_create_subscription(user_id)
         balance = await points_service.get_points_balance(user_id)
 
-        # Determine points cost based on provider (VARIABLE PRICING)
+        # Normalize provider name (deepseek variants → "deepseek" for limits/logging)
         provider_name = request.provider.lower()
+        if provider_name in [
+            "deepseek-chat",
+            "deepseek_chat",
+            "deepseek-reasoner",
+            "deepseek_reasoner",
+        ]:
+            provider_name = "deepseek"
+
         points_cost = points_service.get_chat_points_cost(provider_name)
         should_deduct_points = False
 
@@ -636,7 +657,9 @@ async def document_chat_stream(
 
         if request.selected_text:
             # User selected text - this is the PRIMARY focus
-            logger.info(f"✏️  Selected text: {len(request.selected_text)} chars ({selected_text_tokens} tokens)")
+            logger.info(
+                f"✏️  Selected text: {len(request.selected_text)} chars ({selected_text_tokens} tokens)"
+            )
 
             # Check if we should include full document as reference
             if file_info and file_info.get("content_text"):

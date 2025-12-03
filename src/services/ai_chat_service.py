@@ -75,7 +75,9 @@ class AIChatService:
                 self.models[AIProvider.DEEPSEEK_CHAT] = "deepseek-chat"  # V3.2 (Latest)
 
                 self.providers[AIProvider.DEEPSEEK_REASONER] = deepseek_client
-                self.models[AIProvider.DEEPSEEK_REASONER] = "deepseek-reasoner"  # R1 (Thinking mode)
+                self.models[AIProvider.DEEPSEEK_REASONER] = (
+                    "deepseek-reasoner"  # R1 (Thinking mode)
+                )
 
                 logger.info("✅ DeepSeek clients initialized")
 
