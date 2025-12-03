@@ -210,7 +210,7 @@ class BSCService:
         tx_hash: str,
         expected_recipient: str,
         expected_amount_usdt: float,
-        tolerance: float = 0.01,
+        tolerance_percentage: float = 1.0,
     ) -> Tuple[bool, str, Dict[str, Any]]:
         """
         Verify USDT BEP20 transfer transaction
@@ -224,7 +224,7 @@ class BSCService:
             tx_hash: Transaction hash
             expected_recipient: Expected recipient address (WordAI wallet)
             expected_amount_usdt: Expected USDT amount
-            tolerance: Acceptable difference in USDT (default 0.01)
+            tolerance_percentage: Acceptable difference as percentage (default 1.0%)
 
         Returns:
             (is_valid: bool, message: str, details: dict)
@@ -310,17 +310,21 @@ class BSCService:
                     },
                 )
 
-            # Step 7: Verify amount (with tolerance)
+            # Step 7: Verify amount (with percentage-based tolerance)
+            # Calculate tolerance as percentage of expected amount
+            tolerance = expected_amount_usdt * (tolerance_percentage / 100.0)
             amount_diff = abs(actual_amount - expected_amount_usdt)
 
             if amount_diff > tolerance:
                 return (
                     False,
-                    f"Amount mismatch. Expected: {expected_amount_usdt} USDT, Got: {actual_amount} USDT",
+                    f"Amount mismatch. Expected: {expected_amount_usdt} USDT, Got: {actual_amount} USDT (tolerance: {tolerance_percentage}%)",
                     {
                         "expected_amount": expected_amount_usdt,
                         "actual_amount": actual_amount,
                         "difference": amount_diff,
+                        "tolerance": tolerance,
+                        "tolerance_percentage": tolerance_percentage,
                     },
                 )
 
