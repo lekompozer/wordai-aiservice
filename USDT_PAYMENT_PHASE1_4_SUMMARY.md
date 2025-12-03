@@ -4,7 +4,7 @@
 
 Đã hoàn thành **Phase 1-4** của hệ thống thanh toán USDT BEP20 cho subscription và mua points.
 
-**Completion Date:** December 3, 2025  
+**Completion Date:** December 3, 2025
 **Status:** ✅ Phase 1-4 Complete | 🔄 Phase 5-8 Pending
 
 ---
@@ -359,7 +359,7 @@ curl https://api.wordai.com/api/v1/payments/usdt/subscription/USDT-xxx/status \
 ```
 ✅ Connected to MongoDB: wordai_db
 ✅ 13 indexes created for usdt_payments
-✅ 8 indexes created for usdt_pending_transactions  
+✅ 8 indexes created for usdt_pending_transactions
 ✅ 5 indexes created for usdt_wallet_addresses
 ✅ Total: 26 indexes
 ```

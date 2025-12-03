@@ -38,12 +38,13 @@ from src.utils.logger import setup_logger
 logger = setup_logger()
 
 router = APIRouter(
-    prefix="/api/v1/payments/usdt/subscription",
-    tags=["USDT Subscription Payments"]
+    prefix="/api/v1/payments/usdt/subscription", tags=["USDT Subscription Payments"]
 )
 
 # WordAI BEP20 wallet address (from .env)
-WORDAI_BEP20_ADDRESS = os.getenv("WORDAI_BEP20_ADDRESS", "0xbab94f5bf90550c9f0147fffae8a1ef006b85a07")
+WORDAI_BEP20_ADDRESS = os.getenv(
+    "WORDAI_BEP20_ADDRESS", "0xbab94f5bf90550c9f0147fffae8a1ef006b85a07"
+)
 
 # USDT BEP20 contract address (Binance Smart Chain)
 USDT_BEP20_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
@@ -55,7 +56,7 @@ DEFAULT_USDT_RATE = 22320.0  # 1 USDT = 22,320 VND
 def get_usdt_rate() -> float:
     """
     Get current USDT/VND exchange rate
-    
+
     TODO: Integrate with Binance API to get real-time rate
     For now, uses fixed rate
     """
@@ -68,22 +69,21 @@ def get_usdt_rate() -> float:
 # ENDPOINTS
 # =========================================================================
 
+
 @router.get("/rate", response_model=USDTRateResponse)
 async def get_current_usdt_rate():
     """
     Get current USDT/VND exchange rate
-    
+
     Returns current exchange rate used for payment calculations
     """
     try:
         rate = get_usdt_rate()
-        
+
         return USDTRateResponse(
-            rate=rate,
-            last_updated=datetime.utcnow(),
-            source="binance"
+            rate=rate, last_updated=datetime.utcnow(), source="binance"
         )
-    
+
     except Exception as e:
         logger.error(f"❌ Error getting USDT rate: {e}")
         raise HTTPException(status_code=500, detail="Failed to get USDT rate")
@@ -97,13 +97,13 @@ async def create_subscription_payment(
 ):
     """
     Create USDT payment request for subscription
-    
+
     Steps:
     1. Validates plan and duration
     2. Calculates VND price and USDT equivalent
     3. Creates payment record in database
     4. Returns wallet address and payment instructions
-    
+
     Frontend should:
     1. Show payment details (amount, address, network)
     2. Allow user to send USDT from their wallet
@@ -112,34 +112,38 @@ async def create_subscription_payment(
     try:
         user_id = current_user["user_id"]
         user_email = current_user.get("email")
-        
+
         # Get IP and user agent
         ip_address = req.client.host if req else None
         user_agent = req.headers.get("user-agent") if req else None
-        
-        logger.info(f"📝 Creating USDT subscription payment for user {user_id}: {request.plan} {request.duration}")
-        
+
+        logger.info(
+            f"📝 Creating USDT subscription payment for user {user_id}: {request.plan} {request.duration}"
+        )
+
         # Validate plan and duration
         if request.plan not in ["premium", "pro", "vip"]:
             raise HTTPException(status_code=400, detail="Invalid subscription plan")
-        
+
         if request.duration not in ["3_months", "12_months"]:
             raise HTTPException(status_code=400, detail="Invalid subscription duration")
-        
+
         # Get VND price
         amount_vnd = get_price_for_plan(request.plan, request.duration)
-        
+
         # Get USDT rate
         usdt_rate = get_usdt_rate()
-        
+
         # Calculate USDT amount
         amount_usdt = round(amount_vnd / usdt_rate, 2)
-        
-        logger.info(f"💰 Amount: {amount_vnd} VND = {amount_usdt} USDT (rate: {usdt_rate})")
-        
+
+        logger.info(
+            f"💰 Amount: {amount_vnd} VND = {amount_usdt} USDT (rate: {usdt_rate})"
+        )
+
         # Create payment service
         payment_service = USDTPaymentService()
-        
+
         # Create payment record
         payment = payment_service.create_payment(
             user_id=user_id,
@@ -155,13 +159,13 @@ async def create_subscription_payment(
             ip_address=ip_address,
             user_agent=user_agent,
         )
-        
+
         # Register wallet if provided
         if request.from_address:
             payment_service.register_wallet(user_id, request.from_address)
-        
+
         logger.info(f"✅ Created payment: {payment['payment_id']}")
-        
+
         # Build response
         return USDTPaymentResponse(
             payment_id=payment["payment_id"],
@@ -177,12 +181,14 @@ async def create_subscription_payment(
             expires_at=payment["expires_at"],
             status=payment["status"],
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error creating USDT payment: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create payment: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create payment: {str(e)}"
+        )
 
 
 @router.get("/{payment_id}/status", response_model=CheckUSDTPaymentStatusResponse)
@@ -192,10 +198,10 @@ async def check_payment_status(
 ):
     """
     Check USDT payment status
-    
+
     Frontend should poll this endpoint every 10-15 seconds
     to check if payment has been confirmed
-    
+
     Status flow:
     - pending: Awaiting payment
     - processing: Transaction detected, awaiting confirmations
@@ -205,18 +211,20 @@ async def check_payment_status(
     """
     try:
         user_id = current_user["user_id"]
-        
+
         # Get payment
         payment_service = USDTPaymentService()
         payment = payment_service.get_payment_by_id(payment_id)
-        
+
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
-        
+
         # Verify ownership
         if payment["user_id"] != user_id:
-            raise HTTPException(status_code=403, detail="Not authorized to view this payment")
-        
+            raise HTTPException(
+                status_code=403, detail="Not authorized to view this payment"
+            )
+
         # Build response
         message = None
         if payment["status"] == "pending":
@@ -231,7 +239,7 @@ async def check_payment_status(
             message = f"Payment failed: {payment.get('error_message', 'Unknown error')}"
         elif payment["status"] == "cancelled":
             message = "Payment cancelled or expired"
-        
+
         return CheckUSDTPaymentStatusResponse(
             payment_id=payment["payment_id"],
             status=payment["status"],
@@ -248,7 +256,7 @@ async def check_payment_status(
             subscription_id=payment.get("subscription_id"),
             message=message,
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -264,28 +272,30 @@ async def verify_transaction(
 ):
     """
     Manually submit transaction hash for verification
-    
+
     User can paste their transaction hash after sending USDT
     This triggers immediate verification instead of waiting for webhook
-    
+
     Note: Still requires 12 confirmations before subscription activation
     """
     try:
         user_id = current_user["user_id"]
-        
-        logger.info(f"🔍 Verifying transaction {request.transaction_hash} for payment {payment_id}")
-        
+
+        logger.info(
+            f"🔍 Verifying transaction {request.transaction_hash} for payment {payment_id}"
+        )
+
         # Get payment
         payment_service = USDTPaymentService()
         payment = payment_service.get_payment_by_id(payment_id)
-        
+
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
-        
+
         # Verify ownership
         if payment["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Not authorized")
-        
+
         # Check if already has transaction
         if payment.get("transaction_hash"):
             return JSONResponse(
@@ -293,17 +303,17 @@ async def verify_transaction(
                 content={
                     "message": "Transaction already registered",
                     "transaction_hash": payment["transaction_hash"],
-                    "status": payment["status"]
-                }
+                    "status": payment["status"],
+                },
             )
-        
+
         # Update payment with transaction hash
         payment_service.update_payment_status(
             payment_id=payment_id,
             status="processing",
             transaction_hash=request.transaction_hash,
         )
-        
+
         # Add to pending queue for background verification
         # (Phase 5/6 will implement BSC blockchain verification)
         payment_service.add_pending_transaction(
@@ -314,19 +324,21 @@ async def verify_transaction(
             to_address=payment["to_address"],
             amount_usdt=payment["amount_usdt"],
         )
-        
-        logger.info(f"✅ Transaction registered for verification: {request.transaction_hash}")
-        
+
+        logger.info(
+            f"✅ Transaction registered for verification: {request.transaction_hash}"
+        )
+
         return JSONResponse(
             status_code=200,
             content={
                 "message": "Transaction hash registered. Waiting for blockchain confirmations.",
                 "transaction_hash": request.transaction_hash,
                 "required_confirmations": 12,
-                "estimated_time": "~36 seconds"
-            }
+                "estimated_time": "~36 seconds",
+            },
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
@@ -342,12 +354,12 @@ async def get_payment_history(
 ):
     """
     Get user's USDT subscription payment history
-    
+
     Returns list of all USDT subscription payments by user
     """
     try:
         user_id = current_user["user_id"]
-        
+
         payment_service = USDTPaymentService()
         payments = payment_service.get_user_payments(
             user_id=user_id,
@@ -355,19 +367,19 @@ async def get_payment_history(
             limit=limit,
             skip=skip,
         )
-        
+
         # Convert ObjectId to string for JSON serialization
         for payment in payments:
             if "_id" in payment:
                 payment["_id"] = str(payment["_id"])
-        
+
         return {
             "payments": payments,
             "count": len(payments),
             "limit": limit,
             "skip": skip,
         }
-    
+
     except Exception as e:
         logger.error(f"❌ Error getting payment history: {e}")
         raise HTTPException(status_code=500, detail="Failed to get payment history")
@@ -377,6 +389,7 @@ async def get_payment_history(
 # INTERNAL ENDPOINT - For background job/webhook to activate subscription
 # =========================================================================
 
+
 @router.post("/{payment_id}/activate", include_in_schema=False)
 async def activate_subscription_after_payment(
     payment_id: str,
@@ -384,11 +397,11 @@ async def activate_subscription_after_payment(
 ):
     """
     Internal endpoint to activate subscription after payment confirmation
-    
+
     Called by:
     - Background job after 12 confirmations
     - Webhook after receiving payment notification
-    
+
     Requires X-Internal-Key header for security
     """
     try:
@@ -396,39 +409,39 @@ async def activate_subscription_after_payment(
         expected_key = os.getenv("INTERNAL_API_KEY", "dev-internal-key-123")
         if internal_key != expected_key:
             raise HTTPException(status_code=403, detail="Invalid internal key")
-        
+
         logger.info(f"🔐 Activating subscription for payment {payment_id}")
-        
+
         # Get payment
         payment_service = USDTPaymentService()
         payment = payment_service.get_payment_by_id(payment_id)
-        
+
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
-        
+
         # Check if already activated
         if payment["status"] == "completed" and payment.get("subscription_id"):
             return JSONResponse(
                 status_code=200,
                 content={
                     "message": "Subscription already activated",
-                    "subscription_id": payment["subscription_id"]
-                }
+                    "subscription_id": payment["subscription_id"],
+                },
             )
-        
+
         # Check if payment is confirmed
         if payment["status"] not in ["confirmed", "completed"]:
             raise HTTPException(
                 status_code=400,
-                detail=f"Payment not confirmed yet. Current status: {payment['status']}"
+                detail=f"Payment not confirmed yet. Current status: {payment['status']}",
             )
-        
+
         # Create subscription
         subscription_service = SubscriptionService()
-        
+
         # Duration in months
         duration_months = 3 if payment["duration"] == "3_months" else 12
-        
+
         # Create subscription request
         sub_request = CreateSubscriptionRequest(
             user_id=payment["user_id"],
@@ -437,17 +450,17 @@ async def activate_subscription_after_payment(
             payment_id=payment["payment_id"],
             payment_method="USDT_BEP20",
         )
-        
+
         # Create subscription
         subscription = await subscription_service.create_paid_subscription(sub_request)
-        
+
         # Link payment to subscription
         subscription_id = str(subscription.id)
         payment_service.link_subscription(payment_id, subscription_id)
-        
+
         # Update payment status to completed
         payment_service.update_payment_status(payment_id, "completed")
-        
+
         # Update wallet usage
         if payment.get("from_address"):
             payment_service.update_wallet_usage(
@@ -455,9 +468,11 @@ async def activate_subscription_after_payment(
                 wallet_address=payment["from_address"],
                 amount_usdt=payment["amount_usdt"],
             )
-        
-        logger.info(f"✅ Subscription {subscription_id} activated for payment {payment_id}")
-        
+
+        logger.info(
+            f"✅ Subscription {subscription_id} activated for payment {payment_id}"
+        )
+
         return JSONResponse(
             status_code=200,
             content={
@@ -467,11 +482,13 @@ async def activate_subscription_after_payment(
                 "duration": payment["duration"],
                 "points_granted": subscription.points_total,
                 "expires_at": subscription.expires_at.isoformat(),
-            }
+            },
         )
-    
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error activating subscription: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to activate subscription: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to activate subscription: {str(e)}"
+        )

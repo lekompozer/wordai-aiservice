@@ -6,8 +6,8 @@ Tài liệu hướng dẫn frontend tích hợp hệ thống thanh toán USDT BE
 - **Subscription Payment**: Thanh toán gói Premium/Pro/VIP
 - **Points Purchase**: Mua điểm bằng USDT
 
-**Network:** Binance Smart Chain (BSC) - BEP20  
-**Token:** USDT (Tether)  
+**Network:** Binance Smart Chain (BSC) - BEP20
+**Token:** USDT (Tether)
 **Contract Address:** `0x55d398326f99059fF775485246999027B3197955`
 
 ---
@@ -189,7 +189,7 @@ Authorization: Bearer {firebase_token}
 // Poll every 10-15 seconds
 const pollInterval = setInterval(async () => {
   const status = await checkPaymentStatus(paymentId);
-  
+
   if (status.status === 'completed') {
     clearInterval(pollInterval);
     showSuccessMessage();
@@ -484,8 +484,8 @@ const isBSC = chainId === '0x38'; // BSC Mainnet
 **Step 2: Request Connection**
 ```javascript
 // Request wallet connection
-const accounts = await ethereum.request({ 
-  method: 'eth_requestAccounts' 
+const accounts = await ethereum.request({
+  method: 'eth_requestAccounts'
 });
 const userAddress = accounts[0];
 ```
@@ -806,6 +806,6 @@ Please try again or contact support.
 
 ---
 
-**Document Version:** 1.0  
-**Last Updated:** December 3, 2025  
+**Document Version:** 1.0
+**Last Updated:** December 3, 2025
 **Backend API Version:** Phase 1-6 Complete

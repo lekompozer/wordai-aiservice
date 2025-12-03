@@ -32,7 +32,7 @@ class USDTPaymentService:
     def __init__(self, mongodb_client: Optional[MongoClient] = None):
         """
         Initialize USDT payment service
-        
+
         Args:
             mongodb_client: Optional MongoDB client. If not provided, creates new connection.
         """
@@ -90,7 +90,7 @@ class USDTPaymentService:
     ) -> Dict[str, Any]:
         """
         Create new USDT payment request
-        
+
         Args:
             user_id: Firebase UID
             payment_type: "subscription" or "points"
@@ -106,7 +106,7 @@ class USDTPaymentService:
             user_name: User name
             ip_address: Request IP
             user_agent: User agent
-            
+
         Returns:
             Created payment document
         """
@@ -114,7 +114,7 @@ class USDTPaymentService:
             # Generate unique IDs
             timestamp = int(datetime.utcnow().timestamp())
             user_short = user_id[:8]
-            
+
             payment_id = f"USDT-{timestamp}-{user_short}"
             order_invoice = f"WA-USDT-{timestamp}-{user_short}"
 
@@ -151,7 +151,7 @@ class USDTPaymentService:
             payment_data["_id"] = result.inserted_id
 
             logger.info(f"✅ Created USDT payment: {payment_id} for user {user_id}")
-            
+
             return payment_data
 
         except Exception as e:
@@ -192,20 +192,20 @@ class USDTPaymentService:
     ) -> List[Dict[str, Any]]:
         """
         Get user's payment history
-        
+
         Args:
             user_id: Firebase UID
             payment_type: Filter by type (optional)
             status: Filter by status (optional)
             limit: Max results
             skip: Skip results (pagination)
-            
+
         Returns:
             List of payment documents
         """
         try:
             query = {"user_id": user_id}
-            
+
             if payment_type:
                 query["payment_type"] = payment_type
             if status:
@@ -236,7 +236,7 @@ class USDTPaymentService:
     ) -> bool:
         """
         Update payment status
-        
+
         Args:
             payment_id: Payment ID
             status: New status
@@ -245,7 +245,7 @@ class USDTPaymentService:
             confirmation_count: Number of confirmations
             from_address: Sender wallet address
             error_message: Error message if failed
-            
+
         Returns:
             Success status
         """
@@ -276,8 +276,7 @@ class USDTPaymentService:
                 update_data["cancelled_at"] = datetime.utcnow()
 
             result = self.payments.update_one(
-                {"payment_id": payment_id},
-                {"$set": update_data}
+                {"payment_id": payment_id}, {"$set": update_data}
             )
 
             if result.modified_count > 0:
@@ -296,11 +295,13 @@ class USDTPaymentService:
         try:
             result = self.payments.update_one(
                 {"payment_id": payment_id},
-                {"$set": {"subscription_id": subscription_id}}
+                {"$set": {"subscription_id": subscription_id}},
             )
-            
+
             if result.modified_count > 0:
-                logger.info(f"✅ Linked payment {payment_id} to subscription {subscription_id}")
+                logger.info(
+                    f"✅ Linked payment {payment_id} to subscription {subscription_id}"
+                )
                 return True
             return False
 
@@ -313,11 +314,13 @@ class USDTPaymentService:
         try:
             result = self.payments.update_one(
                 {"payment_id": payment_id},
-                {"$set": {"points_transaction_id": transaction_id}}
+                {"$set": {"points_transaction_id": transaction_id}},
             )
-            
+
             if result.modified_count > 0:
-                logger.info(f"✅ Linked payment {payment_id} to points transaction {transaction_id}")
+                logger.info(
+                    f"✅ Linked payment {payment_id} to points transaction {transaction_id}"
+                )
                 return True
             return False
 
@@ -341,7 +344,7 @@ class USDTPaymentService:
     ) -> bool:
         """
         Add transaction to pending queue for confirmation tracking
-        
+
         Args:
             payment_id: Payment ID
             user_id: User ID
@@ -350,7 +353,7 @@ class USDTPaymentService:
             to_address: Recipient address
             amount_usdt: Amount in USDT
             required_confirmations: Required confirmations
-            
+
         Returns:
             Success status
         """
@@ -386,11 +389,9 @@ class USDTPaymentService:
         """Get pending transactions that need confirmation checking"""
         try:
             query = {"status": status}
-            
+
             transactions = (
-                self.pending.find(query)
-                .sort("last_checked_at", ASCENDING)
-                .limit(limit)
+                self.pending.find(query).sort("last_checked_at", ASCENDING).limit(limit)
             )
 
             return list(transactions)
@@ -416,8 +417,7 @@ class USDTPaymentService:
                 update_data["status"] = status
 
             result = self.pending.update_one(
-                {"transaction_hash": transaction_hash},
-                {"$set": update_data}
+                {"transaction_hash": transaction_hash}, {"$set": update_data}
             )
 
             return result.modified_count > 0
@@ -461,7 +461,7 @@ class USDTPaymentService:
             self.wallets.update_one(
                 {"user_id": user_id, "wallet_address": wallet_address.lower()},
                 {"$setOnInsert": wallet_data},
-                upsert=True
+                upsert=True,
             )
 
             logger.info(f"✅ Registered wallet {wallet_address} for user {user_id}")
@@ -483,11 +483,8 @@ class USDTPaymentService:
                 {"user_id": user_id, "wallet_address": wallet_address.lower()},
                 {
                     "$set": {"last_used_at": datetime.utcnow()},
-                    "$inc": {
-                        "payment_count": 1,
-                        "total_amount_usdt": amount_usdt
-                    }
-                }
+                    "$inc": {"payment_count": 1, "total_amount_usdt": amount_usdt},
+                },
             )
 
             return result.modified_count > 0
@@ -499,7 +496,9 @@ class USDTPaymentService:
     def get_user_wallets(self, user_id: str) -> List[Dict[str, Any]]:
         """Get user's registered wallet addresses"""
         try:
-            wallets = self.wallets.find({"user_id": user_id}).sort("last_used_at", DESCENDING)
+            wallets = self.wallets.find({"user_id": user_id}).sort(
+                "last_used_at", DESCENDING
+            )
             return list(wallets)
         except Exception as e:
             logger.error(f"❌ Failed to get user wallets: {e}")
@@ -519,7 +518,7 @@ class USDTPaymentService:
         """Get all payments (admin)"""
         try:
             query = {}
-            
+
             if status:
                 query["status"] = status
             if payment_type:
@@ -556,12 +555,13 @@ class USDTPaymentService:
             }
 
             result = self.payments.update_one(
-                {"payment_id": payment_id},
-                {"$set": update_data}
+                {"payment_id": payment_id}, {"$set": update_data}
             )
 
             if result.modified_count > 0:
-                logger.info(f"✅ Admin {admin_user_id} manually confirmed payment {payment_id}")
+                logger.info(
+                    f"✅ Admin {admin_user_id} manually confirmed payment {payment_id}"
+                )
                 return True
             return False
 
@@ -581,7 +581,7 @@ class USDTPaymentService:
             # Total USDT processed
             pipeline = [
                 {"$match": {"status": "completed"}},
-                {"$group": {"_id": None, "total_usdt": {"$sum": "$amount_usdt"}}}
+                {"$group": {"_id": None, "total_usdt": {"$sum": "$amount_usdt"}}},
             ]
             result = list(self.payments.aggregate(pipeline))
             total_usdt = result[0]["total_usdt"] if result else 0.0
