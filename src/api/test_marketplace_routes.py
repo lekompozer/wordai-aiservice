@@ -487,6 +487,16 @@ async def update_marketplace_config(
                 detail="Test is not published. Use POST /marketplace/publish first.",
             )
 
+        # ✅ FIX: Ensure category exists - use "general" if missing
+        if not marketplace_config.get("category"):
+            fallback_category = "general"
+            initial_update = {"marketplace_config.category": fallback_category}
+            mongo_service.db["online_tests"].update_one(
+                {"_id": ObjectId(test_id)}, {"$set": initial_update}
+            )
+            marketplace_config["category"] = fallback_category
+            logger.info(f"   ✅ Set missing category to default: {fallback_category}")
+
         # ========== Step 3: Build update data ==========
         update_data = {}
         regenerate_slug = False

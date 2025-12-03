@@ -189,13 +189,16 @@ async def publish_test_to_marketplace(
         now = datetime.now(timezone.utc)
         is_first_publish = not test.get("marketplace_config", {}).get("published_at")
 
+        # Use category from form, fallback to "general" if not provided
+        final_category = category if category else "general"
+
         marketplace_config = {
             "is_public": True,
             "price_points": price_points,
             "cover_image_url": upload_result["cover_url"],
             "thumbnail_url": upload_result["thumbnail_url"],
             "description": description,
-            "category": category,
+            "category": final_category,
             "tags": tag_list,
             "total_purchases": test.get("marketplace_config", {}).get(
                 "total_purchases", 0
