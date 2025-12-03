@@ -149,14 +149,24 @@ async def translate_test_background(
 
         prompt = f"""You are a professional translator. Translate the following test content to {target_language}.
 
-**IMPORTANT RULES:**
-1. Translate ALL text content accurately while preserving meaning
-2. Keep question_id, question_type, option keys (A, B, C, D) unchanged
-3. Keep correct_answer_key unchanged
-4. Maintain the same JSON structure
-5. Translate: question_text, option text, explanation, grading_rubric
-6. Use natural, fluent language appropriate for educational content
-7. For technical terms, use commonly accepted translations in target language
+**CRITICAL RULES - MUST FOLLOW:**
+1. **TRANSLATE ALL TEXT:** Translate EVERY piece of text content accurately
+2. **PRESERVE STRUCTURE:** Keep question_id, question_type, option keys (A, B, C, D, E, etc.) EXACTLY as provided
+3. **DO NOT SKIP ANY OPTIONS:** You MUST return ALL options for each question. If input has 4 options, output MUST have 4 options
+4. **PRESERVE SPECIAL FIELDS:**
+   - Keep correct_answer_key unchanged (e.g., "A", "B", "C", "D")
+   - Keep option_score unchanged (for diagnostic tests)
+   - Keep question_id unchanged
+5. **TRANSLATE THESE FIELDS:**
+   - title → translate
+   - description → translate
+   - question_text → translate
+   - option text → translate (but keep the key like "A", "B")
+   - explanation → translate
+   - grading_rubric → translate
+   - evaluation_criteria → translate (if exists)
+6. **USE NATURAL LANGUAGE:** Use fluent, natural language appropriate for educational content
+7. **TECHNICAL TERMS:** Use commonly accepted translations in target language
 
 **Original Test:**
 Title: {original_test_doc.get('title', 'Untitled')}
@@ -167,32 +177,60 @@ Language: {original_test_doc.get('test_language', 'unknown')}
 **Evaluation Criteria (for diagnostic tests):**
 {evaluation_criteria if evaluation_criteria else 'N/A - Academic test'}
 
-**Questions to Translate:**
+**Questions to Translate (TOTAL: {len(questions_json)} questions):**
 {json.dumps(questions_json, ensure_ascii=False, indent=2)}
 
-**Output Format:**
-Return a JSON object with this exact structure:
+**OUTPUT FORMAT REQUIREMENTS:**
+1. Return a JSON object with this EXACT structure
+2. MUST include ALL {len(questions_json)} questions
+3. For each MCQ question, MUST include ALL options (if input has 4 options, output MUST have 4 options)
+4. DO NOT skip any field that exists in input
+
 {{
   "title": "translated title",
   "description": "translated description",
-  "evaluation_criteria": "translated criteria (only if original has evaluation_criteria)",
+  "evaluation_criteria": "translated criteria (only if exists in input)",
   "questions": [
     {{
-      "question_id": "keep original",
-      "question_type": "keep original",
-      "question_text": "translated text",
+      "question_id": "KEEP ORIGINAL VALUE",
+      "question_type": "KEEP ORIGINAL VALUE (mcq or essay)",
+      "question_text": "TRANSLATED QUESTION TEXT",
       "options": [
-        {{"key": "A", "text": "translated option"}},
-        {{"key": "B", "text": "translated option"}}
+        {{
+          "key": "A",
+          "text": "TRANSLATED OPTION A TEXT",
+          "option_score": "KEEP IF EXISTS"
+        }},
+        {{
+          "key": "B",
+          "text": "TRANSLATED OPTION B TEXT",
+          "option_score": "KEEP IF EXISTS"
+        }},
+        {{
+          "key": "C",
+          "text": "TRANSLATED OPTION C TEXT",
+          "option_score": "KEEP IF EXISTS"
+        }},
+        {{
+          "key": "D",
+          "text": "TRANSLATED OPTION D TEXT",
+          "option_score": "KEEP IF EXISTS"
+        }}
       ],
-      "correct_answer_key": "keep original",
-      "explanation": "translated explanation",
-      "grading_rubric": "translated rubric (if exists)"
+      "correct_answer_key": "KEEP ORIGINAL VALUE IF EXISTS",
+      "explanation": "TRANSLATED EXPLANATION IF EXISTS",
+      "grading_rubric": "TRANSLATED RUBRIC IF EXISTS (for essay questions)"
     }}
   ]
 }}
 
-Return ONLY valid JSON, no markdown, no code blocks."""
+**VALIDATION BEFORE RETURNING:**
+- Count questions in output = {len(questions_json)} ✓
+- For each MCQ question, count options in output = count options in input ✓
+- All text fields are translated ✓
+- All structural fields (keys, IDs) are preserved ✓
+
+Return ONLY valid JSON, no markdown, no code blocks, no explanations."""
 
         # Call Gemini 2.0 Flash Exp (same way as evaluation service)
         collection.update_one(
@@ -231,6 +269,36 @@ Return ONLY valid JSON, no markdown, no code blocks."""
             logger.error(f"Response text: {result[:500]}...")
             logger.error(f"Response: {result[:500]}")
             raise Exception(f"Invalid JSON response from AI: {str(e)}")
+
+        # ✅ VALIDATION: Ensure all questions and options are present
+        translated_questions_list = translated_data.get("questions", [])
+        original_questions_list = original_test_doc.get("questions", [])
+
+        if len(translated_questions_list) != len(original_questions_list):
+            logger.error(
+                f"❌ Translation incomplete: Expected {len(original_questions_list)} questions, got {len(translated_questions_list)}"
+            )
+            raise Exception(
+                f"Translation incomplete: Missing questions (expected {len(original_questions_list)}, got {len(translated_questions_list)})"
+            )
+
+        # Validate each question has all options
+        for i, trans_q in enumerate(translated_questions_list):
+            orig_q = original_questions_list[i]
+            if orig_q.get("question_type") == "mcq":
+                orig_options_count = len(orig_q.get("options", []))
+                trans_options_count = len(trans_q.get("options", []))
+                if trans_options_count != orig_options_count:
+                    logger.error(
+                        f"❌ Question {i+1} missing options: Expected {orig_options_count}, got {trans_options_count}"
+                    )
+                    raise Exception(
+                        f"Translation incomplete: Question {i+1} missing options (expected {orig_options_count}, got {trans_options_count})"
+                    )
+
+        logger.info(
+            f"✅ Validation passed: {len(translated_questions_list)} questions with all options"
+        )
 
         # Update progress
         collection.update_one(
@@ -362,6 +430,8 @@ async def translate_test(
     """
     Translate an existing test to a different language using Gemini 2.5 Flash
 
+    **Cost:** 2 points (AI translation service)
+
     **Features:**
     - Translates title, description, questions, options, explanations
     - Preserves test structure and correct answers
@@ -466,6 +536,39 @@ async def translate_test(
                 status_code=400,
                 detail=f"Test is already in {request.target_language}",
             )
+
+        # 💰 Check and deduct points for AI translation (2 points)
+        users_collection = mongo_service.db["users"]
+        user = users_collection.find_one({"firebase_uid": user_id})
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        translation_cost = 2  # 2 points for AI translation
+        current_points = user.get("points", 0)
+
+        if current_points < translation_cost:
+            logger.warning(
+                f"   ⚠️ User has {current_points} points, need {translation_cost} for translation"
+            )
+            raise HTTPException(
+                status_code=402,
+                detail=f"Insufficient points. Need {translation_cost} points for translation, you have {current_points}",
+            )
+
+        # Deduct points
+        result_update = users_collection.update_one(
+            {"firebase_uid": user_id},
+            {
+                "$inc": {"points": -translation_cost},
+                "$set": {"updated_at": datetime.now()},
+            },
+        )
+
+        new_points = current_points - translation_cost
+        logger.info(
+            f"   💸 Deducted {translation_cost} points for AI translation (balance: {new_points})"
+        )
 
         # Generate new title
         original_title = original_test.get("title", "Untitled Test")
