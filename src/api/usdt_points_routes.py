@@ -171,9 +171,9 @@ async def create_points_payment(
         )
 
         # Validate points amount
-        if request.points_amount < 100:
+        if request.points_amount < 50:
             raise HTTPException(
-                status_code=400, detail="Minimum points purchase is 100 points"
+                status_code=400, detail="Minimum points purchase is 50 points"
             )
 
         # Calculate VND price
