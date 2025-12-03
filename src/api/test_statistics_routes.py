@@ -46,6 +46,7 @@ class PopularTestItem(BaseModel):
 
     test_id: str = Field(..., description="Test ID")
     test_title: str = Field(..., description="Test title")
+    slug: Optional[str] = Field(None, description="SEO-friendly URL slug")
     submission_count: int = Field(
         ..., description="Number of times this test was taken"
     )
@@ -59,6 +60,7 @@ class PopularTestItem(BaseModel):
             "example": {
                 "test_id": "692c0ce9eabefddaa798357c",
                 "test_title": "Kiểm tra IQ tổng quát cho mọi lứa tuổi",
+                "slug": "kiem-tra-iq-tong-quat-cho-moi-lua-tuoi",
                 "submission_count": 15,
                 "test_category": "academic",
                 "creator_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
@@ -242,6 +244,7 @@ async def get_popular_tests(
                     test_id=str(test_id),
                     test_title=item.get("test_title")
                     or (test_doc.get("title") if test_doc else "Unknown Test"),
+                    slug=test_doc.get("slug") if test_doc else None,
                     submission_count=item["submission_count"],
                     test_category=item.get("test_category")
                     or (test_doc.get("test_category") if test_doc else None),

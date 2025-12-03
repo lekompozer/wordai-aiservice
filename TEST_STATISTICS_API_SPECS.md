@@ -52,6 +52,7 @@ Returns a list of tests that have been taken the most, with submission counts. T
     {
       "test_id": string,
       "test_title": string,
+      "slug": string | null,
       "submission_count": integer,
       "test_category": string | null,
       "creator_id": string | null
@@ -69,6 +70,7 @@ Returns a list of tests that have been taken the most, with submission counts. T
 | `popular_tests` | array | Array of popular test objects, ordered by `submission_count` descending |
 | `popular_tests[].test_id` | string | MongoDB ObjectId of the test |
 | `popular_tests[].test_title` | string | Title of the test |
+| `popular_tests[].slug` | string \| null | SEO-friendly URL slug for the test, or `null` if not set |
 | `popular_tests[].submission_count` | integer | Number of times this test was submitted by users |
 | `popular_tests[].test_category` | string \| null | Test category: `academic` or `diagnostic`, or `null` if not set |
 | `popular_tests[].creator_id` | string \| null | Firebase UID of the test creator, or `null` if not available |
@@ -83,6 +85,7 @@ Returns a list of tests that have been taken the most, with submission counts. T
     {
       "test_id": "692c0ce9eabefddaa798357c",
       "test_title": "Kiểm tra IQ tổng quát cho mọi lứa tuổi",
+      "slug": "kiem-tra-iq-tong-quat-cho-moi-lua-tuoi",
       "submission_count": 15,
       "test_category": "academic",
       "creator_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2"
@@ -90,6 +93,7 @@ Returns a list of tests that have been taken the most, with submission counts. T
     {
       "test_id": "69293c35d7330f550720a445",
       "test_title": "Test tiếng Anh cơ bản",
+      "slug": "test-tieng-anh-co-ban",
       "submission_count": 12,
       "test_category": "academic",
       "creator_id": "KkAfCdSeUOduPYNCRfbvwZbj5Oz1"
@@ -255,7 +259,21 @@ For accurate statistics, submissions should contain:
 1. Call `GET /api/v1/tests/statistics/popular?limit=10`
 2. Display `popular_tests` array in a table or list
 3. Show `test_title` and `submission_count`
-4. Handle case where `popular_tests` is empty (show "Chưa có dữ liệu")
+4. Use `slug` for SEO-friendly URLs (e.g., `/online-test?view=public&slug={slug}`)
+5. Fallback to `test_id` if `slug` is null (e.g., `/online-test?view=public&testId={test_id}`)
+6. Handle case where `popular_tests` is empty (show "Chưa có dữ liệu")
+
+**Example Code:**
+```javascript
+popularTests.forEach(test => {
+  const url = test.slug
+    ? `/online-test?view=public&slug=${test.slug}`
+    : `/online-test?view=public&testId=${test.test_id}`;
+
+  // Render link with URL
+  return <a href={url}>{test.test_title}</a>;
+});
+```
 
 ### Displaying "Người dùng tích cực nhất"
 1. Call `GET /api/v1/tests/statistics/active-users?limit=10`
