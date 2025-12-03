@@ -32,7 +32,7 @@ from src.models.subscription import (
 )
 from src.services.usdt_payment_service import USDTPaymentService
 from src.services.subscription_service import SubscriptionService
-from src.middleware.auth import get_current_user
+from src.middleware.firebase_auth import require_auth
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -92,7 +92,7 @@ async def get_current_usdt_rate():
 @router.post("/create", response_model=USDTPaymentResponse)
 async def create_subscription_payment(
     request: CreateUSDTSubscriptionPaymentRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_auth),
     req: Request = None,
 ):
     """
@@ -110,8 +110,8 @@ async def create_subscription_payment(
     3. Poll /status endpoint to check payment confirmation
     """
     try:
-        user_id = current_user["user_id"]
-        user_email = current_user.get("email")
+        user_id = current_user["uid"]
+        user_email = current_user.get("email", "unknown")
 
         # Get IP and user agent
         ip_address = req.client.host if req else None
@@ -194,7 +194,7 @@ async def create_subscription_payment(
 @router.get("/{payment_id}/status", response_model=CheckUSDTPaymentStatusResponse)
 async def check_payment_status(
     payment_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_auth),
 ):
     """
     Check USDT payment status
@@ -210,7 +210,7 @@ async def check_payment_status(
     - failed/cancelled: Error or timeout
     """
     try:
-        user_id = current_user["user_id"]
+        user_id = current_user["uid"]
 
         # Get payment
         payment_service = USDTPaymentService()
@@ -267,8 +267,8 @@ async def check_payment_status(
 @router.post("/{payment_id}/verify")
 async def verify_transaction(
     payment_id: str,
-    request: VerifyTransactionRequest,
-    current_user: dict = Depends(get_current_user),
+    verify_request: VerifyTransactionRequest,
+    current_user: dict = Depends(require_auth),
 ):
     """
     Manually submit transaction hash for verification
@@ -279,10 +279,10 @@ async def verify_transaction(
     Note: Still requires 12 confirmations before subscription activation
     """
     try:
-        user_id = current_user["user_id"]
+        user_id = current_user["uid"]
 
         logger.info(
-            f"🔍 Verifying transaction {request.transaction_hash} for payment {payment_id}"
+            f"🔍 Verifying transaction {verify_request.transaction_hash} for payment {payment_id}"
         )
 
         # Get payment
@@ -311,7 +311,7 @@ async def verify_transaction(
         payment_service.update_payment_status(
             payment_id=payment_id,
             status="processing",
-            transaction_hash=request.transaction_hash,
+            transaction_hash=verify_request.transaction_hash,
         )
 
         # Add to pending queue for background verification
@@ -319,21 +319,21 @@ async def verify_transaction(
         payment_service.add_pending_transaction(
             payment_id=payment_id,
             user_id=user_id,
-            transaction_hash=request.transaction_hash,
+            transaction_hash=verify_request.transaction_hash,
             from_address=payment.get("from_address", "unknown"),
             to_address=payment["to_address"],
             amount_usdt=payment["amount_usdt"],
         )
 
         logger.info(
-            f"✅ Transaction registered for verification: {request.transaction_hash}"
+            f"✅ Transaction registered for verification: {verify_request.transaction_hash}"
         )
 
         return JSONResponse(
             status_code=200,
             content={
                 "message": "Transaction hash registered. Waiting for blockchain confirmations.",
-                "transaction_hash": request.transaction_hash,
+                "transaction_hash": verify_request.transaction_hash,
                 "required_confirmations": 12,
                 "estimated_time": "~36 seconds",
             },
@@ -348,9 +348,9 @@ async def verify_transaction(
 
 @router.get("/history")
 async def get_payment_history(
-    current_user: dict = Depends(get_current_user),
     limit: int = 20,
     skip: int = 0,
+    current_user: dict = Depends(require_auth),
 ):
     """
     Get user's USDT subscription payment history
@@ -358,7 +358,7 @@ async def get_payment_history(
     Returns list of all USDT subscription payments by user
     """
     try:
-        user_id = current_user["user_id"]
+        user_id = current_user["uid"]
 
         payment_service = USDTPaymentService()
         payments = payment_service.get_user_payments(
