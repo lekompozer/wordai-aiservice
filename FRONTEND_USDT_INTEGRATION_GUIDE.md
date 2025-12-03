@@ -118,7 +118,60 @@ Authorization: Bearer {firebase_token}
 
 ---
 
-### 1.2. Create Subscription Payment
+### 1.2. Get Subscription Packages
+
+**Endpoint:** `GET /api/v1/payments/usdt/subscription/packages`
+
+**Purpose:** Lấy danh sách tất cả các gói subscription với giá USDT
+
+**Request:**
+```http
+GET /api/v1/payments/usdt/subscription/packages
+Authorization: Bearer {firebase_token}
+```
+
+**Response:**
+```json
+[
+  {
+    "plan": "premium",
+    "duration": "3month",
+    "price_vnd": 279000,
+    "price_usdt": 10.73,
+    "discount_percentage": 0.0,
+    "points": 300,
+    "features": [
+      "2GB Storage",
+      "300 AI Points (3mo) / 1200 (12mo)",
+      "Unlimited AI chats",
+      "Create online tests",
+      "100 documents & secret files"
+    ],
+    "is_popular": true
+  },
+  {
+    "plan": "premium",
+    "duration": "12month",
+    "price_vnd": 990000,
+    "price_usdt": 38.08,
+    "discount_percentage": 11.0,
+    "points": 1200,
+    "features": [...],
+    "is_popular": true
+  },
+  // ... more packages for pro, vip
+]
+```
+
+**Usage:**
+- Gọi khi user vào trang pricing/subscription
+- Hiển thị tất cả packages với cả giá VND và USDT
+- Highlight `is_popular: true` packages
+- Hiển thị `discount_percentage` cho các gói 12 tháng
+
+---
+
+### 1.3. Create Subscription Payment
 
 **Endpoint:** `POST /api/v1/payments/usdt/subscription/create`
 
@@ -197,7 +250,7 @@ Content-Type: application/json
 
 ---
 
-### 1.3. Check Payment Status
+### 1.4. Check Payment Status
 
 **Endpoint:** `GET /api/v1/payments/usdt/subscription/{payment_id}/status`
 
