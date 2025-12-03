@@ -723,8 +723,17 @@ async def get_my_public_tests(
 
     Shows all tests I've published to marketplace with:
     - Sales stats (purchases, revenue)
-    - Rating stats
+    - Participation stats (unique users who took test)
+    - Completion stats (passed submissions, completion rate)
+    - Rating stats (avg rating, rating count)
     - Version info
+
+    **Stats Calculation:**
+    - total_participants: Unique users who submitted this test (from test_submissions)
+    - total_completions: Number of passed submissions (is_passed=true)
+    - completion_rate: (total_completions / total_purchases) * 100
+    - avg_rating: Average rating from marketplace_config
+    - total_revenue: Total earnings from sales
     """
     try:
         db = get_database()
@@ -759,18 +768,28 @@ async def get_my_public_tests(
             mc = test.get("marketplace_config", {})
             test_id = str(test["_id"])
 
-            # Calculate completion stats
-            total_purchases = mc.get("total_purchases", 0)
-            total_completions = 0
-            completion_rate = 0.0
+            # Get actual participation stats from test_submissions
+            total_participants = db.test_submissions.count_documents(
+                {"test_id": test_id}
+            )
 
+            # Count unique users who participated
+            unique_participants = len(
+                db.test_submissions.distinct("user_id", {"test_id": test_id})
+            )
+
+            # Calculate completion stats from submissions
+            total_purchases = mc.get("total_purchases", 0)
+            completed_submissions = db.test_submissions.count_documents(
+                {"test_id": test_id, "is_passed": True}
+            )
+
+            # Completion rate based on purchases (if any)
+            completion_rate = 0.0
             if total_purchases > 0:
-                # Count unique users who completed this test
-                completed_users = db.user_test_attempts.distinct(
-                    "user_id", {"test_id": test_id, "status": "completed"}
+                completion_rate = round(
+                    (completed_submissions / total_purchases) * 100, 1
                 )
-                total_completions = len(completed_users)
-                completion_rate = round((total_completions / total_purchases) * 100, 1)
 
             results.append(
                 {
@@ -786,11 +805,10 @@ async def get_my_public_tests(
                     "current_version": mc.get("current_version", "v1"),
                     "stats": {
                         "total_purchases": total_purchases,
-                        "total_completions": total_completions,
+                        "total_participants": unique_participants,  # ✅ Unique users who took test
+                        "total_completions": completed_submissions,  # ✅ Number of passed submissions
                         "completion_rate": completion_rate,
-                        "total_revenue": mc.get(
-                            "total_earnings", 0
-                        ),  # Changed from total_revenue
+                        "total_revenue": mc.get("total_earnings", 0),
                         "avg_rating": mc.get("avg_rating", 0.0),
                         "rating_count": mc.get("rating_count", 0),
                     },
