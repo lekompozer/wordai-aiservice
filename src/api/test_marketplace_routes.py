@@ -46,6 +46,7 @@ async def publish_test_to_marketplace(
     short_description: Optional[str] = Form(None),
     price_points: int = Form(...),
     category: str = Form(...),
+    language: str = Form(..., description="Test language (vi, en, ja, etc.)"),
     tags: str = Form(...),
     difficulty_level: str = Form(...),
     evaluation_criteria: Optional[str] = Form(None),
@@ -56,9 +57,11 @@ async def publish_test_to_marketplace(
     Publish test to marketplace with cover image and full metadata
 
     Requirements:
-    - Test must have at least 5 questions
+    - Test must have at least 5 questions (or 1 for essay-only tests)
     - Description must be at least 50 characters
     - Title must be at least 10 characters
+    - Language: REQUIRED (vi, en, ja, ko, zh-cn, etc.)
+    - Category: REQUIRED (programming, language, math, science, business, technology, self_development, exam_prep, certification, other)
     - Cover image: (Optional) JPG/PNG, max 5MB, min 800x600
     - Short description: (Optional) Brief summary for listing cards
     - Price: 0 (FREE) or any positive integer
@@ -77,6 +80,7 @@ async def publish_test_to_marketplace(
         logger.info(f"   Title: {title}")
         logger.info(f"   Price: {price_points} points")
         logger.info(f"   Category: {category}")
+        logger.info(f"   Language: {language}")
 
         # ========== Step 1: Validate test exists and user is creator ==========
         test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
@@ -155,7 +159,7 @@ async def publish_test_to_marketplace(
             "science",
             "business",
             "technology",
-            "design",
+            "self_development",
             "exam_prep",
             "certification",
             "other",
@@ -308,6 +312,7 @@ async def publish_test_to_marketplace(
             "marketplace_config": marketplace_config,
             "slug": slug,  # ✅ Store slug at root level for easy querying
             "meta_description": meta_description,  # ✅ Store meta at root level
+            "test_language": language,  # ✅ Update test language
             "updated_at": datetime.utcnow(),
         }
 
