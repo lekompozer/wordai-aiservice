@@ -62,9 +62,9 @@ class TransferEarningsRequest(BaseModel):
     """Transfer earnings from test sales to user wallet"""
 
     amount_points: int = Field(
-        ..., 
+        ...,
         ge=1000,  # Minimum 1000 points = 800,000 VND
-        description="Points to transfer (minimum 1000)"
+        description="Points to transfer (minimum 1000)",
     )
 
 
@@ -606,9 +606,9 @@ async def transfer_earnings_to_wallet(
     """
     Transfer earnings from marketplace to user's point wallet
     Allows withdrawing sales revenue to use or cash out
-    
+
     **Minimum withdrawal:** 1000 points (equivalent to 800,000 VND)
-    
+
     **Process:**
     1. Validates minimum withdrawal amount (1000 points)
     2. Checks available earnings from all published tests
@@ -630,7 +630,7 @@ async def transfer_earnings_to_wallet(
 
         # Validation: Minimum withdrawal amount
         MIN_WITHDRAW = 1000  # 1000 points = 800,000 VND
-        
+
         if amount < MIN_WITHDRAW:
             raise HTTPException(
                 status_code=400,
