@@ -11,7 +11,7 @@ Background service to automatically verify and confirm pending USDT payments:
 import asyncio
 import os
 from datetime import datetime, timedelta
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pymongo import MongoClient
 
 from src.services.usdt_payment_service import USDTPaymentService
