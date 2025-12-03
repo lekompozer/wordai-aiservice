@@ -260,7 +260,7 @@ class CreateUSDTPointsPaymentRequest(BaseModel):
     """Request to create USDT payment for points purchase"""
 
     points_amount: int = Field(
-        ..., ge=100, description="Number of points to purchase (min 100)"
+        ..., ge=50, description="Number of points to purchase (min 50)"
     )
     from_address: str = Field(
         ..., description="User's wallet address (required for balance check)"
@@ -269,7 +269,7 @@ class CreateUSDTPointsPaymentRequest(BaseModel):
     class Config:
         schema_extra = {
             "example": {
-                "points_amount": 1000,
+                "points_amount": 100,
                 "from_address": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb",
             }
         }
