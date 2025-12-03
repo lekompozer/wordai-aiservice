@@ -6,11 +6,11 @@ Webhook endpoints for external payment notifications and manual triggers
 
 from fastapi import APIRouter, HTTPException, Header, BackgroundTasks
 from pydantic import BaseModel, Field
+import logging
 
 from src.services.usdt_verification_job import get_verification_job
-from src.utils.logger import setup_logger
 
-logger = setup_logger()
+logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/webhooks/usdt", tags=["USDT Payment Webhooks"])
 

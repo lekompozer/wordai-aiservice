@@ -133,7 +133,7 @@ Content-Type: application/json
 {
   "plan": "premium",           // premium | pro | vip
   "duration": "3_months",       // 3_months | 12_months
-  "from_address": "0x742d..."  // Optional: User's wallet address
+  "from_address": "0x742d..."  // REQUIRED: User's wallet address for balance check
 }
 ```
 
@@ -166,9 +166,34 @@ Content-Type: application/json
 4. Cung cấp form để user paste transaction hash
 
 **Error Handling:**
-- 400: Invalid plan/duration
+
+**400 Bad Request - Insufficient Balance:**
+```json
+{
+  "detail": {
+    "error": "insufficient_balance",
+    "message": "Insufficient USDT balance in your wallet",
+    "required_amount": 12.5,
+    "current_balance": 8.23,
+    "shortage": 4.27,
+    "wallet_address": "0x742d..."
+  }
+}
+```
+
+**Frontend should:**
+- Display clear error message showing shortage amount
+- Show current balance vs required amount
+- Suggest user to:
+  - Add more USDT to wallet
+  - Choose smaller package/plan
+  - Use alternative payment method
+- Prevent payment creation until balance sufficient
+
+**Other errors:**
+- 400: Invalid plan/duration, invalid wallet address, balance too low
 - 401: Not authenticated
-- 500: Server error
+- 500: Server error or blockchain connection issue
 
 ---
 
@@ -375,7 +400,7 @@ Content-Type: application/json
 
 {
   "points_amount": 100,          // Minimum 100
-  "from_address": "0x742d..."   // Optional
+  "from_address": "0x742d..."   // REQUIRED: User's wallet address for balance check
 }
 ```
 
@@ -405,9 +430,34 @@ Same as subscription payment:
 4. Provide transaction hash input
 5. Start polling after user confirms send
 
-**Validation:**
+**Error Handling:**
+
+**400 Bad Request - Insufficient Balance:**
+```json
+{
+  "detail": {
+    "error": "insufficient_balance",
+    "message": "Insufficient USDT balance in your wallet",
+    "required_amount": 4.26,
+    "current_balance": 2.15,
+    "shortage": 2.11,
+    "wallet_address": "0x742d..."
+  }
+}
+```
+
+**Frontend should:**
+- Display clear error message with shortage amount
+- Show "You need 2.11 more USDT" message
+- Suggest smaller points package
+- Disable "Buy" button until balance sufficient
+
+**Other validation:**
 - points_amount >= 100
 - Show error if less than minimum
+- 400: Invalid wallet address, balance too low
+- 401: Not authenticated
+- 500: Server error or blockchain connection issue
 
 ---
 

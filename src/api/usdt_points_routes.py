@@ -26,9 +26,9 @@ from src.services.usdt_payment_service import USDTPaymentService
 from src.services.bsc_service import BSCService
 from src.services.points_service import PointsService
 from src.middleware.firebase_auth import require_auth
-from src.utils.logger import setup_logger
+import logging
 
-logger = setup_logger()
+logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/payments/usdt/points", tags=["USDT Points Purchase"])
 
@@ -41,7 +41,7 @@ WORDAI_BEP20_ADDRESS = os.getenv(
 USDT_BEP20_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
 
 # Exchange rate
-DEFAULT_USDT_RATE = 22320.0  # 1 USDT = 22,320 VND
+DEFAULT_USDT_RATE = float(os.getenv("RATE_USDT_VND", "22320"))  # 1 USDT = VND
 
 # Points pricing packages (VND)
 # Matches payment-service pricing

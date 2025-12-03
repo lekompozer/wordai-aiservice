@@ -10,9 +10,10 @@ Endpoints for cryptocurrency (USDT BEP20) subscription payments:
 
 import os
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Header, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 
 from src.models.usdt_payment import (
     CreateUSDTSubscriptionPaymentRequest,
@@ -34,9 +35,9 @@ from src.services.usdt_payment_service import USDTPaymentService
 from src.services.bsc_service import BSCService
 from src.services.subscription_service import SubscriptionService
 from src.middleware.firebase_auth import require_auth
-from src.utils.logger import setup_logger
+import logging
 
-logger = setup_logger()
+logger = logging.getLogger("chatbot")
 
 router = APIRouter(
     prefix="/api/v1/payments/usdt/subscription", tags=["USDT Subscription Payments"]
@@ -51,7 +52,7 @@ WORDAI_BEP20_ADDRESS = os.getenv(
 USDT_BEP20_CONTRACT = "0x55d398326f99059fF775485246999027B3197955"
 
 # Exchange rate (can be updated dynamically from Binance API later)
-DEFAULT_USDT_RATE = 22320.0  # 1 USDT = 22,320 VND
+DEFAULT_USDT_RATE = float(os.getenv("RATE_USDT_VND", "22320"))  # 1 USDT = VND
 
 
 def get_usdt_rate() -> float:
@@ -64,6 +65,21 @@ def get_usdt_rate() -> float:
     # TODO: Fetch from Binance API
     # https://api.binance.com/api/v3/ticker/price?symbol=USDTVND
     return DEFAULT_USDT_RATE
+
+
+class SubscriptionPackage(BaseModel):
+    """Subscription package information"""
+
+    plan: str = Field(..., description="Plan name (premium, pro, vip)")
+    duration: str = Field(..., description="Duration (3month, 12month)")
+    price_vnd: int = Field(..., description="Price in VND")
+    price_usdt: float = Field(..., description="Price in USDT")
+    discount_percentage: float = Field(
+        0.0, description="Discount percentage for 12-month"
+    )
+    points: int = Field(..., description="AI points included")
+    features: List[str] = Field(..., description="Key features")
+    is_popular: bool = Field(False, description="Popular package")
 
 
 # =========================================================================
@@ -88,6 +104,66 @@ async def get_current_usdt_rate():
     except Exception as e:
         logger.error(f"❌ Error getting USDT rate: {e}")
         raise HTTPException(status_code=500, detail="Failed to get USDT rate")
+
+
+@router.get("/packages", response_model=List[SubscriptionPackage])
+async def get_subscription_packages():
+    """
+    Get available subscription packages with pricing
+
+    Returns list of all subscription plans (premium, pro, vip) with both
+    3-month and 12-month durations, including USDT prices
+    """
+    try:
+        usdt_rate = get_usdt_rate()
+        packages = []
+
+        # Skip "free" plan, only include paid plans
+        for plan_name, plan_config in PLAN_CONFIGS.items():
+            if plan_name == "free":
+                continue
+
+            # 3-month package
+            price_3mo_vnd = plan_config.price_3_months
+            if price_3mo_vnd > 0:
+                packages.append(
+                    SubscriptionPackage(
+                        plan=plan_name,
+                        duration="3month",
+                        price_vnd=price_3mo_vnd,
+                        price_usdt=round(price_3mo_vnd / usdt_rate, 2),
+                        discount_percentage=0.0,
+                        points=plan_config.points_3_months,
+                        features=plan_config.features_list,
+                        is_popular=plan_config.is_popular
+                        and True,  # Popular for 3-month
+                    )
+                )
+
+            # 12-month package
+            price_12mo_vnd = plan_config.price_12_months
+            if price_12mo_vnd > 0:
+                packages.append(
+                    SubscriptionPackage(
+                        plan=plan_name,
+                        duration="12month",
+                        price_vnd=price_12mo_vnd,
+                        price_usdt=round(price_12mo_vnd / usdt_rate, 2),
+                        discount_percentage=plan_config.discount_percentage_12mo,
+                        points=plan_config.points_12_months,
+                        features=plan_config.features_list,
+                        is_popular=plan_config.is_popular
+                        and True,  # Popular for 12-month
+                    )
+                )
+
+        return packages
+
+    except Exception as e:
+        logger.error(f"❌ Error getting subscription packages: {e}")
+        raise HTTPException(
+            status_code=500, detail="Failed to get subscription packages"
+        )
 
 
 @router.post("/create", response_model=USDTPaymentResponse)
