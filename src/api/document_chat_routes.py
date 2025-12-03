@@ -71,7 +71,7 @@ class DocumentChatRequest(BaseModel):
 
 # Context length limits for different providers
 PROVIDER_CONTEXT_LIMITS = {
-    "deepseek": 128_000,  # DeepSeek-V3.2 (Non-thinking Mode)
+    "deepseek": 128_000,  # DeepSeek-V3.2 (Latest - December 2024)
     "qwen": 32_000,  # Qwen2.5
     "gemini-pro": 1_000_000,  # Gemini Pro
     "gpt-4": 1_000_000,  # GPT-4

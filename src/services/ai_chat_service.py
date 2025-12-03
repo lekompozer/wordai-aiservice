@@ -72,10 +72,10 @@ class AIChatService:
                 )
 
                 self.providers[AIProvider.DEEPSEEK_CHAT] = deepseek_client
-                self.models[AIProvider.DEEPSEEK_CHAT] = "deepseek-chat"
+                self.models[AIProvider.DEEPSEEK_CHAT] = "deepseek-chat"  # V3.2 (Latest)
 
                 self.providers[AIProvider.DEEPSEEK_REASONER] = deepseek_client
-                self.models[AIProvider.DEEPSEEK_REASONER] = "deepseek-reasoner"
+                self.models[AIProvider.DEEPSEEK_REASONER] = "deepseek-reasoner"  # R1 (Thinking mode)
 
                 logger.info("✅ DeepSeek clients initialized")
 
@@ -148,13 +148,13 @@ class AIChatService:
                 "category": "latest",
             },
             AIProvider.DEEPSEEK_CHAT: {
-                "name": "DeepSeek Chat",
-                "description": "DeepSeek's general conversation model",
+                "name": "DeepSeek V3.2",
+                "description": "DeepSeek V3.2 - Fast and efficient (December 2024)",
                 "category": "general",
             },
             AIProvider.DEEPSEEK_REASONER: {
-                "name": "DeepSeek Reasoner",
-                "description": "DeepSeek's advanced reasoning model",
+                "name": "DeepSeek R1",
+                "description": "DeepSeek R1 - Advanced reasoning with thinking process",
                 "category": "reasoning",
             },
             AIProvider.QWEN_235B_INSTRUCT: {
