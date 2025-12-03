@@ -1,6 +1,6 @@
 """
 Test Translation Routes
-Translate existing tests to different languages using Gemini 2.5 Flash
+Translate existing tests to different languages using Gemini 2.5 Pro
 """
 
 import logging
@@ -61,7 +61,7 @@ async def translate_test_background(
     original_test_doc: dict,
 ):
     """
-    Background job to translate test content using Gemini 2.5 Flash
+    Background job to translate test content using Gemini 2.5 Pro
     Updates status: pending → translating → ready/failed
     """
     from pymongo import MongoClient
@@ -238,10 +238,10 @@ Return ONLY valid JSON, no markdown, no code blocks, no explanations."""
             {"$set": {"progress_percent": 30, "updated_at": datetime.now()}},
         )
 
-        logger.info(f"🤖 Calling Gemini 2.5 Flash for translation")
+        logger.info(f"🤖 Calling Gemini 2.5 pro for translation")
 
         response = gemini_client.models.generate_content(
-            model="gemini-2.5-flash",
+            model="gemini-2.5-pro",
             contents=prompt,
         )
 
@@ -428,7 +428,7 @@ async def translate_test(
     user_info: dict = Depends(require_auth),
 ):
     """
-    Translate an existing test to a different language using Gemini 2.5 Flash
+    Translate an existing test to a different language using Gemini 2.5 pro
 
     **Cost:** 2 points (AI translation service)
 
@@ -449,7 +449,7 @@ async def translate_test(
     **Process:**
     1. Creates new test record with status='pending'
     2. Returns test_id immediately
-    3. Background job translates content using Gemini 2.5 Flash
+    3. Background job translates content using Gemini 2.5 pro
     4. Frontend polls /tests/{test_id}/status for completion
 
     **What Gets Translated:**
