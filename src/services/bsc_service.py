@@ -484,6 +484,148 @@ class BSCService:
             "usdt_contract": self.USDT_CONTRACT_ADDRESS,
         }
 
+    def find_usdt_transfer(
+        self,
+        from_address: str,
+        to_address: str,
+        expected_amount_usdt: float,
+        tolerance_percentage: float = 1.0,
+        max_blocks_to_scan: int = 1000,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Scan blockchain to find USDT transfer from sender to recipient with expected amount
+        
+        This method scans recent blocks to find a matching USDT transfer transaction.
+        Use this when user claims they sent USDT but didn't provide transaction hash.
+        
+        Args:
+            from_address: Sender wallet address (user's wallet)
+            to_address: Recipient address (WordAI wallet)
+            expected_amount_usdt: Expected USDT amount
+            tolerance_percentage: Acceptable difference as percentage (default 1%)
+            max_blocks_to_scan: Maximum number of recent blocks to scan (default 1000)
+            
+        Returns:
+            Dict with transaction details if found, None otherwise
+            {
+                "tx_hash": "0x...",
+                "from_address": "0x...",
+                "to_address": "0x...",
+                "amount_usdt": 1.92,
+                "block_number": 12345678,
+                "timestamp": 1234567890,
+                "confirmations": 5
+            }
+        """
+        try:
+            logger.info(
+                f"🔍 Scanning blockchain for USDT transfer: {from_address[:8]}...→{to_address[:8]}... amount: {expected_amount_usdt} USDT"
+            )
+
+            # Normalize addresses
+            from_addr = from_address.lower()
+            to_addr = to_address.lower()
+            
+            # Calculate tolerance
+            tolerance = expected_amount_usdt * (tolerance_percentage / 100.0)
+            min_amount = expected_amount_usdt - tolerance
+            max_amount = expected_amount_usdt + tolerance
+
+            # Get current block number
+            current_block = self.w3.eth.block_number
+            start_block = max(0, current_block - max_blocks_to_scan)
+
+            logger.info(
+                f"📊 Scanning blocks {start_block} to {current_block} ({max_blocks_to_scan} blocks)"
+            )
+
+            # Scan blocks in reverse (newest first)
+            for block_num in range(current_block, start_block, -1):
+                try:
+                    block = self.w3.eth.get_block(block_num, full_transactions=False)
+                    
+                    # Check each transaction in block
+                    for tx_hash in block.transactions:
+                        tx_hash_hex = tx_hash.hex()
+                        
+                        # Get transaction receipt to check logs
+                        try:
+                            receipt = self.w3.eth.get_transaction_receipt(tx_hash_hex)
+                            
+                            # Skip if transaction failed
+                            if receipt.get("status") != 1:
+                                continue
+                            
+                            # Check if it's to USDT contract
+                            if receipt.get("to", "").lower() != self.USDT_CONTRACT_ADDRESS.lower():
+                                continue
+                            
+                            # Parse Transfer events
+                            for log in receipt.get("logs", []):
+                                # Check if it's Transfer event
+                                if len(log.get("topics", [])) >= 3:
+                                    event_sig = log["topics"][0].hex()
+                                    transfer_sig = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+                                    
+                                    if event_sig == transfer_sig:
+                                        # Extract from address (topic[1])
+                                        from_topic = log["topics"][1].hex()
+                                        tx_from = ("0x" + from_topic[-40:]).lower()
+                                        
+                                        # Extract to address (topic[2])
+                                        to_topic = log["topics"][2].hex()
+                                        tx_to = ("0x" + to_topic[-40:]).lower()
+                                        
+                                        # Extract amount
+                                        amount_hex = log["data"].hex()
+                                        amount_wei = int(amount_hex, 16)
+                                        amount_usdt = amount_wei / (10**self.USDT_DECIMALS)
+                                        
+                                        # Check if matches
+                                        if (
+                                            tx_from == from_addr
+                                            and tx_to == to_addr
+                                            and min_amount <= amount_usdt <= max_amount
+                                        ):
+                                            confirmations = current_block - block_num
+                                            
+                                            logger.info(
+                                                f"✅ Found matching USDT transfer! "
+                                                f"Tx: {tx_hash_hex[:10]}... "
+                                                f"Amount: {amount_usdt} USDT "
+                                                f"Block: {block_num} "
+                                                f"Confirmations: {confirmations}"
+                                            )
+                                            
+                                            return {
+                                                "tx_hash": tx_hash_hex,
+                                                "from_address": from_address,
+                                                "to_address": to_address,
+                                                "amount_usdt": amount_usdt,
+                                                "block_number": block_num,
+                                                "timestamp": block.timestamp,
+                                                "confirmations": confirmations,
+                                            }
+                        
+                        except Exception as tx_error:
+                            # Skip transactions that can't be retrieved
+                            continue
+                
+                except BlockNotFound:
+                    continue
+                except Exception as block_error:
+                    logger.error(f"❌ Error scanning block {block_num}: {block_error}")
+                    continue
+
+            logger.warning(
+                f"⚠️ No matching USDT transfer found in last {max_blocks_to_scan} blocks"
+            )
+            return None
+
+        except Exception as e:
+            logger.error(f"❌ Error finding USDT transfer: {e}")
+            return None
+
 
 # Global service instance
 _bsc_service: Optional[BSCService] = None

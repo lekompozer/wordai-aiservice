@@ -335,24 +335,28 @@ class USDTPaymentService:
     def add_pending_transaction(
         self,
         payment_id: str,
-        user_id: str,
-        transaction_hash: str,
-        from_address: str,
-        to_address: str,
-        amount_usdt: float,
+        transaction_hash: Optional[str] = None,
+        user_id: Optional[str] = None,
+        from_address: Optional[str] = None,
+        to_address: Optional[str] = None,
+        amount_usdt: Optional[float] = None,
         required_confirmations: int = 12,
+        retry_count: int = 0,
+        max_retries: int = 20,
     ) -> bool:
         """
         Add transaction to pending queue for confirmation tracking
 
         Args:
-            payment_id: Payment ID
-            user_id: User ID
-            transaction_hash: BSC transaction hash
-            from_address: Sender address
-            to_address: Recipient address
-            amount_usdt: Amount in USDT
-            required_confirmations: Required confirmations
+            payment_id: Payment ID (required)
+            transaction_hash: BSC transaction hash (optional - will be found by scan if None)
+            user_id: User ID (optional)
+            from_address: Sender address (optional but needed for scanning)
+            to_address: Recipient address (optional)
+            amount_usdt: Amount in USDT (optional)
+            required_confirmations: Required confirmations (default 12)
+            retry_count: Current retry count (default 0)
+            max_retries: Maximum retry attempts (default 20)
 
         Returns:
             Success status
@@ -360,8 +364,8 @@ class USDTPaymentService:
         try:
             pending_data = {
                 "payment_id": payment_id,
+                "transaction_hash": transaction_hash,  # Can be None
                 "user_id": user_id,
-                "transaction_hash": transaction_hash,
                 "from_address": from_address,
                 "to_address": to_address,
                 "amount_usdt": amount_usdt,
@@ -369,12 +373,19 @@ class USDTPaymentService:
                 "last_checked_at": datetime.utcnow(),
                 "confirmation_count": 0,
                 "required_confirmations": required_confirmations,
-                "status": "pending",
+                "retry_count": retry_count,
+                "max_retries": max_retries,
+                "status": "pending" if transaction_hash else "scanning",
                 "webhook_attempts": 0,
             }
 
             self.pending.insert_one(pending_data)
-            logger.info(f"✅ Added pending transaction: {transaction_hash}")
+            
+            if transaction_hash:
+                logger.info(f"✅ Added pending transaction: {transaction_hash}")
+            else:
+                logger.info(f"✅ Added pending payment for scanning: {payment_id}")
+            
             return True
 
         except Exception as e:
@@ -402,23 +413,51 @@ class USDTPaymentService:
 
     def update_pending_transaction(
         self,
-        transaction_hash: str,
-        confirmation_count: int,
+        identifier: str,  # Can be transaction_hash or payment_id
+        confirmation_count: Optional[int] = None,
         status: Optional[str] = None,
+        transaction_hash: Optional[str] = None,
+        block_number: Optional[int] = None,
+        retry_count: Optional[int] = None,
     ) -> bool:
-        """Update pending transaction confirmation count"""
+        """
+        Update pending transaction
+        
+        Args:
+            identifier: transaction_hash or payment_id to find record
+            confirmation_count: New confirmation count
+            status: New status
+            transaction_hash: Transaction hash (when found by scan)
+            block_number: Block number
+            retry_count: Retry count
+        """
         try:
+            # Try to find by transaction_hash first, then by payment_id
+            query = {"$or": [
+                {"transaction_hash": identifier},
+                {"payment_id": identifier}
+            ]}
+
             update_data = {
-                "confirmation_count": confirmation_count,
                 "last_checked_at": datetime.utcnow(),
             }
 
+            if confirmation_count is not None:
+                update_data["confirmation_count"] = confirmation_count
+            
             if status:
                 update_data["status"] = status
+            
+            if transaction_hash:
+                update_data["transaction_hash"] = transaction_hash
+            
+            if block_number:
+                update_data["block_number"] = block_number
+            
+            if retry_count is not None:
+                update_data["retry_count"] = retry_count
 
-            result = self.pending.update_one(
-                {"transaction_hash": transaction_hash}, {"$set": update_data}
-            )
+            result = self.pending.update_one(query, {"$set": update_data})
 
             return result.modified_count > 0
 
@@ -426,10 +465,20 @@ class USDTPaymentService:
             logger.error(f"❌ Failed to update pending transaction: {e}")
             return False
 
-    def remove_pending_transaction(self, transaction_hash: str) -> bool:
-        """Remove transaction from pending queue"""
+    def remove_pending_transaction(self, identifier: str) -> bool:
+        """
+        Remove transaction from pending queue
+        
+        Args:
+            identifier: transaction_hash or payment_id
+        """
         try:
-            result = self.pending.delete_one({"transaction_hash": transaction_hash})
+            query = {"$or": [
+                {"transaction_hash": identifier},
+                {"payment_id": identifier}
+            ]}
+            
+            result = self.pending.delete_one(query)
             return result.deleted_count > 0
         except Exception as e:
             logger.error(f"❌ Failed to remove pending transaction: {e}")

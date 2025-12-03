@@ -499,6 +499,98 @@ async def get_payment_history(
         raise HTTPException(status_code=500, detail="Failed to get payment history")
 
 
+@router.post("/{payment_id}/confirm-sent")
+async def confirm_payment_sent(
+    payment_id: str,
+    current_user: dict = Depends(require_auth),
+):
+    """
+    User confirms they have sent USDT
+    
+    This triggers automatic blockchain scanning to find the transaction.
+    No transaction hash needed - system will scan blockchain for matching transfer.
+    
+    Scans every 15 seconds, up to 12 times (3 minutes total).
+    """
+    try:
+        user_id = current_user.get("user_id") or current_user.get("uid")
+
+        logger.info(
+            f"👤 User {user_id} confirms sent USDT for subscription payment: {payment_id}"
+        )
+
+        # Get payment
+        payment_service = USDTPaymentService()
+        payment = payment_service.get_payment_by_id(payment_id)
+
+        if not payment:
+            raise HTTPException(status_code=404, detail="Payment not found")
+
+        # Verify ownership
+        if payment["user_id"] != user_id:
+            raise HTTPException(
+                status_code=403, detail="You don't have permission for this payment"
+            )
+
+        # Check payment status
+        if payment["status"] == "completed":
+            return {
+                "success": True,
+                "message": "Payment already completed",
+                "status": "completed",
+            }
+
+        if payment["status"] not in ["pending", "awaiting_payment"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot confirm payment in status: {payment['status']}",
+            )
+
+        # Check required fields for scanning
+        if not payment.get("from_address"):
+            raise HTTPException(
+                status_code=400,
+                detail="Payment missing from_address. Cannot scan blockchain.",
+            )
+
+        # Update payment status to scanning
+        payment_service.update_payment_status(
+            payment_id=payment_id,
+            status="scanning",
+        )
+
+        # Add to pending transactions for background verification
+        payment_service.add_pending_transaction(
+            payment_id=payment_id,
+            transaction_hash=None,  # Will be found by scan
+            from_address=payment["from_address"],
+            retry_count=0,
+            max_retries=12,  # 12 attempts × 15s = 3 minutes
+        )
+
+        logger.info(
+            f"✅ Started blockchain scanning for subscription payment: {payment_id} "
+            f"from address: {payment['from_address'][:8]}..."
+        )
+
+        return {
+            "success": True,
+            "message": "Blockchain scanning started. We will automatically detect your transaction.",
+            "status": "scanning",
+            "scan_info": {
+                "max_attempts": 12,
+                "interval_seconds": 15,
+                "total_duration_minutes": 3,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error confirming payment sent: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # =========================================================================
 # INTERNAL ENDPOINT - For background job/webhook to activate subscription
 # =========================================================================

@@ -111,24 +111,82 @@ class USDTPaymentVerificationJob:
             pending_tx: Pending transaction document
         """
         try:
-            tx_hash = pending_tx["transaction_hash"]
             payment_id = pending_tx["payment_id"]
-
-            logger.info(f"🔍 Verifying transaction: {tx_hash} (payment: {payment_id})")
+            tx_hash = pending_tx.get("transaction_hash")  # Optional now
 
             # Get payment
             payment = self.payment_service.get_payment_by_id(payment_id)
 
             if not payment:
                 logger.error(f"❌ Payment not found: {payment_id}")
-                self.payment_service.remove_pending_transaction(tx_hash)
+                if tx_hash:
+                    self.payment_service.remove_pending_transaction(tx_hash)
                 return
 
             # Check if payment already completed
             if payment["status"] == "completed":
                 logger.info(f"✅ Payment already completed: {payment_id}")
-                self.payment_service.remove_pending_transaction(tx_hash)
+                if tx_hash:
+                    self.payment_service.remove_pending_transaction(tx_hash)
                 return
+
+            # If no transaction hash, scan blockchain to find it
+            if not tx_hash:
+                logger.info(
+                    f"🔍 No transaction hash provided, scanning blockchain for payment: {payment_id}"
+                )
+                
+                tx_result = self.bsc_service.find_usdt_transfer(
+                    from_address=payment.get("from_address"),
+                    to_address=payment["to_address"],
+                    expected_amount_usdt=payment["amount_usdt"],
+                    tolerance_percentage=1.0,
+                    max_blocks_to_scan=1000,  # ~50 minutes at 3s/block
+                )
+
+                if not tx_result:
+                    # Not found yet, increment retry count
+                    retry_count = pending_tx.get("retry_count", 0) + 1
+                    
+                    if retry_count >= self.max_retries:
+                        logger.error(
+                            f"❌ Transaction not found after {self.max_retries} attempts for payment: {payment_id}"
+                        )
+                        await self.handle_not_found(pending_tx, payment)
+                        return
+                    
+                    logger.info(
+                        f"⏳ Transaction not found yet, will retry ({retry_count}/{self.max_retries})"
+                    )
+                    self.payment_service.update_pending_transaction(
+                        payment_id, retry_count=retry_count
+                    )
+                    return
+
+                # Found transaction! Update pending tx with hash
+                tx_hash = tx_result["tx_hash"]
+                logger.info(
+                    f"✅ Found transaction on blockchain: {tx_hash} for payment: {payment_id}"
+                )
+                
+                # Update pending transaction with hash
+                self.payment_service.update_pending_transaction(
+                    payment_id, 
+                    transaction_hash=tx_hash,
+                    block_number=tx_result["block_number"],
+                    confirmation_count=tx_result["confirmations"]
+                )
+                
+                # Also update payment record
+                self.payment_service.update_payment_status(
+                    payment_id=payment_id,
+                    status="verifying",
+                    transaction_hash=tx_hash,
+                    block_number=tx_result["block_number"],
+                )
+
+            # Now verify the transaction (we have tx_hash now)
+            logger.info(f"🔍 Verifying transaction: {tx_hash} (payment: {payment_id})")
 
             # Get blockchain confirmations
             confirmations = self.bsc_service.get_transaction_confirmations(tx_hash)
@@ -366,16 +424,16 @@ class USDTPaymentVerificationJob:
                 error_message="Payment expired - transaction not mined",
             )
 
-            self.payment_service.remove_pending_transaction(
-                pending_tx["transaction_hash"]
-            )
+            tx_hash = pending_tx.get("transaction_hash")
+            if tx_hash:
+                self.payment_service.remove_pending_transaction(tx_hash)
         else:
             # Increment webhook attempts
             attempts = pending_tx.get("webhook_attempts", 0) + 1
 
             if attempts >= self.max_retries:
                 logger.error(
-                    f"❌ Max retries reached for {pending_tx['transaction_hash']}"
+                    f"❌ Max retries reached for {pending_tx.get('transaction_hash', payment['payment_id'])}"
                 )
 
                 self.payment_service.update_payment_status(
@@ -384,9 +442,38 @@ class USDTPaymentVerificationJob:
                     error_message="Transaction not mined after maximum retries",
                 )
 
-                self.payment_service.remove_pending_transaction(
-                    pending_tx["transaction_hash"]
-                )
+                tx_hash = pending_tx.get("transaction_hash")
+                if tx_hash:
+                    self.payment_service.remove_pending_transaction(tx_hash)
+
+    async def handle_not_found(
+        self, pending_tx: Dict[str, Any], payment: Dict[str, Any]
+    ):
+        """Handle transaction not found on blockchain after scanning"""
+
+        logger.warning(
+            f"⚠️ Transaction not found on blockchain for payment: {payment['payment_id']}"
+        )
+
+        # Check if payment expired
+        if payment.get("expires_at") and payment["expires_at"] < datetime.utcnow():
+            logger.warning(f"⏰ Payment expired: {payment['payment_id']}")
+
+            self.payment_service.update_payment_status(
+                payment_id=payment["payment_id"],
+                status="cancelled",
+                error_message="Payment expired - no transaction found on blockchain",
+            )
+
+            self.payment_service.remove_pending_transaction(payment["payment_id"])
+        else:
+            self.payment_service.update_payment_status(
+                payment_id=payment["payment_id"],
+                status="failed",
+                error_message="No matching transaction found on blockchain after maximum scan attempts",
+            )
+
+            self.payment_service.remove_pending_transaction(payment["payment_id"])
 
     async def handle_failed_transaction(
         self, pending_tx: Dict[str, Any], payment: Dict[str, Any], error_msg: str
