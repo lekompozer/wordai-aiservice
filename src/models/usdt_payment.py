@@ -242,8 +242,8 @@ class CreateUSDTSubscriptionPaymentRequest(BaseModel):
 
     plan: PlanType = Field(..., description="Subscription plan")
     duration: DurationType = Field(..., description="Subscription duration")
-    from_address: Optional[str] = Field(
-        None, description="User's wallet address (optional)"
+    from_address: str = Field(
+        ..., description="User's wallet address (required for balance check)"
     )
 
     class Config:
@@ -262,8 +262,8 @@ class CreateUSDTPointsPaymentRequest(BaseModel):
     points_amount: int = Field(
         ..., ge=100, description="Number of points to purchase (min 100)"
     )
-    from_address: Optional[str] = Field(
-        None, description="User's wallet address (optional)"
+    from_address: str = Field(
+        ..., description="User's wallet address (required for balance check)"
     )
 
     class Config:

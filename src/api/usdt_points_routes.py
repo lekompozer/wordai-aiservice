@@ -23,6 +23,7 @@ from src.models.usdt_payment import (
     USDTRateResponse,
 )
 from src.services.usdt_payment_service import USDTPaymentService
+from src.services.bsc_service import BSCService
 from src.services.points_service import PointsService
 from src.middleware.firebase_auth import require_auth
 from src.utils.logger import setup_logger
@@ -158,7 +159,7 @@ async def create_points_payment(
     3. Poll /status endpoint for confirmation
     """
     try:
-        user_id = current_user["user_id"]
+        user_id = current_user["uid"]
         user_email = current_user.get("email")
 
         # Get IP and user agent
@@ -187,6 +188,43 @@ async def create_points_payment(
         logger.info(
             f"💰 Amount: {amount_vnd} VND = {amount_usdt} USDT (rate: {usdt_rate})"
         )
+
+        # Validate wallet balance (required)
+        try:
+            bsc_service = BSCService()
+            wallet_balance = bsc_service.get_usdt_balance(request.from_address)
+
+            if wallet_balance is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot verify wallet balance. Please check your wallet address: {request.from_address}",
+                )
+
+            if wallet_balance < amount_usdt:
+                shortage = round(amount_usdt - wallet_balance, 2)
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "insufficient_balance",
+                        "message": f"Insufficient USDT balance in your wallet",
+                        "required_amount": amount_usdt,
+                        "current_balance": round(wallet_balance, 2),
+                        "shortage": shortage,
+                        "wallet_address": request.from_address,
+                    },
+                )
+
+            logger.info(
+                f"✅ Balance check passed: {wallet_balance} USDT >= {amount_usdt} USDT"
+            )
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"❌ Error checking wallet balance: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to verify wallet balance: {str(e)}"
+            )
 
         # Create payment service
         payment_service = USDTPaymentService()
