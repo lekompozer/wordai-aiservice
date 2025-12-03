@@ -93,6 +93,11 @@ from src.api.support_routes import router as support_router
 from src.api.payment_activation_routes import router as payment_activation_router
 from src.api.payment_activation_routes import points_router
 
+# ✅ ADDED: USDT BEP20 Payment System - Cryptocurrency payments
+from src.api.usdt_subscription_routes import router as usdt_subscription_router
+from src.api.usdt_points_routes import router as usdt_points_router
+from src.api.usdt_webhook_routes import router as usdt_webhook_router
+
 # ✅ ADDED: E2EE Secret Documents - Key Management API
 from src.api.secret_key_routes import router as secret_key_router
 
@@ -666,6 +671,11 @@ def create_app() -> FastAPI:
 
     # ✅ Billing History endpoints - Payment history
     app.include_router(billing_router, tags=["Billing & Payments"])
+
+    # ✅ USDT BEP20 Payment System - Cryptocurrency payments
+    app.include_router(usdt_subscription_router, tags=["USDT - Subscription Payments"])
+    app.include_router(usdt_points_router, tags=["USDT - Points Purchase"])
+    app.include_router(usdt_webhook_router, tags=["USDT - Webhooks"])
 
     # ✅ Support System endpoints - Customer support tickets
     app.include_router(support_router, tags=["Customer Support"])

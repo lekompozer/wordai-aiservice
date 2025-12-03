@@ -17,30 +17,58 @@ Tài liệu hướng dẫn frontend tích hợp hệ thống thanh toán USDT BE
 ### Flow 1: Subscription Payment
 
 ```
-1. User chọn gói subscription (Premium/Pro/VIP) và duration (3/12 months)
-2. User click "Pay with USDT" button
-3. Frontend gọi API tạo payment → Nhận wallet address và amount
-4. Frontend hiển thị QR code + payment instructions
-5. User mở wallet app → Send USDT đến địa chỉ
-6. User paste transaction hash vào form (optional)
-7. Frontend poll API kiểm tra status mỗi 10-15 giây
-8. Sau 12 confirmations (~36 giây) → Subscription được activate
-9. Hiển thị success message + redirect về dashboard
+1. User connects wallet (MetaMask/Trust Wallet/WalletConnect)
+   → Get user's wallet address
+   → Check network = BSC
+   → Check USDT balance
+2. User chọn gói subscription (Premium/Pro/VIP) và duration (3/12 months)
+3. Frontend hiển thị giá (VND + USDT) trước khi thanh toán
+4. User click "Pay Now" button
+5. Frontend gọi API tạo payment với wallet address → Nhận WordAI wallet address và exact amount
+6. Frontend hiển thị payment modal với:
+   - QR code cho mobile wallet
+   - Copy address button
+   - Exact USDT amount (BOLD warning)
+   - "Send" button (opens user's wallet app)
+7. User send USDT từ wallet
+8. User paste transaction hash (optional but recommended)
+9. Frontend starts polling status endpoint mỗi 10-15 giây
+10. Sau 12 confirmations (~36 giây) → Subscription được activate
+11. Hiển thị success message + redirect về dashboard
 ```
 
 ### Flow 2: Points Purchase
 
 ```
-1. User chọn gói points (50/100/200) hoặc nhập custom amount
-2. User click "Buy with USDT"
-3. Frontend gọi API tạo payment → Nhận wallet address và amount
-4. Frontend hiển thị payment instructions
-5. User send USDT từ wallet
-6. User submit transaction hash (optional)
-7. Frontend poll status endpoint
-8. Sau confirm → Points được credit vào account
-9. Hiển thị success + updated points balance
+1. User connects wallet TRƯỚC KHI chọn package
+   → Verify BSC network
+   → Check USDT balance
+2. Frontend hiển thị packages với giá (VND + USDT)
+3. User chọn gói points hoặc nhập custom amount
+4. User click "Buy with USDT"
+5. Frontend gọi API tạo payment với wallet address
+6. Frontend hiển thị payment modal (same as subscription)
+7. User send USDT
+8. User submit transaction hash (optional)
+9. Frontend poll status endpoint
+10. Sau confirm → Points được credit vào account
+11. Hiển thị success + updated points balance
 ```
+
+### ⚠️ IMPORTANT: Connect Wallet First!
+
+**Frontend PHẢI yêu cầu user connect wallet TRƯỚC KHI:**
+- Hiển thị giá USDT
+- Cho phép click "Pay" button
+- Tạo payment request
+
+**Lý do:**
+- Cần wallet address để tạo payment
+- Cần check user có đủ USDT balance không
+- Cần verify network = BSC
+- Better UX: User biết chính xác wallet nào sẽ gửi
+
+
 
 ---
 
@@ -48,7 +76,7 @@ Tài liệu hướng dẫn frontend tích hợp hệ thống thanh toán USDT BE
 
 ### Base URL
 ```
-Production: https://api.wordai.com
+
 Development: http://localhost:8000
 ```
 
@@ -461,65 +489,103 @@ Authorization: Bearer {firebase_token}
 
 ## 🔐 Wallet Integration Guide
 
+### ⚠️ CRITICAL: Connect Wallet First Flow
+
+**Step 0: Before Showing Prices**
+```
+User lands on pricing page
+↓
+Frontend checks: Is wallet connected?
+↓
+NO → Show "Connect Wallet" button (prominently)
+YES → Show prices in USDT + "Pay Now" buttons enabled
+```
+
 ### Supported Wallets
 
 Frontend nên support các wallet phổ biến:
-- **MetaMask** (Browser extension)
-- **Trust Wallet** (Mobile)
-- **Binance Wallet**
-- **WalletConnect** (Universal)
+- **MetaMask** (Browser extension - Desktop)
+- **Trust Wallet** (Mobile app)
+- **Binance Wallet** (Browser + Mobile)
+- **WalletConnect** (Universal - Mobile)
 
-### Wallet Connection Flow
+### Complete Wallet Connection Flow
 
-**Step 1: Detect Wallet**
+**Step 1: Detect Wallet Availability**
 ```javascript
-// Check if MetaMask installed
-const isMetaMaskInstalled = typeof window.ethereum !== 'undefined';
+// Check if MetaMask or compatible wallet installed
+const isWalletAvailable = typeof window.ethereum !== 'undefined';
 
-// Check if on BSC network
-const chainId = await ethereum.request({ method: 'eth_chainId' });
-const isBSC = chainId === '0x38'; // BSC Mainnet
+if (!isWalletAvailable) {
+  // Show install wallet guide
+  showMessage("Please install MetaMask or compatible wallet");
+  return;
+}
 ```
 
-**Step 2: Request Connection**
+**Step 2: Request Wallet Connection**
 ```javascript
-// Request wallet connection
+// User clicks "Connect Wallet" button
 const accounts = await ethereum.request({
   method: 'eth_requestAccounts'
 });
 const userAddress = accounts[0];
+
+// Save to state
+setWalletAddress(userAddress);
+setIsWalletConnected(true);
 ```
 
-**Step 3: Switch to BSC Network**
+**Step 3: Check Current Network**
 ```javascript
-// If not on BSC, prompt user to switch
-if (!isBSC) {
+// Get current chain ID
+const chainId = await ethereum.request({ method: 'eth_chainId' });
+const isBSC = chainId === '0x38'; // BSC Mainnet
+const isBSCTestnet = chainId === '0x61'; // BSC Testnet
+
+if (!isBSC && !isBSCTestnet) {
+  // Wrong network - need to switch
+  showSwitchNetworkDialog();
+}
+```
+
+**Step 4: Switch to BSC Network**
+```javascript
+// Prompt user to switch to BSC
+try {
   await ethereum.request({
     method: 'wallet_switchEthereumChain',
     params: [{ chainId: '0x38' }], // BSC Mainnet
   });
+} catch (switchError) {
+  // Network not added yet - add it
+  if (switchError.code === 4902) {
+    await addBSCNetwork();
+  }
 }
 ```
 
-**Step 4: Add BSC Network (if not added)**
+**Step 5: Add BSC Network (if needed)**
 ```javascript
-await ethereum.request({
-  method: 'wallet_addEthereumChain',
-  params: [{
-    chainId: '0x38',
-    chainName: 'Binance Smart Chain',
-    nativeCurrency: {
-      name: 'BNB',
-      symbol: 'BNB',
-      decimals: 18
-    },
-    rpcUrls: ['https://bsc-dataseed1.binance.org'],
-    blockExplorerUrls: ['https://bscscan.com']
-  }]
-});
+async function addBSCNetwork() {
+  await ethereum.request({
+    method: 'wallet_addEthereumChain',
+    params: [{
+      chainId: '0x38',
+      chainName: 'Binance Smart Chain',
+      nativeCurrency: {
+        name: 'BNB',
+        symbol: 'BNB',
+        decimals: 18
+      },
+      rpcUrls: ['https://bsc-dataseed1.binance.org'],
+      blockExplorerUrls: ['https://bscscan.com']
+    }]
+  });
+}
 ```
 
-**Step 5: Get USDT Balance**
+**Step 6: Get USDT Balance**
 ```javascript
 // USDT BEP20 Contract
 const USDT_CONTRACT = '0x55d398326f99059fF775485246999027B3197955';
@@ -536,6 +602,93 @@ const USDT_ABI = [
 const contract = new web3.eth.Contract(USDT_ABI, USDT_CONTRACT);
 const balance = await contract.methods.balanceOf(userAddress).call();
 const balanceUSDT = balance / (10 ** 18);
+
+// Display balance to user
+showBalance(balanceUSDT);
+
+// Check if sufficient for selected package
+if (balanceUSDT < requiredAmount) {
+  showWarning("Insufficient USDT balance. Please deposit more USDT.");
+  disablePayButton();
+}
+```
+
+**Step 7: Listen for Account/Network Changes**
+```javascript
+// Listen for account changes
+ethereum.on('accountsChanged', (accounts) => {
+  if (accounts.length === 0) {
+    // User disconnected wallet
+    setIsWalletConnected(false);
+    setWalletAddress(null);
+  } else {
+    // User switched account
+    setWalletAddress(accounts[0]);
+    refreshBalance();
+  }
+});
+
+// Listen for network changes
+ethereum.on('chainChanged', (chainId) => {
+  if (chainId !== '0x38') {
+    showWarning("Please switch to BSC network");
+    disablePayButton();
+  } else {
+    enablePayButton();
+    refreshBalance();
+  }
+});
+```
+
+### Wallet Connection UI Components
+
+**1. Connect Wallet Button (Before Connection)**
+```
+┌─────────────────────────────────────┐
+│  🦊 Connect Wallet to See Prices    │
+│                                     │
+│  Connect your wallet to view USDT   │
+│  prices and make payments           │
+│                                     │
+│     [ Connect MetaMask ]            │
+│     [ WalletConnect ]               │
+└─────────────────────────────────────┘
+```
+
+**2. Connected Wallet Display**
+```
+┌─────────────────────────────────────┐
+│ ✅ Connected: 0x742d...35Cc         │
+│ 💰 USDT Balance: 125.50 USDT       │
+│ 🌐 Network: BSC Mainnet            │
+│                    [ Disconnect ]   │
+└─────────────────────────────────────┘
+```
+
+**3. Wrong Network Warning**
+```
+┌─────────────────────────────────────┐
+│ ⚠️ Wrong Network                    │
+│                                     │
+│ Please switch to Binance Smart      │
+│ Chain (BSC) to continue             │
+│                                     │
+│     [ Switch to BSC ]               │
+└─────────────────────────────────────┘
+```
+
+**4. Insufficient Balance Warning**
+```
+┌─────────────────────────────────────┐
+│ ⚠️ Insufficient USDT Balance        │
+│                                     │
+│ Required: 12.50 USDT               │
+│ Your Balance: 5.20 USDT            │
+│ Need: 7.30 USDT more               │
+│                                     │
+│ Please deposit USDT to your wallet  │
+│ before continuing                   │
+└─────────────────────────────────────┘
 ```
 
 ### Payment Sending Methods
@@ -612,6 +765,52 @@ const txHash = await ethereum.request({
 
 ## 🎨 UI/UX Recommendations
 
+### Page Layout Structure
+
+**Pricing Page (Before Wallet Connected)**
+```
+┌──────────────────────────────────────────┐
+│  WordAI Premium Plans                    │
+│                                          │
+│  🦊 Connect Wallet to See USDT Prices   │
+│  [ Connect Wallet Button - Prominent ]  │
+│                                          │
+│  ┌────────┐  ┌────────┐  ┌────────┐   │
+│  │Premium │  │  Pro   │  │  VIP   │   │
+│  │        │  │        │  │        │   │
+│  │ 93,000 │  │186,000 │  │279,000 │   │
+│  │  VND   │  │  VND   │  │  VND   │   │
+│  │        │  │        │  │        │   │
+│  │ --USDT │  │ --USDT │  │ --USDT │   │
+│  │(connect│  │(connect│  │(connect│   │
+│  │ wallet)│  │ wallet)│  │ wallet)│   │
+│  └────────┘  └────────┘  └────────┘   │
+└──────────────────────────────────────────┘
+```
+
+**Pricing Page (After Wallet Connected)**
+```
+┌──────────────────────────────────────────┐
+│  WordAI Premium Plans                    │
+│                                          │
+│  ✅ Connected: 0x742d...35Cc            │
+│  💰 Balance: 125.50 USDT                │
+│  🌐 Network: BSC        [Disconnect]    │
+│                                          │
+│  ┌────────┐  ┌────────┐  ┌────────┐   │
+│  │Premium │  │  Pro   │  │  VIP   │   │
+│  │        │  │        │  │        │   │
+│  │ 93,000 │  │186,000 │  │279,000 │   │
+│  │  VND   │  │  VND   │  │  VND   │   │
+│  │        │  │        │  │        │   │
+│  │ 4.17   │  │ 8.33   │  │ 12.50  │   │
+│  │  USDT  │  │  USDT  │  │  USDT  │   │
+│  │        │  │        │  │        │   │
+│  │[Pay Now]│ │[Pay Now]│ │[Pay Now]│  │
+│  └────────┘  └────────┘  └────────┘   │
+└──────────────────────────────────────────┘
+```
+
 ### Payment Modal Design
 
 **Components:**
@@ -619,37 +818,124 @@ const txHash = await ethereum.request({
    - Payment type (Subscription / Buy Points)
    - Amount in USDT and VND
    - Countdown timer (30:00)
+   - Close button
 
-2. **Payment Instructions**
-   - Step-by-step guide
-   - Network: BSC (BEP20)
-   - Token: USDT
+2. **Connected Wallet Info**
+   - ✅ Sending from: 0x742d...35Cc
+   - Current balance: 125.50 USDT
+   - After payment: 113.00 USDT (if sufficient)
 
-3. **Wallet Address Section**
-   - Large, readable address
+3. **Payment Instructions**
+   - Step-by-step guide with numbers
+   - Network: BSC (BEP20) - BOLD
+   - Token: USDT - BOLD
+
+4. **Recipient Wallet Section**
+   - Label: "Send USDT to this address"
+   - Large, monospace font address
    - Copy button with feedback
-   - QR code (collapsible/expandable)
+   - QR code (expandable)
 
-4. **Amount Display**
-   - **Exact amount** in bold
-   - Warning: "Send EXACTLY this amount"
-   - "Amount must match exactly"
+5. **Amount Display - CRITICAL**
+   - ⚠️ **EXACT AMOUNT REQUIRED** (RED warning)
+   - Amount: **12.5000 USDT** (BOLD, large font)
+   - "Send EXACTLY this amount"
+   - "More or less = payment will fail"
 
-5. **Transaction Hash Input**
-   - Optional input field
+6. **Send Button (Opens Wallet)**
+   - Large button: "📱 Open Wallet to Send"
+   - On click → Opens user's wallet with pre-filled data
+   - Or show manual instructions for mobile
+
+7. **Transaction Hash Input**
+   - Optional but recommended input field
    - Placeholder: "0x..."
    - Submit button
-   - Help text: "Speed up verification by pasting your transaction hash"
+   - Help text: "Paste your transaction hash to speed up verification"
+   - Validation: 66 characters, starts with 0x
 
-6. **Status Display**
+8. **Status Display**
    - Current status message
    - Progress bar (for confirmations)
    - Estimated time remaining
+   - Auto-updates from polling
 
-7. **Action Buttons**
-   - "I've sent the payment" (triggers polling)
-   - "Cancel" (closes modal)
-   - "View on BSCScan" (opens explorer)
+9. **Action Buttons**
+   - "I've sent the payment" → starts polling
+   - "View on BSCScan" → opens explorer
+   - "Cancel" → closes modal + cancels payment
+
+### Payment Modal States
+
+**State 1: Waiting for Payment**
+```
+┌─────────────────────────────────────────┐
+│ Pay 12.50 USDT for Premium (3 months) │
+│ ⏱️ Expires in: 29:45                    │
+│                                         │
+│ ✅ From: 0x742d...35Cc                 │
+│ 💰 Balance: 125.50 USDT                │
+│                                         │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│                                         │
+│ 📤 Send USDT to:                       │
+│ 0xbab94f5bf90550c9f0147fffae8a1ef006b │
+│                              [📋 Copy] │
+│                                         │
+│ ⚠️ EXACT AMOUNT REQUIRED                │
+│                                         │
+│        12.5000 USDT                     │
+│                                         │
+│ Send EXACTLY this amount                │
+│ More or less = payment fails            │
+│                                         │
+│ [ 📱 Open MetaMask to Send ]           │
+│                                         │
+│ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  │
+│                                         │
+│ Transaction Hash (optional):            │
+│ [0x________________] [Submit]           │
+│                                         │
+│ ⏳ Waiting for payment...               │
+│                                         │
+│ [View on BSCScan]      [Cancel]        │
+└─────────────────────────────────────────┘
+```
+
+**State 2: Processing (After TX submitted)**
+```
+┌─────────────────────────────────────────┐
+│ 🔄 Payment Processing                   │
+│                                         │
+│ Transaction detected!                   │
+│ Confirmations: 8/12                     │
+│                                         │
+│ ████████████░░░░░░░░  67%              │
+│                                         │
+│ ⏱️ Estimated time: ~12 seconds          │
+│                                         │
+│ TX: 0x1234...abcd        [View]        │
+│                                         │
+│ Please wait, do not close this window   │
+└─────────────────────────────────────────┘
+```
+
+**State 3: Success**
+```
+┌─────────────────────────────────────────┐
+│ 🎉 Payment Successful!                  │
+│                                         │
+│ ✅ Premium subscription activated       │
+│ ✅ 300 points added to your account     │
+│                                         │
+│ Valid until: March 3, 2026              │
+│                                         │
+│ Transaction:                            │
+│ 0x1234...abcd              [View]      │
+│                                         │
+│        [Go to Dashboard]                │
+└─────────────────────────────────────────┘
+```
 
 ### Status Messages
 
@@ -696,41 +982,136 @@ Please try again or contact support.
 
 ---
 
+## 💻 Frontend Implementation Checklist
+
+### Before Development
+
+- [ ] Read entire documentation
+- [ ] Understand connect wallet first flow
+- [ ] Plan UI components for wallet connection
+- [ ] Prepare error messages in Vietnamese
+- [ ] Test with BSC Testnet first
+
+### Wallet Connection Phase
+
+- [ ] Add "Connect Wallet" button on pricing page
+- [ ] Implement MetaMask detection
+- [ ] Implement WalletConnect for mobile
+- [ ] Add network switching (to BSC)
+- [ ] Show wallet address after connection
+- [ ] Display USDT balance
+- [ ] Listen for account/network changes
+- [ ] Handle wallet disconnection
+- [ ] Show appropriate errors (wallet not installed, wrong network, etc.)
+
+### Payment Creation Phase
+
+- [ ] Disable "Pay Now" until wallet connected
+- [ ] Show USDT prices only after wallet connected
+- [ ] Validate sufficient USDT balance
+- [ ] Create payment with wallet address
+- [ ] Handle API errors gracefully
+- [ ] Show loading state during API call
+
+### Payment Modal Phase
+
+- [ ] Display from/to addresses clearly
+- [ ] Show exact amount with WARNING
+- [ ] Add copy address button with feedback
+- [ ] Generate QR code for mobile
+- [ ] Provide "Open Wallet" button
+- [ ] Add transaction hash input (optional)
+- [ ] Validate transaction hash format
+- [ ] Show countdown timer (30 minutes)
+
+### Payment Processing Phase
+
+- [ ] Start polling after user confirms send
+- [ ] Poll every 10-15 seconds
+- [ ] Show confirmation progress (X/12)
+- [ ] Display estimated time remaining
+- [ ] Stop polling on completion/failure
+- [ ] Handle polling errors (retry)
+
+### Success/Failure Phase
+
+- [ ] Show clear success message
+- [ ] Display what was activated/credited
+- [ ] Provide transaction link (BSCScan)
+- [ ] Auto-redirect to dashboard (after 3 seconds)
+- [ ] Handle failures with retry option
+- [ ] Show support contact for issues
+
+### Testing Checklist
+
+- [ ] Test MetaMask connection
+- [ ] Test WalletConnect (mobile)
+- [ ] Test wrong network error
+- [ ] Test insufficient balance error
+- [ ] Test payment creation
+- [ ] Test QR code generation
+- [ ] Test transaction hash submission
+- [ ] Test polling and status updates
+- [ ] Test success flow
+- [ ] Test failure scenarios
+- [ ] Test timeout (30 minutes)
+- [ ] Test on mobile devices
+- [ ] Test in production with real USDT
+
+---
+
 ## ⚠️ Important Notes
 
 ### For Developers
 
-1. **Exact Amount Required**
+1. **Connect Wallet First - MANDATORY**
+   - User MUST connect wallet before seeing USDT prices
+   - Disable payment buttons until wallet connected
+   - Check network = BSC before allowing payment
+   - Verify sufficient balance before creating payment
+
+2. **Exact Amount Required**
    - User MUST send exact amount shown
    - Tolerance is only 0.01 USDT
    - More or less = payment fails
+   - Show prominent warning in UI
 
-2. **Network Selection**
+3. **Network Selection**
    - MUST be BSC (BEP20)
    - NOT Ethereum, NOT TRC20
    - Wrong network = lost funds
+   - Add network switching helper
 
-3. **Polling Frequency**
+4. **Polling Frequency**
    - Poll every 10-15 seconds
    - Don't poll faster (rate limit)
    - Stop polling after completion/failure
+   - Handle network errors in polling
 
-4. **Transaction Hash**
+5. **Transaction Hash**
    - Optional but recommended
    - Speeds up verification
    - Validate format before submit
+   - Show validation errors clearly
 
-5. **Expiration**
+6. **Expiration**
    - Payment expires in 30 minutes
    - Show countdown timer
-   - Warn user before expiration
+   - Warn user at 5 minutes remaining
    - Auto-close modal on expiration
 
-6. **Error Handling**
+7. **Error Handling**
    - Always show user-friendly messages
    - Log technical errors to console
    - Provide retry options
    - Show support contact for failures
+   - Never expose technical details to users
+
+8. **Balance Checking**
+   - Check USDT balance after wallet connection
+   - Warn if insufficient before creating payment
+   - Disable payment button if insufficient
+   - Show how much more USDT needed
 
 ### Security
 
