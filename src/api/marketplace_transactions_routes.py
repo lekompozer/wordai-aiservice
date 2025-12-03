@@ -61,7 +61,11 @@ class RatingRequest(BaseModel):
 class TransferEarningsRequest(BaseModel):
     """Transfer earnings from test sales to user wallet"""
 
-    amount_points: int = Field(..., gt=0, description="Points to transfer")
+    amount_points: int = Field(
+        ..., 
+        ge=1000,  # Minimum 1000 points = 800,000 VND
+        description="Points to transfer (minimum 1000)"
+    )
 
 
 # ============================================================================
@@ -602,6 +606,15 @@ async def transfer_earnings_to_wallet(
     """
     Transfer earnings from marketplace to user's point wallet
     Allows withdrawing sales revenue to use or cash out
+    
+    **Minimum withdrawal:** 1000 points (equivalent to 800,000 VND)
+    
+    **Process:**
+    1. Validates minimum withdrawal amount (1000 points)
+    2. Checks available earnings from all published tests
+    3. Deducts proportionally from test earnings
+    4. Adds to user's wallet balance
+    5. Records transaction for audit trail
     """
     try:
         db = get_database()
@@ -614,6 +627,15 @@ async def transfer_earnings_to_wallet(
             test.get("marketplace_config", {}).get("total_earnings", 0)
             for test in tests  # Changed from total_revenue
         )
+
+        # Validation: Minimum withdrawal amount
+        MIN_WITHDRAW = 1000  # 1000 points = 800,000 VND
+        
+        if amount < MIN_WITHDRAW:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Minimum withdrawal amount is {MIN_WITHDRAW} points (800,000 VND). Requested: {amount}",
+            )
 
         if amount > total_earnings:
             raise HTTPException(
