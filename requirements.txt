@@ -23,6 +23,9 @@ qdrant-client==1.15.0
 # Redis for caching and sessions
 redis==5.0.1
 
+# Web3 for BSC blockchain integration (USDT payment)
+web3==7.6.0
+
 # WebSocket support for real-time features (Phase 2) - Online Test auto-save
 python-socketio==5.14.3
 python-engineio==4.12.3
