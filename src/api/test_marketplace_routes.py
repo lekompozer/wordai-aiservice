@@ -593,7 +593,7 @@ async def update_marketplace_config(
                 "science",
                 "business",
                 "technology",
-                "design",
+                "self_development",
                 "exam_prep",
                 "certification",
                 "other",

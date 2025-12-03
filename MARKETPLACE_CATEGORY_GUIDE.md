@@ -22,7 +22,7 @@ Hiện tại hệ thống hỗ trợ **10 categories**:
 | `science` | Science | Khoa học | Physics, Chemistry, Biology |
 | `business` | Business | Kinh doanh | Marketing, Finance, Management |
 | `technology` | Technology | Công nghệ | IT, Networking, Cybersecurity, Cloud |
-| `design` | Design | Thiết kế | UI/UX, Graphic Design, Product Design |
+| `self_development` | Self-Development | Phát triển bản thân | Personal Growth, Soft Skills, Leadership, Communication |
 | `exam_prep` | Exam Preparation | Ôn thi | SAT, GRE, GMAT, Civil Service |
 | `certification` | Certification | Chứng chỉ | AWS, Google Cloud, CompTIA, PMP |
 | `other` | Other | Khác | Anything else |
@@ -136,7 +136,7 @@ if category is not None:
         "science",
         "business",
         "technology",
-        "design",
+        "self_development",
         "exam_prep",
         "certification",
         "other",
@@ -176,7 +176,7 @@ const CATEGORIES = [
   { value: "science", label: "Science", icon: "🔬" },
   { value: "business", label: "Business", icon: "💼" },
   { value: "technology", label: "Technology", icon: "⚙️" },
-  { value: "design", label: "Design", icon: "🎨" },
+  { value: "self_development", label: "Self-Development", icon: "🌱" },
   { value: "exam_prep", label: "Exam Preparation", icon: "📝" },
   { value: "certification", label: "Certification", icon: "🏆" },
   { value: "other", label: "Other", icon: "📚" },
@@ -213,7 +213,7 @@ const getCategoryLabel = (category: string) => {
     science: "🔬 Science",
     business: "💼 Business",
     technology: "⚙️ Technology",
-    design: "🎨 Design",
+    self_development: "🌱 Self-Development",
     exam_prep: "📝 Exam Prep",
     certification: "🏆 Certification",
     other: "📚 Other",
@@ -423,7 +423,7 @@ GET /api/v1/marketplace/tests?category=programming&page=1
 
 ## Summary
 
-**✅ Categories hiện tại:** 10 categories (programming, language, math, science, business, technology, design, exam_prep, certification, other)
+**✅ Categories hiện tại:** 10 categories (programming, language, math, science, business, technology, self_development, exam_prep, certification, other)
 
 **✅ Default category:** `"general"` (khi missing hoặc not provided)
 
