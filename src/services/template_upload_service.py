@@ -11,12 +11,12 @@ from datetime import datetime
 from fastapi import UploadFile, HTTPException
 from docx import Document
 from pydantic import BaseModel, Field
-
+import logging
 from src.utils.logger import setup_logger
 from src.services.ai_service import get_ai_service
 from src.config.database import get_async_database
 
-logger = setup_logger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class PlaceholderInfo(BaseModel):

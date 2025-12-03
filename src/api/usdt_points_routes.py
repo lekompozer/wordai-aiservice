@@ -473,18 +473,16 @@ async def confirm_payment_sent(
 ):
     """
     User confirms they have sent USDT
-    
+
     This triggers automatic blockchain scanning to find the transaction.
     No transaction hash needed - system will scan blockchain for matching transfer.
-    
+
     Scans every 15 seconds, up to 12 times (3 minutes total).
     """
     try:
         user_id = current_user.get("user_id") or current_user.get("uid")
 
-        logger.info(
-            f"👤 User {user_id} confirms sent USDT for payment: {payment_id}"
-        )
+        logger.info(f"👤 User {user_id} confirms sent USDT for payment: {payment_id}")
 
         # Get payment
         payment_service = USDTPaymentService()

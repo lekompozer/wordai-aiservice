@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pymongo.database import Database
 from bson import ObjectId  # ✅ Add ObjectId import
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class TestSharingService:

@@ -13,15 +13,14 @@ import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from pymongo import MongoClient
-
+import logging
 from src.services.usdt_payment_service import USDTPaymentService
 from src.services.bsc_service import get_bsc_service
 from src.services.subscription_service import SubscriptionService
 from src.services.points_service import PointsService
 from src.models.subscription import CreateSubscriptionRequest
-from src.utils.logger import setup_logger
 
-logger = setup_logger()
+logger = logging.getLogger("chatbot")
 
 
 class USDTPaymentVerificationJob:
@@ -135,7 +134,7 @@ class USDTPaymentVerificationJob:
                 logger.info(
                     f"🔍 No transaction hash provided, scanning blockchain for payment: {payment_id}"
                 )
-                
+
                 tx_result = self.bsc_service.find_usdt_transfer(
                     from_address=payment.get("from_address"),
                     to_address=payment["to_address"],
@@ -147,14 +146,14 @@ class USDTPaymentVerificationJob:
                 if not tx_result:
                     # Not found yet, increment retry count
                     retry_count = pending_tx.get("retry_count", 0) + 1
-                    
+
                     if retry_count >= self.max_retries:
                         logger.error(
                             f"❌ Transaction not found after {self.max_retries} attempts for payment: {payment_id}"
                         )
                         await self.handle_not_found(pending_tx, payment)
                         return
-                    
+
                     logger.info(
                         f"⏳ Transaction not found yet, will retry ({retry_count}/{self.max_retries})"
                     )
@@ -168,15 +167,15 @@ class USDTPaymentVerificationJob:
                 logger.info(
                     f"✅ Found transaction on blockchain: {tx_hash} for payment: {payment_id}"
                 )
-                
+
                 # Update pending transaction with hash
                 self.payment_service.update_pending_transaction(
-                    payment_id, 
+                    payment_id,
                     transaction_hash=tx_hash,
                     block_number=tx_result["block_number"],
-                    confirmation_count=tx_result["confirmations"]
+                    confirmation_count=tx_result["confirmations"],
                 )
-                
+
                 # Also update payment record
                 self.payment_service.update_payment_status(
                     payment_id=payment_id,

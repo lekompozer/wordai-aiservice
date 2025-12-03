@@ -250,7 +250,77 @@ Content-Type: application/json
 
 ---
 
-### 1.4. Check Payment Status
+### 1.4. Confirm Payment Sent (NEW - Automatic Scanning)
+
+**Endpoint:** `POST /api/v1/payments/usdt/subscription/{payment_id}/confirm-sent`
+
+**Purpose:** User xác nhận đã gửi USDT → Backend tự động scan blockchain tìm transaction
+
+**⚠️ QUAN TRỌNG:** Không cần transaction hash! Backend sẽ tự động scan blockchain.
+
+**Request:**
+```http
+POST /api/v1/payments/usdt/subscription/USDT-xxx/confirm-sent
+Authorization: Bearer {firebase_token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Blockchain scanning started. We will automatically detect your transaction.",
+  "status": "scanning",
+  "scan_info": {
+    "max_attempts": 12,
+    "interval_seconds": 15,
+    "total_duration_minutes": 3
+  }
+}
+```
+
+**Flow:**
+1. User click "Tôi đã gửi USDT" → Gọi endpoint này
+2. Backend bắt đầu scan blockchain tự động
+3. Scan mỗi 15 giây, tối đa 12 lần (3 phút)
+4. Tìm transaction từ `from_address` → WordAI wallet với `amount_usdt` chính xác
+5. Khi tìm thấy → Tự động verify và confirm
+
+**Frontend Implementation:**
+```javascript
+async function handleUserConfirmSent(paymentId) {
+  try {
+    // Call confirm-sent endpoint
+    const response = await fetch(
+      `/api/v1/payments/usdt/subscription/${paymentId}/confirm-sent`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${firebaseToken}`,
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+      // Show scanning message
+      showScanningModal({
+        message: 'Đang tìm kiếm giao dịch của bạn trên blockchain...',
+        duration: data.scan_info.total_duration_minutes
+      });
+
+      // Start polling status
+      startStatusPolling(paymentId);
+    }
+  } catch (error) {
+    showError('Không thể bắt đầu quét blockchain: ' + error.message);
+  }
+}
+```
+
+---
+
+### 1.5. Check Payment Status
 
 **Endpoint:** `GET /api/v1/payments/usdt/subscription/{payment_id}/status`
 
@@ -284,6 +354,7 @@ Authorization: Bearer {firebase_token}
 
 **Status Values:**
 - `pending`: Chờ user gửi USDT
+- `scanning`: Đang scan blockchain tìm transaction (NEW)
 - `processing`: Transaction detected, đang chờ confirmations
 - `confirmed`: Đủ 12 confirmations, đang activate subscription
 - `completed`: Subscription đã activate thành công
@@ -303,6 +374,8 @@ const pollInterval = setInterval(async () => {
   } else if (status.status === 'failed' || status.status === 'cancelled') {
     clearInterval(pollInterval);
     showErrorMessage(status.message);
+  } else if (status.status === 'scanning') {
+    showScanningProgress('Đang tìm giao dịch...');
   } else {
     updateProgressBar(status.confirmation_count, status.required_confirmations);
   }
@@ -355,7 +428,80 @@ Content-Type: application/json
 
 ---
 
-### 1.5. Get Payment History
+### 1.5. Confirm Payment Sent (NEW - Automatic Scanning)
+
+**Endpoint:** `POST /api/v1/payments/usdt/subscription/{payment_id}/confirm-sent`
+
+**Purpose:** User xác nhận đã gửi USDT - hệ thống tự động scan blockchain
+
+**⚡ NEW FEATURE:** Không cần transaction hash! Backend sẽ tự động scan blockchain để tìm transaction.
+
+**Request:**
+```http
+POST /api/v1/payments/usdt/subscription/USDT-xxx/confirm-sent
+Authorization: Bearer {firebase_token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Blockchain scanning started. We will automatically detect your transaction.",
+  "status": "scanning",
+  "scan_info": {
+    "max_attempts": 12,
+    "interval_seconds": 15,
+    "total_duration_minutes": 3
+  }
+}
+```
+
+**How it works:**
+1. User gửi USDT từ wallet (không cần paste transaction hash)
+2. User click "Tôi đã gửi USDT"
+3. Frontend gọi endpoint này
+4. Backend tự động scan blockchain mỗi 15 giây
+5. Scan 12 lần (tổng 3 phút)
+6. Tự động tìm transaction với:
+   - `from_address`: Wallet của user
+   - `to_address`: Wallet của WordAI
+   - `amount`: Đúng số tiền cần thanh toán (±1% tolerance)
+7. Khi tìm thấy → tự động verify và activate subscription
+
+**Frontend Implementation:**
+```javascript
+// Option 1: User pastes transaction hash (faster)
+if (userProvidedTxHash) {
+  await verifyTransaction(paymentId, txHash);
+  startPolling(paymentId);
+}
+
+// Option 2: User clicks "I sent USDT" (automatic scanning)
+else {
+  await confirmPaymentSent(paymentId);
+  startPolling(paymentId); // Poll every 15s
+  showMessage("Đang quét blockchain tìm giao dịch của bạn...");
+}
+```
+
+**Advantages:**
+- ✅ Better UX - không cần user copy/paste transaction hash
+- ✅ Giảm lỗi - không lo nhầm lẫn transaction hash
+- ✅ Mobile friendly - không cần switch app để copy hash
+- ✅ Tự động hoàn toàn - backend tự tìm transaction
+
+**Disadvantages:**
+- ⏱️ Chậm hơn một chút (~15-30s delay)
+- 🔍 Cần scan blockchain (tốn resource)
+
+**Best Practice:**
+- Hiển thị cả 2 options cho user:
+  1. "Paste Transaction Hash" (nhanh hơn, cho advanced users)
+  2. "Tôi đã gửi USDT" button (dễ hơn, tự động)
+
+---
+
+### 1.6. Get Payment History
 
 **Endpoint:** `GET /api/v1/payments/usdt/subscription/history`
 
@@ -506,7 +652,7 @@ Same as subscription payment:
 - Disable "Buy" button until balance sufficient
 
 **Other validation:**
-- points_amount >= 100
+- points_amount >= 50 (minimum)
 - Show error if less than minimum
 - 400: Invalid wallet address, balance too low
 - 401: Not authenticated
@@ -514,7 +660,39 @@ Same as subscription payment:
 
 ---
 
-### 2.3. Check Points Payment Status
+### 2.3. Confirm Payment Sent (NEW - Automatic Scanning)
+
+**Endpoint:** `POST /api/v1/payments/usdt/points/{payment_id}/confirm-sent`
+
+**Purpose:** User xác nhận đã gửi USDT → Backend tự động scan blockchain
+
+**⚠️ QUAN TRỌNG:** Không cần transaction hash! Backend sẽ tự động scan.
+
+**Request:**
+```http
+POST /api/v1/payments/usdt/points/USDT-xxx/confirm-sent
+Authorization: Bearer {firebase_token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Blockchain scanning started. We will automatically detect your transaction.",
+  "status": "scanning",
+  "scan_info": {
+    "max_attempts": 12,
+    "interval_seconds": 15,
+    "total_duration_minutes": 3
+  }
+}
+```
+
+**Usage:** Same as subscription - call after user confirms they sent USDT
+
+---
+
+### 2.4. Check Points Payment Status
 
 **Endpoint:** `GET /api/v1/payments/usdt/points/{payment_id}/status`
 
@@ -544,11 +722,13 @@ Authorization: Bearer {firebase_token}
 }
 ```
 
+**Status Values:** Same as subscription (pending, scanning, processing, confirmed, completed, failed, cancelled)
+
 **Polling:** Same as subscription (every 10-15 seconds)
 
 ---
 
-### 2.4. Submit Transaction Hash (Points)
+### 2.5. Submit Transaction Hash (Points) - OPTIONAL
 
 **Endpoint:** `POST /api/v1/payments/usdt/points/{payment_id}/verify`
 
@@ -556,7 +736,37 @@ Authorization: Bearer {firebase_token}
 
 ---
 
-### 2.5. Get Points Payment History
+### 2.5. Confirm Payment Sent (Points - NEW)
+
+**Endpoint:** `POST /api/v1/payments/usdt/points/{payment_id}/confirm-sent`
+
+**Purpose:** User xác nhận đã gửi USDT - tự động scan blockchain
+
+**Request:**
+```http
+POST /api/v1/payments/usdt/points/USDT-xxx/confirm-sent
+Authorization: Bearer {firebase_token}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Blockchain scanning started. We will automatically detect your transaction.",
+  "status": "scanning",
+  "scan_info": {
+    "max_attempts": 12,
+    "interval_seconds": 15,
+    "total_duration_minutes": 3
+  }
+}
+```
+
+**Same automatic scanning as subscription payment.**
+
+---
+
+### 2.6. Get Points Payment History
 
 **Endpoint:** `GET /api/v1/payments/usdt/points/history`
 

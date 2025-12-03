@@ -506,10 +506,10 @@ async def confirm_payment_sent(
 ):
     """
     User confirms they have sent USDT
-    
+
     This triggers automatic blockchain scanning to find the transaction.
     No transaction hash needed - system will scan blockchain for matching transfer.
-    
+
     Scans every 15 seconds, up to 12 times (3 minutes total).
     """
     try:

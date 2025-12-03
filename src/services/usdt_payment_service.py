@@ -13,8 +13,7 @@ from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from bson import ObjectId
-
-from src.utils.logger import setup_logger
+import logging
 from src.models.usdt_payment import (
     USDTPayment,
     USDTPendingTransaction,
@@ -22,8 +21,9 @@ from src.models.usdt_payment import (
     PaymentStatus,
     PaymentType,
 )
+import config.config as config
 
-logger = setup_logger()
+logger = logging.getLogger("chatbot")
 
 
 class USDTPaymentService:
@@ -380,12 +380,12 @@ class USDTPaymentService:
             }
 
             self.pending.insert_one(pending_data)
-            
+
             if transaction_hash:
                 logger.info(f"✅ Added pending transaction: {transaction_hash}")
             else:
                 logger.info(f"✅ Added pending payment for scanning: {payment_id}")
-            
+
             return True
 
         except Exception as e:
@@ -422,7 +422,7 @@ class USDTPaymentService:
     ) -> bool:
         """
         Update pending transaction
-        
+
         Args:
             identifier: transaction_hash or payment_id to find record
             confirmation_count: New confirmation count
@@ -433,10 +433,9 @@ class USDTPaymentService:
         """
         try:
             # Try to find by transaction_hash first, then by payment_id
-            query = {"$or": [
-                {"transaction_hash": identifier},
-                {"payment_id": identifier}
-            ]}
+            query = {
+                "$or": [{"transaction_hash": identifier}, {"payment_id": identifier}]
+            }
 
             update_data = {
                 "last_checked_at": datetime.utcnow(),
@@ -444,16 +443,16 @@ class USDTPaymentService:
 
             if confirmation_count is not None:
                 update_data["confirmation_count"] = confirmation_count
-            
+
             if status:
                 update_data["status"] = status
-            
+
             if transaction_hash:
                 update_data["transaction_hash"] = transaction_hash
-            
+
             if block_number:
                 update_data["block_number"] = block_number
-            
+
             if retry_count is not None:
                 update_data["retry_count"] = retry_count
 
@@ -468,16 +467,15 @@ class USDTPaymentService:
     def remove_pending_transaction(self, identifier: str) -> bool:
         """
         Remove transaction from pending queue
-        
+
         Args:
             identifier: transaction_hash or payment_id
         """
         try:
-            query = {"$or": [
-                {"transaction_hash": identifier},
-                {"payment_id": identifier}
-            ]}
-            
+            query = {
+                "$or": [{"transaction_hash": identifier}, {"payment_id": identifier}]
+            }
+
             result = self.pending.delete_one(query)
             return result.deleted_count > 0
         except Exception as e:

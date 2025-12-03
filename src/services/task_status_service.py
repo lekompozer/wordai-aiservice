@@ -10,8 +10,9 @@ import asyncio
 from typing import Optional, Dict
 from datetime import datetime
 from src.utils.logger import setup_logger
+import logging
 
-logger = setup_logger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class TaskStatusService:
