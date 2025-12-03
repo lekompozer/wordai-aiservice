@@ -391,9 +391,9 @@ async def verify_transaction(
 
 @router.get("/history")
 async def get_payment_history(
-    current_user: dict = Depends(get_current_user),
     limit: int = 20,
     skip: int = 0,
+    current_user: dict = Depends(require_auth),
 ):
     """
     Get user's USDT points payment history
