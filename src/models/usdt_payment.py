@@ -47,7 +47,14 @@ class PyObjectId(ObjectId):
 
 # Type aliases
 PaymentStatus = Literal[
-    "pending", "processing", "confirmed", "completed", "failed", "cancelled", "refunded"
+    "pending",
+    "scanning",
+    "processing",
+    "confirmed",
+    "completed",
+    "failed",
+    "cancelled",
+    "refunded",
 ]
 PaymentType = Literal["subscription", "points"]
 PlanType = Literal["premium", "pro", "vip"]
