@@ -255,7 +255,7 @@ async def get_translation_job_status(
     """
     try:
         user_id = user["uid"]
-        
+
         # Get job
         job_data = job_service.get_job(job_id)
         if not job_data:
@@ -298,7 +298,7 @@ async def cancel_translation_job(
     """
     try:
         user_id = user["uid"]
-        
+
         # Get job
         job_data = job_service.get_job(job_id)
         if not job_data:
@@ -353,7 +353,7 @@ async def get_user_translation_jobs(
     """
     try:
         user_id = user["uid"]
-        
+
         # Verify book exists and user has access
         book = book_manager.get_book(book_id)
         if not book:
