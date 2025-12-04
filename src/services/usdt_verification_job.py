@@ -72,9 +72,22 @@ class USDTPaymentVerificationJob:
             f"✅ [USDT Verification] Required confirmations: {self.required_confirmations}"
         )
 
+        # Wait before first check to allow server to fully start
+        logger.info(
+            f"⏳ [USDT Verification] Waiting 60s before first check (allow server startup)..."
+        )
+
         try:
+            # Wait 60s before first check
+            await asyncio.sleep(60)
+
             while self.is_running:
-                await self.check_pending_payments()
+                try:
+                    await self.check_pending_payments()
+                except Exception as e:
+                    logger.error(f"❌ [USDT Verification] Error in check cycle: {e}")
+                    # Continue running even if one check fails
+
                 await asyncio.sleep(self.check_interval)
         except Exception as e:
             logger.error(f"❌ [USDT Verification] Job crashed: {e}")
@@ -163,13 +176,25 @@ class USDTPaymentVerificationJob:
                     f"📋 Search params: from={payment.get('from_address', 'N/A')[:10]}... to={payment['to_address'][:10]}... amount={payment['amount_usdt']} USDT"
                 )
 
-                tx_result = self.bsc_service.find_usdt_transfer(
-                    from_address=payment.get("from_address"),
-                    to_address=payment["to_address"],
-                    expected_amount_usdt=payment["amount_usdt"],
-                    tolerance_percentage=1.0,
-                    max_blocks_to_scan=1000,  # ~50 minutes at 3s/block
-                )
+                tx_result = None
+                try:
+                    tx_result = self.bsc_service.find_usdt_transfer(
+                        from_address=payment.get("from_address"),
+                        to_address=payment["to_address"],
+                        expected_amount_usdt=payment["amount_usdt"],
+                        tolerance_percentage=1.0,
+                        max_blocks_to_scan=1000,  # ~50 minutes at 3s/block
+                    )
+                except Exception as scan_error:
+                    logger.error(
+                        f"❌ [USDT Verification] Error scanning blockchain: {scan_error}"
+                    )
+                    # Don't fail, just retry later
+                    retry_count = pending_tx.get("retry_count", 0) + 1
+                    self.payment_service.update_pending_transaction(
+                        payment_id, retry_count=retry_count
+                    )
+                    return
 
                 if not tx_result:
                     # Not found yet, increment retry count
