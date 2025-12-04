@@ -47,8 +47,8 @@ class SubscriptionService:
         if mongodb_client:
             self.client = mongodb_client
         else:
-            # Use MONGODB_URI or MONGODB_URI_AUTH directly (most reliable)
-            mongodb_uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_URI_AUTH")
+            # Use MONGODB_URI_AUTH first (has credentials), then MONGODB_URI
+            mongodb_uri = os.getenv("MONGODB_URI_AUTH") or os.getenv("MONGODB_URI")
 
             if not mongodb_uri:
                 # Fallback: build URI from components
