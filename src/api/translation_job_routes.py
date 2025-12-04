@@ -152,15 +152,14 @@ async def start_translation_job(
         points_service = get_points_service()
 
         # Check user points
-        user_data = await user_manager.get_user(user_id)
-        if not user_data:
-            raise HTTPException(status_code=404, detail="User not found")
+        check_result = await points_service.check_sufficient_points(
+            user_id=user_id, points_needed=points_needed, service="book_translation_job"
+        )
 
-        current_points = user_data.get("points", 0)
-        if current_points < points_needed:
+        if not check_result["has_points"]:
             raise HTTPException(
                 status_code=402,
-                detail=f"Not enough points. Need {points_needed}, have {current_points}",
+                detail=f"Not enough points. Need {points_needed}, have {check_result['points_available']}",
             )
 
         # Deduct points
