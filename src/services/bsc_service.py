@@ -537,14 +537,29 @@ class BSCService:
             logger.info(
                 f"📊 Scanning blocks {start_block} to {current_block} ({max_blocks_to_scan} blocks)"
             )
+            logger.info(
+                f"💰 Looking for amount: {expected_amount_usdt} USDT (±{tolerance_percentage}%: {min_amount:.2f} - {max_amount:.2f} USDT)"
+            )
+
+            blocks_scanned = 0
+            transactions_checked = 0
 
             # Scan blocks in reverse (newest first)
             for block_num in range(current_block, start_block, -1):
+                blocks_scanned += 1
+
+                # Log progress every 100 blocks
+                if blocks_scanned % 100 == 0:
+                    logger.info(
+                        f"🔄 Progress: Scanned {blocks_scanned}/{max_blocks_to_scan} blocks, checked {transactions_checked} transactions..."
+                    )
+
                 try:
                     block = self.w3.eth.get_block(block_num, full_transactions=False)
 
                     # Check each transaction in block
                     for tx_hash in block.transactions:
+                        transactions_checked += 1
                         tx_hash_hex = tx_hash.hex()
 
                         # Get transaction receipt to check logs
@@ -622,7 +637,10 @@ class BSCService:
                     continue
 
             logger.warning(
-                f"⚠️ No matching USDT transfer found in last {max_blocks_to_scan} blocks"
+                f"⚠️ No matching USDT transfer found! Scanned {blocks_scanned} blocks, checked {transactions_checked} transactions"
+            )
+            logger.info(
+                f"🔍 Search criteria: from={from_addr[:10]}... to={to_addr[:10]}... amount={expected_amount_usdt} USDT (±{tolerance_percentage}%)"
             )
             return None
 

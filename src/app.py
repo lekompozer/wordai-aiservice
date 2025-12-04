@@ -401,6 +401,20 @@ async def start_background_workers():
         }
 
         print("✅ StorageProcessingWorker started")
+
+        # ===== START USDT PAYMENT VERIFICATION WORKER =====
+        print("💰 Starting USDT Payment Verification Worker...")
+        from src.services.usdt_verification_job import start_verification_job
+
+        # Create verification task
+        verification_task = asyncio.create_task(start_verification_job())
+        background_workers["usdt_verification"] = {
+            "worker": None,  # Job manages itself
+            "task": verification_task,
+        }
+
+        print("✅ USDT Payment Verification Worker started (checking every 30s)")
+
         print("")
         print("🎉 All workers started successfully!")
         print("📋 Worker Architecture:")
@@ -412,6 +426,9 @@ async def start_background_workers():
         )
         print(
             "   💾 StorageProcessingWorker → Worker 2: Qdrant storage + backend callbacks"
+        )
+        print(
+            "   💰 USDT Verification Worker → Scan blockchain for pending USDT payments"
         )
         print("   🔄 Flow: API → Worker 1 (AI) → Worker 2 (Storage) → Backend")
 
@@ -431,8 +448,15 @@ async def shutdown_background_workers():
             try:
                 print(f"   🛑 Stopping {worker_name}...")
 
-                # Shutdown worker
-                await worker_info["worker"].shutdown()
+                # Shutdown worker (if it has a worker instance)
+                if worker_info.get("worker"):
+                    await worker_info["worker"].shutdown()
+
+                # Special handling for USDT verification job
+                if worker_name == "usdt_verification":
+                    from src.services.usdt_verification_job import stop_verification_job
+
+                    stop_verification_job()
 
                 # Cancel task
                 worker_info["task"].cancel()

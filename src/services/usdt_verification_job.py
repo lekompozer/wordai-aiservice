@@ -61,18 +61,23 @@ class USDTPaymentVerificationJob:
     async def start(self):
         """Start the background job"""
         if self.is_running:
-            logger.warning("⚠️ Verification job already running")
+            logger.warning("⚠️ [USDT Verification] Job already running")
             return
 
         self.is_running = True
-        logger.info("🚀 Starting USDT payment verification job...")
+        logger.info("🚀 [USDT Verification] Starting USDT payment verification job...")
+        logger.info(f"⏱️  [USDT Verification] Check interval: {self.check_interval}s")
+        logger.info(f"🔁 [USDT Verification] Max retries: {self.max_retries}")
+        logger.info(
+            f"✅ [USDT Verification] Required confirmations: {self.required_confirmations}"
+        )
 
         try:
             while self.is_running:
                 await self.check_pending_payments()
                 await asyncio.sleep(self.check_interval)
         except Exception as e:
-            logger.error(f"❌ Verification job crashed: {e}")
+            logger.error(f"❌ [USDT Verification] Job crashed: {e}")
             self.is_running = False
 
     def stop(self):
@@ -85,22 +90,38 @@ class USDTPaymentVerificationJob:
         try:
             self.last_check = datetime.utcnow()
 
-            # Get pending transactions
+            logger.info(
+                "🔄 [USDT Verification] Running scheduled check for pending payments..."
+            )
+
+            # Get pending transactions (including 'scanning' status)
+            scanning = self.payment_service.get_pending_transactions(
+                status="scanning", limit=100
+            )
             pending = self.payment_service.get_pending_transactions(
                 status="pending", limit=100
             )
 
-            if not pending:
-                logger.debug("✅ No pending transactions to check")
+            total = len(scanning) + len(pending)
+
+            if total == 0:
+                logger.debug("✅ [USDT Verification] No pending transactions to check")
                 return
 
-            logger.info(f"🔍 Checking {len(pending)} pending transactions...")
+            logger.info(
+                f"🔍 [USDT Verification] Found {total} pending payments: {len(scanning)} scanning, {len(pending)} pending"
+            )
 
+            # Check scanning payments first (need to find tx hash)
+            for pending_tx in scanning:
+                await self.verify_transaction(pending_tx)
+
+            # Then check pending payments (have tx hash)
             for pending_tx in pending:
                 await self.verify_transaction(pending_tx)
 
         except Exception as e:
-            logger.error(f"❌ Error checking pending payments: {e}")
+            logger.error(f"❌ [USDT Verification] Error checking pending payments: {e}")
 
     async def verify_transaction(self, pending_tx: Dict[str, Any]):
         """
@@ -112,6 +133,10 @@ class USDTPaymentVerificationJob:
         try:
             payment_id = pending_tx["payment_id"]
             tx_hash = pending_tx.get("transaction_hash")  # Optional now
+
+            logger.info(
+                f"🔍 [USDT Verification] Verifying payment: {payment_id} (tx_hash: {tx_hash or 'SCANNING...'})"
+            )
 
             # Get payment
             payment = self.payment_service.get_payment_by_id(payment_id)
@@ -132,7 +157,10 @@ class USDTPaymentVerificationJob:
             # If no transaction hash, scan blockchain to find it
             if not tx_hash:
                 logger.info(
-                    f"🔍 No transaction hash provided, scanning blockchain for payment: {payment_id}"
+                    f"🔍 [USDT Verification] No transaction hash provided, scanning blockchain for payment: {payment_id}"
+                )
+                logger.info(
+                    f"📋 Search params: from={payment.get('from_address', 'N/A')[:10]}... to={payment['to_address'][:10]}... amount={payment['amount_usdt']} USDT"
                 )
 
                 tx_result = self.bsc_service.find_usdt_transfer(
@@ -149,13 +177,13 @@ class USDTPaymentVerificationJob:
 
                     if retry_count >= self.max_retries:
                         logger.error(
-                            f"❌ Transaction not found after {self.max_retries} attempts for payment: {payment_id}"
+                            f"❌ [USDT Verification] Transaction not found after {self.max_retries} attempts for payment: {payment_id}"
                         )
                         await self.handle_not_found(pending_tx, payment)
                         return
 
                     logger.info(
-                        f"⏳ Transaction not found yet, will retry ({retry_count}/{self.max_retries})"
+                        f"⏳ [USDT Verification] Transaction not found yet, will retry ({retry_count}/{self.max_retries})"
                     )
                     self.payment_service.update_pending_transaction(
                         payment_id, retry_count=retry_count
@@ -165,7 +193,7 @@ class USDTPaymentVerificationJob:
                 # Found transaction! Update pending tx with hash
                 tx_hash = tx_result["tx_hash"]
                 logger.info(
-                    f"✅ Found transaction on blockchain: {tx_hash} for payment: {payment_id}"
+                    f"✅ [USDT Verification] Found transaction on blockchain: {tx_hash} for payment: {payment_id}"
                 )
 
                 # Update pending transaction with hash
@@ -185,7 +213,9 @@ class USDTPaymentVerificationJob:
                 )
 
             # Now verify the transaction (we have tx_hash now)
-            logger.info(f"🔍 Verifying transaction: {tx_hash} (payment: {payment_id})")
+            logger.info(
+                f"🔍 [USDT Verification] Verifying transaction: {tx_hash} (payment: {payment_id})"
+            )
 
             # Get blockchain confirmations
             confirmations = self.bsc_service.get_transaction_confirmations(tx_hash)
