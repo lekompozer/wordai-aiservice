@@ -8,7 +8,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, Optional, List
 
-from src.middleware.firebase_auth import get_current_user_id
+from src.middleware.firebase_auth import get_current_user
 from src.database.db_manager import DBManager
 from src.services.translation_job_service import TranslationJobService
 from src.services.book_manager import BookManager
@@ -75,7 +75,7 @@ def format_job_response(job_data: Dict[str, Any]) -> TranslationJobResponse:
 async def start_translation_job(
     book_id: str,
     request: StartTranslationJobRequest,
-    user_id: str = Depends(get_current_user_id),
+    user: Dict[str, Any] = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
     book_manager: BookManager = Depends(get_book_manager),
     user_manager: UserManager = Depends(get_user_manager),
@@ -98,6 +98,7 @@ async def start_translation_job(
     **Points:** 2 points for book metadata + 2 points per chapter
     """
     try:
+        user_id = user["uid"]
         # Validate target language
         if request.target_language not in SUPPORTED_LANGUAGES:
             raise HTTPException(
@@ -229,7 +230,7 @@ async def start_translation_job(
 async def get_translation_job_status(
     book_id: str,
     job_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user: Dict[str, Any] = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
 ):
     """
@@ -253,6 +254,8 @@ async def get_translation_job_status(
     - `failed_chapters`: List of chapters that failed
     """
     try:
+        user_id = user["uid"]
+        
         # Get job
         job_data = job_service.get_job(job_id)
         if not job_data:
@@ -282,7 +285,7 @@ async def get_translation_job_status(
 async def cancel_translation_job(
     book_id: str,
     job_id: str,
-    user_id: str = Depends(get_current_user_id),
+    user: Dict[str, Any] = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
 ):
     """
@@ -294,6 +297,8 @@ async def cancel_translation_job(
     being translated may still complete.
     """
     try:
+        user_id = user["uid"]
+        
         # Get job
         job_data = job_service.get_job(job_id)
         if not job_data:
@@ -337,7 +342,7 @@ async def get_user_translation_jobs(
     book_id: str,
     limit: int = 20,
     skip: int = 0,
-    user_id: str = Depends(get_current_user_id),
+    user: Dict[str, Any] = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
     book_manager: BookManager = Depends(get_book_manager),
 ):
@@ -347,6 +352,8 @@ async def get_user_translation_jobs(
     Returns list of jobs with status, progress, and timestamps.
     """
     try:
+        user_id = user["uid"]
+        
         # Verify book exists and user has access
         book = book_manager.get_book(book_id)
         if not book:
