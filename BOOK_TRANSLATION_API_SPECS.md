@@ -472,6 +472,349 @@ Removes a specific language translation from a book and all its chapters.
 
 ---
 
+### 6. Get Book with Language (Phase 1)
+
+**NEW:** Retrieve book metadata in a specific language. Returns translated title/description if available.
+
+**Endpoint:** `GET /api/v1/books/{book_id}?language={language_code}`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+
+**Query Parameters:**
+- `language` (string, optional): Target language code. If omitted, returns default language.
+
+**Response:** `200 OK`
+```json
+{
+  "book_id": "675042a31d364fd60986bfe5",
+  "title": "Tiêu đề đã dịch",
+  "description": "Mô tả đã dịch",
+  "current_language": "vi",
+  "available_languages": ["en", "vi", "zh-CN"],
+  "...": "... other book fields ..."
+}
+```
+
+**Response Fields:**
+- `current_language` (string): The language code of the returned content
+- `available_languages` (array): List of all available language translations
+- `title` (string): Book title in requested language (falls back to default if translation missing)
+- `description` (string): Book description in requested language
+
+**Error Responses:**
+
+`404 Not Found` - Translation not available:
+```json
+{
+  "detail": "Translation for language 'vi' is not available for this book"
+}
+```
+
+---
+
+### 7. Get Chapters Tree with Language (Phase 1)
+
+**NEW:** Retrieve chapter tree structure with translations. Supports recursive translation of nested chapters.
+
+**Endpoint:** `GET /api/v1/books/{book_id}/chapters?language={language_code}`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+
+**Query Parameters:**
+- `language` (string, optional): Target language code. If omitted, returns default language.
+
+**Response:** `200 OK`
+```json
+{
+  "chapters": [
+    {
+      "chapter_id": "675042a31d364fd60986bfe6",
+      "title": "Tiêu đề chương đã dịch",
+      "description": "Mô tả đã dịch",
+      "slug": "chapter-1",
+      "order_index": 1,
+      "children": []
+    }
+  ],
+  "current_language": "vi",
+  "available_languages": ["en", "vi", "zh-CN"]
+}
+```
+
+**Response Fields:**
+- `chapters` (array): Chapter tree with translated titles/descriptions
+- `current_language` (string): Language of returned content
+- `available_languages` (array): Available translation languages
+
+**Note:** If translation missing, silently falls back to default language.
+
+---
+
+### 8. Get Single Chapter with Language (Phase 1)
+
+**NEW:** Retrieve full chapter content including `content_html` in specific language. Essential for Tiptap editor.
+
+**Endpoint:** `GET /api/v1/books/{book_id}/chapters/{chapter_id}?language={language_code}`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+- `chapter_id` (string, required): The unique identifier of the chapter
+
+**Query Parameters:**
+- `language` (string, optional): Target language code. If omitted, returns default language.
+
+**Response:** `200 OK`
+```json
+{
+  "chapter_id": "675042a31d364fd60986bfe6",
+  "book_id": "675042a31d364fd60986bfe5",
+  "title": "Tiêu đề chương đã dịch",
+  "description": "Mô tả đã dịch",
+  "content_html": "<p>Nội dung HTML đầy đủ đã dịch...</p>",
+  "slug": "chapter-1",
+  "order_index": 1,
+  "document_id": "doc_123",
+  "current_language": "vi",
+  "available_languages": ["en", "vi", "zh-CN"],
+  "...": "... other chapter fields ..."
+}
+```
+
+**Response Fields:**
+- `content_html` (string): Full HTML content of chapter in requested language
+- `current_language` (string): Language of returned content
+- `available_languages` (array): Available translations for this chapter
+
+**Use Case:** Load chapter content into Tiptap editor with specific language.
+
+**Note:** Falls back to default language if translation missing.
+
+---
+
+### 9. Start Background Translation Job (Phase 2)
+
+**NEW:** Start asynchronous translation of all chapters. Returns immediately with `job_id` for status polling.
+
+**Endpoint:** `POST /api/v1/books/{book_id}/translate/start`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+
+**Request Body:**
+```json
+{
+  "target_language": "vi",
+  "source_language": "en",
+  "backgrounds": {
+    "preserve_original": true
+  }
+}
+```
+
+**Request Fields:**
+- `target_language` (string, required): Target language code
+- `source_language` (string, optional): Source language code (default: book's original_language or "en")
+- `backgrounds` (object, optional): Background handling options
+  - `preserve_original` (boolean): Keep original backgrounds
+  - `color` (string): Use solid color background
+  - `gradient` (object): Use gradient background
+  - `image_url` (string): Use custom image background
+
+**Response:** `200 OK`
+```json
+{
+  "job_id": "trans_a1b2c3d4e5f6",
+  "book_id": "675042a31d364fd60986bfe5",
+  "target_language": "vi",
+  "source_language": "en",
+  "status": "pending",
+  "chapters_total": 9,
+  "chapters_completed": 0,
+  "chapters_failed": 0,
+  "progress_percentage": 0,
+  "current_chapter_id": null,
+  "current_chapter_title": null,
+  "estimated_time_remaining_seconds": 540,
+  "started_at": null,
+  "completed_at": null,
+  "error": null,
+  "failed_chapters": [],
+  "points_deducted": 20,
+  "created_at": "2024-12-04T10:00:00Z",
+  "updated_at": "2024-12-04T10:00:00Z"
+}
+```
+
+**Response Fields:**
+- `job_id` (string): Unique job identifier for status polling
+- `status` (string): Job status - `pending`, `in_progress`, `completed`, `failed`, `cancelled`
+- `chapters_total` (integer): Total chapters to translate
+- `chapters_completed` (integer): Chapters completed so far
+- `chapters_failed` (integer): Chapters that failed translation
+- `progress_percentage` (integer): Completion percentage (0-100)
+- `current_chapter_id` (string|null): Currently translating chapter ID
+- `current_chapter_title` (string|null): Currently translating chapter title
+- `estimated_time_remaining_seconds` (integer): Estimated time to completion
+- `failed_chapters` (array): List of failed chapter details
+- `points_deducted` (integer): Total points deducted (2 + 2×chapters)
+
+**Points Cost:**
+- Points are deducted **immediately** when job starts
+- 2 points for book metadata + 2 points per chapter
+- Example: 9 chapters = 2 + (9 × 2) = 20 points
+
+**Error Responses:**
+
+`402 Payment Required` - Insufficient points:
+```json
+{
+  "detail": "Not enough points. Need 20, have 15"
+}
+```
+
+`400 Bad Request` - No chapters:
+```json
+{
+  "detail": "Book has no chapters to translate"
+}
+```
+
+---
+
+### 10. Get Translation Job Status (Phase 2)
+
+**NEW:** Poll for translation job progress. Frontend should call this endpoint every 2-5 seconds.
+
+**Endpoint:** `GET /api/v1/books/{book_id}/translate/status/{job_id}`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+- `job_id` (string, required): Job ID returned from `/translate/start`
+
+**Response:** `200 OK`
+```json
+{
+  "job_id": "trans_a1b2c3d4e5f6",
+  "book_id": "675042a31d364fd60986bfe5",
+  "target_language": "vi",
+  "source_language": "en",
+  "status": "in_progress",
+  "chapters_total": 9,
+  "chapters_completed": 3,
+  "chapters_failed": 0,
+  "progress_percentage": 33,
+  "current_chapter_id": "chapter_004",
+  "current_chapter_title": "Chapter 4: Advanced Techniques",
+  "estimated_time_remaining_seconds": 360,
+  "started_at": "2024-12-04T10:00:05Z",
+  "completed_at": null,
+  "error": null,
+  "failed_chapters": [],
+  "points_deducted": 20,
+  "created_at": "2024-12-04T10:00:00Z",
+  "updated_at": "2024-12-04T10:03:15Z"
+}
+```
+
+**Status Values:**
+- `pending`: Job created, waiting to start
+- `in_progress`: Currently translating chapters
+- `completed`: All chapters translated successfully
+- `failed`: Critical error, job stopped
+- `cancelled`: User cancelled the job
+
+**Polling Strategy:**
+- Poll every 2-5 seconds while `status` is `pending` or `in_progress`
+- Stop polling when `status` is `completed`, `failed`, or `cancelled`
+- Use `progress_percentage` and `estimated_time_remaining_seconds` for UI
+
+**Error Responses:**
+
+`404 Not Found` - Job not found:
+```json
+{
+  "detail": "Translation job not found"
+}
+```
+
+---
+
+### 11. Cancel Translation Job (Phase 2)
+
+**NEW:** Cancel an in-progress translation job.
+
+**Endpoint:** `DELETE /api/v1/books/{book_id}/translate/cancel/{job_id}`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+- `job_id` (string, required): Job ID to cancel
+
+**Response:** `200 OK`
+```json
+{
+  "message": "Translation job cancelled successfully",
+  "job_id": "trans_a1b2c3d4e5f6"
+}
+```
+
+**Note:** Cancellation is best-effort. The current chapter being translated may still complete.
+
+**Error Responses:**
+
+`400 Bad Request` - Cannot cancel:
+```json
+{
+  "detail": "Cannot cancel job in current state"
+}
+```
+
+---
+
+### 12. List All Translation Jobs (Phase 2)
+
+**NEW:** Get all translation jobs for a specific book.
+
+**Endpoint:** `GET /api/v1/books/{book_id}/translate/jobs?limit=20&skip=0`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+
+**Query Parameters:**
+- `limit` (integer, optional): Maximum jobs to return (default: 20)
+- `skip` (integer, optional): Number of jobs to skip (default: 0)
+
+**Response:** `200 OK`
+```json
+{
+  "jobs": [
+    {
+      "job_id": "trans_a1b2c3d4e5f6",
+      "book_id": "675042a31d364fd60986bfe5",
+      "target_language": "vi",
+      "status": "completed",
+      "chapters_total": 9,
+      "chapters_completed": 9,
+      "progress_percentage": 100,
+      "created_at": "2024-12-04T10:00:00Z",
+      "...": "... other job fields ..."
+    }
+  ],
+  "total": 3,
+  "limit": 20,
+  "skip": 0
+}
+```
+
+**Response Fields:**
+- `jobs` (array): List of translation job objects
+- `total` (integer): Total number of jobs for this book
+- `limit` (integer): Limit used in query
+- `skip` (integer): Skip value used in query
+
+---
+
 ## Database Schema Changes
 
 ### Books Collection
@@ -610,14 +953,32 @@ Currently no rate limiting is implemented for translation endpoints. Consider im
 
 ### Translation Time
 - Book metadata: ~5-10 seconds
-- Single chapter: ~10-30 seconds depending on length
-- Full book: 2-5 minutes for average book with 10-20 chapters
+- Single chapter: ~60-120 seconds (1-2 minutes per chapter)
+- Full book (9 chapters): ~10-20 minutes
+- **Production Issue:** HTTP requests timeout at 30-60 seconds, causing issues with multi-chapter books
+
+### Phase 1 Solution: Fast Metadata Translation
+- **Default Behavior Changed:** `POST /translate` now translates **metadata only** by default
+- Set `translate_chapters: false` (new default) for instant translation (5-10 seconds)
+- Set `translate_chapters: true` to translate all chapters (use only for small books)
+- **GET with ?language parameter:** Fast retrieval of translated content without re-translation
+
+### Phase 2 Solution: Background Jobs
+- **Problem:** Translating 9 chapters = 9-18 minutes → Frontend timeout
+- **Solution:** Asynchronous job processing with status polling
+- **Flow:**
+  1. `POST /translate/start` → Returns `job_id` immediately (<1 second)
+  2. Translation happens in background
+  3. Frontend polls `GET /translate/status/{job_id}` every 2-5 seconds
+  4. UI shows progress bar with `progress_percentage`, `current_chapter_title`, `estimated_time_remaining_seconds`
+- **Benefits:** No timeout, better UX, progress tracking
 
 ### Recommendations
-- Implement progress tracking for full book translations
-- Consider background job processing for large books
-- Add translation status field to track in-progress translations
-- Implement webhooks or polling for completion notifications
+- ✅ **Implemented:** Background job processing with polling (Phase 2)
+- ✅ **Implemented:** Progress tracking with real-time updates
+- ✅ **Implemented:** Language parameter in GET endpoints (Phase 1)
+- Consider adding webhooks for job completion (future enhancement)
+- Implement job cleanup for old completed jobs (>30 days)
 
 ---
 
@@ -625,19 +986,25 @@ Currently no rate limiting is implemented for translation endpoints. Consider im
 
 ### Planned Features
 1. **Batch Translation**: Translate multiple books at once
-2. **Translation History**: Track all translation operations
-3. **Translation Quality Scoring**: User ratings for translations
-4. **Custom Glossary**: User-defined term translations
-5. **Translation Memory**: Reuse previous translations for consistency
-6. **Auto-Translation**: Automatic translation on book creation
-7. **Language Detection**: Automatically detect source language
-8. **Partial Retranslation**: Re-translate specific paragraphs
+2. **Translation Quality Scoring**: User ratings for translations
+3. **Custom Glossary**: User-defined term translations
+4. **Translation Memory**: Reuse previous translations for consistency
+5. **Auto-Translation**: Automatic translation on book creation
+6. **Language Detection**: Automatically detect source language
+7. **Partial Retranslation**: Re-translate specific paragraphs
+8. **Webhooks**: Notification when translation job completes (alternative to polling)
 
 ### API Extensions
-1. `GET /api/v1/books/{book_id}/translation-status` - Check translation progress
-2. `POST /api/v1/books/{book_id}/retranslate` - Force retranslation
-3. `GET /api/v1/translations/history` - View user's translation history
-4. `POST /api/v1/translations/batch` - Batch translate multiple items
+1. `POST /api/v1/books/{book_id}/retranslate` - Force retranslation of existing content
+2. `GET /api/v1/translations/history` - View user's all translation history across books
+3. `POST /api/v1/translations/batch` - Batch translate multiple books
+4. `POST /api/v1/books/{book_id}/translate/webhook` - Register webhook for job completion
+
+### ✅ Completed (Phase 1 & 2)
+- ~~Progress tracking for translations~~ → Background jobs with status polling
+- ~~Background job processing~~ → Async processing with `asyncio`
+- ~~Translation status tracking~~ → Job status: pending/in_progress/completed/failed/cancelled
+- ~~Polling for completion~~ → `GET /translate/status/{job_id}` endpoint
 
 ---
 
@@ -719,13 +1086,79 @@ Authorization: Bearer <firebase_token>
 
 ## Changelog
 
-### Version 1.0.0 (2024-12-04)
+### Version 1.2.0 (2024-12-04) - Phase 2: Background Jobs
+
+**✨ New Features:**
+- 4 new endpoints for background translation jobs
+- Asynchronous translation processing with `asyncio.create_task()`
+- Job status tracking: `pending`, `in_progress`, `completed`, `failed`, `cancelled`
+- Progress tracking: `chapters_completed`, `progress_percentage`, `estimated_time_remaining`
+- Polling-based status checks for frontend integration
+- Failed chapter tracking with error messages
+- Partial success support (some chapters succeed, some fail)
+
+**📝 New Endpoints:**
+- `POST /books/{book_id}/translate/start` - Start background translation job
+- `GET /books/{book_id}/translate/status/{job_id}` - Poll job status
+- `DELETE /books/{book_id}/translate/cancel/{job_id}` - Cancel running job
+- `GET /books/{book_id}/translate/jobs` - List all jobs for a book
+
+**🔧 Technical Details:**
+- New `translation_jobs` MongoDB collection with indexes
+- Points deducted upfront when job starts (not when completed)
+- Job processing isolated in `TranslationJobService`
+- Translation continues even if some chapters fail
+- Job cleanup strategy needed (future enhancement)
+
+**🎯 Problem Solved:**
+- Production timeout issue: 9 chapters × 2 min = 18 min → Frontend timeout at 30-60s
+- Now returns `job_id` in <1 second, translation happens in background
+
+---
+
+### Version 1.1.0 (2024-12-04) - Phase 1: Language Parameters
+
+**✨ New Features:**
+- 3 new/modified GET endpoints with `?language` query parameter
+- Fast retrieval of translated content without re-translation
+- Recursive translation support for nested chapter trees
+- Silent fallback to default language if translation missing
+
+**📝 New/Modified Endpoints:**
+- `GET /books/{book_id}?language=xx` - Get book with specific language
+- `GET /books/{book_id}/chapters?language=xx` - Get chapter tree with translation
+- `GET /books/{book_id}/chapters/{chapter_id}?language=xx` - Get single chapter with full `content_html`
+
+**🔄 Breaking Changes:**
+- `POST /books/{book_id}/translate` default behavior changed:
+  - Old: `translate_chapters=true` (translates all chapters immediately)
+  - New: `translate_chapters=false` (metadata only, much faster)
+  - **Migration:** Explicitly set `translate_chapters: true` for old behavior
+
+**🎯 UX Improvements:**
+- User selects language → Load translated book/chapters instantly
+- Tiptap editor loads `content_html` in selected language
+- No unnecessary re-translation of existing content
+- Better separation between metadata and chapter translation
+
+---
+
+### Version 1.0.0 (2024-12-04) - Initial Release
+
+**✨ Features:**
 - Initial release of Book Translation API
 - Support for 17 languages
 - 5 core endpoints implemented
-- Points-based pricing system
+- Points-based pricing system (2 for metadata + 2 per chapter)
 - HTML structure preservation
 - AI-powered translation with Gemini 2.5 Pro
+
+**📝 Endpoints:**
+- `POST /books/{book_id}/translate` - Translate entire book
+- `POST /books/{book_id}/chapters/{chapter_id}/translate` - Translate single chapter
+- `POST /books/{book_id}/translate-background` - Translate with background options
+- `GET /books/{book_id}/translations/languages` - List available languages
+- `DELETE /books/{book_id}/translations/{language}` - Delete translation
 
 ---
 
