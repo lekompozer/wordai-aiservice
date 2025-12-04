@@ -79,22 +79,26 @@ class PointsService:
         else:
             # Use MONGODB_URI_AUTH first (has credentials), then MONGODB_URI
             mongodb_uri = os.getenv("MONGODB_URI_AUTH") or os.getenv("MONGODB_URI")
-            
+
             if not mongodb_uri:
                 # Fallback: build URI from components
                 mongo_user = os.getenv("MONGODB_APP_USERNAME")
                 mongo_pass = os.getenv("MONGODB_APP_PASSWORD")
                 db_name = os.getenv("MONGODB_NAME", "ai_service_db")
-                
+
                 # Determine host based on environment
                 environment = os.getenv("ENV", "development").lower()
-                mongo_host = "mongodb:27017" if environment == "production" else "localhost:27017"
-                
+                mongo_host = (
+                    "mongodb:27017"
+                    if environment == "production"
+                    else "localhost:27017"
+                )
+
                 if mongo_user and mongo_pass:
                     mongodb_uri = f"mongodb://{mongo_user}:{mongo_pass}@{mongo_host}/{db_name}?authSource=admin"
                 else:
                     mongodb_uri = f"mongodb://{mongo_host}/"
-            
+
             self.client = MongoClient(mongodb_uri)
 
         self.db: Database = self.client[os.getenv("MONGODB_DATABASE", "ai_service_db")]

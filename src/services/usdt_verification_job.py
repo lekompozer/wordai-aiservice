@@ -98,6 +98,47 @@ class USDTPaymentVerificationJob:
         logger.info("🛑 Stopping USDT payment verification job...")
         self.is_running = False
 
+    async def expire_old_payments(self):
+        """Auto-expire payments older than 30 minutes"""
+        try:
+            # Calculate expiration threshold
+            expiration_threshold = datetime.utcnow() - timedelta(minutes=30)
+            
+            # Find expired payments
+            expired = self.payment_service.payments.find({
+                "status": {"$in": ["pending", "scanning"]},
+                "created_at": {"$lt": expiration_threshold}
+            })
+            
+            expired_list = list(expired)
+            if not expired_list:
+                return
+                
+            logger.info(f"⏰ [USDT Verification] Found {len(expired_list)} expired payments (>30 minutes old)")
+            
+            # Update to expired status
+            payment_ids = [p["payment_id"] for p in expired_list]
+            result = self.payment_service.payments.update_many(
+                {"payment_id": {"$in": payment_ids}},
+                {
+                    "$set": {
+                        "status": "expired",
+                        "expired_at": datetime.utcnow(),
+                        "note": "Auto-expired after 30 minutes"
+                    }
+                }
+            )
+            
+            # Clean up pending transactions
+            self.payment_service.pending.delete_many(
+                {"payment_id": {"$in": payment_ids}}
+            )
+            
+            logger.info(f"✅ [USDT Verification] Expired {result.modified_count} old payments")
+            
+        except Exception as e:
+            logger.error(f"❌ [USDT Verification] Error expiring old payments: {e}")
+
     async def check_pending_payments(self):
         """Check all pending transactions"""
         try:
@@ -106,6 +147,9 @@ class USDTPaymentVerificationJob:
             logger.info(
                 "🔄 [USDT Verification] Running scheduled check for pending payments..."
             )
+
+            # Auto-expire payments older than 30 minutes
+            await self.expire_old_payments()
 
             # Get pending transactions (including 'scanning' status)
             scanning = self.payment_service.get_pending_transactions(
