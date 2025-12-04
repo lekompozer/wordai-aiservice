@@ -182,31 +182,9 @@ async def start_translation_job(
                 detail="Failed to deduct points",
             )
 
-        # Parse background settings
-        preserve_background = True
-        custom_background = None
-
-        if request.backgrounds:
-            if request.backgrounds.preserve_original:
-                preserve_background = True
-            elif request.backgrounds.color:
-                preserve_background = False
-                custom_background = {
-                    "type": "color",
-                    "color": request.backgrounds.color,
-                }
-            elif request.backgrounds.gradient:
-                preserve_background = False
-                custom_background = {
-                    "type": "gradient",
-                    "gradient": request.backgrounds.gradient,
-                }
-            elif request.backgrounds.image_url:
-                preserve_background = False
-                custom_background = {
-                    "type": "image",
-                    "image_url": request.backgrounds.image_url,
-                }
+        # Parse background settings from request
+        preserve_background = request.preserve_background
+        custom_background = request.custom_background
 
         # Create translation job
         job_id = job_service.create_job(
