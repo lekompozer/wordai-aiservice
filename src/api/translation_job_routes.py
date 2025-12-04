@@ -13,6 +13,7 @@ from src.database.db_manager import DBManager
 from src.services.translation_job_service import TranslationJobService
 from src.services.book_manager import UserBookManager
 from src.services.user_manager import UserManager
+from src.services.points_service import get_points_service
 from src.models.translation_job_models import (
     StartTranslationJobRequest,
     TranslationJobResponse,
@@ -147,12 +148,15 @@ async def start_translation_job(
         # Calculate points (2 for book + 2 per chapter)
         points_needed = 2 + (chapters_count * 2)
 
+        # Get points service
+        points_service = get_points_service()
+
         # Check user points
-        user = user_manager.get_user(user_id)
-        if not user:
+        user_data = await user_manager.get_user(user_id)
+        if not user_data:
             raise HTTPException(status_code=404, detail="User not found")
 
-        current_points = user.get("points", 0)
+        current_points = user_data.get("points", 0)
         if current_points < points_needed:
             raise HTTPException(
                 status_code=402,
@@ -160,17 +164,24 @@ async def start_translation_job(
             )
 
         # Deduct points
-        success = user_manager.add_points(user_id, -points_needed)
-        if not success:
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                amount=points_needed,
+                service="book_translation_job",
+                resource_id=book_id,
+                description=f"Translation job: {request.target_language} ({chapters_count} chapters)",
+            )
+            logger.info(
+                f"💰 Deducted {points_needed} points from user {user_id} "
+                f"for translation job (book + {chapters_count} chapters)"
+            )
+        except Exception as e:
+            logger.error(f"❌ Failed to deduct points: {e}")
             raise HTTPException(
                 status_code=500,
                 detail="Failed to deduct points",
             )
-
-        logger.info(
-            f"💰 Deducted {points_needed} points from user {user_id} "
-            f"for translation job (book + {chapters_count} chapters)"
-        )
 
         # Parse background settings
         preserve_background = True
