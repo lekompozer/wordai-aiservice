@@ -103,19 +103,23 @@ class USDTPaymentVerificationJob:
         try:
             # Calculate expiration threshold
             expiration_threshold = datetime.utcnow() - timedelta(minutes=30)
-            
+
             # Find expired payments
-            expired = self.payment_service.payments.find({
-                "status": {"$in": ["pending", "scanning"]},
-                "created_at": {"$lt": expiration_threshold}
-            })
-            
+            expired = self.payment_service.payments.find(
+                {
+                    "status": {"$in": ["pending", "scanning"]},
+                    "created_at": {"$lt": expiration_threshold},
+                }
+            )
+
             expired_list = list(expired)
             if not expired_list:
                 return
-                
-            logger.info(f"⏰ [USDT Verification] Found {len(expired_list)} expired payments (>30 minutes old)")
-            
+
+            logger.info(
+                f"⏰ [USDT Verification] Found {len(expired_list)} expired payments (>30 minutes old)"
+            )
+
             # Update to expired status
             payment_ids = [p["payment_id"] for p in expired_list]
             result = self.payment_service.payments.update_many(
@@ -124,18 +128,20 @@ class USDTPaymentVerificationJob:
                     "$set": {
                         "status": "expired",
                         "expired_at": datetime.utcnow(),
-                        "note": "Auto-expired after 30 minutes"
+                        "note": "Auto-expired after 30 minutes",
                     }
-                }
+                },
             )
-            
+
             # Clean up pending transactions
             self.payment_service.pending.delete_many(
                 {"payment_id": {"$in": payment_ids}}
             )
-            
-            logger.info(f"✅ [USDT Verification] Expired {result.modified_count} old payments")
-            
+
+            logger.info(
+                f"✅ [USDT Verification] Expired {result.modified_count} old payments"
+            )
+
         except Exception as e:
             logger.error(f"❌ [USDT Verification] Error expiring old payments: {e}")
 
@@ -319,11 +325,12 @@ class USDTPaymentVerificationJob:
                 return
 
             # Verify USDT transfer
+            # Verify transaction on blockchain
             is_valid, message, details = self.bsc_service.verify_usdt_transfer(
                 tx_hash=tx_hash,
                 expected_recipient=payment["to_address"],
                 expected_amount_usdt=payment["amount_usdt"],
-                tolerance=0.01,
+                tolerance_percentage=1.0,  # 1% tolerance
             )
 
             if not is_valid:

@@ -49,6 +49,7 @@ class PyObjectId(ObjectId):
 PaymentStatus = Literal[
     "pending",
     "scanning",
+    "verifying",
     "processing",
     "confirmed",
     "completed",
