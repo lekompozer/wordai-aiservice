@@ -8,7 +8,7 @@ import asyncio
 from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, Optional, List
 
-from src.auth.firebase_auth import get_current_user_id
+from src.middleware.firebase_auth import get_current_user_id
 from src.database.db_manager import DBManager
 from src.services.translation_job_service import TranslationJobService
 from src.services.book_manager import BookManager
