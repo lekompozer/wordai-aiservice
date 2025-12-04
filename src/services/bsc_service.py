@@ -12,6 +12,7 @@ import os
 from typing import Optional, Dict, Any, Tuple
 from decimal import Decimal
 from web3 import Web3
+from web3.middleware import geth_poa_middleware
 from web3.exceptions import TransactionNotFound, BlockNotFound
 from eth_typing import HexStr
 import logging
@@ -52,6 +53,10 @@ class BSCService:
 
         # Initialize Web3
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
+
+        # Inject POA middleware for BSC (BSC is a Proof of Authority chain)
+        self.w3.middleware_onion.inject(geth_poa_middleware, layer=0)
+        logger.info("✅ Injected POA middleware for BSC compatibility")
 
         # Verify connection
         if not self.w3.is_connected():
