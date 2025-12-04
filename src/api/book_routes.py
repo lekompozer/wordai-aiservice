@@ -816,17 +816,28 @@ async def restore_book(
 
 @router.get("/{book_id}", response_model=BookResponse)
 async def get_book(
-    book_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
+    book_id: str,
+    language: Optional[str] = Query(
+        None,
+        description="Language code (e.g., 'en', 'vi') to retrieve translated content",
+    ),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
     Get detailed information about a specific book
 
     **Authentication:** Required
 
+    **Query Parameters:**
+    - language: Optional language code to retrieve translated book metadata
+      * If specified and translation exists, returns translated title/description
+      * If not specified or no translation, returns default language
+      * If translation doesn't exist for the requested language, returns 404
+
     **Returns:**
-    - 200: Guide details
+    - 200: Guide details (with translations if language specified)
     - 403: User doesn't have access to this book
-    - 404: Book not found
+    - 404: Book not found or translation not found
     """
     try:
         user_id = current_user["uid"]
@@ -855,7 +866,29 @@ async def get_book(
                     detail="You don't have access to this book",
                 )
 
-        logger.info(f"📖 User {user_id} accessed book: {book_id}")
+        # Apply language translation if requested
+        default_language = book.get("default_language", "vi")
+        if language and language != default_language:
+            translations = book.get("translations", {})
+            if language not in translations:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Translation for language '{language}' not found. Available languages: {book.get('available_languages', [default_language])}",
+                )
+
+            # Merge translated fields into response
+            trans = translations[language]
+            book["title"] = trans.get("title", book.get("title"))
+            book["description"] = trans.get("description", book.get("description"))
+            book["current_language"] = language
+
+            logger.info(
+                f"📖 User {user_id} accessed book {book_id} in language: {language}"
+            )
+        else:
+            book["current_language"] = default_language
+            logger.info(f"📖 User {user_id} accessed book: {book_id}")
+
         return book
 
     except HTTPException:

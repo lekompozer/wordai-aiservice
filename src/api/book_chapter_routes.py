@@ -198,6 +198,10 @@ async def create_chapter(
 @router.get("/{book_id}/chapters", response_model=Dict[str, Any])
 async def get_chapter_tree(
     book_id: str,
+    language: Optional[str] = Query(
+        None,
+        description="Language code (e.g., 'en', 'vi') to retrieve translated chapter titles",
+    ),
     include_unpublished: bool = Query(
         False, description="Include unpublished chapters (owner only)"
     ),
@@ -207,6 +211,15 @@ async def get_chapter_tree(
     Get hierarchical tree structure of all chapters in a book
 
     **Authentication:** Optional (public access for published Community books)
+
+    **Query Parameters:**
+    - language: Optional language code to retrieve translated chapter metadata
+      * If specified, returns translated title/description for each chapter
+      * Original structure preserved, only text content translated
+      * Silently falls back to default language if translation missing
+    - include_unpublished: Include unpublished chapters (default: false)
+      * Always true for book owner
+      * Ignored for non-owners
 
     **Public Access:**
     - If book is published to Community (is_public=true): Returns chapter TOC
@@ -218,11 +231,6 @@ async def get_chapter_tree(
     - Shared users: Access based on permissions
     - Buyers: Access based on purchase
 
-    **Query Parameters:**
-    - include_unpublished: Include unpublished chapters (default: false)
-      * Always true for book owner
-      * Ignored for non-owners
-
     **Tree Structure:**
     - Max 3 levels: Level 0 (root), Level 1 (sub), Level 2 (sub-sub)
     - Ordered by order_index at each level
@@ -230,15 +238,16 @@ async def get_chapter_tree(
 
     **Response Fields:**
     - book_id: Book ID
-    - title: Book title (NEW)
-    - slug: Book slug (NEW)
-    - cover: Book cover image URL (NEW)
-    - description: Book description
-    - chapters: Hierarchical chapter tree
+    - title: Book title (translated if language specified)
+    - slug: Book slug
+    - cover: Book cover image URL
+    - description: Book description (translated if language specified)
+    - chapters: Hierarchical chapter tree (with translations if language specified)
     - total_chapters: Total chapter count
+    - current_language: Active language code
 
     **Returns:**
-    - 200: Chapter tree structure with book info
+    - 200: Chapter tree structure with book info (optionally translated)
     - 403: User doesn't have access to book
     - 404: Book not found
     """
@@ -293,21 +302,63 @@ async def get_chapter_tree(
             book_id=book_id, include_unpublished=show_unpublished
         )
 
+        # Apply language translations if requested
+        default_language = book.get("default_language", "vi")
+        current_language = language if language else default_language
+
+        # Get book translations for title/description
+        book_title = book.get("title")
+        book_description = book.get("description")
+
+        if language and language != default_language:
+            book_translations = book.get("translations", {})
+            if language in book_translations:
+                book_trans = book_translations[language]
+                book_title = book_trans.get("title", book_title)
+                book_description = book_trans.get("description", book_description)
+
+            # Apply translations to chapters recursively
+            def translate_chapters_recursive(chapter_list):
+                """Apply translations to chapter tree nodes"""
+                translated_list = []
+                for chapter in chapter_list:
+                    # Get chapter translations
+                    chapter_translations = chapter.get("translations", {})
+                    if language in chapter_translations:
+                        trans = chapter_translations[language]
+                        chapter["title"] = trans.get("title", chapter.get("title"))
+                        chapter["description"] = trans.get(
+                            "description", chapter.get("description")
+                        )
+
+                    # Recursively translate children
+                    if "children" in chapter and chapter["children"]:
+                        chapter["children"] = translate_chapters_recursive(
+                            chapter["children"]
+                        )
+
+                    translated_list.append(chapter)
+                return translated_list
+
+            chapters = translate_chapters_recursive(chapters)
+
         # Count total chapters
         total = chapter_manager.count_chapters(book_id)
 
         logger.info(
-            f"📄 {'User ' + current_user['uid'] if current_user else 'Anonymous'} retrieved chapter tree for book {book_id}: {total} chapters"
+            f"📄 {'User ' + current_user['uid'] if current_user else 'Anonymous'} retrieved chapter tree for book {book_id} in language {current_language}: {total} chapters"
         )
 
         return {
             "book_id": book_id,
-            "title": book.get("title"),  # Book title
-            "slug": book.get("slug"),  # Book slug
-            "cover": book.get("cover_image_url"),  # Book cover image URL
-            "description": book.get("description"),  # Book's full description
+            "title": book_title,
+            "slug": book.get("slug"),
+            "cover": book.get("cover_image_url"),
+            "description": book_description,
             "chapters": chapters,
             "total_chapters": total,
+            "current_language": current_language,
+            "available_languages": book.get("available_languages", [default_language]),
         }
 
     except HTTPException:
@@ -317,6 +368,152 @@ async def get_chapter_tree(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get chapter tree",
+        )
+
+
+@router.get("/{book_id}/chapters/{chapter_id}", response_model=Dict[str, Any])
+async def get_chapter(
+    book_id: str,
+    chapter_id: str,
+    language: Optional[str] = Query(
+        None,
+        description="Language code (e.g., 'en', 'vi') to retrieve translated content",
+    ),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+):
+    """
+    Get single chapter with full content_html in specified language
+
+    **Use Case:** Load chapter content into Tiptap editor with language support
+
+    **Authentication:** Optional (public access for published Community books)
+
+    **Query Parameters:**
+    - language: Optional language code to retrieve translated content
+      * If specified and translation exists, returns translated title/description/content_html
+      * If not specified or no translation, returns default language content_html
+      * Silently falls back to default if translation missing
+
+    **Response:**
+    {
+        "chapter_id": "...",
+        "book_id": "...",
+        "title": "Translated title",
+        "description": "Translated description",
+        "content_html": "<p>Translated HTML content...</p>",
+        "current_language": "en",
+        "default_language": "vi",
+        "available_languages": ["vi", "en", "zh-CN"],
+        "order_index": 1,
+        "level": 0,
+        "parent_id": null,
+        "is_published": true,
+        "is_preview_free": false
+    }
+
+    **Returns:**
+    - 200: Chapter details with content_html (optionally translated)
+    - 403: User doesn't have access to this chapter
+    - 404: Book or chapter not found
+    """
+    try:
+        # Verify book exists
+        book = book_manager.get_book(book_id)
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        # Check if book is public
+        is_public = book.get("community_config", {}).get("is_public", False)
+
+        # If no user and book not public, require authentication
+        if not current_user and not is_public:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required for this book",
+            )
+
+        # Determine access level
+        is_owner = False
+        has_access = is_public
+
+        if current_user:
+            user_id = current_user["uid"]
+            is_owner = book["user_id"] == user_id
+
+            if is_owner:
+                has_access = True
+            elif not is_public:
+                has_permission = permission_manager.check_permission(
+                    book_id=book_id, user_id=user_id
+                )
+                has_access = has_permission
+
+        if not has_access:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have access to this book",
+            )
+
+        # Get chapter
+        chapter = chapter_manager.get_chapter(chapter_id)
+
+        if not chapter or chapter.get("book_id") != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Chapter not found in book {book_id}",
+            )
+
+        # Get document content
+        document_id = chapter.get("document_id")
+        if document_id:
+            document = document_manager.get_document(document_id)
+            if document:
+                chapter["content_html"] = document.get("content_html", "")
+                chapter["content_text"] = document.get("content_text", "")
+
+        # Apply language translation if requested
+        default_language = chapter.get(
+            "default_language", book.get("default_language", "vi")
+        )
+        current_language = language if language else default_language
+
+        if language and language != default_language:
+            translations = chapter.get("translations", {})
+            if language in translations:
+                trans = translations[language]
+                chapter["title"] = trans.get("title", chapter.get("title"))
+                chapter["description"] = trans.get(
+                    "description", chapter.get("description")
+                )
+                chapter["content_html"] = trans.get(
+                    "content_html", chapter.get("content_html", "")
+                )
+
+        # Add language metadata to response
+        chapter["current_language"] = current_language
+        chapter["default_language"] = default_language
+        chapter["available_languages"] = chapter.get(
+            "available_languages", [default_language]
+        )
+
+        logger.info(
+            f"📖 {'User ' + current_user['uid'] if current_user else 'Anonymous'} "
+            f"accessed chapter {chapter_id} in language {current_language}"
+        )
+
+        return chapter
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get chapter: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to get chapter",
         )
 
 

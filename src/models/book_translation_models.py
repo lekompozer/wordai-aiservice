@@ -63,7 +63,7 @@ class TranslateBookRequest(BaseModel):
         description="Source language code (if None, use book's default_language)",
     )
     translate_chapters: bool = Field(
-        True, description="Translate all chapters (default: true)"
+        False, description="Translate all chapters (default: false, only metadata)"
     )
     preserve_background: bool = Field(
         True, description="Keep same background for all languages (default: true)"
