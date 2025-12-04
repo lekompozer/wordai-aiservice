@@ -20,8 +20,8 @@ class QuoteDatabase:
     async def initialize(self) -> None:
         """Initialize database connection"""
         try:
-            # Check environment
-            environment = os.getenv("ENVIRONMENT", "development")
+            # Check environment and use appropriate MongoDB URI (use ENV to match project standard)
+            environment = os.getenv("ENV", "development").lower()
 
             # Use authenticated URI if available, fallback to basic URI
             mongo_uri = os.getenv("MONGODB_URI_AUTH")

@@ -21,8 +21,8 @@ class CompanyDBService:
         Initialize MongoDB connection for company data
         Khởi tạo kết nối MongoDB cho dữ liệu công ty
         """
-        # Check environment and use appropriate MongoDB URI
-        environment = os.getenv("ENVIRONMENT", "development")
+        # Check environment and use appropriate MongoDB URI (use ENV to match project standard)
+        environment = os.getenv("ENV", "development").lower()
 
         if environment == "development":
             # Development: Use local MongoDB without authentication

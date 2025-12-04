@@ -19,30 +19,23 @@ def load_environment():
         from dotenv import load_dotenv
 
         if ENV == "development":
-            # Try .env.development first, then .env as fallback for development
+            # Development: ONLY use development files, do NOT fallback to production .env
             dev_env_file = Path(__file__).parent.parent.parent / ".env.development"
-            env_file = Path(__file__).parent.parent.parent / ".env"
             fallback_dev_env = Path(__file__).parent.parent.parent / "development.env"
 
             if dev_env_file.exists():
-                load_dotenv(dev_env_file)
+                load_dotenv(dev_env_file, override=True)
                 print(f"Loaded DEVELOPMENT configuration from .env.development")
             elif fallback_dev_env.exists():
-                load_dotenv(fallback_dev_env)
+                load_dotenv(fallback_dev_env, override=True)
                 print(f"Loaded DEVELOPMENT configuration from development.env")
-            elif env_file.exists():
-                load_dotenv(env_file)
-                print(f"Loaded DEVELOPMENT configuration from .env")
-                print(
-                    f"Loaded DEVELOPMENT configuration from development.env (fallback)"
-                )
             else:
-                print(f"No environment file found, using system environment")
+                print(f"WARNING: No development environment file found!")
         else:
-            # Production - use .env
+            # Production - use .env only
             env_file = Path(__file__).parent.parent.parent / ".env"
             if env_file.exists():
-                load_dotenv(env_file)
+                load_dotenv(env_file, override=True)
                 print(f"Loaded PRODUCTION configuration from .env")
             else:
                 print(f"No .env file found for production")

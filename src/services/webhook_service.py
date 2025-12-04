@@ -18,8 +18,8 @@ class WebhookService:
     """Service để gửi webhook events về Backend"""
 
     def __init__(self):
-        # Auto-detect environment and set appropriate webhook URL
-        environment = os.getenv("ENVIRONMENT", "production")
+        # Detect environment (use ENV to match project standard)
+        environment = os.getenv("ENV", "production").lower()
         port = os.getenv("PORT", "unknown")
         hostname = os.getenv("HOSTNAME", "unknown")
 

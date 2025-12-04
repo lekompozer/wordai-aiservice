@@ -9,20 +9,16 @@ if not os.getenv("CONFIG_LOADED"):
         ENV = os.getenv("ENV", os.getenv("ENV", "production")).lower()
 
         if ENV == "development":
-            # Try development.env first, fallback to .env
+            # Development: ONLY load development.env, do NOT fallback to .env
             dev_env_file = Path(__file__).parent.parent / "development.env"
-            env_file = Path(__file__).parent.parent / ".env"
 
             if dev_env_file.exists():
                 load_dotenv(dev_env_file, override=True)
                 print(f"Config: Loaded DEVELOPMENT from development.env")
-            elif env_file.exists():
-                load_dotenv(env_file, override=True)
-                print(f"Config: Loaded DEVELOPMENT from .env (fallback)")
             else:
-                print(f"Config: No environment file found for development")
+                print(f"Config: WARNING - development.env not found!")
         else:
-            # Production - use .env
+            # Production - use .env only
             env_file = Path(__file__).parent.parent / ".env"
             if env_file.exists():
                 load_dotenv(env_file, override=True)
