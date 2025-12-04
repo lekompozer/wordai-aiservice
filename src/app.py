@@ -213,6 +213,9 @@ from src.api.book_marketplace_routes import router as book_marketplace_router
 # ✅ ADDED: Book Advanced API - Translation & Duplication features
 from src.api.book_advanced_routes import router as book_advanced_router
 
+# ✅ ADDED: Book Translation API - Multi-language support (17 languages)
+from src.api.book_translation_routes import router as book_translation_router
+
 # ✅ ADDED: Book Cover AI - Generate covers using OpenAI gpt-image-1
 from src.api.book_cover_ai_routes import router as book_cover_ai_router
 
@@ -937,6 +940,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_advanced_router,
         tags=["Book Advanced", "Translation", "Duplication"],
+    )
+
+    # ✅ NEW: Book Translation API - Multi-language support (17 languages)
+    app.include_router(
+        book_translation_router,
+        tags=["Book Translation", "Multi-Language", "AI Translation"],
     )
 
     # ✅ NEW: Book Cover AI - Generate covers using OpenAI gpt-image-1

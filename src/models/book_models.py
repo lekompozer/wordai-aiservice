@@ -197,6 +197,27 @@ class BookResponse(BaseModel):
         description="Background configuration for book (solid, gradient, theme, ai_image, custom_image)",
     )
 
+    # Multi-Language Support (NEW)
+    default_language: str = Field(
+        default="vi", description="Default language of the book (e.g., 'vi', 'en')"
+    )
+    current_language: Optional[str] = Field(
+        default=None,
+        description="Current language being viewed (for API responses with ?language= param)",
+    )
+    available_languages: List[str] = Field(
+        default_factory=lambda: ["vi"],
+        description="List of available language codes (e.g., ['vi', 'en', 'zh-CN'])",
+    )
+    translations: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Translations for other languages: {lang_code: {title, description, ...}}",
+    )
+    background_translations: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Custom backgrounds per language: {lang_code: background_config}",
+    )
+
     # Timestamps
     created_at: datetime
     updated_at: datetime

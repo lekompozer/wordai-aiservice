@@ -25,16 +25,19 @@ Tài liệu hướng dẫn frontend tích hợp hệ thống thanh toán USDT BE
 3. Frontend hiển thị giá (VND + USDT) trước khi thanh toán
 4. User click "Pay Now" button
 5. Frontend gọi API tạo payment với wallet address → Nhận WordAI wallet address và exact amount
-6. Frontend hiển thị payment modal với:
+6. Frontend register webhook URL (optional) để nhận instant notification
+7. Frontend hiển thị payment modal với:
    - QR code cho mobile wallet
    - Copy address button
    - Exact USDT amount (BOLD warning)
    - "Send" button (opens user's wallet app)
-7. User send USDT từ wallet
-8. User paste transaction hash (optional but recommended)
-9. Frontend starts polling status endpoint mỗi 10-15 giây
-10. Sau 12 confirmations (~36 giây) → Subscription được activate
-11. Hiển thị success message + redirect về dashboard
+8. User send USDT từ wallet
+9. User paste transaction hash (optional but recommended)
+10. Frontend starts polling status endpoint mỗi 60 giây (tối đa 15 phút)
+11. Blockchain scan tìm transaction (~5-10 phút)
+12. Sau 12 confirmations (~36 giây) → Subscription được activate
+13. Webhook notify instant hoặc polling catch update
+14. Hiển thị success message + redirect về dashboard
 ```
 
 ### Flow 2: Points Purchase
@@ -47,12 +50,15 @@ Tài liệu hướng dẫn frontend tích hợp hệ thống thanh toán USDT BE
 3. User chọn gói points hoặc nhập custom amount
 4. User click "Buy with USDT"
 5. Frontend gọi API tạo payment với wallet address
-6. Frontend hiển thị payment modal (same as subscription)
-7. User send USDT
-8. User submit transaction hash (optional)
-9. Frontend poll status endpoint
-10. Sau confirm → Points được credit vào account
-11. Hiển thị success + updated points balance
+6. Frontend register webhook URL (optional) cho instant notification
+7. Frontend hiển thị payment modal (same as subscription)
+8. User send USDT
+9. User submit transaction hash (optional)
+10. Frontend poll status endpoint mỗi 60 giây (max 15 phút)
+11. Blockchain scan finds transaction (~5-10 minutes)
+12. Sau confirm → Points được credit vào account
+13. Webhook/polling updates status
+14. Hiển thị success + updated points balance
 ```
 
 ### ⚠️ IMPORTANT: Connect Wallet First!
@@ -85,6 +91,177 @@ Tất cả endpoints yêu cầu Firebase JWT token:
 ```
 Authorization: Bearer YOUR_FIREBASE_JWT_TOKEN
 ```
+
+---
+
+## 🔄 Payment Status Polling & Webhook Strategy
+
+### ⚠️ QUAN TRỌNG: Thời Gian Xử Lý
+
+**Blockchain scan có thể mất 5-10 phút** để tìm transaction vì:
+- Phải quét 1000 blocks trên BSC
+- RPC rate limits
+- Network latency
+
+**Chiến lược tối ưu:** Kết hợp Polling + Webhook
+
+### 1. Polling Strategy (Recommended)
+
+**Cấu hình:**
+- **Interval**: 60 giây (1 phút)
+- **Max attempts**: 15 lần (15 phút total)
+- **Stop condition**: Status = `completed`, `failed`, `cancelled`, `expired`
+
+**Response trả về `polling_config`:**
+```json
+{
+  "polling_config": {
+    "interval_seconds": 60,
+    "max_attempts": 15,
+    "should_continue": true,
+    "estimated_time_remaining": "5-10 minutes"
+  }
+}
+```
+
+**Payment Status Flow:**
+```
+pending → scanning → verifying → processing → confirmed → completed
+    ↓         ↓         ↓            ↓           ↓           ↓
+  Chờ    Scan TX   Wait confirm   Confirmed   Activating  Done
+```
+
+**UI Messages theo status:**
+- `pending`: "Awaiting payment. Please send USDT to the provided address."
+- `scanning`: "Payment received! Scanning blockchain... (5-10 minutes)"
+- `verifying`: "Transaction found! Waiting for 12 confirmations..."
+- `processing`: "Confirming transaction... (12/12 confirmations)"
+- `confirmed`: "Payment confirmed! Activating subscription/crediting points..."
+- `completed`: "Success! Your subscription/points are ready!"
+- `failed`: "Payment failed: {error_message}"
+- `expired`: "Payment expired (30 minutes timeout)"
+
+### 2. Webhook Notifications (Optional, Recommended)
+
+**Đăng ký webhook sau khi tạo payment:**
+
+**Endpoints:**
+- Subscription: `POST /api/v1/payments/usdt/subscription/{payment_id}/webhook`
+- Points: `POST /api/v1/payments/usdt/points/{payment_id}/webhook`
+
+**Request Body:**
+```json
+{
+  "payment_id": "USDT-1764801394-17Beaeik",
+  "webhook_url": "https://your-frontend.com/api/webhooks/payment"
+}
+```
+
+**Response:**
+```json
+{
+  "message": "Webhook registered successfully",
+  "payment_id": "USDT-1764801394-17Beaeik",
+  "webhook_url": "https://your-frontend.com/api/webhooks/payment",
+  "status": "pending",
+  "note": "You will receive notifications when payment status changes to completed/failed/expired"
+}
+```
+
+**Webhook được gọi khi:**
+- Payment status → `completed`
+- Payment status → `failed`
+- Payment status → `expired`
+
+**Webhook Payload (Backend → Frontend):**
+```json
+{
+  "event": "payment.status_changed",
+  "timestamp": "2025-12-04T12:43:48.079Z",
+  "data": {
+    "payment_id": "USDT-1764801394-17Beaeik",
+    "status": "completed",
+    "payment_type": "points",
+    "user_id": "firebase_uid",
+    "amount_usdt": 1.92,
+    "transaction_hash": "0x1c2f83c7...",
+    "points_amount": 50,
+    "subscription_id": "sub_abc123"
+  }
+}
+```
+
+**Webhook Requirements:**
+- ✅ HTTPS only (security)
+- ✅ Must return 200 OK
+- ✅ Backend retry 3 times với exponential backoff
+- ✅ Timeout: 10 seconds
+
+### 3. Best Practice: Hybrid Approach
+
+**Kết hợp Polling + Webhook cho UX tốt nhất:**
+
+```
+1. Tạo payment
+2. Register webhook (instant notification)
+3. Start polling every 60s (reliable fallback)
+4. Nếu webhook arrives first → Stop polling, show success
+5. Nếu webhook fails → Polling catches update
+6. After 15 minutes → Show "taking longer than expected" + support contact
+```
+
+**Lợi ích:**
+- **Webhook**: Instant notification (< 1 second)
+- **Polling**: Reliable fallback nếu webhook fail
+- **Combined**: Best of both worlds
+
+### 4. Implementation Timeline
+
+**UX Messages theo thời gian:**
+
+```
+0:00 - Payment created
+      "Waiting for payment..."
+
+0:30 - User sends USDT
+      "Payment sent! Scanning blockchain..."
+      "This may take 5-10 minutes"
+
+2:00 - Still scanning
+      "Still scanning... Please wait"
+      Progress bar/spinner
+
+6:00 - Transaction found
+      "Transaction found! Waiting for confirmations..."
+      "Confirmations: 5/12"
+
+6:30 - Confirmed
+      "Payment confirmed! Activating..."
+
+6:35 - Completed
+      "Success! Your {subscription/points} are ready!"
+      ✅ Redirect/Update UI
+```
+
+### 5. So Sánh với Bank Transfer
+
+| Feature | USDT Payment | Bank Transfer |
+|---------|--------------|---------------|
+| **Polling Interval** | 60 seconds | 60 seconds |
+| **Max Duration** | 15 minutes | 15 minutes |
+| **Webhook Support** | ✅ Yes | ✅ Yes |
+| **Auto-Expire** | 30 minutes | 30 minutes |
+| **Status Flow** | 8 states (pending→completed) | Similar flow |
+| **Verification Time** | 5-10 min scan + 36s confirm | Manual approval |
+| **Instant Notification** | Webhook | Webhook |
+| **Fallback** | Polling | Polling |
+
+**Đã đồng nhất:**
+- ✅ Polling strategy giống nhau (60s/15 lần)
+- ✅ Webhook notifications cả hai
+- ✅ Auto-expire cả hai (30 phút)
+- ✅ Status response có `polling_config`
+- ✅ UX flow tương đồng
 
 ---
 
@@ -1500,6 +1677,15 @@ Please try again or contact support.
 
 ---
 
-**Document Version:** 1.0
-**Last Updated:** December 3, 2025
-**Backend API Version:** Phase 1-6 Complete
+**Document Version:** 2.0
+**Last Updated:** December 4, 2025
+**Backend API Version:** Phase 1-6 Complete + Polling/Webhook Optimization
+
+**Changelog:**
+- v2.0 (Dec 4, 2025):
+  - ✅ Added polling strategy (60s interval, 15 max attempts)
+  - ✅ Added webhook notification support
+  - ✅ Unified subscription and points payment flows
+  - ✅ Added detailed status flow (8 states)
+  - ✅ Updated timing expectations (5-10 min blockchain scan)
+  - ✅ Synchronized with bank transfer polling strategy

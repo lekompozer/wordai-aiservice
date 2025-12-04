@@ -15,8 +15,8 @@ class DBManager:
         Enhanced MongoDB manager with user_id, device_id, session_id support
         Quản lý MongoDB nâng cao với hỗ trợ user_id, device_id, session_id
         """
-        # Use MONGODB_URI or MONGODB_URI_AUTH if available (most reliable)
-        mongo_uri = os.getenv("MONGODB_URI") or os.getenv("MONGODB_URI_AUTH")
+        # CRITICAL: Use MONGODB_URI_AUTH first (authenticated), fallback to MONGODB_URI
+        mongo_uri = os.getenv("MONGODB_URI_AUTH") or os.getenv("MONGODB_URI")
 
         if not mongo_uri:
             # Fallback: Build URI from components only if no URI provided

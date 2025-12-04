@@ -15,7 +15,7 @@ from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.document_export_service import DocumentExportService
 from src.storage.r2_client import R2Client
 from src.core.config import APP_CONFIG
-from config.config import get_mongodb
+from src.database.db_manager import DBManager
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -264,7 +264,8 @@ async def export_book(
     """
     try:
         user_id = user_info["uid"]
-        db = get_mongodb()
+        db_manager = DBManager()
+        db = db_manager.db
 
         logger.info(
             f"📚 Book export request: book_id={book_id}, "

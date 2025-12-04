@@ -21,7 +21,9 @@ from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.services.points_service import get_points_service
 from src.services.r2_storage_service import get_r2_service
-from config.config import get_mongodb
+
+# Database
+from src.database.db_manager import DBManager
 
 # Models
 from src.api.ai_editor_routes import BilingualStyle
@@ -30,7 +32,8 @@ logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api/v1/books", tags=["Book Advanced"])
 
 # MongoDB
-db = get_mongodb()
+db_manager = DBManager()
+db = db_manager.db
 chapter_manager = GuideBookBookChapterManager(db)
 # ai_chat_service imported from src.services.ai_chat_service
 

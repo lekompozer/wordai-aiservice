@@ -193,6 +193,26 @@ class ChapterResponse(BaseModel):
         description="Chapter's own background config (only used if use_book_background=false)",
     )
 
+    # Multi-Language Support (NEW)
+    default_language: str = Field(
+        default="vi", description="Default language of the chapter"
+    )
+    current_language: Optional[str] = Field(
+        default=None, description="Current language being viewed"
+    )
+    available_languages: List[str] = Field(
+        default_factory=lambda: ["vi"],
+        description="List of available language codes",
+    )
+    translations: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Translations: {lang_code: {title, description, content_html, ...}}",
+    )
+    background_translations: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Custom backgrounds per language: {lang_code: background_config}",
+    )
+
     created_at: datetime
     updated_at: datetime
 

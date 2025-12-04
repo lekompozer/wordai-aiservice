@@ -14,7 +14,7 @@ from src.services.document_manager import document_manager
 from src.services.document_export_service import DocumentExportService
 from src.storage.r2_client import R2Client
 from src.core.config import APP_CONFIG
-from config.config import get_mongodb
+from src.database.db_manager import DBManager
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -197,7 +197,8 @@ async def export_document(
             bucket_name=APP_CONFIG["r2_bucket_name"],
         )
 
-        db = get_mongodb()
+        db_manager = DBManager()
+        db = db_manager.db
         export_service = DocumentExportService(r2_client, db)
 
         # Reconstruct HTML with overlay elements if slide_elements provided (slide documents only)
