@@ -19,6 +19,7 @@ from src.services.bsc_service import get_bsc_service
 from src.services.subscription_service import SubscriptionService
 from src.services.points_service import PointsService
 from src.models.subscription import CreateSubscriptionRequest
+from src.models.payment import PointsGrantRequest
 
 logger = logging.getLogger("chatbot")
 
@@ -486,28 +487,23 @@ class USDTPaymentVerificationJob:
                 )
                 return
 
-            # Add points
-            transaction_id = self.points_service.add_points(
+            # Grant points using admin grant function
+            grant_request = PointsGrantRequest(
                 user_id=payment["user_id"],
-                amount=payment["points_amount"],
-                transaction_type="purchase",
-                description=f"Points purchase via USDT: {payment['payment_id']}",
-                metadata={
-                    "payment_id": payment["payment_id"],
-                    "payment_method": "USDT_BEP20",
-                    "amount_usdt": payment["amount_usdt"],
-                    "amount_vnd": payment["amount_vnd"],
-                    "transaction_hash": payment.get("transaction_hash"),
-                },
+                points_amount=payment["points_amount"],
+                reason=f"USDT payment: {payment['payment_id']} ({payment['amount_usdt']} USDT)",
+                granted_by_admin="system_usdt_verification",
             )
+
+            transaction = await self.points_service.grant_points(grant_request)
 
             # Link payment to transaction
             self.payment_service.link_points_transaction(
-                payment["payment_id"], transaction_id
+                payment["payment_id"], str(transaction.id)
             )
 
             logger.info(
-                f"✅ Points credited: {payment['points_amount']} points (txn: {transaction_id})"
+                f"✅ Points credited: {payment['points_amount']} points (txn: {transaction.id})"
             )
 
         except Exception as e:
