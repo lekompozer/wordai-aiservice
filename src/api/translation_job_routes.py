@@ -18,10 +18,7 @@ from src.models.translation_job_models import (
     TranslationJobResponse,
     TranslationJobStatus,
 )
-from src.models.book_translation_models import (
-    SUPPORTED_LANGUAGES,
-    BookTranslationRequest,
-)
+from src.models.book_translation_models import SUPPORTED_LANGUAGES
 
 logger = logging.getLogger("chatbot")
 
@@ -78,7 +75,7 @@ def format_job_response(job_data: Dict[str, Any]) -> TranslationJobResponse:
 async def start_translation_job(
     book_id: str,
     background_tasks: BackgroundTasks,
-    request: BookTranslationRequest,
+    request: StartTranslationJobRequest,
     user: dict = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
     book_manager: UserBookManager = Depends(get_book_manager),
