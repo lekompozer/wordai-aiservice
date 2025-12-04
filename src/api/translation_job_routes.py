@@ -22,7 +22,9 @@ from src.models.book_translation_models import SUPPORTED_LANGUAGES
 
 logger = logging.getLogger("chatbot")
 
-router = APIRouter(prefix="/books/{book_id}/translate", tags=["Translation Jobs"])
+router = APIRouter(
+    prefix="/api/v1/books/{book_id}/translate", tags=["Translation Jobs"]
+)
 
 
 def get_job_service() -> TranslationJobService:

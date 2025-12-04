@@ -152,10 +152,6 @@ class USDTPaymentVerificationJob:
         try:
             self.last_check = datetime.utcnow()
 
-            logger.info(
-                "🔄 [USDT Verification] Running scheduled check for pending payments..."
-            )
-
             # Auto-expire payments older than 30 minutes
             await self.expire_old_payments()
 
@@ -170,11 +166,11 @@ class USDTPaymentVerificationJob:
             total = len(scanning) + len(pending)
 
             if total == 0:
-                logger.debug("✅ [USDT Verification] No pending transactions to check")
+                # No pending payments, skip logging to reduce noise
                 return
 
             logger.info(
-                f"🔍 [USDT Verification] Found {total} pending payments: {len(scanning)} scanning, {len(pending)} pending"
+                f"🔄 [USDT Verification] Running scheduled check for {total} pending payments: {len(scanning)} scanning, {len(pending)} pending"
             )
 
             # Check scanning payments first (need to find tx hash)
