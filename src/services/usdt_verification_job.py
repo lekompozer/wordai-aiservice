@@ -423,7 +423,7 @@ class USDTPaymentVerificationJob:
             )
 
             logger.info(f"✅ Payment completed successfully: {payment_id}")
-            
+
             # Send webhook notification if registered
             webhook_url = payment.get("webhook_url")
             if webhook_url:

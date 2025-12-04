@@ -21,7 +21,7 @@ class PaymentWebhookService:
         """Initialize webhook service"""
         self.timeout = aiohttp.ClientTimeout(total=10)
         self.max_retries = 3
-        
+
     async def send_payment_update(
         self,
         webhook_url: str,
@@ -37,7 +37,7 @@ class PaymentWebhookService:
     ) -> bool:
         """
         Send payment status update to webhook URL
-        
+
         Args:
             webhook_url: Frontend webhook endpoint URL
             payment_id: Payment ID
@@ -49,7 +49,7 @@ class PaymentWebhookService:
             points_amount: Points amount (for points purchase)
             subscription_id: Subscription ID (for subscription)
             error_message: Error message if failed
-            
+
         Returns:
             True if webhook sent successfully
         """
@@ -67,44 +67,54 @@ class PaymentWebhookService:
                     "points_amount": points_amount,
                     "subscription_id": subscription_id,
                     "error_message": error_message,
-                }
+                },
             }
-            
-            logger.info(f"📤 Sending webhook for payment {payment_id} (status: {status}) to {webhook_url}")
-            
+
+            logger.info(
+                f"📤 Sending webhook for payment {payment_id} (status: {status}) to {webhook_url}"
+            )
+
             async with aiohttp.ClientSession(timeout=self.timeout) as session:
                 for attempt in range(1, self.max_retries + 1):
                     try:
                         async with session.post(
                             webhook_url,
                             json=payload,
-                            headers={"Content-Type": "application/json"}
+                            headers={"Content-Type": "application/json"},
                         ) as response:
                             if response.status == 200:
-                                logger.info(f"✅ Webhook sent successfully for payment {payment_id}")
+                                logger.info(
+                                    f"✅ Webhook sent successfully for payment {payment_id}"
+                                )
                                 return True
                             else:
                                 logger.warning(
                                     f"⚠️ Webhook returned status {response.status} for payment {payment_id} (attempt {attempt}/{self.max_retries})"
                                 )
-                                
+
                     except asyncio.TimeoutError:
-                        logger.warning(f"⏱️ Webhook timeout for payment {payment_id} (attempt {attempt}/{self.max_retries})")
-                        
+                        logger.warning(
+                            f"⏱️ Webhook timeout for payment {payment_id} (attempt {attempt}/{self.max_retries})"
+                        )
+
                     except Exception as e:
-                        logger.error(f"❌ Webhook error for payment {payment_id} (attempt {attempt}/{self.max_retries}): {e}")
-                    
+                        logger.error(
+                            f"❌ Webhook error for payment {payment_id} (attempt {attempt}/{self.max_retries}): {e}"
+                        )
+
                     # Wait before retry (exponential backoff)
                     if attempt < self.max_retries:
-                        await asyncio.sleep(2 ** attempt)
-                        
-            logger.error(f"❌ Failed to send webhook for payment {payment_id} after {self.max_retries} attempts")
+                        await asyncio.sleep(2**attempt)
+
+            logger.error(
+                f"❌ Failed to send webhook for payment {payment_id} after {self.max_retries} attempts"
+            )
             return False
-            
+
         except Exception as e:
             logger.error(f"❌ Error sending webhook for payment {payment_id}: {e}")
             return False
-            
+
     async def send_payment_completed(
         self,
         webhook_url: str,
@@ -112,11 +122,11 @@ class PaymentWebhookService:
     ) -> bool:
         """
         Send payment completed webhook
-        
+
         Args:
             webhook_url: Frontend webhook endpoint
             payment: Payment document
-            
+
         Returns:
             True if sent successfully
         """
@@ -131,7 +141,7 @@ class PaymentWebhookService:
             points_amount=payment.get("points_amount"),
             subscription_id=payment.get("subscription_id"),
         )
-        
+
     async def send_payment_failed(
         self,
         webhook_url: str,
@@ -140,12 +150,12 @@ class PaymentWebhookService:
     ) -> bool:
         """
         Send payment failed webhook
-        
+
         Args:
             webhook_url: Frontend webhook endpoint
             payment: Payment document
             error_message: Failure reason
-            
+
         Returns:
             True if sent successfully
         """

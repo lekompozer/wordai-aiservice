@@ -283,12 +283,12 @@ async def check_payment_status(
 ):
     """
     Check USDT points payment status
-    
+
     **Recommended polling strategy:**
     - Poll every 60 seconds (1 minute)
     - Maximum 15 attempts (15 minutes total)
     - Stop polling when status is 'completed', 'failed', or 'cancelled'
-    
+
     **Status flow:**
     - pending → scanning → verifying → processing → confirmed → completed
     - Or: pending → expired/failed/cancelled
@@ -314,13 +314,17 @@ async def check_payment_status(
         if payment["status"] == "pending":
             message = "Awaiting payment. Please send USDT to the provided address."
         elif payment["status"] == "scanning":
-            message = "Payment received! Scanning blockchain to find your transaction..."
+            message = (
+                "Payment received! Scanning blockchain to find your transaction..."
+            )
         elif payment["status"] == "verifying":
             message = f"Transaction found! Waiting for confirmations: {payment.get('confirmation_count', 0)}/{payment['required_confirmations']}"
         elif payment["status"] == "processing":
             message = f"Transaction confirmed! Confirmations: {payment['confirmation_count']}/{payment['required_confirmations']}"
         elif payment["status"] == "confirmed":
-            message = f"Payment confirmed! Crediting {payment['points_amount']} points..."
+            message = (
+                f"Payment confirmed! Crediting {payment['points_amount']} points..."
+            )
         elif payment["status"] == "completed":
             message = f"Payment completed! {payment['points_amount']} points credited to your account!"
         elif payment["status"] == "failed":
@@ -329,21 +333,26 @@ async def check_payment_status(
             message = "Payment cancelled"
         elif payment["status"] == "expired":
             message = "Payment expired (30 minutes timeout)"
-            
+
         # Polling configuration
         polling_config = {
             "interval_seconds": 60,  # Poll every 1 minute
             "max_attempts": 15,  # Max 15 minutes
-            "should_continue": payment["status"] in ["pending", "scanning", "verifying", "processing", "confirmed"],
-            "estimated_time_remaining": None
+            "should_continue": payment["status"]
+            in ["pending", "scanning", "verifying", "processing", "confirmed"],
+            "estimated_time_remaining": None,
         }
-        
+
         # Estimate time remaining based on status
         if payment["status"] == "scanning":
             polling_config["estimated_time_remaining"] = "5-10 minutes"
         elif payment["status"] == "verifying":
-            remaining_confirmations = payment['required_confirmations'] - payment.get('confirmation_count', 0)
-            estimated_seconds = remaining_confirmations * 3  # ~3 seconds per block on BSC
+            remaining_confirmations = payment["required_confirmations"] - payment.get(
+                "confirmation_count", 0
+            )
+            estimated_seconds = (
+                remaining_confirmations * 3
+            )  # ~3 seconds per block on BSC
             polling_config["estimated_time_remaining"] = f"{estimated_seconds} seconds"
 
         return CheckUSDTPaymentStatusResponse(
@@ -688,15 +697,15 @@ async def credit_points_after_payment(
 
 class RegisterWebhookRequest(BaseModel):
     """Request to register webhook URL for payment notifications"""
-    
+
     payment_id: str = Field(..., description="Payment ID to receive notifications for")
     webhook_url: str = Field(..., description="HTTPS webhook endpoint URL")
-    
+
     class Config:
         schema_extra = {
             "example": {
                 "payment_id": "USDT-1764801394-17Beaeik",
-                "webhook_url": "https://your-frontend.com/api/webhooks/payment"
+                "webhook_url": "https://your-frontend.com/api/webhooks/payment",
             }
         }
 
@@ -709,12 +718,12 @@ async def register_payment_webhook(
 ):
     """
     Register webhook URL to receive payment status notifications
-    
+
     **Webhook will be called when:**
     - Payment status changes to 'completed'
     - Payment status changes to 'failed'
     - Payment status changes to 'expired'
-    
+
     **Webhook payload:**
     ```json
     {
@@ -731,7 +740,7 @@ async def register_payment_webhook(
         }
     }
     ```
-    
+
     **Note:** Use this with polling for best UX:
     - Poll every 60 seconds as fallback
     - Webhook provides instant notification
@@ -739,46 +748,51 @@ async def register_payment_webhook(
     """
     try:
         user_id = current_user["uid"]
-        
+
         # Validate webhook URL
         if not request.webhook_url.startswith("https://"):
             raise HTTPException(
-                status_code=400,
-                detail="Webhook URL must use HTTPS protocol"
+                status_code=400, detail="Webhook URL must use HTTPS protocol"
             )
-        
+
         # Get payment
         payment_service = USDTPaymentService()
         payment = payment_service.get_payment_by_id(payment_id)
-        
+
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
-            
+
         # Verify ownership
         if payment["user_id"] != user_id:
             raise HTTPException(status_code=403, detail="Not authorized")
-        
+
         # Store webhook URL in payment metadata
         payment_service.payments.update_one(
             {"payment_id": payment_id},
-            {"$set": {"webhook_url": request.webhook_url, "webhook_registered_at": datetime.utcnow()}}
+            {
+                "$set": {
+                    "webhook_url": request.webhook_url,
+                    "webhook_registered_at": datetime.utcnow(),
+                }
+            },
         )
-        
-        logger.info(f"✅ Registered webhook for payment {payment_id}: {request.webhook_url}")
-        
+
+        logger.info(
+            f"✅ Registered webhook for payment {payment_id}: {request.webhook_url}"
+        )
+
         return {
             "message": "Webhook registered successfully",
             "payment_id": payment_id,
             "webhook_url": request.webhook_url,
             "status": payment["status"],
-            "note": "You will receive notifications when payment status changes to completed/failed/expired"
+            "note": "You will receive notifications when payment status changes to completed/failed/expired",
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error registering webhook: {e}")
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to register webhook: {str(e)}"
+            status_code=500, detail=f"Failed to register webhook: {str(e)}"
         )
