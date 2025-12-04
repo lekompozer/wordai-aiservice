@@ -322,9 +322,9 @@ class PointsGrantRequest(BaseModel):
     """Admin request to grant points"""
 
     user_id: str
-    points_amount: int = Field(..., gt=0)
+    amount: int = Field(..., gt=0, description="Amount of points to grant")
     reason: str
-    granted_by_admin: str
+    admin_id: str = Field(..., description="Admin user ID who granted the points")
 
 
 class PointsDeductRequest(BaseModel):

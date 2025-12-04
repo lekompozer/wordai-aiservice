@@ -490,9 +490,9 @@ class USDTPaymentVerificationJob:
             # Grant points using admin grant function
             grant_request = PointsGrantRequest(
                 user_id=payment["user_id"],
-                points_amount=payment["points_amount"],
+                amount=payment["points_amount"],
                 reason=f"USDT payment: {payment['payment_id']} ({payment['amount_usdt']} USDT)",
-                granted_by_admin="system_usdt_verification",
+                admin_id="system_usdt_verification",
             )
 
             transaction = await self.points_service.grant_points(grant_request)
