@@ -5,20 +5,23 @@ API endpoints for background translation jobs
 
 import logging
 import asyncio
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from typing import Dict, Any, Optional, List
 
 from src.middleware.firebase_auth import get_current_user
 from src.database.db_manager import DBManager
 from src.services.translation_job_service import TranslationJobService
-from src.services.book_manager import BookManager
+from src.services.book_manager import UserBookManager
 from src.services.user_manager import UserManager
 from src.models.translation_job_models import (
     StartTranslationJobRequest,
     TranslationJobResponse,
     TranslationJobStatus,
 )
-from src.models.book_translation_models import SUPPORTED_LANGUAGES
+from src.models.book_translation_models import (
+    SUPPORTED_LANGUAGES,
+    BookTranslationRequest,
+)
 
 logger = logging.getLogger("chatbot")
 
@@ -32,11 +35,11 @@ def get_job_service() -> TranslationJobService:
     return TranslationJobService(db)
 
 
-def get_book_manager() -> BookManager:
+def get_book_manager() -> UserBookManager:
     """Get book manager instance"""
     db_manager = DBManager()
     db = db_manager.get_database()
-    return BookManager(db)
+    return UserBookManager(db)
 
 
 def get_user_manager() -> UserManager:
@@ -74,10 +77,11 @@ def format_job_response(job_data: Dict[str, Any]) -> TranslationJobResponse:
 @router.post("/start", response_model=TranslationJobResponse)
 async def start_translation_job(
     book_id: str,
-    request: StartTranslationJobRequest,
-    user: Dict[str, Any] = Depends(get_current_user),
+    background_tasks: BackgroundTasks,
+    request: BookTranslationRequest,
+    user: dict = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
-    book_manager: BookManager = Depends(get_book_manager),
+    book_manager: UserBookManager = Depends(get_book_manager),
     user_manager: UserManager = Depends(get_user_manager),
 ):
     """
@@ -281,12 +285,13 @@ async def get_translation_job_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/cancel/{job_id}")
+@router.post("/jobs/{job_id}/cancel", response_model=TranslationJobResponse)
 async def cancel_translation_job(
     book_id: str,
     job_id: str,
-    user: Dict[str, Any] = Depends(get_current_user),
+    user: dict = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
+    book_manager: UserBookManager = Depends(get_book_manager),
 ):
     """
     Cancel a translation job
@@ -344,7 +349,7 @@ async def get_user_translation_jobs(
     skip: int = 0,
     user: Dict[str, Any] = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
-    book_manager: BookManager = Depends(get_book_manager),
+    book_manager: UserBookManager = Depends(get_book_manager),
 ):
     """
     Get all translation jobs for a book
