@@ -30,21 +30,21 @@ router = APIRouter(
 def get_job_service() -> TranslationJobService:
     """Get translation job service instance"""
     db_manager = DBManager()
-    db = db_manager.get_database()
+    db = db_manager.db
     return TranslationJobService(db)
 
 
 def get_book_manager() -> UserBookManager:
     """Get book manager instance"""
     db_manager = DBManager()
-    db = db_manager.get_database()
+    db = db_manager.db
     return UserBookManager(db)
 
 
 def get_user_manager() -> UserManager:
     """Get user manager instance"""
     db_manager = DBManager()
-    db = db_manager.get_database()
+    db = db_manager.db
     return UserManager(db)
 
 
