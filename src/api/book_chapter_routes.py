@@ -492,6 +492,14 @@ async def get_chapter(
                 chapter["content_html"] = trans.get(
                     "content_html", chapter.get("content_html", "")
                 )
+                
+                # Handle background_config for translation
+                # If translation has custom background, use it
+                # Otherwise, fallback to default background (sync from root)
+                if "background_config" in trans:
+                    chapter["background_config"] = trans["background_config"]
+                # If no custom background in translation, keep the default background_config
+                # (already loaded from root level, no need to change)
 
         # Add language metadata to response
         chapter["current_language"] = current_language
