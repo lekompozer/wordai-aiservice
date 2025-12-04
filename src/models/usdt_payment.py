@@ -359,6 +359,12 @@ class CheckUSDTPaymentStatusResponse(BaseModel):
 
     # Message
     message: Optional[str] = None
+    
+    # Polling guidance for frontend
+    polling_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Recommended polling configuration for frontend"
+    )
 
     class Config:
         schema_extra = {

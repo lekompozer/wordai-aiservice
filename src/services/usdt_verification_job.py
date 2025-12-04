@@ -18,6 +18,7 @@ from src.services.usdt_payment_service import USDTPaymentService
 from src.services.bsc_service import get_bsc_service
 from src.services.subscription_service import SubscriptionService
 from src.services.points_service import PointsService
+from src.services.payment_webhook_service import get_webhook_service
 from src.models.subscription import CreateSubscriptionRequest
 from src.models.payment import PointsGrantRequest
 
@@ -422,6 +423,16 @@ class USDTPaymentVerificationJob:
             )
 
             logger.info(f"✅ Payment completed successfully: {payment_id}")
+            
+            # Send webhook notification if registered
+            webhook_url = payment.get("webhook_url")
+            if webhook_url:
+                try:
+                    webhook_service = get_webhook_service()
+                    await webhook_service.send_payment_completed(webhook_url, payment)
+                except Exception as webhook_error:
+                    logger.error(f"❌ Webhook notification failed: {webhook_error}")
+                    # Don't fail the payment if webhook fails
 
         except Exception as e:
             logger.error(f"❌ Error processing confirmed payment: {e}")
