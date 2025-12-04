@@ -216,6 +216,9 @@ from src.api.book_advanced_routes import router as book_advanced_router
 # ✅ ADDED: Book Translation API - Multi-language support (17 languages)
 from src.api.book_translation_routes import router as book_translation_router
 
+# ✅ ADDED: Translation Job API - Background translation jobs with status tracking
+from src.api.translation_job_routes import router as translation_job_router
+
 # ✅ ADDED: Book Cover AI - Generate covers using OpenAI gpt-image-1
 from src.api.book_cover_ai_routes import router as book_cover_ai_router
 
@@ -946,6 +949,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_translation_router,
         tags=["Book Translation", "Multi-Language", "AI Translation"],
+    )
+
+    # ✅ NEW: Translation Job API - Background translation jobs with status tracking
+    app.include_router(
+        translation_job_router,
+        tags=["Translation Jobs", "Background Processing", "Job Status"],
     )
 
     # ✅ NEW: Book Cover AI - Generate covers using OpenAI gpt-image-1
