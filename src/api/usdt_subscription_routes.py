@@ -34,6 +34,7 @@ from src.models.subscription import (
 from src.services.usdt_payment_service import USDTPaymentService
 from src.services.bsc_service import BSCService
 from src.services.subscription_service import SubscriptionService
+from src.services.payment_webhook_service import get_webhook_service
 from src.middleware.firebase_auth import require_auth
 import logging
 
@@ -311,17 +312,18 @@ async def check_payment_status(
     current_user: dict = Depends(require_auth),
 ):
     """
-    Check USDT payment status
+    Check USDT subscription payment status
 
-    Frontend should poll this endpoint every 10-15 seconds
-    to check if payment has been confirmed
+    **Recommended polling strategy:**
+    - Poll every 60 seconds (1 minute)
+    - Maximum 15 attempts (15 minutes total)
+    - Stop polling when status is 'completed', 'failed', or 'cancelled'
 
-    Status flow:
-    - pending: Awaiting payment
-    - processing: Transaction detected, awaiting confirmations
-    - confirmed: Transaction confirmed (12+ blocks)
-    - completed: Subscription activated
-    - failed/cancelled: Error or timeout
+    **Status flow:**
+    - pending → scanning → verifying → processing → confirmed → completed
+    - Or: pending → expired/failed/cancelled
+
+    **Note:** Blockchain scan can take 5-10 minutes to find transaction.
     """
     try:
         user_id = current_user["uid"]
@@ -343,8 +345,14 @@ async def check_payment_status(
         message = None
         if payment["status"] == "pending":
             message = "Awaiting payment. Please send USDT to the provided address."
+        elif payment["status"] == "scanning":
+            message = (
+                "Payment received! Scanning blockchain to find your transaction..."
+            )
+        elif payment["status"] == "verifying":
+            message = f"Transaction found! Waiting for confirmations: {payment.get('confirmation_count', 0)}/{payment['required_confirmations']}"
         elif payment["status"] == "processing":
-            message = f"Transaction detected! Confirmations: {payment['confirmation_count']}/{payment['required_confirmations']}"
+            message = f"Transaction confirmed! Confirmations: {payment['confirmation_count']}/{payment['required_confirmations']}"
         elif payment["status"] == "confirmed":
             message = "Payment confirmed! Activating subscription..."
         elif payment["status"] == "completed":
@@ -352,7 +360,30 @@ async def check_payment_status(
         elif payment["status"] == "failed":
             message = f"Payment failed: {payment.get('error_message', 'Unknown error')}"
         elif payment["status"] == "cancelled":
-            message = "Payment cancelled or expired"
+            message = "Payment cancelled"
+        elif payment["status"] == "expired":
+            message = "Payment expired (30 minutes timeout)"
+
+        # Polling configuration
+        polling_config = {
+            "interval_seconds": 60,  # Poll every 1 minute
+            "max_attempts": 15,  # Max 15 minutes
+            "should_continue": payment["status"]
+            in ["pending", "scanning", "verifying", "processing", "confirmed"],
+            "estimated_time_remaining": None,
+        }
+
+        # Estimate time remaining based on status
+        if payment["status"] == "scanning":
+            polling_config["estimated_time_remaining"] = "5-10 minutes"
+        elif payment["status"] == "verifying":
+            remaining_confirmations = payment["required_confirmations"] - payment.get(
+                "confirmation_count", 0
+            )
+            estimated_seconds = (
+                remaining_confirmations * 3
+            )  # ~3 seconds per block on BSC
+            polling_config["estimated_time_remaining"] = f"{estimated_seconds} seconds"
 
         return CheckUSDTPaymentStatusResponse(
             payment_id=payment["payment_id"],
@@ -369,6 +400,7 @@ async def check_payment_status(
             completed_at=payment.get("completed_at"),
             subscription_id=payment.get("subscription_id"),
             message=message,
+            polling_config=polling_config,
         )
 
     except HTTPException:
@@ -694,7 +726,110 @@ async def activate_subscription_after_payment(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error activating subscription: {e}")
+        logger.error(f"❌ Error activating subscription manually: {e}")
         raise HTTPException(
             status_code=500, detail=f"Failed to activate subscription: {str(e)}"
+        )
+
+
+class RegisterWebhookRequest(BaseModel):
+    """Request to register webhook URL for payment notifications"""
+
+    payment_id: str = Field(..., description="Payment ID to receive notifications for")
+    webhook_url: str = Field(..., description="HTTPS webhook endpoint URL")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "payment_id": "USDT-1764801394-17Beaeik",
+                "webhook_url": "https://your-frontend.com/api/webhooks/payment",
+            }
+        }
+
+
+@router.post("/{payment_id}/webhook")
+async def register_payment_webhook(
+    payment_id: str,
+    request: RegisterWebhookRequest,
+    current_user: dict = Depends(require_auth),
+):
+    """
+    Register webhook URL to receive payment status notifications
+
+    **Webhook will be called when:**
+    - Payment status changes to 'completed'
+    - Payment status changes to 'failed'
+    - Payment status changes to 'expired'
+
+    **Webhook payload:**
+    ```json
+    {
+        "event": "payment.status_changed",
+        "timestamp": "2025-12-04T12:43:48.079Z",
+        "data": {
+            "payment_id": "USDT-1764801394-17Beaeik",
+            "status": "completed",
+            "payment_type": "subscription",
+            "user_id": "firebase_uid",
+            "amount_usdt": 12.5,
+            "transaction_hash": "0x1c2f83c7...",
+            "subscription_id": "sub_abc123"
+        }
+    }
+    ```
+
+    **Note:** Use this with polling for best UX:
+    - Poll every 60 seconds as fallback
+    - Webhook provides instant notification
+    - If webhook fails, polling will catch the update
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Validate webhook URL
+        if not request.webhook_url.startswith("https://"):
+            raise HTTPException(
+                status_code=400, detail="Webhook URL must use HTTPS protocol"
+            )
+
+        # Get payment
+        payment_service = USDTPaymentService()
+        payment = payment_service.get_payment_by_id(payment_id)
+
+        if not payment:
+            raise HTTPException(status_code=404, detail="Payment not found")
+
+        # Verify ownership
+        if payment["user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        # Store webhook URL in payment metadata
+        payment_service.payments.update_one(
+            {"payment_id": payment_id},
+            {
+                "$set": {
+                    "webhook_url": request.webhook_url,
+                    "webhook_registered_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        logger.info(
+            f"✅ Registered webhook for payment {payment_id}: {request.webhook_url}"
+        )
+
+        return {
+            "message": "Webhook registered successfully",
+            "payment_id": payment_id,
+            "webhook_url": request.webhook_url,
+            "status": payment["status"],
+            "note": "You will receive notifications when payment status changes to completed/failed/expired",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error registering webhook: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to register webhook: {str(e)}"
         )
