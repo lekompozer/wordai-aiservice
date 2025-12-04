@@ -266,8 +266,18 @@ else
     echo "🔍 Diagnosis:"
     echo "   Health checks failed after $MAX_HEALTH_RETRIES attempts"
     echo ""
-    echo "📋 Recent logs from failed container:"
-    docker logs $SERVICE_NAME --tail=50 2>/dev/null || echo "   (Could not retrieve logs)"
+
+    # Check if container is restarting
+    RESTART_COUNT=$(docker inspect --format='{{.RestartCount}}' $SERVICE_NAME 2>/dev/null || echo "0")
+    if [ "$RESTART_COUNT" -gt "0" ]; then
+        echo "⚠️  Container has restarted $RESTART_COUNT time(s)"
+        echo ""
+    fi
+
+    echo "📋 Recent logs from failed container (last 200 lines):"
+    echo "═══════════════════════════════════════════════════════════════"
+    docker logs $SERVICE_NAME --tail=200 2>&1 || echo "   (Could not retrieve logs)"
+    echo "═══════════════════════════════════════════════════════════════"
     echo ""
 
     if [ -n "$PREVIOUS_VERSION_TAG" ] && [ "$PREVIOUS_VERSION_TAG" != "latest" ]; then
@@ -295,15 +305,20 @@ else
             echo "🎯 System restored to version: $PREVIOUS_VERSION_TAG"
             echo ""
             echo "⚠️  Action Required:"
-            echo "   • Review logs: docker logs $SERVICE_NAME --tail=100"
+            echo "   • Review logs: docker logs $SERVICE_NAME --tail=200"
             echo "   • Fix issues in code"
             echo "   • Test locally before redeploying"
         else
             echo "❌ CRITICAL: ROLLBACK ALSO FAILED!"
             echo ""
+            echo "📋 Rollback container logs (last 200 lines):"
+            echo "═══════════════════════════════════════════════════════════════"
+            docker logs $SERVICE_NAME --tail=200 2>&1 || echo "   (Could not retrieve logs)"
+            echo "═══════════════════════════════════════════════════════════════"
+            echo ""
             echo "🚨 IMMEDIATE ACTION REQUIRED:"
             echo "   • System may be down"
-            echo "   • Check logs: docker logs $SERVICE_NAME"
+            echo "   • Check container status: docker ps -a | grep $SERVICE_NAME"
             echo "   • Manual intervention needed"
             echo "   • Consider running: ./deploy-manual.sh"
             exit 1
@@ -311,9 +326,14 @@ else
     else
         echo "❌ CRITICAL FAILURE: No previous version available for rollback"
         echo ""
+        echo "📋 Container logs (last 200 lines):"
+        echo "═══════════════════════════════════════════════════════════════"
+        docker logs $SERVICE_NAME --tail=200 2>&1 || echo "   (Could not retrieve logs)"
+        echo "═══════════════════════════════════════════════════════════════"
+        echo ""
         echo "🚨 IMMEDIATE ACTION REQUIRED:"
         echo "   • System is down"
-        echo "   • Review logs: docker logs $SERVICE_NAME --tail=100"
+        echo "   • Check container status: docker ps -a | grep $SERVICE_NAME"
         echo "   • Fix issues and redeploy"
         echo "   • Or restore from backup manually"
         exit 1
