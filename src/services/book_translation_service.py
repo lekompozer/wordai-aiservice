@@ -135,10 +135,10 @@ Return only the JSON object:"""
 
                 # Use Gemini 2.5 Pro for high-quality translation
                 response = await ai_chat_service.chat(
-                    provider=AIProvider.GEMINI_PRO_2,
+                    provider=AIProvider.GEMINI_PRO,
                     messages=messages,
                     temperature=0.3,
-                    max_tokens=16000,
+                    max_tokens=48000,
                 )
 
                 # Clean response (remove markdown code blocks if present)
