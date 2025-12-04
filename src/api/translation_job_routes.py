@@ -130,7 +130,7 @@ async def start_translation_job(
 
         # Count chapters
         db_manager = DBManager()
-        db = db_manager.get_database()
+        db = db_manager.db
         chapters_count = db.book_chapters.count_documents(
             {
                 "book_id": book_id,
