@@ -12,7 +12,6 @@ from src.middleware.firebase_auth import get_current_user
 from src.database.db_manager import DBManager
 from src.services.translation_job_service import TranslationJobService
 from src.services.book_manager import UserBookManager
-from src.services.user_manager import UserManager
 from src.services.points_service import get_points_service
 from src.models.translation_job_models import (
     StartTranslationJobRequest,
@@ -27,26 +26,23 @@ router = APIRouter(
     prefix="/api/v1/books/{book_id}/translate", tags=["Translation Jobs"]
 )
 
+# Initialize DB connection once at module level (avoid creating new connections per request)
+db_manager = DBManager()
+db = db_manager.db
+
+# Initialize services once
+translation_job_service = TranslationJobService(db)
+book_manager_instance = UserBookManager(db)
+
 
 def get_job_service() -> TranslationJobService:
     """Get translation job service instance"""
-    db_manager = DBManager()
-    db = db_manager.db
-    return TranslationJobService(db)
+    return translation_job_service
 
 
 def get_book_manager() -> UserBookManager:
     """Get book manager instance"""
-    db_manager = DBManager()
-    db = db_manager.db
-    return UserBookManager(db)
-
-
-def get_user_manager() -> UserManager:
-    """Get user manager instance"""
-    db_manager = DBManager()
-    db = db_manager.db
-    return UserManager(db)
+    return book_manager_instance
 
 
 def format_job_response(job_data: Dict[str, Any]) -> TranslationJobResponse:
@@ -82,7 +78,6 @@ async def start_translation_job(
     user: dict = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
     book_manager: UserBookManager = Depends(get_book_manager),
-    user_manager: UserManager = Depends(get_user_manager),
 ):
     """
     Start a background translation job for all chapters
