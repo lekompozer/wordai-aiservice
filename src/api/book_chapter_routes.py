@@ -492,7 +492,7 @@ async def get_chapter(
                 chapter["content_html"] = trans.get(
                     "content_html", chapter.get("content_html", "")
                 )
-                
+
                 # Handle background_config for translation
                 # If translation has custom background, use it
                 # Otherwise, fallback to default background (sync from root)
