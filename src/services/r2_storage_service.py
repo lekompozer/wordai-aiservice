@@ -10,6 +10,7 @@ from botocore.exceptions import ClientError
 from datetime import datetime
 import uuid
 import logging
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
