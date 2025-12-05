@@ -648,3 +648,71 @@ class LibraryManager:
         except Exception as e:
             logger.error(f"❌ Error getting library stats: {e}")
             return {"total_files": 0, "total_bytes": 0, "by_category": {}}
+
+    def save_library_file(
+        self,
+        user_id: str,
+        filename: str,
+        file_type: str,
+        category: str,
+        r2_url: str,
+        r2_key: str,
+        file_size: int,
+        mime_type: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Save file to library with specific category (for audio service)
+
+        Args:
+            user_id: Firebase UID
+            filename: Original filename
+            file_type: File type (e.g., "audio")
+            category: Category (e.g., "audio")
+            r2_url: Public R2 URL
+            r2_key: R2 storage key
+            file_size: File size in bytes
+            mime_type: MIME type
+            metadata: Optional metadata (linked_to, voice_settings, etc.)
+
+        Returns:
+            Library file document
+        """
+        try:
+            now = datetime.now(timezone.utc)
+            library_id = f"lib_{uuid.uuid4().hex[:12]}"
+
+            library_doc = {
+                "file_id": library_id,
+                "library_id": library_id,
+                "user_id": user_id,
+                "filename": filename,
+                "original_name": filename,
+                "file_type": file_type,
+                "category": category,
+                "file_size": file_size,
+                "mime_type": mime_type,
+                "r2_key": r2_key,
+                "file_url": r2_url,
+                "r2_url": r2_url,
+                "metadata": metadata or {},
+                "is_deleted": False,
+                "deleted_at": None,
+                "uploaded_at": now,
+                "updated_at": now,
+                "created_at": now,
+            }
+
+            result = self.library_files.insert_one(library_doc)
+
+            if result.inserted_id:
+                logger.info(
+                    f"✅ Library file saved: {library_id} ({category}) for user {user_id}"
+                )
+                return library_doc
+            else:
+                raise Exception("Failed to insert library file")
+
+        except Exception as e:
+            logger.error(f"❌ Error saving library file: {e}")
+            raise

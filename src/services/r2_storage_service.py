@@ -155,6 +155,43 @@ class R2StorageService:
         key = key.lstrip("/")
         return f"{self.public_url}/{key}"
 
+    async def upload_file(
+        self, file_content: bytes, r2_key: str, content_type: str
+    ) -> Dict[str, Any]:
+        """
+        Upload file content directly to R2
+
+        Args:
+            file_content: File binary content
+            r2_key: R2 storage key (path)
+            content_type: MIME type
+
+        Returns:
+            Dict with upload result and public_url
+        """
+        try:
+            # Remove leading slash
+            r2_key = r2_key.lstrip("/")
+
+            # Upload to R2
+            self.s3_client.put_object(
+                Bucket=self.bucket_name,
+                Key=r2_key,
+                Body=file_content,
+                ContentType=content_type,
+            )
+
+            # Generate public URL
+            public_url = self.get_public_url(r2_key)
+
+            logger.info(f"✅ File uploaded to R2: {r2_key}")
+
+            return {"success": True, "r2_key": r2_key, "public_url": public_url}
+
+        except ClientError as e:
+            logger.error(f"❌ Failed to upload file to R2: {e}")
+            raise
+
     def delete_file(self, key: str) -> bool:
         """
         Delete file from R2 storage

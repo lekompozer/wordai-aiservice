@@ -219,6 +219,9 @@ from src.api.book_translation_routes import router as book_translation_router
 # ✅ ADDED: Translation Job API - Background translation jobs with status tracking
 from src.api.translation_job_routes import router as translation_job_router
 
+# ✅ ADDED: Book Chapter Audio API - Audio narration for chapters (upload, TTS, multi-language)
+from src.api.book_chapter_audio_routes import router as book_chapter_audio_router
+
 # ✅ ADDED: Book Cover AI - Generate covers using OpenAI gpt-image-1
 from src.api.book_cover_ai_routes import router as book_cover_ai_router
 
@@ -955,6 +958,12 @@ def create_app() -> FastAPI:
     app.include_router(
         translation_job_router,
         tags=["Translation Jobs", "Background Processing", "Job Status"],
+    )
+
+    # ✅ NEW: Book Chapter Audio API - Audio narration for chapters (upload, TTS, multi-language)
+    app.include_router(
+        book_chapter_audio_router,
+        tags=["Book Audio", "Chapter Audio", "TTS", "Audio Narration"],
     )
 
     # ✅ NEW: Book Cover AI - Generate covers using OpenAI gpt-image-1

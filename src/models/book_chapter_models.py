@@ -196,6 +196,12 @@ class ChapterResponse(BaseModel):
         description="Chapter's own background config (only used if use_book_background=false)",
     )
 
+    # Audio Configuration (NEW)
+    audio_config: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description="Chapter's audio narration config (owner-provided)",
+    )
+
     # Multi-Language Support (NEW)
     default_language: str = Field(
         default="vi", description="Default language of the chapter"
@@ -214,6 +220,10 @@ class ChapterResponse(BaseModel):
     background_translations: Optional[Dict[str, Any]] = Field(
         default_factory=dict,
         description="Custom backgrounds per language: {lang_code: background_config}",
+    )
+    audio_translations: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Audio per language: {lang_code: {audio_url, voice_settings, ...}}",
     )
 
     created_at: datetime
@@ -270,4 +280,53 @@ class TogglePreviewRequest(BaseModel):
 
     is_preview_free: bool = Field(
         description="Set to true to allow free preview on Community Books"
+    )
+
+
+class AudioVoiceSettings(BaseModel):
+    """Voice settings for AI-generated audio"""
+
+    voice_name: str = Field(..., description="Google Cloud TTS voice name")
+    language_code: str = Field(..., description="Language code (e.g., en-US, vi-VN)")
+    gender: Optional[str] = Field(
+        None, description="Voice gender (MALE, FEMALE, NEUTRAL)"
+    )
+    speaking_rate: float = Field(
+        1.0, ge=0.25, le=4.0, description="Speaking rate (0.25-4.0)"
+    )
+    pitch: float = Field(0.0, ge=-20.0, le=20.0, description="Voice pitch (-20 to +20)")
+    volume_gain_db: float = Field(
+        0.0, ge=-96.0, le=16.0, description="Volume gain in dB"
+    )
+
+
+class AudioConfig(BaseModel):
+    """Audio configuration for chapter"""
+
+    enabled: bool = Field(True, description="Audio available for this chapter")
+    audio_url: str = Field(..., description="Public URL to audio file")
+    audio_file_id: str = Field(..., description="Reference to library file")
+    duration_seconds: int = Field(..., ge=0, description="Audio duration in seconds")
+    file_size_bytes: int = Field(..., ge=0, description="Audio file size in bytes")
+    format: str = Field("mp3", description="Audio format (mp3, wav, m4a, ogg)")
+    source_type: str = Field(..., description="user_upload or ai_generated")
+    voice_settings: Optional[AudioVoiceSettings] = Field(
+        None, description="Voice settings for AI audio"
+    )
+    generated_at: Optional[datetime] = Field(
+        None, description="When audio was generated"
+    )
+    generated_by_user_id: Optional[str] = Field(
+        None, description="User who generated the audio"
+    )
+    generation_cost_points: Optional[int] = Field(
+        None, description="Points spent on generation"
+    )
+
+
+class AudioUploadRequest(BaseModel):
+    """Request to upload audio file"""
+
+    language: Optional[str] = Field(
+        None, description="Language code for translation audio"
     )
