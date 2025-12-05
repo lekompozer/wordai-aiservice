@@ -485,7 +485,7 @@ async def duplicate_language_version(
         # Duplicate all chapters
         chapters_updated = 0
         for chapter in chapters:
-            # Get document content if exists
+            # Get content_html: prefer document content, fallback to inline content
             document_id = chapter.get("document_id")
             content_html = ""
 
@@ -493,17 +493,30 @@ async def duplicate_language_version(
                 from src.services.document_manager import DocumentManager
 
                 document_manager = DocumentManager(db)
-                document = document_manager.get_document(document_id)
+                document = document_manager.get_document(document_id, user_id)
                 if document:
                     content_html = document.get("content_html", "")
 
+            # If no document, use inline content_html
+            if not content_html:
+                content_html = chapter.get("content_html", "")
+
+            # Get background_config from chapter
+            background_config = chapter.get("background_config")
+
             # Duplicate chapter metadata & content
             chapter_translations = chapter.get("translations", {})
-            chapter_translations[target_language] = {
+            translation_data = {
                 "title": chapter.get("title", ""),
                 "description": chapter.get("description", ""),
                 "content_html": content_html,  # Duplicate content for manual editing
             }
+
+            # Add background_config if exists
+            if background_config:
+                translation_data["background_config"] = background_config
+
+            chapter_translations[target_language] = translation_data
 
             # Update chapter
             db.book_chapters.update_one(
