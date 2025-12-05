@@ -533,6 +533,10 @@ async def update_chapter(
     book_id: str,
     chapter_id: str,
     chapter_data: ChapterUpdate,
+    language: Optional[str] = Query(
+        None,
+        description="Language code to update translated metadata (e.g., 'en', 'zh'). If not specified, updates default language.",
+    ),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
@@ -540,9 +544,19 @@ async def update_chapter(
 
     **Authentication:** Required (Owner only)
 
+    **Query Parameters:**
+    - `language`: Optional language code (e.g., 'en', 'vi', 'zh')
+      * If specified, updates `translations.{language}.title/description`
+      * If not specified, updates root-level (default language)
+      * Structural changes (order_index, parent_id, is_published) ALWAYS update root-level regardless of language
+
     **Request Body:**
-    - Any fields from ChapterCreate (all optional)
-    - Moving chapter recalculates depth and validates max 3 levels
+    - title: Chapter title (updated in specified language)
+    - description: Chapter description (updated in specified language)
+    - order_index: Position in chapter list (always root-level, ignores language)
+    - parent_id: Parent chapter ID (always root-level, ignores language)
+    - is_published: Publish status (always root-level, ignores language)
+    - slug: URL slug (always root-level, ignores language)
 
     **Validation:**
     - Cannot move chapter to its own descendant (circular reference)
@@ -598,8 +612,26 @@ async def update_chapter(
                     detail=f"Slug '{chapter_data.slug}' already exists in this book",
                 )
 
-        # Update chapter
-        updated_chapter = chapter_manager.update_chapter(chapter_id, chapter_data)
+        # Determine if updating default language or translation
+        default_language = chapter.get(
+            "default_language", book.get("default_language", "vi")
+        )
+        is_translation = language and language != default_language
+
+        if is_translation:
+            # Update translation metadata only (title, description)
+            # Structural fields (order_index, parent_id, etc.) are ignored for translations
+            updated_chapter = chapter_manager.update_chapter_translation_metadata(
+                chapter_id=chapter_id,
+                language=language,
+                title=chapter_data.title,
+                description=chapter_data.description,
+            )
+            message = f"Chapter translation ({language}) metadata updated"
+        else:
+            # Update root-level metadata (default language + structural changes)
+            updated_chapter = chapter_manager.update_chapter(chapter_id, chapter_data)
+            message = "Chapter metadata updated"
 
         if not updated_chapter:
             raise HTTPException(
@@ -607,7 +639,10 @@ async def update_chapter(
                 detail="Chapter not found",
             )
 
-        logger.info(f"✏️ User {user_id} updated chapter: {chapter_id}")
+        logger.info(
+            f"✏️ User {user_id} updated chapter {chapter_id}"
+            + (f" (language: {language})" if is_translation else "")
+        )
         return updated_chapter
 
     except HTTPException:
@@ -973,6 +1008,10 @@ async def reorder_chapters(
 async def bulk_update_chapters(
     book_id: str,
     update_data: ChapterBulkUpdate,
+    language: Optional[str] = Query(
+        None,
+        description="Language code to update translated metadata (e.g., 'en', 'zh'). If not specified, updates default language.",
+    ),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
@@ -980,25 +1019,32 @@ async def bulk_update_chapters(
 
     **Authentication:** Required (Owner only)
 
+    **Query Parameters:**
+    - `language`: Optional language code (e.g., 'en', 'vi', 'zh')
+      * If specified, updates `translations.{language}` for book and chapter titles/descriptions
+      * If not specified, updates root-level (default language)
+      * Structural changes (order, parent, slug) ALWAYS update root-level regardless of language
+
     **Use Case:**
     Frontend displays chapter list → User edits titles, descriptions, reorders, reparents → Submit all changes at once
 
     **Request Body:**
     - updates: Array of chapter updates
       * chapter_id: Required (which chapter to update)
-      * title: Optional (new title)
-      * slug: Optional (new slug, must be unique in book)
-      * description: Optional (new description, max 5000 chars)
-      * parent_id: Optional (new parent, null for root)
-      * order_index: Optional (new position)
+      * title: Optional (new title - updated in specified language)
+      * slug: Optional (new slug - always root-level, ignores language)
+      * description: Optional (new description - updated in specified language)
+      * parent_id: Optional (new parent - always root-level, ignores language)
+      * order_index: Optional (new position - always root-level, ignores language)
     - book_info: Optional book information update
-      * title: Optional (new book title)
-      * slug: Optional (new book slug, auto-generated from title if not provided)
-      * cover_image_url: Optional (new book cover URL)
+      * title: Optional (new book title - updated in specified language)
+      * slug: Optional (new book slug - always root-level, ignores language)
+      * cover_image_url: Optional (new book cover URL - always root-level, ignores language)
 
     **Features:**
     - Update multiple chapters in single request
-    - Update book title, slug, and cover in same request (NEW)
+    - Update book title, slug, and cover in same request
+    - Multi-language support: Update translations when language parameter provided
     - Auto-generate book slug from title if title changed but slug not provided
     - Auto-generate chapter slug from title if title changed but slug not provided
     - Validate slug uniqueness within book (for chapters) and user's books (for book)
@@ -1200,58 +1246,89 @@ async def bulk_update_chapters(
             )  # Convert spaces, colons, dots to hyphens
             return text.strip("-")[:100]
 
+        # Determine if updating default language or translation
+        default_language = book.get("default_language", "vi")
+        is_translation = language and language != default_language
+
         # 4. Update book info if provided (title, slug, and/or cover)
         if update_data.book_info:
-            book_update_fields = {}
+            if is_translation:
+                # Update book translation metadata
+                book_update_fields = {}
 
-            if update_data.book_info.title is not None:
-                book_update_fields["title"] = update_data.book_info.title
-                logger.info(f"📝 Updating book title to: {update_data.book_info.title}")
-
-            # Update slug (or auto-generate from new title)
-            if update_data.book_info.slug is not None:
-                new_book_slug = update_data.book_info.slug
-            elif update_data.book_info.title is not None:
-                # Auto-generate slug from new title
-                new_book_slug = slugify(update_data.book_info.title)
-            else:
-                new_book_slug = None
-
-            if new_book_slug:
-                # Check uniqueness (within user's books, excluding current book)
-                existing_book = db.online_books.find_one(
-                    {
-                        "user_id": user_id,
-                        "slug": new_book_slug,
-                        "book_id": {"$ne": book_id},
-                    }
-                )
-
-                if existing_book:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Book slug '{new_book_slug}' already exists in your books",
+                if update_data.book_info.title is not None:
+                    book_update_fields[f"translations.{language}.title"] = (
+                        update_data.book_info.title
+                    )
+                    logger.info(
+                        f"📝 Updating book title ({language}): {update_data.book_info.title}"
                     )
 
-                book_update_fields["slug"] = new_book_slug
-                logger.info(f"🔗 Updating book slug to: {new_book_slug}")
+                # Note: slug and cover_image_url are always root-level (structural), ignore for translations
 
-            if update_data.book_info.cover_image_url is not None:
-                book_update_fields["cover_image_url"] = (
-                    update_data.book_info.cover_image_url
-                )
-                logger.info(
-                    f"🖼️  Updating book cover to: {update_data.book_info.cover_image_url}"
-                )
+                if book_update_fields:
+                    book_update_fields[f"translations.{language}.updated_at"] = (
+                        datetime.now(timezone.utc)
+                    )
+                    book_update_fields["updated_at"] = datetime.now(timezone.utc)
+                    db.online_books.update_one(
+                        {"book_id": book_id}, {"$set": book_update_fields}
+                    )
+                    logger.info(f"✅ Updated book {book_id} translation ({language})")
+            else:
+                # Update root-level (default language)
+                book_update_fields = {}
 
-            if book_update_fields:
-                book_update_fields["updated_at"] = datetime.now(timezone.utc)
-                db.online_books.update_one(
-                    {"book_id": book_id}, {"$set": book_update_fields}
-                )
-                logger.info(
-                    f"✅ Updated book {book_id} fields: {list(book_update_fields.keys())}"
-                )
+                if update_data.book_info.title is not None:
+                    book_update_fields["title"] = update_data.book_info.title
+                    logger.info(
+                        f"📝 Updating book title to: {update_data.book_info.title}"
+                    )
+
+                # Update slug (or auto-generate from new title)
+                if update_data.book_info.slug is not None:
+                    new_book_slug = update_data.book_info.slug
+                elif update_data.book_info.title is not None:
+                    # Auto-generate slug from new title
+                    new_book_slug = slugify(update_data.book_info.title)
+                else:
+                    new_book_slug = None
+
+                if new_book_slug:
+                    # Check uniqueness (within user's books, excluding current book)
+                    existing_book = db.online_books.find_one(
+                        {
+                            "user_id": user_id,
+                            "slug": new_book_slug,
+                            "book_id": {"$ne": book_id},
+                        }
+                    )
+
+                    if existing_book:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Book slug '{new_book_slug}' already exists in your books",
+                        )
+
+                    book_update_fields["slug"] = new_book_slug
+                    logger.info(f"🔗 Updating book slug to: {new_book_slug}")
+
+                if update_data.book_info.cover_image_url is not None:
+                    book_update_fields["cover_image_url"] = (
+                        update_data.book_info.cover_image_url
+                    )
+                    logger.info(
+                        f"🖼️  Updating book cover to: {update_data.book_info.cover_image_url}"
+                    )
+
+                if book_update_fields:
+                    book_update_fields["updated_at"] = datetime.now(timezone.utc)
+                    db.online_books.update_one(
+                        {"book_id": book_id}, {"$set": book_update_fields}
+                    )
+                    logger.info(
+                        f"✅ Updated book {book_id} fields: {list(book_update_fields.keys())}"
+                    )
 
         # 5. Process each chapter update
         updated_chapters = []
@@ -1261,99 +1338,132 @@ async def bulk_update_chapters(
             chapter = next(c for c in chapters if c["chapter_id"] == update.chapter_id)
             update_fields = {}
 
-            # Update title
-            if update.title is not None:
-                update_fields["title"] = update.title
-                update_fields["updated_at"] = datetime.utcnow()
+            if is_translation:
+                # Update translation metadata only (title, description)
+                # Structural fields (slug, order, parent) are ignored
 
-            # Update description
-            if update.description is not None:
-                update_fields["description"] = update.description
-                update_fields["updated_at"] = datetime.utcnow()
+                if update.title is not None:
+                    update_fields[f"translations.{language}.title"] = update.title
 
-            # Update slug (or auto-generate from new title)
-            if update.slug is not None:
-                new_slug = update.slug
-            elif update.title is not None:
-                # Auto-generate slug from new title
-                new_slug = slugify(update.title)
+                if update.description is not None:
+                    update_fields[f"translations.{language}.description"] = (
+                        update.description
+                    )
+
+                if update_fields:
+                    update_fields[f"translations.{language}.updated_at"] = (
+                        datetime.utcnow()
+                    )
+                    update_fields["updated_at"] = datetime.utcnow()
+
+                    db.book_chapters.update_one(
+                        {"chapter_id": update.chapter_id}, {"$set": update_fields}
+                    )
+
+                    logger.info(
+                        f"✅ Updated chapter {update.chapter_id} translation ({language}): {list(update_fields.keys())}"
+                    )
             else:
-                new_slug = None
+                # Update root-level (default language + structural changes)
 
-            if new_slug:
-                # Check uniqueness (within book, excluding current chapter)
-                existing_slug = db.book_chapters.find_one(
-                    {
-                        "book_id": book_id,
-                        "slug": new_slug,
-                        "chapter_id": {"$ne": update.chapter_id},
-                    }
-                )
+                # Update title
+                if update.title is not None:
+                    update_fields["title"] = update.title
+                    update_fields["updated_at"] = datetime.utcnow()
 
-                # Also check against other updates in this batch
-                if new_slug in slug_map and slug_map[new_slug] != update.chapter_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Duplicate slug in update batch: '{new_slug}'",
+                # Update description
+                if update.description is not None:
+                    update_fields["description"] = update.description
+                    update_fields["updated_at"] = datetime.utcnow()
+
+                # Update slug (or auto-generate from new title)
+                if update.slug is not None:
+                    new_slug = update.slug
+                elif update.title is not None:
+                    # Auto-generate slug from new title
+                    new_slug = slugify(update.title)
+                else:
+                    new_slug = None
+
+                if new_slug:
+                    # Check uniqueness (within book, excluding current chapter)
+                    existing_slug = db.book_chapters.find_one(
+                        {
+                            "book_id": book_id,
+                            "slug": new_slug,
+                            "chapter_id": {"$ne": update.chapter_id},
+                        }
                     )
 
-                if existing_slug:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=f"Slug '{new_slug}' already exists in this book",
-                    )
-
-                update_fields["slug"] = new_slug
-                slug_map[new_slug] = update.chapter_id
-
-            # Update parent_id
-            if update.parent_id is not None:
-                # Validate not circular (chapter can't be parent of itself)
-                if update.parent_id == update.chapter_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Chapter {update.chapter_id} cannot be its own parent",
-                    )
-
-                # Check parent exists
-                if update.parent_id:  # Not null
-                    parent = db.book_chapters.find_one(
-                        {"chapter_id": update.parent_id, "book_id": book_id}
-                    )
-                    if not parent:
+                    # Also check against other updates in this batch
+                    if new_slug in slug_map and slug_map[new_slug] != update.chapter_id:
                         raise HTTPException(
-                            status_code=status.HTTP_404_NOT_FOUND,
-                            detail=f"Parent chapter {update.parent_id} not found",
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Duplicate slug in update batch: '{new_slug}'",
                         )
 
-                    # Calculate new depth
-                    parent_depth = parent.get("depth", 0)
-                    new_depth = parent_depth + 1
+                    if existing_slug:
+                        raise HTTPException(
+                            status_code=status.HTTP_409_CONFLICT,
+                            detail=f"Slug '{new_slug}' already exists in this book",
+                        )
 
-                    if new_depth > 2:  # Max depth is 2 (0, 1, 2)
+                    update_fields["slug"] = new_slug
+                    slug_map[new_slug] = update.chapter_id
+
+                # Update parent_id
+                if update.parent_id is not None:
+                    # Validate not circular (chapter can't be parent of itself)
+                    if update.parent_id == update.chapter_id:
                         raise HTTPException(
                             status_code=status.HTTP_400_BAD_REQUEST,
-                            detail=f"Max nesting depth exceeded (max 3 levels). Parent depth: {parent_depth}",
+                            detail=f"Chapter {update.chapter_id} cannot be its own parent",
                         )
 
-                    update_fields["parent_id"] = update.parent_id
-                    update_fields["depth"] = new_depth
-                else:
-                    # Setting parent to null (root level)
-                    update_fields["parent_id"] = None
-                    update_fields["depth"] = 0
+                    # Check parent exists
+                    if update.parent_id:  # Not null
+                        parent = db.book_chapters.find_one(
+                            {"chapter_id": update.parent_id, "book_id": book_id}
+                        )
+                        if not parent:
+                            raise HTTPException(
+                                status_code=status.HTTP_404_NOT_FOUND,
+                                detail=f"Parent chapter {update.parent_id} not found",
+                            )
 
-            # Update order_index
-            if update.order_index is not None:
-                update_fields["order_index"] = update.order_index
+                        # Calculate new depth
+                        parent_depth = parent.get("depth", 0)
+                        new_depth = parent_depth + 1
 
-            # Apply updates
+                        if new_depth > 2:  # Max depth is 2 (0, 1, 2)
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Max nesting depth exceeded (max 3 levels). Parent depth: {parent_depth}",
+                            )
+
+                        update_fields["parent_id"] = update.parent_id
+                        update_fields["depth"] = new_depth
+                    else:
+                        # Setting parent to null (root level)
+                        update_fields["parent_id"] = None
+                        update_fields["depth"] = 0
+
+                # Update order_index
+                if update.order_index is not None:
+                    update_fields["order_index"] = update.order_index
+
+                # Apply updates
+                if update_fields:
+                    db.book_chapters.update_one(
+                        {"chapter_id": update.chapter_id}, {"$set": update_fields}
+                    )
+
+                    logger.info(
+                        f"✅ Updated chapter {update.chapter_id}: {list(update_fields.keys())}"
+                    )
+
+            # Get updated chapter for response
             if update_fields:
-                db.book_chapters.update_one(
-                    {"chapter_id": update.chapter_id}, {"$set": update_fields}
-                )
-
-                # Get updated chapter
                 updated_chapter = db.book_chapters.find_one(
                     {"chapter_id": update.chapter_id}
                 )
@@ -1365,19 +1475,18 @@ async def bulk_update_chapters(
 
                 updated_chapters.append(chapter_dict)
 
-                logger.info(
-                    f"✅ Updated chapter {update.chapter_id}: {list(update_fields.keys())}"
-                )
-
         logger.info(
             f"✅ Bulk updated {len(updated_chapters)} chapters in book {book_id}"
+            + (f" (language: {language})" if is_translation else "")
         )
 
         return {
             "success": True,
             "updated_count": len(updated_chapters),
             "chapters": updated_chapters,
-            "message": f"Successfully updated {len(updated_chapters)} chapters",
+            "language": language if is_translation else default_language,
+            "message": f"Successfully updated {len(updated_chapters)} chapters"
+            + (f" in {language}" if is_translation else ""),
         }
 
     except HTTPException:

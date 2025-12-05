@@ -905,6 +905,10 @@ async def get_book(
 async def update_book(
     book_id: str,
     guide_data: BookUpdate,
+    language: Optional[str] = Query(
+        None,
+        description="Language code to update translated metadata (e.g., 'en', 'zh'). If not specified, updates default language.",
+    ),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
@@ -912,8 +916,15 @@ async def update_book(
 
     **Authentication:** Required (Owner only)
 
+    **Query Parameters:**
+    - `language`: Optional language code (e.g., 'en', 'vi', 'zh')
+      * If specified, updates `translations.{language}.title/description`
+      * If not specified, updates root-level (default language)
+
     **Request Body:**
-    - Any fields from BookCreate (all optional)
+    - title: Book title (updated in specified language)
+    - description: Book description (updated in specified language)
+    - Other fields (slug, visibility, etc.) always update root-level regardless of language
 
     **Returns:**
     - 200: Guide updated successfully
@@ -940,8 +951,33 @@ async def update_book(
                 detail="Only book owner can update book",
             )
 
-        # Update book
-        updated_book = book_manager.update_book(book_id, guide_data)
+        # Determine if updating default language or translation
+        default_language = book.get("default_language", "vi")
+        is_translation = language and language != default_language
+
+        if is_translation:
+            # Update translation metadata only (title, description)
+            updated_book = book_manager.update_book_translation_metadata(
+                book_id=book_id,
+                language=language,
+                title=(
+                    guide_data.title
+                    if hasattr(guide_data, "title") and guide_data.title
+                    else None
+                ),
+                description=(
+                    guide_data.description
+                    if hasattr(guide_data, "description") and guide_data.description
+                    else None
+                ),
+            )
+            logger.info(
+                f"✏️ User {user_id} updated book {book_id} (language: {language})"
+            )
+        else:
+            # Update root-level metadata (default language)
+            updated_book = book_manager.update_book(book_id, guide_data)
+            logger.info(f"✏️ User {user_id} updated book: {book_id}")
 
         if not updated_book:
             raise HTTPException(
@@ -949,7 +985,6 @@ async def update_book(
                 detail="Book not found",
             )
 
-        logger.info(f"✏️ User {user_id} updated book: {book_id}")
         return updated_book
 
     except HTTPException:

@@ -578,6 +578,67 @@ class GuideBookBookChapterManager:
             logger.warning(f"⚠️ Chapter not found: {chapter_id}")
             return None
 
+    def update_chapter_translation_metadata(
+        self,
+        chapter_id: str,
+        language: str,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update chapter translation metadata (title, description only)
+
+        Args:
+            chapter_id: Chapter UUID
+            language: Language code (e.g., 'en', 'zh')
+            title: Translated title (optional)
+            description: Translated description (optional)
+
+        Returns:
+            Updated chapter document or None
+        """
+        chapter = self.chapters_collection.find_one(
+            {"chapter_id": chapter_id}, {"_id": 0, "book_id": 1}
+        )
+
+        if not chapter:
+            logger.warning(f"⚠️ Chapter not found: {chapter_id}")
+            return None
+
+        now = datetime.utcnow()
+        translation_update = {}
+
+        if title is not None:
+            translation_update[f"translations.{language}.title"] = title
+
+        if description is not None:
+            translation_update[f"translations.{language}.description"] = description
+
+        if not translation_update:
+            # No fields to update
+            return self.chapters_collection.find_one(
+                {"chapter_id": chapter_id}, {"_id": 0}
+            )
+
+        translation_update[f"translations.{language}.updated_at"] = now
+        translation_update["updated_at"] = now
+
+        result = self.chapters_collection.find_one_and_update(
+            {"chapter_id": chapter_id},
+            {"$set": translation_update},
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if result:
+            # Update parent book timestamp
+            self.book_manager.touch_book(chapter["book_id"])
+            logger.info(
+                f"✅ Updated chapter translation ({language}) metadata: {chapter_id}"
+            )
+            return result
+        else:
+            return None
+
     def update_chapter_content(
         self,
         chapter_id: str,

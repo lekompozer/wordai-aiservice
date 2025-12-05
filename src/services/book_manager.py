@@ -294,6 +294,54 @@ class UserBookManager:
             logger.warning(f"⚠️ Book not found: {book_id}")
             return None
 
+    def update_book_translation_metadata(
+        self,
+        book_id: str,
+        language: str,
+        title: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update book translation metadata (title, description only)
+
+        Args:
+            book_id: Book UUID
+            language: Language code (e.g., 'en', 'zh')
+            title: Translated title (optional)
+            description: Translated description (optional)
+
+        Returns:
+            Updated book document or None
+        """
+        now = datetime.utcnow()
+        translation_update = {}
+
+        if title is not None:
+            translation_update[f"translations.{language}.title"] = title
+
+        if description is not None:
+            translation_update[f"translations.{language}.description"] = description
+
+        if not translation_update:
+            # No fields to update, return current book
+            return self.books_collection.find_one({"book_id": book_id}, {"_id": 0})
+
+        translation_update[f"translations.{language}.updated_at"] = now
+        translation_update["updated_at"] = now
+
+        result = self.books_collection.find_one_and_update(
+            {"book_id": book_id},
+            {"$set": translation_update},
+            return_document=ReturnDocument.AFTER,
+        )
+
+        if result:
+            logger.info(f"✅ Updated book translation ({language}) metadata: {book_id}")
+            return result
+        else:
+            logger.warning(f"⚠️ Book not found: {book_id}")
+            return None
+
     def touch_book(self, book_id: str) -> bool:
         """
         Update the book's updated_at timestamp to current time.
