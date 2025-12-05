@@ -1264,6 +1264,14 @@ async def bulk_update_chapters(
                         f"📝 Updating book title ({language}): {update_data.book_info.title}"
                     )
 
+                if update_data.book_info.description is not None:
+                    book_update_fields[f"translations.{language}.description"] = (
+                        update_data.book_info.description
+                    )
+                    logger.info(
+                        f"📝 Updating book description ({language}): {len(update_data.book_info.description)} chars"
+                    )
+
                 # Note: slug and cover_image_url are always root-level (structural), ignore for translations
 
                 if book_update_fields:
@@ -1283,6 +1291,14 @@ async def bulk_update_chapters(
                     book_update_fields["title"] = update_data.book_info.title
                     logger.info(
                         f"📝 Updating book title to: {update_data.book_info.title}"
+                    )
+
+                if update_data.book_info.description is not None:
+                    book_update_fields["description"] = (
+                        update_data.book_info.description
+                    )
+                    logger.info(
+                        f"📝 Updating book description to: {len(update_data.book_info.description)} chars"
                     )
 
                 # Update slug (or auto-generate from new title)
