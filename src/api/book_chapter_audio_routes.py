@@ -22,7 +22,7 @@ from src.services.library_manager import LibraryManager
 from src.services.book_manager import UserBookManager
 from src.services.book_permission_manager import BookPermissionManager
 from src.services.google_tts_service import GoogleTTSService
-from src.services.subscription_manager import SubscriptionManager
+from src.services.points_service import PointsService
 
 logger = logging.getLogger("chatbot")
 
@@ -43,7 +43,7 @@ audio_service = AudioService(
 book_manager = UserBookManager(db)
 permission_manager = BookPermissionManager(db)
 google_tts_service = GoogleTTSService()
-subscription_manager = SubscriptionManager(db)
+points_service = PointsService()
 
 
 def get_audio_service() -> AudioService:
@@ -522,11 +522,17 @@ async def generate_audio_from_text(
         audio_svc.save_audio_to_chapter(chapter_id, audio_config, language)
 
         # 6. Deduct points
-        subscription_manager.deduct_user_points(user_id, AUDIO_GENERATION_COST)
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=AUDIO_GENERATION_COST,
+            service="audio_generation",
+            resource_id=chapter_id,
+            description=f"Generate audio for chapter {chapter_id}",
+        )
 
         # Get updated balance
-        user_data = db.users.find_one({"uid": user_id})
-        remaining_points = user_data.get("points", 0) if user_data else 0
+        balance = await points_service.get_points_balance(user_id)
+        remaining_points = balance.get("points_remaining", 0)
 
         logger.info(
             f"✅ Audio generated for chapter {chapter_id}, cost={AUDIO_GENERATION_COST} points, remaining={remaining_points}"
