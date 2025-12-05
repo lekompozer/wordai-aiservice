@@ -552,3 +552,121 @@ async def duplicate_language_version(
     except Exception as e:
         logger.error(f"❌ Failed to duplicate language version: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/{language}",
+    status_code=200,
+    summary="Delete translation for a specific language",
+)
+async def delete_translation(
+    book_id: str,
+    language: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    book_manager: UserBookManager = Depends(get_book_manager),
+):
+    """
+    **Delete all translations for a specific language**
+
+    Removes:
+    - Book title & description translation
+    - All chapter title, description & content_html translations
+    - Background config translations (if any)
+    - Language from available_languages list
+
+    **Use Case:** Remove unwanted language version or reset translation
+
+    **Authentication:** Required (Owner only)
+
+    **Path Parameters:**
+    - `language`: Language code to delete (e.g., "en", "zh-CN")
+
+    **Returns:**
+    - 200: Translation deleted successfully
+    - 400: Cannot delete default language
+    - 403: Not book owner
+    - 404: Book not found or language doesn't exist
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Validate language
+        if language not in SUPPORTED_LANGUAGES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Language '{language}' is not supported. Supported: {', '.join(SUPPORTED_LANGUAGES.keys())}",
+            )
+
+        # Get book
+        book = book_manager.get_book(book_id)
+        if not book:
+            raise HTTPException(status_code=404, detail="Book not found")
+
+        # Check ownership
+        if book.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only book owner can delete translations",
+            )
+
+        # Check default language
+        default_language = book.get("default_language", "vi")
+        if language == default_language:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot delete default language '{default_language}'. Change default language first.",
+            )
+
+        # Check if translation exists
+        available_languages = book.get("available_languages", [default_language])
+        if language not in available_languages:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Translation for language '{language}' does not exist",
+            )
+
+        # Remove translation from book
+        db.online_books.update_one(
+            {"book_id": book_id},
+            {
+                "$unset": {f"translations.{language}": ""},
+                "$pull": {"available_languages": language},
+            },
+        )
+
+        # Get all chapters
+        chapters = list(
+            db.book_chapters.find({"book_id": book_id, "is_deleted": {"$ne": True}})
+        )
+
+        # Remove translation from all chapters
+        chapters_updated = 0
+        for chapter in chapters:
+            result = db.book_chapters.update_one(
+                {"chapter_id": chapter["chapter_id"]},
+                {
+                    "$unset": {f"translations.{language}": ""},
+                    "$pull": {"available_languages": language},
+                },
+            )
+            if result.modified_count > 0:
+                chapters_updated += 1
+
+        logger.info(
+            f"🗑️ User {user_id} deleted translation {language} from book {book_id}: "
+            f"{chapters_updated} chapters cleaned"
+        )
+
+        return {
+            "success": True,
+            "book_id": book_id,
+            "language_deleted": language,
+            "chapters_cleaned": chapters_updated,
+            "message": f"Translation for '{language}' deleted successfully.",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete translation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

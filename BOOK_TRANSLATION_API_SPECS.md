@@ -407,72 +407,180 @@ Sets a custom background configuration for a specific language version of a book
 
 ### 5. Delete Translation
 
-Removes a specific language translation from a book and all its chapters.
+Removes a specific language translation from a book and all its chapters while preserving all other translations.
 
-**Endpoint:** `DELETE /api/v1/books/{book_id}/translations/{language}`
+**Endpoint:** `DELETE /api/v1/books/{book_id}/translate/{language}`
 
 **Path Parameters:**
 - `book_id` (string, required): The unique identifier of the book
-- `language` (string, required): Language code from supported languages list
+- `language` (string, required): Language code to delete from supported languages list
+
+**What Gets Deleted:**
+- Book title and description translation for specified language
+- All chapter titles, descriptions, and content_html translations for specified language
+- Custom background_config for specified language (if customized)
+- Language code removed from available_languages array
+
+**What Gets Preserved:**
+- All other language translations remain intact
+- Default language content unchanged
+- Other languages' custom backgrounds preserved
+- Root-level fields (slugs, structure, default content) unchanged
 
 **Response:** `200 OK`
 ```json
 {
   "success": true,
   "book_id": "675042a31d364fd60986bfe5",
-  "chapter_id": null,
   "language_deleted": "vi",
-  "remaining_languages": ["en", "zh-CN"],
-  "message": "Translation for vi deleted successfully (6 items updated)"
+  "chapters_cleaned": 25,
+  "message": "Translation for 'vi' deleted successfully."
 }
 ```
 
 **Response Fields:**
 - `success` (boolean): Indicates if deletion was successful
-- `book_id` (string|null): ID of the book
-- `chapter_id` (string|null): ID of the chapter (null for book deletions)
+- `book_id` (string): ID of the book
 - `language_deleted` (string): Language code that was deleted
-- `remaining_languages` (array): List of language codes still available after deletion
-- `message` (string): Success message with language code and count of items updated
+- `chapters_cleaned` (integer): Number of chapters that had translations removed
+- `message` (string): Success message confirming deletion
 
 **Error Responses:**
 
 `400 Bad Request` - Cannot delete default language:
 ```json
 {
-  "detail": "Cannot delete the default language"
+  "detail": "Cannot delete default language 'en'. Change default language first."
 }
 ```
 
 `400 Bad Request` - Invalid language code:
 ```json
 {
-  "detail": "Language 'xyz' is not supported"
+  "detail": "Language 'xyz' is not supported. Supported: en, vi, zh-CN, ..."
 }
 ```
 
-`404 Not Found` - Book not found or translation doesn't exist:
+`404 Not Found` - Book not found:
 ```json
 {
   "detail": "Book not found"
 }
 ```
+
+`404 Not Found` - Translation doesn't exist:
 ```json
 {
   "detail": "Translation for language 'vi' does not exist"
 }
 ```
 
-`403 Forbidden` - No access permission:
+`403 Forbidden` - Not book owner:
 ```json
 {
-  "detail": "You don't have access to this book"
+  "detail": "Only book owner can delete translations"
 }
 ```
 
 ---
 
-### 6. Get Book with Language (Phase 1)
+### 6. Duplicate Language Version (Manual)
+
+Creates a new language version by duplicating existing content without AI translation. Free operation for manual editing.
+
+**Endpoint:** `POST /api/v1/books/{book_id}/translate/duplicate`
+
+**Path Parameters:**
+- `book_id` (string, required): The unique identifier of the book
+
+**Request Body:**
+```json
+{
+  "target_language": "zh-CN"
+}
+```
+
+**Request Fields:**
+- `target_language` (string, required): Target language code to create
+
+**What Gets Duplicated:**
+- Book title and description copied from default language
+- All chapter titles and descriptions copied from default language
+- All chapter content_html copied from documents or inline content
+- Custom background_config copied from default language to translation
+
+**What Stays Unchanged:**
+- Book and chapter slugs remain the same
+- Chapter structure and order preserved
+- Document references unchanged
+- Publishing status unchanged
+
+**Response:** `200 OK`
+```json
+{
+  "success": true,
+  "book_id": "675042a31d364fd60986bfe5",
+  "target_language": "zh-CN",
+  "source_language": "vi",
+  "chapters_duplicated": 25,
+  "total_cost_points": 0,
+  "message": "Content duplicated to zh-CN. Ready for manual editing."
+}
+```
+
+**Response Fields:**
+- `success` (boolean): Indicates if duplication was successful
+- `book_id` (string): ID of the book
+- `target_language` (string): Language code created
+- `source_language` (string): Default language used as source
+- `chapters_duplicated` (integer): Number of chapters duplicated
+- `total_cost_points` (integer): Always 0 (FREE operation)
+- `message` (string): Success message
+
+**Points Cost:**
+- FREE (0 points) - No AI translation involved
+- User manually edits duplicated content
+
+**Error Responses:**
+
+`400 Bad Request` - Invalid language code:
+```json
+{
+  "detail": "Language 'xyz' is not supported. Supported: en, vi, zh-CN, ..."
+}
+```
+
+`400 Bad Request` - Translation already exists:
+```json
+{
+  "detail": "Translation for language 'zh-CN' already exists"
+}
+```
+
+`400 Bad Request` - No chapters to duplicate:
+```json
+{
+  "detail": "Book has no chapters to duplicate"
+}
+```
+
+`404 Not Found` - Book not found:
+```json
+{
+  "detail": "Book not found"
+}
+```
+
+`403 Forbidden` - Not book owner:
+```json
+{
+  "detail": "Only book owner can duplicate language versions"
+}
+```
+
+---
+
+### 7. Get Book with Language (Phase 1)
 
 **NEW:** Retrieve book metadata in a specific language. Returns translated title/description if available.
 
