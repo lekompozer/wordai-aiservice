@@ -438,3 +438,44 @@ class GuideBookBookPermissionManager:
         if deleted_count > 0:
             logger.info(f"🗑️ Cleaned up {deleted_count} expired permissions")
         return deleted_count
+
+    def check_user_book_access(self, user_id: str, book_id: str) -> bool:
+        """
+        Check if user has access to book (via purchase or permission)
+        
+        Args:
+            user_id: User's Firebase UID
+            book_id: Book ID
+            
+        Returns:
+            True if user has access, False otherwise
+        """
+        # Check if user is owner
+        book = self.db.online_books.find_one({"book_id": book_id})
+        if book and book.get("user_id") == user_id:
+            return True
+        
+        # Check book purchases
+        purchase = self.db.book_purchases.find_one({
+            "user_id": user_id,
+            "book_id": book_id,
+            "purchase_type": {"$in": ["one_time", "forever"]}
+        })
+        
+        if purchase:
+            # For one_time, check expiry
+            if purchase.get("purchase_type") == "one_time":
+                expires_at = purchase.get("access_expires_at")
+                if expires_at and expires_at > datetime.utcnow():
+                    return True
+            else:
+                # Forever access
+                return True
+        
+        # Check book permissions
+        permission = self.check_permission(book_id, user_id)
+        return permission is not None
+
+
+# Alias for backwards compatibility
+BookPermissionManager = GuideBookBookPermissionManager
