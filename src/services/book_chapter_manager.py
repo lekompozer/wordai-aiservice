@@ -673,6 +673,108 @@ class GuideBookBookChapterManager:
         else:
             raise ValueError(f"Unknown content_source: {content_source}")
 
+    def update_chapter_translation(
+        self,
+        chapter_id: str,
+        language: str,
+        content_html: str,
+        content_json: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """
+        Update chapter translation content (saves to translations.{language})
+
+        Args:
+            chapter_id: Chapter UUID
+            language: Language code (e.g., 'en', 'zh')
+            content_html: Translated HTML content
+            content_json: Optional translated JSON content (TipTap format)
+
+        Returns:
+            True if updated successfully
+
+        Raises:
+            ValueError: If chapter not found or invalid content_source
+        """
+        # Get chapter to check content_source
+        chapter = self.chapters_collection.find_one(
+            {"chapter_id": chapter_id},
+            {"_id": 0, "content_source": 1, "document_id": 1, "book_id": 1},
+        )
+
+        if not chapter:
+            raise ValueError(f"Chapter not found: {chapter_id}")
+
+        content_source = chapter.get("content_source", "inline")
+        now = datetime.utcnow()
+
+        # Build translation update object
+        translation_update = {
+            f"translations.{language}.content_html": content_html,
+            f"translations.{language}.updated_at": now,
+        }
+
+        if content_json:
+            translation_update[f"translations.{language}.content_json"] = content_json
+
+        if content_source == "inline":
+            # Update translation in chapter document
+            result = self.chapters_collection.update_one(
+                {"chapter_id": chapter_id},
+                {
+                    "$set": {
+                        **translation_update,
+                        "updated_at": now,
+                    }
+                },
+            )
+
+            if result.modified_count > 0:
+                # Update parent book timestamp
+                self.book_manager.touch_book(chapter["book_id"])
+                logger.info(
+                    f"✅ Updated chapter translation ({language}): {chapter_id} "
+                    f"({len(content_html)} chars)"
+                )
+                return True
+            return False
+
+        elif content_source == "document":
+            # Update translation in linked document
+            document_id = chapter.get("document_id")
+            if not document_id:
+                raise ValueError(
+                    f"Chapter {chapter_id} has content_source='document' but no document_id"
+                )
+
+            result = self.db["documents"].update_one(
+                {"document_id": document_id},
+                {
+                    "$set": {
+                        **translation_update,
+                        "updated_at": now,
+                    }
+                },
+            )
+
+            if result.modified_count > 0:
+                logger.info(
+                    f"✅ Updated document translation ({language}) for chapter {chapter_id}: "
+                    f"document {document_id} ({len(content_html)} chars)"
+                )
+
+                # Also update chapter's updated_at timestamp
+                self.chapters_collection.update_one(
+                    {"chapter_id": chapter_id}, {"$set": {"updated_at": now}}
+                )
+
+                # Update parent book timestamp
+                self.book_manager.touch_book(chapter["book_id"])
+                return True
+            return False
+
+        else:
+            raise ValueError(f"Unknown content_source: {content_source}")
+
     def delete_chapter_cascade(self, chapter_id: str) -> List[str]:
         """
         Delete chapter and all descendants recursively

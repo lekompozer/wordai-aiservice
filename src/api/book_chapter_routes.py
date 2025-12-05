@@ -807,6 +807,10 @@ async def update_chapter_content(
     book_id: str,
     chapter_id: str,
     content_data: ChapterContentUpdate,
+    language: Optional[str] = Query(
+        None,
+        description="Language code to save translated content (e.g., 'en', 'zh'). If not specified, updates default language content.",
+    ),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
@@ -815,8 +819,16 @@ async def update_chapter_content(
     **Authentication:** Required (Owner only)
 
     **Content Storage:**
-    - **Inline chapters** (`content_source='inline'`): Updates `book_chapters.content_html`
-    - **Document-linked chapters** (`content_source='document'`): Updates `documents.content_html`
+    - **Default language** (no language parameter): Updates root-level `content_html`
+    - **Translated content** (with language parameter): Updates `translations.{lang}.content_html`
+    - **Inline chapters** (`content_source='inline'`): Updates `book_chapters` collection
+    - **Document-linked chapters** (`content_source='document'`): Updates `documents` collection
+
+    **Query Parameters:**
+    - `language`: Optional language code (e.g., 'en', 'vi', 'zh')
+      * If specified, saves content to `translations.{language}.content_html`
+      * If not specified, saves to root-level `content_html` (default language)
+      * Enables separate editing for each language version
 
     **Request Body:**
     - `content_html`: HTML content (required)
@@ -842,12 +854,27 @@ async def update_chapter_content(
                 detail="Book not found or access denied",
             )
 
-        # Update chapter content (handles both inline and document-linked)
-        success = chapter_manager.update_chapter_content(
-            chapter_id=chapter_id,
-            content_html=content_data.content_html,
-            content_json=content_data.content_json,
-        )
+        # Determine if saving to default language or translation
+        default_language = book.get("default_language", "vi")
+        is_translation = language and language != default_language
+
+        if is_translation:
+            # Save to translations.{language}.content_html
+            success = chapter_manager.update_chapter_translation(
+                chapter_id=chapter_id,
+                language=language,
+                content_html=content_data.content_html,
+                content_json=content_data.content_json,
+            )
+            message = f"Chapter translation ({language}) updated successfully"
+        else:
+            # Save to root-level content_html (default language)
+            success = chapter_manager.update_chapter_content(
+                chapter_id=chapter_id,
+                content_html=content_data.content_html,
+                content_json=content_data.content_json,
+            )
+            message = "Chapter content updated successfully"
 
         if not success:
             raise HTTPException(
@@ -857,8 +884,9 @@ async def update_chapter_content(
 
         return {
             "success": True,
-            "message": "Chapter content updated successfully",
+            "message": message,
             "chapter_id": chapter_id,
+            "language": language if is_translation else default_language,
             "content_length": len(content_data.content_html),
         }
 
