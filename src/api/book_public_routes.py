@@ -827,10 +827,24 @@ async def list_community_books(
 
 
 def _build_book_preview_response(
-    book: Dict[str, Any], current_user: Optional[Dict[str, Any]]
+    book: Dict[str, Any],
+    current_user: Optional[Dict[str, Any]],
+    language: Optional[str] = None,
 ) -> BookPreviewResponse:
     """Helper to build book preview response from book document"""
     book_id = book["book_id"]
+
+    # Apply book-level translation if language specified
+    default_language = book.get("default_language", "vi")
+    book_title = book["title"]
+    book_description = book.get("description", "")
+
+    if language and language != default_language:
+        book_translations = book.get("translations", {})
+        if language in book_translations:
+            trans = book_translations[language]
+            book_title = trans.get("title", book_title)
+            book_description = trans.get("description", book_description)
 
     # Get author info (primary author)
     authors_list = book.get("authors", [])
@@ -866,10 +880,19 @@ def _build_book_preview_response(
 
     chapters = []
     for chapter in chapters_cursor:
+        chapter_title = chapter["title"]
+
+        # Apply chapter-level translation if language specified
+        if language and language != default_language:
+            chapter_translations = chapter.get("translations", {})
+            if language in chapter_translations:
+                trans = chapter_translations[language]
+                chapter_title = trans.get("title", chapter_title)
+
         chapters.append(
             PreviewChapterItem(
                 chapter_id=chapter["chapter_id"],
-                title=chapter["title"],
+                title=chapter_title,
                 slug=chapter["slug"],
                 order_index=chapter.get("order_index", 0),
                 depth=chapter.get("depth", 0),
@@ -957,9 +980,9 @@ def _build_book_preview_response(
     community_config = book.get("community_config", {})
     return BookPreviewResponse(
         book_id=book["book_id"],
-        title=book["title"],
+        title=book_title,
         slug=book["slug"],  # ✅ SLUG INCLUDED
-        description=book.get("description"),
+        description=book_description,
         cover_image_url=community_config.get("cover_image_url")
         or book.get("cover_image_url"),
         icon=book.get("icon"),
@@ -986,6 +1009,10 @@ def _build_book_preview_response(
 )
 async def get_book_preview(
     book_id: str,
+    language: Optional[str] = Query(
+        None,
+        description="Language code (e.g., 'en', 'vi') to retrieve translated book info and chapter titles",
+    ),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
@@ -1000,6 +1027,11 @@ async def get_book_preview(
 
     **No authentication required** - Anyone can view preview.
     If user is authenticated, also returns their purchase status.
+
+    **Query Parameters:**
+    - `language`: Optional language code to retrieve translated content
+      * If specified, returns translated book title/description and chapter titles
+      * Silently falls back to default language if translation missing
 
     **Path Parameters:**
     - `book_id`: Book ID to preview
@@ -1023,10 +1055,10 @@ async def get_book_preview(
                 detail="Book not found or not published to Community",
             )
 
-        response = _build_book_preview_response(book, current_user)
+        response = _build_book_preview_response(book, current_user, language)
 
         logger.info(
-            f"📖 Preview page viewed for book {book_id} by user {current_user['uid'] if current_user else 'anonymous'}"
+            f"📖 Preview page viewed for book {book_id} in language {language or 'default'} by user {current_user['uid'] if current_user else 'anonymous'}"
         )
 
         return response
@@ -1049,6 +1081,10 @@ async def get_book_preview(
 )
 async def get_book_preview_by_slug(
     slug: str,
+    language: Optional[str] = Query(
+        None,
+        description="Language code (e.g., 'en', 'vi') to retrieve translated book info and chapter titles",
+    ),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
@@ -1070,6 +1106,11 @@ async def get_book_preview_by_slug(
 
     **No authentication required** - Anyone can view preview.
     If user is authenticated, also returns their purchase status.
+
+    **Query Parameters:**
+    - `language`: Optional language code to retrieve translated content
+      * If specified, returns translated book title/description and chapter titles
+      * Silently falls back to default language if translation missing
 
     **Path Parameters:**
     - `slug`: Book slug (e.g., "word-ai-user-manual")
@@ -1093,10 +1134,10 @@ async def get_book_preview_by_slug(
                 detail=f"Book with slug '{slug}' not found or not published to Community",
             )
 
-        response = _build_book_preview_response(book, current_user)
+        response = _build_book_preview_response(book, current_user, language)
 
         logger.info(
-            f"📖 Preview page (slug) viewed for book '{slug}' by user {current_user['uid'] if current_user else 'anonymous'}"
+            f"📖 Preview page (slug) viewed for book '{slug}' in language {language or 'default'} by user {current_user['uid'] if current_user else 'anonymous'}"
         )
 
         return response
