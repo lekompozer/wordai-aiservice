@@ -37,6 +37,14 @@ class StartTranslationJobRequest(BaseModel):
     )
 
 
+class DuplicateLanguageRequest(BaseModel):
+    """Request to duplicate content for manual language version"""
+
+    target_language: str = Field(
+        ..., description="Target language code (e.g., 'en', 'zh-CN')"
+    )
+
+
 # ==================== JOB RESPONSES ====================
 
 

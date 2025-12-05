@@ -17,6 +17,7 @@ from src.models.translation_job_models import (
     StartTranslationJobRequest,
     TranslationJobResponse,
     TranslationJobStatus,
+    DuplicateLanguageRequest,
 )
 from src.models.book_translation_models import SUPPORTED_LANGUAGES
 
@@ -386,7 +387,7 @@ async def get_user_translation_jobs(
 )
 async def duplicate_language_version(
     book_id: str,
-    target_language: str,
+    request_data: DuplicateLanguageRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
     book_manager: UserBookManager = Depends(get_book_manager),
     points_service: Any = Depends(get_points_service),
@@ -420,6 +421,7 @@ async def duplicate_language_version(
     """
     try:
         user_id = current_user["uid"]
+        target_language = request_data.target_language
 
         # Validate language
         if target_language not in SUPPORTED_LANGUAGES:
