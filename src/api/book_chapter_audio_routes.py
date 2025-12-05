@@ -380,12 +380,16 @@ async def generate_audio_from_text(
     speaking_rate: float = Form(
         default=1.0, description="Speed of speech (0.25 to 4.0) - compatibility only"
     ),
-    pitch: float = Form(default=0.0, description="Pitch adjustment - compatibility only"),
+    pitch: float = Form(
+        default=0.0, description="Pitch adjustment - compatibility only"
+    ),
     prompt: Optional[str] = Form(
-        default=None, description="Optional voice style prompt (e.g., 'Say in a curious way')"
+        default=None,
+        description="Optional voice style prompt (e.g., 'Say in a curious way')",
     ),
     use_pro_model: bool = Form(
-        default=False, description="Use gemini-2.5-pro-preview-tts (higher quality, slower)"
+        default=False,
+        description="Use gemini-2.5-pro-preview-tts (higher quality, slower)",
     ),
     use_chapter_content: bool = Form(
         default=False, description="Use chapter HTML content instead of text"
