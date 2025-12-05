@@ -377,3 +377,163 @@ async def get_user_translation_jobs(
     except Exception as e:
         logger.error(f"❌ Failed to get translation jobs: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/duplicate",
+    status_code=200,
+    summary="Duplicate content to create new language version (manual editing)",
+)
+async def duplicate_language_version(
+    book_id: str,
+    target_language: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    book_manager: UserBookManager = Depends(get_book_manager),
+    points_service: Any = Depends(get_points_service),
+):
+    """
+    **Duplicate book content to create new language version for manual editing**
+
+    Creates a new language version by copying:
+    - Book title & description (for manual translation)
+    - All chapter titles & content_html (for manual editing)
+
+    Keeps unchanged:
+    - Slugs (book & chapters)
+    - Background configs
+    - Chapter structure
+
+    **Use Case:** User wants to manually translate/edit content without AI
+
+    **Authentication:** Required (Owner only)
+
+    **Request Body:**
+    - `target_language`: Language code (e.g., "en", "zh-CN")
+
+    **Points Cost:** FREE (no AI translation involved)
+
+    **Returns:**
+    - 200: Language version created successfully
+    - 400: Invalid language or translation already exists
+    - 403: Not book owner or insufficient points
+    - 404: Book not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Validate language
+        if target_language not in SUPPORTED_LANGUAGES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Language '{target_language}' is not supported. Supported: {', '.join(SUPPORTED_LANGUAGES.keys())}",
+            )
+
+        # Get book
+        book = book_manager.get_book(book_id)
+        if not book:
+            raise HTTPException(status_code=404, detail="Book not found")
+
+        # Check ownership
+        if book.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Only book owner can duplicate language versions",
+            )
+
+        # Check if translation already exists
+        default_language = book.get("default_language", "vi")
+        available_languages = book.get("available_languages", [default_language])
+
+        if target_language in available_languages:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Translation for language '{target_language}' already exists",
+            )
+
+        # Get all chapters
+        chapters = list(
+            db.book_chapters.find(
+                {"book_id": book_id, "is_deleted": {"$ne": True}}
+            ).sort("order_index", 1)
+        )
+
+        if not chapters:
+            raise HTTPException(
+                status_code=400, detail="Book has no chapters to duplicate"
+            )
+
+        # Duplicate book metadata
+        book_translations = book.get("translations", {})
+        book_translations[target_language] = {
+            "title": book.get("title", ""),
+            "description": book.get("description", ""),
+        }
+
+        # Update book
+        db.online_books.update_one(
+            {"book_id": book_id},
+            {
+                "$set": {
+                    "translations": book_translations,
+                    "available_languages": available_languages + [target_language],
+                }
+            },
+        )
+
+        # Duplicate all chapters
+        chapters_updated = 0
+        for chapter in chapters:
+            # Get document content if exists
+            document_id = chapter.get("document_id")
+            content_html = ""
+
+            if document_id:
+                from src.services.document_manager import DocumentManager
+
+                document_manager = DocumentManager(db)
+                document = document_manager.get_document(document_id)
+                if document:
+                    content_html = document.get("content_html", "")
+
+            # Duplicate chapter metadata & content
+            chapter_translations = chapter.get("translations", {})
+            chapter_translations[target_language] = {
+                "title": chapter.get("title", ""),
+                "description": chapter.get("description", ""),
+                "content_html": content_html,  # Duplicate content for manual editing
+            }
+
+            # Update chapter
+            db.book_chapters.update_one(
+                {"chapter_id": chapter["chapter_id"]},
+                {
+                    "$set": {
+                        "translations": chapter_translations,
+                        "available_languages": chapter.get("available_languages", [])
+                        + [target_language],
+                    }
+                },
+            )
+
+            chapters_updated += 1
+
+        logger.info(
+            f"✅ User {user_id} duplicated book {book_id} to {target_language}: "
+            f"{chapters_updated} chapters (manual editing mode)"
+        )
+
+        return {
+            "success": True,
+            "book_id": book_id,
+            "target_language": target_language,
+            "source_language": default_language,
+            "chapters_duplicated": chapters_updated,
+            "total_cost_points": 0,  # FREE - no AI translation
+            "message": f"Content duplicated to {target_language}. Ready for manual editing.",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to duplicate language version: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

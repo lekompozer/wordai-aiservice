@@ -563,33 +563,239 @@ Removes a specific language translation from a book and all its chapters.
 - `chapter_id` (string, required): The unique identifier of the chapter
 
 **Query Parameters:**
-- `language` (string, optional): Target language code. If omitted, returns default language.
+- `language` (string, optional): Target language code (e.g., "en", "vi", "zh-CN"). If omitted, returns default language content.
+
+---
+
+#### Response Behavior by Language Parameter
+
+**Case 1: No language parameter OR `?language=vi` (default language)**
+
+Returns original Vietnamese content from root fields:
 
 **Response:** `200 OK`
 ```json
 {
-  "chapter_id": "675042a31d364fd60986bfe6",
-  "book_id": "675042a31d364fd60986bfe5",
-  "title": "Tiêu đề chương đã dịch",
-  "description": "Mô tả đã dịch",
-  "content_html": "<p>Nội dung HTML đầy đủ đã dịch...</p>",
-  "slug": "chapter-1",
+  "chapter_id": "chapter_b77f000920ac",
+  "book_id": "book_c9865fe0df5c",
+  "title": "Chương 1: LỜI THƯA",
+  "description": "Mô tả chương bằng tiếng Việt",
+  "content_html": "<p>Nội dung HTML đầy đủ bằng tiếng Việt...</p>",
+  "slug": "chuong-1-loi-thua",
   "order_index": 1,
+  "depth": 0,
+  "parent_id": null,
   "document_id": "doc_123",
+  "is_published": true,
+  "is_preview_free": false,
+  "use_book_background": false,
+  "background_config": {
+    "type": "ai_image",
+    "image": {
+      "url": "https://static.wordai.pro/ai-generated-images/xxx.png",
+      "overlay_opacity": 0.85,
+      "overlay_color": "#ffffff"
+    }
+  },
+  "default_language": "vi",
   "current_language": "vi",
-  "available_languages": ["en", "vi", "zh-CN"],
-  "...": "... other chapter fields ..."
+  "available_languages": ["vi", "en"],
+  "translations": {
+    "en": {
+      "title": "Chapter 1: A PREFACE",
+      "description": "Chapter description in English",
+      "content_html": "<p>Full HTML content in English...</p>"
+    }
+  },
+  "background_translations": null,
+  "created_at": "2024-12-04T10:00:00Z",
+  "updated_at": "2024-12-04T15:30:00Z"
 }
 ```
 
-**Response Fields:**
-- `content_html` (string): Full HTML content of chapter in requested language
-- `current_language` (string): Language of returned content
-- `available_languages` (array): Available translations for this chapter
+**Data Source:**
+- `title`: Root field `title` (Vietnamese)
+- `description`: Root field `description` (Vietnamese)
+- `content_html`: Root field `content_html` from linked document (Vietnamese)
+- `background_config`: Root field `background_config` (default background)
+- `current_language`: Set to `"vi"` (default language)
 
-**Use Case:** Load chapter content into Tiptap editor with specific language.
+---
 
-**Note:** Falls back to default language if translation missing.
+**Case 2: `?language=en` (translated language)**
+
+Returns translated English content from `translations.en` with background fallback:
+
+**Response:** `200 OK`
+```json
+{
+  "chapter_id": "chapter_b77f000920ac",
+  "book_id": "book_c9865fe0df5c",
+  "title": "Chapter 1: A PREFACE",
+  "description": "Chapter description in English",
+  "content_html": "<p>Full HTML content in English...</p>",
+  "slug": "chuong-1-loi-thua",
+  "order_index": 1,
+  "depth": 0,
+  "parent_id": null,
+  "document_id": "doc_123",
+  "is_published": true,
+  "is_preview_free": false,
+  "use_book_background": false,
+  "background_config": {
+    "type": "ai_image",
+    "image": {
+      "url": "https://static.wordai.pro/ai-generated-images/xxx.png",
+      "overlay_opacity": 0.85,
+      "overlay_color": "#ffffff"
+    }
+  },
+  "default_language": "vi",
+  "current_language": "en",
+  "available_languages": ["vi", "en"],
+  "translations": {
+    "en": {
+      "title": "Chapter 1: A PREFACE",
+      "description": "Chapter description in English",
+      "content_html": "<p>Full HTML content in English...</p>"
+    }
+  },
+  "background_translations": null,
+  "created_at": "2024-12-04T10:00:00Z",
+  "updated_at": "2024-12-04T15:30:00Z"
+}
+```
+
+**Data Source:**
+- `title`: `translations.en.title` (English translation)
+- `description`: `translations.en.description` (English translation)
+- `content_html`: `translations.en.content_html` (English translation)
+- `background_config`: **Fallback to root field** (inherits default background)
+  - If user customizes background for English via PUT endpoint, then `translations.en.background_config` will be used instead
+  - By default, all translated languages inherit the same background as default language
+- `current_language`: Set to `"en"` (requested language)
+
+---
+
+#### Response Fields Explanation
+
+**Core Identification:**
+- `chapter_id` (string): Unique identifier of the chapter
+- `book_id` (string): Parent book identifier
+- `slug` (string): URL-friendly slug (never translated)
+- `order_index` (integer): Position in chapter tree
+- `depth` (integer): Nesting level (0 = root, 1 = nested, max 3)
+- `parent_id` (string|null): Parent chapter ID if nested, null if root
+
+**Content Fields (Language-Dependent):**
+- `title` (string): Chapter title in requested language
+  - Default language: From root field
+  - Translated language: From `translations.{lang}.title`
+- `description` (string|null): Chapter description in requested language
+  - Default language: From root field
+  - Translated language: From `translations.{lang}.description`
+- `content_html` (string): **Full HTML content** in requested language
+  - Default language: From root `content_html` (loaded from linked document)
+  - Translated language: From `translations.{lang}.content_html`
+  - **This is the main content for Tiptap editor**
+
+**Document Integration:**
+- `document_id` (string|null): ID of linked document containing content_html
+
+**Background Configuration:**
+- `use_book_background` (boolean): If true, chapter inherits book's background. If false, uses chapter's own background_config
+- `background_config` (object|null): Chapter's background configuration
+  - **For default language:** Always from root field
+  - **For translated language:**
+    - If `translations.{lang}.background_config` exists → Use custom background
+    - If not exists → **Fallback to root background_config** (same as default)
+  - Background structure: `{type, image: {url, overlay_opacity, overlay_color}}`
+
+**Language Metadata:**
+- `default_language` (string): Original language of the chapter (e.g., "vi")
+- `current_language` (string): Language of returned content (matches query parameter)
+- `available_languages` (array): List of all available language codes for this chapter
+- `translations` (object): Full translations object showing all available languages
+  - Structure: `{en: {title, description, content_html}, zh-CN: {...}}`
+- `background_translations` (object|null): Custom backgrounds per language (optional)
+  - Structure: `{en: {type, image: {...}}, zh-CN: {...}}`
+
+**Publishing Status:**
+- `is_published` (boolean): Chapter visibility status
+- `is_preview_free` (boolean): Free preview on Community Books
+
+**Timestamps:**
+- `created_at` (datetime): Chapter creation timestamp
+- `updated_at` (datetime): Last modification timestamp
+
+---
+
+#### Background Inheritance Logic
+
+**Default Behavior (After Translation):**
+```
+GET ?language=vi → background_config (root field, Vietnamese default)
+GET ?language=en → background_config (root field, inherited from Vietnamese)
+GET ?language=zh-CN → background_config (root field, inherited from Vietnamese)
+```
+
+All translated languages **automatically inherit** the default background unless explicitly customized.
+
+**After Custom Background Update (via PUT endpoint):**
+```
+PUT /chapters/{id}/background/en with custom background_config
+→ Saves to translations.en.background_config
+
+Then:
+GET ?language=vi → background_config (root field, Vietnamese default)
+GET ?language=en → translations.en.background_config (custom English background)
+GET ?language=zh-CN → background_config (root field, still inherited from Vietnamese)
+```
+
+---
+
+#### Use Cases
+
+**1. Load Default Language in Tiptap Editor:**
+```
+GET /api/v1/books/{book_id}/chapters/{chapter_id}
+or
+GET /api/v1/books/{book_id}/chapters/{chapter_id}?language=vi
+```
+Returns Vietnamese content with default background.
+
+**2. Load Translated Language in Tiptap Editor:**
+```
+GET /api/v1/books/{book_id}/chapters/{chapter_id}?language=en
+```
+Returns English translated content with inherited background (or custom if set).
+
+**3. Switch Language in Reader:**
+Frontend calls this endpoint with different `language` parameter to dynamically load translated content without page reload.
+
+---
+
+#### Important Notes
+
+**Fallback Behavior:**
+- If translation for requested language doesn't exist, **silently falls back** to default language content
+- No error is thrown, frontend receives default language data
+
+**Background Sync:**
+- Newly translated chapters **do NOT** have `translations.{lang}.background_config` by default
+- They automatically inherit `background_config` from root level
+- This ensures consistent visual appearance across all languages
+- Users can customize background per language using PUT endpoint (Endpoint #4)
+
+**Content HTML:**
+- Always includes full chapter content (not truncated)
+- HTML structure and formatting preserved during translation
+- Safe for direct rendering in Tiptap editor
+
+**Performance:**
+- Fast retrieval (no re-translation)
+- Content already stored in database
+- Typical response time: <100ms
 
 ---
 

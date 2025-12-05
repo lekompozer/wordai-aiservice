@@ -1283,6 +1283,10 @@ async def get_chapter_with_content(
     book_id: str,
     chapter_id: str,
     request: Request,
+    language: Optional[str] = Query(
+        None,
+        description="Language code (e.g., 'en', 'vi') to retrieve translated content",
+    ),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
     browser_id: Optional[str] = Query(
         None, description="Browser fingerprint ID for anonymous users"
@@ -1322,19 +1326,48 @@ async def get_chapter_with_content(
         user_id = current_user["uid"] if current_user else None
         track_book_view(book_id, user_id, browser_id)
 
+        # Apply language translation if requested
+        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
+        if book:
+            default_language = chapter.get(
+                "default_language", book.get("default_language", "vi")
+            )
+            current_language = language if language else default_language
+
+            if language and language != default_language:
+                translations = chapter.get("translations", {})
+                if language in translations:
+                    trans = translations[language]
+                    chapter["title"] = trans.get("title", chapter.get("title"))
+                    chapter["description"] = trans.get(
+                        "description", chapter.get("description")
+                    )
+                    chapter["content_html"] = trans.get(
+                        "content_html", chapter.get("content_html", "")
+                    )
+
+                    # Handle background_config for translation
+                    if "background_config" in trans:
+                        chapter["background_config"] = trans["background_config"]
+
+            # Add language metadata
+            chapter["current_language"] = current_language
+            chapter["default_language"] = default_language
+            chapter["available_languages"] = chapter.get(
+                "available_languages", [default_language]
+            )
+
         # Check if this is a free preview chapter
         is_preview_free = chapter.get("is_preview_free", False)
 
         if is_preview_free:
             # Free preview - allow anonymous access
             logger.info(
-                f"📖 Preview chapter accessed: {chapter_id} (anonymous: {current_user is None})"
+                f"📖 Preview chapter accessed: {chapter_id} in language {language or 'default'} (anonymous: {current_user is None})"
             )
             return ChapterResponse(**chapter)
 
-        # ✅ FIX: Get book info BEFORE requiring authentication
-        # This allows us to check if book is free for all users
-        book = db.online_books.find_one({"book_id": book_id, "is_deleted": False})
+        # Book already fetched above for translation
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1450,6 +1483,10 @@ async def get_chapter_content_by_slug(
     book_slug: str,
     chapter_slug: str,
     request: Request,
+    language: Optional[str] = Query(
+        None,
+        description="Language code (e.g., 'en', 'vi') to retrieve translated content",
+    ),
     current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
     browser_id: Optional[str] = Query(
         None, description="Browser fingerprint ID for anonymous users"
@@ -1525,6 +1562,35 @@ async def get_chapter_content_by_slug(
                 detail="Chapter content not found",
             )
 
+        # Apply language translation if requested
+        default_language = chapter.get(
+            "default_language", book.get("default_language", "vi")
+        )
+        current_language = language if language else default_language
+
+        if language and language != default_language:
+            translations = chapter.get("translations", {})
+            if language in translations:
+                trans = translations[language]
+                chapter["title"] = trans.get("title", chapter.get("title"))
+                chapter["description"] = trans.get(
+                    "description", chapter.get("description")
+                )
+                chapter["content_html"] = trans.get(
+                    "content_html", chapter.get("content_html", "")
+                )
+
+                # Handle background_config for translation
+                if "background_config" in trans:
+                    chapter["background_config"] = trans["background_config"]
+
+        # Add language metadata
+        chapter["current_language"] = current_language
+        chapter["default_language"] = default_language
+        chapter["available_languages"] = chapter.get(
+            "available_languages", [default_language]
+        )
+
         # Track view for community books (before access check for public chapters)
         user_id = current_user["uid"] if current_user else None
         track_book_view(book_id, user_id, browser_id)
@@ -1535,7 +1601,7 @@ async def get_chapter_content_by_slug(
         if is_preview_free:
             # Free preview - allow anonymous access
             logger.info(
-                f"📖 Preview chapter (slug) accessed: {book_slug}/{chapter_slug} (anonymous: {current_user is None})"
+                f"📖 Preview chapter (slug) accessed: {book_slug}/{chapter_slug} in language {language or 'default'} (anonymous: {current_user is None})"
             )
             return ChapterResponse(**chapter)
 
@@ -1554,7 +1620,7 @@ async def get_chapter_content_by_slug(
             and forever_points == 0
         ):
             logger.info(
-                f"📖 Free public book (slug) accessed: {book_slug}/{chapter_slug} (anonymous: {current_user is None})"
+                f"📖 Free public book (slug) accessed: {book_slug}/{chapter_slug} in language {language or 'default'} (anonymous: {current_user is None})"
             )
             return ChapterResponse(**chapter)
 
