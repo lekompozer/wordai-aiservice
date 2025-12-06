@@ -281,15 +281,16 @@ class GeminiTestEvaluationService:
         if is_diagnostic_test:
             evaluation_instructions = [
                 "**EVALUATION APPROACH FOR DIAGNOSTIC/QUIZ TEST:**",
-                "1. This is a diagnostic or fun quiz test - provide lighthearted, objective commentary",
-                "2. Focus on analyzing the pattern of choices and what they reveal",
-                "3. Avoid being judgmental - diagnostic tests have no 'wrong' answers",
-                "4. Provide interesting insights about the user's choices",
-                "5. Keep the tone friendly, engaging, and entertaining",
-                "6. Don't provide 'study plans' or 'improvement recommendations' - this isn't a knowledge test",
-                "7. Instead, provide fun observations and what their results might say about them",
-                "8. **Calculate an 'overall_rating' (0-10)** representing how 'strong' or 'distinct' their personality/result type is.",
-                "9. **CRITICAL:** You MUST provide specific 'ai_feedback' for EACH question in the 'question_evaluations' array. Explain what their specific choice for that question implies about them.",
+                "1. **CRITICAL - ANSWER THE MAIN QUESTION:** Look at the 'Title' of the test. If the title asks a question (e.g., 'Which Harry Potter House are you?', 'What is your spirit animal?', 'Which Zodiac sign matches you?'), your 'result_description' MUST start with a direct answer (e.g., 'You are a GRYFFINDOR!', 'Your spirit animal is a WOLF', 'You are a LEO').",
+                "2. **Analyze the User's Choices:** Based on the specific options the user selected, determine the most fitting outcome/archetype/personality for them. Do not just summarize the answers; synthesize them into a specific result.",
+                "3. **Structure of Feedback:**",
+                "   - **Headline:** Start with the specific result (The 'Diagnosis').",
+                "   - **Analysis:** Explain WHY they got this result based on their answers (e.g., 'Because you chose X and Y, it shows you value bravery...').",
+                "   - **General Insight:** Add fun, lighthearted observations about this personality type.",
+                "4. **Tone:** Friendly, engaging, entertaining, and non-judgmental.",
+                "5. **No Study Plans:** Do NOT provide improvement recommendations.",
+                "6. **Calculate an 'overall_rating' (0-10)** representing how 'strong' or 'distinct' their match to this result is.",
+                "7. **Question Feedback:** In 'question_evaluations', explain what EACH specific choice reveals about their personality.",
             ]
         elif is_iq_test:
             evaluation_instructions = [
@@ -535,7 +536,7 @@ class GeminiTestEvaluationService:
                 "question_evaluations": evaluation_result.get(
                     "question_evaluations", []
                 ),
-                "model": "gemini-2.5-flash",
+                "model": "gemini-2.5-pro",
                 "timestamp": datetime.utcnow().isoformat(),
             }
 
