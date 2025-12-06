@@ -502,9 +502,9 @@ class GeminiTestEvaluationService:
             logger.info(f"   Score: {score_percentage:.1f}%")
             logger.info(f"   Language: {language}")
 
-            # Call Gemini API
+            # Call Gemini API with Pro model for higher quality evaluation
             response = self.client.models.generate_content(
-                model="gflashemini-2.5-",
+                model="gemini-2.5-pro",
                 contents=prompt,
             )
 
