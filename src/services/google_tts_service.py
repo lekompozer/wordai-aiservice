@@ -233,6 +233,17 @@ class GoogleTTSService:
             # Extract audio data (WAV format)
             audio_data = response.candidates[0].content.parts[0].inline_data.data
 
+            # Check if audio_data is base64 string or bytes
+            if isinstance(audio_data, str):
+                import base64
+
+                audio_data = base64.b64decode(audio_data)
+                logger.info(f"Decoded base64 audio data: {len(audio_data)} bytes")
+            elif isinstance(audio_data, bytes):
+                logger.info(f"Audio data is already bytes: {len(audio_data)} bytes")
+            else:
+                raise ValueError(f"Unexpected audio data type: {type(audio_data)}")
+
             # Calculate duration
             word_count = len(text.split())
             estimated_duration = (word_count / 150) * 60

@@ -228,6 +228,13 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             "required": ["audio_sections"],
         }
 
+        logger.info(
+            f"📡 Calling Gemini API (gemini-3-pro-preview) with {num_questions} questions across {num_audio_sections} sections..."
+        )
+        import sys
+
+        sys.stdout.flush()
+
         response = self.client.models.generate_content(
             model="gemini-3-pro-preview",
             contents=[prompt],
@@ -240,7 +247,9 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         )
 
         result = json.loads(response.text)
-        logger.info(f"✅ Generated {len(result['audio_sections'])} audio sections")
+        logger.info(
+            f"✅ Generated {len(result['audio_sections'])} audio sections with {sum(len(s.get('questions', [])) for s in result['audio_sections'])} questions"
+        )
         return result
 
     async def _generate_section_audio(
@@ -372,6 +381,10 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         try:
             # Step 1: Generate script and questions with AI
             logger.info(f"🎙️ Step 1: Generating script and questions...")
+            import sys
+
+            sys.stdout.flush()  # Force flush logs
+
             script_result = await self._generate_script_and_questions(
                 language=language,
                 topic=topic,
@@ -403,8 +416,12 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
 
             for section in script_result["audio_sections"]:
                 section_num = section["section_number"]
+                logger.info(
+                    f"   🎵 Processing section {section_num}: {section.get('section_title', 'Untitled')}..."
+                )
 
                 # Generate audio
+                logger.info(f"   🔊 Generating audio for section {section_num}...")
                 audio_bytes, duration = await self._generate_section_audio(
                     script=section["script"],
                     voice_names=voice_names,
@@ -412,14 +429,19 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                     speaking_rate=audio_config.get("speaking_rate", 1.0),
                     use_pro_model=use_pro_model,
                 )
+                logger.info(
+                    f"   ✅ Audio generated: {len(audio_bytes)} bytes, ~{duration}s"
+                )
 
                 # Upload to R2
+                logger.info(f"   ☁️ Uploading audio to R2...")
                 audio_url, file_id = await self._upload_audio_to_r2(
                     audio_bytes=audio_bytes,
                     creator_id=creator_id,
                     test_id=temp_test_id,
                     section_num=section_num,
                 )
+                logger.info(f"   ✅ Uploaded: {audio_url}")
 
                 # Build transcript
                 transcript_lines = []
