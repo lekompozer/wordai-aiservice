@@ -305,14 +305,14 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         key = f"listening-tests/{creator_id}/{test_id}/section_{section_num}.wav"
 
         # Upload to R2
-        await self.r2_service.upload_file_bytes(
-            file_bytes=audio_bytes,
-            key=key,
+        upload_result = await self.r2_service.upload_file(
+            file_content=audio_bytes,
+            r2_key=key,
             content_type="audio/wav",
         )
 
-        # Get public URL
-        public_url = f"https://static.wordai.pro/{key}"
+        # Get public URL from upload result
+        public_url = upload_result["public_url"]
 
         # Save to user library
         file_record = self.user_manager.save_library_file(
