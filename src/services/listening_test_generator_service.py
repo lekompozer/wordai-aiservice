@@ -182,7 +182,20 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                                     "type": "object",
                                     "properties": {
                                         "question_text": {"type": "string"},
-                                        "options": {"type": "array"},
+                                        "options": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "option_key": {"type": "string"},
+                                                    "option_text": {"type": "string"},
+                                                },
+                                                "required": [
+                                                    "option_key",
+                                                    "option_text",
+                                                ],
+                                            },
+                                        },
                                         "correct_answer_keys": {
                                             "type": "array",
                                             "items": {"type": "string"},
