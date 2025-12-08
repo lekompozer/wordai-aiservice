@@ -36,9 +36,52 @@ class GenerateTestRequest(BaseModel):
         None,
         description="Question difficulty level: 'easy', 'medium', 'hard' (optional, AI can infer if not provided)",
     )
-    num_questions: int = Field(..., description="Number of questions", ge=1, le=100)
+
+    # Test type configuration
+    test_type: str = Field(
+        default="mcq",
+        description="Test type: 'mcq' (multiple choice only), 'essay' (essay only), 'mixed' (both MCQ and essay)",
+    )
+
+    # Question configuration - flexible based on test_type
+    num_questions: Optional[int] = Field(
+        None,
+        description="Total number of questions (used for 'mcq' or 'essay' types). Max 100.",
+        ge=1,
+        le=100,
+    )
+
+    # Mixed test configuration (only for test_type='mixed')
+    num_mcq_questions: Optional[int] = Field(
+        None,
+        description="Number of MCQ questions (for 'mixed' type). Max 100.",
+        ge=0,
+        le=100,
+    )
+    num_essay_questions: Optional[int] = Field(
+        None,
+        description="Number of essay questions (for 'mixed' type). Max 20.",
+        ge=0,
+        le=20,
+    )
+    mcq_points: Optional[int] = Field(
+        None,
+        description="Total points for MCQ section (for 'mixed' type)",
+        ge=0,
+        le=1000,
+    )
+    essay_points: Optional[int] = Field(
+        None,
+        description="Total points for essay section (for 'mixed' type)",
+        ge=0,
+        le=1000,
+    )
+
     time_limit_minutes: int = Field(
-        30, description="Time limit in minutes", ge=1, le=300
+        30,
+        description="Time limit in minutes. Max 270 minutes (4.5 hours).",
+        ge=1,
+        le=270,
     )
     max_retries: int = Field(3, description="Maximum number of attempts", ge=1, le=10)
     passing_score: int = Field(
@@ -68,6 +111,35 @@ class GenerateTestRequest(BaseModel):
         description="Test category: 'academic' (knowledge-based with correct answers) or 'diagnostic' (personality/assessment without correct answers)",
     )
 
+    @model_validator(mode="after")
+    def validate_test_configuration(self):
+        """Validate test type and question counts"""
+        if self.test_type == "mixed":
+            # For mixed tests, require MCQ and essay counts
+            if not self.num_mcq_questions or not self.num_essay_questions:
+                raise ValueError(
+                    "num_mcq_questions and num_essay_questions are required for test_type='mixed'"
+                )
+            if self.num_mcq_questions + self.num_essay_questions > 100:
+                raise ValueError("Total questions (MCQ + Essay) cannot exceed 100")
+            # Ignore num_questions for mixed type
+            self.num_questions = self.num_mcq_questions + self.num_essay_questions
+        else:
+            # For mcq or essay types, require num_questions
+            if not self.num_questions:
+                raise ValueError(
+                    f"num_questions is required for test_type='{self.test_type}'"
+                )
+            # Set individual counts based on test_type
+            if self.test_type == "mcq":
+                self.num_mcq_questions = self.num_questions
+                self.num_essay_questions = 0
+            elif self.test_type == "essay":
+                self.num_mcq_questions = 0
+                self.num_essay_questions = self.num_questions
+
+        return self
+
 
 class ManualTestQuestion(BaseModel):
     """Manual question model - flexible validation for user-created tests
@@ -89,9 +161,14 @@ class ManualTestQuestion(BaseModel):
         default=None,
         description="List of options with 'key' and 'text' (required for MCQ, not needed for Essay)",
     )
+    correct_answer_keys: Optional[List[str]] = Field(
+        None,
+        description="List of correct answer keys (e.g., ['A'], ['B', 'C'] for multi-answer). (Optional for Diagnostic tests)",
+    )
+    # Legacy field for backward compatibility
     correct_answer_key: Optional[str] = Field(
         None,
-        description="Correct answer key (A, B, C, D, etc.) (Optional for Diagnostic tests)",
+        description="DEPRECATED: Use correct_answer_keys instead. Single correct answer key (A, B, C, D, etc.)",
     )
 
     # Common fields
@@ -134,21 +211,31 @@ class ManualTestQuestion(BaseModel):
             if not self.options or len(self.options) < 2:
                 raise ValueError("MCQ questions must have at least 2 options")
 
-            # NOTE: We allow correct_answer_key to be None for Diagnostic/Survey tests
-            # If it is provided, we validate it exists in options
-            if self.correct_answer_key:
+            # Convert legacy correct_answer_key to correct_answer_keys
+            if self.correct_answer_key and not self.correct_answer_keys:
+                self.correct_answer_keys = [self.correct_answer_key]
+
+            # NOTE: We allow correct_answer_keys to be None for Diagnostic/Survey tests
+            # If it is provided, we validate all keys exist in options
+            if self.correct_answer_keys:
                 option_keys = [
                     opt.get("key") if isinstance(opt, dict) else opt
                     for opt in self.options
                 ]
-                if self.correct_answer_key not in option_keys:
-                    raise ValueError(
-                        f"correct_answer_key '{self.correct_answer_key}' not found in options"
-                    )
+                for answer_key in self.correct_answer_keys:
+                    if answer_key not in option_keys:
+                        raise ValueError(
+                            f"correct_answer_key '{answer_key}' not found in options"
+                        )
         elif self.question_type == "essay":
-            # Essay should NOT have options or correct_answer_key
+            # Essay should NOT have options or correct_answer_keys
             if self.options is not None and len(self.options) > 0:
                 raise ValueError("Essay questions should not have options")
+            if (
+                self.correct_answer_keys is not None
+                and len(self.correct_answer_keys) > 0
+            ):
+                raise ValueError("Essay questions should not have correct_answer_keys")
             if (
                 self.correct_answer_key is not None
                 and len(self.correct_answer_key.strip()) > 0

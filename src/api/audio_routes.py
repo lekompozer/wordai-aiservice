@@ -31,7 +31,8 @@ r2_service = R2StorageService()
 )
 async def get_tts_voices(
     language: Optional[str] = Query(
-        default=None, description="Language code (vi, en, zh, etc.) - leave empty for all languages"
+        default=None,
+        description="Language code (vi, en, zh, etc.) - leave empty for all languages",
     ),
     user: Dict = Depends(get_current_user),
 ) -> Dict[str, Any]:

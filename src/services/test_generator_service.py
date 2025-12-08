@@ -1058,6 +1058,351 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             "attachments": formatted_attachments,  # NEW: PDF attachments for reading comprehension
         }
 
+    def _build_essay_generation_prompt(
+        self,
+        user_query: str,
+        num_questions: int,
+        document_content: str,
+        language: str = "vi",
+        difficulty: Optional[str] = None,
+    ) -> str:
+        """Build prompt for essay question generation"""
+
+        # Language instruction
+        lang_instruction = f"Generate all questions, rubrics, and sample answers in {language} language."
+
+        # Difficulty instructions
+        difficulty_map = {
+            "easy": "Create EASY essay questions that test basic understanding with straightforward prompts.",
+            "medium": "Create MEDIUM difficulty essay questions that require analysis and explanation of concepts.",
+            "hard": "Create HARD essay questions that demand critical thinking, synthesis, and in-depth analysis.",
+        }
+        difficulty_instruction = ""
+        if difficulty and difficulty.lower() in difficulty_map:
+            difficulty_instruction = (
+                f"\n\n**DIFFICULTY LEVEL:** {difficulty_map[difficulty.lower()]}"
+            )
+
+        prompt = f"""You are an expert in creating educational essay assessments. Your task is to generate essay questions based on the provided document and user query.
+
+**CRITICAL INSTRUCTIONS:**
+1. Your output MUST be a single, valid JSON object.
+2. {lang_instruction}
+3. Generate exactly {num_questions} essay questions.
+4. The questions must be relevant to the user's query: "{user_query}".
+5. All information used to create questions must come from the provided document.
+6. The JSON object must conform to the following structure:
+   {{
+     "questions": [
+       {{
+         "question_type": "essay",
+         "question_text": "Essay question prompt (clear and specific)",
+         "max_points": 10,
+         "grading_rubric": "Detailed grading criteria (e.g., Content: 40%, Organization: 30%, Grammar: 30%). Specify what students should include in their answers.",
+         "sample_answer": "A comprehensive sample answer demonstrating expected quality and depth."
+       }}
+     ]
+   }}
+7. Each essay question should have:
+   - Clear question_text (prompt)
+   - max_points (suggested: 5-15 points based on complexity)
+   - grading_rubric (detailed criteria for evaluation)
+   - sample_answer (model answer for reference){difficulty_instruction}
+8. Questions should test deep understanding, not just recall.
+9. **VALIDATE your JSON output before returning it.**
+
+**DOCUMENT CONTENT:**
+---
+{document_content}
+---
+
+Now, generate the essay questions based on the instructions and the document provided. Return ONLY the JSON object, no additional text, no markdown code blocks."""
+
+        return prompt
+
+    def _build_mixed_generation_prompt(
+        self,
+        user_query: str,
+        num_mcq_questions: int,
+        num_essay_questions: int,
+        document_content: str,
+        language: str = "vi",
+        difficulty: Optional[str] = None,
+        num_options: int = 4,
+        num_correct_answers: int = 1,
+    ) -> str:
+        """Build prompt for mixed test generation (MCQ + Essay)"""
+
+        # Language instruction
+        lang_instruction = f"Generate all questions, options, explanations, rubrics in {language} language."
+
+        # Difficulty instructions
+        difficulty_map = {
+            "easy": "MCQ: Test basic facts. Essay: Simple explanations.",
+            "medium": "MCQ: Test comprehension. Essay: Analysis and application.",
+            "hard": "MCQ: Test deep analysis. Essay: Critical thinking and synthesis.",
+        }
+        difficulty_instruction = ""
+        if difficulty and difficulty.lower() in difficulty_map:
+            difficulty_instruction = (
+                f"\n\n**DIFFICULTY LEVEL:** {difficulty_map[difficulty.lower()]}"
+            )
+
+        # Generate option keys
+        option_keys = [chr(65 + i) for i in range(num_options)]
+        option_examples = [
+            f'{{"option_key": "{key}", "option_text": "string"}}' for key in option_keys
+        ]
+        options_example = ",\n           ".join(option_examples)
+
+        # Correct answer instruction
+        if num_correct_answers == 1:
+            correct_answer_instruction = 'The "correct_answer_keys" field must be an array with exactly ONE correct option key.'
+            correct_answer_example = f'"correct_answer_keys": ["{option_keys[0]}"]'
+        else:
+            correct_answer_instruction = f'The "correct_answer_keys" field must be an array with {num_correct_answers} correct option keys (or adjust based on question complexity).'
+            correct_answer_example = (
+                f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
+            )
+
+        prompt = f"""You are an expert in creating educational assessments. Your task is to generate a MIXED test (Multiple-Choice + Essay) based on the provided document and user query.
+
+**CRITICAL INSTRUCTIONS:**
+1. Your output MUST be a single, valid JSON object.
+2. {lang_instruction}
+3. Generate exactly {num_mcq_questions} MCQ questions AND {num_essay_questions} essay questions.
+4. The questions must be relevant to the user's query: "{user_query}".
+5. All information must come from the provided document.
+6. The JSON object must conform to the following structure:
+   {{
+     "questions": [
+       {{
+         "question_type": "mcq",
+         "question_text": "string",
+         "options": [
+           {options_example}
+         ],
+         {correct_answer_example},
+         "explanation": "Explain WHY the correct answer(s) are right.",
+         "max_points": 1
+       }},
+       {{
+         "question_type": "essay",
+         "question_text": "Essay prompt",
+         "max_points": 10,
+         "grading_rubric": "Detailed grading criteria",
+         "sample_answer": "Model answer"
+       }}
+     ]
+   }}
+7. MCQ questions: {num_mcq_questions} questions with {num_options} options each. {correct_answer_instruction}
+8. Essay questions: {num_essay_questions} questions with grading rubrics and sample answers.
+9. Assign appropriate max_points to each question (MCQ: 1-3, Essay: 5-15).{difficulty_instruction}
+10. **VALIDATE your JSON output before returning it.**
+
+**DOCUMENT CONTENT:**
+---
+{document_content}
+---
+
+Now, generate the mixed test based on the instructions and the document provided. Return ONLY the JSON object, no additional text, no markdown code blocks."""
+
+        return prompt
+
+    async def _generate_essay_questions_with_ai(
+        self,
+        content: str,
+        user_query: str,
+        language: str,
+        difficulty: Optional[str],
+        num_questions: int,
+        gemini_pdf_bytes: Optional[bytes] = None,
+    ) -> Dict[str, Any]:
+        """Generate essay questions using AI"""
+
+        prompt = self._build_essay_generation_prompt(
+            user_query=user_query,
+            num_questions=num_questions,
+            document_content=content if not gemini_pdf_bytes else "",
+            language=language,
+            difficulty=difficulty,
+        )
+
+        # Response schema for essay questions
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "question_type": {"type": "string", "enum": ["essay"]},
+                            "question_text": {"type": "string"},
+                            "max_points": {"type": "integer"},
+                            "grading_rubric": {"type": "string"},
+                            "sample_answer": {"type": "string"},
+                        },
+                        "required": [
+                            "question_type",
+                            "question_text",
+                            "max_points",
+                            "grading_rubric",
+                        ],
+                    },
+                }
+            },
+            "required": ["questions"],
+        }
+
+        # Generate with retry
+        for attempt in range(self.max_retries):
+            try:
+                logger.info(
+                    f"   Attempt {attempt + 1}/{self.max_retries}: Calling Gemini for essay questions..."
+                )
+
+                if gemini_pdf_bytes:
+                    pdf_part = types.Part.from_bytes(
+                        data=gemini_pdf_bytes, mime_type="application/pdf"
+                    )
+                    contents = [pdf_part, prompt]
+                else:
+                    contents = [prompt]
+
+                response = self.client.models.generate_content(
+                    model="gemini-3-pro-preview",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=25000,
+                        temperature=0.3,
+                        response_mime_type="application/json",
+                        response_schema=response_schema,
+                    ),
+                )
+
+                if hasattr(response, "text") and response.text:
+                    response_text = response.text
+                    logger.info(
+                        f"   ✅ Essay questions generated: {len(response_text)} characters"
+                    )
+
+                    questions_json = json.loads(response_text)
+                    return questions_json
+                else:
+                    raise Exception("No text response from Gemini API")
+
+            except Exception as e:
+                logger.warning(f"   ⚠️ Attempt {attempt + 1} failed: {e}")
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep((2**attempt) + 1)
+                else:
+                    raise
+
+        raise Exception("Failed to generate essay questions after all retries")
+
+    async def _generate_mixed_questions_with_ai(
+        self,
+        content: str,
+        user_query: str,
+        language: str,
+        difficulty: Optional[str],
+        num_mcq_questions: int,
+        num_essay_questions: int,
+        gemini_pdf_bytes: Optional[bytes] = None,
+        num_options: int = 4,
+        num_correct_answers: int = 1,
+    ) -> Dict[str, Any]:
+        """Generate mixed questions (MCQ + Essay) using AI"""
+
+        prompt = self._build_mixed_generation_prompt(
+            user_query=user_query,
+            num_mcq_questions=num_mcq_questions,
+            num_essay_questions=num_essay_questions,
+            document_content=content if not gemini_pdf_bytes else "",
+            language=language,
+            difficulty=difficulty,
+            num_options=num_options,
+            num_correct_answers=num_correct_answers,
+        )
+
+        # Response schema for mixed questions
+        response_schema = {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "question_type": {
+                                "type": "string",
+                                "enum": ["mcq", "essay"],
+                            },
+                            "question_text": {"type": "string"},
+                            "options": {"type": "array"},
+                            "correct_answer_keys": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                            },
+                            "explanation": {"type": "string"},
+                            "max_points": {"type": "integer"},
+                            "grading_rubric": {"type": "string"},
+                            "sample_answer": {"type": "string"},
+                        },
+                        "required": ["question_type", "question_text", "max_points"],
+                    },
+                }
+            },
+            "required": ["questions"],
+        }
+
+        # Generate with retry
+        for attempt in range(self.max_retries):
+            try:
+                logger.info(
+                    f"   Attempt {attempt + 1}/{self.max_retries}: Calling Gemini for mixed questions..."
+                )
+
+                if gemini_pdf_bytes:
+                    pdf_part = types.Part.from_bytes(
+                        data=gemini_pdf_bytes, mime_type="application/pdf"
+                    )
+                    contents = [pdf_part, prompt]
+                else:
+                    contents = [prompt]
+
+                response = self.client.models.generate_content(
+                    model="gemini-3-pro-preview",
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=25000,
+                        temperature=0.3,
+                        response_mime_type="application/json",
+                        response_schema=response_schema,
+                    ),
+                )
+
+                if hasattr(response, "text") and response.text:
+                    response_text = response.text
+                    logger.info(
+                        f"   ✅ Mixed questions generated: {len(response_text)} characters"
+                    )
+
+                    questions_json = json.loads(response_text)
+                    return questions_json
+                else:
+                    raise Exception("No text response from Gemini API")
+
+            except Exception as e:
+                logger.warning(f"   ⚠️ Attempt {attempt + 1} failed: {e}")
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep((2**attempt) + 1)
+                else:
+                    raise
+
+        raise Exception("Failed to generate mixed questions after all retries")
+
 
 # Singleton instance
 _test_generator_service = None

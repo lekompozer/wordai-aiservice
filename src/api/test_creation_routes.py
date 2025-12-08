@@ -288,6 +288,7 @@ async def generate_test(
             "description": request.description,
             "creator_name": request.creator_name,
             "test_category": request.test_category,
+            "test_type": request.test_type,
             "user_query": request.user_query,
             "test_language": request.language,  # Renamed from 'language' to avoid MongoDB text index conflict
             "source_type": request.source_type,
@@ -300,6 +301,10 @@ async def generate_test(
             "creator_id": user_info["uid"],
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": request.num_questions,
+            "num_mcq_questions": request.num_mcq_questions,
+            "num_essay_questions": request.num_essay_questions,
+            "mcq_points": request.mcq_points,
+            "essay_points": request.essay_points,
             "max_retries": request.max_retries,
             "passing_score": request.passing_score,
             "deadline": request.deadline,  # Global deadline for all shared users
@@ -327,7 +332,8 @@ async def generate_test(
             user_query=request.user_query,
             language=request.language,
             difficulty=request.difficulty,
-            num_questions=request.num_questions,
+            num_questions=request.num_questions
+            or (request.num_mcq_questions + request.num_essay_questions),
             creator_id=user_info["uid"],
             source_type=request.source_type,
             source_id=request.source_id,
@@ -340,6 +346,9 @@ async def generate_test(
                 request.num_correct_answers if request.num_correct_answers > 0 else 1
             ),
             test_category=request.test_category,
+            test_type=request.test_type,
+            num_mcq_questions=request.num_mcq_questions,
+            num_essay_questions=request.num_essay_questions,
         )
 
         logger.info(f"🚀 Background job queued for test {test_id}")
@@ -2574,6 +2583,269 @@ async def delete_question_media(
             "question_id": question_id,
             "deleted_media_url": old_media_url,
         }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Delete question media failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== NEW: Listening Test Generation ==========
+
+
+class GenerateListeningTestRequest(BaseModel):
+    """Request model for listening test generation"""
+
+    title: str = Field(..., min_length=5, max_length=200, description="Test title")
+    description: Optional[str] = Field(
+        None, max_length=1000, description="Test description"
+    )
+    language: str = Field(..., description="Language code: en, zh, fr, vi, etc.")
+    topic: str = Field(
+        ..., min_length=3, max_length=200, description="Topic/context for listening"
+    )
+    difficulty: Optional[str] = Field("medium", description="easy/medium/hard")
+    num_questions: int = Field(..., ge=1, le=50, description="Total questions (1-50)")
+    num_audio_sections: int = Field(
+        ..., ge=1, le=5, description="Number of audio files (1-5)"
+    )
+
+    audio_config: Dict = Field(..., description="Audio configuration")
+
+    user_query: str = Field(
+        ..., min_length=10, max_length=2000, description="Instructions for AI"
+    )
+    time_limit_minutes: int = Field(
+        30, ge=1, le=270, description="Time limit in minutes"
+    )
+    passing_score: int = Field(70, ge=0, le=100, description="Passing percentage")
+    use_pro_model: bool = Field(False, description="Use pro TTS model (costs more)")
+
+    @field_validator("audio_config")
+    @classmethod
+    def validate_audio_config(cls, v):
+        """Validate audio_config structure"""
+        if "num_speakers" not in v:
+            raise ValueError("audio_config.num_speakers is required")
+
+        num_speakers = v["num_speakers"]
+        if num_speakers not in [1, 2]:
+            raise ValueError("num_speakers must be 1 or 2")
+
+        if "voice_names" in v and len(v["voice_names"]) != num_speakers:
+            raise ValueError(f"voice_names must have {num_speakers} voices")
+
+        return v
+
+
+@router.post("/generate/listening")
+async def generate_listening_test(
+    request: GenerateListeningTestRequest,
+    background_tasks: BackgroundTasks,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Generate listening comprehension test with audio
+
+    **NEW Endpoint**: Creates IELTS/TOEFL-style listening tests with:
+    - AI-generated dialogue/monologue scripts
+    - Google TTS audio generation
+    - Multiple-choice questions based on audio
+    - Automatic upload to R2 storage
+
+    **Use Cases:**
+    - IELTS Listening Practice (English)
+    - HSK Listening Test (Chinese)
+    - DELF Listening Test (French)
+    - Custom language listening tests
+
+    **Flow:**
+    1. Create test record with status='pending'
+    2. Return test_id immediately
+    3. Background: Generate script + audio + upload
+    4. Poll /tests/{test_id}/status for completion
+
+    **Audio Configuration:**
+    - num_speakers: 1 (monologue) or 2 (dialogue)
+    - voice_names: Optional specific voices (e.g., ["Aoede", "Charon"])
+    - speaking_rate: Speed adjustment (0.5-2.0)
+
+    **Example:**
+    ```json
+    {
+      "title": "IELTS Listening - Travel",
+      "language": "en",
+      "topic": "Travel booking conversation",
+      "num_questions": 10,
+      "num_audio_sections": 1,
+      "audio_config": {
+        "num_speakers": 2,
+        "voice_names": ["Aoede", "Charon"]
+      },
+      "user_query": "Create conversation between customer and travel agent..."
+    }
+    ```
+    """
+    try:
+        user_id = user_info["uid"]
+
+        logger.info(f"🎙️ Listening test generation request from user {user_id}")
+        logger.info(f"   Title: {request.title}")
+        logger.info(f"   Language: {request.language}")
+        logger.info(f"   Topic: {request.topic}")
+        logger.info(f"   Questions: {request.num_questions}")
+        logger.info(f"   Audio sections: {request.num_audio_sections}")
+        logger.info(f"   Speakers: {request.audio_config.get('num_speakers')}")
+
+        # Create test record
+        mongo_service = get_mongodb_service()
+        db = mongo_service.db
+        collection = db["online_tests"]
+
+        test_doc = {
+            "title": request.title,
+            "description": request.description,
+            "test_type": "listening",
+            "test_category": "academic",
+            "language": request.language,
+            "topic": request.topic,
+            "difficulty": request.difficulty,
+            "num_questions": request.num_questions,
+            "num_audio_sections": request.num_audio_sections,
+            "audio_config": request.audio_config,
+            "time_limit_minutes": request.time_limit_minutes,
+            "passing_score": request.passing_score,
+            "creator_id": user_id,
+            "creation_type": "ai_generated",
+            "status": "pending",
+            "progress_percent": 0,
+            "progress_message": "Initializing listening test generation...",
+            "questions": [],
+            "audio_sections": [],
+            "is_active": True,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        result = collection.insert_one(test_doc)
+        test_id = str(result.inserted_id)
+
+        logger.info(f"✅ Test record created: {test_id}")
+
+        # Start background generation
+        background_tasks.add_task(
+            generate_listening_test_background_job,
+            test_id=test_id,
+            request=request,
+            user_id=user_id,
+        )
+
+        return {
+            "success": True,
+            "test_id": test_id,
+            "status": "pending",
+            "message": "Listening test generation started. Poll /tests/{test_id}/status for progress.",
+            "estimated_time_seconds": request.num_audio_sections
+            * 60,  # ~1 min per section
+        }
+
+    except Exception as e:
+        logger.error(
+            f"❌ Failed to start listening test generation: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def generate_listening_test_background_job(
+    test_id: str,
+    request: GenerateListeningTestRequest,
+    user_id: str,
+):
+    """Background job to generate listening test"""
+
+    from pymongo import MongoClient
+    import config.config as config
+    from src.services.listening_test_generator_service import (
+        get_listening_test_generator,
+    )
+
+    mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
+        config, "MONGODB_URI", "mongodb://localhost:27017"
+    )
+    client = MongoClient(mongo_uri)
+    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
+    db = client[db_name]
+    collection = db["online_tests"]
+
+    try:
+        # Update status
+        collection.update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "status": "generating",
+                    "progress_percent": 10,
+                    "progress_message": "Generating conversation script and questions...",
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+
+        # Initialize generator
+        generator = get_listening_test_generator()
+
+        # Generate test
+        result = await generator.generate_listening_test(
+            title=request.title,
+            description=request.description,
+            language=request.language,
+            topic=request.topic,
+            difficulty=request.difficulty,
+            num_questions=request.num_questions,
+            num_audio_sections=request.num_audio_sections,
+            audio_config=request.audio_config,
+            user_query=request.user_query,
+            time_limit_minutes=request.time_limit_minutes,
+            passing_score=request.passing_score,
+            use_pro_model=request.use_pro_model,
+            creator_id=user_id,
+        )
+
+        # Update test with results
+        collection.update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "audio_sections": result["audio_sections"],
+                    "questions": result["questions"],
+                    "status": "ready",
+                    "progress_percent": 100,
+                    "progress_message": "Listening test ready!",
+                    "generated_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+
+        logger.info(f"✅ Listening test generated successfully: {test_id}")
+
+    except Exception as e:
+        logger.error(f"❌ Listening test generation failed: {e}", exc_info=True)
+
+        # Update status to failed
+        collection.update_one(
+            {"_id": ObjectId(test_id)},
+            {
+                "$set": {
+                    "status": "failed",
+                    "progress_percent": 0,
+                    "progress_message": f"Generation failed: {str(e)}",
+                    "error_message": str(e),
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
 
     except HTTPException:
         raise

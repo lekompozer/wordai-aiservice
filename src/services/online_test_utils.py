@@ -229,10 +229,18 @@ async def generate_test_background(
     num_options: int = 4,
     num_correct_answers: int = 1,
     test_category: str = "academic",
+    test_type: str = "mcq",
+    num_mcq_questions: Optional[int] = None,
+    num_essay_questions: Optional[int] = None,
 ):
     """
     Background job to generate test questions with AI
     Updates status: pending → generating → ready/failed
+
+    Supports 3 test types:
+    - mcq: Multiple choice only
+    - essay: Essay questions only
+    - mixed: Both MCQ and essay questions
     """
     from pymongo import MongoClient
     import config.config as config
@@ -259,21 +267,49 @@ async def generate_test_background(
         )
         logger.info(f"🔄 Test {test_id}: Status updated to 'generating'")
 
-        # Generate test with AI
+        # Generate test with AI based on test_type
         test_generator = get_test_generator_service()
 
-        logger.info(f"🤖 Calling AI to generate {num_questions} questions...")
-        result = await test_generator._generate_questions_with_ai(
-            content=content,
-            user_query=user_query,
-            language=language,
-            difficulty=difficulty,
-            num_questions=num_questions,
-            gemini_pdf_bytes=gemini_pdf_bytes,
-            num_options=num_options,
-            num_correct_answers=num_correct_answers,
-            test_category=test_category,
-        )
+        if test_type == "mcq":
+            logger.info(f"🤖 Calling AI to generate {num_questions} MCQ questions...")
+            result = await test_generator._generate_questions_with_ai(
+                content=content,
+                user_query=user_query,
+                language=language,
+                difficulty=difficulty,
+                num_questions=num_questions,
+                gemini_pdf_bytes=gemini_pdf_bytes,
+                num_options=num_options,
+                num_correct_answers=num_correct_answers,
+                test_category=test_category,
+            )
+        elif test_type == "essay":
+            logger.info(f"🤖 Calling AI to generate {num_questions} essay questions...")
+            result = await test_generator._generate_essay_questions_with_ai(
+                content=content,
+                user_query=user_query,
+                language=language,
+                difficulty=difficulty,
+                num_questions=num_questions,
+                gemini_pdf_bytes=gemini_pdf_bytes,
+            )
+        elif test_type == "mixed":
+            logger.info(
+                f"🤖 Calling AI to generate {num_mcq_questions} MCQ + {num_essay_questions} essay questions..."
+            )
+            result = await test_generator._generate_mixed_questions_with_ai(
+                content=content,
+                user_query=user_query,
+                language=language,
+                difficulty=difficulty,
+                num_mcq_questions=num_mcq_questions,
+                num_essay_questions=num_essay_questions,
+                gemini_pdf_bytes=gemini_pdf_bytes,
+                num_options=num_options,
+                num_correct_answers=num_correct_answers,
+            )
+        else:
+            raise ValueError(f"Unsupported test_type: {test_type}")
 
         questions = result["questions"]
         diagnostic_criteria = result.get("diagnostic_criteria")
@@ -287,6 +323,7 @@ async def generate_test_background(
         # Save questions
         update_fields = {
             "questions": questions,
+            "test_type": test_type,
             "status": "ready",
             "progress_percent": 100,
             "generated_at": datetime.now(),
