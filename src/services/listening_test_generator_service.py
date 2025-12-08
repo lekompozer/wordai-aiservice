@@ -263,40 +263,59 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         """
         Step 2: Generate audio for one section
 
+        Uses multi-speaker TTS if 2+ speakers detected
+
         Returns:
             Tuple of (audio_bytes, duration_seconds)
         """
 
-        # Build full text with speaker labels
-        full_text = ""
-        for line in script["lines"]:
-            speaker_idx = line["speaker"]
-            speaker_role = script["speaker_roles"][speaker_idx]
-            text = line["text"]
-            full_text += f"{speaker_role}: {text}\n\n"
-
-        logger.info(f"   Generating audio for text: {len(full_text)} characters")
-
-        # Use first voice for now (TODO: implement multi-speaker in future)
-        voice_name = voice_names[0] if voice_names else None
-
-        # Generate audio
-        audio_content, metadata = await self.google_tts.generate_audio(
-            text=full_text,
-            language=language,
-            voice_name=voice_name,
-            speaking_rate=speaking_rate,
-            use_pro_model=use_pro_model,
-        )
-
-        # Estimate duration (rough estimate based on text length)
-        # Average speaking rate: ~150 words per minute
-        word_count = len(full_text.split())
-        duration_seconds = int((word_count / 150) * 60 * speaking_rate)
+        num_speakers = len(script.get("speaker_roles", []))
 
         logger.info(
-            f"   ✅ Audio generated: {len(audio_content)} bytes, ~{duration_seconds}s"
+            f"   Generating audio: {num_speakers} speaker(s), {len(script.get('lines', []))} lines"
         )
+
+        if num_speakers > 1:
+            # Use multi-speaker TTS
+            audio_content, metadata = (
+                await self.google_tts.generate_multi_speaker_audio(
+                    script=script,
+                    voice_names=voice_names,
+                    language=language,
+                    speaking_rate=speaking_rate,
+                    use_pro_model=use_pro_model,
+                )
+            )
+            duration_seconds = metadata.get("duration_seconds", 0)
+            logger.info(
+                f"   ✅ Multi-speaker audio: {len(audio_content)} bytes, ~{duration_seconds}s"
+            )
+        else:
+            # Use single-speaker TTS
+            full_text = ""
+            for line in script["lines"]:
+                speaker_idx = line["speaker"]
+                speaker_role = script["speaker_roles"][speaker_idx]
+                text = line["text"]
+                full_text += f"{speaker_role}: {text}\n\n"
+
+            voice_name = voice_names[0] if voice_names else None
+
+            audio_content, metadata = await self.google_tts.generate_audio(
+                text=full_text,
+                language=language,
+                voice_name=voice_name,
+                speaking_rate=speaking_rate,
+                use_pro_model=use_pro_model,
+            )
+
+            # Estimate duration
+            word_count = len(full_text.split())
+            duration_seconds = int((word_count / 150) * 60 * speaking_rate)
+
+            logger.info(
+                f"   ✅ Single-speaker audio: {len(audio_content)} bytes, ~{duration_seconds}s"
+            )
 
         return audio_content, duration_seconds
 

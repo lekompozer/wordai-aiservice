@@ -28,25 +28,66 @@ class GoogleTTSService:
 
         logger.info("Gemini TTS initialized with API key")
 
-        # Supported languages
+        # Supported languages (24 languages from Gemini TTS)
         self.supported_languages = {
-            "vi": "Vietnamese",
-            "en": "English",
-            "zh": "Chinese",
-            "ja": "Japanese",
-            "ko": "Korean",
-            "th": "Thai",
-            "fr": "French",
+            "ar": "Arabic (Egyptian)",
             "de": "German",
-            "es": "Spanish",
-            "it": "Italian",
-            "pt": "Portuguese",
-            "ru": "Russian",
-            "ar": "Arabic",
+            "en": "English (US)",
+            "es": "Spanish (US)",
+            "fr": "French",
             "hi": "Hindi",
             "id": "Indonesian",
-            "ms": "Malay",
-            "tl": "Filipino",
+            "it": "Italian",
+            "ja": "Japanese",
+            "ko": "Korean",
+            "pt": "Portuguese (Brazil)",
+            "ru": "Russian",
+            "nl": "Dutch",
+            "pl": "Polish",
+            "th": "Thai",
+            "tr": "Turkish",
+            "vi": "Vietnamese",
+            "ro": "Romanian",
+            "uk": "Ukrainian",
+            "bn": "Bengali",
+            "mr": "Marathi",
+            "ta": "Tamil",
+            "te": "Telugu",
+            "zh": "Chinese",  # Additional common language
+        }
+
+        # All 30 available voices from Gemini TTS
+        self.all_voices = {
+            "Zephyr": "Bright",
+            "Puck": "Upbeat",
+            "Charon": "Informative",
+            "Kore": "Firm",
+            "Fenrir": "Excitable",
+            "Leda": "Youthful",
+            "Orus": "Firm",
+            "Aoede": "Breezy",
+            "Callirrhoe": "Easy-going",
+            "Autonoe": "Bright",
+            "Enceladus": "Breathy",
+            "Iapetus": "Clear",
+            "Umbriel": "Easy-going",
+            "Algieba": "Smooth",
+            "Despina": "Smooth",
+            "Erinome": "Clear",
+            "Algenib": "Gravelly",
+            "Rasalgethi": "Informative",
+            "Laomedeia": "Upbeat",
+            "Achernar": "Soft",
+            "Alnilam": "Firm",
+            "Schedar": "Even",
+            "Gacrux": "Mature",
+            "Pulcherrima": "Forward",
+            "Achird": "Friendly",
+            "Zubenelgenubi": "Casual",
+            "Vindemiatrix": "Gentle",
+            "Sadachbia": "Lively",
+            "Sadaltager": "Knowledgeable",
+            "Sulafat": "Warm",
         }
 
     def _convert_pcm_to_wav(
@@ -115,108 +156,56 @@ class GoogleTTSService:
         return wav_file
 
     def get_language_code(self, lang: str) -> str:
-        """Convert 2-letter code to Google format"""
+        """Convert 2-letter code to BCP-47 format for Gemini TTS"""
         language_codes = {
-            "vi": "vi-VN",
-            "en": "en-US",
-            "zh": "cmn-CN",
-            "ja": "ja-JP",
-            "ko": "ko-KR",
-            "th": "th-TH",
-            "fr": "fr-FR",
-            "de": "de-DE",
-            "es": "es-ES",
-            "it": "it-IT",
-            "pt": "pt-BR",
-            "ru": "ru-RU",
-            "ar": "ar-XA",
-            "hi": "hi-IN",
-            "id": "id-ID",
-            "ms": "ms-MY",
-            "tl": "fil-PH",
+            "ar": "ar-EG",  # Arabic (Egyptian)
+            "de": "de-DE",  # German
+            "en": "en-US",  # English (US)
+            "es": "es-US",  # Spanish (US)
+            "fr": "fr-FR",  # French
+            "hi": "hi-IN",  # Hindi
+            "id": "id-ID",  # Indonesian
+            "it": "it-IT",  # Italian
+            "ja": "ja-JP",  # Japanese
+            "ko": "ko-KR",  # Korean
+            "pt": "pt-BR",  # Portuguese (Brazil)
+            "ru": "ru-RU",  # Russian
+            "nl": "nl-NL",  # Dutch
+            "pl": "pl-PL",  # Polish
+            "th": "th-TH",  # Thai
+            "tr": "tr-TR",  # Turkish
+            "vi": "vi-VN",  # Vietnamese
+            "ro": "ro-RO",  # Romanian
+            "uk": "uk-UA",  # Ukrainian
+            "bn": "bn-BD",  # Bengali
+            "mr": "mr-IN",  # Marathi
+            "ta": "ta-IN",  # Tamil
+            "te": "te-IN",  # Telugu
+            "zh": "cmn-CN",  # Chinese (Mandarin)
         }
         return language_codes.get(lang, "en-US")
 
     async def get_available_voices(self, language: str = "vi") -> List[Dict]:
         """
-        Get available Gemini TTS voices
+        Get all 30 available Gemini TTS voices
 
-        Gemini TTS uses predefined voices: Kore, Aoede, Charon, Puck, Fenrir
+        All voices work with all languages (Gemini auto-detects language)
         """
-        # Predefined Gemini TTS voices
-        all_voices = {
-            "vi": [
+        voices = []
+        for voice_name, description in self.all_voices.items():
+            voices.append(
                 {
-                    "name": "Despina",
-                    "gender": "female",
-                    "description": "Vietnamese female voice",
-                },
-                {
-                    "name": "Enceladus",
-                    "gender": "male",
-                    "description": "Vietnamese male voice",
-                },
-                {
-                    "name": "Orus",
-                    "gender": "male",
-                    "description": "Vietnamese male voice",
-                },
-                {
-                    "name": "Alnilam",
-                    "gender": "male",
-                    "description": "Vietnamese male voice",
-                },
-                {
-                    "name": "Gacrux",
-                    "gender": "female",
-                    "description": "Vietnamese female voice",
-                },
-                {
-                    "name": "Leda",
-                    "gender": "female",
-                    "description": "Vietnamese female voice",
-                },
-                {
-                    "name": "Sulafat",
-                    "gender": "female",
-                    "description": "Vietnamese female voice",
-                },
-            ],
-            "en": [
-                {
-                    "name": "Kore",
-                    "gender": "female",
-                    "description": "Warm and friendly",
-                },
-                {"name": "Aoede", "gender": "female", "description": "Professional"},
-                {"name": "Charon", "gender": "male", "description": "Authoritative"},
-                {"name": "Puck", "gender": "neutral", "description": "Conversational"},
-                {
-                    "name": "Fenrir",
-                    "gender": "male",
-                    "description": "Deep and resonant",
-                },
-            ],
-        }
-
-        language_code = self.get_language_code(language)
-        voices = all_voices.get(language, all_voices["en"])
-
-        # Format for API response
-        formatted_voices = []
-        for voice in voices:
-            formatted_voices.append(
-                {
-                    "name": voice["name"],
-                    "language_codes": [language_code],
-                    "gender": voice["gender"],
+                    "name": voice_name,
+                    "description": description,
+                    "language_codes": list(self.supported_languages.keys()),
                     "natural_sample_rate_hertz": 24000,
-                    "description": voice.get("description", ""),
                 }
             )
 
-        logger.info(f"Found {len(formatted_voices)} voices for {language}")
-        return formatted_voices
+        logger.info(
+            f"Found {len(voices)} voices (all support {len(self.supported_languages)} languages)"
+        )
+        return voices
 
     def extract_text_from_html(self, html_content: str, max_length: int = 8000) -> str:
         """
@@ -384,6 +373,151 @@ class GoogleTTSService:
             prompt=prompt,
             use_pro_model=use_pro_model,
         )
+
+    async def generate_multi_speaker_audio(
+        self,
+        script: Dict,
+        voice_names: List[str],
+        language: str = "en",
+        speaking_rate: float = 1.0,
+        use_pro_model: bool = False,
+    ) -> Tuple[bytes, Dict]:
+        """
+        Generate multi-speaker audio using Gemini TTS
+
+        Args:
+            script: Dict with 'speaker_roles' (list of names) and 'lines' (list of {speaker: int, text: str})
+            voice_names: List of voice names for each speaker (up to 2 speakers)
+            language: Language code
+            speaking_rate: Not used (kept for compatibility)
+            use_pro_model: Use pro model for higher quality
+
+        Returns:
+            (audio_bytes, metadata)
+
+        Example:
+            script = {
+                "speaker_roles": ["Joe", "Jane"],
+                "lines": [
+                    {"speaker": 0, "text": "How's it going today Jane?"},
+                    {"speaker": 1, "text": "Not too bad, how about you?"}
+                ]
+            }
+            voice_names = ["Kore", "Puck"]
+        """
+        try:
+            speaker_roles = script.get("speaker_roles", [])
+            lines = script.get("lines", [])
+
+            if not speaker_roles or not lines:
+                raise ValueError("Script must have speaker_roles and lines")
+
+            if len(speaker_roles) > 2:
+                raise ValueError("Gemini TTS supports maximum 2 speakers")
+
+            # Build prompt with conversation format
+            conversation = []
+            for line in lines:
+                speaker_idx = line["speaker"]
+                speaker_name = speaker_roles[speaker_idx]
+                text = line["text"]
+                conversation.append(f"{speaker_name}: {text}")
+
+            prompt_text = (
+                f"TTS the following conversation between {' and '.join(speaker_roles)}:\n"
+                + "\n".join(conversation)
+            )
+
+            language_code = self.get_language_code(language)
+
+            # Build multi-speaker voice config
+            speaker_voice_configs = []
+            for i, speaker_name in enumerate(speaker_roles):
+                voice_name = voice_names[i] if i < len(voice_names) else "Aoede"
+
+                speaker_voice_configs.append(
+                    types.SpeakerVoiceConfig(
+                        speaker=speaker_name,
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=voice_name
+                            )
+                        ),
+                    )
+                )
+
+            # Multi-speaker speech config
+            speech_config = types.SpeechConfig(
+                multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
+                    speaker_voice_configs=speaker_voice_configs
+                )
+            )
+
+            # Choose model
+            model = (
+                "gemini-2.5-pro-preview-tts"
+                if use_pro_model
+                else "gemini-2.5-flash-preview-tts"
+            )
+
+            logger.info(
+                f"🎙️ Generating multi-speaker audio: {len(speaker_roles)} speakers, {len(lines)} lines"
+            )
+
+            # Generate audio
+            response = self.client.models.generate_content(
+                model=model,
+                contents=prompt_text,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=speech_config,
+                ),
+            )
+
+            # Extract audio data
+            audio_data = response.candidates[0].content.parts[0].inline_data.data
+
+            # Check if audio_data is base64 string or bytes
+            if isinstance(audio_data, str):
+                import base64
+
+                audio_data = base64.b64decode(audio_data)
+                logger.info(f"Decoded base64 audio data: {len(audio_data)} bytes")
+            elif isinstance(audio_data, bytes):
+                logger.info(f"Audio data is already bytes: {len(audio_data)} bytes")
+            else:
+                raise ValueError(f"Unexpected audio data type: {type(audio_data)}")
+
+            # Convert raw PCM to WAV format
+            wav_data = self._convert_pcm_to_wav(
+                audio_data, sample_rate=24000, channels=1, sample_width=2
+            )
+
+            # Calculate duration
+            total_words = sum(len(line["text"].split()) for line in lines)
+            estimated_duration = (total_words / 150) * 60
+
+            metadata = {
+                "format": "wav",
+                "sample_rate": 24000,
+                "duration_seconds": round(estimated_duration, 2),
+                "num_speakers": len(speaker_roles),
+                "speaker_roles": speaker_roles,
+                "voice_names": voice_names[: len(speaker_roles)],
+                "num_lines": len(lines),
+                "total_words": total_words,
+                "model": model,
+                "language_code": language_code,
+            }
+
+            logger.info(
+                f"✅ Generated multi-speaker audio: {len(speaker_roles)} speakers, {len(lines)} lines, ~{estimated_duration:.1f}s"
+            )
+            return wav_data, metadata
+
+        except Exception as e:
+            logger.error(f"❌ Error generating multi-speaker audio: {e}")
+            raise
 
     async def save_audio_to_file(self, audio_content: bytes, output_path: str) -> None:
         """Save audio bytes to file"""
