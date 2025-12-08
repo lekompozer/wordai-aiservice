@@ -16,7 +16,8 @@ import config.config as config
 
 from src.services.google_tts_service import GoogleTTSService
 from src.services.r2_storage_service import R2StorageService
-from src.services.user_manager import get_user_manager
+from src.services.library_manager import LibraryManager
+from src.services.online_test_utils import get_mongodb_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,10 @@ class ListeningTestGeneratorService:
         self.client = genai.Client(api_key=self.gemini_api_key)
         self.google_tts = GoogleTTSService()
         self.r2_service = R2StorageService()
-        self.user_manager = get_user_manager()
+        mongo_service = get_mongodb_service()
+        self.library_manager = LibraryManager(
+            db=mongo_service.db, s3_client=self.r2_service.s3_client
+        )
 
     def _build_listening_prompt(
         self,
@@ -315,9 +319,9 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         public_url = upload_result["public_url"]
 
         # Save to user library
-        file_record = self.user_manager.save_library_file(
+        file_record = self.library_manager.save_library_file(
             user_id=creator_id,
-            filename=f"listening_section_{section_num}.wav",
+            filename=f"listening_test_section_{section_num}.wav",
             file_type="audio",
             category="audio",
             r2_url=public_url,
@@ -331,7 +335,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             },
         )
 
-        library_file_id = file_record.get("library_id", str(file_record["_id"]))
+        library_file_id = file_record.get("library_id", file_record.get("file_id"))
 
         logger.info(f"   ✅ Uploaded to R2: {public_url}")
 
