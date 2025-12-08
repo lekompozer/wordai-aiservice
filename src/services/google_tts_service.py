@@ -113,7 +113,10 @@ class GoogleTTSService:
 
         logger.info(f"Converted PCM to WAV: {len(pcm_data)} -> {len(wav_file)} bytes")
         return wav_file
-        self.language_codes = {
+
+    def get_language_code(self, lang: str) -> str:
+        """Convert 2-letter code to Google format"""
+        language_codes = {
             "vi": "vi-VN",
             "en": "en-US",
             "zh": "cmn-CN",
@@ -132,10 +135,7 @@ class GoogleTTSService:
             "ms": "ms-MY",
             "tl": "fil-PH",
         }
-
-    def get_language_code(self, lang: str) -> str:
-        """Convert 2-letter code to Google format"""
-        return self.language_codes.get(lang, "en-US")
+        return language_codes.get(lang, "en-US")
 
     async def get_available_voices(self, language: str = "vi") -> List[Dict]:
         """
