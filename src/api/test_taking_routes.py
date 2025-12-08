@@ -192,6 +192,12 @@ async def get_test(
             marketplace_config = test.get("marketplace_config", {})
             is_published = marketplace_config.get("is_public", False)
 
+            # For listening tests, include full audio sections with transcripts
+            test_type = test.get("test_type", "mcq")
+            audio_sections = (
+                test.get("audio_sections", []) if test_type == "listening" else None
+            )
+
             return {
                 "success": True,
                 "test_id": test_id,
@@ -201,6 +207,7 @@ async def get_test(
                 # Basic info
                 "title": test.get("title"),
                 "description": test.get("description"),
+                "test_type": test_type,
                 "test_category": test.get("test_category", "academic"),
                 "is_active": test.get("is_active", True),
                 "status": test.get("status", "ready"),
@@ -215,6 +222,11 @@ async def get_test(
                 # Questions (with correct answers for owner)
                 "num_questions": len(test.get("questions", [])),
                 "questions": test.get("questions", []),
+                # Listening test specific data (full transcript + audio)
+                "audio_sections": audio_sections,
+                "num_audio_sections": (
+                    test.get("num_audio_sections") if test_type == "listening" else None
+                ),
                 # Creation info
                 "creation_type": test.get("creation_type"),
                 "test_language": test.get("test_language", test.get("language", "vi")),
@@ -2179,6 +2191,317 @@ async def get_test_participants(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get participants: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Listening Test Audio Management ==========
+
+
+@router.delete(
+    "/{test_id}/audio-sections/{section_number}",
+    summary="Delete audio from listening test section",
+    tags=["Listening Tests"],
+)
+async def delete_audio_section(
+    test_id: str,
+    section_number: int,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **Delete audio from listening test section (Owner only)**
+
+    Removes audio_url and audio_file_id from the audio section while keeping the transcript and script.
+    The audio file is archived in the library.
+
+    **Authentication:** Required (Owner only)
+
+    **Path Parameters:**
+    - `test_id`: Test ID
+    - `section_number`: Audio section number (1-based)
+
+    **Returns:**
+    - 200: Audio deleted successfully
+    - 403: Not test owner
+    - 404: Test or section not found
+    """
+    try:
+        from src.database.db_manager import DBManager
+        from src.services.library_manager import LibraryManager
+        from src.services.r2_storage_service import R2StorageService
+
+        user_id = user_info["uid"]
+        db_manager = DBManager()
+        db = db_manager.db
+
+        # 1. Get test and verify ownership
+        test = db.online_tests.find_one({"test_id": test_id})
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test.get("creator_id") != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can delete audio"
+            )
+
+        # 2. Verify test is listening type
+        if test.get("test_type") != "listening":
+            raise HTTPException(status_code=400, detail="Test is not a listening test")
+
+        # 3. Find audio section
+        audio_sections = test.get("audio_sections", [])
+        section_index = section_number - 1
+
+        if section_index < 0 or section_index >= len(audio_sections):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Audio section {section_number} not found (test has {len(audio_sections)} sections)",
+            )
+
+        audio_section = audio_sections[section_index]
+        audio_file_id = audio_section.get("audio_file_id")
+
+        # 4. Archive audio file in library if exists
+        if audio_file_id:
+            try:
+                r2_service = R2StorageService()
+                library_manager = LibraryManager(db, s3_client=r2_service.s3_client)
+
+                library_manager.archive_library_file(
+                    file_id=audio_file_id,
+                    user_id=user_id,
+                    reason=f"Audio removed from test {test_id} section {section_number}",
+                )
+                logger.info(f"📦 Archived audio file {audio_file_id} to library")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to archive audio file: {e}")
+
+        # 5. Remove audio_url and audio_file_id from section
+        audio_section.pop("audio_url", None)
+        audio_section.pop("audio_file_id", None)
+        audio_section["has_audio"] = False
+
+        # Update database
+        db.online_tests.update_one(
+            {"test_id": test_id},
+            {"$set": {f"audio_sections.{section_index}": audio_section}},
+        )
+
+        logger.info(
+            f"✅ User {user_id} deleted audio from test {test_id} section {section_number}"
+        )
+
+        return {
+            "success": True,
+            "message": f"Audio removed from section {section_number}",
+            "section": {
+                "section_number": section_number,
+                "section_title": audio_section.get("section_title"),
+                "has_audio": False,
+                "transcript_preserved": True,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete audio section: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put(
+    "/{test_id}/audio-sections/{section_number}/audio",
+    summary="Replace audio in listening test section",
+    tags=["Listening Tests"],
+)
+async def replace_audio_section(
+    test_id: str,
+    section_number: int,
+    audio_file: UploadFile = File(..., description="Audio file (MP3, WAV, M4A, OGG)"),
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **Replace audio in listening test section (Owner only)**
+
+    Uploads a new audio file and updates the audio_url and audio_file_id.
+    The old audio file is archived in the library.
+
+    **Authentication:** Required (Owner only)
+
+    **Path Parameters:**
+    - `test_id`: Test ID
+    - `section_number`: Audio section number (1-based)
+
+    **Request:**
+    - Multipart form-data with audio file
+
+    **Supported Formats:**
+    - MP3 (recommended)
+    - WAV
+    - M4A
+    - OGG
+
+    **Max Size:** 50MB
+
+    **Returns:**
+    - 200: Audio replaced successfully
+    - 400: Invalid file format or size
+    - 403: Not test owner
+    - 404: Test or section not found
+    """
+    try:
+        from src.database.db_manager import DBManager
+        from src.services.library_manager import LibraryManager
+        from src.services.r2_storage_service import R2StorageService
+        import mimetypes
+
+        user_id = user_info["uid"]
+        db_manager = DBManager()
+        db = db_manager.db
+
+        # 1. Get test and verify ownership
+        test = db.online_tests.find_one({"test_id": test_id})
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        if test.get("creator_id") != user_id:
+            raise HTTPException(
+                status_code=403, detail="Only test owner can replace audio"
+            )
+
+        # 2. Verify test is listening type
+        if test.get("test_type") != "listening":
+            raise HTTPException(status_code=400, detail="Test is not a listening test")
+
+        # 3. Find audio section
+        audio_sections = test.get("audio_sections", [])
+        section_index = section_number - 1
+
+        if section_index < 0 or section_index >= len(audio_sections):
+            raise HTTPException(
+                status_code=404,
+                detail=f"Audio section {section_number} not found (test has {len(audio_sections)} sections)",
+            )
+
+        audio_section = audio_sections[section_index]
+        old_audio_file_id = audio_section.get("audio_file_id")
+
+        # 4. Validate audio file
+        if not audio_file.filename:
+            raise HTTPException(status_code=400, detail="No filename provided")
+
+        # Check file extension
+        allowed_extensions = {".mp3", ".wav", ".m4a", ".ogg", ".webm"}
+        file_ext = os.path.splitext(audio_file.filename)[1].lower()
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid audio format. Allowed: {', '.join(allowed_extensions)}",
+            )
+
+        # Read file content
+        file_content = await audio_file.read()
+        file_size = len(file_content)
+
+        # Check file size (50MB max)
+        MAX_SIZE = 50 * 1024 * 1024
+        if file_size > MAX_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large (max 50MB, got {file_size} bytes)",
+            )
+
+        # 5. Archive old audio file if exists
+        if old_audio_file_id:
+            try:
+                r2_service = R2StorageService()
+                library_manager = LibraryManager(db, s3_client=r2_service.s3_client)
+
+                library_manager.archive_library_file(
+                    file_id=old_audio_file_id,
+                    user_id=user_id,
+                    reason=f"Audio replaced in test {test_id} section {section_number}",
+                )
+                logger.info(f"📦 Archived old audio file {old_audio_file_id}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to archive old audio: {e}")
+
+        # 6. Upload new audio to R2
+        r2_service = R2StorageService()
+        library_manager = LibraryManager(db, s3_client=r2_service.s3_client)
+
+        # Generate R2 key
+        file_id = str(uuid.uuid4())
+        r2_key = f"listening-tests/{user_id}/{test_id}/section_{section_number}_{file_id}{file_ext}"
+
+        # Detect content type
+        content_type = (
+            audio_file.content_type
+            or mimetypes.guess_type(audio_file.filename)[0]
+            or "audio/mpeg"
+        )
+
+        # Upload to R2
+        r2_service.upload_file(file_content, r2_key, content_type)
+        audio_url = r2_service.get_public_url(r2_key)
+
+        logger.info(f"☁️ Uploaded audio to R2: {r2_key}")
+
+        # 7. Save to library
+        library_file = library_manager.save_library_file(
+            user_id=user_id,
+            filename=audio_file.filename,
+            r2_key=r2_key,
+            r2_url=audio_url,
+            file_size_bytes=file_size,
+            content_type=content_type,
+            category="audio",
+            metadata={
+                "test_id": test_id,
+                "audio_section": section_number,
+                "source_type": "user_upload_replacement",
+                "audio_format": file_ext.lstrip("."),
+            },
+        )
+
+        new_audio_file_id = str(library_file["_id"])
+
+        # 8. Update audio section
+        audio_section["audio_url"] = audio_url
+        audio_section["audio_file_id"] = new_audio_file_id
+        audio_section["has_audio"] = True
+        audio_section["source_type"] = "user_upload"
+
+        # Update database
+        db.online_tests.update_one(
+            {"test_id": test_id},
+            {"$set": {f"audio_sections.{section_index}": audio_section}},
+        )
+
+        logger.info(
+            f"✅ User {user_id} replaced audio in test {test_id} section {section_number}"
+        )
+
+        return {
+            "success": True,
+            "message": f"Audio replaced in section {section_number}",
+            "audio": {
+                "audio_url": audio_url,
+                "audio_file_id": new_audio_file_id,
+                "file_size_bytes": file_size,
+                "format": file_ext.lstrip("."),
+                "source_type": "user_upload",
+            },
+            "section": {
+                "section_number": section_number,
+                "section_title": audio_section.get("section_title"),
+                "has_audio": True,
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to replace audio: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
