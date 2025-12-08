@@ -412,7 +412,8 @@ class SubmitTestRequest(BaseModel):
     """Request model for test submission
 
     Supports both MCQ and Essay answers:
-    - MCQ: {question_id, question_type: 'mcq', selected_answer_key}
+    - MCQ (Multi-answer): {question_id, question_type: 'mcq', selected_answer_keys: ["A", "B"]}
+    - MCQ (Legacy): {question_id, question_type: 'mcq', selected_answer_key: "A"}
     - Essay: {question_id, question_type: 'essay', essay_answer, media_attachments: [...]}
 
     Essay answers can include optional media attachments:
@@ -433,7 +434,8 @@ class SubmitTestRequest(BaseModel):
     user_answers: list = Field(
         ...,
         description="""List of answers with format:
-        MCQ: {"question_id": "q1", "question_type": "mcq", "selected_answer_key": "A"}
+        MCQ (Multi-answer): {"question_id": "q1", "question_type": "mcq", "selected_answer_keys": ["A", "B"]}
+        MCQ (Legacy): {"question_id": "q1", "question_type": "mcq", "selected_answer_key": "A"}
         Essay: {
             "question_id": "q2",
             "question_type": "essay",

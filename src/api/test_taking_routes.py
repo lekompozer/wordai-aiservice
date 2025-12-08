@@ -133,7 +133,6 @@ async def get_answer_media_presigned_url(
 # ========== NEW: Manual Test Creation Endpoint ==========
 
 
-
 @router.get("/{test_id}")
 async def get_test(
     test_id: str,
@@ -350,7 +349,6 @@ async def get_test(
     except Exception as e:
         logger.error(f"❌ Failed to get test: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.post("/{test_id}/start")
@@ -669,7 +667,6 @@ async def start_test(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.post("/{test_id}/submit")
 async def submit_test(
     test_id: str,
@@ -748,9 +745,14 @@ async def submit_test(
             ans_type = ans.get("question_type", "mcq")
 
             if ans_type == "mcq":
+                # Support both new (selected_answer_keys) and legacy (selected_answer_key)
+                selected_answers = ans.get("selected_answer_keys", [])
+                if not selected_answers and "selected_answer_key" in ans:
+                    selected_answers = [ans.get("selected_answer_key")]
+
                 user_answers_map[q_id] = {
                     "type": "mcq",
-                    "selected_answer_key": ans.get("selected_answer_key"),
+                    "selected_answer_keys": selected_answers,
                 }
             elif ans_type == "essay":
                 user_answers_map[q_id] = {
@@ -772,15 +774,19 @@ async def submit_test(
             for q in mcq_questions:
                 question_id = q["question_id"]
                 user_answer_data = user_answers_map.get(question_id, {})
-                user_answer = user_answer_data.get("selected_answer_key")
+
+                # Get user answers (support both array and legacy single answer)
+                user_answers = user_answer_data.get("selected_answer_keys", [])
+                if not user_answers and "selected_answer_key" in user_answer_data:
+                    user_answers = [user_answer_data["selected_answer_key"]]
 
                 results.append(
                     {
                         "question_id": question_id,
                         "question_text": q["question_text"],
                         "question_type": "mcq",
-                        "your_answer": user_answer,
-                        "correct_answer": None,  # No correct answer for diagnostic
+                        "selected_answer_keys": user_answers,
+                        "correct_answer_keys": None,  # No correct answer for diagnostic
                         "is_correct": None,
                         "explanation": q.get("explanation"),
                         "max_points": q.get("max_points", 1),
@@ -791,11 +797,25 @@ async def submit_test(
             # Academic test - normal scoring
             for q in mcq_questions:
                 question_id = q["question_id"]
-                correct_answer = q["correct_answer_key"]
                 user_answer_data = user_answers_map.get(question_id, {})
-                user_answer = user_answer_data.get("selected_answer_key")
 
-                is_correct = user_answer == correct_answer
+                # Get correct answers (support both array and legacy single answer)
+                correct_answers = q.get("correct_answer_keys", [])
+                if not correct_answers and "correct_answer_key" in q:
+                    # Fallback to legacy single answer
+                    correct_answers = [q["correct_answer_key"]]
+
+                # Get user answers (support both array and legacy single answer)
+                user_answers = user_answer_data.get("selected_answer_keys", [])
+                if not user_answers and "selected_answer_key" in user_answer_data:
+                    # Fallback to legacy single answer
+                    user_answers = [user_answer_data["selected_answer_key"]]
+
+                # Compare as sets (order doesn't matter, all answers must match)
+                is_correct = (
+                    set(user_answers) == set(correct_answers) if user_answers else False
+                )
+
                 if is_correct:
                     mcq_correct_count += 1
                     mcq_score += q.get("max_points", 1)
@@ -805,8 +825,8 @@ async def submit_test(
                         "question_id": question_id,
                         "question_text": q["question_text"],
                         "question_type": "mcq",
-                        "your_answer": user_answer,
-                        "correct_answer": correct_answer,
+                        "selected_answer_keys": user_answers,
+                        "correct_answer_keys": correct_answers,
                         "is_correct": is_correct,
                         "explanation": q.get("explanation"),
                         "max_points": q.get("max_points", 1),
@@ -1252,7 +1272,6 @@ async def submit_test(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.post("/{test_id}/sync-answers")
 async def sync_answers(
     test_id: str,
@@ -1406,7 +1425,6 @@ async def sync_answers(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/me/submissions")
 async def get_my_submissions(
     user_info: dict = Depends(require_auth),
@@ -1505,7 +1523,6 @@ async def get_my_submissions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/me/submissions/{submission_id}")
 async def get_submission_detail(
     submission_id: str,
@@ -1553,9 +1570,14 @@ async def get_submission_detail(
             ans_type = ans.get("question_type", "mcq")
 
             if ans_type == "mcq":
+                # Support both new (selected_answer_keys) and legacy (selected_answer_key)
+                selected_answers = ans.get("selected_answer_keys", [])
+                if not selected_answers and "selected_answer_key" in ans:
+                    selected_answers = [ans.get("selected_answer_key")]
+
                 user_answers_map[q_id] = {
                     "type": "mcq",
-                    "selected_answer_key": ans.get("selected_answer_key"),
+                    "selected_answer_keys": selected_answers,
                 }
             elif ans_type == "essay":
                 user_answers_map[q_id] = {
@@ -1576,32 +1598,40 @@ async def get_submission_detail(
 
             if q_type == "mcq":
                 # MCQ result
-                user_answer = user_answer_data.get("selected_answer_key")
-                correct_answer = q.get(
-                    "correct_answer_key"
-                )  # May be None for diagnostic tests
-                is_correct = user_answer == correct_answer if correct_answer else None
+                user_answers = user_answer_data.get("selected_answer_keys", [])
+
+                # Get correct answers (support both array and legacy)
+                correct_answers = q.get("correct_answer_keys", [])
+                if not correct_answers and "correct_answer_key" in q:
+                    correct_answers = [q.get("correct_answer_key")]
+
+                # Compare as sets (all answers must match)
+                is_correct = (
+                    set(user_answers) == set(correct_answers)
+                    if (correct_answers and user_answers)
+                    else None
+                )
 
                 result_data = {
                     "question_id": question_id,
                     "question_text": q["question_text"],
                     "question_type": "mcq",
                     "options": q.get("options", []),
-                    "your_answer": user_answer,
+                    "selected_answer_keys": user_answers,
                     "explanation": q.get("explanation"),
                     "max_points": q.get("max_points", 1),
                 }
 
                 # Only include correct_answer and is_correct for academic tests
-                if correct_answer is not None:
-                    result_data["correct_answer"] = correct_answer
+                if correct_answers:
+                    result_data["correct_answer_keys"] = correct_answers
                     result_data["is_correct"] = is_correct
                     result_data["points_awarded"] = (
                         q.get("max_points", 1) if is_correct else 0
                     )
                 else:
                     # Diagnostic test - no correct/incorrect concept
-                    result_data["correct_answer"] = None
+                    result_data["correct_answer_keys"] = None
                     result_data["is_correct"] = None
                     result_data["points_awarded"] = 0
 
@@ -1757,7 +1787,6 @@ class ProgressResponse(BaseModel):
     is_completed: bool
 
 
-
 @router.post(
     "/{test_id}/progress/save", response_model=dict, tags=["Phase 2 - Auto-save"]
 )
@@ -1835,7 +1864,6 @@ async def save_test_progress(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get(
     "/{test_id}/progress", response_model=ProgressResponse, tags=["Phase 2 - Auto-save"]
 )
@@ -1889,7 +1917,6 @@ async def get_test_progress(
     except Exception as e:
         logger.error(f"❌ Failed to get progress: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.post("/{test_id}/resume", response_model=dict, tags=["Phase 2 - Auto-save"])
@@ -1986,7 +2013,6 @@ class GradeAllEssaysRequest(BaseModel):
     grades: list[GradeEssayRequest] = Field(
         ..., description="List of grades for all essay questions"
     )
-
 
 
 @router.get("/{test_id}/participants", response_model=dict, tags=["Phase 3 - Editing"])
@@ -2157,4 +2183,3 @@ async def get_test_participants(
 
 
 # ========== Phase 4: Question Media Upload ==========
-

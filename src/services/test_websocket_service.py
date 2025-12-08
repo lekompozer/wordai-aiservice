@@ -320,11 +320,28 @@ class TestWebSocketService:
                         # Legacy: simple string = MCQ answer key
                         normalized_answers[question_id] = {
                             "question_type": "mcq",
-                            "selected_answer_key": answer_data,
+                            "selected_answer_keys": [answer_data],  # Convert to array
                         }
                     elif isinstance(answer_data, dict):
                         # New: full answer object (MCQ or Essay)
-                        normalized_answers[question_id] = answer_data
+                        # Normalize MCQ answers to use selected_answer_keys array
+                        if answer_data.get("question_type") == "mcq":
+                            # Support both new (selected_answer_keys) and legacy (selected_answer_key)
+                            if "selected_answer_keys" in answer_data:
+                                normalized_answers[question_id] = answer_data
+                            elif "selected_answer_key" in answer_data:
+                                # Convert legacy single answer to array
+                                normalized_answers[question_id] = {
+                                    "question_type": "mcq",
+                                    "selected_answer_keys": [
+                                        answer_data["selected_answer_key"]
+                                    ],
+                                }
+                            else:
+                                normalized_answers[question_id] = answer_data
+                        else:
+                            # Essay or other types - keep as is
+                            normalized_answers[question_id] = answer_data
                     else:
                         logger.warning(
                             f"Invalid answer format for {question_id}: {type(answer_data)}"
@@ -398,16 +415,35 @@ class TestWebSocketService:
                     return
 
                 # Build answer object
-                if "answer_key" in data:  # Legacy format
+                if "answer_key" in data:  # Legacy format (single answer as string)
                     answer_data = {
                         "question_type": "mcq",
-                        "selected_answer_key": data["answer_key"],
+                        "selected_answer_keys": [
+                            data["answer_key"]
+                        ],  # Convert to array
                     }
                 elif question_type == "mcq":
-                    answer_data = {
-                        "question_type": "mcq",
-                        "selected_answer_key": data.get("selected_answer_key"),
-                    }
+                    # Support both new (selected_answer_keys) and legacy (selected_answer_key)
+                    if "selected_answer_keys" in data:
+                        # New format: array of answers for multi-answer questions
+                        answer_data = {
+                            "question_type": "mcq",
+                            "selected_answer_keys": data.get("selected_answer_keys"),
+                        }
+                    elif "selected_answer_key" in data:
+                        # Legacy format: single answer as string
+                        answer_data = {
+                            "question_type": "mcq",
+                            "selected_answer_keys": [
+                                data.get("selected_answer_key")
+                            ],  # Convert to array
+                        }
+                    else:
+                        # No answer provided
+                        answer_data = {
+                            "question_type": "mcq",
+                            "selected_answer_keys": [],
+                        }
                 elif question_type == "essay":
                     answer_data = {
                         "question_type": "essay",
