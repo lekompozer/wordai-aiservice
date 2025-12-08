@@ -5,6 +5,7 @@ Uses Vertex AI with google-genai SDK (Gemini TTS)
 
 import os
 import logging
+import struct
 from typing import Dict, List, Optional, Tuple
 from bs4 import BeautifulSoup
 from google import genai
@@ -28,6 +29,90 @@ class GoogleTTSService:
         logger.info("Gemini TTS initialized with API key")
 
         # Supported languages
+        self.supported_languages = {
+            "vi": "Vietnamese",
+            "en": "English",
+            "zh": "Chinese",
+            "ja": "Japanese",
+            "ko": "Korean",
+            "th": "Thai",
+            "fr": "French",
+            "de": "German",
+            "es": "Spanish",
+            "it": "Italian",
+            "pt": "Portuguese",
+            "ru": "Russian",
+            "ar": "Arabic",
+            "hi": "Hindi",
+            "id": "Indonesian",
+            "ms": "Malay",
+            "tl": "Filipino",
+        }
+
+    def _convert_pcm_to_wav(
+        self,
+        pcm_data: bytes,
+        sample_rate: int = 24000,
+        channels: int = 1,
+        sample_width: int = 2,
+    ) -> bytes:
+        """
+        Convert raw PCM data to WAV format with proper header
+
+        Args:
+            pcm_data: Raw PCM audio data
+            sample_rate: Sample rate (default: 24000 Hz from Gemini)
+            channels: Number of channels (default: 1 for mono)
+            sample_width: Sample width in bytes (default: 2 for 16-bit)
+
+        Returns:
+            WAV file bytes with header
+        """
+        # WAV file header structure
+        # Reference: http://soundfile.sapp.org/doc/WaveFormat/
+
+        data_size = len(pcm_data)
+
+        # RIFF header
+        riff_header = b"RIFF"
+        file_size = data_size + 36  # 36 bytes for header
+        riff_size = struct.pack("<I", file_size)
+        wave_header = b"WAVE"
+
+        # Format chunk
+        fmt_header = b"fmt "
+        fmt_size = struct.pack("<I", 16)  # PCM format chunk size
+        audio_format = struct.pack("<H", 1)  # 1 = PCM
+        num_channels = struct.pack("<H", channels)
+        sample_rate_packed = struct.pack("<I", sample_rate)
+        byte_rate = struct.pack("<I", sample_rate * channels * sample_width)
+        block_align = struct.pack("<H", channels * sample_width)
+        bits_per_sample = struct.pack("<H", sample_width * 8)
+
+        # Data chunk
+        data_header = b"data"
+        data_size_packed = struct.pack("<I", data_size)
+
+        # Combine all parts
+        wav_file = (
+            riff_header
+            + riff_size
+            + wave_header
+            + fmt_header
+            + fmt_size
+            + audio_format
+            + num_channels
+            + sample_rate_packed
+            + byte_rate
+            + block_align
+            + bits_per_sample
+            + data_header
+            + data_size_packed
+            + pcm_data
+        )
+
+        logger.info(f"Converted PCM to WAV: {len(pcm_data)} -> {len(wav_file)} bytes")
+        return wav_file
         self.language_codes = {
             "vi": "vi-VN",
             "en": "en-US",
@@ -230,7 +315,7 @@ class GoogleTTSService:
                 ),
             )
 
-            # Extract audio data (WAV format)
+            # Extract audio data (raw PCM format from Gemini)
             audio_data = response.candidates[0].content.parts[0].inline_data.data
 
             # Check if audio_data is base64 string or bytes
@@ -243,6 +328,11 @@ class GoogleTTSService:
                 logger.info(f"Audio data is already bytes: {len(audio_data)} bytes")
             else:
                 raise ValueError(f"Unexpected audio data type: {type(audio_data)}")
+
+            # Convert raw PCM to WAV format with header
+            wav_data = self._convert_pcm_to_wav(
+                audio_data, sample_rate=24000, channels=1, sample_width=2
+            )
 
             # Calculate duration
             word_count = len(text.split())
@@ -263,7 +353,7 @@ class GoogleTTSService:
             logger.info(
                 f"Generated audio: {word_count} words, ~{estimated_duration:.1f}s, voice={voice_name or 'Despina'}, model={model}"
             )
-            return audio_data, metadata
+            return wav_data, metadata
 
         except Exception as e:
             logger.error(f"Error generating audio: {e}")
