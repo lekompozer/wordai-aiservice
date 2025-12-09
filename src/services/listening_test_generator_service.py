@@ -181,10 +181,46 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         )
 
         result = json.loads(response.text)
+
+        # Convert Gemini array format to object format for storage
+        self._convert_gemini_arrays_to_objects(result)
+
         logger.info(
             f"✅ Generated {len(result['audio_sections'])} audio sections with {sum(len(s.get('questions', [])) for s in result['audio_sections'])} questions"
         )
         return result
+
+    def _convert_gemini_arrays_to_objects(self, result: Dict) -> None:
+        """
+        Convert Gemini's array format to object format for storage
+
+        Gemini returns:
+        - correct_matches: [{"left_key": "item1", "right_key": "option_a"}, ...]
+        - correct_answers: [{"blank_key": "blank_1", "answers": ["word1", "word2"]}, ...]
+
+        Convert to:
+        - correct_matches: {"item1": "option_a", ...}
+        - correct_answers: {"blank_1": ["word1", "word2"], ...}
+        """
+        for section in result.get("audio_sections", []):
+            for question in section.get("questions", []):
+                # Convert correct_matches array to object
+                if "correct_matches" in question and isinstance(
+                    question["correct_matches"], list
+                ):
+                    matches_dict = {}
+                    for match in question["correct_matches"]:
+                        matches_dict[match["left_key"]] = match["right_key"]
+                    question["correct_matches"] = matches_dict
+
+                # Convert correct_answers array to object
+                if "correct_answers" in question and isinstance(
+                    question["correct_answers"], list
+                ):
+                    answers_dict = {}
+                    for answer in question["correct_answers"]:
+                        answers_dict[answer["blank_key"]] = answer["answers"]
+                    question["correct_answers"] = answers_dict
 
     async def _generate_section_audio(
         self,

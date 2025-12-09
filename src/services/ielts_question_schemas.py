@@ -108,8 +108,14 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                         },
                                     },
                                     "correct_matches": {
-                                        "type": "object",
-                                        "additionalProperties": {"type": "string"},
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "left_key": {"type": "string"},
+                                                "right_key": {"type": "string"},
+                                            },
+                                        },
                                     },
                                     # Completion fields
                                     "template": {"type": "string"},
@@ -125,10 +131,16 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                         },
                                     },
                                     "correct_answers": {
-                                        "type": "object",
-                                        "additionalProperties": {
-                                            "type": "array",
-                                            "items": {"type": "string"},
+                                        "type": "array",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": {
+                                                "blank_key": {"type": "string"},
+                                                "answers": {
+                                                    "type": "array",
+                                                    "items": {"type": "string"},
+                                                },
+                                            },
                                         },
                                     },
                                     # Sentence completion fields
@@ -265,11 +277,11 @@ def get_ielts_prompt(
             {{"key": "2", "position": "Student ID", "word_limit": 1}},
             {{"key": "3", "position": "Email", "word_limit": 2}}
           ],
-          "correct_answers": {{
-            "1": ["John Smith", "john smith"],
-            "2": ["A12345", "a12345"],
-            "3": ["john.smith@email.com"]
-          }},
+          "correct_answers": [
+            {{"blank_key": "1", "answers": ["John Smith", "john smith"]}},
+            {{"blank_key": "2", "answers": ["A12345", "a12345"]}},
+            {{"blank_key": "3", "answers": ["john.smith@email.com"]}}
+          ],
           "timestamp_hint": "0:10-0:30",
           "explanation": "The student provides personal details during registration."
         }},
@@ -289,11 +301,11 @@ def get_ielts_prompt(
             {{"key": "D", "text": "Third floor"}},
             {{"key": "E", "text": "Basement"}}
           ],
-          "correct_matches": {{
-            "4": "B",
-            "5": "B",
-            "6": "C"
-          }},
+          "correct_matches": [
+            {{"left_key": "4", "right_key": "B"}},
+            {{"left_key": "5", "right_key": "B"}},
+            {{"left_key": "6", "right_key": "C"}}
+          ],
           "timestamp_hint": "0:45-1:10",
           "explanation": "Librarian describes locations of facilities."
         }},
