@@ -236,7 +236,7 @@ def get_ielts_prompt(
 **SPEAKER CONFIGURATION:**
 {speaker_instruction}
 
-**QUESTION TYPES TO USE (Mix them):**
+**QUESTION TYPES TO USE (Mix them - AI decides quantity per type):**
 
 1. **MCQ (Multiple Choice)**: 4 options (A-D), single or multiple correct answers
    - Good for: main ideas, details, attitudes, purposes
