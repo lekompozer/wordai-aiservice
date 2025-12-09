@@ -24,6 +24,7 @@ from fastapi import (
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
 from src.services.online_test_utils import *
+from src.services.ielts_scoring import score_question
 
 logger = logging.getLogger("chatbot")
 
@@ -750,7 +751,7 @@ async def submit_test(
         )
         logger.info(f"   📊 Test category: {test_category}")
 
-        # Create answer maps
+        # Create answer maps for all question types
         user_answers_map = {}
         for ans in request.user_answers:
             q_id = ans.get("question_id")
@@ -766,6 +767,25 @@ async def submit_test(
                     "type": "mcq",
                     "selected_answer_keys": selected_answers,
                 }
+            
+            elif ans_type == "matching":
+                user_answers_map[q_id] = {
+                    "type": "matching",
+                    "matches": ans.get("matches", {}),
+                }
+            
+            elif ans_type == "map_labeling":
+                user_answers_map[q_id] = {
+                    "type": "map_labeling",
+                    "labels": ans.get("labels", {}),
+                }
+            
+            elif ans_type in ["completion", "sentence_completion", "short_answer"]:
+                user_answers_map[q_id] = {
+                    "type": ans_type,
+                    "answers": ans.get("answers", {}),
+                }
+            
             elif ans_type == "essay":
                 user_answers_map[q_id] = {
                     "type": "essay",
@@ -775,30 +795,28 @@ async def submit_test(
                     ),  # Store media attachments (images, audio, documents)
                 }
 
-        # ========== Auto-grade MCQ questions only (or skip for diagnostic) ==========
+        # ========== Auto-grade ALL auto-gradable questions (MCQ + IELTS types) ==========
         mcq_correct_count = 0
         mcq_score = 0
         results = []
 
+        # Get all auto-gradable questions (MCQ + IELTS types)
+        auto_gradable_questions = [q for q in questions if q.get("question_type", "mcq") != "essay"]
+
         # For diagnostic tests, skip correct/incorrect scoring
         if is_diagnostic:
             # Diagnostic test - no scoring, just save answers
-            for q in mcq_questions:
+            for q in auto_gradable_questions:
                 question_id = q["question_id"]
+                question_type = q.get("question_type", "mcq")
                 user_answer_data = user_answers_map.get(question_id, {})
-
-                # Get user answers (support both array and legacy single answer)
-                user_answers = user_answer_data.get("selected_answer_keys", [])
-                if not user_answers and "selected_answer_key" in user_answer_data:
-                    user_answers = [user_answer_data["selected_answer_key"]]
 
                 results.append(
                     {
                         "question_id": question_id,
                         "question_text": q["question_text"],
-                        "question_type": "mcq",
-                        "selected_answer_keys": user_answers,
-                        "correct_answer_keys": None,  # No correct answer for diagnostic
+                        "question_type": question_type,
+                        "user_answer": user_answer_data,
                         "is_correct": None,
                         "explanation": q.get("explanation"),
                         "max_points": q.get("max_points", 1),
@@ -806,45 +824,48 @@ async def submit_test(
                     }
                 )
         else:
-            # Academic test - normal scoring
-            for q in mcq_questions:
+            # Academic test - score using IELTS scoring logic
+            for q in auto_gradable_questions:
                 question_id = q["question_id"]
+                question_type = q.get("question_type", "mcq")
                 user_answer_data = user_answers_map.get(question_id, {})
 
-                # Get correct answers (support both array and legacy single answer)
-                correct_answers = q.get("correct_answer_keys", [])
-                if not correct_answers and "correct_answer_key" in q:
-                    # Fallback to legacy single answer
-                    correct_answers = [q["correct_answer_key"]]
-
-                # Get user answers (support both array and legacy single answer)
-                user_answers = user_answer_data.get("selected_answer_keys", [])
-                if not user_answers and "selected_answer_key" in user_answer_data:
-                    # Fallback to legacy single answer
-                    user_answers = [user_answer_data["selected_answer_key"]]
-
-                # Compare as sets (order doesn't matter, all answers must match)
-                is_correct = (
-                    set(user_answers) == set(correct_answers) if user_answers else False
-                )
+                # Use new IELTS scoring system
+                is_correct, points_earned, feedback = score_question(q, user_answer_data)
 
                 if is_correct:
                     mcq_correct_count += 1
-                    mcq_score += q.get("max_points", 1)
+                
+                mcq_score += points_earned
 
-                results.append(
-                    {
-                        "question_id": question_id,
-                        "question_text": q["question_text"],
-                        "question_type": "mcq",
-                        "selected_answer_keys": user_answers,
-                        "correct_answer_keys": correct_answers,
-                        "is_correct": is_correct,
-                        "explanation": q.get("explanation"),
-                        "max_points": q.get("max_points", 1),
-                        "points_awarded": q.get("max_points", 1) if is_correct else 0,
-                    }
-                )
+                # Build result based on question type
+                result = {
+                    "question_id": question_id,
+                    "question_text": q["question_text"],
+                    "question_type": question_type,
+                    "is_correct": is_correct,
+                    "explanation": q.get("explanation"),
+                    "max_points": q.get("max_points", 1),
+                    "points_awarded": points_earned,
+                    "feedback": feedback,
+                }
+
+                # Add type-specific fields for result
+                if question_type == "mcq":
+                    result["selected_answer_keys"] = user_answer_data.get("selected_answer_keys", [])
+                    result["correct_answer_keys"] = q.get("correct_answer_keys", [])
+                elif question_type == "matching":
+                    result["user_matches"] = user_answer_data.get("matches", {})
+                    result["correct_matches"] = q.get("correct_matches", {})
+                elif question_type == "map_labeling":
+                    result["user_labels"] = user_answer_data.get("labels", {})
+                    result["correct_labels"] = q.get("correct_labels", {})
+                elif question_type in ["completion", "sentence_completion", "short_answer"]:
+                    result["user_answers"] = user_answer_data.get("answers", {})
+                    # Don't expose all correct answers immediately (show after deadline if configured)
+                    # Frontend will show feedback only
+
+                results.append(result)
 
         # ========== Add essay questions to results (not graded yet) ==========
         for q in essay_questions:
@@ -874,8 +895,8 @@ async def submit_test(
             score_percentage = None
         else:
             grading_status = "auto_graded"
-            # Calculate final score for MCQ-only tests
-            total_max_points = sum(q.get("max_points", 1) for q in mcq_questions)
+            # Calculate final score for all auto-gradable questions (MCQ + IELTS types)
+            total_max_points = sum(q.get("max_points", 1) for q in auto_gradable_questions)
             final_score = (
                 round(mcq_score / total_max_points * 10, 2)
                 if total_max_points > 0
