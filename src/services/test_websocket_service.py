@@ -266,13 +266,18 @@ class TestWebSocketService:
             Frontend gửi FULL answers mỗi lần để đảm bảo không mất data nếu đứt kết nối.
             Backend sẽ overwrite toàn bộ current_answers với data mới.
 
-            **UPDATED**: Hỗ trợ cả MCQ và Essay với media attachments
+            **UPDATED**: Hỗ trợ 8 question types: mcq, essay, matching, map_labeling, completion, sentence_completion, short_answer
 
             Data: {
                 session_id: str,
                 answers: {
-                    "q1": {"question_type": "mcq", "selected_answer_key": "A"},
-                    "q2": {
+                    "q1": {"question_type": "mcq", "selected_answer_keys": ["A"]},
+                    "q2": {"question_type": "matching", "matches": {"1": "A", "2": "B"}},
+                    "q3": {"question_type": "completion", "answers": {"1": "answer1", "2": "answer2"}},
+                    "q4": {"question_type": "sentence_completion", "answers": {"1": "answer1"}},
+                    "q5": {"question_type": "short_answer", "answers": {"1": "answer1"}},
+                    "q6": {"question_type": "map_labeling", "labels": {"1": "A", "2": "B"}},
+                    "q7": {
                         "question_type": "essay",
                         "essay_answer": "text...",
                         "media_attachments": [{"media_type": "image", "media_url": "..."}]
@@ -323,10 +328,11 @@ class TestWebSocketService:
                             "selected_answer_keys": [answer_data],  # Convert to array
                         }
                     elif isinstance(answer_data, dict):
-                        # New: full answer object (MCQ or Essay)
-                        # Normalize MCQ answers to use selected_answer_keys array
-                        if answer_data.get("question_type") == "mcq":
-                            # Support both new (selected_answer_keys) and legacy (selected_answer_key)
+                        # New: full answer object - validate and keep as is
+                        q_type = answer_data.get("question_type", "mcq")
+                        
+                        if q_type == "mcq":
+                            # Normalize MCQ answers to use selected_answer_keys array
                             if "selected_answer_keys" in answer_data:
                                 normalized_answers[question_id] = answer_data
                             elif "selected_answer_key" in answer_data:
@@ -339,8 +345,19 @@ class TestWebSocketService:
                                 }
                             else:
                                 normalized_answers[question_id] = answer_data
+                        elif q_type in ["matching", "map_labeling"]:
+                            # Matching/Map Labeling: {"matches": {...}} or {"labels": {...}}
+                            normalized_answers[question_id] = answer_data
+                        elif q_type in ["completion", "sentence_completion", "short_answer"]:
+                            # Text-based types: {"answers": {...}}
+                            normalized_answers[question_id] = answer_data
+                        elif q_type == "essay":
+                            # Essay: {"essay_answer": "...", "media_attachments": [...]}
+                            normalized_answers[question_id] = answer_data
                         else:
-                            # Essay or other types - keep as is
+                            logger.warning(
+                                f"Unknown question_type '{q_type}' for {question_id}"
+                            )
                             normalized_answers[question_id] = answer_data
                     else:
                         logger.warning(
@@ -395,10 +412,17 @@ class TestWebSocketService:
             """
             Save a single answer in real-time
 
-            **UPDATED**: Hỗ trợ MCQ và Essay với media attachments
+            **UPDATED**: Hỗ trợ 8 question types: mcq, essay, matching, map_labeling, completion, sentence_completion, short_answer
 
-            Data (MCQ): {session_id, question_id, question_type: "mcq", selected_answer_key: "A"}
-            Data (Essay): {session_id, question_id, question_type: "essay", essay_answer: "...", media_attachments: [...]}
+            Data formats by question type:
+            - MCQ: {session_id, question_id, question_type: "mcq", selected_answer_keys: ["A"]}
+            - Matching: {session_id, question_id, question_type: "matching", matches: {"1": "A", "2": "B"}}
+            - Map Labeling: {session_id, question_id, question_type: "map_labeling", labels: {"1": "A", "2": "B"}}
+            - Completion: {session_id, question_id, question_type: "completion", answers: {"1": "answer1", "2": "answer2"}}
+            - Sentence Completion: {session_id, question_id, question_type: "sentence_completion", answers: {"1": "answer1"}}
+            - Short Answer: {session_id, question_id, question_type: "short_answer", answers: {"1": "answer1"}}
+            - Essay: {session_id, question_id, question_type: "essay", essay_answer: "...", media_attachments: [...]}
+            
             Legacy: {session_id, question_id, answer_key: "A"}
             """
             try:
@@ -414,7 +438,7 @@ class TestWebSocketService:
                     )
                     return
 
-                # Build answer object
+                # Build answer object based on question type
                 if "answer_key" in data:  # Legacy format (single answer as string)
                     answer_data = {
                         "question_type": "mcq",
@@ -444,6 +468,31 @@ class TestWebSocketService:
                             "question_type": "mcq",
                             "selected_answer_keys": [],
                         }
+                elif question_type == "matching":
+                    answer_data = {
+                        "question_type": "matching",
+                        "matches": data.get("matches", {}),
+                    }
+                elif question_type == "map_labeling":
+                    answer_data = {
+                        "question_type": "map_labeling",
+                        "labels": data.get("labels", {}),
+                    }
+                elif question_type == "completion":
+                    answer_data = {
+                        "question_type": "completion",
+                        "answers": data.get("answers", {}),
+                    }
+                elif question_type == "sentence_completion":
+                    answer_data = {
+                        "question_type": "sentence_completion",
+                        "answers": data.get("answers", {}),
+                    }
+                elif question_type == "short_answer":
+                    answer_data = {
+                        "question_type": "short_answer",
+                        "answers": data.get("answers", {}),
+                    }
                 elif question_type == "essay":
                     answer_data = {
                         "question_type": "essay",
