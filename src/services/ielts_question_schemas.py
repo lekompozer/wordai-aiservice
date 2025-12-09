@@ -9,7 +9,7 @@ from typing import Dict, Any
 def get_ielts_question_schema() -> Dict[str, Any]:
     """
     Get JSON schema for IELTS questions supporting 6 question types
-    
+
     Supports:
     - mcq: Multiple Choice
     - matching: Match items
@@ -18,7 +18,7 @@ def get_ielts_question_schema() -> Dict[str, Any]:
     - sentence_completion: Complete sentences
     - short_answer: Short answer questions
     """
-    
+
     return {
         "type": "object",
         "properties": {
@@ -58,13 +58,19 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                     # Common fields
                                     "question_type": {
                                         "type": "string",
-                                        "enum": ["mcq", "matching", "map_labeling", "completion", "sentence_completion", "short_answer"]
+                                        "enum": [
+                                            "mcq",
+                                            "matching",
+                                            "map_labeling",
+                                            "completion",
+                                            "sentence_completion",
+                                            "short_answer",
+                                        ],
                                     },
                                     "question_text": {"type": "string"},
                                     "instruction": {"type": "string"},
                                     "timestamp_hint": {"type": "string"},
                                     "explanation": {"type": "string"},
-                                    
                                     # MCQ fields
                                     "options": {
                                         "type": "array",
@@ -80,7 +86,6 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                         "type": "array",
                                         "items": {"type": "string"},
                                     },
-                                    
                                     # Matching fields
                                     "left_items": {
                                         "type": "array",
@@ -102,8 +107,10 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                             },
                                         },
                                     },
-                                    "correct_matches": {"type": "object"},
-                                    
+                                    "correct_matches": {
+                                        "type": "object",
+                                        "additionalProperties": {"type": "string"},
+                                    },
                                     # Completion fields
                                     "template": {"type": "string"},
                                     "blanks": {
@@ -117,8 +124,13 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                             },
                                         },
                                     },
-                                    "correct_answers": {"type": "object"},
-                                    
+                                    "correct_answers": {
+                                        "type": "object",
+                                        "additionalProperties": {
+                                            "type": "array",
+                                            "items": {"type": "string"},
+                                        },
+                                    },
                                     # Sentence completion fields
                                     "sentences": {
                                         "type": "array",
@@ -135,7 +147,6 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                             },
                                         },
                                     },
-                                    
                                     # Short answer fields
                                     "questions": {
                                         "type": "array",
@@ -180,7 +191,7 @@ def get_ielts_prompt(
     user_query: str,
 ) -> str:
     """Build IELTS-style listening test prompt with 6 question types"""
-    
+
     difficulty_map = {
         "easy": "EASY: Simple vocabulary, clear pronunciation, slow pace. Use basic sentence structures.",
         "medium": "MEDIUM: Moderate vocabulary, natural pace, some idioms. Use varied sentence structures.",
@@ -351,9 +362,15 @@ def get_ielts_example_output():
                 "script": {
                     "speaker_roles": ["Student", "Course Advisor"],
                     "lines": [
-                        {"speaker": 0, "text": "Hello, I'm interested in enrolling in a Spanish course."},
-                        {"speaker": 1, "text": "Great! We have several options. What's your current level?"},
-                    ]
+                        {
+                            "speaker": 0,
+                            "text": "Hello, I'm interested in enrolling in a Spanish course.",
+                        },
+                        {
+                            "speaker": 1,
+                            "text": "Great! We have several options. What's your current level?",
+                        },
+                    ],
                 },
                 "questions": [
                     {
@@ -364,17 +381,17 @@ def get_ielts_example_output():
                         "blanks": [
                             {"key": "1", "position": "Course type", "word_limit": 2},
                             {"key": "2", "position": "Level", "word_limit": 1},
-                            {"key": "3", "position": "Date", "word_limit": 2}
+                            {"key": "3", "position": "Date", "word_limit": 2},
                         ],
                         "correct_answers": {
                             "1": ["Intensive Spanish", "intensive spanish"],
                             "2": ["Beginner", "beginner"],
-                            "3": ["March 1", "1 March", "1st March"]
+                            "3": ["March 1", "1 March", "1st March"],
                         },
                         "timestamp_hint": "0:10-0:40",
-                        "explanation": "Student provides course preferences and level"
+                        "explanation": "Student provides course preferences and level",
                     }
-                ]
+                ],
             }
         ]
     }
