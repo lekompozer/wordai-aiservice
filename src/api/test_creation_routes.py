@@ -1353,11 +1353,21 @@ async def update_test_questions(
                 )
 
             q_type = q.get("question_type", "mcq")
+            valid_types = [
+                "mcq",
+                "essay",
+                "matching",
+                "map_labeling",
+                "completion",
+                "sentence_completion",
+                "short_answer",
+                "listening",
+            ]
 
-            if q_type not in ["mcq", "essay"]:
+            if q_type not in valid_types:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Question {idx + 1}: question_type must be 'mcq' or 'essay'",
+                    detail=f"Question {idx + 1}: question_type must be one of {valid_types}",
                 )
 
             if q_type == "mcq":
@@ -1427,6 +1437,101 @@ async def update_test_questions(
                     raise HTTPException(
                         status_code=400,
                         detail=f"Question {idx + 1}: Essay questions cannot have options or correct answers",
+                    )
+
+            elif q_type == "matching":
+                # Matching validation
+                if not q.get("left_items") or len(q["left_items"]) < 2:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Matching requires at least 2 left_items",
+                    )
+                if not q.get("right_options") or len(q["right_options"]) < 2:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Matching requires at least 2 right_options",
+                    )
+                if not q.get("correct_matches"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Matching requires correct_matches",
+                    )
+
+            elif q_type == "map_labeling":
+                # Map labeling validation
+                if not q.get("map_url"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Map labeling requires map_url",
+                    )
+                if not q.get("positions") or len(q["positions"]) < 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Map labeling requires at least 1 position",
+                    )
+
+            elif q_type == "completion":
+                # Completion validation (form/note/table)
+                if not q.get("template"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Completion requires template",
+                    )
+                if not q.get("blanks") or len(q["blanks"]) < 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Completion requires at least 1 blank",
+                    )
+                if not q.get("correct_answers"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Completion requires correct_answers",
+                    )
+
+            elif q_type == "sentence_completion":
+                # Sentence completion validation
+                if not q.get("sentences") or len(q["sentences"]) < 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Sentence completion requires at least 1 sentence",
+                    )
+                for sent in q["sentences"]:
+                    if not sent.get("template"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Each sentence requires template",
+                        )
+                    if not sent.get("correct_answers"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Each sentence requires correct_answers",
+                        )
+
+            elif q_type == "short_answer":
+                # Short answer validation
+                if not q.get("questions") or len(q["questions"]) < 1:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Short answer requires at least 1 question",
+                    )
+                for sub_q in q["questions"]:
+                    if not sub_q.get("text"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Each question requires text",
+                        )
+                    if not sub_q.get("correct_answers"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Each question requires correct_answers",
+                        )
+
+            elif q_type == "listening":
+                # Listening test validation (has audio_sections)
+                if not q.get("audio_sections"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Listening test requires audio_sections",
                     )
 
             # Validate and set max_points for all question types
@@ -1941,7 +2046,7 @@ async def full_edit_test(
                     status_code=400, detail="Maximum 100 questions allowed"
                 )
 
-            # Validate questions structure (support MCQ and Essay)
+            # Validate questions structure (support 8 question types)
             for idx, q in enumerate(request.questions):
                 if not q.get("question_text"):
                     raise HTTPException(
@@ -1950,11 +2055,21 @@ async def full_edit_test(
                     )
 
                 q_type = q.get("question_type", "mcq")
+                valid_types = [
+                    "mcq",
+                    "essay",
+                    "matching",
+                    "map_labeling",
+                    "completion",
+                    "sentence_completion",
+                    "short_answer",
+                    "listening",
+                ]
 
-                if q_type not in ["mcq", "essay"]:
+                if q_type not in valid_types:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: question_type must be 'mcq' or 'essay'",
+                        detail=f"Question {idx + 1}: question_type must be one of {valid_types}",
                     )
 
                 if q_type == "mcq":
@@ -1993,6 +2108,69 @@ async def full_edit_test(
                     # Set default max_points if not provided
                     if "max_points" not in q:
                         q["max_points"] = 1
+
+                elif q_type == "matching":
+                    # Matching validation
+                    if not q.get("left_items") or len(q["left_items"]) < 2:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Matching requires at least 2 left_items",
+                        )
+                    if not q.get("right_options") or len(q["right_options"]) < 2:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Matching requires at least 2 right_options",
+                        )
+
+                elif q_type == "map_labeling":
+                    # Map labeling validation
+                    if not q.get("map_url"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Map labeling requires map_url",
+                        )
+                    if not q.get("positions") or len(q["positions"]) < 1:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Map labeling requires at least 1 position",
+                        )
+
+                elif q_type == "completion":
+                    # Completion validation
+                    if not q.get("template"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Completion requires template",
+                        )
+                    if not q.get("blanks") or len(q["blanks"]) < 1:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Completion requires at least 1 blank",
+                        )
+
+                elif q_type == "sentence_completion":
+                    # Sentence completion validation
+                    if not q.get("sentences") or len(q["sentences"]) < 1:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Sentence completion requires at least 1 sentence",
+                        )
+
+                elif q_type == "short_answer":
+                    # Short answer validation
+                    if not q.get("questions") or len(q["questions"]) < 1:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Short answer requires at least 1 question",
+                        )
+
+                elif q_type == "listening":
+                    # Listening test validation
+                    if not q.get("audio_sections"):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Listening test requires audio_sections",
+                        )
 
                 # Ensure question_id exists
                 if not q.get("question_id"):
