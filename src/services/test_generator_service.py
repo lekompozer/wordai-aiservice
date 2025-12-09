@@ -1011,26 +1011,77 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             question_data = {
                 "question_id": q["question_id"],
                 "question_text": q["question_text"],
-                "question_type": q_type,  # Include question type (mcq/essay)
-                # Do NOT include: correct_answer_key, explanation
+                "question_type": q_type,
+                # Do NOT include: correct_answer_key, explanation, correct_answers, correct_matches, correct_labels
             }
+
+            # Add instruction if present (IELTS questions)
+            if q.get("instruction"):
+                question_data["instruction"] = q["instruction"]
 
             # MCQ-specific fields
             if q_type == "mcq":
                 question_data["options"] = q.get("options", [])
 
+            # Matching-specific fields
+            elif q_type == "matching":
+                question_data["left_items"] = q.get("left_items", [])
+                question_data["right_options"] = q.get("right_options", [])
+
+            # Map Labeling-specific fields
+            elif q_type == "map_labeling":
+                question_data["diagram_url"] = q.get("diagram_url")
+                question_data["diagram_description"] = q.get("diagram_description")
+                question_data["label_positions"] = q.get("label_positions", [])
+                question_data["options"] = q.get("options", [])
+
+            # Completion-specific fields
+            elif q_type == "completion":
+                question_data["template"] = q.get("template")
+                question_data["blanks"] = q.get("blanks", [])
+
+            # Sentence Completion-specific fields
+            elif q_type == "sentence_completion":
+                # Remove correct_answers from sentences
+                sentences = q.get("sentences", [])
+                question_data["sentences"] = [
+                    {
+                        "key": s.get("key"),
+                        "template": s.get("template"),
+                        "word_limit": s.get("word_limit")
+                    }
+                    for s in sentences
+                ]
+
+            # Short Answer-specific fields
+            elif q_type == "short_answer":
+                # Remove correct_answers from questions
+                questions_list = q.get("questions", [])
+                question_data["questions"] = [
+                    {
+                        "key": qq.get("key"),
+                        "text": qq.get("text"),
+                        "word_limit": qq.get("word_limit")
+                    }
+                    for qq in questions_list
+                ]
+
             # Essay-specific fields
-            if q_type == "essay":
+            elif q_type == "essay":
                 question_data["max_points"] = q.get("max_points", 1)
                 # Optionally include grading rubric for students to see expectations
                 if q.get("grading_rubric"):
                     question_data["grading_rubric"] = q.get("grading_rubric")
 
-            # Include media if present (for both MCQ and Essay)
+            # Include media if present (for all question types)
             if q.get("media_type"):
                 question_data["media_type"] = q["media_type"]
                 question_data["media_url"] = q.get("media_url")
                 question_data["media_description"] = q.get("media_description", "")
+            
+            # Include audio_section for listening tests
+            if q.get("audio_section"):
+                question_data["audio_section"] = q["audio_section"]
 
             questions_for_user.append(question_data)
 
