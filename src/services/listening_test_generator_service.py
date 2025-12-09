@@ -169,7 +169,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             f"   Target distribution: ~{questions_per_section} questions per section (total must be exactly {num_questions})"
         )
         logger.info(
-            f"   Supported question types: MCQ, Matching, Map Labeling, Completion, Sentence Completion, Short Answer"
+            f"   Supported question types: MCQ, Matching, Completion, Sentence Completion, Short Answer (5 types)"
         )
         import sys
 

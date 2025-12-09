@@ -202,7 +202,7 @@ def get_ielts_prompt(
     num_speakers: int,
     user_query: str,
 ) -> str:
-    """Build IELTS-style listening test prompt with 6 question types"""
+    """Build IELTS-style listening test prompt with 5 question types"""
 
     difficulty_map = {
         "easy": "EASY: Simple vocabulary, clear pronunciation, slow pace. Use basic sentence structures.",
@@ -249,19 +249,15 @@ def get_ielts_prompt(
    - Good for: matching speakers to opinions, places to descriptions, people to actions
    - Example: Match each speaker (1-3) to what they say about the topic (A-E)
 
-3. **MAP LABELING**: Label positions on a map or diagram
-   - Good for: spatial descriptions, floor plans, facility locations
-   - Example: Label the rooms on the campus map
-
-4. **COMPLETION (Form/Note/Table)**: Fill in blanks with NO MORE THAN TWO/THREE WORDS
+3. **COMPLETION (Form/Note/Table)**: Fill in blanks with NO MORE THAN TWO/THREE WORDS
    - Good for: capturing specific information (names, dates, prices, addresses)
    - Format: "Name: _____(1)_____, Phone: _____(2)_____"
 
-5. **SENTENCE COMPLETION**: Complete sentences with words from audio
+4. **SENTENCE COMPLETION**: Complete sentences with words from audio
    - Good for: key facts and details
    - Example: "The library opens at _____." (Answer: 8 AM)
 
-6. **SHORT ANSWER**: Answer questions with NO MORE THAN THREE WORDS
+5. **SHORT ANSWER**: Answer questions with NO MORE THAN THREE WORDS
    - Good for: factual information
    - Example: "What is the speaker's occupation?" (Answer: Software Engineer)
 
@@ -400,7 +396,7 @@ TOTAL = 10 questions ✓
 4. If you have more than {num_questions}, that's OK - better to have extra than too few
 5. Quality is important BUT hitting {num_questions} questions is MANDATORY
 
-Now, generate the IELTS listening test. Return ONLY the JSON object."""
+Now, generate listening test like IELTS style. Return ONLY the JSON object."""
 
     return prompt
 
