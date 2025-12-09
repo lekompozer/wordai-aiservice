@@ -277,19 +277,33 @@ def get_ielts_prompt(
       }},
       "questions": [
         {{
+          "question_type": "mcq",
+          "question_text": "What is the main purpose of the conversation?",
+          "instruction": "Choose the correct letter, A, B, C or D",
+          "options": [
+            {{"option_key": "A", "option_text": "To borrow books"}},
+            {{"option_key": "B", "option_text": "To register for a library card"}},
+            {{"option_key": "C", "option_text": "To return books"}},
+            {{"option_key": "D", "option_text": "To ask for directions"}}
+          ],
+          "correct_answer_keys": ["B"],
+          "timestamp_hint": "0:00-0:10",
+          "explanation": "Student explicitly states wanting to register for a library card."
+        }},
+        {{
           "question_type": "completion",
           "question_text": "Complete the registration form",
           "instruction": "Write NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer",
-          "template": "Name: _____(1)_____\\nStudent ID: _____(2)_____\\nPhone: _____(3)_____",
+          "template": "Name: _____(2)_____\\nStudent ID: _____(3)_____\\nPhone: _____(4)_____",
           "blanks": [
-            {{"key": "1", "position": "Name", "word_limit": 2}},
-            {{"key": "2", "position": "Student ID", "word_limit": 3}},
-            {{"key": "3", "position": "Phone", "word_limit": 3}}
+            {{"key": "2", "position": "Name", "word_limit": 2}},
+            {{"key": "3", "position": "Student ID", "word_limit": 3}},
+            {{"key": "4", "position": "Phone", "word_limit": 3}}
           ],
           "correct_answers": [
-            {{"blank_key": "1", "answers": ["John Smith", "john smith", "JOHN SMITH"]}},
-            {{"blank_key": "2", "answers": ["A12345", "a12345", "A 12345"]}},
-            {{"blank_key": "3", "answers": ["0412 555 678", "0412555678", "04125556 78"]}}
+            {{"blank_key": "2", "answers": ["John Smith", "john smith", "JOHN SMITH"]}},
+            {{"blank_key": "3", "answers": ["A12345", "a12345", "A 12345"]}},
+            {{"blank_key": "4", "answers": ["0412 555 678", "0412555678", "04125556 78"]}}
           ],
           "timestamp_hint": "0:10-0:30",
           "explanation": "The student provides personal details during registration."
@@ -297,11 +311,11 @@ def get_ielts_prompt(
         {{
           "question_type": "matching",
           "question_text": "Match each facility to its location",
-          "instruction": "Write the correct letter A-E next to questions 4-6",
+          "instruction": "Write the correct letter A-E next to questions 5-7",
           "left_items": [
-            {{"key": "4", "text": "Reading room"}},
-            {{"key": "5", "text": "Computer lab"}},
-            {{"key": "6", "text": "Study rooms"}}
+            {{"key": "5", "text": "Reading room"}},
+            {{"key": "6", "text": "Computer lab"}},
+            {{"key": "7", "text": "Study rooms"}}
           ],
           "right_options": [
             {{"key": "A", "text": "Ground floor"}},
@@ -311,12 +325,33 @@ def get_ielts_prompt(
             {{"key": "E", "text": "Basement"}}
           ],
           "correct_matches": [
-            {{"left_key": "4", "right_key": "B"}},
             {{"left_key": "5", "right_key": "B"}},
-            {{"left_key": "6", "right_key": "C"}}
+            {{"left_key": "6", "right_key": "B"}},
+            {{"left_key": "7", "right_key": "C"}}
           ],
           "timestamp_hint": "0:45-1:10",
           "explanation": "Librarian describes locations of facilities."
+        }},
+        {{
+          "question_type": "sentence_completion",
+          "question_text": "Complete the sentences below",
+          "instruction": "Write NO MORE THAN TWO WORDS for each answer",
+          "sentences": [
+            {{
+              "key": "8",
+              "template": "The library's opening hours on weekdays are from _____.",
+              "word_limit": 2,
+              "correct_answers": ["8 AM", "8:00 AM", "eight o'clock"]
+            }},
+            {{
+              "key": "9",
+              "template": "Members can borrow a maximum of _____ books.",
+              "word_limit": 2,
+              "correct_answers": ["5 books", "five books", "5"]
+            }}
+          ],
+          "timestamp_hint": "1:20-1:40",
+          "explanation": "Librarian mentions operating hours and borrowing limits."
         }},
         {{
           "question_type": "short_answer",
@@ -324,20 +359,14 @@ def get_ielts_prompt(
           "instruction": "Write NO MORE THAN THREE WORDS for each answer",
           "questions": [
             {{
-              "key": "7",
-              "text": "What time does the library open on weekdays?",
-              "word_limit": 2,
-              "correct_answers": ["8 AM", "8:00 AM", "eight o'clock"]
-            }},
-            {{
-              "key": "8",
-              "text": "How many books can students borrow at once?",
-              "word_limit": 1,
-              "correct_answers": ["5", "five"]
+              "key": "10",
+              "text": "What type of card is being issued?",
+              "word_limit": 3,
+              "correct_answers": ["library card", "student library card", "Library Card"]
             }}
           ],
-          "timestamp_hint": "1:20-1:40",
-          "explanation": "Librarian mentions operating hours and borrowing limits."
+          "timestamp_hint": "1:50-2:00",
+          "explanation": "Context from the entire conversation about card registration."
         }}
       ]
     }}
@@ -372,22 +401,39 @@ def get_ielts_prompt(
 12. Questions answerable from audio only
 13. Include timestamp hints (e.g., "0:15-0:30")
 
+**HOW TO COUNT QUESTIONS (CRITICAL FOR ACCURACY):**
+- **MCQ:** 1 MCQ question = 1 question (even if multiple correct answers)
+  - COUNTS AS: Number of MCQ items
+- **MATCHING:** Count each item to be matched as 1 question
+  - COUNTS AS: Number of left_items (e.g., 3 items to match = 3 questions)
+- **COMPLETION:** Count each blank as 1 question
+  - COUNTS AS: Number of blanks (e.g., 5 blanks = 5 questions)
+- **SENTENCE COMPLETION:** Count each sentence as 1 question
+  - COUNTS AS: Number of sentences (e.g., 3 sentences = 3 questions)
+- **SHORT ANSWER:** Count each question as 1 question
+  - COUNTS AS: Number of questions in the array (e.g., 2 questions = 2 questions)
+
+**CALCULATION CHECK BEFORE OUTPUT:**
+Before you output JSON, calculate:
+MCQ_count + matching_items + completion_blanks + sentence_count + short_answer_count = ?
+Result MUST = {num_questions}
+
 **QUESTION TYPE DISTRIBUTION (Flexible - AI decides):**
-You have 6 question types to choose from for your {num_questions} questions:
+You have 5 question types to choose from for your {num_questions} questions:
 - MCQ: Most versatile (30-40% of questions)
-- Completion: IELTS authentic (20-30% of questions)
+- Completion: IELTS authentic (25-35% of questions)
 - Matching: Adds variety (10-20% of questions)
 - Sentence completion: Detail-focused (10-20% of questions)
-- Short answer: Quick facts (10-15% of questions)
-- Map labeling: Spatial info (0-10% of questions, optional)
+- Short answer: Quick facts (5-15% of questions)
 
 **Example for {num_questions} questions:**
 If {num_questions} = 10, you might generate:
-- 4 MCQ questions
-- 3 Completion questions (with multiple blanks)
-- 2 Matching questions
-- 1 Short answer question
-TOTAL = 10 questions ✓
+- 1 MCQ (1 question)
+- 1 Completion with 4 blanks (4 questions: keys 2,3,4,5)
+- 1 Matching with 3 items (3 questions: keys 6,7,8)
+- 1 Sentence completion with 1 sentence (1 question: key 9)
+- 1 Short answer with 1 question (1 question: key 10)
+TOTAL = 1+4+3+1+1 = 10 questions ✓
 
 **🔴 FINAL REMINDER BEFORE GENERATING:**
 1. Count your questions after generating
