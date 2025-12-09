@@ -330,7 +330,7 @@ class TestWebSocketService:
                     elif isinstance(answer_data, dict):
                         # New: full answer object - validate and keep as is
                         q_type = answer_data.get("question_type", "mcq")
-                        
+
                         if q_type == "mcq":
                             # Normalize MCQ answers to use selected_answer_keys array
                             if "selected_answer_keys" in answer_data:
@@ -348,7 +348,11 @@ class TestWebSocketService:
                         elif q_type in ["matching", "map_labeling"]:
                             # Matching/Map Labeling: {"matches": {...}} or {"labels": {...}}
                             normalized_answers[question_id] = answer_data
-                        elif q_type in ["completion", "sentence_completion", "short_answer"]:
+                        elif q_type in [
+                            "completion",
+                            "sentence_completion",
+                            "short_answer",
+                        ]:
                             # Text-based types: {"answers": {...}}
                             normalized_answers[question_id] = answer_data
                         elif q_type == "essay":
@@ -422,7 +426,7 @@ class TestWebSocketService:
             - Sentence Completion: {session_id, question_id, question_type: "sentence_completion", answers: {"1": "answer1"}}
             - Short Answer: {session_id, question_id, question_type: "short_answer", answers: {"1": "answer1"}}
             - Essay: {session_id, question_id, question_type: "essay", essay_answer: "...", media_attachments: [...]}
-            
+
             Legacy: {session_id, question_id, answer_key: "A"}
             """
             try:
