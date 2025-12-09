@@ -466,6 +466,194 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
 
         return audio_content, duration_seconds
 
+    def _parse_user_transcript(
+        self,
+        transcript_text: str,
+        num_speakers: int,
+        language: str,
+    ) -> Dict:
+        """
+        Parse user-provided transcript text to structured format
+
+        Supports formats:
+        1. Plain text (single speaker)
+        2. "Speaker 1: text\nSpeaker 2: text" format
+        3. "A: text\nB: text" format
+
+        Returns structured script for TTS
+        """
+
+        lines_parsed = []
+        speaker_roles = []
+
+        # Try to detect speaker format
+        text_lines = transcript_text.strip().split("\n")
+
+        # Check if format has speaker labels (e.g., "Speaker 1:" or "A:")
+        has_speaker_labels = any(":" in line for line in text_lines)
+
+        if has_speaker_labels and num_speakers > 1:
+            # Parse with speaker labels
+            current_speaker_map = {}  # Map speaker label to index
+
+            for line in text_lines:
+                line = line.strip()
+                if not line or ":" not in line:
+                    continue
+
+                parts = line.split(":", 1)
+                if len(parts) != 2:
+                    continue
+
+                speaker_label = parts[0].strip()
+                text = parts[1].strip()
+
+                # Map speaker to index
+                if speaker_label not in current_speaker_map:
+                    if len(current_speaker_map) >= num_speakers:
+                        # Reuse existing speakers
+                        speaker_idx = len(current_speaker_map) % num_speakers
+                    else:
+                        speaker_idx = len(current_speaker_map)
+                        current_speaker_map[speaker_label] = speaker_idx
+                        speaker_roles.append(speaker_label)
+                else:
+                    speaker_idx = current_speaker_map[speaker_label]
+
+                lines_parsed.append({"speaker": speaker_idx, "text": text})
+        else:
+            # Plain text or single speaker
+            if num_speakers == 1:
+                speaker_roles = ["Speaker"]
+                for line in text_lines:
+                    line = line.strip()
+                    if line:
+                        lines_parsed.append({"speaker": 0, "text": line})
+            else:
+                # Split into 2 speakers alternating
+                speaker_roles = ["Speaker 1", "Speaker 2"]
+                for idx, line in enumerate(text_lines):
+                    line = line.strip()
+                    if line:
+                        lines_parsed.append({"speaker": idx % 2, "text": line})
+
+        # Fallback if no speakers detected
+        if not speaker_roles:
+            speaker_roles = (
+                ["Speaker"] if num_speakers == 1 else ["Speaker 1", "Speaker 2"]
+            )
+
+        logger.info(
+            f"   Parsed transcript: {len(lines_parsed)} lines, {len(speaker_roles)} speakers"
+        )
+
+        return {"speaker_roles": speaker_roles, "lines": lines_parsed}
+
+    async def _generate_questions_from_transcript(
+        self,
+        script: Dict,
+        language: str,
+        difficulty: str,
+        num_questions: int,
+        user_query: str,
+    ) -> List[Dict]:
+        """
+        Generate questions from user-provided transcript using Gemini
+
+        Similar to _generate_script_and_questions but only generates questions
+        (script is already provided by user)
+        """
+
+        # Convert script to readable text for prompt
+        transcript_lines = []
+        for line in script["lines"]:
+            speaker_role = script["speaker_roles"][line["speaker"]]
+            transcript_lines.append(f"{speaker_role}: {line['text']}")
+        transcript_text = "\n".join(transcript_lines)
+
+        prompt = f"""You are an IELTS listening test creator. Generate {num_questions} questions based on the following transcript.
+
+**TRANSCRIPT:**
+{transcript_text}
+
+**REQUIREMENTS:**
+- Generate EXACTLY {num_questions} questions
+- Mix question types: MCQ, Matching, Completion, Sentence Completion, Short Answer
+- Questions MUST be answerable from the transcript only
+- Difficulty: {difficulty}
+- Language: {language}
+- User requirements: {user_query}
+
+**DISTRIBUTION (Flexible - AI decides):**
+- MCQ: 30-40% (with 3-4 options each)
+- Matching: 15-20%
+- Completion: 20-25% (NO MORE THAN TWO WORDS)
+- Sentence Completion: 15-20%
+- Short Answer: 10-15% (max 3 words)
+
+**OUTPUT FORMAT:** JSON array of questions
+
+**CRITICAL:**
+- MUST generate EXACTLY {num_questions} questions
+- Each question must have proper structure
+- MCQ needs: options + correct_answer_keys
+- Matching needs: left_items + right_options
+- Completion needs: template + blanks
+
+Return ONLY the questions array in JSON format."""
+
+        logger.info(
+            f"   📡 Generating {num_questions} questions from user transcript..."
+        )
+
+        response = self.client.models.generate_content(
+            model="gemini-3-pro-preview",
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                max_output_tokens=15000,
+                temperature=0.4,
+                response_mime_type="application/json",
+            ),
+        )
+
+        questions = json.loads(response.text)
+
+        # Validate and filter
+        self._convert_gemini_arrays_to_objects(
+            {"audio_sections": [{"questions": questions}]}
+        )
+
+        valid_questions = questions
+
+        # Check minimum count
+        min_required = int(num_questions * 0.8)
+        if len(valid_questions) < min_required:
+            raise ValueError(
+                f"Insufficient questions from transcript: got {len(valid_questions)}, "
+                f"expected at least {min_required} (80% of {num_questions})"
+            )
+
+        logger.info(f"   ✅ Generated {len(valid_questions)} valid questions")
+
+        return valid_questions
+
+    def _format_transcript_text(self, transcript: Dict) -> str:
+        """Format transcript dict to readable text"""
+        lines = []
+
+        if "segments" in transcript:
+            # YouTube format (with timestamps)
+            for segment in transcript["segments"]:
+                speaker = transcript["speaker_roles"][segment["speaker_index"]]
+                lines.append(f"{speaker}: {segment['text']}")
+        else:
+            # User transcript format
+            for line in transcript.get("lines", []):
+                speaker = transcript["speaker_roles"][line["speaker"]]
+                lines.append(f"{speaker}: {line['text']}")
+
+        return "\n".join(lines)
+
     async def _upload_audio_to_r2(
         self,
         audio_bytes: bytes,
@@ -531,9 +719,17 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         passing_score: int,
         use_pro_model: bool,
         creator_id: str,
+        # ========== PHASE 7 & 8: New parameters ==========
+        user_transcript: Optional[str] = None,
+        youtube_url: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Main method to generate complete listening test
+
+        Supports 3 generation modes:
+        1. AI Generated (default): AI creates script + questions + TTS audio
+        2. User Transcript (Phase 7): User provides transcript → AI generates questions + TTS audio (parallel)
+        3. YouTube URL (Phase 8): Gemini 2.5 Flash transcribes + generates questions (ONE call)
 
         Returns:
         {
@@ -545,6 +741,173 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         """
 
         try:
+            # ========== PHASE 8: YouTube URL mode ==========
+            if youtube_url:
+                logger.info(f"🎥 Mode: YouTube URL - Using Gemini 2.5 Flash Audio")
+                logger.info(f"   URL: {youtube_url}")
+
+                from src.services.gemini_audio_listening_service import (
+                    get_gemini_audio_listening_service,
+                )
+
+                gemini_audio_service = get_gemini_audio_listening_service()
+
+                result = await gemini_audio_service.generate_from_youtube(
+                    youtube_url=youtube_url,
+                    title=title,
+                    language=language,
+                    difficulty=difficulty,
+                    num_questions=num_questions,
+                    user_query=user_query,
+                )
+
+                # Format response to match expected structure
+                audio_sections = [
+                    {
+                        "section_number": 1,
+                        "section_title": result["title"],
+                        "audio_url": result["audio_url"],
+                        "duration_seconds": result["duration_seconds"],
+                        "transcript": self._format_transcript_text(
+                            result["transcript"]
+                        ),
+                        "voice_config": {
+                            "source": "youtube",
+                            "num_speakers": result["num_speakers"],
+                        },
+                        "questions": result["questions"],
+                    }
+                ]
+
+                # Add question numbers
+                questions = []
+                for idx, q in enumerate(result["questions"], 1):
+                    q["question_number"] = idx
+                    q["audio_section"] = 1
+                    q["max_points"] = 1
+                    questions.append(q)
+
+                logger.info(f"✅ YouTube test generated successfully!")
+                logger.info(f"   - Duration: {result['duration_seconds']}s")
+                logger.info(f"   - Speakers: {result['num_speakers']}")
+                logger.info(f"   - Questions: {len(questions)}")
+
+                return {
+                    "audio_sections": audio_sections,
+                    "questions": questions,
+                    "status": "ready",
+                }
+
+            # ========== PHASE 7: User Transcript mode ==========
+            if user_transcript:
+                logger.info(f"📝 Mode: User Transcript - Parallel processing")
+                logger.info(f"   Transcript length: {len(user_transcript)} chars")
+
+                # Parse transcript to structured format
+                parsed_script = self._parse_user_transcript(
+                    transcript_text=user_transcript,
+                    num_speakers=audio_config.get("num_speakers", 1),
+                    language=language,
+                )
+
+                logger.info(f"   Parsed: {len(parsed_script['lines'])} lines")
+
+                # Create script_result format for compatibility
+                script_result = {
+                    "audio_sections": [
+                        {
+                            "section_number": 1,
+                            "section_title": title,
+                            "script": parsed_script,
+                            "questions": [],  # Will be filled by parallel task
+                        }
+                    ]
+                }
+
+                # PARALLEL PROCESSING: Generate questions + audio simultaneously ⚡
+                logger.info(f"⚡ Starting parallel processing: Questions + Audio...")
+
+                questions_task = self._generate_questions_from_transcript(
+                    script=parsed_script,
+                    language=language,
+                    difficulty=difficulty,
+                    num_questions=num_questions,
+                    user_query=user_query,
+                )
+
+                audio_task = self._generate_section_audio(
+                    script=parsed_script,
+                    voice_names=audio_config.get("voice_names")
+                    or await self._select_voices_by_gender(
+                        parsed_script.get("speaker_roles", []), language
+                    ),
+                    language=language,
+                    speaking_rate=audio_config.get("speaking_rate", 1.0),
+                    use_pro_model=use_pro_model,
+                )
+
+                # Wait for both tasks to complete
+                questions_result, (audio_bytes, duration) = await asyncio.gather(
+                    questions_task, audio_task
+                )
+
+                logger.info(f"✅ Parallel processing complete!")
+                logger.info(f"   - Questions: {len(questions_result)}")
+                logger.info(f"   - Audio: {len(audio_bytes)} bytes, ~{duration}s")
+
+                # Upload audio to R2
+                temp_test_id = f"temp_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                audio_url, file_id = await self._upload_audio_to_r2(
+                    audio_bytes=audio_bytes,
+                    creator_id=creator_id,
+                    test_id=temp_test_id,
+                    section_num=1,
+                )
+
+                # Build transcript text using lines format
+                transcript_dict = {
+                    "speaker_roles": parsed_script["speaker_roles"],
+                    "lines": parsed_script["lines"],
+                }
+                transcript_text = self._format_transcript_text(transcript_dict)
+
+                # Format audio section
+                audio_sections = [
+                    {
+                        "section_number": 1,
+                        "section_title": title,
+                        "audio_url": audio_url,
+                        "audio_file_id": file_id,
+                        "duration_seconds": duration,
+                        "transcript": transcript_text,
+                        "voice_config": {
+                            "voice_names": audio_config.get("voice_names"),
+                            "num_speakers": audio_config.get("num_speakers"),
+                        },
+                        "questions": questions_result,
+                    }
+                ]
+
+                # Add question numbers
+                questions = []
+                for idx, q in enumerate(questions_result, 1):
+                    q["question_number"] = idx
+                    q["audio_section"] = 1
+                    q["max_points"] = 1
+                    questions.append(q)
+
+                logger.info(f"✅ User transcript test generated successfully!")
+                logger.info(f"   - Questions: {len(questions)}")
+
+                return {
+                    "audio_sections": audio_sections,
+                    "questions": questions,
+                    "status": "ready",
+                }
+
+            # ========== DEFAULT: AI Generated mode ==========
+            logger.info(f"🤖 Mode: AI Generated (default)")
+
             # Step 1: Generate script and questions with AI
             logger.info(f"🎙️ Step 1: Generating script and questions...")
             import sys

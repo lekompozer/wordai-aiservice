@@ -111,7 +111,6 @@ async def get_grading_queue(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/submissions/{submission_id}/grading-view", tags=["Phase 4 - Grading"])
 async def get_submission_for_grading(
     submission_id: str,
@@ -230,7 +229,6 @@ async def get_submission_for_grading(
     except Exception as e:
         logger.error(f"❌ Failed to get submission for grading: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.post("/submissions/{submission_id}/grade-essay", tags=["Phase 4 - Grading"])
@@ -434,7 +432,6 @@ def calculate_final_score(submission: dict, test_doc: dict, essay_grades: list) 
     }
 
 
-
 @router.post(
     "/submissions/{submission_id}/grade-all-essays", tags=["Phase 4 - Grading"]
 )
@@ -607,7 +604,6 @@ async def grade_all_essays(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
 @router.get("/me/grading-dashboard", tags=["Phase 4 - Grading"])
 async def get_grading_dashboard(
     user_info: dict = Depends(require_auth),
@@ -700,7 +696,6 @@ async def get_grading_dashboard(
     except Exception as e:
         logger.error(f"❌ Failed to get grading dashboard: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 
 
 @router.patch(
@@ -933,6 +928,18 @@ class FullTestEditRequest(BaseModel):
         description="List of PDF attachments for reading comprehension",
     )
 
+    # ========== PHASE 7 & 8: Listening test source fields ==========
+    user_transcript: Optional[str] = Field(
+        None,
+        max_length=5000,
+        description="User-provided transcript text for listening test (Phase 7)",
+    )
+    youtube_url: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="YouTube URL for listening test audio source (Phase 8)",
+    )
+
     # Marketplace config (if published)
     marketplace_title: Optional[str] = Field(None, min_length=10, max_length=200)
     marketplace_description: Optional[str] = Field(None, min_length=50, max_length=2000)
@@ -960,4 +967,3 @@ class TestPreviewResponse(BaseModel):
     questions: list
     created_at: str
     updated_at: str
-

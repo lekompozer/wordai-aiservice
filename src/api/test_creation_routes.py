@@ -2210,6 +2210,45 @@ async def full_edit_test(
                 f"   Update attachments: {len(formatted_attachments)} attachments"
             )
 
+        # ========== PHASE 7 & 8: Listening source fields ==========
+        if request.user_transcript is not None:
+            # Validate minimum length
+            if len(request.user_transcript.strip()) < 50:
+                raise HTTPException(
+                    status_code=400,
+                    detail="User transcript must be at least 50 characters",
+                )
+
+            update_data["user_provided_transcript"] = request.user_transcript
+            update_data["source_type"] = "user_transcript"
+            update_data["source_url"] = None  # Clear YouTube URL if exists
+            logger.info(
+                f"   Update user_transcript: {len(request.user_transcript)} chars"
+            )
+
+        if request.youtube_url is not None:
+            # Validate YouTube URL format
+            import re
+
+            youtube_pattern = r"^(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/)[a-zA-Z0-9_-]{11}.*$"
+
+            if not re.match(youtube_pattern, request.youtube_url):
+                raise HTTPException(
+                    status_code=400, detail="Invalid YouTube URL format"
+                )
+
+            update_data["source_url"] = request.youtube_url
+            update_data["source_type"] = "youtube"
+            update_data["user_provided_transcript"] = None  # Clear transcript if exists
+            logger.info(f"   Update youtube_url: {request.youtube_url}")
+
+        # Validate mutual exclusion
+        if request.user_transcript and request.youtube_url:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot use both user_transcript and youtube_url. Choose one.",
+            )
+
         # ========== Step 3: Handle marketplace config updates (if published) ==========
         marketplace_config = test_doc.get("marketplace_config", {})
         is_published = marketplace_config.get("is_public", False)
@@ -2800,6 +2839,20 @@ class GenerateListeningTestRequest(BaseModel):
     passing_score: int = Field(70, ge=0, le=100, description="Passing percentage")
     use_pro_model: bool = Field(False, description="Use pro TTS model (costs more)")
 
+    # ========== PHASE 7: User-provided transcript ==========
+    user_transcript: Optional[str] = Field(
+        None,
+        max_length=5000,
+        description="Phase 7: User-provided transcript (text format, max 5000 chars). If provided, AI will generate questions from this transcript and TTS will create audio.",
+    )
+
+    # ========== PHASE 8: YouTube URL ==========
+    youtube_url: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="Phase 8: YouTube video URL. Gemini 2.5 Flash will transcribe audio and generate questions in one API call.",
+    )
+
     @field_validator("audio_config")
     @classmethod
     def validate_audio_config(cls, v):
@@ -2815,6 +2868,50 @@ class GenerateListeningTestRequest(BaseModel):
             raise ValueError(f"voice_names must have {num_speakers} voices")
 
         return v
+
+    @field_validator("youtube_url")
+    @classmethod
+    def validate_youtube_url(cls, v):
+        """Validate YouTube URL format (Phase 8)"""
+        if v is None:
+            return v
+
+        import re
+
+        youtube_regex = (
+            r"(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/"
+        )
+        if not re.match(youtube_regex, v):
+            raise ValueError(
+                "Invalid YouTube URL format. Must be a valid YouTube video URL."
+            )
+
+        return v
+
+    @model_validator(mode="after")
+    def validate_generation_method(self):
+        """Validate that only one generation method is used"""
+        methods_count = sum(
+            [self.user_transcript is not None, self.youtube_url is not None]
+        )
+
+        if methods_count > 1:
+            raise ValueError(
+                "Cannot use both user_transcript and youtube_url. Choose one generation method."
+            )
+
+        # If user_transcript provided, validate it
+        if self.user_transcript:
+            # Check minimum length
+            if len(self.user_transcript.strip()) < 100:
+                raise ValueError("user_transcript too short (min 100 characters)")
+
+            # Check word count
+            word_count = len(self.user_transcript.split())
+            if word_count < 50:
+                raise ValueError("user_transcript too short (min 50 words)")
+
+        return self
 
 
 @router.post("/generate/listening")
@@ -2896,6 +2993,16 @@ async def generate_listening_test(
             "passing_score": request.passing_score,
             "creator_id": user_id,
             "creation_type": "ai_generated",
+            # ========== PHASE 7 & 8: Source tracking ==========
+            "source_type": (
+                "ai_generated"
+                if not request.user_transcript and not request.youtube_url
+                else ("user_transcript" if request.user_transcript else "youtube")
+            ),
+            "user_provided_transcript": (
+                request.user_transcript if request.user_transcript else None
+            ),
+            "source_url": request.youtube_url if request.youtube_url else None,
             "status": "pending",
             "progress_percent": 0,
             "progress_message": "Initializing listening test generation...",
@@ -2988,6 +3095,8 @@ async def generate_listening_test_background_job(
             passing_score=request.passing_score,
             use_pro_model=request.use_pro_model,
             creator_id=user_id,
+            user_transcript=request.user_transcript,  # Phase 7
+            youtube_url=request.youtube_url,  # Phase 8
         )
 
         # Update test with results
