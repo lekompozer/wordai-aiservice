@@ -489,6 +489,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
 
             for section in audio_sections_with_urls:
                 for q in section["questions"]:
+                    q["question_id"] = f"q{question_num}"  # Add unique question ID
                     q["question_number"] = question_num
                     q["question_type"] = "mcq"
                     q["audio_section"] = section["section_number"]
