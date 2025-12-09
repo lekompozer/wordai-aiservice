@@ -192,18 +192,78 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
 
     def _convert_gemini_arrays_to_objects(self, result: Dict) -> None:
         """
-        Convert Gemini's array format to object format for storage
+        Convert Gemini array format to object format for MongoDB storage
 
-        Gemini returns:
-        - correct_matches: [{"left_key": "item1", "right_key": "option_a"}, ...]
-        - correct_answers: [{"blank_key": "blank_1", "answers": ["word1", "word2"]}, ...]
+        Gemini API returns:
+        - correct_matches: [{left_key, right_key}]
+        - correct_answers: [{blank_key, answers: []}]
 
         Convert to:
         - correct_matches: {"item1": "option_a", ...}
         - correct_answers: {"blank_1": ["word1", "word2"], ...}
         """
         for section in result.get("audio_sections", []):
+            questions_to_keep = []
             for question in section.get("questions", []):
+                # Validate and filter out broken questions
+                q_type = question.get("question_type")
+
+                # MCQ validation
+                if q_type == "mcq":
+                    if (
+                        not question.get("options")
+                        or len(question.get("options", [])) < 2
+                    ):
+                        logger.warning(
+                            f"⚠️ Skipping broken MCQ question: {question.get('question_text', 'No text')[:50]}... - Missing or invalid options"
+                        )
+                        continue
+                    if not question.get("correct_answer_keys"):
+                        logger.warning(
+                            f"⚠️ Skipping MCQ question without correct answers: {question.get('question_text', 'No text')[:50]}..."
+                        )
+                        continue
+
+                # Matching validation
+                elif q_type == "matching":
+                    if not question.get("left_items") or not question.get(
+                        "right_options"
+                    ):
+                        logger.warning(
+                            f"⚠️ Skipping broken matching question: {question.get('question_text', 'No text')[:50]}..."
+                        )
+                        continue
+
+                # Completion validation
+                elif q_type == "completion":
+                    if not question.get("template") or not question.get("blanks"):
+                        logger.warning(
+                            f"⚠️ Skipping broken completion question: {question.get('question_text', 'No text')[:50]}..."
+                        )
+                        continue
+
+                # Sentence completion validation
+                elif q_type == "sentence_completion":
+                    if (
+                        not question.get("sentences")
+                        or len(question.get("sentences", [])) == 0
+                    ):
+                        logger.warning(
+                            f"⚠️ Skipping broken sentence_completion question: {question.get('question_text', 'No text')[:50]}..."
+                        )
+                        continue
+
+                # Short answer validation
+                elif q_type == "short_answer":
+                    if (
+                        not question.get("questions")
+                        or len(question.get("questions", [])) == 0
+                    ):
+                        logger.warning(
+                            f"⚠️ Skipping broken short_answer question: {question.get('question_text', 'No text')[:50]}..."
+                        )
+                        continue
+
                 # Convert correct_matches array to object
                 if "correct_matches" in question and isinstance(
                     question["correct_matches"], list
@@ -221,6 +281,15 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                     for answer in question["correct_answers"]:
                         answers_dict[answer["blank_key"]] = answer["answers"]
                     question["correct_answers"] = answers_dict
+
+                # Question passed validation
+                questions_to_keep.append(question)
+
+            # Replace questions array with validated questions
+            section["questions"] = questions_to_keep
+            logger.info(
+                f"   ✅ Section {section.get('section_number')}: Kept {len(questions_to_keep)} valid questions"
+            )
 
     async def _select_voices_by_gender(
         self, speaker_roles: List[str], language: str

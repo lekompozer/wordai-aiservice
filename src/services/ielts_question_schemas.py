@@ -219,14 +219,19 @@ def get_ielts_prompt(
 
     prompt = f"""You are an expert IELTS listening test creator. Generate a listening comprehension test with various question types.
 
-**SPECIFICATIONS:**
+**CRITICAL REQUIREMENTS:**
 - Language: {language}
 - Topic: {topic}
 - Difficulty: {difficulty_desc}
 - Number of speakers: {num_speakers}
 - Number of audio sections: {num_audio_sections}
-- Total questions: {num_questions} (distribute across sections)
+- **IMPORTANT: Generate EXACTLY {num_questions} questions total** (distribute evenly across {num_audio_sections} section(s))
 - User requirements: {user_query}
+
+**QUESTION COUNT ENFORCEMENT:**
+- If {num_audio_sections} = 1: Generate ALL {num_questions} questions in section 1
+- If {num_audio_sections} = 2: Generate ~{num_questions//2} questions per section (total must be {num_questions})
+- DO NOT generate fewer questions than {num_questions}!
 
 **SPEAKER CONFIGURATION:**
 {speaker_instruction}
@@ -337,27 +342,31 @@ def get_ielts_prompt(
 
 **CRITICAL INSTRUCTIONS:**
 1. Output MUST be valid JSON
-2. Generate exactly {num_audio_sections} sections
-3. Distribute {num_questions} questions across sections
-4. MIX question types (don't use only MCQ - aim for variety)
-5. **For completion/sentence/short answer:**
+2. Generate EXACTLY {num_audio_sections} sections (no more, no less)
+3. **MUST generate EXACTLY {num_questions} questions total** - distribute across sections
+4. **ALL MCQ questions MUST have:**
+   - Exactly 4 options (A, B, C, D) with both option_key and option_text
+   - correct_answer_keys array (cannot be null/empty)
+   - Complete question_text (not just "Choose the correct letter")
+5. MIX question types (don't use only MCQ - aim for variety)
+6. **For completion/sentence/short answer:**
    - Set word_limit to match instruction (e.g., "NO MORE THAN TWO WORDS" → word_limit: 2)
    - IMPORTANT: word_limit must be 1-3 (typical IELTS)
    - Include "AND/OR A NUMBER" in instruction for flexibility
    - Provide multiple acceptable answers: case variations, spacing variations, equivalent formats
    - Examples: ["15th July", "15 July", "July 15th", "July 15"] or ["0908 555 231", "0908555231"]
-6. **For matching:**
+7. **For matching:**
    - Left items use numbered keys: "1", "2", "3", etc.
    - Right options use letter keys: "A", "B", "C", etc.
    - MUST have MORE right options than left items (e.g., 3 items → 5 options)
    - Keys in correct_matches must match exactly: left_key from left_items, right_key from right_options
-7. **For MCQ:**
+8. **For MCQ:**
    - Always provide exactly 4 options (A, B, C, D)
    - correct_answer_keys is an array (can have multiple correct answers)
-8. All content in {language} language
-9. Scripts must be natural and conversational
-10. Questions answerable from audio only
-11. Include timestamp hints (e.g., "0:15-0:30")
+9. All content in {language} language
+10. Scripts must be natural and conversational
+11. Questions answerable from audio only
+12. Include timestamp hints (e.g., "0:15-0:30")
 
 **QUESTION TYPE DISTRIBUTION (Recommended):**
 - 40-50% MCQ (familiar format)
