@@ -1100,13 +1100,30 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 }
             )
 
+        # Get audio sections for listening tests
+        audio_sections = test_doc.get("audio_sections", [])
+
+        # Format audio sections for response (include audio_url, hide script/transcript)
+        formatted_audio_sections = []
+        for section in audio_sections:
+            formatted_audio_sections.append(
+                {
+                    "section_number": section.get("section_number"),
+                    "section_title": section.get("section_title"),
+                    "audio_url": section.get("audio_url"),
+                    "duration_seconds": section.get("duration_seconds"),
+                    # Do NOT include: script, transcript (owner-only)
+                }
+            )
+
         return {
             "test_id": test_id,
             "title": test_doc["title"],
             "time_limit_minutes": test_doc["time_limit_minutes"],
             "num_questions": len(questions_for_user),
             "questions": questions_for_user,
-            "attachments": formatted_attachments,  # NEW: PDF attachments for reading comprehension
+            "attachments": formatted_attachments,  # PDF attachments for reading comprehension
+            "audio_sections": formatted_audio_sections,  # Audio files for listening tests
         }
 
     def _build_essay_generation_prompt(
