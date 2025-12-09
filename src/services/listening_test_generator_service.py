@@ -222,6 +222,93 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                         answers_dict[answer["blank_key"]] = answer["answers"]
                     question["correct_answers"] = answers_dict
 
+    async def _select_voices_by_gender(
+        self, speaker_roles: List[str], language: str
+    ) -> List[str]:
+        """
+        Auto-select appropriate voices based on speaker roles with gender hints
+
+        Examples:
+        - "Male Customer" → male voice
+        - "Female Agent" → female voice
+        - "Customer" → random voice
+        """
+        available_voices = await self.google_tts.get_available_voices(language)
+        if not available_voices:
+            return None
+
+        # Separate by gender
+        male_voices = [v for v in available_voices if v.get("gender") == "MALE"]
+        female_voices = [v for v in available_voices if v.get("gender") == "FEMALE"]
+
+        selected_voices = []
+        for role in speaker_roles:
+            role_lower = role.lower()
+
+            # Check for gender keywords
+            if any(
+                word in role_lower
+                for word in [
+                    "male",
+                    "man",
+                    "boy",
+                    "mr",
+                    "sir",
+                    "father",
+                    "brother",
+                    "son",
+                ]
+            ):
+                # Prefer male voice
+                if male_voices:
+                    selected_voices.append(
+                        male_voices[len(selected_voices) % len(male_voices)]["name"]
+                    )
+                else:
+                    selected_voices.append(available_voices[0]["name"])
+
+            elif any(
+                word in role_lower
+                for word in [
+                    "female",
+                    "woman",
+                    "girl",
+                    "ms",
+                    "mrs",
+                    "miss",
+                    "lady",
+                    "mother",
+                    "sister",
+                    "daughter",
+                ]
+            ):
+                # Prefer female voice
+                if female_voices:
+                    selected_voices.append(
+                        female_voices[len(selected_voices) % len(female_voices)]["name"]
+                    )
+                else:
+                    selected_voices.append(available_voices[0]["name"])
+
+            else:
+                # No gender hint - alternate between available voices
+                if male_voices and female_voices:
+                    # Alternate male/female
+                    if len(selected_voices) % 2 == 0 and male_voices:
+                        selected_voices.append(male_voices[0]["name"])
+                    elif female_voices:
+                        selected_voices.append(female_voices[0]["name"])
+                    else:
+                        selected_voices.append(male_voices[0]["name"])
+                else:
+                    selected_voices.append(
+                        available_voices[len(selected_voices) % len(available_voices)][
+                            "name"
+                        ]
+                    )
+
+        return selected_voices if selected_voices else None
+
     async def _generate_section_audio(
         self,
         script: Dict,
@@ -390,16 +477,6 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             )
             audio_sections_with_urls = []
 
-            # Get voice names or use defaults
-            voice_names = audio_config.get("voice_names")
-            if not voice_names:
-                # Get default voices
-                available_voices = await self.google_tts.get_available_voices(language)
-                if available_voices:
-                    voice_names = [available_voices[0]["name"]]
-                else:
-                    voice_names = None
-
             # Create temporary test ID (will be replaced after DB insert)
             temp_test_id = f"temp_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
@@ -408,6 +485,14 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                 logger.info(
                     f"   🎵 Processing section {section_num}: {section.get('section_title', 'Untitled')}..."
                 )
+
+                # Auto-select voices based on speaker roles if not provided
+                voice_names = audio_config.get("voice_names")
+                if not voice_names:
+                    voice_names = await self._select_voices_by_gender(
+                        section["script"].get("speaker_roles", []), language
+                    )
+                    logger.info(f"   🎙️ Auto-selected voices: {voice_names}")
 
                 # Generate audio
                 logger.info(f"   🔊 Generating audio for section {section_num}...")

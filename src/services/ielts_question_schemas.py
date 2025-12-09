@@ -213,9 +213,9 @@ def get_ielts_prompt(
 
     speaker_instruction = ""
     if num_speakers == 1:
-        speaker_instruction = "Generate a MONOLOGUE (single speaker). Suitable for: announcements, descriptions, lectures."
+        speaker_instruction = "Generate a MONOLOGUE (single speaker). Suitable for: announcements, descriptions, lectures. Specify gender in speaker_roles (e.g., 'Male Announcer' or 'Female Professor')."
     elif num_speakers == 2:
-        speaker_instruction = "Generate a DIALOGUE (two speakers). Alternate naturally. Include roles (e.g., Customer/Agent, Student/Teacher, Friends)."
+        speaker_instruction = "Generate a DIALOGUE (two speakers). Alternate naturally. Include roles WITH gender (e.g., 'Male Customer/Female Agent', 'Female Student/Male Teacher'). Use diverse gender combinations."
 
     prompt = f"""You are an expert IELTS listening test creator. Generate a listening comprehension test with various question types.
 
@@ -270,17 +270,17 @@ def get_ielts_prompt(
         {{
           "question_type": "completion",
           "question_text": "Complete the registration form",
-          "instruction": "Write NO MORE THAN TWO WORDS for each answer",
-          "template": "Name: _____(1)_____\\nStudent ID: _____(2)_____\\nEmail: _____(3)_____",
+          "instruction": "Write NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer",
+          "template": "Name: _____(1)_____\\nStudent ID: _____(2)_____\\nPhone: _____(3)_____",
           "blanks": [
             {{"key": "1", "position": "Name", "word_limit": 2}},
-            {{"key": "2", "position": "Student ID", "word_limit": 1}},
-            {{"key": "3", "position": "Email", "word_limit": 2}}
+            {{"key": "2", "position": "Student ID", "word_limit": 3}},
+            {{"key": "3", "position": "Phone", "word_limit": 3}}
           ],
           "correct_answers": [
-            {{"blank_key": "1", "answers": ["John Smith", "john smith"]}},
-            {{"blank_key": "2", "answers": ["A12345", "a12345"]}},
-            {{"blank_key": "3", "answers": ["john.smith@email.com"]}}
+            {{"blank_key": "1", "answers": ["John Smith", "john smith", "JOHN SMITH"]}},
+            {{"blank_key": "2", "answers": ["A12345", "a12345", "A 12345"]}},
+            {{"blank_key": "3", "answers": ["0412 555 678", "0412555678", "04125556 78"]}}
           ],
           "timestamp_hint": "0:10-0:30",
           "explanation": "The student provides personal details during registration."
@@ -339,19 +339,25 @@ def get_ielts_prompt(
 1. Output MUST be valid JSON
 2. Generate exactly {num_audio_sections} sections
 3. Distribute {num_questions} questions across sections
-4. MIX question types (don't use only MCQ)
-5. For completion/sentence/short answer:
-   - Include word limits (1-3 words typical)
-   - Provide multiple acceptable answers (case variations)
-   - Use realistic information from script
-6. For matching:
-   - Left items (numbered: 1, 2, 3...)
-   - Right options (lettered: A, B, C...)
-   - More options than items (e.g., 4 items, 6 options)
-7. All content in {language} language
-8. Scripts must be natural and conversational
-9. Questions answerable from audio only
-10. Include timestamp hints (e.g., "0:15-0:30")
+4. MIX question types (don't use only MCQ - aim for variety)
+5. **For completion/sentence/short answer:**
+   - Set word_limit to match instruction (e.g., "NO MORE THAN TWO WORDS" → word_limit: 2)
+   - IMPORTANT: word_limit must be 1-3 (typical IELTS)
+   - Include "AND/OR A NUMBER" in instruction for flexibility
+   - Provide multiple acceptable answers: case variations, spacing variations, equivalent formats
+   - Examples: ["15th July", "15 July", "July 15th", "July 15"] or ["0908 555 231", "0908555231"]
+6. **For matching:**
+   - Left items use numbered keys: "1", "2", "3", etc.
+   - Right options use letter keys: "A", "B", "C", etc.
+   - MUST have MORE right options than left items (e.g., 3 items → 5 options)
+   - Keys in correct_matches must match exactly: left_key from left_items, right_key from right_options
+7. **For MCQ:**
+   - Always provide exactly 4 options (A, B, C, D)
+   - correct_answer_keys is an array (can have multiple correct answers)
+8. All content in {language} language
+9. Scripts must be natural and conversational
+10. Questions answerable from audio only
+11. Include timestamp hints (e.g., "0:15-0:30")
 
 **QUESTION TYPE DISTRIBUTION (Recommended):**
 - 40-50% MCQ (familiar format)
