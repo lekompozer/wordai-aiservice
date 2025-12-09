@@ -1,12 +1,14 @@
 """
 Listening Test Generator Service
-Generate listening comprehension tests with AI-generated audio
+Generate listening tests with TTS audio using Gemini AI
+Now supports 6 IELTS question types
 """
 
 import logging
 import json
 import asyncio
-from typing import Dict, List, Optional, Any, Tuple
+import uuid
+from typing import Dict, Optional, List, Any, Tuple
 from datetime import datetime
 from bson import ObjectId
 
@@ -18,6 +20,7 @@ from src.services.google_tts_service import GoogleTTSService
 from src.services.r2_storage_service import R2StorageService
 from src.services.library_manager import LibraryManager
 from src.services.online_test_utils import get_mongodb_service
+from src.services.ielts_question_schemas import get_ielts_question_schema, get_ielts_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -137,9 +140,10 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         num_speakers: int,
         user_query: str,
     ) -> Dict:
-        """Step 1: Generate script and questions using Gemini"""
+        """Step 1: Generate script and questions using Gemini with IELTS question types"""
 
-        prompt = self._build_listening_prompt(
+        # Use new IELTS prompt supporting 6 question types
+        prompt = get_ielts_prompt(
             language=language,
             topic=topic,
             difficulty=difficulty,
@@ -149,88 +153,13 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             user_query=user_query,
         )
 
-        response_schema = {
-            "type": "object",
-            "properties": {
-                "audio_sections": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "section_number": {"type": "integer"},
-                            "section_title": {"type": "string"},
-                            "script": {
-                                "type": "object",
-                                "properties": {
-                                    "speaker_roles": {
-                                        "type": "array",
-                                        "items": {"type": "string"},
-                                    },
-                                    "lines": {
-                                        "type": "array",
-                                        "items": {
-                                            "type": "object",
-                                            "properties": {
-                                                "speaker": {"type": "integer"},
-                                                "text": {"type": "string"},
-                                            },
-                                            "required": ["speaker", "text"],
-                                        },
-                                    },
-                                },
-                                "required": ["speaker_roles", "lines"],
-                            },
-                            "questions": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "question_text": {"type": "string"},
-                                        "options": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "option_key": {"type": "string"},
-                                                    "option_text": {"type": "string"},
-                                                },
-                                                "required": [
-                                                    "option_key",
-                                                    "option_text",
-                                                ],
-                                            },
-                                        },
-                                        "correct_answer_keys": {
-                                            "type": "array",
-                                            "items": {"type": "string"},
-                                        },
-                                        "timestamp_hint": {"type": "string"},
-                                        "explanation": {"type": "string"},
-                                    },
-                                    "required": [
-                                        "question_text",
-                                        "options",
-                                        "correct_answer_keys",
-                                        "explanation",
-                                    ],
-                                },
-                            },
-                        },
-                        "required": [
-                            "section_number",
-                            "section_title",
-                            "script",
-                            "questions",
-                        ],
-                    },
-                }
-            },
-            "required": ["audio_sections"],
-        }
+        # Use new IELTS schema supporting 6 question types
+        response_schema = get_ielts_question_schema()
 
         logger.info(
-            f"📡 Calling Gemini API (gemini-3-pro-preview) with {num_questions} questions across {num_audio_sections} sections..."
+            f"📡 Calling Gemini API (gemini-3-pro-preview) for IELTS test with {num_questions} questions across {num_audio_sections} sections..."
         )
+        logger.info(f"   Supported question types: MCQ, Matching, Map Labeling, Completion, Sentence Completion, Short Answer")
         import sys
 
         sys.stdout.flush()
@@ -491,15 +420,27 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                 for q in section["questions"]:
                     q["question_id"] = f"q{question_num}"  # Add unique question ID
                     q["question_number"] = question_num
-                    q["question_type"] = "mcq"
+                    
+                    # Don't override question_type - keep what AI generated
+                    # AI now generates: mcq, matching, completion, sentence_completion, short_answer
+                    if "question_type" not in q:
+                        q["question_type"] = "mcq"  # Fallback for backward compatibility
+                    
                     q["audio_section"] = section["section_number"]
-                    q["max_points"] = 1
+                    q["max_points"] = 1  # Default points, can be adjusted later
                     questions.append(q)
                     question_num += 1
 
             logger.info(f"✅ Listening test generated successfully!")
             logger.info(f"   - Audio sections: {len(audio_sections_with_urls)}")
             logger.info(f"   - Questions: {len(questions)}")
+            
+            # Log question type distribution
+            type_counts = {}
+            for q in questions:
+                qtype = q.get("question_type", "unknown")
+                type_counts[qtype] = type_counts.get(qtype, 0) + 1
+            logger.info(f"   - Question types: {type_counts}")
 
             return {
                 "audio_sections": audio_sections_with_urls,
