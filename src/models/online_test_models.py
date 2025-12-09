@@ -161,9 +161,9 @@ class ManualTestQuestion(BaseModel):
     )
     question_text: str = Field(..., min_length=1, max_length=2000)
     instruction: Optional[str] = Field(
-        None, 
+        None,
         description="Additional instruction for the question (e.g., 'Write NO MORE THAN TWO WORDS')",
-        max_length=500
+        max_length=500,
     )
 
     # MCQ-specific fields (required only if question_type='mcq')
@@ -207,88 +207,90 @@ class ManualTestQuestion(BaseModel):
     )
 
     # ========== IELTS-specific fields ==========
-    
+
     # Matching type fields
     left_items: Optional[List[Dict[str, str]]] = Field(
         None,
-        description="Left items to match (matching type): [{'key': '1', 'text': 'Item 1'}, ...]"
+        description="Left items to match (matching type): [{'key': '1', 'text': 'Item 1'}, ...]",
     )
     right_options: Optional[List[Dict[str, str]]] = Field(
         None,
-        description="Right options to choose from (matching type): [{'key': 'A', 'text': 'Option A'}, ...]"
+        description="Right options to choose from (matching type): [{'key': 'A', 'text': 'Option A'}, ...]",
     )
     correct_matches: Optional[Dict[str, str]] = Field(
-        None,
-        description="Correct matches (matching type): {'1': 'A', '2': 'C', ...}"
+        None, description="Correct matches (matching type): {'1': 'A', '2': 'C', ...}"
     )
-    
+
     # Map/Diagram Labeling fields
     diagram_url: Optional[str] = Field(
         None,
         description="URL to diagram/map image (map_labeling type)",
-        max_length=1000
+        max_length=1000,
     )
     diagram_description: Optional[str] = Field(
         None,
         description="Description of the diagram (map_labeling type)",
-        max_length=1000
+        max_length=1000,
     )
     label_positions: Optional[List[Dict[str, str]]] = Field(
         None,
-        description="Label positions (map_labeling): [{'key': '1', 'description': 'Position 1'}, ...]"
+        description="Label positions (map_labeling): [{'key': '1', 'description': 'Position 1'}, ...]",
     )
     correct_labels: Optional[Dict[str, str]] = Field(
-        None,
-        description="Correct labels (map_labeling): {'1': 'A', '2': 'B', ...}"
+        None, description="Correct labels (map_labeling): {'1': 'A', '2': 'B', ...}"
     )
-    
+
     # Completion fields (form/note/table)
     template: Optional[str] = Field(
         None,
         description="Template with blanks (completion type): 'Name: _____(1)_____, Age: _____(2)_____'",
-        max_length=5000
+        max_length=5000,
     )
     completion_subtype: Optional[str] = Field(
-        None,
-        description="Subtype for completion: 'form', 'note', 'table'"
+        None, description="Subtype for completion: 'form', 'note', 'table'"
     )
     blanks: Optional[List[Dict[str, Any]]] = Field(
         None,
-        description="Blank definitions (completion): [{'key': '1', 'position': 'Name', 'word_limit': 2}, ...]"
+        description="Blank definitions (completion): [{'key': '1', 'position': 'Name', 'word_limit': 2}, ...]",
     )
     correct_answers: Optional[Dict[str, List[str]]] = Field(
         None,
-        description="Correct answers with alternatives (completion/sentence_completion/short_answer): {'1': ['answer1', 'answer2'], ...}"
+        description="Correct answers with alternatives (completion/sentence_completion/short_answer): {'1': ['answer1', 'answer2'], ...}",
     )
-    
+
     # Sentence Completion fields
     sentences: Optional[List[Dict[str, Any]]] = Field(
         None,
-        description="Sentences to complete: [{'key': '1', 'template': 'The library opens at _____.', 'word_limit': 2, 'correct_answers': ['8 AM']}, ...]"
+        description="Sentences to complete: [{'key': '1', 'template': 'The library opens at _____.', 'word_limit': 2, 'correct_answers': ['8 AM']}, ...]",
     )
-    
+
     # Short Answer fields
     questions: Optional[List[Dict[str, Any]]] = Field(
         None,
-        description="Short answer questions: [{'key': '1', 'text': 'What is...?', 'word_limit': 3, 'correct_answers': ['answer']}, ...]"
+        description="Short answer questions: [{'key': '1', 'text': 'What is...?', 'word_limit': 3, 'correct_answers': ['answer']}, ...]",
     )
-    
+
     # Common IELTS fields
     case_sensitive: Optional[bool] = Field(
         False,
-        description="Whether answers are case-sensitive (for text-based IELTS types)"
+        description="Whether answers are case-sensitive (for text-based IELTS types)",
     )
     audio_section: Optional[int] = Field(
-        None,
-        description="Audio section number (for listening tests)",
-        ge=1,
-        le=10
+        None, description="Audio section number (for listening tests)", ge=1, le=10
     )
 
     @field_validator("question_type")
     @classmethod
     def validate_question_type(cls, v):
-        valid_types = ["mcq", "essay", "matching", "map_labeling", "completion", "sentence_completion", "short_answer"]
+        valid_types = [
+            "mcq",
+            "essay",
+            "matching",
+            "map_labeling",
+            "completion",
+            "sentence_completion",
+            "short_answer",
+        ]
         if v not in valid_types:
             raise ValueError(f"question_type must be one of: {', '.join(valid_types)}")
         return v
@@ -296,7 +298,7 @@ class ManualTestQuestion(BaseModel):
     @model_validator(mode="after")
     def validate_question_fields(self):
         """Validate that required fields are present based on question_type"""
-        
+
         # ========== MCQ Validation ==========
         if self.question_type == "mcq":
             # MCQ requires options
@@ -319,7 +321,7 @@ class ManualTestQuestion(BaseModel):
                         raise ValueError(
                             f"correct_answer_key '{answer_key}' not found in options"
                         )
-        
+
         # ========== Essay Validation ==========
         elif self.question_type == "essay":
             # Essay should NOT have options or correct_answer_keys
@@ -335,49 +337,57 @@ class ManualTestQuestion(BaseModel):
                 and len(self.correct_answer_key.strip()) > 0
             ):
                 raise ValueError("Essay questions should not have correct_answer_key")
-        
+
         # ========== Matching Validation ==========
         elif self.question_type == "matching":
             if not self.left_items or len(self.left_items) < 2:
                 raise ValueError("Matching questions must have at least 2 left_items")
             if not self.right_options or len(self.right_options) < 2:
-                raise ValueError("Matching questions must have at least 2 right_options")
+                raise ValueError(
+                    "Matching questions must have at least 2 right_options"
+                )
             if not self.correct_matches:
                 raise ValueError("Matching questions must have correct_matches")
-            
+
             # Validate all left_items have corresponding matches
             left_keys = [item.get("key") for item in self.left_items]
             right_keys = [opt.get("key") for opt in self.right_options]
-            
+
             for left_key in left_keys:
                 if left_key not in self.correct_matches:
                     raise ValueError(f"Missing match for left_item key '{left_key}'")
                 right_key = self.correct_matches[left_key]
                 if right_key not in right_keys:
-                    raise ValueError(f"Invalid right_option key '{right_key}' in correct_matches")
-        
+                    raise ValueError(
+                        f"Invalid right_option key '{right_key}' in correct_matches"
+                    )
+
         # ========== Map Labeling Validation ==========
         elif self.question_type == "map_labeling":
             if not self.diagram_url:
                 raise ValueError("Map labeling questions must have diagram_url")
             if not self.label_positions or len(self.label_positions) < 1:
-                raise ValueError("Map labeling questions must have at least 1 label_position")
+                raise ValueError(
+                    "Map labeling questions must have at least 1 label_position"
+                )
             if not self.options or len(self.options) < 2:
                 raise ValueError("Map labeling questions must have at least 2 options")
             if not self.correct_labels:
                 raise ValueError("Map labeling questions must have correct_labels")
-            
+
             # Validate all positions have labels
             position_keys = [pos.get("key") for pos in self.label_positions]
             option_keys = [opt.get("key") for opt in self.options]
-            
+
             for pos_key in position_keys:
                 if pos_key not in self.correct_labels:
                     raise ValueError(f"Missing label for position '{pos_key}'")
                 option_key = self.correct_labels[pos_key]
                 if option_key not in option_keys:
-                    raise ValueError(f"Invalid option key '{option_key}' in correct_labels")
-        
+                    raise ValueError(
+                        f"Invalid option key '{option_key}' in correct_labels"
+                    )
+
         # ========== Completion Validation ==========
         elif self.question_type == "completion":
             if not self.template:
@@ -386,42 +396,54 @@ class ManualTestQuestion(BaseModel):
                 raise ValueError("Completion questions must have at least 1 blank")
             if not self.correct_answers:
                 raise ValueError("Completion questions must have correct_answers")
-            
+
             # Validate all blanks have answers
             blank_keys = [blank.get("key") for blank in self.blanks]
             for blank_key in blank_keys:
                 if blank_key not in self.correct_answers:
                     raise ValueError(f"Missing answer for blank '{blank_key}'")
                 if not isinstance(self.correct_answers[blank_key], list):
-                    raise ValueError(f"correct_answers['{blank_key}'] must be a list of acceptable answers")
-        
+                    raise ValueError(
+                        f"correct_answers['{blank_key}'] must be a list of acceptable answers"
+                    )
+
         # ========== Sentence Completion Validation ==========
         elif self.question_type == "sentence_completion":
             if not self.sentences or len(self.sentences) < 1:
-                raise ValueError("Sentence completion questions must have at least 1 sentence")
-            
+                raise ValueError(
+                    "Sentence completion questions must have at least 1 sentence"
+                )
+
             # Validate each sentence has required fields
             for i, sentence in enumerate(self.sentences):
                 if "key" not in sentence:
                     raise ValueError(f"Sentence {i+1} missing 'key' field")
                 if "template" not in sentence:
                     raise ValueError(f"Sentence {i+1} missing 'template' field")
-                if "correct_answers" not in sentence or not isinstance(sentence["correct_answers"], list):
-                    raise ValueError(f"Sentence {i+1} must have 'correct_answers' as a list")
-        
+                if "correct_answers" not in sentence or not isinstance(
+                    sentence["correct_answers"], list
+                ):
+                    raise ValueError(
+                        f"Sentence {i+1} must have 'correct_answers' as a list"
+                    )
+
         # ========== Short Answer Validation ==========
         elif self.question_type == "short_answer":
             if not self.questions or len(self.questions) < 1:
                 raise ValueError("Short answer questions must have at least 1 question")
-            
+
             # Validate each question has required fields
             for i, q in enumerate(self.questions):
                 if "key" not in q:
                     raise ValueError(f"Question {i+1} missing 'key' field")
                 if "text" not in q:
                     raise ValueError(f"Question {i+1} missing 'text' field")
-                if "correct_answers" not in q or not isinstance(q["correct_answers"], list):
-                    raise ValueError(f"Question {i+1} must have 'correct_answers' as a list")
+                if "correct_answers" not in q or not isinstance(
+                    q["correct_answers"], list
+                ):
+                    raise ValueError(
+                        f"Question {i+1} must have 'correct_answers' as a list"
+                    )
 
         # Validate media fields
         if self.media_type:

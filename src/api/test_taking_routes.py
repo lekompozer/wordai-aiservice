@@ -767,25 +767,25 @@ async def submit_test(
                     "type": "mcq",
                     "selected_answer_keys": selected_answers,
                 }
-            
+
             elif ans_type == "matching":
                 user_answers_map[q_id] = {
                     "type": "matching",
                     "matches": ans.get("matches", {}),
                 }
-            
+
             elif ans_type == "map_labeling":
                 user_answers_map[q_id] = {
                     "type": "map_labeling",
                     "labels": ans.get("labels", {}),
                 }
-            
+
             elif ans_type in ["completion", "sentence_completion", "short_answer"]:
                 user_answers_map[q_id] = {
                     "type": ans_type,
                     "answers": ans.get("answers", {}),
                 }
-            
+
             elif ans_type == "essay":
                 user_answers_map[q_id] = {
                     "type": "essay",
@@ -801,7 +801,9 @@ async def submit_test(
         results = []
 
         # Get all auto-gradable questions (MCQ + IELTS types)
-        auto_gradable_questions = [q for q in questions if q.get("question_type", "mcq") != "essay"]
+        auto_gradable_questions = [
+            q for q in questions if q.get("question_type", "mcq") != "essay"
+        ]
 
         # For diagnostic tests, skip correct/incorrect scoring
         if is_diagnostic:
@@ -831,11 +833,13 @@ async def submit_test(
                 user_answer_data = user_answers_map.get(question_id, {})
 
                 # Use new IELTS scoring system
-                is_correct, points_earned, feedback = score_question(q, user_answer_data)
+                is_correct, points_earned, feedback = score_question(
+                    q, user_answer_data
+                )
 
                 if is_correct:
                     mcq_correct_count += 1
-                
+
                 mcq_score += points_earned
 
                 # Build result based on question type
@@ -852,7 +856,9 @@ async def submit_test(
 
                 # Add type-specific fields for result
                 if question_type == "mcq":
-                    result["selected_answer_keys"] = user_answer_data.get("selected_answer_keys", [])
+                    result["selected_answer_keys"] = user_answer_data.get(
+                        "selected_answer_keys", []
+                    )
                     result["correct_answer_keys"] = q.get("correct_answer_keys", [])
                 elif question_type == "matching":
                     result["user_matches"] = user_answer_data.get("matches", {})
@@ -860,7 +866,11 @@ async def submit_test(
                 elif question_type == "map_labeling":
                     result["user_labels"] = user_answer_data.get("labels", {})
                     result["correct_labels"] = q.get("correct_labels", {})
-                elif question_type in ["completion", "sentence_completion", "short_answer"]:
+                elif question_type in [
+                    "completion",
+                    "sentence_completion",
+                    "short_answer",
+                ]:
                     result["user_answers"] = user_answer_data.get("answers", {})
                     # Don't expose all correct answers immediately (show after deadline if configured)
                     # Frontend will show feedback only
@@ -896,7 +906,9 @@ async def submit_test(
         else:
             grading_status = "auto_graded"
             # Calculate final score for all auto-gradable questions (MCQ + IELTS types)
-            total_max_points = sum(q.get("max_points", 1) for q in auto_gradable_questions)
+            total_max_points = sum(
+                q.get("max_points", 1) for q in auto_gradable_questions
+            )
             final_score = (
                 round(mcq_score / total_max_points * 10, 2)
                 if total_max_points > 0

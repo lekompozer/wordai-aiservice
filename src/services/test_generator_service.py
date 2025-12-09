@@ -1048,7 +1048,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     {
                         "key": s.get("key"),
                         "template": s.get("template"),
-                        "word_limit": s.get("word_limit")
+                        "word_limit": s.get("word_limit"),
                     }
                     for s in sentences
                 ]
@@ -1061,7 +1061,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     {
                         "key": qq.get("key"),
                         "text": qq.get("text"),
-                        "word_limit": qq.get("word_limit")
+                        "word_limit": qq.get("word_limit"),
                     }
                     for qq in questions_list
                 ]
@@ -1078,7 +1078,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 question_data["media_type"] = q["media_type"]
                 question_data["media_url"] = q.get("media_url")
                 question_data["media_description"] = q.get("media_description", "")
-            
+
             # Include audio_section for listening tests
             if q.get("audio_section"):
                 question_data["audio_section"] = q["audio_section"]

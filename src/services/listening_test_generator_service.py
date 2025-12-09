@@ -20,7 +20,10 @@ from src.services.google_tts_service import GoogleTTSService
 from src.services.r2_storage_service import R2StorageService
 from src.services.library_manager import LibraryManager
 from src.services.online_test_utils import get_mongodb_service
-from src.services.ielts_question_schemas import get_ielts_question_schema, get_ielts_prompt
+from src.services.ielts_question_schemas import (
+    get_ielts_question_schema,
+    get_ielts_prompt,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,7 +162,9 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         logger.info(
             f"📡 Calling Gemini API (gemini-3-pro-preview) for IELTS test with {num_questions} questions across {num_audio_sections} sections..."
         )
-        logger.info(f"   Supported question types: MCQ, Matching, Map Labeling, Completion, Sentence Completion, Short Answer")
+        logger.info(
+            f"   Supported question types: MCQ, Matching, Map Labeling, Completion, Sentence Completion, Short Answer"
+        )
         import sys
 
         sys.stdout.flush()
@@ -420,12 +425,14 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                 for q in section["questions"]:
                     q["question_id"] = f"q{question_num}"  # Add unique question ID
                     q["question_number"] = question_num
-                    
+
                     # Don't override question_type - keep what AI generated
                     # AI now generates: mcq, matching, completion, sentence_completion, short_answer
                     if "question_type" not in q:
-                        q["question_type"] = "mcq"  # Fallback for backward compatibility
-                    
+                        q["question_type"] = (
+                            "mcq"  # Fallback for backward compatibility
+                        )
+
                     q["audio_section"] = section["section_number"]
                     q["max_points"] = 1  # Default points, can be adjusted later
                     questions.append(q)
@@ -434,7 +441,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             logger.info(f"✅ Listening test generated successfully!")
             logger.info(f"   - Audio sections: {len(audio_sections_with_urls)}")
             logger.info(f"   - Questions: {len(questions)}")
-            
+
             # Log question type distribution
             type_counts = {}
             for q in questions:
