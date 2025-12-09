@@ -219,19 +219,21 @@ def get_ielts_prompt(
 
     prompt = f"""You are an expert IELTS listening test creator. Generate a listening comprehension test with various question types.
 
-**CRITICAL REQUIREMENTS:**
+**🎯 CRITICAL: YOU MUST GENERATE EXACTLY {num_questions} QUESTIONS - NO EXCEPTIONS!**
+
+**SPECIFICATIONS:**
 - Language: {language}
 - Topic: {topic}
 - Difficulty: {difficulty_desc}
 - Number of speakers: {num_speakers}
 - Number of audio sections: {num_audio_sections}
-- **IMPORTANT: Generate EXACTLY {num_questions} questions total** (distribute evenly across {num_audio_sections} section(s))
+- **TOTAL QUESTIONS REQUIRED: {num_questions}** (this is MANDATORY, not a suggestion)
 - User requirements: {user_query}
 
-**QUESTION COUNT ENFORCEMENT:**
-- If {num_audio_sections} = 1: Generate ALL {num_questions} questions in section 1
-- If {num_audio_sections} = 2: Generate ~{num_questions//2} questions per section (total must be {num_questions})
-- DO NOT generate fewer questions than {num_questions}!
+**QUESTION COUNT DISTRIBUTION:**
+- Section 1 should have: {num_questions} questions
+- **VERIFY BEFORE SUBMITTING:** Count all questions in your response. If less than {num_questions}, ADD MORE QUESTIONS!
+- Better to have slightly more variety than to have too few questions
 
 **SPEAKER CONFIGURATION:**
 {speaker_instruction}
@@ -368,11 +370,18 @@ def get_ielts_prompt(
 11. Questions answerable from audio only
 12. Include timestamp hints (e.g., "0:15-0:30")
 
-**QUESTION TYPE DISTRIBUTION (Recommended):**
-- 40-50% MCQ (familiar format)
-- 20-30% Completion/Sentence completion (IELTS common)
-- 15-20% Matching (good for variety)
-- 10-15% Short answer (specific details)
+**QUESTION TYPE DISTRIBUTION (Flexible - AI decides):**
+You can distribute {num_questions} questions across these types:
+- MCQ: Good for most situations (40-50%)
+- Completion/Sentence completion: IELTS authentic (20-30%)
+- Matching: Adds variety (10-20%)
+- Short answer: Specific details (10-20%)
+
+**🔴 FINAL REMINDER BEFORE GENERATING:**
+1. Count your questions after generating
+2. You MUST have EXACTLY {num_questions} questions in your JSON
+3. If you have fewer than {num_questions}, add more questions of any type
+4. Quality is important BUT hitting {num_questions} questions is MANDATORY
 
 Now, generate the IELTS listening test. Return ONLY the JSON object."""
 

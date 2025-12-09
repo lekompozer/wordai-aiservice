@@ -185,9 +185,30 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         # Convert Gemini array format to object format for storage
         self._convert_gemini_arrays_to_objects(result)
 
-        logger.info(
-            f"✅ Generated {len(result['audio_sections'])} audio sections with {sum(len(s.get('questions', [])) for s in result['audio_sections'])} questions"
+        # Count total questions after validation
+        total_questions = sum(
+            len(s.get("questions", [])) for s in result["audio_sections"]
         )
+
+        logger.info(
+            f"✅ Generated {len(result['audio_sections'])} audio sections with {total_questions} valid questions"
+        )
+
+        # Check if we have enough questions (allow 80% threshold)
+        min_required = int(num_questions * 0.8)  # At least 80% of requested
+        if total_questions < min_required:
+            logger.error(
+                f"❌ Insufficient questions: got {total_questions}, expected at least {min_required} (80% of {num_questions})"
+            )
+            raise ValueError(
+                f"AI generated only {total_questions} valid questions, but {num_questions} were requested. Please try again."
+            )
+
+        if total_questions < num_questions:
+            logger.warning(
+                f"⚠️ Generated {total_questions} questions instead of {num_questions} (some may have been filtered out)"
+            )
+
         return result
 
     def _convert_gemini_arrays_to_objects(self, result: Dict) -> None:
