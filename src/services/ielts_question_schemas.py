@@ -231,9 +231,11 @@ def get_ielts_prompt(
 - User requirements: {user_query}
 
 **QUESTION COUNT DISTRIBUTION:**
-- Section 1 should have: {num_questions} questions
+- You have {num_audio_sections} section(s) to work with
+- Distribute {num_questions} questions across all sections (aim for roughly equal distribution)
+- Each section should have at least {max(1, num_questions // num_audio_sections)} questions
 - **VERIFY BEFORE SUBMITTING:** Count all questions in your response. If less than {num_questions}, ADD MORE QUESTIONS!
-- Better to have slightly more variety than to have too few questions
+- It's better to generate {num_questions + 2} questions than {num_questions - 2} questions
 
 **SPEAKER CONFIGURATION:**
 {speaker_instruction}
@@ -247,15 +249,19 @@ def get_ielts_prompt(
    - Good for: matching speakers to opinions, places to descriptions, people to actions
    - Example: Match each speaker (1-3) to what they say about the topic (A-E)
 
-3. **COMPLETION (Form/Note/Table)**: Fill in blanks with NO MORE THAN TWO/THREE WORDS
+3. **MAP LABELING**: Label positions on a map or diagram
+   - Good for: spatial descriptions, floor plans, facility locations
+   - Example: Label the rooms on the campus map
+
+4. **COMPLETION (Form/Note/Table)**: Fill in blanks with NO MORE THAN TWO/THREE WORDS
    - Good for: capturing specific information (names, dates, prices, addresses)
    - Format: "Name: _____(1)_____, Phone: _____(2)_____"
 
-4. **SENTENCE COMPLETION**: Complete sentences with words from audio
+5. **SENTENCE COMPLETION**: Complete sentences with words from audio
    - Good for: key facts and details
    - Example: "The library opens at _____." (Answer: 8 AM)
 
-5. **SHORT ANSWER**: Answer questions with NO MORE THAN THREE WORDS
+6. **SHORT ANSWER**: Answer questions with NO MORE THAN THREE WORDS
    - Good for: factual information
    - Example: "What is the speaker's occupation?" (Answer: Software Engineer)
 
@@ -365,23 +371,34 @@ def get_ielts_prompt(
 8. **For MCQ:**
    - Always provide exactly 4 options (A, B, C, D)
    - correct_answer_keys is an array (can have multiple correct answers)
-9. All content in {language} language
-10. Scripts must be natural and conversational
-11. Questions answerable from audio only
-12. Include timestamp hints (e.g., "0:15-0:30")
+10. All content in {language} language
+11. Scripts must be natural and conversational
+12. Questions answerable from audio only
+13. Include timestamp hints (e.g., "0:15-0:30")
 
 **QUESTION TYPE DISTRIBUTION (Flexible - AI decides):**
-You can distribute {num_questions} questions across these types:
-- MCQ: Good for most situations (40-50%)
-- Completion/Sentence completion: IELTS authentic (20-30%)
-- Matching: Adds variety (10-20%)
-- Short answer: Specific details (10-20%)
+You have 6 question types to choose from for your {num_questions} questions:
+- MCQ: Most versatile (30-40% of questions)
+- Completion: IELTS authentic (20-30% of questions)
+- Matching: Adds variety (10-20% of questions)
+- Sentence completion: Detail-focused (10-20% of questions)
+- Short answer: Quick facts (10-15% of questions)
+- Map labeling: Spatial info (0-10% of questions, optional)
+
+**Example for {num_questions} questions:**
+If {num_questions} = 10, you might generate:
+- 4 MCQ questions
+- 3 Completion questions (with multiple blanks)
+- 2 Matching questions
+- 1 Short answer question
+TOTAL = 10 questions ✓
 
 **🔴 FINAL REMINDER BEFORE GENERATING:**
 1. Count your questions after generating
 2. You MUST have EXACTLY {num_questions} questions in your JSON
-3. If you have fewer than {num_questions}, add more questions of any type
-4. Quality is important BUT hitting {num_questions} questions is MANDATORY
+3. If you have fewer than {num_questions}, add more questions of ANY type
+4. If you have more than {num_questions}, that's OK - better to have extra than too few
+5. Quality is important BUT hitting {num_questions} questions is MANDATORY
 
 Now, generate the IELTS listening test. Return ONLY the JSON object."""
 

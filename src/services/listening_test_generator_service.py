@@ -159,8 +159,14 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         # Use new IELTS schema supporting 6 question types
         response_schema = get_ielts_question_schema()
 
+        questions_per_section = num_questions // num_audio_sections
+        remainder = num_questions % num_audio_sections
+
         logger.info(
             f"📡 Calling Gemini API (gemini-3-pro-preview) for IELTS test with {num_questions} questions across {num_audio_sections} sections..."
+        )
+        logger.info(
+            f"   Target distribution: ~{questions_per_section} questions per section (total must be exactly {num_questions})"
         )
         logger.info(
             f"   Supported question types: MCQ, Matching, Map Labeling, Completion, Sentence Completion, Short Answer"
