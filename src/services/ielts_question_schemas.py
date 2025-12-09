@@ -232,10 +232,10 @@ def get_ielts_prompt(
 
 **QUESTION COUNT DISTRIBUTION:**
 - You have {num_audio_sections} section(s) to work with
-- Distribute {num_questions} questions across all sections (aim for roughly equal distribution)
-- Each section should have at least {max(1, num_questions // num_audio_sections)} questions
-- **VERIFY BEFORE SUBMITTING:** Count all questions in your response. If less than {num_questions}, ADD MORE QUESTIONS!
-- It's better to generate {num_questions + 2} questions than {num_questions - 2} questions
+- Distribute {num_questions} QUESTION OBJECTS across all sections (aim for roughly equal distribution)
+- Each section should have at least {max(1, num_questions // num_audio_sections)} QUESTION OBJECTS
+- **VERIFY BEFORE SUBMITTING:** Count QUESTION OBJECTS (not items/blanks) in your "questions" array. If less than {num_questions}, ADD MORE QUESTION OBJECTS!
+- It's better to generate {num_questions + 2} question objects than {num_questions - 2} question objects
 
 **SPEAKER CONFIGURATION:**
 {speaker_instruction}
@@ -376,12 +376,13 @@ def get_ielts_prompt(
 **CRITICAL INSTRUCTIONS:**
 1. Output MUST be valid JSON
 2. Generate EXACTLY {num_audio_sections} sections (no more, no less)
-3. **MUST generate EXACTLY {num_questions} questions total** - distribute across sections
-4. **ALL MCQ questions MUST have:**
+3. **MUST generate EXACTLY {num_questions} QUESTION OBJECTS total** - distribute across sections
+4. **COUNT QUESTION OBJECTS, NOT ITEMS/BLANKS:** 1 matching with 5 items = 1 question object, NOT 5
+5. **ALL MCQ questions MUST have:**
    - Exactly 4 options (A, B, C, D) with both option_key and option_text
    - correct_answer_keys array (cannot be null/empty)
    - Complete question_text (not just "Choose the correct letter")
-5. MIX question types (don't use only MCQ - aim for variety)
+6. MIX question types (don't use only MCQ - aim for variety)
 6. **For completion/sentence/short answer:**
    - Set word_limit to match instruction (e.g., "NO MORE THAN TWO WORDS" → word_limit: 2)
    - IMPORTANT: word_limit must be 1-3 (typical IELTS)
@@ -401,46 +402,54 @@ def get_ielts_prompt(
 12. Questions answerable from audio only
 13. Include timestamp hints (e.g., "0:15-0:30")
 
-**HOW TO COUNT QUESTIONS (CRITICAL FOR ACCURACY):**
-- **MCQ:** 1 MCQ question = 1 question (even if multiple correct answers)
-  - COUNTS AS: Number of MCQ items
-- **MATCHING:** Count each item to be matched as 1 question
-  - COUNTS AS: Number of left_items (e.g., 3 items to match = 3 questions)
-- **COMPLETION:** Count each blank as 1 question
-  - COUNTS AS: Number of blanks (e.g., 5 blanks = 5 questions)
-- **SENTENCE COMPLETION:** Count each sentence as 1 question
-  - COUNTS AS: Number of sentences (e.g., 3 sentences = 3 questions)
-- **SHORT ANSWER:** Count each question as 1 question
-  - COUNTS AS: Number of questions in the array (e.g., 2 questions = 2 questions)
+**HOW TO COUNT QUESTIONS (CRITICAL - READ CAREFULLY):**
+
+🎯 **IMPORTANT:** 1 question object in JSON = 1 question (regardless of how many items/blanks inside)
+
+- **MCQ:** 1 MCQ object = 1 question
+  - Example: 1 MCQ with 4 options (A-D) = 1 question
+
+- **MATCHING:** 1 matching object = 1 question (even if matching 5 items)
+  - Example: Match 5 people to 8 options = 1 question (not 5 questions!)
+
+- **COMPLETION:** 1 completion object = 1 question (even if filling 5 blanks)
+  - Example: Complete form with 5 blanks = 1 question (not 5 questions!)
+
+- **SENTENCE COMPLETION:** 1 sentence_completion object = 1 question (even if 3 sentences)
+  - Example: Complete 3 sentences = 1 question (not 3 questions!)
+
+- **SHORT ANSWER:** 1 short_answer object = 1 question (even if 2 sub-questions)
+  - Example: Answer 2 questions = 1 question (not 2 questions!)
 
 **CALCULATION CHECK BEFORE OUTPUT:**
-Before you output JSON, calculate:
-MCQ_count + matching_items + completion_blanks + sentence_count + short_answer_count = ?
+Before you output JSON, COUNT THE QUESTION OBJECTS:
+Total question objects in "questions" array = ?
 Result MUST = {num_questions}
 
 **QUESTION TYPE DISTRIBUTION (Flexible - AI decides):**
 You have 5 question types to choose from for your {num_questions} questions:
 - MCQ: Most versatile (30-40% of questions)
-- Completion: IELTS authentic (25-35% of questions)
-- Matching: Adds variety (10-20% of questions)
+- Completion: IELTS authentic (20-30% of questions)
+- Matching: Adds variety (15-25% of questions)
 - Sentence completion: Detail-focused (10-20% of questions)
-- Short answer: Quick facts (5-15% of questions)
+- Short answer: Quick facts (10-20% of questions)
 
 **Example for {num_questions} questions:**
-If {num_questions} = 10, you might generate:
-- 1 MCQ (1 question)
-- 1 Completion with 4 blanks (4 questions: keys 2,3,4,5)
-- 1 Matching with 3 items (3 questions: keys 6,7,8)
-- 1 Sentence completion with 1 sentence (1 question: key 9)
-- 1 Short answer with 1 question (1 question: key 10)
-TOTAL = 1+4+3+1+1 = 10 questions ✓
+If {num_questions} = 10, you might generate 10 QUESTION OBJECTS:
+- 3 MCQ objects (questions 1, 2, 3)
+- 2 Completion objects with 3-5 blanks each (questions 4, 5)
+- 2 Matching objects with 3-4 items each (questions 6, 7)
+- 2 Sentence completion objects with 2-3 sentences each (questions 8, 9)
+- 1 Short answer object with 2-3 sub-questions (question 10)
+TOTAL = 3+2+2+2+1 = 10 question objects ✓
 
 **🔴 FINAL REMINDER BEFORE GENERATING:**
-1. Count your questions after generating
-2. You MUST have EXACTLY {num_questions} questions in your JSON
-3. If you have fewer than {num_questions}, add more questions of ANY type
-4. If you have more than {num_questions}, that's OK - better to have extra than too few
-5. Quality is important BUT hitting {num_questions} questions is MANDATORY
+1. Count QUESTION OBJECTS in your "questions" array after generating
+2. You MUST have EXACTLY {num_questions} QUESTION OBJECTS in your JSON (not items, not blanks - count the objects!)
+3. Example: 10 questions = 10 objects in questions array, NOT 10 blanks or 10 items
+4. If you have fewer than {num_questions} question objects, add more questions of ANY type
+5. If you have more than {num_questions} question objects, that's OK - better to have extra than too few
+6. Quality is important BUT hitting {num_questions} QUESTION OBJECTS is MANDATORY
 
 Now, generate listening test like IELTS style. Return ONLY the JSON object."""
 
