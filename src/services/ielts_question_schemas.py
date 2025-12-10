@@ -215,7 +215,14 @@ def get_ielts_prompt(
     if num_speakers == 1:
         speaker_instruction = "Generate a MONOLOGUE (single speaker). Suitable for: announcements, descriptions, lectures. Specify gender in speaker_roles (e.g., 'Male Announcer' or 'Female Professor')."
     elif num_speakers == 2:
-        speaker_instruction = "Generate a DIALOGUE (two speakers). Alternate naturally. Include roles WITH gender (e.g., 'Male Customer/Female Agent', 'Female Student/Male Teacher'). Use diverse gender combinations."
+        speaker_instruction = """Generate a DIALOGUE (two speakers). Alternate naturally.
+
+**CRITICAL GENDER REQUIREMENTS FOR EVERY SECTION:**
+- **EVERY section MUST have ONE MALE and ONE FEMALE speaker** (to ensure distinct voices)
+- Include roles WITH gender prefix: 'Male [Role]' and 'Female [Role]'
+- Examples: 'Male Customer/Female Agent', 'Female Student/Male Teacher', 'Male Applicant/Female Manager'
+- **DO NOT create sections with same-gender pairs** (e.g., Male/Male or Female/Female will sound identical!)
+- Vary the gender order across sections (Section 1: Male first, Section 2: Female first, etc.)"""
 
     prompt = f"""You are an expert IELTS listening test creator. Generate a listening comprehension test with various question types.
 

@@ -194,6 +194,10 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         # Convert Gemini array format to object format for storage
         self._convert_gemini_arrays_to_objects(result)
 
+        # Validate gender diversity for 2-speaker sections
+        if num_speakers == 2:
+            self._validate_gender_diversity(result["audio_sections"])
+
         # Count total questions after validation
         total_questions = sum(
             len(s.get("questions", [])) for s in result["audio_sections"]
@@ -317,9 +321,111 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
 
             # Replace questions array with validated questions
             section["questions"] = questions_to_keep
+
             logger.info(
                 f"   ✅ Section {section.get('section_number')}: Kept {len(questions_to_keep)} valid questions"
             )
+
+    def _validate_gender_diversity(self, audio_sections: List[Dict]) -> None:
+        """
+        Validate that each 2-speaker section has different genders (one male + one female)
+
+        This ensures Gemini TTS can generate distinct voices.
+        Same-gender pairs will sound identical!
+        """
+        male_keywords = [
+            "male",
+            "man",
+            "men",
+            "boy",
+            "mr",
+            "sir",
+            "gentleman",
+            "father",
+            "dad",
+            "brother",
+            "son",
+            "husband",
+            "him",
+            "he",
+        ]
+        female_keywords = [
+            "female",
+            "woman",
+            "women",
+            "girl",
+            "ms",
+            "mrs",
+            "miss",
+            "lady",
+            "mother",
+            "mom",
+            "sister",
+            "daughter",
+            "wife",
+            "her",
+            "she",
+        ]
+
+        for section in audio_sections:
+            section_num = section.get("section_number", "unknown")
+            speaker_roles = section.get("script", {}).get("speaker_roles", [])
+
+            if len(speaker_roles) != 2:
+                continue  # Only validate 2-speaker dialogues
+
+            # Detect gender for each speaker
+            genders = []
+            for role in speaker_roles:
+                role_lower = role.lower()
+
+                if any(word in role_lower for word in male_keywords):
+                    genders.append("male")
+                elif any(word in role_lower for word in female_keywords):
+                    genders.append("female")
+                else:
+                    genders.append("unknown")
+
+            # Check if both speakers have same gender
+            if genders[0] == genders[1] and genders[0] != "unknown":
+                logger.warning(
+                    f"⚠️ Section {section_num} has SAME-GENDER speakers: {speaker_roles} → voices will sound identical!"
+                )
+                logger.warning(
+                    f"   Detected genders: {genders[0]}/{genders[1]} - This will confuse listeners!"
+                )
+
+                # Auto-fix: change second speaker to opposite gender
+                if genders[0] == "male":
+                    # Change second speaker from Male to Female
+                    original_role = speaker_roles[1]
+                    fixed_role = (
+                        original_role.replace("Male", "Female")
+                        .replace("male", "female")
+                        .replace("Man", "Woman")
+                        .replace("man", "woman")
+                    )
+                    speaker_roles[1] = fixed_role
+                    logger.info(f"   🔧 Auto-fixed: '{original_role}' → '{fixed_role}'")
+                else:
+                    # Change second speaker from Female to Male
+                    original_role = speaker_roles[1]
+                    fixed_role = (
+                        original_role.replace("Female", "Male")
+                        .replace("female", "male")
+                        .replace("Woman", "Man")
+                        .replace("woman", "man")
+                    )
+                    speaker_roles[1] = fixed_role
+                    logger.info(f"   🔧 Auto-fixed: '{original_role}' → '{fixed_role}'")
+
+            elif "unknown" in genders:
+                logger.warning(
+                    f"⚠️ Section {section_num} has ambiguous gender in roles: {speaker_roles}"
+                )
+                logger.info(
+                    f"   Detected genders: {genders[0]}/{genders[1]} - will use alternating male/female voices"
+                )
 
     async def _select_voices_by_gender(
         self, speaker_roles: List[str], language: str
