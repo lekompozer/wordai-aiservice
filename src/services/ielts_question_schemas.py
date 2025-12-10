@@ -231,10 +231,13 @@ def get_ielts_prompt(
 - User requirements: {user_query}
 
 **QUESTION COUNT DISTRIBUTION:**
-- You have {num_audio_sections} section(s) to work with
-- Distribute {num_questions} QUESTION OBJECTS across all sections (aim for roughly equal distribution)
-- Each section should have at least {max(1, num_questions // num_audio_sections)} QUESTION OBJECTS
-- **VERIFY BEFORE SUBMITTING:** Count QUESTION OBJECTS (not items/blanks) in your "questions" array. If less than {num_questions}, ADD MORE QUESTION OBJECTS!
+- **YOU MUST CREATE EXACTLY {num_audio_sections} SECTIONS IN "audio_sections" ARRAY**
+- Distribute {num_questions} QUESTION OBJECTS across ALL {num_audio_sections} sections (aim for roughly equal distribution)
+- **CALCULATION:** Each section should have approximately {max(1, num_questions // num_audio_sections)} questions
+  - Example: {num_questions} questions ÷ {num_audio_sections} sections = {max(1, num_questions // num_audio_sections)} questions per section
+- **VERIFY BEFORE SUBMITTING:**
+  1. Count sections in "audio_sections" array = Must be {num_audio_sections}
+  2. Count total QUESTION OBJECTS across all sections = Must be {num_questions}
 - It's better to generate {num_questions + 2} question objects than {num_questions - 2} question objects
 
 **SPEAKER CONFIGURATION:**
@@ -261,7 +264,9 @@ def get_ielts_prompt(
    - Good for: factual information
    - Example: "What is the speaker's occupation?" (Answer: Software Engineer)
 
-**OUTPUT FORMAT (JSON):**
+**OUTPUT FORMAT (JSON) - EXAMPLE WITH MULTIPLE SECTIONS:**
+
+Below is an example showing how to structure multiple sections. **YOU MUST GENERATE {num_audio_sections} SECTIONS LIKE THIS:**
 
 {{
   "audio_sections": [
@@ -369,14 +374,47 @@ def get_ielts_prompt(
           "explanation": "Context from the entire conversation about card registration."
         }}
       ]
+    }},
+    {{
+      "section_number": 2,
+      "section_title": "Guide to Student Services",
+      "script": {{
+        "speaker_roles": ["Orientation Leader"],
+        "lines": [
+          {{"speaker": 0, "text": "Welcome to campus orientation. Today I'll explain our student services."}},
+          {{"speaker": 0, "text": "First, let's talk about the health center..."}}
+        ]
+      }},
+      "questions": [
+        {{
+          "question_type": "mcq",
+          "question_text": "What is the first service mentioned?",
+          "instruction": "Choose the correct letter, A, B, C or D",
+          "options": [
+            {{"option_key": "A", "option_text": "Library"}},
+            {{"option_key": "B", "option_text": "Health center"}},
+            {{"option_key": "C", "option_text": "Career office"}},
+            {{"option_key": "D", "option_text": "Sports facilities"}}
+          ],
+          "correct_answer_keys": ["B"],
+          "timestamp_hint": "0:00-0:15",
+          "explanation": "Speaker explicitly mentions health center first."
+        }}
+      ]
     }}
   ]
 }}
 
+**CRITICAL: This example shows ONLY 2 sections for illustration. YOU MUST generate ALL {num_audio_sections} sections!**
+**Each section must have its own script and questions. Distribute {num_questions} questions across all {num_audio_sections} sections.**
+
 **CRITICAL INSTRUCTIONS:**
 1. Output MUST be valid JSON
-2. Generate EXACTLY {num_audio_sections} sections (no more, no less)
-3. **MUST generate EXACTLY {num_questions} QUESTION OBJECTS total** - distribute across sections
+2. **Generate EXACTLY {num_audio_sections} sections** in "audio_sections" array (no more, no less)
+   - Section 1, Section 2, ..., Section {num_audio_sections}
+   - Each section needs: section_number, section_title, script, questions
+3. **MUST generate EXACTLY {num_questions} QUESTION OBJECTS total** - distribute across ALL sections
+   - Example: {num_questions} questions ÷ {num_audio_sections} sections ≈ {max(1, num_questions // num_audio_sections)} questions per section
 4. **COUNT QUESTION OBJECTS, NOT ITEMS/BLANKS:** 1 matching with 5 items = 1 question object, NOT 5
 5. **ALL MCQ questions MUST have:**
    - Exactly 4 options (A, B, C, D) with both option_key and option_text
@@ -444,12 +482,18 @@ If {num_questions} = 10, you might generate 10 QUESTION OBJECTS:
 TOTAL = 3+2+2+2+1 = 10 question objects ✓
 
 **🔴 FINAL REMINDER BEFORE GENERATING:**
-1. Count QUESTION OBJECTS in your "questions" array after generating
-2. You MUST have EXACTLY {num_questions} QUESTION OBJECTS in your JSON (not items, not blanks - count the objects!)
-3. Example: 10 questions = 10 objects in questions array, NOT 10 blanks or 10 items
-4. If you have fewer than {num_questions} question objects, add more questions of ANY type
-5. If you have more than {num_questions} question objects, that's OK - better to have extra than too few
-6. Quality is important BUT hitting {num_questions} QUESTION OBJECTS is MANDATORY
+1. **Count SECTIONS:** You MUST have EXACTLY {num_audio_sections} section objects in "audio_sections" array
+2. **Count QUESTIONS:** Total question objects across ALL sections = EXACTLY {num_questions}
+3. **Distribution example for {num_questions} questions in {num_audio_sections} sections:**
+   - Section 1: {max(1, num_questions // num_audio_sections)} questions
+   - Section 2: {max(1, num_questions // num_audio_sections)} questions
+   - Section 3: {max(1, num_questions // num_audio_sections)} questions
+   - Section 4: {max(1, num_questions // num_audio_sections)} questions
+   - (Add remaining questions to last section if {num_questions} not evenly divisible)
+4. Example: 10 questions = 10 objects across 4 sections (2+3+2+3 or similar distribution)
+5. If you have fewer sections than {num_audio_sections}, ADD MORE SECTIONS
+6. If you have fewer questions than {num_questions}, ADD MORE QUESTION OBJECTS
+7. Quality is important BUT hitting {num_audio_sections} SECTIONS and {num_questions} QUESTIONS is MANDATORY
 
 Now, generate listening test like IELTS style. Return ONLY the JSON object."""
 
