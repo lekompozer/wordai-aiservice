@@ -169,15 +169,26 @@ async def publish_test_to_marketplace(
                 status_code=400, detail="Cannot publish test with no questions"
             )
 
-        # 3. Upload cover image + thumbnail
-        upload_result = await cover_service.upload_cover_image(
-            file=cover_image, test_id=test_id
-        )
-
-        # 4. Create version snapshot
+        # 3. Create version snapshot first to get version number
         version_number = await version_service.create_version_snapshot(
             test_id=test_id, test_data=test, published_by=user_info["uid"]
         )
+
+        # 4. Upload cover image + thumbnail
+        image_bytes = await cover_image.read()
+        success, error_msg, cover_url, thumbnail_url = (
+            await cover_service.upload_cover_image(
+                image_bytes=image_bytes,
+                test_id=test_id,
+                version=f"v{version_number}",
+                filename=cover_image.filename,
+            )
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=400, detail=error_msg or "Failed to upload cover image"
+            )
 
         # 5. Parse tags
         tag_list = []
@@ -195,8 +206,8 @@ async def publish_test_to_marketplace(
         marketplace_config = {
             "is_public": True,
             "price_points": price_points,
-            "cover_image_url": upload_result["cover_url"],
-            "thumbnail_url": upload_result["thumbnail_url"],
+            "cover_image_url": cover_url,
+            "thumbnail_url": thumbnail_url,
             "description": description,
             "category": final_category,
             "tags": tag_list,
@@ -369,16 +380,31 @@ async def upload_cover_image(
                 status_code=404, detail="Test not found or unauthorized"
             )
 
-        # 2. Upload cover image + thumbnail
-        upload_result = await cover_service.upload_cover_image(
-            file=cover_image, test_id=test_id
+        # 2. Get current version or default to v1
+        current_version = test.get("marketplace_config", {}).get("current_version", 1)
+        version_str = f"v{current_version}"
+
+        # 3. Upload cover image + thumbnail
+        image_bytes = await cover_image.read()
+        success, error_msg, cover_url, thumbnail_url = (
+            await cover_service.upload_cover_image(
+                image_bytes=image_bytes,
+                test_id=test_id,
+                version=version_str,
+                filename=cover_image.filename,
+            )
         )
 
-        # 3. Update test with new cover URLs
+        if not success:
+            raise HTTPException(
+                status_code=400, detail=error_msg or "Failed to upload cover image"
+            )
+
+        # 4. Update test with new cover URLs
         now = datetime.now(timezone.utc)
         update_fields = {
-            "marketplace_config.cover_image_url": upload_result["cover_url"],
-            "marketplace_config.thumbnail_url": upload_result["thumbnail_url"],
+            "marketplace_config.cover_image_url": cover_url,
+            "marketplace_config.thumbnail_url": thumbnail_url,
             "marketplace_config.updated_at": now,
             "updated_at": now,
         }
@@ -395,8 +421,8 @@ async def upload_cover_image(
             "message": "Cover image uploaded successfully",
             "data": {
                 "test_id": test_id,
-                "cover_url": upload_result["cover_url"],
-                "thumbnail_url": upload_result["thumbnail_url"],
+                "cover_url": cover_url,
+                "thumbnail_url": thumbnail_url,
             },
         }
 
