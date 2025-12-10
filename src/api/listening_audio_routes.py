@@ -336,6 +336,23 @@ async def generate_audio_from_transcript(
 
         logger.info(f"   ✅ Saved to Library: {library_file_id}")
 
+        # ========== Update storage usage for test owner ==========
+        try:
+            from src.services.subscription_service import get_subscription_service
+            from src.models.payment import SubscriptionUsageUpdate
+
+            file_size_mb = len(audio_bytes) / (1024 * 1024)
+            subscription_service = get_subscription_service()
+            await subscription_service.update_usage(
+                user_id, SubscriptionUsageUpdate(storage_mb=file_size_mb)
+            )
+            logger.info(
+                f"   💾 Updated storage usage: +{file_size_mb:.2f}MB for user {user_id}"
+            )
+        except Exception as storage_error:
+            logger.error(f"❌ Error updating storage usage: {storage_error}")
+            # Don't fail if storage update fails (audio already uploaded)
+
         # ========== Deduct points after success ==========
         try:
             await points_service.deduct_points(
