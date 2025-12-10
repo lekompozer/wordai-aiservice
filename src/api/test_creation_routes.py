@@ -2973,11 +2973,16 @@ async def generate_listening_test(
         logger.info(f"   Audio sections: {request.num_audio_sections}")
         logger.info(f"   Speakers: {request.audio_config.get('num_speakers')}")
 
-        # ========== Check and deduct points (5 points for listening test) ==========
+        # ========== Calculate points cost based on num_audio_sections ==========
+        # Formula: 5 + (num_audio_sections - 1)
+        # 1 section: 5 points (1 Gemini Pro + 1 TTS)
+        # 2 sections: 6 points (1 Gemini Pro + 2 TTS)
+        # 3 sections: 7 points (1 Gemini Pro + 3 TTS)
+        # 4 sections: 8 points (1 Gemini Pro + 4 TTS)
         from src.services.points_service import PointsService
 
         points_service = PointsService()
-        points_cost = 5  # Cost: AI Generated (2 calls), Transcript (2 calls), YouTube (1 call) - all 5 points
+        points_cost = 5 + (request.num_audio_sections - 1)
 
         # Check if user has enough points
         has_points = await points_service.check_sufficient_points(user_id, points_cost)
