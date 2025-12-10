@@ -6,6 +6,7 @@ Endpoints for AI generation, manual creation, test configuration, and owner stat
 import logging
 import os
 import uuid
+import asyncio
 from typing import Optional, Dict, Any
 from datetime import datetime
 from bson import ObjectId
@@ -2917,7 +2918,6 @@ class GenerateListeningTestRequest(BaseModel):
 @router.post("/generate/listening")
 async def generate_listening_test(
     request: GenerateListeningTestRequest,
-    background_tasks: BackgroundTasks,
     user_info: dict = Depends(require_auth),
 ):
     """
@@ -3018,12 +3018,13 @@ async def generate_listening_test(
 
         logger.info(f"✅ Test record created: {test_id}")
 
-        # Start background generation
-        background_tasks.add_task(
-            generate_listening_test_background_job,
-            test_id=test_id,
-            request=request,
-            user_id=user_id,
+        # Start background generation in separate task (non-blocking)
+        asyncio.create_task(
+            generate_listening_test_background_job(
+                test_id=test_id,
+                request=request,
+                user_id=user_id,
+            )
         )
 
         return {
