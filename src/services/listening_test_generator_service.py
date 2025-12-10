@@ -172,10 +172,13 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             f"   Supported question types: MCQ, Matching, Completion, Sentence Completion, Short Answer (5 types)"
         )
         import sys
+        import asyncio
 
         sys.stdout.flush()
 
-        response = self.client.models.generate_content(
+        # Run blocking Gemini API call in thread pool to avoid blocking event loop
+        response = await asyncio.to_thread(
+            self.client.models.generate_content,
             model="gemini-3-pro-preview",
             contents=[prompt],
             config=types.GenerateContentConfig(

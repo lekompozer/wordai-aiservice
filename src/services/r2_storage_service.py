@@ -174,8 +174,11 @@ class R2StorageService:
             # Remove leading slash
             r2_key = r2_key.lstrip("/")
 
-            # Upload to R2
-            self.s3_client.put_object(
+            # Upload to R2 (run in thread pool to avoid blocking event loop)
+            import asyncio
+
+            await asyncio.to_thread(
+                self.s3_client.put_object,
                 Bucket=self.bucket_name,
                 Key=r2_key,
                 Body=file_content,

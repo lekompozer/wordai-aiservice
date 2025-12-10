@@ -338,7 +338,11 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
         logger.info(f"   Requested questions: {num_questions}")
 
         try:
-            response = self.client.models.generate_content(
+            # Run in thread pool to avoid blocking event loop
+            import asyncio
+
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
                 model=self.model,
                 contents=[
                     types.Content(

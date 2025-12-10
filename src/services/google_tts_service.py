@@ -294,8 +294,11 @@ class GoogleTTSService:
                 else "gemini-2.5-flash-preview-tts"
             )
 
-            # Generate audio
-            response = self.client.models.generate_content(
+            # Generate audio (run in thread pool to avoid blocking event loop)
+            import asyncio
+
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
                 model=model,
                 contents=contents,
                 config=types.GenerateContentConfig(
@@ -464,8 +467,11 @@ class GoogleTTSService:
                 f"🎙️ Generating multi-speaker audio: {len(speaker_roles)} speakers, {len(lines)} lines"
             )
 
-            # Generate audio
-            response = self.client.models.generate_content(
+            # Generate audio (run in thread pool to avoid blocking event loop)
+            import asyncio
+
+            response = await asyncio.to_thread(
+                self.client.models.generate_content,
                 model=model,
                 contents=prompt_text,
                 config=types.GenerateContentConfig(
