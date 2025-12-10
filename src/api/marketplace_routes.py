@@ -340,6 +340,73 @@ async def unpublish_test(test_id: str, user_info: dict = Depends(require_auth)):
         raise HTTPException(status_code=500, detail="Failed to unpublish test")
 
 
+@router.post("/tests/{test_id}/cover")
+async def upload_cover_image(
+    test_id: str,
+    cover_image: UploadFile = File(...),
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Upload or update cover image for marketplace test
+
+    Can be used to:
+    - Update cover for already published test
+    - Upload cover before publishing
+
+    Returns new cover_url and thumbnail_url
+    """
+    try:
+        db = get_database()
+        cover_service = TestCoverImageService()
+
+        # 1. Validate test exists and user is owner
+        test = db.online_tests.find_one(
+            {"_id": ObjectId(test_id), "creator_id": user_info["uid"]}
+        )
+
+        if not test:
+            raise HTTPException(
+                status_code=404, detail="Test not found or unauthorized"
+            )
+
+        # 2. Upload cover image + thumbnail
+        upload_result = await cover_service.upload_cover_image(
+            file=cover_image, test_id=test_id
+        )
+
+        # 3. Update test with new cover URLs
+        now = datetime.now(timezone.utc)
+        update_fields = {
+            "marketplace_config.cover_image_url": upload_result["cover_url"],
+            "marketplace_config.thumbnail_url": upload_result["thumbnail_url"],
+            "marketplace_config.updated_at": now,
+            "updated_at": now,
+        }
+
+        db.online_tests.update_one(
+            {"_id": ObjectId(test_id)},
+            {"$set": update_fields},
+        )
+
+        logger.info(f"✅ Updated cover image for test {test_id}")
+
+        return {
+            "success": True,
+            "message": "Cover image uploaded successfully",
+            "data": {
+                "test_id": test_id,
+                "cover_url": upload_result["cover_url"],
+                "thumbnail_url": upload_result["thumbnail_url"],
+            },
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error uploading cover image: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to upload cover: {str(e)}")
+
+
 @router.get("/tests")
 async def browse_marketplace(
     category: Optional[str] = Query(None, description="Filter by category"),
