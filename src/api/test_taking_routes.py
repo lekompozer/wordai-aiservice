@@ -2294,19 +2294,12 @@ async def delete_audio_section(
         audio_file_id = audio_section.get("audio_file_id")
 
         # 4. Archive audio file in library if exists
+        # Note: Archive functionality not implemented in LibraryManager yet
+        # Old audio file will remain in library but not linked to test
         if audio_file_id:
-            try:
-                r2_service = R2StorageService()
-                library_manager = LibraryManager(db, s3_client=r2_service.s3_client)
-
-                library_manager.archive_library_file(
-                    file_id=audio_file_id,
-                    user_id=user_id,
-                    reason=f"Audio removed from test {test_id} section {section_number}",
-                )
-                logger.info(f"📦 Archived audio file {audio_file_id} to library")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to archive audio file: {e}")
+            logger.info(
+                f"📦 Old audio file {audio_file_id} will be preserved in library"
+            )
 
         # 5. Remove audio_url and audio_file_id from section
         audio_section.pop("audio_url", None)
@@ -2444,19 +2437,12 @@ async def replace_audio_section(
             )
 
         # 5. Archive old audio file if exists
+        # Note: Archive functionality not implemented in LibraryManager yet
+        # Old audio file will remain in library but not linked to test
         if old_audio_file_id:
-            try:
-                r2_service = R2StorageService()
-                library_manager = LibraryManager(db, s3_client=r2_service.s3_client)
-
-                library_manager.archive_library_file(
-                    file_id=old_audio_file_id,
-                    user_id=user_id,
-                    reason=f"Audio replaced in test {test_id} section {section_number}",
-                )
-                logger.info(f"📦 Archived old audio file {old_audio_file_id}")
-            except Exception as e:
-                logger.warning(f"⚠️ Failed to archive old audio: {e}")
+            logger.info(
+                f"📦 Old audio file {old_audio_file_id} will be preserved in library"
+            )
 
         # 6. Upload new audio to R2
         r2_service = R2StorageService()
@@ -2474,7 +2460,7 @@ async def replace_audio_section(
         )
 
         # Upload to R2
-        r2_service.upload_file(file_content, r2_key, content_type)
+        await r2_service.upload_file(file_content, r2_key, content_type)
         audio_url = r2_service.get_public_url(r2_key)
 
         logger.info(f"☁️ Uploaded audio to R2: {r2_key}")
@@ -2483,11 +2469,12 @@ async def replace_audio_section(
         library_file = library_manager.save_library_file(
             user_id=user_id,
             filename=audio_file.filename,
-            r2_key=r2_key,
-            r2_url=audio_url,
-            file_size_bytes=file_size,
-            content_type=content_type,
+            file_type="audio",
             category="audio",
+            r2_url=audio_url,
+            r2_key=r2_key,
+            file_size=file_size,
+            mime_type=content_type,
             metadata={
                 "test_id": test_id,
                 "audio_section": section_number,
