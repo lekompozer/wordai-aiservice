@@ -451,7 +451,7 @@ async def apply_audio_to_test(
             )
 
         # Get library file
-        library_collection = mongo_service.db["library"]
+        library_collection = mongo_service.db["library_files"]
         library_file = library_collection.find_one(
             {
                 "$or": [

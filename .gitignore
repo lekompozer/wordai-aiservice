@@ -91,7 +91,7 @@ tests/backup_untracked/
 docs/
 
 # Test files with credentials
-tests/test_vision_simple.py
+tests/
 
 # WordAI specific scripts
 setup-nginx-wordai.sh
