@@ -935,17 +935,11 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         time_limit_minutes: int,
     ) -> str:
         """Save generated test to MongoDB"""
-        # Get MongoDB client directly
-        from pymongo import MongoClient
-        import config.config as config
+        # Use shared MongoDB connection (not a new client!)
+        from src.services.online_test_utils import get_mongodb_service
 
-        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-            config, "MONGODB_URI", "mongodb://localhost:27017"
-        )
-        client = MongoClient(mongo_uri)
-        db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-        db = client[db_name]
-        collection = db["online_tests"]
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
 
         # Prepare document
         test_doc = {
@@ -982,17 +976,11 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         Returns:
             Test details (questions without correct answers)
         """
-        # Get MongoDB client directly
-        from pymongo import MongoClient
-        import config.config as config
+        # Use shared MongoDB connection (not a new client!)
+        from src.services.online_test_utils import get_mongodb_service
 
-        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-            config, "MONGODB_URI", "mongodb://localhost:27017"
-        )
-        client = MongoClient(mongo_uri)
-        db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-        db = client[db_name]
-        collection = db["online_tests"]
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
 
         # Get test from database
         test_doc = collection.find_one({"_id": ObjectId(test_id)})

@@ -3081,20 +3081,14 @@ async def generate_listening_test_background_job(
 ):
     """Background job to generate listening test"""
 
-    from pymongo import MongoClient
-    import config.config as config
     from src.services.listening_test_generator_service import (
         get_listening_test_generator,
     )
     from src.services.points_service import PointsService
 
-    mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-        config, "MONGODB_URI", "mongodb://localhost:27017"
-    )
-    client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-    db = client[db_name]
-    collection = db["online_tests"]
+    # Use the same MongoDB connection as other endpoints (not a new client!)
+    mongo_service = get_mongodb_service()
+    collection = mongo_service.db["online_tests"]
 
     try:
         # Update status

@@ -64,16 +64,11 @@ async def translate_test_background(
     Background job to translate test content using Gemini 2.5 Pro
     Updates status: pending → translating → ready/failed
     """
-    from pymongo import MongoClient
-    import config.config as config
+    # Use shared MongoDB connection (not a new client!)
+    from src.services.online_test_utils import get_mongodb_service
 
-    mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-        config, "MONGODB_URI", "mongodb://localhost:27017"
-    )
-    client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-    db = client[db_name]
-    collection = db["online_tests"]
+    mongo_service = get_mongodb_service()
+    collection = mongo_service.db["online_tests"]
 
     try:
         # Update status to translating

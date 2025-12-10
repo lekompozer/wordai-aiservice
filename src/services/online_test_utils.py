@@ -242,16 +242,9 @@ async def generate_test_background(
     - essay: Essay questions only
     - mixed: Both MCQ and essay questions
     """
-    from pymongo import MongoClient
-    import config.config as config
-
-    mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-        config, "MONGODB_URI", "mongodb://localhost:27017"
-    )
-    client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-    db = client[db_name]
-    collection = db["online_tests"]
+    # Use shared MongoDB connection (not a new client!)
+    mongo_service = get_mongodb_service()
+    collection = mongo_service.db["online_tests"]
 
     try:
         # Update status to generating
