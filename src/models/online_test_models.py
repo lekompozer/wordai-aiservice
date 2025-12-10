@@ -873,7 +873,7 @@ class FullTestEditRequest(BaseModel):
     # Marketplace config (if published)
     marketplace_title: Optional[str] = Field(None, min_length=10, max_length=200)
     marketplace_description: Optional[str] = Field(None, min_length=50, max_length=2000)
-    short_description: Optional[str] = Field(None, max_length=150)
+    short_description: Optional[str] = Field(None, max_length=200)
     price_points: Optional[int] = Field(None, ge=0)
     category: Optional[str] = None
     tags: Optional[str] = None
