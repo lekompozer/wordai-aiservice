@@ -1625,7 +1625,7 @@ async def get_submission_detail(
         # ========== Build results (MCQ and Essay) ==========
         results = []
 
-        # Create maps for quick lookup
+        # Create maps for quick lookup (ALL question types)
         user_answers_map = {}
         for ans in submission["user_answers"]:
             q_id = ans.get("question_id")
@@ -1640,6 +1640,26 @@ async def get_submission_detail(
                 user_answers_map[q_id] = {
                     "type": "mcq",
                     "selected_answer_keys": selected_answers,
+                }
+            elif ans_type == "matching":
+                user_answers_map[q_id] = {
+                    "type": "matching",
+                    "matches": ans.get("matches", {}),
+                }
+            elif ans_type == "completion":
+                user_answers_map[q_id] = {
+                    "type": "completion",
+                    "answers": ans.get("answers", {}),
+                }
+            elif ans_type == "sentence_completion":
+                user_answers_map[q_id] = {
+                    "type": "sentence_completion",
+                    "answers": ans.get("answers", {}),
+                }
+            elif ans_type == "short_answer":
+                user_answers_map[q_id] = {
+                    "type": "short_answer",
+                    "answers": ans.get("answers", {}),
                 }
             elif ans_type == "essay":
                 user_answers_map[q_id] = {
@@ -1698,6 +1718,55 @@ async def get_submission_detail(
                     result_data["points_awarded"] = 0
 
                 results.append(result_data)
+
+            elif q_type in [
+                "matching",
+                "completion",
+                "sentence_completion",
+                "short_answer",
+            ]:
+                # IELTS question types - Use ielts_scoring module
+                user_answer_data = user_answers_map.get(question_id, {})
+
+                # Score using IELTS scoring logic
+                is_correct, points_earned, feedback = score_question(
+                    q, user_answer_data
+                )
+
+                result = {
+                    "question_id": question_id,
+                    "question_text": q["question_text"],
+                    "question_type": q_type,
+                    "is_correct": is_correct,
+                    "max_points": q.get("max_points", 1),
+                    "points_awarded": points_earned,
+                    "feedback": feedback,
+                    "explanation": q.get("explanation"),
+                }
+
+                # Add type-specific fields
+                if q_type == "matching":
+                    result["left_items"] = q.get("left_items", [])
+                    result["right_options"] = q.get("right_options", [])
+                    result["user_matches"] = user_answer_data.get("matches", {})
+                    result["correct_matches"] = q.get("correct_matches", {})
+
+                elif q_type == "completion":
+                    result["template"] = q.get("template", "")
+                    result["blanks"] = q.get("blanks", [])
+                    result["user_answers"] = user_answer_data.get("answers", {})
+                    result["correct_answers"] = q.get("correct_answers", {})
+
+                elif q_type == "sentence_completion":
+                    result["sentences"] = q.get("sentences", [])
+                    result["user_answers"] = user_answer_data.get("answers", {})
+                    result["correct_answers"] = q.get("correct_answers", {})
+
+                elif q_type == "short_answer":
+                    result["user_answers"] = user_answer_data.get("answers", {})
+                    result["correct_answers"] = q.get("correct_answers", {})
+
+                results.append(result)
 
             elif q_type == "essay":
                 # Essay result
