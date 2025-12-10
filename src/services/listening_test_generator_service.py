@@ -539,23 +539,76 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
 
             else:
                 # No gender hint - FORCE alternating male/female to ensure differentiation
+                # IMPORTANT: Alternate based on CURRENT position, not fixed Male=0
                 if male_voices and female_voices:
-                    # First speaker: male, Second speaker: female (ensures differentiation)
-                    if len(selected_voices) % 2 == 0 and male_voices:
-                        selected_voices.append(male_voices[0]["name"])
-                        logger.info(
-                            f"   👨 No gender detected for '{role}', assigning MALE (speaker {len(selected_voices)})"
-                        )
-                    elif female_voices:
-                        selected_voices.append(female_voices[0]["name"])
-                        logger.info(
-                            f"   👩 No gender detected for '{role}', assigning FEMALE (speaker {len(selected_voices)})"
-                        )
+                    current_position = len(selected_voices)
+
+                    # For 2-speaker dialogues, we need to ensure male/female alternation
+                    # But we should NOT assume Male is always first!
+                    # Instead, we alternate: even positions get one gender, odd get the other
+                    if len(speaker_roles) == 2:
+                        # Check if the OTHER speaker has gender hint
+                        other_index = 1 - current_position  # 0→1, 1→0
+                        if other_index < len(speaker_roles):
+                            other_role_lower = speaker_roles[other_index].lower()
+                            import re
+
+                            other_is_male = any(
+                                re.search(rf"\b{re.escape(word)}\b", other_role_lower)
+                                for word in male_keywords
+                            )
+                            other_is_female = any(
+                                re.search(rf"\b{re.escape(word)}\b", other_role_lower)
+                                for word in female_keywords
+                            )
+
+                            # If other speaker is male, this one should be female (and vice versa)
+                            if other_is_male:
+                                selected_voices.append(female_voices[0]["name"])
+                                logger.info(
+                                    f"   👩 No gender detected for '{role}', assigning FEMALE (other speaker is male)"
+                                )
+                            elif other_is_female:
+                                selected_voices.append(male_voices[0]["name"])
+                                logger.info(
+                                    f"   👨 No gender detected for '{role}', assigning MALE (other speaker is female)"
+                                )
+                            else:
+                                # Both unknown - use alternating pattern
+                                if current_position % 2 == 0:
+                                    selected_voices.append(male_voices[0]["name"])
+                                    logger.info(
+                                        f"   👨 No gender detected for '{role}', assigning MALE (position {current_position})"
+                                    )
+                                else:
+                                    selected_voices.append(female_voices[0]["name"])
+                                    logger.info(
+                                        f"   👩 No gender detected for '{role}', assigning FEMALE (position {current_position})"
+                                    )
+                        else:
+                            # Fallback: alternate
+                            if current_position % 2 == 0:
+                                selected_voices.append(male_voices[0]["name"])
+                                logger.info(
+                                    f"   👨 No gender detected for '{role}', assigning MALE (fallback)"
+                                )
+                            else:
+                                selected_voices.append(female_voices[0]["name"])
+                                logger.info(
+                                    f"   👩 No gender detected for '{role}', assigning FEMALE (fallback)"
+                                )
                     else:
-                        selected_voices.append(male_voices[0]["name"])
-                        logger.info(
-                            f"   👨 No gender detected for '{role}', assigning MALE (fallback)"
-                        )
+                        # Single speaker or >2 speakers: simple alternation
+                        if current_position % 2 == 0:
+                            selected_voices.append(male_voices[0]["name"])
+                            logger.info(
+                                f"   👨 No gender detected for '{role}', assigning MALE (position {current_position})"
+                            )
+                        else:
+                            selected_voices.append(female_voices[0]["name"])
+                            logger.info(
+                                f"   👩 No gender detected for '{role}', assigning FEMALE (position {current_position})"
+                            )
                 else:
                     selected_voices.append(
                         available_voices[len(selected_voices) % len(available_voices)][
