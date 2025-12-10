@@ -341,20 +341,49 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         for role in speaker_roles:
             role_lower = role.lower()
 
-            # Check for gender keywords
-            if any(
-                word in role_lower
-                for word in [
-                    "male",
-                    "man",
-                    "boy",
-                    "mr",
-                    "sir",
-                    "father",
-                    "brother",
-                    "son",
-                ]
-            ):
+            # Check for gender keywords (expanded list for better detection)
+            male_keywords = [
+                "male",
+                "man",
+                "men",
+                "boy",
+                "mr",
+                "sir",
+                "gentleman",
+                "gentlemen",
+                "father",
+                "dad",
+                "brother",
+                "son",
+                "uncle",
+                "grandfather",
+                "husband",
+                "him",
+                "he",
+                "his",
+            ]
+            female_keywords = [
+                "female",
+                "woman",
+                "women",
+                "girl",
+                "ms",
+                "mrs",
+                "miss",
+                "lady",
+                "ladies",
+                "mother",
+                "mom",
+                "sister",
+                "daughter",
+                "aunt",
+                "grandmother",
+                "wife",
+                "her",
+                "she",
+            ]
+
+            if any(word in role_lower for word in male_keywords):
                 # Prefer male voice
                 if male_voices:
                     selected_voices.append(
@@ -362,22 +391,9 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                     )
                 else:
                     selected_voices.append(available_voices[0]["name"])
+                logger.info(f"   👨 Detected male role: {role}")
 
-            elif any(
-                word in role_lower
-                for word in [
-                    "female",
-                    "woman",
-                    "girl",
-                    "ms",
-                    "mrs",
-                    "miss",
-                    "lady",
-                    "mother",
-                    "sister",
-                    "daughter",
-                ]
-            ):
+            elif any(word in role_lower for word in female_keywords):
                 # Prefer female voice
                 if female_voices:
                     selected_voices.append(
@@ -385,22 +401,35 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                     )
                 else:
                     selected_voices.append(available_voices[0]["name"])
+                logger.info(f"   👩 Detected female role: {role}")
 
             else:
-                # No gender hint - alternate between available voices
+                # No gender hint - FORCE alternating male/female to ensure differentiation
                 if male_voices and female_voices:
-                    # Alternate male/female
+                    # First speaker: male, Second speaker: female (ensures differentiation)
                     if len(selected_voices) % 2 == 0 and male_voices:
                         selected_voices.append(male_voices[0]["name"])
+                        logger.info(
+                            f"   👨 No gender detected for '{role}', assigning MALE (speaker {len(selected_voices)})"
+                        )
                     elif female_voices:
                         selected_voices.append(female_voices[0]["name"])
+                        logger.info(
+                            f"   👩 No gender detected for '{role}', assigning FEMALE (speaker {len(selected_voices)})"
+                        )
                     else:
                         selected_voices.append(male_voices[0]["name"])
+                        logger.info(
+                            f"   👨 No gender detected for '{role}', assigning MALE (fallback)"
+                        )
                 else:
                     selected_voices.append(
                         available_voices[len(selected_voices) % len(available_voices)][
                             "name"
                         ]
+                    )
+                    logger.info(
+                        f"   🎙️ No gender voices available for '{role}', using default"
                     )
 
         return selected_voices if selected_voices else None
@@ -412,23 +441,39 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         language: str,
         speaking_rate: float,
         use_pro_model: bool,
+        force_num_speakers: Optional[int] = None,
     ) -> Tuple[bytes, int]:
         """
         Step 2: Generate audio for one section
 
-        Uses multi-speaker TTS if 2+ speakers detected
+        Uses multi-speaker TTS only if:
+        1. Script has 2+ speaker_roles
+        2. force_num_speakers is None OR > 1
+
+        Args:
+            force_num_speakers: If provided, override script's num_speakers (from audio_config)
 
         Returns:
             Tuple of (audio_bytes, duration_seconds)
         """
 
-        num_speakers = len(script.get("speaker_roles", []))
+        script_num_speakers = len(script.get("speaker_roles", []))
 
-        logger.info(
-            f"   Generating audio: {num_speakers} speaker(s), {len(script.get('lines', []))} lines"
+        # Use force_num_speakers if provided (from audio_config), otherwise use script's num_speakers
+        effective_num_speakers = (
+            force_num_speakers
+            if force_num_speakers is not None
+            else script_num_speakers
         )
 
-        if num_speakers > 1:
+        logger.info(
+            f"   Generating audio: script has {script_num_speakers} speaker(s), config requires {effective_num_speakers} speaker(s), {len(script.get('lines', []))} lines"
+        )
+
+        # Use multi-speaker TTS only if:
+        # 1. Script has 2+ speakers AND
+        # 2. Config allows 2+ speakers (or no config restriction)
+        if script_num_speakers > 1 and effective_num_speakers > 1:
             # Use multi-speaker TTS
             audio_content, metadata = (
                 await self.google_tts.generate_multi_speaker_audio(
@@ -850,6 +895,7 @@ Return ONLY the questions array in JSON format."""
                     language=language,
                     speaking_rate=audio_config.get("speaking_rate", 1.0),
                     use_pro_model=use_pro_model,
+                    force_num_speakers=audio_config.get("num_speakers"),
                 )
 
                 # Wait for both tasks to complete
@@ -948,10 +994,16 @@ Return ONLY the questions array in JSON format."""
                 # Auto-select voices based on speaker roles if not provided
                 voice_names = audio_config.get("voice_names")
                 if not voice_names:
+                    # Extract gender from speaker_roles to ensure male/female differentiation
+                    speaker_roles = section["script"].get("speaker_roles", [])
                     voice_names = await self._select_voices_by_gender(
-                        section["script"].get("speaker_roles", []), language
+                        speaker_roles, language
                     )
-                    logger.info(f"   🎙️ Auto-selected voices: {voice_names}")
+                    logger.info(
+                        f"   🎙️ Auto-selected voices for roles {speaker_roles}: {voice_names}"
+                    )
+                else:
+                    logger.info(f"   🎙️ Using user-provided voices: {voice_names}")
 
                 # Generate audio
                 logger.info(f"   🔊 Generating audio for section {section_num}...")
@@ -961,6 +1013,7 @@ Return ONLY the questions array in JSON format."""
                     language=language,
                     speaking_rate=audio_config.get("speaking_rate", 1.0),
                     use_pro_model=use_pro_model,
+                    force_num_speakers=audio_config.get("num_speakers"),
                 )
                 logger.info(
                     f"   ✅ Audio generated: {len(audio_bytes)} bytes, ~{duration}s"

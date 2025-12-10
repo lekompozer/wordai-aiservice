@@ -2973,6 +2973,30 @@ async def generate_listening_test(
         logger.info(f"   Audio sections: {request.num_audio_sections}")
         logger.info(f"   Speakers: {request.audio_config.get('num_speakers')}")
 
+        # ========== Check and deduct points (5 points for listening test) ==========
+        from src.services.points_service import PointsService
+
+        points_service = PointsService()
+        points_cost = 5  # Cost: AI Generated (2 calls), Transcript (2 calls), YouTube (1 call) - all 5 points
+
+        # Check if user has enough points
+        has_points = await points_service.check_sufficient_points(user_id, points_cost)
+
+        if not has_points:
+            user_points = await points_service.get_user_points(user_id)
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "Insufficient points",
+                    "message": f"Listening test generation requires {points_cost} points. You have {user_points} points.",
+                    "required_points": points_cost,
+                    "current_points": user_points,
+                    "upgrade_url": "https://ai.wordai.pro/pricing",
+                },
+            )
+
+        logger.info(f"💰 User has sufficient points for listening test generation")
+
         # Create test record
         mongo_service = get_mongodb_service()
         db = mongo_service.db
@@ -3024,6 +3048,7 @@ async def generate_listening_test(
                 test_id=test_id,
                 request=request,
                 user_id=user_id,
+                points_cost=points_cost,  # Pass points_cost to background job
             )
         )
 
@@ -3047,6 +3072,7 @@ async def generate_listening_test_background_job(
     test_id: str,
     request: GenerateListeningTestRequest,
     user_id: str,
+    points_cost: int,
 ):
     """Background job to generate listening test"""
 
@@ -3055,6 +3081,7 @@ async def generate_listening_test_background_job(
     from src.services.listening_test_generator_service import (
         get_listening_test_generator,
     )
+    from src.services.points_service import PointsService
 
     mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
         config, "MONGODB_URI", "mongodb://localhost:27017"
@@ -3117,6 +3144,23 @@ async def generate_listening_test_background_job(
         )
 
         logger.info(f"✅ Listening test generated successfully: {test_id}")
+
+        # ========== Deduct points after success ==========
+        try:
+            points_service = PointsService()
+            await points_service.deduct_points(
+                user_id=user_id,
+                points=points_cost,
+                description=f"Listening test generation: {request.title}",
+                metadata={"test_id": test_id, "feature": "listening_test_generation"},
+            )
+            logger.info(
+                f"💸 Deducted {points_cost} points for listening test generation"
+            )
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+            # Don't fail the test generation if points deduction fails
+            # Test is already created, just log the error
 
     except Exception as e:
         logger.error(f"❌ Listening test generation failed: {e}", exc_info=True)

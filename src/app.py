@@ -165,6 +165,9 @@ from src.api.test_statistics_routes import router as test_statistics_router
 # ✅ ADDED: Test Sharing API for Online Test Phase 4 (Sharing & Collaboration)
 from src.api.test_sharing_routes import router as test_sharing_router
 
+# ✅ ADDED: Listening Audio Management API for editing transcript and regenerating audio
+from src.api.listening_audio_routes import router as listening_audio_router
+
 # ✅ ADDED: Test Marketplace API for Online Test Phase 5 (Marketplace)
 from src.api.marketplace_routes import router as marketplace_router
 from src.api.marketplace_transactions_routes import (
@@ -853,6 +856,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Test Statistics API - Analytics and reporting for tests and users
     app.include_router(test_statistics_router, tags=["Online Tests - Statistics"])
+
+    # ✅ ADDED: Listening Audio Management API - Edit transcript and regenerate audio
+    app.include_router(listening_audio_router, tags=["Online Tests - Listening Audio"])
 
     # ✅ ADDED: WebSocket support for Online Test Phase 2 (Real-time auto-save)
     websocket_service = get_websocket_service()
