@@ -379,9 +379,22 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             for role in speaker_roles:
                 role_lower = role.lower()
 
-                if any(word in role_lower for word in male_keywords):
+                # Use word boundary check to match whole words only
+                # This prevents "male" from matching inside "female"
+                import re
+
+                is_male = any(
+                    re.search(rf"\b{re.escape(word)}\b", role_lower)
+                    for word in male_keywords
+                )
+                is_female = any(
+                    re.search(rf"\b{re.escape(word)}\b", role_lower)
+                    for word in female_keywords
+                )
+
+                if is_male:
                     genders.append("male")
-                elif any(word in role_lower for word in female_keywords):
+                elif is_female:
                     genders.append("female")
                 else:
                     genders.append("unknown")
@@ -492,7 +505,19 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                 "she",
             ]
 
-            if any(word in role_lower for word in male_keywords):
+            # Use word boundary check to match whole words only
+            import re
+
+            is_male = any(
+                re.search(rf"\b{re.escape(word)}\b", role_lower)
+                for word in male_keywords
+            )
+            is_female = any(
+                re.search(rf"\b{re.escape(word)}\b", role_lower)
+                for word in female_keywords
+            )
+
+            if is_male:
                 # Prefer male voice
                 if male_voices:
                     selected_voices.append(
@@ -502,7 +527,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                     selected_voices.append(available_voices[0]["name"])
                 logger.info(f"   👨 Detected male role: {role}")
 
-            elif any(word in role_lower for word in female_keywords):
+            elif is_female:
                 # Prefer female voice
                 if female_voices:
                     selected_voices.append(
