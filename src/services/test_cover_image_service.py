@@ -60,10 +60,11 @@ class TestCoverImageService:
 
         # CDN base URL (public access to R2 bucket)
         self.cdn_base_url = getattr(
-            config, "R2_PUBLIC_URL", f"https://pub-{config.R2_ACCOUNT_ID}.r2.dev"
+            config, "R2_PUBLIC_URL", "https://static.wordai.pro"
         )
 
         logger.info("✅ TestCoverImageService initialized")
+        logger.info(f"   CDN Base URL: {self.cdn_base_url}")
 
     async def validate_image(
         self, image_bytes: bytes, filename: str
