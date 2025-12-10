@@ -884,6 +884,19 @@ class FullTestEditRequest(BaseModel):
         max_length=5000,
     )
 
+    # ========== PHASE 7 & 8: Listening Test Generation Modes ==========
+    user_transcript: Optional[str] = Field(
+        None,
+        min_length=50,
+        max_length=50000,
+        description="User-provided transcript for listening test (Phase 7)",
+    )
+    youtube_url: Optional[str] = Field(
+        None,
+        max_length=500,
+        description="YouTube URL for audio transcription (Phase 8)",
+    )
+
 
 class PaymentInfoRequest(BaseModel):
     """Request model for setting up payment information for earnings withdrawal"""
