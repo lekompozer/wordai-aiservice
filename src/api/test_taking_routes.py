@@ -2267,7 +2267,7 @@ async def delete_audio_section(
         db = db_manager.db
 
         # 1. Get test and verify ownership
-        test = db.online_tests.find_one({"test_id": test_id})
+        test = db.online_tests.find_one({"_id": ObjectId(test_id)})
         if not test:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2315,7 +2315,7 @@ async def delete_audio_section(
 
         # Update database
         db.online_tests.update_one(
-            {"test_id": test_id},
+            {"_id": ObjectId(test_id)},
             {"$set": {f"audio_sections.{section_index}": audio_section}},
         )
 
@@ -2392,7 +2392,7 @@ async def replace_audio_section(
         db = db_manager.db
 
         # 1. Get test and verify ownership
-        test = db.online_tests.find_one({"test_id": test_id})
+        test = db.online_tests.find_one({"_id": ObjectId(test_id)})
         if not test:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2506,7 +2506,7 @@ async def replace_audio_section(
 
         # Update database
         db.online_tests.update_one(
-            {"test_id": test_id},
+            {"_id": ObjectId(test_id)},
             {"$set": {f"audio_sections.{section_index}": audio_section}},
         )
 
