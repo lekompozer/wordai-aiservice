@@ -88,13 +88,15 @@ def score_matching_question(
         (is_correct, points_earned, feedback)
     """
     correct_matches_raw = question.get("correct_matches", {})
-    
+
     # Convert array format to dict if needed
     if isinstance(correct_matches_raw, list):
-        correct_matches = {item['left_key']: item['right_key'] for item in correct_matches_raw}
+        correct_matches = {
+            item["left_key"]: item["right_key"] for item in correct_matches_raw
+        }
     else:
         correct_matches = correct_matches_raw
-    
+
     user_matches = user_answer.get("matches", {})
 
     if not correct_matches or not user_matches:
@@ -141,13 +143,15 @@ def score_completion_question(
         (is_correct, points_earned, feedback)
     """
     correct_answers_raw = question.get("correct_answers", {})
-    
+
     # Convert array format to dict if needed
     if isinstance(correct_answers_raw, list):
-        correct_answers = {item['blank_key']: item['answers'] for item in correct_answers_raw}
+        correct_answers = {
+            item["blank_key"]: item["answers"] for item in correct_answers_raw
+        }
     else:
         correct_answers = correct_answers_raw
-    
+
     user_answers = user_answer.get("answers", {})
     case_sensitive = question.get("case_sensitive", False)
 
@@ -320,13 +324,15 @@ def score_map_labeling_question(
         (is_correct, points_earned, feedback)
     """
     correct_labels_raw = question.get("correct_labels", {})
-    
+
     # Convert array format to dict if needed
     if isinstance(correct_labels_raw, list):
-        correct_labels = {item['position_key']: item['label'] for item in correct_labels_raw}
+        correct_labels = {
+            item["position_key"]: item["label"] for item in correct_labels_raw
+        }
     else:
         correct_labels = correct_labels_raw
-    
+
     user_labels = user_answer.get("labels", {})
 
     if not correct_labels or not user_labels:
