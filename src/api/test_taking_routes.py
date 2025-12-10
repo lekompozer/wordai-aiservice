@@ -712,6 +712,23 @@ async def submit_test(
         logger.info(f"📤 Submit test: {test_id} from user {user_info['uid']}")
         logger.info(f"   Answers: {len(request.user_answers)} questions")
 
+        # ========== DEBUG: Log full payload for troubleshooting ==========
+        logger.info(f"   📋 User answers payload:")
+        for idx, ans in enumerate(request.user_answers, 1):
+            q_id = ans.get("question_id", "N/A")
+            q_type = ans.get("question_type", "mcq")
+
+            if q_type == "mcq":
+                selected = ans.get("selected_answer_keys", []) or [
+                    ans.get("selected_answer_key")
+                ]
+                logger.info(f"      {idx}. Q{q_id} (MCQ): {selected}")
+            elif q_type == "essay":
+                essay_len = len(ans.get("essay_answer", ""))
+                logger.info(f"      {idx}. Q{q_id} (Essay): {essay_len} chars")
+            else:
+                logger.info(f"      {idx}. Q{q_id} ({q_type})")
+
         # Get test with correct answers
         mongo_service = get_mongodb_service()
         test_collection = mongo_service.db["online_tests"]
