@@ -207,6 +207,30 @@ async def generate_audio_from_transcript(
         logger.info(f"   User: {user_id}")
         logger.info(f"   Section: {request.section_number}")
 
+        # ========== Check and deduct points (2 points for audio generation) ==========
+        from src.services.points_service import PointsService
+
+        points_service = PointsService()
+        points_cost = 2  # TTS audio generation only
+
+        # Check if user has enough points
+        has_points = await points_service.check_sufficient_points(user_id, points_cost)
+
+        if not has_points:
+            user_points = await points_service.get_user_points(user_id)
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "Insufficient points",
+                    "message": f"Audio generation requires {points_cost} points. You have {user_points} points.",
+                    "required_points": points_cost,
+                    "current_points": user_points,
+                    "upgrade_url": "https://ai.wordai.pro/pricing",
+                },
+            )
+
+        logger.info(f"💰 User has sufficient points for audio generation")
+
         # Get test from DB
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
@@ -311,6 +335,23 @@ async def generate_audio_from_transcript(
         )
 
         logger.info(f"   ✅ Saved to Library: {library_file_id}")
+
+        # ========== Deduct points after success ==========
+        try:
+            await points_service.deduct_points(
+                user_id=user_id,
+                points=points_cost,
+                description=f"Audio generation for test {test_id}, section {request.section_number}",
+                metadata={
+                    "test_id": test_id,
+                    "section_number": request.section_number,
+                    "feature": "listening_audio_regeneration",
+                },
+            )
+            logger.info(f"💸 Deducted {points_cost} points for audio generation")
+        except Exception as points_error:
+            logger.error(f"❌ Error deducting points: {points_error}")
+            # Don't fail if points deduction fails (audio already generated)
 
         return {
             "success": True,
