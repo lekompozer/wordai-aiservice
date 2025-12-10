@@ -81,13 +81,20 @@ def score_matching_question(
     Score Matching question
 
     Args:
-        question: Question data with correct_matches {'1': 'A', '2': 'B', ...}
+        question: Question data with correct_matches [{'left_key': '1', 'right_key': 'A'}, ...] or {'1': 'A', ...}
         user_answer: User's matches {'1': 'A', '2': 'C', ...}
 
     Returns:
         (is_correct, points_earned, feedback)
     """
-    correct_matches = question.get("correct_matches", {})
+    correct_matches_raw = question.get("correct_matches", {})
+    
+    # Convert array format to dict if needed
+    if isinstance(correct_matches_raw, list):
+        correct_matches = {item['left_key']: item['right_key'] for item in correct_matches_raw}
+    else:
+        correct_matches = correct_matches_raw
+    
     user_matches = user_answer.get("matches", {})
 
     if not correct_matches or not user_matches:
@@ -127,13 +134,20 @@ def score_completion_question(
     - Whitespace normalized
 
     Args:
-        question: Question data with correct_answers {'1': ['answer1', 'answer2'], ...}
+        question: Question data with correct_answers [{'blank_key': '1', 'answers': ['ans1', 'ans2']}, ...] or {'1': ['ans1', 'ans2'], ...}
         user_answer: User's answers {'1': 'answer1', '2': 'some text', ...}
 
     Returns:
         (is_correct, points_earned, feedback)
     """
-    correct_answers = question.get("correct_answers", {})
+    correct_answers_raw = question.get("correct_answers", {})
+    
+    # Convert array format to dict if needed
+    if isinstance(correct_answers_raw, list):
+        correct_answers = {item['blank_key']: item['answers'] for item in correct_answers_raw}
+    else:
+        correct_answers = correct_answers_raw
+    
     user_answers = user_answer.get("answers", {})
     case_sensitive = question.get("case_sensitive", False)
 
@@ -299,13 +313,20 @@ def score_map_labeling_question(
     Same logic as matching (label positions to options)
 
     Args:
-        question: Question data with correct_labels {'1': 'A', '2': 'B', ...}
+        question: Question data with correct_labels [{'position_key': '1', 'label': 'A'}, ...] or {'1': 'A', ...}
         user_answer: User's labels {'1': 'A', '2': 'C', ...}
 
     Returns:
         (is_correct, points_earned, feedback)
     """
-    correct_labels = question.get("correct_labels", {})
+    correct_labels_raw = question.get("correct_labels", {})
+    
+    # Convert array format to dict if needed
+    if isinstance(correct_labels_raw, list):
+        correct_labels = {item['position_key']: item['label'] for item in correct_labels_raw}
+    else:
+        correct_labels = correct_labels_raw
+    
     user_labels = user_answer.get("labels", {})
 
     if not correct_labels or not user_labels:
