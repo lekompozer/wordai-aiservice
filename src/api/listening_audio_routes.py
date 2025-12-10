@@ -340,13 +340,10 @@ async def generate_audio_from_transcript(
         try:
             await points_service.deduct_points(
                 user_id=user_id,
-                points=points_cost,
-                description=f"Audio generation for test {test_id}, section {request.section_number}",
-                metadata={
-                    "test_id": test_id,
-                    "section_number": request.section_number,
-                    "feature": "listening_audio_regeneration",
-                },
+                amount=points_cost,
+                service="listening_audio_regeneration",
+                resource_id=f"{test_id}_section_{request.section_number}",
+                description=f"Audio regeneration: test {test_id}, section {request.section_number}",
             )
             logger.info(f"💸 Deducted {points_cost} points for audio generation")
         except Exception as points_error:

@@ -3150,9 +3150,10 @@ async def generate_listening_test_background_job(
             points_service = PointsService()
             await points_service.deduct_points(
                 user_id=user_id,
-                points=points_cost,
+                amount=points_cost,
+                service="listening_test_generation",
+                resource_id=test_id,
                 description=f"Listening test generation: {request.title}",
-                metadata={"test_id": test_id, "feature": "listening_test_generation"},
             )
             logger.info(
                 f"💸 Deducted {points_cost} points for listening test generation"
