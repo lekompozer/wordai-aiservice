@@ -1827,6 +1827,22 @@ async def get_submission_detail(
         # Get grading status
         grading_status = submission.get("grading_status", "auto_graded")
 
+        # Get audio sections for listening tests (for result replay)
+        audio_sections = test_doc.get("audio_sections", [])
+        formatted_audio_sections = []
+        if audio_sections:
+            for section in audio_sections:
+                formatted_audio_sections.append(
+                    {
+                        "section_number": section.get("section_number"),
+                        "section_title": section.get("section_title"),
+                        "audio_url": section.get("audio_url"),
+                        "duration_seconds": section.get("duration_seconds"),
+                        # Include transcript in results so user can review
+                        "transcript": section.get("transcript"),
+                    }
+                )
+
         # Build response based on show_answers_timing
         if not should_hide_answers:
             # Full response - show everything
@@ -1850,6 +1866,7 @@ async def get_submission_detail(
                 "is_passed": submission.get("is_passed", False),
                 "submitted_at": submission["submitted_at"].isoformat(),
                 "results": results,
+                "audio_sections": formatted_audio_sections,  # Include audio for replay
             }
 
             # Add message if pending grading
