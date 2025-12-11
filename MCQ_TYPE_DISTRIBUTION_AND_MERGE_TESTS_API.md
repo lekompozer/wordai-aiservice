@@ -441,12 +441,42 @@ Before merging tests, use this endpoint to preview questions from source tests f
   "question_selection": "string",
   "status": "ready" (immediately ready, no AI generation),
   "questions": [array of merged questions],
+  "audio_sections": [array of audio sections] (only if merged tests include listening tests),
   "parts": [array of part metadata] (only if question_selection="custom"),
   "is_active": true,
   "created_at": datetime,
   "updated_at": datetime
 }
 ```
+
+#### Audio Sections Preserved (Listening Tests)
+
+When merging listening tests, **all audio_sections are preserved**:
+
+```javascript
+"audio_sections": [
+  {
+    "section_number": integer (renumbered to avoid conflicts),
+    "section_title": "string",
+    "audio_url": "string (R2 storage URL)", // ✅ Original audio URL preserved
+    "audio_file_id": "string",
+    "duration_seconds": integer,
+    "transcript": "string (full transcript)",
+    "voice_config": {
+      "voice_names": [...],
+      "num_speakers": integer
+    },
+    "source_test_id": "string (which test this audio came from)",
+    "source_test_title": "string"
+  }
+]
+```
+
+**Important Notes:**
+- Audio section numbers are automatically renumbered to avoid conflicts (e.g., if merging 2 listening tests with section 1 each → becomes section 1 and 2)
+- Questions' `audio_section` field is updated to reference the correct section number
+- Audio files remain in R2 storage, only URLs are referenced
+- Transcripts are fully preserved for each audio section
 
 #### Question Metadata Preserved
 
@@ -459,7 +489,7 @@ All questions retain their original structure:
 - `explanation`
 - `max_score` / `max_points`
 - `grading_rubric` (for essay)
-- `audio_url`, `transcript` (for listening)
+- `audio_section` (for listening questions - references audio_sections array)
 - `media_type`, `media_url`, `media_description`
 - IELTS-specific fields (left_items, right_options, correct_matches, etc.)
 
@@ -655,6 +685,9 @@ Result: Cherry-picked 9 questions from 2 test versions
 10. **Preview endpoint:** Use preview endpoint first to get question lists before custom selection
 11. **Question indices:** Use 0-based indices (first question = index 0)
 12. **Parts metadata:** Each part includes source test info, title, description, and question ranges
+13. **Audio sections preserved:** When merging listening tests, all audio_sections with URLs and transcripts are preserved
+14. **Audio section renumbering:** Audio section numbers are automatically renumbered to avoid conflicts
+15. **Listening questions updated:** Questions' audio_section references are automatically updated to match renumbered sections
 
 ---
 

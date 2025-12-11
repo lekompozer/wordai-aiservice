@@ -3631,6 +3631,7 @@ async def merge_tests(
 
         # ========== 2. Fetch and merge questions based on selection mode ==========
         all_questions = []
+        all_audio_sections = []  # NEW: Merge audio_sections from listening tests
         parts = []  # Store part metadata for custom selection
         total_mcq = 0
         total_essay = 0
@@ -3676,6 +3677,27 @@ async def merge_tests(
 
                 # Extract selected questions
                 selected_questions = []
+
+                # Check if this test has audio_sections (listening test)
+                test_audio_sections = test_doc.get("audio_sections", [])
+                if test_audio_sections:
+                    logger.info(
+                        f"   📻 Test {test_id} has {len(test_audio_sections)} audio section(s)"
+                    )
+                    # Add audio sections with updated section numbers
+                    current_section_offset = len(all_audio_sections)
+                    for audio_section in test_audio_sections:
+                        # Update section number to avoid conflicts
+                        updated_section = audio_section.copy()
+                        updated_section["section_number"] = (
+                            current_section_offset + audio_section["section_number"]
+                        )
+                        updated_section["source_test_id"] = test_id
+                        updated_section["source_test_title"] = test_doc.get(
+                            "title", "Untitled"
+                        )
+                        all_audio_sections.append(updated_section)
+
                 for idx in selected_indices:
                     q = questions[idx]
 
@@ -3691,6 +3713,13 @@ async def merge_tests(
                         "listening_completion",
                     ]:
                         total_listening += 1
+
+                        # Update audio_section reference for listening questions
+                        if "audio_section" in q and test_audio_sections:
+                            original_section = q["audio_section"]
+                            q["audio_section"] = (
+                                current_section_offset + original_section
+                            )
 
                     selected_questions.append(q)
 
@@ -3721,10 +3750,31 @@ async def merge_tests(
         else:
             # ========== All/Random Selection: Original logic ==========
             for test_doc in source_test_docs:
+                test_id = str(test_doc["_id"])
                 questions = test_doc.get("questions", [])
                 logger.info(
                     f"   Test {test_doc['_id']}: {len(questions)} questions ({test_doc.get('title', 'Untitled')})"
                 )
+
+                # Check if this test has audio_sections (listening test)
+                test_audio_sections = test_doc.get("audio_sections", [])
+                if test_audio_sections:
+                    logger.info(
+                        f"   📻 Test {test_id} has {len(test_audio_sections)} audio section(s)"
+                    )
+                    # Add audio sections with updated section numbers
+                    current_section_offset = len(all_audio_sections)
+                    for audio_section in test_audio_sections:
+                        # Update section number to avoid conflicts
+                        updated_section = audio_section.copy()
+                        updated_section["section_number"] = (
+                            current_section_offset + audio_section["section_number"]
+                        )
+                        updated_section["source_test_id"] = test_id
+                        updated_section["source_test_title"] = test_doc.get(
+                            "title", "Untitled"
+                        )
+                        all_audio_sections.append(updated_section)
 
                 for q in questions:
                     # Count question types
@@ -3740,11 +3790,23 @@ async def merge_tests(
                     ]:
                         total_listening += 1
 
+                        # Update audio_section reference for listening questions
+                        if "audio_section" in q and test_audio_sections:
+                            original_section = q["audio_section"]
+                            q["audio_section"] = (
+                                current_section_offset + original_section
+                            )
+
                     all_questions.append(q)
 
         logger.info(
             f"📊 Total questions: {len(all_questions)} (MCQ: {total_mcq}, Essay: {total_essay}, Listening: {total_listening})"
         )
+
+        if all_audio_sections:
+            logger.info(
+                f"🎵 Total audio sections: {len(all_audio_sections)} from {total_listening} listening questions"
+            )
 
         if not all_questions:
             raise HTTPException(
@@ -3841,6 +3903,13 @@ async def merge_tests(
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
         }
+
+        # Add audio_sections if there are listening questions
+        if all_audio_sections:
+            merged_test_doc["audio_sections"] = all_audio_sections
+            logger.info(
+                f"🎵 Added {len(all_audio_sections)} audio sections to merged test"
+            )
 
         # Add parts metadata if custom selection was used
         if request.question_selection == "custom" and parts:
