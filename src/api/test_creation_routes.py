@@ -351,6 +351,7 @@ async def generate_test(
             test_type=request.test_type,
             num_mcq_questions=request.num_mcq_questions,
             num_essay_questions=request.num_essay_questions,
+            mcq_type_config=request.mcq_type_config.dict() if request.mcq_type_config else None,
         )
 
         logger.info(f"🚀 Background job queued for test {test_id}")
@@ -480,6 +481,12 @@ class GenerateGeneralTestRequest(BaseModel):
         description="Number of correct answers per question. Set to 0 or 'auto' to let AI decide based on question complexity.",
         ge=0,
         le=10,
+    )
+    
+    # MCQ type distribution configuration (NEW)
+    mcq_type_config: Optional[Dict] = Field(
+        None,
+        description="Optional: Configure distribution of different MCQ question types. Example: {'distribution_mode': 'manual', 'num_single_answer_mcq': 5, 'num_multiple_answer_mcq': 3}. If not provided, AI uses default single-answer MCQ format.",
     )
 
     @model_validator(mode="after")
@@ -618,6 +625,7 @@ Generate a comprehensive {request.test_category} test based on general knowledge
             test_type=request.test_type,
             num_mcq_questions=request.num_mcq_questions,
             num_essay_questions=request.num_essay_questions,
+            mcq_type_config=request.mcq_type_config if request.mcq_type_config else None,
         )
 
         logger.info(f"🚀 Background job queued for general test {test_id}")

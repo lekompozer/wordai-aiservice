@@ -232,6 +232,7 @@ async def generate_test_background(
     test_type: str = "mcq",
     num_mcq_questions: Optional[int] = None,
     num_essay_questions: Optional[int] = None,
+    mcq_type_config: Optional[Dict] = None,
 ):
     """
     Background job to generate test questions with AI
@@ -275,6 +276,7 @@ async def generate_test_background(
                 num_options=num_options,
                 num_correct_answers=num_correct_answers,
                 test_category=test_category,
+                mcq_type_config=mcq_type_config,
             )
         elif test_type == "essay":
             logger.info(f"🤖 Calling AI to generate {num_questions} essay questions...")
@@ -300,6 +302,7 @@ async def generate_test_background(
                 gemini_pdf_bytes=gemini_pdf_bytes,
                 num_options=num_options,
                 num_correct_answers=num_correct_answers,
+                mcq_type_config=mcq_type_config,
             )
         else:
             raise ValueError(f"Unsupported test_type: {test_type}")

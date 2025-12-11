@@ -77,8 +77,9 @@ class TestGeneratorService:
         num_options: int = 4,
         num_correct_answers: int = 1,
         test_category: str = "academic",
+        mcq_type_config: Optional[Dict] = None,
     ) -> str:
-        """Build prompt for test generation with language support and flexible answer options"""
+        """Build prompt for test generation with language support, flexible answer options, and MCQ type distribution"""
 
         # Language instruction - now supports ANY language dynamically
         lang_instruction = (
@@ -141,6 +142,55 @@ class TestGeneratorService:
      }"""
         else:
             diagnostic_criteria_json = ""
+        
+        # MCQ Type Distribution Instructions (NEW)
+        mcq_type_instruction = ""
+        if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
+            # User specified exact MCQ type distribution
+            type_counts = []
+            
+            if mcq_type_config.get("num_single_answer_mcq"):
+                type_counts.append(f"{mcq_type_config['num_single_answer_mcq']} standard MCQ questions with 1 correct answer")
+            
+            if mcq_type_config.get("num_multiple_answer_mcq"):
+                type_counts.append(f"{mcq_type_config['num_multiple_answer_mcq']} MCQ questions with 2+ correct answers (select all that apply)")
+            
+            if mcq_type_config.get("num_matching"):
+                type_counts.append(f"{mcq_type_config['num_matching']} matching questions (match left items to right options)")
+            
+            if mcq_type_config.get("num_completion"):
+                type_counts.append(f"{mcq_type_config['num_completion']} completion questions (fill blanks in form/note/table)")
+            
+            if mcq_type_config.get("num_sentence_completion"):
+                type_counts.append(f"{mcq_type_config['num_sentence_completion']} sentence completion questions")
+            
+            if mcq_type_config.get("num_short_answer"):
+                type_counts.append(f"{mcq_type_config['num_short_answer']} short answer questions (1-3 words)")
+            
+            if type_counts:
+                mcq_type_instruction = f"""
+
+**MCQ TYPE DISTRIBUTION (USER SPECIFIED):**
+Generate the following question types:
+{chr(10).join(f"- {tc}" for tc in type_counts)}
+
+**IMPORTANT:** 
+- For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
+- For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answer_keys": ["A", "B", ...] (2+ answers)
+- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" fields
+- For completion: Use "question_type": "completion" with "template" field containing blanks like _____(1)_____, _____(2)_____
+- For sentence completion: Use "question_type": "sentence_completion" with "template" field
+- For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of acceptable answers (1-3 words)
+
+Each question MUST include a "question_type" field to identify its type."""
+        else:
+            # Default: AI decides or uses standard MCQ format
+            mcq_type_instruction = """
+
+**MCQ TYPE:** 
+- By default, generate standard multiple-choice questions with "question_type": "mcq"
+- You may vary question types based on content if appropriate (matching, completion, etc.)
+- Each question MUST include a "question_type" field"""
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
 
@@ -171,6 +221,7 @@ class TestGeneratorService:
 11. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
 12. {points_instruction}
 13. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
+{mcq_type_instruction}
 
 **DOCUMENT CONTENT:**
 ---
@@ -192,6 +243,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         num_options: int = 4,
         num_correct_answers: int = 1,
         test_category: str = "academic",
+        mcq_type_config: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """
         Generate questions using AI (used by background job)
@@ -209,6 +261,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             num_options=num_options,
             num_correct_answers=num_correct_answers,
             test_category=test_category,
+            mcq_type_config=mcq_type_config,
         )
 
         # Generate with retry logic
@@ -1186,8 +1239,9 @@ Now, generate the essay questions based on the instructions and the document pro
         difficulty: Optional[str] = None,
         num_options: int = 4,
         num_correct_answers: int = 1,
+        mcq_type_config: Optional[Dict] = None,
     ) -> str:
-        """Build prompt for mixed test generation (MCQ + Essay)"""
+        """Build prompt for mixed test generation (MCQ + Essay) with MCQ type distribution support"""
 
         # Language instruction
         lang_instruction = f"Generate all questions, options, explanations, rubrics in {language} language."
@@ -1220,6 +1274,43 @@ Now, generate the essay questions based on the instructions and the document pro
             correct_answer_example = (
                 f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
             )
+        
+        # MCQ Type Distribution Instructions (NEW)
+        mcq_type_instruction = ""
+        if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
+            # User specified exact MCQ type distribution
+            type_counts = []
+            
+            if mcq_type_config.get("num_single_answer_mcq"):
+                type_counts.append(f"{mcq_type_config['num_single_answer_mcq']} MCQ with 1 correct answer")
+            
+            if mcq_type_config.get("num_multiple_answer_mcq"):
+                type_counts.append(f"{mcq_type_config['num_multiple_answer_mcq']} MCQ with 2+ correct answers")
+            
+            if mcq_type_config.get("num_matching"):
+                type_counts.append(f"{mcq_type_config['num_matching']} matching questions")
+            
+            if mcq_type_config.get("num_completion"):
+                type_counts.append(f"{mcq_type_config['num_completion']} completion questions")
+            
+            if mcq_type_config.get("num_sentence_completion"):
+                type_counts.append(f"{mcq_type_config['num_sentence_completion']} sentence completion")
+            
+            if mcq_type_config.get("num_short_answer"):
+                type_counts.append(f"{mcq_type_config['num_short_answer']} short answer questions")
+            
+            if type_counts:
+                mcq_type_instruction = f"""
+
+**MCQ TYPE DISTRIBUTION:**
+The {num_mcq_questions} MCQ questions should be distributed as:
+{chr(10).join(f"- {tc}" for tc in type_counts)}
+
+Each MCQ question MUST include "question_type" field (e.g., "mcq", "mcq_multiple", "matching", "completion", "sentence_completion", "short_answer")."""
+        else:
+            mcq_type_instruction = """
+
+**MCQ TYPE:** Generate standard multiple-choice questions with "question_type": "mcq". You may vary types if content is suitable."""
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a MIXED test (Multiple-Choice + Essay) based on the provided document and user query.
 
@@ -1255,6 +1346,7 @@ Now, generate the essay questions based on the instructions and the document pro
 8. Essay questions: {num_essay_questions} questions with grading rubrics and sample answers.
 9. Assign appropriate max_points to each question (MCQ: 1-3, Essay: 5-15).{difficulty_instruction}
 10. **VALIDATE your JSON output before returning it.**
+{mcq_type_instruction}
 
 **DOCUMENT CONTENT:**
 ---
@@ -1368,6 +1460,7 @@ Now, generate the mixed test based on the instructions and the document provided
         gemini_pdf_bytes: Optional[bytes] = None,
         num_options: int = 4,
         num_correct_answers: int = 1,
+        mcq_type_config: Optional[Dict] = None,
     ) -> Dict[str, Any]:
         """Generate mixed questions (MCQ + Essay) using AI"""
 
@@ -1380,6 +1473,7 @@ Now, generate the mixed test based on the instructions and the document provided
             difficulty=difficulty,
             num_options=num_options,
             num_correct_answers=num_correct_answers,
+            mcq_type_config=mcq_type_config,
         )
 
         # Response schema for mixed questions
