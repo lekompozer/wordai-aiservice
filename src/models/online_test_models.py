@@ -977,8 +977,8 @@ class FullTestEditRequest(BaseModel):
     user_transcript: Optional[str] = Field(
         None,
         min_length=50,
-        max_length=50000,
-        description="User-provided transcript for listening test (Phase 7)",
+        max_length=6000,
+        description="User-provided transcript for listening test (Phase 7, max 6000 chars for TTS)",
     )
     youtube_url: Optional[str] = Field(
         None,

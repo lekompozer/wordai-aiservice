@@ -931,8 +931,8 @@ class FullTestEditRequest(BaseModel):
     # ========== PHASE 7 & 8: Listening test source fields ==========
     user_transcript: Optional[str] = Field(
         None,
-        max_length=5000,
-        description="User-provided transcript text for listening test (Phase 7)",
+        max_length=6000,
+        description="User-provided transcript text for listening test (Phase 7, max 6000 chars)",
     )
     youtube_url: Optional[str] = Field(
         None,

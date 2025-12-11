@@ -2943,8 +2943,8 @@ class GenerateListeningTestRequest(BaseModel):
     # ========== PHASE 7: User-provided transcript ==========
     user_transcript: Optional[str] = Field(
         None,
-        max_length=5000,
-        description="Phase 7: User-provided transcript (text format, max 5000 chars). If provided, AI will generate questions from this transcript and TTS will create audio.",
+        max_length=6000,
+        description="Phase 7: User-provided transcript (text format, max 6000 chars). If provided, AI will generate questions from this transcript and TTS will create audio.",
     )
 
     # ========== PHASE 8: YouTube URL ==========
