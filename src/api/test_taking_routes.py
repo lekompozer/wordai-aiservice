@@ -193,11 +193,13 @@ async def get_test(
             marketplace_config = test.get("marketplace_config", {})
             is_published = marketplace_config.get("is_public", False)
 
-            # For listening tests, include full audio sections with transcripts
+            # For tests with audio (listening or merged tests), include full audio sections with transcripts
             test_type = test.get("test_type", "mcq")
-            audio_sections = (
-                test.get("audio_sections", []) if test_type == "listening" else None
+            # Check if test actually has audio_sections (not just test_type)
+            has_audio = (
+                test.get("audio_sections") and len(test.get("audio_sections", [])) > 0
             )
+            audio_sections = test.get("audio_sections", []) if has_audio else None
 
             return {
                 "success": True,
@@ -223,11 +225,9 @@ async def get_test(
                 # Questions (with correct answers for owner)
                 "num_questions": len(test.get("questions", [])),
                 "questions": test.get("questions", []),
-                # Listening test specific data (full transcript + audio)
+                # Audio sections (for listening or merged tests with audio)
                 "audio_sections": audio_sections,
-                "num_audio_sections": (
-                    test.get("num_audio_sections") if test_type == "listening" else None
-                ),
+                "num_audio_sections": (len(audio_sections) if audio_sections else None),
                 # Creation info
                 "creation_type": test.get("creation_type"),
                 "test_language": test.get("test_language", test.get("language", "vi")),
