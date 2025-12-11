@@ -142,31 +142,43 @@ class TestGeneratorService:
      }"""
         else:
             diagnostic_criteria_json = ""
-        
+
         # MCQ Type Distribution Instructions (NEW)
         mcq_type_instruction = ""
         if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
             # User specified exact MCQ type distribution
             type_counts = []
-            
+
             if mcq_type_config.get("num_single_answer_mcq"):
-                type_counts.append(f"{mcq_type_config['num_single_answer_mcq']} standard MCQ questions with 1 correct answer")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_single_answer_mcq']} standard MCQ questions with 1 correct answer"
+                )
+
             if mcq_type_config.get("num_multiple_answer_mcq"):
-                type_counts.append(f"{mcq_type_config['num_multiple_answer_mcq']} MCQ questions with 2+ correct answers (select all that apply)")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_multiple_answer_mcq']} MCQ questions with 2+ correct answers (select all that apply)"
+                )
+
             if mcq_type_config.get("num_matching"):
-                type_counts.append(f"{mcq_type_config['num_matching']} matching questions (match left items to right options)")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_matching']} matching questions (match left items to right options)"
+                )
+
             if mcq_type_config.get("num_completion"):
-                type_counts.append(f"{mcq_type_config['num_completion']} completion questions (fill blanks in form/note/table)")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_completion']} completion questions (fill blanks in form/note/table)"
+                )
+
             if mcq_type_config.get("num_sentence_completion"):
-                type_counts.append(f"{mcq_type_config['num_sentence_completion']} sentence completion questions")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_sentence_completion']} sentence completion questions"
+                )
+
             if mcq_type_config.get("num_short_answer"):
-                type_counts.append(f"{mcq_type_config['num_short_answer']} short answer questions (1-3 words)")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_short_answer']} short answer questions (1-3 words)"
+                )
+
             if type_counts:
                 mcq_type_instruction = f"""
 
@@ -174,7 +186,7 @@ class TestGeneratorService:
 Generate the following question types:
 {chr(10).join(f"- {tc}" for tc in type_counts)}
 
-**IMPORTANT:** 
+**IMPORTANT:**
 - For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
 - For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answer_keys": ["A", "B", ...] (2+ answers)
 - For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" fields
@@ -187,7 +199,7 @@ Each question MUST include a "question_type" field to identify its type."""
             # Default: AI decides or uses standard MCQ format
             mcq_type_instruction = """
 
-**MCQ TYPE:** 
+**MCQ TYPE:**
 - By default, generate standard multiple-choice questions with "question_type": "mcq"
 - You may vary question types based on content if appropriate (matching, completion, etc.)
 - Each question MUST include a "question_type" field"""
@@ -1274,31 +1286,43 @@ Now, generate the essay questions based on the instructions and the document pro
             correct_answer_example = (
                 f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
             )
-        
+
         # MCQ Type Distribution Instructions (NEW)
         mcq_type_instruction = ""
         if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
             # User specified exact MCQ type distribution
             type_counts = []
-            
+
             if mcq_type_config.get("num_single_answer_mcq"):
-                type_counts.append(f"{mcq_type_config['num_single_answer_mcq']} MCQ with 1 correct answer")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_single_answer_mcq']} MCQ with 1 correct answer"
+                )
+
             if mcq_type_config.get("num_multiple_answer_mcq"):
-                type_counts.append(f"{mcq_type_config['num_multiple_answer_mcq']} MCQ with 2+ correct answers")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_multiple_answer_mcq']} MCQ with 2+ correct answers"
+                )
+
             if mcq_type_config.get("num_matching"):
-                type_counts.append(f"{mcq_type_config['num_matching']} matching questions")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_matching']} matching questions"
+                )
+
             if mcq_type_config.get("num_completion"):
-                type_counts.append(f"{mcq_type_config['num_completion']} completion questions")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_completion']} completion questions"
+                )
+
             if mcq_type_config.get("num_sentence_completion"):
-                type_counts.append(f"{mcq_type_config['num_sentence_completion']} sentence completion")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_sentence_completion']} sentence completion"
+                )
+
             if mcq_type_config.get("num_short_answer"):
-                type_counts.append(f"{mcq_type_config['num_short_answer']} short answer questions")
-            
+                type_counts.append(
+                    f"{mcq_type_config['num_short_answer']} short answer questions"
+                )
+
             if type_counts:
                 mcq_type_instruction = f"""
 

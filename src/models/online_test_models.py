@@ -11,9 +11,9 @@ from datetime import datetime
 class MCQTypeDistribution(BaseModel):
     """
     MCQ question type distribution configuration
-    
+
     Allows users to specify exact quantity of each MCQ type or let AI decide automatically.
-    
+
     Supported MCQ types:
     1. single_answer_mcq: Multiple choice with 1 correct answer (traditional MCQ)
     2. multiple_answer_mcq: Multiple choice with 2+ correct answers (select all that apply)
@@ -22,41 +22,47 @@ class MCQTypeDistribution(BaseModel):
     5. sentence_completion: Complete sentences (IELTS style)
     6. short_answer: Short answer questions 1-3 words (IELTS style)
     """
-    
+
     # Standard MCQ types (most common)
     num_single_answer_mcq: Optional[int] = Field(
-        None, ge=0, le=50,
-        description="Number of MCQ questions with 1 correct answer (A/B/C/D format)"
+        None,
+        ge=0,
+        le=50,
+        description="Number of MCQ questions with 1 correct answer (A/B/C/D format)",
     )
     num_multiple_answer_mcq: Optional[int] = Field(
-        None, ge=0, le=30,
-        description="Number of MCQ questions with 2+ correct answers (select all that apply)"
+        None,
+        ge=0,
+        le=30,
+        description="Number of MCQ questions with 2+ correct answers (select all that apply)",
     )
-    
+
     # IELTS-style question types
     num_matching: Optional[int] = Field(
-        None, ge=0, le=20,
-        description="Number of matching questions (match left items to right options)"
+        None,
+        ge=0,
+        le=20,
+        description="Number of matching questions (match left items to right options)",
     )
     num_completion: Optional[int] = Field(
-        None, ge=0, le=20,
-        description="Number of completion questions (fill blanks in form/note/table)"
+        None,
+        ge=0,
+        le=20,
+        description="Number of completion questions (fill blanks in form/note/table)",
     )
     num_sentence_completion: Optional[int] = Field(
-        None, ge=0, le=20,
-        description="Number of sentence completion questions"
+        None, ge=0, le=20, description="Number of sentence completion questions"
     )
     num_short_answer: Optional[int] = Field(
-        None, ge=0, le=20,
-        description="Number of short answer questions (1-3 words)"
+        None, ge=0, le=20, description="Number of short answer questions (1-3 words)"
     )
-    
+
     # Distribution mode
     distribution_mode: str = Field(
         default="auto",
-        description="'auto' (AI decides type distribution based on content) or 'manual' (use specified counts)"
+        description="'auto' (AI decides type distribution based on content) or 'manual' (use specified counts)",
     )
-    
+
     @model_validator(mode="after")
     def validate_distribution(self):
         """Validate MCQ type distribution configuration"""
@@ -68,20 +74,20 @@ class MCQTypeDistribution(BaseModel):
                 self.num_matching,
                 self.num_completion,
                 self.num_sentence_completion,
-                self.num_short_answer
+                self.num_short_answer,
             ]
             if all(t is None or t == 0 for t in types):
                 raise ValueError(
                     "At least one MCQ type must be specified when distribution_mode='manual'"
                 )
-            
+
             # Validate total doesn't exceed reasonable limits
             total = sum(t for t in types if t is not None)
             if total > 100:
                 raise ValueError(
                     f"Total MCQ questions ({total}) exceeds maximum limit of 100"
                 )
-        
+
         return self
 
 
@@ -187,7 +193,7 @@ class GenerateTestRequest(BaseModel):
         default="academic",
         description="Test category: 'academic' (knowledge-based with correct answers) or 'diagnostic' (personality/assessment without correct answers)",
     )
-    
+
     # MCQ type distribution configuration (NEW)
     mcq_type_config: Optional[MCQTypeDistribution] = Field(
         None,

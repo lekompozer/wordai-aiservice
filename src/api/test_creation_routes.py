@@ -351,7 +351,9 @@ async def generate_test(
             test_type=request.test_type,
             num_mcq_questions=request.num_mcq_questions,
             num_essay_questions=request.num_essay_questions,
-            mcq_type_config=request.mcq_type_config.dict() if request.mcq_type_config else None,
+            mcq_type_config=(
+                request.mcq_type_config.dict() if request.mcq_type_config else None
+            ),
         )
 
         logger.info(f"🚀 Background job queued for test {test_id}")
@@ -482,7 +484,7 @@ class GenerateGeneralTestRequest(BaseModel):
         ge=0,
         le=10,
     )
-    
+
     # MCQ type distribution configuration (NEW)
     mcq_type_config: Optional[Dict] = Field(
         None,
@@ -625,7 +627,9 @@ Generate a comprehensive {request.test_category} test based on general knowledge
             test_type=request.test_type,
             num_mcq_questions=request.num_mcq_questions,
             num_essay_questions=request.num_essay_questions,
-            mcq_type_config=request.mcq_type_config if request.mcq_type_config else None,
+            mcq_type_config=(
+                request.mcq_type_config if request.mcq_type_config else None
+            ),
         )
 
         logger.info(f"🚀 Background job queued for general test {test_id}")
@@ -3497,8 +3501,12 @@ async def merge_tests(
                 )
 
                 # Recount question types after selection
-                total_mcq = sum(1 for q in all_questions if q.get("question_type") == "mcq")
-                total_essay = sum(1 for q in all_questions if q.get("question_type") == "essay")
+                total_mcq = sum(
+                    1 for q in all_questions if q.get("question_type") == "mcq"
+                )
+                total_essay = sum(
+                    1 for q in all_questions if q.get("question_type") == "essay"
+                )
                 total_listening = sum(
                     1
                     for q in all_questions
