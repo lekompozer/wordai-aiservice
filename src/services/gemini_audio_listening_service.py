@@ -22,7 +22,7 @@ from google import genai
 from google.genai import types
 import config.config as config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class GeminiAudioListeningTestService:
