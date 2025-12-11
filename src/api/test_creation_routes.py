@@ -7,7 +7,7 @@ import logging
 import os
 import uuid
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from bson import ObjectId
 
@@ -3261,6 +3261,333 @@ async def generate_listening_test_background_job(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to delete question media: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ========== Merge Multiple Tests into One ==========
+
+
+class MergeTestsRequest(BaseModel):
+    """Request model for merging multiple tests into one new test"""
+
+    source_test_ids: List[str] = Field(
+        ...,
+        min_length=2,
+        max_length=10,
+        description="List of test IDs to merge (2-10 tests)",
+    )
+    title: str = Field(..., min_length=5, max_length=200, description="New test title")
+    description: Optional[str] = Field(
+        None, max_length=1000, description="New test description"
+    )
+    creator_name: Optional[str] = Field(
+        None, min_length=2, max_length=100, description="Custom creator display name"
+    )
+
+    # Test configuration
+    test_type: str = Field(
+        ...,
+        description="Test type: 'mcq', 'essay', 'mixed', 'listening', or 'auto' (infer from questions)",
+    )
+    test_category: str = Field(
+        default="academic",
+        description="Test category: 'academic' or 'diagnostic'",
+    )
+
+    # Scoring configuration
+    time_limit_minutes: int = Field(
+        30, ge=1, le=300, description="Time limit in minutes"
+    )
+    max_retries: int = Field(3, ge=1, le=10, description="Maximum number of attempts")
+    passing_score: int = Field(
+        50, ge=0, le=100, description="Minimum score percentage to pass"
+    )
+
+    # Mixed test scoring (optional, only for test_type='mixed')
+    mcq_points: Optional[int] = Field(
+        None, ge=0, le=1000, description="Total points for MCQ section"
+    )
+    essay_points: Optional[int] = Field(
+        None, ge=0, le=1000, description="Total points for essay section"
+    )
+
+    # AI grading criteria for essay questions
+    essay_grading_criteria: Optional[str] = Field(
+        None,
+        max_length=2000,
+        description="Custom AI grading criteria for essay questions (optional, will use default if not provided)",
+    )
+
+    # Question selection strategy
+    question_selection: str = Field(
+        default="all",
+        description="Question selection: 'all' (include all questions) or 'random' (random selection)",
+    )
+    max_questions: Optional[int] = Field(
+        None,
+        ge=1,
+        le=100,
+        description="Max questions if using 'random' selection (optional)",
+    )
+
+    # Deadline and visibility
+    deadline: Optional[datetime] = Field(
+        None, description="Global deadline for all users"
+    )
+    show_answers_timing: str = Field(
+        default="immediate",
+        description="When to show answers: 'immediate' or 'after_deadline'",
+    )
+
+    @field_validator("source_test_ids")
+    @classmethod
+    def validate_test_ids(cls, v):
+        """Validate that test IDs are unique"""
+        if len(v) != len(set(v)):
+            raise ValueError("source_test_ids must be unique (no duplicates)")
+        return v
+
+    @model_validator(mode="after")
+    def validate_question_selection(self):
+        """Validate question selection configuration"""
+        if self.question_selection == "random" and not self.max_questions:
+            raise ValueError(
+                "max_questions is required when question_selection='random'"
+            )
+
+        if self.question_selection == "all" and self.max_questions:
+            raise ValueError(
+                "max_questions should not be set when question_selection='all'"
+            )
+
+        return self
+
+
+@router.post("/merge")
+async def merge_tests(
+    request: MergeTestsRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Merge multiple tests into one new test
+
+    **Use Cases:**
+    - Combine questions from multiple chapter tests into one final exam
+    - Create comprehensive test from topic-specific tests
+    - Build custom test by selecting questions from different sources
+
+    **Features:**
+    - Merges 2-10 tests into one
+    - Preserves all question metadata (type, options, correct answers)
+    - Recomputes max_points based on merged questions
+    - Supports all question types: MCQ, Essay, Listening, Mixed
+    - Optional random question selection
+    - Custom AI grading criteria for essay questions
+    - New owner is the current user (creator_id)
+
+    **Flow:**
+    1. Validate all source tests exist and user has access
+    2. Fetch questions from all source tests
+    3. Apply question selection strategy (all or random)
+    4. Compute max_points and question counts
+    5. Create new test with merged questions
+    6. Return new test_id
+
+    **Access Control:**
+    - User must have access to all source tests (owner or shared)
+    - New test owner is the current user
+    - Source tests remain unchanged
+
+    **Question Metadata Preserved:**
+    - question_type, question_text, instruction
+    - options, correct_answer_keys (for MCQ)
+    - max_score (for essay)
+    - audio_url, transcript (for listening)
+    - media attachments
+    """
+    try:
+        logger.info(
+            f"📝 Merge tests request from user {user_info['uid']}: {len(request.source_test_ids)} tests"
+        )
+
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
+
+        # ========== 1. Validate all source tests exist and user has access ==========
+        source_test_docs = []
+        for test_id in request.source_test_ids:
+            try:
+                test_doc = collection.find_one({"_id": ObjectId(test_id)})
+            except Exception:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid test_id format: {test_id}"
+                )
+
+            if not test_doc:
+                raise HTTPException(
+                    status_code=404, detail=f"Test not found: {test_id}"
+                )
+
+            # Check access: user must be owner or have shared access
+            is_owner = test_doc.get("creator_id") == user_info["uid"]
+            shared_users = test_doc.get("shared_with", [])
+            has_shared_access = any(
+                share["user_id"] == user_info["uid"] for share in shared_users
+            )
+
+            if not is_owner and not has_shared_access:
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Access denied to test: {test_id}",
+                )
+
+            source_test_docs.append(test_doc)
+
+        logger.info(f"✅ All {len(source_test_docs)} source tests validated")
+
+        # ========== 2. Fetch and merge questions from all tests ==========
+        all_questions = []
+        total_mcq = 0
+        total_essay = 0
+        total_listening = 0
+
+        for test_doc in source_test_docs:
+            questions = test_doc.get("questions", [])
+            logger.info(
+                f"   Test {test_doc['_id']}: {len(questions)} questions ({test_doc.get('title', 'Untitled')})"
+            )
+
+            for q in questions:
+                # Count question types
+                q_type = q.get("question_type", "mcq")
+                if q_type == "mcq":
+                    total_mcq += 1
+                elif q_type == "essay":
+                    total_essay += 1
+                elif q_type in ["listening", "listening_mcq", "listening_completion"]:
+                    total_listening += 1
+
+                all_questions.append(q)
+
+        logger.info(
+            f"📊 Total questions: {len(all_questions)} (MCQ: {total_mcq}, Essay: {total_essay}, Listening: {total_listening})"
+        )
+
+        if not all_questions:
+            raise HTTPException(
+                status_code=400, detail="No questions found in source tests"
+            )
+
+        # ========== 3. Apply question selection strategy ==========
+        if request.question_selection == "random" and request.max_questions:
+            if request.max_questions < len(all_questions):
+                import random
+
+                all_questions = random.sample(all_questions, request.max_questions)
+                logger.info(
+                    f"🎲 Random selection: {request.max_questions} questions selected"
+                )
+
+                # Recount question types after selection
+                total_mcq = sum(1 for q in all_questions if q.get("question_type") == "mcq")
+                total_essay = sum(1 for q in all_questions if q.get("question_type") == "essay")
+                total_listening = sum(
+                    1
+                    for q in all_questions
+                    if q.get("question_type")
+                    in ["listening", "listening_mcq", "listening_completion"]
+                )
+
+        # ========== 4. Infer test_type if 'auto' ==========
+        inferred_test_type = request.test_type
+        if request.test_type == "auto":
+            if total_listening > 0:
+                inferred_test_type = "listening"
+            elif total_mcq > 0 and total_essay > 0:
+                inferred_test_type = "mixed"
+            elif total_mcq > 0:
+                inferred_test_type = "mcq"
+            elif total_essay > 0:
+                inferred_test_type = "essay"
+            else:
+                inferred_test_type = "mcq"  # Default
+
+            logger.info(f"🔍 Auto-inferred test_type: {inferred_test_type}")
+
+        # ========== 5. Compute max_points ==========
+        max_points = 0
+        for q in all_questions:
+            if q.get("question_type") == "essay":
+                max_points += q.get("max_score", 10)
+            else:
+                max_points += 1  # MCQ/Listening = 1 point each
+
+        logger.info(f"📊 Computed max_points: {max_points}")
+
+        # ========== 6. Validate creator_name if provided ==========
+        if request.creator_name:
+            from src.services.creator_name_validator import validate_creator_name
+
+            user_email = user_info.get("email", "")
+            validate_creator_name(request.creator_name, user_email, user_info["uid"])
+
+        # ========== 7. Create new merged test ==========
+        merged_test_doc = {
+            "title": request.title,
+            "description": request.description,
+            "creator_name": request.creator_name,
+            "test_category": request.test_category,
+            "test_type": inferred_test_type,
+            "test_language": source_test_docs[0].get(
+                "test_language", "vi"
+            ),  # Use first test's language
+            "source_type": "merged",  # NEW: Mark as merged test
+            "source_test_ids": request.source_test_ids,  # Store source test IDs
+            "creator_id": user_info["uid"],  # New owner
+            "time_limit_minutes": request.time_limit_minutes,
+            "num_questions": len(all_questions),
+            "num_mcq_questions": total_mcq,
+            "num_essay_questions": total_essay,
+            "mcq_points": request.mcq_points,
+            "essay_points": request.essay_points,
+            "max_points": max_points,
+            "max_retries": request.max_retries,
+            "passing_score": request.passing_score,
+            "deadline": request.deadline,
+            "show_answers_timing": request.show_answers_timing,
+            "essay_grading_criteria": request.essay_grading_criteria,
+            "creation_type": "merged",  # NEW: Mark creation type
+            "question_selection": request.question_selection,
+            "status": "ready",  # Immediately ready (no AI generation needed)
+            "questions": all_questions,  # Merged questions
+            "is_active": True,
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        result = collection.insert_one(merged_test_doc)
+        new_test_id = str(result.inserted_id)
+
+        logger.info(f"✅ Merged test created: {new_test_id}")
+
+        return {
+            "success": True,
+            "test_id": new_test_id,
+            "title": request.title,
+            "test_type": inferred_test_type,
+            "num_questions": len(all_questions),
+            "num_mcq_questions": total_mcq,
+            "num_essay_questions": total_essay,
+            "max_points": max_points,
+            "source_tests": len(request.source_test_ids),
+            "created_at": merged_test_doc["created_at"].isoformat(),
+            "message": f"Successfully merged {len(request.source_test_ids)} tests into 1 new test with {len(all_questions)} questions",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Merge tests failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
