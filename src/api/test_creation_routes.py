@@ -552,6 +552,10 @@ async def generate_test_from_general_knowledge(
         logger.info(f"   Topic: {request.topic}")
         logger.info(f"   Category: {request.test_category}")
         logger.info(f"   Title: {request.title}")
+        logger.info(f"   Test Type: {request.test_type}")
+        logger.info(f"   MCQ Type Config: {request.mcq_type_config}")
+        logger.info(f"   Num Options: {request.num_options}")
+        logger.info(f"   Num Correct Answers: {request.num_correct_answers}")
 
         # Create test record
         mongo_service = get_mongodb_service()
