@@ -197,15 +197,42 @@ Generate the following question types:
 
 Each question MUST include a "question_type" field to identify its type."""
                 logger.info(f"✅ Manual MCQ distribution configured: {type_counts}")
-        else:
-            # Default: AI decides or uses standard MCQ format
-            logger.info(f"⚙️ Using default MCQ format (AI decides)")
-            mcq_type_instruction = """
+        elif mcq_type_config and mcq_type_config.get("distribution_mode") == "auto":
+            # AI decides optimal distribution of question types
+            logger.info(
+                f"🤖 Auto mode: AI will decide optimal question type distribution"
+            )
+            mcq_type_instruction = f"""
 
-**MCQ TYPE:**
-- By default, generate standard multiple-choice questions with "question_type": "mcq"
-- You may vary question types based on content if appropriate (matching, completion, etc.)
-- Each question MUST include a "question_type" field"""
+**MCQ TYPE DISTRIBUTION (AI AUTO MODE):**
+You have the flexibility to use a variety of question types to create the most effective assessment. Generate a mix of different question types based on the content:
+
+**Available question types:**
+1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options
+2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers (select all that apply)
+3. **Matching** ("question_type": "matching"): Match left items to right options using "left_items", "right_options", "correct_matches" fields
+4. **Completion** ("question_type": "completion"): Fill blanks in forms/notes/tables using "template" field with _____(1)_____, _____(2)_____
+5. **Sentence completion** ("question_type": "sentence_completion"): Complete sentences using "template" field
+6. **Short answer** ("question_type": "short_answer"): 1-3 word answers using "correct_answer_keys" array
+
+**IMPORTANT GUIDELINES:**
+- Vary question types throughout the test to assess different skills
+- Choose question types that best fit the content (e.g., use matching for relationships, completion for structured data)
+- Aim for a balanced distribution but prioritize content appropriateness
+- Each question MUST include a "question_type" field
+- Standard MCQ should be the primary type, with other types used strategically"""
+        else:
+            # No MCQ type config provided - use traditional format
+            logger.info(
+                f"⚙️ No MCQ type config - using traditional format with {num_options} options, {num_correct_answers} correct answer(s)"
+            )
+            mcq_type_instruction = f"""
+
+**MCQ FORMAT:**
+- Generate traditional multiple-choice questions with "question_type": "mcq"
+- Each question has {num_options} options ({", ".join([chr(65 + i) for i in range(num_options)])})
+- Each question has {num_correct_answers} correct answer(s)
+- All questions follow the same format for consistency"""
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
 
@@ -1360,6 +1387,7 @@ Now, generate the essay questions based on the instructions and the document pro
             )
 
         # MCQ Type Distribution Instructions (NEW)
+        logger.info(f"🎯 Mixed test - MCQ type config: {mcq_type_config}")
         mcq_type_instruction = ""
         if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
             # User specified exact MCQ type distribution
@@ -1367,46 +1395,85 @@ Now, generate the essay questions based on the instructions and the document pro
 
             if mcq_type_config.get("num_single_answer_mcq"):
                 type_counts.append(
-                    f"{mcq_type_config['num_single_answer_mcq']} MCQ with 1 correct answer"
+                    f"{mcq_type_config['num_single_answer_mcq']} standard MCQ with 1 correct answer"
                 )
 
             if mcq_type_config.get("num_multiple_answer_mcq"):
                 type_counts.append(
-                    f"{mcq_type_config['num_multiple_answer_mcq']} MCQ with 2+ correct answers"
+                    f"{mcq_type_config['num_multiple_answer_mcq']} MCQ with 2+ correct answers (select all that apply)"
                 )
 
             if mcq_type_config.get("num_matching"):
                 type_counts.append(
-                    f"{mcq_type_config['num_matching']} matching questions"
+                    f"{mcq_type_config['num_matching']} matching questions (match left items to right options)"
                 )
 
             if mcq_type_config.get("num_completion"):
                 type_counts.append(
-                    f"{mcq_type_config['num_completion']} completion questions"
+                    f"{mcq_type_config['num_completion']} completion questions (fill blanks in form/note/table)"
                 )
 
             if mcq_type_config.get("num_sentence_completion"):
                 type_counts.append(
-                    f"{mcq_type_config['num_sentence_completion']} sentence completion"
+                    f"{mcq_type_config['num_sentence_completion']} sentence completion questions"
                 )
 
             if mcq_type_config.get("num_short_answer"):
                 type_counts.append(
-                    f"{mcq_type_config['num_short_answer']} short answer questions"
+                    f"{mcq_type_config['num_short_answer']} short answer questions (1-3 words)"
                 )
 
             if type_counts:
                 mcq_type_instruction = f"""
 
-**MCQ TYPE DISTRIBUTION:**
-The {num_mcq_questions} MCQ questions should be distributed as:
+**MCQ TYPE DISTRIBUTION (USER SPECIFIED):**
+The {num_mcq_questions} MCQ questions should be distributed as follows:
 {chr(10).join(f"- {tc}" for tc in type_counts)}
 
-Each MCQ question MUST include "question_type" field (e.g., "mcq", "mcq_multiple", "matching", "completion", "sentence_completion", "short_answer")."""
-        else:
-            mcq_type_instruction = """
+**IMPORTANT:**
+- For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
+- For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answer_keys": ["A", "B", ...] (2+ answers)
+- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" fields
+- For completion: Use "question_type": "completion" with "template" field containing blanks like _____(1)_____, _____(2)_____
+- For sentence completion: Use "question_type": "sentence_completion" with "template" field
+- For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of acceptable answers (1-3 words)
 
-**MCQ TYPE:** Generate standard multiple-choice questions with "question_type": "mcq". You may vary types if content is suitable."""
+Each MCQ question MUST include a "question_type" field to identify its type."""
+                logger.info(f"✅ Manual MCQ distribution for mixed test: {type_counts}")
+        elif mcq_type_config and mcq_type_config.get("distribution_mode") == "auto":
+            # AI decides optimal distribution of MCQ question types
+            logger.info(
+                f"🤖 Auto mode for mixed test: AI will decide MCQ type distribution"
+            )
+            mcq_type_instruction = f"""
+
+**MCQ TYPE DISTRIBUTION (AI AUTO MODE):**
+For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety of question types:
+
+**Available MCQ types:**
+1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options
+2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers
+3. **Matching** ("question_type": "matching"): Match items using "left_items", "right_options", "correct_matches"
+4. **Completion** ("question_type": "completion"): Fill blanks using "template" field
+5. **Sentence completion** ("question_type": "sentence_completion"): Complete sentences using "template"
+6. **Short answer** ("question_type": "short_answer"): 1-3 word answers
+
+**GUIDELINES:**
+- Vary MCQ question types to assess different skills
+- Choose types that best fit the content
+- Standard MCQ should be the primary type
+- Each MCQ question MUST include a "question_type" field"""
+        else:
+            # No MCQ type config - traditional format
+            logger.info(
+                f"⚙️ No MCQ type config for mixed test - using traditional format"
+            )
+            mcq_type_instruction = f"""
+
+**MCQ FORMAT:**
+- Generate traditional multiple-choice questions with "question_type": "mcq"
+- Each MCQ has {num_options} options and {num_correct_answers} correct answer(s)
+- All MCQ questions follow the same format"""
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a MIXED test (Multiple-Choice + Essay) based on the provided document and user query.
 
