@@ -220,6 +220,54 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
                     description="Array of IELTS listening questions",
                     items=types.Schema(
                         type=types.Type.OBJECT,
+                        properties={
+                            "question_type": types.Schema(
+                                type=types.Type.STRING,
+                                description="Type: mcq, completion, short_answer, matching",
+                            ),
+                            "question_text": types.Schema(
+                                type=types.Type.STRING,
+                                description="The question text",
+                            ),
+                            "options": types.Schema(
+                                type=types.Type.ARRAY,
+                                description="Options for MCQ (optional)",
+                                items=types.Schema(
+                                    type=types.Type.OBJECT,
+                                    properties={
+                                        "option_key": types.Schema(
+                                            type=types.Type.STRING
+                                        ),
+                                        "option_text": types.Schema(
+                                            type=types.Type.STRING
+                                        ),
+                                    },
+                                    required=["option_key", "option_text"],
+                                ),
+                            ),
+                            "correct_answer_keys": types.Schema(
+                                type=types.Type.ARRAY,
+                                description="Array of correct answers",
+                                items=types.Schema(type=types.Type.STRING),
+                            ),
+                            "template": types.Schema(
+                                type=types.Type.STRING,
+                                description="Template for completion questions (optional)",
+                            ),
+                            "explanation": types.Schema(
+                                type=types.Type.STRING,
+                                description="Explanation of the answer",
+                            ),
+                            "audio_timestamp": types.Schema(
+                                type=types.Type.STRING,
+                                description="Where answer appears in audio (MM:SS)",
+                            ),
+                            "max_points": types.Schema(
+                                type=types.Type.INTEGER,
+                                description="Points for this question",
+                            ),
+                        },
+                        required=["question_type", "question_text", "explanation"],
                     ),
                 ),
             },
