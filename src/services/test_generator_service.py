@@ -581,8 +581,51 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 )
 
                 # Get response text
-                if hasattr(response, "text") and response.text:
-                    response_text = response.text
+                response_text = ""
+
+                # Try standard text accessor
+                try:
+                    if hasattr(response, "text") and response.text:
+                        response_text = response.text
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Error accessing response.text: {e}")
+
+                # Fallback: Iterate through candidates and parts if text is empty
+                if (
+                    not response_text
+                    and hasattr(response, "candidates")
+                    and response.candidates
+                ):
+                    try:
+                        candidate = response.candidates[0]
+
+                        # Log finish reason if not STOP
+                        if (
+                            hasattr(candidate, "finish_reason")
+                            and candidate.finish_reason != "STOP"
+                        ):
+                            logger.warning(
+                                f"   ⚠️ Gemini finish reason: {candidate.finish_reason}"
+                            )
+
+                        if hasattr(candidate, "content") and hasattr(
+                            candidate.content, "parts"
+                        ):
+                            # Extract text from parts, ignoring non-text parts (like thought_signature)
+                            text_parts = []
+                            for part in candidate.content.parts:
+                                if hasattr(part, "text") and part.text:
+                                    text_parts.append(part.text)
+
+                            if text_parts:
+                                response_text = "".join(text_parts)
+                                logger.info(
+                                    "   ✅ Extracted text from response parts (fallback)"
+                                )
+                    except Exception as e:
+                        logger.warning(f"   ⚠️ Error extracting text from parts: {e}")
+
+                if response_text:
                     logger.info(
                         f"   ✅ Gemini response: {len(response_text)} characters"
                     )
@@ -601,6 +644,10 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                             f"   ⚠️ Could not save response file: {save_error}"
                         )
                 else:
+                    # Log full response for debugging
+                    logger.error(
+                        f"   ❌ Empty response from Gemini. Response object: {response}"
+                    )
                     raise Exception("No text response from Gemini API")
 
                 # ✅ Clean JSON response (fix common issues with Vietnamese text)
