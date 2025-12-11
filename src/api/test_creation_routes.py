@@ -21,6 +21,7 @@ from fastapi import (
     Form,
     Query,
 )
+from pydantic import BaseModel, Field, model_validator
 
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
@@ -413,7 +414,47 @@ class GenerateGeneralTestRequest(BaseModel):
         None,
         description="Question difficulty level: 'easy', 'medium', 'hard' (optional, AI can infer if not provided)",
     )
-    num_questions: int = Field(..., description="Number of questions", ge=1, le=100)
+
+    # Test type configuration
+    test_type: str = Field(
+        default="mcq",
+        description="Test type: 'mcq' (multiple choice only), 'essay' (essay only), 'mixed' (both MCQ and essay)",
+    )
+
+    # Question configuration - flexible based on test_type
+    num_questions: Optional[int] = Field(
+        None,
+        description="Total number of questions (used for 'mcq' or 'essay' types). Max 100.",
+        ge=1,
+        le=100,
+    )
+
+    # Mixed test configuration (only for test_type='mixed')
+    num_mcq_questions: Optional[int] = Field(
+        None,
+        description="Number of MCQ questions (for 'mixed' type). Max 100.",
+        ge=0,
+        le=100,
+    )
+    num_essay_questions: Optional[int] = Field(
+        None,
+        description="Number of essay questions (for 'mixed' type). Max 20.",
+        ge=0,
+        le=20,
+    )
+    mcq_points: Optional[int] = Field(
+        None,
+        description="Total points for MCQ section (for 'mixed' type)",
+        ge=0,
+        le=1000,
+    )
+    essay_points: Optional[int] = Field(
+        None,
+        description="Total points for essay section (for 'mixed' type)",
+        ge=0,
+        le=1000,
+    )
+
     time_limit_minutes: int = Field(
         30, description="Time limit in minutes", ge=1, le=300
     )
@@ -440,6 +481,35 @@ class GenerateGeneralTestRequest(BaseModel):
         ge=0,
         le=10,
     )
+
+    @model_validator(mode="after")
+    def validate_test_configuration(self):
+        """Validate test type and question counts"""
+        if self.test_type == "mixed":
+            # For mixed tests, require MCQ and essay counts
+            if not self.num_mcq_questions or not self.num_essay_questions:
+                raise ValueError(
+                    "num_mcq_questions and num_essay_questions are required for test_type='mixed'"
+                )
+            if self.num_mcq_questions + self.num_essay_questions > 100:
+                raise ValueError("Total questions (MCQ + Essay) cannot exceed 100")
+            # Ignore num_questions for mixed type
+            self.num_questions = self.num_mcq_questions + self.num_essay_questions
+        else:
+            # For mcq or essay types, require num_questions
+            if not self.num_questions:
+                raise ValueError(
+                    f"num_questions is required for test_type='{self.test_type}'"
+                )
+            # Set individual counts based on test_type
+            if self.test_type == "mcq":
+                self.num_mcq_questions = self.num_questions
+                self.num_essay_questions = 0
+            elif self.test_type == "essay":
+                self.num_mcq_questions = 0
+                self.num_essay_questions = self.num_questions
+
+        return self
 
 
 @router.post("/generate/general")
@@ -486,6 +556,7 @@ async def generate_test_from_general_knowledge(
             "description": request.description,
             "creator_name": request.creator_name,
             "test_category": request.test_category,
+            "test_type": request.test_type,
             "user_query": request.user_query,
             "test_language": request.language,
             "source_type": "general_knowledge",
@@ -495,6 +566,10 @@ async def generate_test_from_general_knowledge(
             "creator_id": user_info["uid"],
             "time_limit_minutes": request.time_limit_minutes,
             "num_questions": request.num_questions,
+            "num_mcq_questions": request.num_mcq_questions,
+            "num_essay_questions": request.num_essay_questions,
+            "mcq_points": request.mcq_points,
+            "essay_points": request.essay_points,
             "max_retries": request.max_retries,
             "passing_score": request.passing_score,
             "deadline": request.deadline,
@@ -540,6 +615,9 @@ Generate a comprehensive {request.test_category} test based on general knowledge
                 request.num_correct_answers if request.num_correct_answers > 0 else 1
             ),
             test_category=request.test_category,
+            test_type=request.test_type,
+            num_mcq_questions=request.num_mcq_questions,
+            num_essay_questions=request.num_essay_questions,
         )
 
         logger.info(f"🚀 Background job queued for general test {test_id}")
