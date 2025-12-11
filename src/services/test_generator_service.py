@@ -509,11 +509,45 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     # Check for required fields (support both old and new format)
                     has_correct_answer_key = "correct_answer_key" in q
                     has_correct_answer_keys = "correct_answer_keys" in q
+                    question_type = q.get("question_type", "mcq")
 
-                    if not all(
-                        k in q for k in ["question_text", "options", "explanation"]
-                    ):
-                        raise ValueError(f"Question {idx + 1} missing required fields")
+                    # Different question types have different required fields
+                    if question_type in ["completion", "sentence_completion"]:
+                        # Completion questions need template instead of options
+                        if not all(
+                            k in q for k in ["question_text", "template", "explanation"]
+                        ):
+                            raise ValueError(
+                                f"Question {idx + 1} missing required fields for {question_type}"
+                            )
+                    elif question_type == "matching":
+                        # Matching questions need left_items and right_options
+                        if not all(
+                            k in q
+                            for k in [
+                                "question_text",
+                                "left_items",
+                                "right_options",
+                                "explanation",
+                            ]
+                        ):
+                            raise ValueError(
+                                f"Question {idx + 1} missing required fields for matching"
+                            )
+                    elif question_type == "short_answer":
+                        # Short answer questions don't need options
+                        if not all(k in q for k in ["question_text", "explanation"]):
+                            raise ValueError(
+                                f"Question {idx + 1} missing required fields for short_answer"
+                            )
+                    else:
+                        # Standard MCQ questions need options
+                        if not all(
+                            k in q for k in ["question_text", "options", "explanation"]
+                        ):
+                            raise ValueError(
+                                f"Question {idx + 1} missing required fields"
+                            )
 
                     # Skip correct_answer validation for diagnostic tests
                     if not is_diagnostic:
@@ -522,10 +556,12 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
                             )
 
-                    if len(q["options"]) < 2:
-                        raise ValueError(
-                            f"Question {idx + 1} must have at least 2 options"
-                        )
+                    # Validate options only for standard MCQ questions
+                    if question_type in ["mcq", "mcq_multiple"] and "options" in q:
+                        if len(q["options"]) < 2:
+                            raise ValueError(
+                                f"Question {idx + 1} must have at least 2 options"
+                            )
 
                     # Normalize to correct_answer_keys array format (only for academic)
                     if not is_diagnostic:
@@ -869,28 +905,61 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         # Check for required fields (support both old and new format)
                         has_correct_answer_key = "correct_answer_key" in q
                         has_correct_answer_keys = "correct_answer_keys" in q
+                        question_type = q.get("question_type", "mcq")
 
-                        if not all(
-                            k in q
-                            for k in [
-                                "question_text",
-                                "options",
-                                "explanation",
-                            ]
-                        ):
-                            raise ValueError(
-                                f"Question {idx + 1} missing required fields"
-                            )
+                        # Different question types have different required fields
+                        if question_type in ["completion", "sentence_completion"]:
+                            # Completion questions need template instead of options
+                            if not all(
+                                k in q
+                                for k in ["question_text", "template", "explanation"]
+                            ):
+                                raise ValueError(
+                                    f"Question {idx + 1} missing required fields for {question_type}"
+                                )
+                        elif question_type == "matching":
+                            # Matching questions need left_items and right_options
+                            if not all(
+                                k in q
+                                for k in [
+                                    "question_text",
+                                    "left_items",
+                                    "right_options",
+                                    "explanation",
+                                ]
+                            ):
+                                raise ValueError(
+                                    f"Question {idx + 1} missing required fields for matching"
+                                )
+                        elif question_type == "short_answer":
+                            # Short answer questions don't need options
+                            if not all(
+                                k in q for k in ["question_text", "explanation"]
+                            ):
+                                raise ValueError(
+                                    f"Question {idx + 1} missing required fields for short_answer"
+                                )
+                        else:
+                            # Standard MCQ questions need options
+                            if not all(
+                                k in q
+                                for k in ["question_text", "options", "explanation"]
+                            ):
+                                raise ValueError(
+                                    f"Question {idx + 1} missing required fields"
+                                )
 
                         if not has_correct_answer_key and not has_correct_answer_keys:
                             raise ValueError(
                                 f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
                             )
 
-                        if len(q["options"]) < 2:
-                            raise ValueError(
-                                f"Question {idx + 1} must have at least 2 options"
-                            )
+                        # Validate options only for standard MCQ questions
+                        if question_type in ["mcq", "mcq_multiple"] and "options" in q:
+                            if len(q["options"]) < 2:
+                                raise ValueError(
+                                    f"Question {idx + 1} must have at least 2 options"
+                                )
 
                         # Normalize to correct_answer_keys array format
                         if has_correct_answer_key and not has_correct_answer_keys:
