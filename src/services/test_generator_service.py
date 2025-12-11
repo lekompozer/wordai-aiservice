@@ -145,6 +145,12 @@ class TestGeneratorService:
 
         # MCQ Type Distribution Instructions (NEW)
         logger.info(f"🎯 Building prompt with MCQ type config: {mcq_type_config}")
+
+        # Check if MCQ type config is provided
+        has_mcq_type_config = mcq_type_config and mcq_type_config.get(
+            "distribution_mode"
+        ) in ["manual", "auto"]
+
         mcq_type_instruction = ""
         if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
             # User specified exact MCQ type distribution
@@ -234,6 +240,18 @@ You have the flexibility to use a variety of question types to create the most e
 - Each question has {num_correct_answers} correct answer(s)
 - All questions follow the same format for consistency"""
 
+        # Options and correct answer instructions - adjust based on MCQ type config
+        if has_mcq_type_config:
+            # When MCQ type config is present, don't specify fixed num_options/num_correct_answers
+            options_instruction = "The number of options and correct answers will vary based on question type (see MCQ TYPE DISTRIBUTION section below)."
+            correct_answer_constraint = (
+                "The number of correct answers depends on the question type."
+            )
+        else:
+            # Traditional mode: fixed num_options and num_correct_answers
+            options_instruction = f"Each question should have {num_options} options by default ({', '.join(option_keys)}), but adjust if user query indicates otherwise."
+            correct_answer_constraint = f"{correct_answer_instruction} However, if the question complexity requires it or user query specifies, you may adjust."
+
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
 
 **TEST TYPE: {test_type_instruction}**
@@ -258,8 +276,8 @@ You have the flexibility to use a variety of question types to create the most e
 6. Generate exactly {num_questions} questions (unless user query specifies otherwise).
 7. The questions must be relevant to the user's query: "{user_query}".
 8. All information used to create questions, answers, and explanations must come directly from the provided document.
-9. Each question should have {num_options} options by default ({", ".join(option_keys)}), but adjust if user query indicates otherwise.
-10. {correct_answer_instruction} However, if the question complexity requires it or user query specifies, you may adjust.
+9. {options_instruction}
+10. {correct_answer_constraint}
 11. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
 12. {points_instruction}
 13. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
@@ -1388,6 +1406,12 @@ Now, generate the essay questions based on the instructions and the document pro
 
         # MCQ Type Distribution Instructions (NEW)
         logger.info(f"🎯 Mixed test - MCQ type config: {mcq_type_config}")
+
+        # Check if MCQ type config is provided
+        has_mcq_type_config = mcq_type_config and mcq_type_config.get(
+            "distribution_mode"
+        ) in ["manual", "auto"]
+
         mcq_type_instruction = ""
         if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
             # User specified exact MCQ type distribution
@@ -1475,6 +1499,14 @@ For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety
 - Each MCQ has {num_options} options and {num_correct_answers} correct answer(s)
 - All MCQ questions follow the same format"""
 
+        # MCQ options and correct answer instructions - adjust based on MCQ type config
+        if has_mcq_type_config:
+            # When MCQ type config is present, don't specify fixed num_options/num_correct_answers
+            mcq_format_instruction = f"MCQ questions: {num_mcq_questions} questions. The number of options and correct answers will vary based on question type (see MCQ TYPE DISTRIBUTION section below)."
+        else:
+            # Traditional mode: fixed num_options and num_correct_answers
+            mcq_format_instruction = f"MCQ questions: {num_mcq_questions} questions with {num_options} options each. {correct_answer_instruction}"
+
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a MIXED test (Multiple-Choice + Essay) based on the provided document and user query.
 
 **CRITICAL INSTRUCTIONS:**
@@ -1505,7 +1537,7 @@ For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety
        }}
      ]
    }}
-7. MCQ questions: {num_mcq_questions} questions with {num_options} options each. {correct_answer_instruction}
+7. {mcq_format_instruction}
 8. Essay questions: {num_essay_questions} questions with grading rubrics and sample answers.
 9. Assign appropriate max_points to each question (MCQ: 1-3, Essay: 5-15).{difficulty_instruction}
 10. **VALIDATE your JSON output before returning it.**
