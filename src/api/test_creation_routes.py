@@ -2918,8 +2918,11 @@ class GenerateListeningTestRequest(BaseModel):
         None, max_length=1000, description="Test description"
     )
     language: str = Field(..., description="Language code: en, zh, fr, vi, etc.")
-    topic: str = Field(
-        ..., min_length=3, max_length=200, description="Topic/context for listening"
+    topic: Optional[str] = Field(
+        None,
+        min_length=3,
+        max_length=200,
+        description="Topic/context for listening (optional if youtube_url provided)",
     )
     difficulty: Optional[str] = Field("medium", description="easy/medium/hard")
     num_questions: int = Field(..., ge=1, le=50, description="Total questions (1-50)")

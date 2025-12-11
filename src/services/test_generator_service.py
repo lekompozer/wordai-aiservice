@@ -199,7 +199,7 @@ Generate the following question types:
 - For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
 - For completion: Use "question_type": "completion" with "template" field containing blanks like _____(1)_____, _____(2)_____
 - For sentence completion: Use "question_type": "sentence_completion" with "template" field
-- For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of acceptable answers (1-3 words)
+- For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of all acceptable answer variations (include synonyms, different phrasings, with/without articles). Provide at least 3-5 variations for flexible grading.
 
 Each question MUST include a "question_type" field to identify its type."""
                 logger.info(f"✅ Manual MCQ distribution configured: {type_counts}")
@@ -219,7 +219,7 @@ You have the flexibility to use a variety of question types to create the most e
 3. **Matching** ("question_type": "matching"): Match left items to right options using "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
 4. **Completion** ("question_type": "completion"): Fill blanks in forms/notes/tables using "template" field with _____(1)_____, _____(2)_____
 5. **Sentence completion** ("question_type": "sentence_completion"): Complete sentences using "template" field
-6. **Short answer** ("question_type": "short_answer"): 1-3 word answers using "correct_answer_keys" array
+6. **Short answer** ("question_type": "short_answer"): 1-3 word answers using "correct_answer_keys" array (provide multiple acceptable variations for grading flexibility)
 
 **IMPORTANT GUIDELINES:**
 - Vary question types throughout the test to assess different skills
@@ -262,8 +262,8 @@ You have the flexibility to use a variety of question types to create the most e
        {
          "question_type": "short_answer",
          "question_text": "Short answer question",
-         "correct_answer_keys": ["answer1", "answer2"],
-         "explanation": "Acceptable answers",
+         "correct_answer_keys": ["answer1", "answer2", "answer3"],
+         "explanation": "Acceptable answers with variations",
          "max_points": 1
        },
        {
