@@ -196,7 +196,7 @@ Generate the following question types:
 **IMPORTANT:**
 - For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
 - For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answer_keys": ["A", "B", ...] (2+ answers)
-- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" fields
+- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
 - For completion: Use "question_type": "completion" with "template" field containing blanks like _____(1)_____, _____(2)_____
 - For sentence completion: Use "question_type": "sentence_completion" with "template" field
 - For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of acceptable answers (1-3 words)
@@ -216,7 +216,7 @@ You have the flexibility to use a variety of question types to create the most e
 **Available question types:**
 1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options
 2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers (select all that apply)
-3. **Matching** ("question_type": "matching"): Match left items to right options using "left_items", "right_options", "correct_matches" fields
+3. **Matching** ("question_type": "matching"): Match left items to right options using "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
 4. **Completion** ("question_type": "completion"): Fill blanks in forms/notes/tables using "template" field with _____(1)_____, _____(2)_____
 5. **Sentence completion** ("question_type": "sentence_completion"): Complete sentences using "template" field
 6. **Short answer** ("question_type": "short_answer"): 1-3 word answers using "correct_answer_keys" array
@@ -495,7 +495,17 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                                 "type": "array",
                                                 "items": {"type": "string"},
                                             },
-                                            "correct_matches": {"type": "object"},
+                                            "correct_matches": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "key": {"type": "string"},
+                                                        "value": {"type": "string"}
+                                                    },
+                                                    "required": ["key", "value"]
+                                                }
+                                            },
                                             "explanation": {"type": "string"},
                                             "max_points": {"type": "integer"},
                                         },
