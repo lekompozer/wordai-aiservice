@@ -501,10 +501,10 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                                     "type": "object",
                                                     "properties": {
                                                         "key": {"type": "string"},
-                                                        "value": {"type": "string"}
+                                                        "value": {"type": "string"},
                                                     },
-                                                    "required": ["key", "value"]
-                                                }
+                                                    "required": ["key", "value"],
+                                                },
                                             },
                                             "explanation": {"type": "string"},
                                             "max_points": {"type": "integer"},
@@ -710,7 +710,12 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
                     # Skip correct_answer validation for diagnostic tests
                     if not is_diagnostic:
-                        if not has_correct_answer_key and not has_correct_answer_keys:
+                        if question_type == "matching":
+                            if "correct_matches" not in q:
+                                raise ValueError(
+                                    f"Question {idx + 1} missing correct_matches for matching question"
+                                )
+                        elif not has_correct_answer_key and not has_correct_answer_keys:
                             raise ValueError(
                                 f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
                             )
@@ -723,7 +728,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                             )
 
                     # Normalize to correct_answer_keys array format (only for academic)
-                    if not is_diagnostic:
+                    if not is_diagnostic and question_type != "matching":
                         if has_correct_answer_key and not has_correct_answer_keys:
                             q["correct_answer_keys"] = [q["correct_answer_key"]]
                         elif has_correct_answer_keys:
@@ -1108,7 +1113,12 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                     f"Question {idx + 1} missing required fields"
                                 )
 
-                        if not has_correct_answer_key and not has_correct_answer_keys:
+                        if question_type == "matching":
+                            if "correct_matches" not in q:
+                                raise ValueError(
+                                    f"Question {idx + 1} missing correct_matches for matching question"
+                                )
+                        elif not has_correct_answer_key and not has_correct_answer_keys:
                             raise ValueError(
                                 f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
                             )
@@ -1121,20 +1131,23 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 )
 
                         # Normalize to correct_answer_keys array format
-                        if has_correct_answer_key and not has_correct_answer_keys:
-                            # Convert old format (string) to new format (array)
-                            q["correct_answer_keys"] = [q["correct_answer_key"]]
-                        elif has_correct_answer_keys:
-                            # Ensure it's an array
-                            if isinstance(q["correct_answer_keys"], str):
-                                q["correct_answer_keys"] = [q["correct_answer_keys"]]
+                        if question_type != "matching":
+                            if has_correct_answer_key and not has_correct_answer_keys:
+                                # Convert old format (string) to new format (array)
+                                q["correct_answer_keys"] = [q["correct_answer_key"]]
+                            elif has_correct_answer_keys:
+                                # Ensure it's an array
+                                if isinstance(q["correct_answer_keys"], str):
+                                    q["correct_answer_keys"] = [
+                                        q["correct_answer_keys"]
+                                    ]
 
-                        # Keep backwards compatibility: also store as correct_answer_key (first correct answer)
-                        q["correct_answer_key"] = (
-                            q["correct_answer_keys"][0]
-                            if q["correct_answer_keys"]
-                            else None
-                        )
+                            # Keep backwards compatibility: also store as correct_answer_key (first correct answer)
+                            q["correct_answer_key"] = (
+                                q["correct_answer_keys"][0]
+                                if q["correct_answer_keys"]
+                                else None
+                            )
 
                         # Add question_id to each question
                         q["question_id"] = str(ObjectId())
