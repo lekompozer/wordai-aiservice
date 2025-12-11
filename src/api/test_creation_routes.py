@@ -3072,6 +3072,20 @@ async def generate_listening_test(
         logger.info(f"   Questions: {request.num_questions}")
         logger.info(f"   Audio sections: {request.num_audio_sections}")
         logger.info(f"   Speakers: {request.audio_config.get('num_speakers')}")
+        logger.info(f"   YouTube URL: {request.youtube_url}")
+        logger.info(f"   User Transcript: {'Yes' if request.user_transcript else 'No'}")
+
+        # ========== VALIDATE SOURCE TYPE ==========
+        # Determine which mode: AI Generated, User Transcript, or YouTube
+        has_youtube = request.youtube_url and request.youtube_url.strip()
+        has_transcript = request.user_transcript and request.user_transcript.strip()
+
+        if has_youtube:
+            logger.info(f"📹 Mode: YouTube URL")
+        elif has_transcript:
+            logger.info(f"📝 Mode: User Transcript")
+        else:
+            logger.info(f"🤖 Mode: AI Generated (default)")
 
         # ========== Calculate points cost based on num_audio_sections ==========
         # Formula: 5 + (num_audio_sections - 1)
