@@ -144,6 +144,7 @@ class TestGeneratorService:
             diagnostic_criteria_json = ""
 
         # MCQ Type Distribution Instructions (NEW)
+        logger.info(f"🎯 Building prompt with MCQ type config: {mcq_type_config}")
         mcq_type_instruction = ""
         if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
             # User specified exact MCQ type distribution
