@@ -445,48 +445,118 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         "required": ["questions", "diagnostic_criteria"],
                     }
                 else:
-                    # Schema for academic tests (with correct_answer_keys)
-                    response_schema = {
-                        "type": "object",
-                        "properties": {
-                            "questions": {
-                                "type": "array",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "question_text": {"type": "string"},
-                                        "options": {
-                                            "type": "array",
-                                            "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "option_key": {"type": "string"},
-                                                    "option_text": {"type": "string"},
+                    # Schema for academic tests
+
+                    # Check if we are in mixed mode (Auto/Manual)
+                    is_mixed_mode = mcq_type_config and mcq_type_config.get(
+                        "distribution_mode"
+                    ) in ["manual", "auto"]
+
+                    if is_mixed_mode:
+                        # Relaxed schema for mixed question types
+                        response_schema = {
+                            "type": "object",
+                            "properties": {
+                                "questions": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "question_type": {"type": "string"},
+                                            "question_text": {"type": "string"},
+                                            "options": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "option_key": {
+                                                            "type": "string"
+                                                        },
+                                                        "option_text": {
+                                                            "type": "string"
+                                                        },
+                                                    },
+                                                    "required": [
+                                                        "option_key",
+                                                        "option_text",
+                                                    ],
                                                 },
-                                                "required": [
-                                                    "option_key",
-                                                    "option_text",
-                                                ],
                                             },
+                                            "correct_answer_keys": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                            },
+                                            "template": {"type": "string"},
+                                            "left_items": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                            },
+                                            "right_options": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                            },
+                                            "correct_matches": {"type": "object"},
+                                            "explanation": {"type": "string"},
+                                            "max_points": {"type": "integer"},
                                         },
-                                        "correct_answer_keys": {
-                                            "type": "array",
-                                            "items": {"type": "string"},
-                                        },
-                                        "explanation": {"type": "string"},
-                                        "max_points": {"type": "integer"},
+                                        "required": [
+                                            "question_type",
+                                            "question_text",
+                                            "explanation",
+                                        ],
                                     },
-                                    "required": [
-                                        "question_text",
-                                        "options",
-                                        "correct_answer_keys",
-                                        "explanation",
-                                    ],
-                                },
-                            }
-                        },
-                        "required": ["questions"],
-                    }
+                                }
+                            },
+                            "required": ["questions"],
+                        }
+                    else:
+                        # Strict schema for traditional MCQ
+                        response_schema = {
+                            "type": "object",
+                            "properties": {
+                                "questions": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "question_type": {"type": "string"},
+                                            "question_text": {"type": "string"},
+                                            "options": {
+                                                "type": "array",
+                                                "items": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "option_key": {
+                                                            "type": "string"
+                                                        },
+                                                        "option_text": {
+                                                            "type": "string"
+                                                        },
+                                                    },
+                                                    "required": [
+                                                        "option_key",
+                                                        "option_text",
+                                                    ],
+                                                },
+                                            },
+                                            "correct_answer_keys": {
+                                                "type": "array",
+                                                "items": {"type": "string"},
+                                            },
+                                            "explanation": {"type": "string"},
+                                            "max_points": {"type": "integer"},
+                                        },
+                                        "required": [
+                                            "question_text",
+                                            "options",
+                                            "correct_answer_keys",
+                                            "explanation",
+                                        ],
+                                    },
+                                }
+                            },
+                            "required": ["questions"],
+                        }
 
                 # Call Gemini with JSON Mode and response schema
                 response = self.client.models.generate_content(
