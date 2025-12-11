@@ -35,7 +35,7 @@ class GeminiAudioListeningTestService:
             raise ValueError("GEMINI_API_KEY not configured")
 
         self.client = genai.Client(api_key=self.gemini_api_key)
-        self.model = "gemini-2.0-flash-exp"  # Supports audio understanding
+        self.model = "gemini-3-pro-preview"  # Latest model with audio understanding
 
     def _is_valid_youtube_url(self, url: str) -> bool:
         """Check if URL is valid YouTube URL"""
@@ -392,18 +392,39 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
         audio_path = None
         try:
             audio_path = await self._download_youtube_audio(youtube_url)
-            logger.info(f"✅ Audio downloaded: {audio_path}")
+
+            # Log detailed file information
+            if os.path.exists(audio_path):
+                file_size_bytes = os.path.getsize(audio_path)
+                file_size_mb = file_size_bytes / (1024 * 1024)
+                logger.info(f"✅ Audio downloaded successfully!")
+                logger.info(f"   📁 File path: {audio_path}")
+                logger.info(
+                    f"   📊 File size: {file_size_mb:.2f} MB ({file_size_bytes:,} bytes)"
+                )
+                logger.info(f"   📝 File exists: True")
+            else:
+                logger.error(f"❌ Audio file NOT found at: {audio_path}")
+                raise FileNotFoundError(
+                    f"Downloaded audio file not found: {audio_path}"
+                )
 
             # Step 4: Upload to Gemini File API
             logger.info(f"☁️ Uploading audio to Gemini File API...")
+            logger.info(f"   Uploading {file_size_mb:.2f} MB to Gemini...")
+
             audio_file = await asyncio.to_thread(
                 self.client.files.upload, path=audio_path
             )
-            logger.info(f"✅ Audio uploaded: {audio_file.uri}")
+
+            logger.info(f"✅ Audio uploaded to Gemini successfully!")
+            logger.info(f"   📎 Gemini File URI: {audio_file.uri}")
+            logger.info(f"   🆔 File name: {audio_file.name}")
 
             # Step 5: Call Gemini with audio file (ONE API CALL!)
-            logger.info(f"🎯 Calling Gemini 2.5 Flash with audio...")
+            logger.info(f"🎯 Calling Gemini {self.model} with audio...")
             logger.info(f"   Requested questions: {num_questions}")
+            logger.info(f"   Audio file ready for processing...")
 
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
