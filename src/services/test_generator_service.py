@@ -240,28 +240,49 @@ You have the flexibility to use a variety of question types to create the most e
 - Each question has {num_correct_answers} correct answer(s)
 - All questions follow the same format for consistency"""
 
-        # Options and correct answer instructions - adjust based on MCQ type config
+        # Build JSON structure example and instructions based on mode
         if has_mcq_type_config:
-            # When MCQ type config is present, don't specify fixed num_options/num_correct_answers
-            options_instruction = "The number of options and correct answers will vary based on question type (see MCQ TYPE DISTRIBUTION section below)."
+            # Auto/Manual mode: Show variety of question types in example
+            json_structure_example = """
+   {
+     "questions": [
+       {
+         "question_type": "mcq",
+         "question_text": "Standard MCQ question",
+         "options": [
+           {"option_key": "A", "option_text": "Option A"},
+           {"option_key": "B", "option_text": "Option B"},
+           {"option_key": "C", "option_text": "Option C"},
+           {"option_key": "D", "option_text": "Option D"}
+         ],
+         "correct_answer_keys": ["A"],
+         "explanation": "Explain why A is correct",
+         "max_points": 1
+       },
+       {
+         "question_type": "short_answer",
+         "question_text": "Short answer question",
+         "correct_answer_keys": ["answer1", "answer2"],
+         "explanation": "Acceptable answers",
+         "max_points": 1
+       },
+       {
+         "question_type": "completion",
+         "question_text": "Completion question",
+         "template": "Fill in: _____(1)_____ and _____(2)_____",
+         "correct_answer_keys": ["blank1_answer", "blank2_answer"],
+         "explanation": "Correct completions",
+         "max_points": 2
+       }
+     ]
+   }"""
+            options_instruction = "The number of options and correct answers vary based on question_type (see MCQ TYPE DISTRIBUTION below)."
             correct_answer_constraint = (
-                "The number of correct answers depends on the question type."
+                "Follow the question_type specific format for correct_answer_keys."
             )
         else:
-            # Traditional mode: fixed num_options and num_correct_answers
-            options_instruction = f"Each question should have {num_options} options by default ({', '.join(option_keys)}), but adjust if user query indicates otherwise."
-            correct_answer_constraint = f"{correct_answer_instruction} However, if the question complexity requires it or user query specifies, you may adjust."
-
-        prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
-
-**TEST TYPE: {test_type_instruction}**
-
-**CRITICAL INSTRUCTIONS:**
-1. Your output MUST be a single, valid JSON object.
-{escape_instructions}
-3. {lang_instruction}
-4. **IMPORTANT: If the user query specifies different requirements (e.g., number of options, correct answers, topics to focus on), follow the user's specifications FIRST, then use these defaults as fallback.**
-5. The JSON object must conform to the following structure:
+            # Traditional mode: Fixed format
+            json_structure_example = f"""
    {{
      "questions": [
        {{
@@ -272,7 +293,20 @@ You have the flexibility to use a variety of question types to create the most e
          "explanation": "string ({'Explain what this question reveals about personality/preferences' if is_diagnostic else 'Explain WHY the correct answer(s) are right, based on the document'})."{points_example}
        }}
      ]{diagnostic_criteria_json}
-   }}
+   }}"""
+            options_instruction = f"Each question has {num_options} options ({', '.join(option_keys)}). Adjust if user query indicates otherwise."
+            correct_answer_constraint = f"{correct_answer_instruction} However, adjust if question complexity requires it."
+
+        prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
+
+**TEST TYPE: {test_type_instruction}**
+
+**CRITICAL INSTRUCTIONS:**
+1. Your output MUST be a single, valid JSON object.
+{escape_instructions}
+3. {lang_instruction}
+4. **IMPORTANT: If the user query specifies different requirements, follow the user's specifications FIRST.**
+5. The JSON object must conform to the following structure:{json_structure_example}
 6. Generate exactly {num_questions} questions (unless user query specifies otherwise).
 7. The questions must be relevant to the user's query: "{user_query}".
 8. All information used to create questions, answers, and explanations must come directly from the provided document.
