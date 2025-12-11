@@ -569,14 +569,19 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         }
 
                 # Call Gemini with JSON Mode and response schema
-                response = self.client.models.generate_content(
-                    model="gemini-3-pro-preview",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        max_output_tokens=25000,
-                        temperature=0.3,
-                        response_mime_type="application/json",
-                        response_schema=response_schema,
+                # Run blocking Gemini call in thread pool to avoid blocking event loop
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.models.generate_content(
+                        model="gemini-3-pro-preview",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            max_output_tokens=25000,
+                            temperature=0.3,
+                            response_mime_type="application/json",
+                            response_schema=response_schema,
+                        ),
                     ),
                 )
 
@@ -1074,13 +1079,18 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         contents = [prompt]
 
                     # Call Gemini with JSON Mode
-                    response = self.client.models.generate_content(
-                        model="gemini-3-pro-preview",
-                        contents=contents,
-                        config=types.GenerateContentConfig(
-                            max_output_tokens=25000,
-                            temperature=0.3,  # Low temperature for consistent output
-                            response_mime_type="application/json",  # JSON Mode
+                    # Run blocking Gemini call in thread pool to avoid blocking event loop
+                    loop = asyncio.get_event_loop()
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda: self.client.models.generate_content(
+                            model="gemini-3-pro-preview",
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                max_output_tokens=25000,
+                                temperature=0.3,  # Low temperature for consistent output
+                                response_mime_type="application/json",  # JSON Mode
+                            ),
                         ),
                     )
 
@@ -1787,14 +1797,19 @@ Now, generate the mixed test based on the instructions and the document provided
                 else:
                     contents = [prompt]
 
-                response = self.client.models.generate_content(
-                    model="gemini-3-pro-preview",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        max_output_tokens=25000,
-                        temperature=0.3,
-                        response_mime_type="application/json",
-                        response_schema=response_schema,
+                # Run blocking Gemini call in thread pool to avoid blocking event loop
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.models.generate_content(
+                        model="gemini-3-pro-preview",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            max_output_tokens=25000,
+                            temperature=0.3,
+                            response_mime_type="application/json",
+                            response_schema=response_schema,
+                        ),
                     ),
                 )
 
@@ -1891,14 +1906,19 @@ Now, generate the mixed test based on the instructions and the document provided
                 else:
                     contents = [prompt]
 
-                response = self.client.models.generate_content(
-                    model="gemini-3-pro-preview",
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        max_output_tokens=25000,
-                        temperature=0.3,
-                        response_mime_type="application/json",
-                        response_schema=response_schema,
+                # Run blocking Gemini call in thread pool to avoid blocking event loop
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.models.generate_content(
+                        model="gemini-3-pro-preview",
+                        contents=contents,
+                        config=types.GenerateContentConfig(
+                            max_output_tokens=25000,
+                            temperature=0.3,
+                            response_mime_type="application/json",
+                            response_schema=response_schema,
+                        ),
                     ),
                 )
 
