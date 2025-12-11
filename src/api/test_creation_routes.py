@@ -3279,6 +3279,132 @@ async def generate_listening_test_background_job(
 # ========== Merge Multiple Tests into One ==========
 
 
+class PreviewQuestionsRequest(BaseModel):
+    """Request model for previewing questions from multiple tests"""
+
+    test_ids: List[str] = Field(
+        ..., min_length=1, max_length=10, description="List of test IDs to preview"
+    )
+
+
+@router.post("/preview-questions")
+async def preview_questions(
+    request: PreviewQuestionsRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Preview questions from multiple tests for custom selection
+
+    Returns question metadata (without correct answers) for UI selection.
+    Users can see questions before deciding which ones to merge.
+
+    **Use Case:**
+    - Display questions from multiple tests
+    - Allow user to select specific questions for custom merge
+    - Show question previews grouped by source test
+
+    **Response:**
+    - test_id → questions array with index, type, text preview
+    - Does NOT include correct_answer_keys (security)
+    - Includes question_type, question_text (truncated), media info
+    """
+    try:
+        logger.info(
+            f"📋 Preview questions request from user {user_info['uid']}: {len(request.test_ids)} tests"
+        )
+
+        mongo_service = get_mongodb_service()
+        collection = mongo_service.db["online_tests"]
+
+        result = {}
+
+        for test_id in request.test_ids:
+            try:
+                test_doc = collection.find_one({"_id": ObjectId(test_id)})
+            except Exception:
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid test_id format: {test_id}"
+                )
+
+            if not test_doc:
+                raise HTTPException(
+                    status_code=404, detail=f"Test not found: {test_id}"
+                )
+
+            # Check access
+            is_owner = test_doc.get("creator_id") == user_info["uid"]
+            shared_users = test_doc.get("shared_with", [])
+            has_shared_access = any(
+                share["user_id"] == user_info["uid"] for share in shared_users
+            )
+
+            if not is_owner and not has_shared_access:
+                raise HTTPException(
+                    status_code=403, detail=f"Access denied to test: {test_id}"
+                )
+
+            # Build preview for each question
+            questions = test_doc.get("questions", [])
+            preview_questions = []
+
+            for idx, q in enumerate(questions):
+                question_text = q.get("question_text", "")
+                # Truncate long questions for preview
+                preview_text = (
+                    question_text[:200] + "..."
+                    if len(question_text) > 200
+                    else question_text
+                )
+
+                preview_q = {
+                    "index": idx,
+                    "question_type": q.get("question_type", "mcq"),
+                    "question_text": preview_text,
+                    "full_question_text": question_text,  # Full text for display
+                    "has_media": q.get("media_url") is not None
+                    or q.get("audio_url") is not None,
+                    "media_type": q.get("media_type"),
+                }
+
+                # Add type-specific preview info
+                if q.get("question_type") == "mcq":
+                    preview_q["num_options"] = len(q.get("options", []))
+                elif q.get("question_type") == "essay":
+                    preview_q["max_score"] = q.get("max_score", 10)
+                elif q.get("question_type") in [
+                    "listening",
+                    "listening_mcq",
+                    "listening_completion",
+                ]:
+                    preview_q["audio_duration"] = q.get("audio_duration")
+                    preview_q["has_transcript"] = q.get("transcript") is not None
+
+                preview_questions.append(preview_q)
+
+            result[test_id] = {
+                "test_id": test_id,
+                "title": test_doc.get("title", "Untitled"),
+                "test_type": test_doc.get("test_type", "mcq"),
+                "test_category": test_doc.get("test_category", "academic"),
+                "num_questions": len(questions),
+                "questions": preview_questions,
+            }
+
+        logger.info(f"✅ Preview generated for {len(result)} tests")
+
+        return {
+            "success": True,
+            "tests": result,
+            "total_tests": len(result),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Preview questions failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 class MergeTestsRequest(BaseModel):
     """Request model for merging multiple tests into one new test"""
 
@@ -3333,13 +3459,19 @@ class MergeTestsRequest(BaseModel):
     # Question selection strategy
     question_selection: str = Field(
         default="all",
-        description="Question selection: 'all' (include all questions) or 'random' (random selection)",
+        description="Question selection: 'all' (include all questions), 'random' (random selection), or 'custom' (select specific questions by index)",
     )
     max_questions: Optional[int] = Field(
         None,
         ge=1,
         le=100,
         description="Max questions if using 'random' selection (optional)",
+    )
+
+    # Custom selection configuration (only for question_selection='custom')
+    custom_selection: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Custom question selection config. Format: { 'test_id': { 'part_title': 'string', 'part_description': 'string', 'question_indices': [0, 1, 2, ...] } }",
     )
 
     # Deadline and visibility
@@ -3370,6 +3502,46 @@ class MergeTestsRequest(BaseModel):
         if self.question_selection == "all" and self.max_questions:
             raise ValueError(
                 "max_questions should not be set when question_selection='all'"
+            )
+
+        if self.question_selection == "custom":
+            if not self.custom_selection:
+                raise ValueError(
+                    "custom_selection is required when question_selection='custom'"
+                )
+
+            # Validate custom_selection structure
+            for test_id, config in self.custom_selection.items():
+                if not isinstance(config, dict):
+                    raise ValueError(
+                        f"custom_selection[{test_id}] must be a dict with part_title and question_indices"
+                    )
+
+                if "question_indices" not in config:
+                    raise ValueError(
+                        f"custom_selection[{test_id}] must have 'question_indices' field"
+                    )
+
+                if not isinstance(config["question_indices"], list):
+                    raise ValueError(
+                        f"custom_selection[{test_id}]['question_indices'] must be a list"
+                    )
+
+                if len(config["question_indices"]) == 0:
+                    raise ValueError(
+                        f"custom_selection[{test_id}]['question_indices'] cannot be empty"
+                    )
+
+                # Validate all indices are non-negative integers
+                for idx in config["question_indices"]:
+                    if not isinstance(idx, int) or idx < 0:
+                        raise ValueError(
+                            f"All question_indices must be non-negative integers"
+                        )
+
+        elif self.custom_selection:
+            raise ValueError(
+                "custom_selection should only be set when question_selection='custom'"
             )
 
         return self
@@ -3457,29 +3629,118 @@ async def merge_tests(
 
         logger.info(f"✅ All {len(source_test_docs)} source tests validated")
 
-        # ========== 2. Fetch and merge questions from all tests ==========
+        # ========== 2. Fetch and merge questions based on selection mode ==========
         all_questions = []
+        parts = []  # Store part metadata for custom selection
         total_mcq = 0
         total_essay = 0
         total_listening = 0
 
-        for test_doc in source_test_docs:
-            questions = test_doc.get("questions", [])
+        if request.question_selection == "custom":
+            # ========== Custom Selection: Pick specific questions by index ==========
+            logger.info("🎯 Using custom question selection mode")
+
+            part_number = 1
+            current_question_index = 0
+
+            for test_doc in source_test_docs:
+                test_id = str(test_doc["_id"])
+                questions = test_doc.get("questions", [])
+
+                # Check if this test has custom selection config
+                if test_id not in request.custom_selection:
+                    logger.warning(
+                        f"⚠️ Test {test_id} not in custom_selection config, skipping"
+                    )
+                    continue
+
+                config = request.custom_selection[test_id]
+                selected_indices = config["question_indices"]
+                part_title = config.get(
+                    "part_title",
+                    f"Part {part_number}: {test_doc.get('title', 'Untitled')}",
+                )
+                part_description = config.get("part_description", "")
+
+                logger.info(
+                    f"   Test {test_id}: Selecting {len(selected_indices)} questions from {len(questions)} total"
+                )
+
+                # Validate indices
+                for idx in selected_indices:
+                    if idx >= len(questions):
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Invalid question index {idx} for test {test_id} (has {len(questions)} questions)",
+                        )
+
+                # Extract selected questions
+                selected_questions = []
+                for idx in selected_indices:
+                    q = questions[idx]
+
+                    # Count question types
+                    q_type = q.get("question_type", "mcq")
+                    if q_type == "mcq":
+                        total_mcq += 1
+                    elif q_type == "essay":
+                        total_essay += 1
+                    elif q_type in [
+                        "listening",
+                        "listening_mcq",
+                        "listening_completion",
+                    ]:
+                        total_listening += 1
+
+                    selected_questions.append(q)
+
+                # Store part metadata
+                parts.append(
+                    {
+                        "part_number": part_number,
+                        "part_title": part_title,
+                        "part_description": part_description,
+                        "source_test_id": test_id,
+                        "source_test_title": test_doc.get("title", "Untitled"),
+                        "question_start_index": current_question_index,
+                        "question_end_index": current_question_index
+                        + len(selected_questions)
+                        - 1,
+                        "num_questions": len(selected_questions),
+                    }
+                )
+
+                all_questions.extend(selected_questions)
+                current_question_index += len(selected_questions)
+                part_number += 1
+
             logger.info(
-                f"   Test {test_doc['_id']}: {len(questions)} questions ({test_doc.get('title', 'Untitled')})"
+                f"✅ Custom selection: {len(all_questions)} questions from {len(parts)} parts"
             )
 
-            for q in questions:
-                # Count question types
-                q_type = q.get("question_type", "mcq")
-                if q_type == "mcq":
-                    total_mcq += 1
-                elif q_type == "essay":
-                    total_essay += 1
-                elif q_type in ["listening", "listening_mcq", "listening_completion"]:
-                    total_listening += 1
+        else:
+            # ========== All/Random Selection: Original logic ==========
+            for test_doc in source_test_docs:
+                questions = test_doc.get("questions", [])
+                logger.info(
+                    f"   Test {test_doc['_id']}: {len(questions)} questions ({test_doc.get('title', 'Untitled')})"
+                )
 
-                all_questions.append(q)
+                for q in questions:
+                    # Count question types
+                    q_type = q.get("question_type", "mcq")
+                    if q_type == "mcq":
+                        total_mcq += 1
+                    elif q_type == "essay":
+                        total_essay += 1
+                    elif q_type in [
+                        "listening",
+                        "listening_mcq",
+                        "listening_completion",
+                    ]:
+                        total_listening += 1
+
+                    all_questions.append(q)
 
         logger.info(
             f"📊 Total questions: {len(all_questions)} (MCQ: {total_mcq}, Essay: {total_essay}, Listening: {total_listening})"
@@ -3581,12 +3842,17 @@ async def merge_tests(
             "updated_at": datetime.now(),
         }
 
+        # Add parts metadata if custom selection was used
+        if request.question_selection == "custom" and parts:
+            merged_test_doc["parts"] = parts
+            logger.info(f"📋 Added {len(parts)} parts to merged test metadata")
+
         result = collection.insert_one(merged_test_doc)
         new_test_id = str(result.inserted_id)
 
         logger.info(f"✅ Merged test created: {new_test_id}")
 
-        return {
+        response = {
             "success": True,
             "test_id": new_test_id,
             "title": request.title,
@@ -3599,6 +3865,15 @@ async def merge_tests(
             "created_at": merged_test_doc["created_at"].isoformat(),
             "message": f"Successfully merged {len(request.source_test_ids)} tests into 1 new test with {len(all_questions)} questions",
         }
+
+        # Include parts in response if custom selection was used
+        if request.question_selection == "custom" and parts:
+            response["parts"] = parts
+            response["message"] = (
+                f"Successfully merged {len(parts)} parts into 1 multi-part test with {len(all_questions)} questions"
+            )
+
+        return response
 
     except HTTPException:
         raise
