@@ -1,6 +1,8 @@
 """
 Gemini Audio Listening Test Service (Phase 8)
 Use Gemini 2.5 Flash Audio Understanding API for YouTube-based listening tests
+- Download audio from YouTube
+- Upload to Gemini File API
 - Transcribe audio with speaker diarization
 - Generate questions in ONE API call
 - Support timestamps and emotion detection
@@ -10,6 +12,9 @@ import logging
 import json
 import uuid
 import re
+import os
+import tempfile
+import asyncio
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
@@ -380,14 +385,25 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
             user_query=user_query,
         )
 
-        # Step 3: Call Gemini with YouTube URL (ONE API CALL!)
-        logger.info(f"🎯 Calling Gemini 2.5 Flash with YouTube URL...")
+        # Step 3: Download audio from YouTube
+        logger.info(f"📥 Downloading audio from YouTube...")
         logger.info(f"   URL: {youtube_url}")
-        logger.info(f"   Requested questions: {num_questions}")
 
+        audio_path = None
         try:
-            # Run in thread pool to avoid blocking event loop
-            import asyncio
+            audio_path = await self._download_youtube_audio(youtube_url)
+            logger.info(f"✅ Audio downloaded: {audio_path}")
+
+            # Step 4: Upload to Gemini File API
+            logger.info(f"☁️ Uploading audio to Gemini File API...")
+            audio_file = await asyncio.to_thread(
+                self.client.files.upload, path=audio_path
+            )
+            logger.info(f"✅ Audio uploaded: {audio_file.uri}")
+
+            # Step 5: Call Gemini with audio file (ONE API CALL!)
+            logger.info(f"🎯 Calling Gemini 2.5 Flash with audio...")
+            logger.info(f"   Requested questions: {num_questions}")
 
             response = await asyncio.to_thread(
                 self.client.models.generate_content,
@@ -397,7 +413,7 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
                         parts=[
                             types.Part(
                                 file_data=types.FileData(
-                                    file_uri=youtube_url  # YouTube URL directly!
+                                    file_uri=audio_file.uri  # Gemini File URI
                                 )
                             ),
                             types.Part(text=prompt),
@@ -451,7 +467,63 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
             raise ValueError(f"Gemini returned invalid JSON: {e}")
 
         except Exception as e:
-            logger.error(f"❌ Gemini Audio processing failed: {e}", exc_info=True)
+            logger.error(f"❌ Gemini Audio processing failed: {e}")
+            raise
+        finally:
+            # Clean up downloaded audio file
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    os.unlink(audio_path)
+                    logger.info(f"🗑️ Cleaned up temp audio file")
+                except Exception as e:
+                    logger.warning(f"Failed to delete temp file: {e}")
+
+    async def _download_youtube_audio(self, youtube_url: str) -> str:
+        """
+        Download audio from YouTube URL using yt-dlp
+
+        Returns:
+            Path to downloaded audio file (mp3)
+        """
+        try:
+            import yt_dlp
+
+            # Create temp file
+            temp_dir = tempfile.gettempdir()
+            temp_filename = f"yt_audio_{uuid.uuid4().hex}"
+            output_template = os.path.join(temp_dir, temp_filename)
+
+            ydl_opts = {
+                "format": "bestaudio/best",
+                "outtmpl": output_template,
+                "postprocessors": [
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "mp3",
+                        "preferredquality": "128",
+                    }
+                ],
+                "quiet": True,
+                "no_warnings": True,
+            }
+
+            # Download in thread pool to avoid blocking
+            def download():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([youtube_url])
+                return f"{output_template}.mp3"
+
+            audio_path = await asyncio.to_thread(download)
+
+            if not os.path.exists(audio_path):
+                raise FileNotFoundError(f"Failed to download audio from {youtube_url}")
+
+            return audio_path
+
+        except ImportError:
+            raise ImportError("yt-dlp not installed. Run: pip install yt-dlp")
+        except Exception as e:
+            logger.error(f"Failed to download YouTube audio: {e}")
             raise
 
 

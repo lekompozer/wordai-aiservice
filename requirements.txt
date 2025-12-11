@@ -114,3 +114,4 @@ orjson==3.9.10
 # Document processing and PDF conversion
 google-genai==1.47.0  # Gemini 3 Pro Image support
 docx2txt==0.9
+yt-dlp>=2024.0.0
