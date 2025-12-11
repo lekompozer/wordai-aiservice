@@ -61,6 +61,10 @@ async def generate_test(
         logger.info(f"   Source: {request.source_type}/{request.source_id}")
         logger.info(f"   Title: {request.title}")
         logger.info(f"   Description: {request.description or '(none)'}")
+        logger.info(f"   Test Type: {request.test_type}")
+        logger.info(f"   MCQ Type Config: {request.mcq_type_config}")
+        logger.info(f"   Num Options: {request.num_options}")
+        logger.info(f"   Num Correct Answers: {request.num_correct_answers}")
 
         # Set default user_query if not provided
         if not request.user_query or request.user_query.strip() == "":

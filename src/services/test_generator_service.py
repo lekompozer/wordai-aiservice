@@ -195,8 +195,10 @@ Generate the following question types:
 - For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of acceptable answers (1-3 words)
 
 Each question MUST include a "question_type" field to identify its type."""
+                logger.info(f"✅ Manual MCQ distribution configured: {type_counts}")
         else:
             # Default: AI decides or uses standard MCQ format
+            logger.info(f"⚙️ Using default MCQ format (AI decides)")
             mcq_type_instruction = """
 
 **MCQ TYPE:**
