@@ -373,9 +373,20 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
         }
         """
 
+        logger.info(f"🎥 === YOUTUBE LISTENING TEST GENERATION STARTED ===")
+        logger.info(f"   YouTube URL: {youtube_url}")
+        logger.info(f"   Title: {title}")
+        logger.info(f"   Language: {language}")
+        logger.info(f"   Difficulty: {difficulty}")
+        logger.info(f"   Num Questions: {num_questions}")
+        logger.info(f"   Model: {self.model}")
+
         # Step 1: Validate URL
         if not self._is_valid_youtube_url(youtube_url):
+            logger.error(f"❌ Invalid YouTube URL: {youtube_url}")
             raise ValueError("Invalid YouTube URL")
+
+        logger.info(f"✅ YouTube URL validated successfully")
 
         # Step 2: Build comprehensive prompt
         prompt = self._build_audio_understanding_prompt(

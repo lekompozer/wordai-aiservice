@@ -25,7 +25,7 @@ from src.services.ielts_question_schemas import (
     get_ielts_prompt,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("chatbot")
 
 
 class ListeningTestGeneratorService:
