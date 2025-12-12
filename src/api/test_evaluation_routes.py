@@ -160,20 +160,42 @@ async def evaluate_test_result(
         questions = test_doc.get("questions", [])
         user_answers_list = submission.get("user_answers", [])
 
-        # Convert user answers to dict - handle both MCQ and Essay
+        # Convert user answers to dict - handle ALL question types
         user_answers_dict = {}
         for ans in user_answers_list:
             question_id = ans.get("question_id")
             question_type = ans.get("question_type", "mcq")
 
-            if question_type == "mcq":
-                # MCQ: use selected_answer_key
-                user_answers_dict[question_id] = ans.get(
-                    "selected_answer_key", "No answer"
+            if question_type == "mcq" or question_type == "mcq_multiple":
+                # MCQ: use selected_answer_keys (array) or legacy selected_answer_key
+                selected_answers = ans.get("selected_answer_keys", [])
+                if not selected_answers and "selected_answer_key" in ans:
+                    selected_answers = [ans.get("selected_answer_key")]
+                user_answers_dict[question_id] = (
+                    selected_answers[0]
+                    if len(selected_answers) == 1
+                    else selected_answers
                 )
+
             elif question_type == "essay":
                 # Essay: use essay_answer
                 user_answers_dict[question_id] = ans.get("essay_answer", "No answer")
+
+            elif question_type == "matching":
+                # Matching: use matches dict {left_key: right_key}
+                user_answers_dict[question_id] = ans.get("matches", {})
+
+            elif question_type == "completion":
+                # Completion: use answers dict {blank_key: answer}
+                user_answers_dict[question_id] = ans.get("answers", {})
+
+            elif question_type == "sentence_completion":
+                # Sentence completion: use answers dict {sentence_key: answer}
+                user_answers_dict[question_id] = ans.get("answers", {})
+
+            elif question_type == "short_answer":
+                # Short answer: use answers dict {question_key: answer}
+                user_answers_dict[question_id] = ans.get("answers", {})
 
         score = submission.get("score", 0)
         score_percentage = (
