@@ -508,10 +508,15 @@ class GenerateGeneralTestRequest(BaseModel):
             return data
 
         import logging
+
         logger = logging.getLogger("chatbot")
         logger.info(f"🔍 VALIDATOR DEBUG - Input data keys: {list(data.keys())}")
-        logger.info(f"🔍 VALIDATOR DEBUG - mcq_type_config value BEFORE: {data.get('mcq_type_config')}")
-        logger.info(f"🔍 VALIDATOR DEBUG - mcqTypeConfig value BEFORE: {data.get('mcqTypeConfig')}")
+        logger.info(
+            f"🔍 VALIDATOR DEBUG - mcq_type_config value BEFORE: {data.get('mcq_type_config')}"
+        )
+        logger.info(
+            f"🔍 VALIDATOR DEBUG - mcqTypeConfig value BEFORE: {data.get('mcqTypeConfig')}"
+        )
 
         # Common camelCase to snake_case mappings for top-level fields
         camel_to_snake = {
@@ -556,13 +561,17 @@ class GenerateGeneralTestRequest(BaseModel):
                     converted_key = key_mapping.get(key, key)
                     converted[converted_key] = value
                 data["mcq_type_config"] = converted
-                logger.info(f"🔍 VALIDATOR DEBUG - Converted to: {data['mcq_type_config']}")
+                logger.info(
+                    f"🔍 VALIDATOR DEBUG - Converted to: {data['mcq_type_config']}"
+                )
             else:
                 data["mcq_type_config"] = config
             del data["mcqTypeConfig"]
 
         # If frontend already sends snake_case, keep it as-is
-        logger.info(f"🔍 VALIDATOR DEBUG - mcq_type_config value AFTER: {data.get('mcq_type_config')}")
+        logger.info(
+            f"🔍 VALIDATOR DEBUG - mcq_type_config value AFTER: {data.get('mcq_type_config')}"
+        )
         logger.info(f"🔍 VALIDATOR DEBUG - Output data keys: {list(data.keys())}")
 
         return data
@@ -626,6 +635,7 @@ async def generate_test_from_general_knowledge(
         logger.info(f"   Title: {request.title}")
         logger.info(f"   Test Type: {request.test_type}")
         logger.info(f"   MCQ Type Config: {request.mcq_type_config}")
+        logger.info(f"   MCQ Type Config TYPE: {type(request.mcq_type_config)}")
         logger.info(f"   DEBUG - Request dict: {request.model_dump()}")
         logger.info(f"   Num Options: {request.num_options}")
         logger.info(f"   Num Correct Answers: {request.num_correct_answers}")
