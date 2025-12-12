@@ -1423,8 +1423,8 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             if q.get("instruction"):
                 question_data["instruction"] = q["instruction"]
 
-            # MCQ-specific fields
-            if q_type == "mcq":
+            # MCQ-specific fields (both single and multiple answer)
+            if q_type in ("mcq", "mcq_multiple"):
                 question_data["options"] = q.get("options", [])
 
             # Matching-specific fields
