@@ -539,6 +539,16 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
                 "no_warnings": True,
             }
 
+            # Check for cookies file
+            cookies_path = os.path.join(
+                os.getcwd(), "data", "www.youtube.com_cookies.txt"
+            )
+            if os.path.exists(cookies_path):
+                logger.info(f"🍪 Using YouTube cookies from: {cookies_path}")
+                ydl_opts["cookiefile"] = cookies_path
+            else:
+                logger.warning(f"⚠️ YouTube cookies file not found at: {cookies_path}")
+
             # Download in thread pool to avoid blocking
             def download():
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:

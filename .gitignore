@@ -59,7 +59,7 @@ server.log
 *.sqlite3
 
 # Data files
-data/
+
 temp/
 generated_documents/
 uploads/
