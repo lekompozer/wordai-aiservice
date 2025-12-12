@@ -101,30 +101,106 @@ Generate **EXACTLY {num_questions} IELTS listening questions** based on the tran
 - Short Answer: 10-15% (brief answers, max 3 words)
 
 **🎯 CRITICAL REQUIREMENT:**
-- You MUST generate EXACTLY {num_questions} questions
-- Each question must have proper structure for its type
-- MCQ must have at least 3 options + correct_answer_keys array
-- Completion must have template + blanks array
-- Matching must have left_items + right_options arrays
-- All questions must have question_id field
+You MUST generate EXACTLY {num_questions} questions. Each question type has SPECIFIC REQUIRED FIELDS:
+
+### 1. MCQ (Multiple Choice)
+**REQUIRED FIELDS:**
+- `question_type`: "mcq"
+- `question_text`: Full question text
+- `instructions`: "Choose the correct letter, A, B, C or D"
+- `options`: Array with EXACTLY 4 options (A, B, C, D)
+  - Each option: `{{"option_key": "A", "option_text": "..."}}`
+- `correct_answer_keys`: Array of correct keys, e.g., ["B"]
+- `timestamp_hint`: "MM:SS-MM:SS"
+- `explanation`: Why this answer
+
+### 2. COMPLETION (Fill in Blanks)
+**REQUIRED FIELDS:**
+- `question_type`: "completion"
+- `question_text`: Context/title (e.g., "Complete the registration form")
+- `instructions`: "Write NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer"
+- `template`: Text with _____(1)_____, _____(2)_____ placeholders
+  - Example: "Name: _____(1)_____\\nPhone: _____(2)_____"
+- `blanks`: Array of blank definitions
+  - Each: `{{"key": "1", "position": "Name", "word_limit": 2}}`
+- `correct_answers`: Array of answer sets
+  - Each: `{{"blank_key": "1", "answers": ["John Smith", "john smith"]}}`
+- `timestamp_hint`: "MM:SS-MM:SS"
+- `explanation`: Context from audio
+
+### 3. MATCHING (Match Items)
+**REQUIRED FIELDS:**
+- `question_type`: "matching"
+- `question_text`: "Match each [item] to its [attribute]"
+- `instructions`: "Write the correct letter A-E next to questions 1-3"
+- `left_items`: Array of items to match (numbered keys)
+  - Each: `{{"key": "1", "text": "Item description"}}`
+- `right_options`: Array of options (letter keys, MORE than left items)
+  - Each: `{{"key": "A", "text": "Option text"}}`
+- `correct_matches`: Array of correct pairs
+  - Each: `{{"left_key": "1", "right_key": "B"}}`
+- `timestamp_hint`: "MM:SS-MM:SS"
+- `explanation`: Why these matches
+
+### 4. SENTENCE COMPLETION
+**REQUIRED FIELDS:**
+- `question_type`: "sentence_completion"
+- `question_text`: "Complete the sentences below"
+- `instructions`: "Write NO MORE THAN TWO WORDS for each answer"
+- `sentences`: Array of incomplete sentences
+  - Each: `{{
+      "key": "1",
+      "template": "The library opens at _____.",
+      "word_limit": 2,
+      "correct_answers": ["8 AM", "8:00 AM", "eight o'clock"]
+    }}`
+- `timestamp_hint`: "MM:SS-MM:SS"
+- `explanation`: Context
+
+### 5. SHORT ANSWER
+**REQUIRED FIELDS:**
+- `question_type`: "short_answer"
+- `question_text`: "Answer the questions"
+- `instructions`: "Write NO MORE THAN THREE WORDS for each answer"
+- `questions`: Array of questions
+  - Each: `{{
+      "key": "1",
+      "text": "What is the speaker's occupation?",
+      "word_limit": 3,
+      "correct_answers": ["software engineer", "Software Engineer"]
+    }}`
+- `timestamp_hint`: "MM:SS-MM:SS"
+- `explanation`: Context
 
 ---
 
 ## OUTPUT FORMAT
 
-Return ONLY valid JSON (no markdown, no extra text):
+Return ONLY valid JSON (no markdown, no extra text). Here's a COMPLETE EXAMPLE showing ALL 5 question types:
 
 {{
-  "audio_summary": "Brief summary of audio content (2-3 sentences)",
-  "duration_seconds": <estimated duration>,
-  "num_speakers": <number of distinct speakers>,
+  "audio_summary": "Conversation between a student and librarian about library membership registration and available facilities.",
+  "duration_seconds": 120,
+  "num_speakers": 2,
   "transcript": {{
-    "speaker_roles": ["Speaker 1", "Speaker 2"],
+    "speaker_roles": ["Student", "Librarian"],
     "segments": [
       {{
         "speaker_index": 0,
-        "timestamp": "00:00 - 00:15",
-        "text": "Transcribed text here",
+        "timestamp": "00:00 - 00:05",
+        "text": "Hi, I'd like to register for a library card.",
+        "emotion": "neutral"
+      }},
+      {{
+        "speaker_index": 1,
+        "timestamp": "00:05 - 00:12",
+        "text": "Sure! Can I have your name and student ID?",
+        "emotion": "happy"
+      }},
+      {{
+        "speaker_index": 0,
+        "timestamp": "00:12 - 00:18",
+        "text": "My name is John Smith and my ID is A12345.",
         "emotion": "neutral"
       }}
     ]
@@ -133,29 +209,149 @@ Return ONLY valid JSON (no markdown, no extra text):
     {{
       "question_id": "q1",
       "question_type": "mcq",
-      "question_text": "What is the main topic?",
-      "instructions": "Choose the correct answer",
+      "question_text": "What is the main purpose of the conversation?",
+      "instructions": "Choose the correct letter, A, B, C or D",
       "options": [
-        {{"option_key": "A", "option_text": "Option A"}},
-        {{"option_key": "B", "option_text": "Option B"}},
-        {{"option_key": "C", "option_text": "Option C"}}
+        {{"option_key": "A", "option_text": "To borrow books"}},
+        {{"option_key": "B", "option_text": "To register for a library card"}},
+        {{"option_key": "C", "option_text": "To return books"}},
+        {{"option_key": "D", "option_text": "To ask for directions"}}
       ],
       "correct_answer_keys": ["B"],
-      "timestamp_hint": "00:10-00:20",
-      "explanation": "The speaker mentions..."
+      "timestamp_hint": "00:00-00:10",
+      "explanation": "Student explicitly states wanting to register for a library card."
+    }},
+    {{
+      "question_id": "q2",
+      "question_type": "completion",
+      "question_text": "Complete the registration form",
+      "instructions": "Write NO MORE THAN TWO WORDS AND/OR A NUMBER for each answer",
+      "template": "Name: _____(1)_____\\nStudent ID: _____(2)_____\\nPhone: _____(3)_____",
+      "blanks": [
+        {{"key": "1", "position": "Name", "word_limit": 2}},
+        {{"key": "2", "position": "Student ID", "word_limit": 3}},
+        {{"key": "3", "position": "Phone", "word_limit": 3}}
+      ],
+      "correct_answers": [
+        {{"blank_key": "1", "answers": ["John Smith", "john smith", "JOHN SMITH"]}},
+        {{"blank_key": "2", "answers": ["A12345", "a12345", "A 12345"]}},
+        {{"blank_key": "3", "answers": ["0412 555 678", "0412555678"]}}
+      ],
+      "timestamp_hint": "00:10-00:30",
+      "explanation": "Student provides personal details during registration."
+    }},
+    {{
+      "question_id": "q3",
+      "question_type": "matching",
+      "question_text": "Match each facility to its location",
+      "instructions": "Write the correct letter A-E next to questions 1-3",
+      "left_items": [
+        {{"key": "1", "text": "Reading room"}},
+        {{"key": "2", "text": "Computer lab"}},
+        {{"key": "3", "text": "Study rooms"}}
+      ],
+      "right_options": [
+        {{"key": "A", "text": "Ground floor"}},
+        {{"key": "B", "text": "First floor"}},
+        {{"key": "C", "text": "Second floor"}},
+        {{"key": "D", "text": "Third floor"}},
+        {{"key": "E", "text": "Basement"}}
+      ],
+      "correct_matches": [
+        {{"left_key": "1", "right_key": "B"}},
+        {{"left_key": "2", "right_key": "B"}},
+        {{"left_key": "3", "right_key": "C"}}
+      ],
+      "timestamp_hint": "00:45-01:10",
+      "explanation": "Librarian describes locations of various facilities."
+    }},
+    {{
+      "question_id": "q4",
+      "question_type": "sentence_completion",
+      "question_text": "Complete the sentences below",
+      "instructions": "Write NO MORE THAN TWO WORDS for each answer",
+      "sentences": [
+        {{
+          "key": "1",
+          "template": "The library's opening hours on weekdays are from _____.",
+          "word_limit": 2,
+          "correct_answers": ["8 AM", "8:00 AM", "eight o'clock"]
+        }},
+        {{
+          "key": "2",
+          "template": "Members can borrow a maximum of _____ books.",
+          "word_limit": 2,
+          "correct_answers": ["5 books", "five books", "5"]
+        }}
+      ],
+      "timestamp_hint": "01:20-01:40",
+      "explanation": "Librarian mentions operating hours and borrowing limits."
+    }},
+    {{
+      "question_id": "q5",
+      "question_type": "short_answer",
+      "question_text": "Answer the questions",
+      "instructions": "Write NO MORE THAN THREE WORDS for each answer",
+      "questions": [
+        {{
+          "key": "1",
+          "text": "What type of card is being issued?",
+          "word_limit": 3,
+          "correct_answers": ["library card", "student library card", "Library Card"]
+        }},
+        {{
+          "key": "2",
+          "text": "What floor is the computer lab on?",
+          "word_limit": 3,
+          "correct_answers": ["first floor", "First Floor", "1st floor"]
+        }}
+      ],
+      "timestamp_hint": "01:50-02:00",
+      "explanation": "Context from the entire conversation."
     }}
   ]
 }}
 
-**VALIDATION BEFORE RETURNING:**
-1. Count questions - must be EXACTLY {num_questions}
-2. Check each MCQ has options + correct_answer_keys
-3. Check each Completion has template + blanks
-4. Check each Matching has left_items + right_options
-5. Verify all timestamps are in MM:SS format
-6. Ensure JSON is valid (no trailing commas, proper quotes)
+---
 
-Now, analyze the audio and generate the test. Return ONLY the JSON object."""
+## VALIDATION CHECKLIST (VERIFY BEFORE RETURNING)
+
+Before submitting your JSON, verify each point:
+
+✅ **Question Count:**
+   - Total questions in "questions" array = {num_questions}
+
+✅ **MCQ Questions (if any):**
+   - Has `options` array with EXACTLY 4 items (A, B, C, D)
+   - Each option has both `option_key` and `option_text`
+   - Has `correct_answer_keys` array (NOT empty)
+
+✅ **Completion Questions (if any):**
+   - Has `template` string with _____(1)_____, _____(2)_____ format
+   - Has `blanks` array (matches number of blanks in template)
+   - Has `correct_answers` array with `blank_key` matching blanks
+
+✅ **Matching Questions (if any):**
+   - Has `left_items` array (numbered keys: "1", "2", "3")
+   - Has `right_options` array (letter keys: "A", "B", "C") - MORE options than items
+   - Has `correct_matches` array with valid left_key and right_key
+
+✅ **Sentence Completion Questions (if any):**
+   - Has `sentences` array
+   - Each sentence has: `key`, `template` (with _____), `word_limit`, `correct_answers` array
+
+✅ **Short Answer Questions (if any):**
+   - Has `questions` array
+   - Each question has: `key`, `text`, `word_limit`, `correct_answers` array
+
+✅ **General:**
+   - All timestamps in "MM:SS-MM:SS" format
+   - JSON is valid (no trailing commas, proper quotes, proper escaping)
+   - All question_id values are unique
+
+---
+
+Now, analyze the audio file and generate the complete IELTS listening test. Return ONLY the JSON object (no markdown code blocks, no extra text)."""
 
     def _get_response_schema(self) -> types.Schema:
         """
