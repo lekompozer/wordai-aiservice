@@ -298,13 +298,31 @@ You have the flexibility to use a variety of question types to create the most e
             options_instruction = f"Each question has {num_options} options ({', '.join(option_keys)}). Adjust if user query indicates otherwise."
             correct_answer_constraint = f"{correct_answer_instruction} However, adjust if question complexity requires it."
 
+        # Special handling for manual MCQ type config priority
+        if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
+            user_query_priority_note = """
+
+**⚠️ CRITICAL PRIORITY NOTE:**
+The user has specified EXACT question type distribution via system config (see MCQ TYPE DISTRIBUTION below).
+This OVERRIDES any question type or count mentioned in the user query text.
+
+**You MUST generate EXACTLY:**
+- The question types specified in MCQ TYPE DISTRIBUTION section
+- The exact counts specified for each question type
+- Use appropriate question_type field for each question
+
+If user query mentions sections/parts (e.g., "PART 1: PHONETICS"), you may organize questions into those sections,
+but you MUST respect the question type counts from MCQ TYPE DISTRIBUTION."""
+        else:
+            user_query_priority_note = ""
+
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a comprehensive test based on the provided document and user query.
 
 **TEST TYPE: {test_type_instruction}**
 
 **🎯 PRIMARY DIRECTIVE - USER QUERY ANALYSIS:**
 BEFORE generating questions, carefully analyze the user query below:
-"{user_query}"
+"{user_query}"{user_query_priority_note}
 
 **If the user query specifies:**
 - Specific question formats (e.g., "phonetics", "pronunciation", "word stress", "error identification", "cloze test", "reading comprehension", "sentence transformation")
@@ -313,15 +331,14 @@ BEFORE generating questions, carefully analyze the user query below:
 - Specific question counts per section
 
 **THEN you MUST:**
-1. Follow those specifications EXACTLY - they override all other instructions below
-2. Choose appropriate "question_type" based on format:
+1. Choose appropriate "question_type" based on format:
    - **PHONETICS / PRONUNCIATION / WORD STRESS / ERROR IDENTIFICATION**: Use "mcq" (standard multiple choice with 4 options, 1 correct answer)
    - **CLOZE TEST**: Use "completion" (fill-in-the-blank format with template field)
    - **SENTENCE TRANSFORMATION / REWRITE**: Use "short_answer" (free-text answer with multiple acceptable variations)
    - **READING COMPREHENSION / VOCABULARY / GRAMMAR**: Use "mcq" (standard multiple choice)
    - **COMMUNICATION / DIALOGUE**: Use "mcq" (standard multiple choice)
-3. Structure questions according to the user's specified parts/sections
-4. Match the requested question counts per section
+2. Structure questions according to the user's specified parts/sections
+3. If MCQ TYPE DISTRIBUTION is specified below, follow those exact counts. Otherwise, match the requested question counts per section from user query
 
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
