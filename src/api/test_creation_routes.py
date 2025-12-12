@@ -3072,11 +3072,18 @@ async def upload_audio_file(
         logger.info(f"   Content-Type: {audio.content_type}")
 
         # ========== Validate file type ==========
-        valid_extensions = ('.mp3', '.m4a', '.wav', '.ogg', '.flac', '.aac')
+        valid_extensions = (".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac")
         valid_content_types = [
-            'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a',
-            'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/flac',
-            'audio/aac', 'audio/x-aac'
+            "audio/mpeg",
+            "audio/mp3",
+            "audio/mp4",
+            "audio/m4a",
+            "audio/wav",
+            "audio/x-wav",
+            "audio/ogg",
+            "audio/flac",
+            "audio/aac",
+            "audio/x-aac",
         ]
 
         # Check extension
@@ -3084,12 +3091,14 @@ async def upload_audio_file(
         if file_ext not in valid_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid audio format. Supported: {', '.join(valid_extensions)}"
+                detail=f"Invalid audio format. Supported: {', '.join(valid_extensions)}",
             )
 
         # Check content type (optional, some browsers may not set correctly)
         if audio.content_type and audio.content_type not in valid_content_types:
-            logger.warning(f"⚠️ Unexpected content-type: {audio.content_type}, but extension is valid")
+            logger.warning(
+                f"⚠️ Unexpected content-type: {audio.content_type}, but extension is valid"
+            )
 
         # ========== Check file size (max 100MB) ==========
         MAX_SIZE = 100 * 1024 * 1024  # 100MB
@@ -3100,7 +3109,7 @@ async def upload_audio_file(
         if file_size > MAX_SIZE:
             raise HTTPException(
                 status_code=400,
-                detail=f"File too large. Max size: 100MB, uploaded: {file_size / (1024*1024):.1f}MB"
+                detail=f"File too large. Max size: 100MB, uploaded: {file_size / (1024*1024):.1f}MB",
             )
 
         logger.info(f"   File size: {file_size / (1024*1024):.2f} MB")
@@ -3124,6 +3133,7 @@ async def upload_audio_file(
         duration_seconds = None
         try:
             from pydub import AudioSegment
+
             audio_segment = AudioSegment.from_file(temp_path)
             duration_seconds = int(audio_segment.duration_seconds)
             logger.info(f"   Duration: {duration_seconds}s")
@@ -3136,7 +3146,7 @@ async def upload_audio_file(
             "size_bytes": file_size,
             "size_mb": round(file_size / (1024 * 1024), 2),
             "duration_seconds": duration_seconds,
-            "message": "Audio file uploaded successfully. Use temp_path in /generate/listening request."
+            "message": "Audio file uploaded successfully. Use temp_path in /generate/listening request.",
         }
 
     except HTTPException:
@@ -3203,18 +3213,18 @@ async def generate_listening_test(
         logger.info(f"   Questions: {request.num_questions}")
         logger.info(f"   Audio sections: {request.num_audio_sections}")
         logger.info(f"   Speakers: {request.audio_config.get('num_speakers')}")
-        logger.info(f"   YouTube URL: {request.youtube_url}")
+        logger.info(f"   Audio File Path: {request.audio_file_path}")
         logger.info(f"   User Transcript: {'Yes' if request.user_transcript else 'No'}")
 
         # ========== VALIDATE SOURCE TYPE ==========
-        # Determine which mode: AI Generated, User Transcript, or YouTube
-        has_youtube = request.youtube_url and request.youtube_url.strip()
+        # Determine which mode: AI Generated, User Transcript, or Audio File Upload
+        has_audio_file = request.audio_file_path and request.audio_file_path.strip()
         has_transcript = request.user_transcript and request.user_transcript.strip()
 
-        if has_youtube:
-            logger.info(f"📹 Mode: YouTube URL")
+        if has_audio_file:
+            logger.info(f"🎵 Mode: Audio File Upload (Phase 8)")
         elif has_transcript:
-            logger.info(f"📝 Mode: User Transcript")
+            logger.info(f"📝 Mode: User Transcript (Phase 7)")
         else:
             logger.info(f"🤖 Mode: AI Generated (default)")
 
