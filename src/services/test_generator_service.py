@@ -814,6 +814,20 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                             else None
                         )
 
+                        # 🔥 CRITICAL: Auto-correct question_type based on number of correct answers
+                        if question_type in ["mcq", "mcq_multiple"]:
+                            num_correct = len(q.get("correct_answer_keys", []))
+                            if num_correct == 1 and question_type != "mcq":
+                                logger.warning(
+                                    f"Question {idx + 1}: Correcting question_type from '{question_type}' to 'mcq' (1 correct answer)"
+                                )
+                                q["question_type"] = "mcq"
+                            elif num_correct > 1 and question_type != "mcq_multiple":
+                                logger.warning(
+                                    f"Question {idx + 1}: Correcting question_type from '{question_type}' to 'mcq_multiple' ({num_correct} correct answers)"
+                                )
+                                q["question_type"] = "mcq_multiple"
+
                     # Add question_id
                     q["question_id"] = str(ObjectId())
 
@@ -1225,6 +1239,22 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 if q["correct_answer_keys"]
                                 else None
                             )
+
+                            # 🔥 CRITICAL: Auto-correct question_type based on number of correct answers
+                            if question_type in ["mcq", "mcq_multiple"]:
+                                num_correct = len(q.get("correct_answer_keys", []))
+                                if num_correct == 1 and question_type != "mcq":
+                                    logger.warning(
+                                        f"Question {idx + 1}: Correcting question_type from '{question_type}' to 'mcq' (1 correct answer)"
+                                    )
+                                    q["question_type"] = "mcq"
+                                elif (
+                                    num_correct > 1 and question_type != "mcq_multiple"
+                                ):
+                                    logger.warning(
+                                        f"Question {idx + 1}: Correcting question_type from '{question_type}' to 'mcq_multiple' ({num_correct} correct answers)"
+                                    )
+                                    q["question_type"] = "mcq_multiple"
 
                         # Add question_id to each question
                         q["question_id"] = str(ObjectId())
