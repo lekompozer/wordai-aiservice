@@ -1764,7 +1764,13 @@ async def get_submission_detail(
 
                 elif q_type == "short_answer":
                     result["user_answers"] = user_answer_data.get("answers", {})
-                    result["correct_answers"] = q.get("correct_answers", {})
+                    # Short answer can have either:
+                    # - questions array (IELTS format with multiple sub-questions)
+                    # - correct_answers dict (legacy format)
+                    if "questions" in q:
+                        result["questions"] = q.get("questions", [])
+                    else:
+                        result["correct_answers"] = q.get("correct_answers", {})
 
                 results.append(result)
 
