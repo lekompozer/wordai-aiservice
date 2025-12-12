@@ -670,6 +670,46 @@ Now, analyze the audio file and generate the complete IELTS listening test. Retu
             # Step 4: Parse response
             result = json.loads(response.text)
 
+            # 🔍 DEBUG: Log ALL questions to see AI's format
+            logger.info(
+                f"🔍 DEBUG: AI generated {len(result.get('questions', []))} questions"
+            )
+            for idx, q in enumerate(result.get("questions", []), 1):
+                q_type = q.get("question_type")
+                logger.info(f"🔍 Q{idx}: type={q_type}, fields={list(q.keys())}")
+
+                # Check required fields per type
+                if q_type == "mcq":
+                    logger.info(
+                        f"   MCQ: options={len(q.get('options', []))}, correct_keys={q.get('correct_answer_keys')}"
+                    )
+                elif q_type == "completion":
+                    logger.info(
+                        f"   COMPLETION: template={bool(q.get('template'))}, blanks={bool(q.get('blanks'))}, correct_answers={bool(q.get('correct_answers'))}"
+                    )
+                    if not q.get("template"):
+                        logger.warning(f"   ❌ Missing 'template' field!")
+                    if not q.get("blanks"):
+                        logger.warning(f"   ❌ Missing 'blanks' field!")
+                elif q_type == "short_answer":
+                    logger.info(
+                        f"   SHORT_ANSWER: questions={bool(q.get('questions'))}"
+                    )
+                    if not q.get("questions"):
+                        logger.warning(f"   ❌ Missing 'questions' array!")
+                elif q_type == "matching":
+                    logger.info(
+                        f"   MATCHING: left_items={bool(q.get('left_items'))}, right_options={bool(q.get('right_options'))}"
+                    )
+                    if not q.get("left_items"):
+                        logger.warning(f"   ❌ Missing 'left_items'!")
+                    if not q.get("right_options"):
+                        logger.warning(f"   ❌ Missing 'right_options'!")
+                elif q_type == "sentence_completion":
+                    logger.info(
+                        f"   SENTENCE_COMPLETION: sentences={bool(q.get('sentences'))}"
+                    )
+
             # Step 5: Validate questions
             validated_questions = self._validate_questions(result["questions"])
 
