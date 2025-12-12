@@ -502,12 +502,12 @@ class GenerateGeneralTestRequest(BaseModel):
     def convert_camel_to_snake_case(cls, data):
         """
         Convert all camelCase keys from frontend to snake_case for backend.
-        Bypass Pydantic alias mechanism completely - manual field mapping.
+        Handles both camelCase (old frontend) and snake_case (new frontend).
         """
         if not isinstance(data, dict):
             return data
 
-        # CRITICAL: Map mcqTypeConfig → mcq_type_config manually
+        # Handle mcqTypeConfig (camelCase) → mcq_type_config
         if "mcqTypeConfig" in data and "mcq_type_config" not in data:
             config = data["mcqTypeConfig"]
             if isinstance(config, dict):
@@ -527,10 +527,11 @@ class GenerateGeneralTestRequest(BaseModel):
                     converted[converted_key] = value
                 data["mcq_type_config"] = converted
             else:
-                # In case it's not a dict (shouldn't happen but be safe)
                 data["mcq_type_config"] = config
-            # Remove camelCase key to avoid confusion
             del data["mcqTypeConfig"]
+
+        # If frontend already sends snake_case, keep it as-is
+        # (No action needed, Pydantic will pick it up directly)
 
         return data
 
