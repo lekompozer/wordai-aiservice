@@ -498,6 +498,30 @@ class GenerateGeneralTestRequest(BaseModel):
         description="Optional: Configure distribution of different MCQ question types. Example: {'distribution_mode': 'manual', 'num_single_answer_mcq': 5, 'num_multiple_answer_mcq': 3}. If not provided, AI uses default single-answer MCQ format.",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def convert_mcq_type_config_keys(cls, data):
+        """Convert camelCase keys in mcqTypeConfig to snake_case"""
+        if isinstance(data, dict) and "mcqTypeConfig" in data:
+            config = data["mcqTypeConfig"]
+            if isinstance(config, dict):
+                # Convert camelCase to snake_case for nested keys
+                converted = {}
+                key_mapping = {
+                    "distributionMode": "distribution_mode",
+                    "numSingleAnswerMcq": "num_single_answer_mcq",
+                    "numMultipleAnswerMcq": "num_multiple_answer_mcq",
+                    "numMatching": "num_matching",
+                    "numCompletion": "num_completion",
+                    "numSentenceCompletion": "num_sentence_completion",
+                    "numShortAnswer": "num_short_answer",
+                }
+                for key, value in config.items():
+                    converted_key = key_mapping.get(key, key)
+                    converted[converted_key] = value
+                data["mcqTypeConfig"] = converted
+        return data
+
     @model_validator(mode="after")
     def validate_test_configuration(self):
         """Validate test type and question counts"""
@@ -557,6 +581,7 @@ async def generate_test_from_general_knowledge(
         logger.info(f"   Title: {request.title}")
         logger.info(f"   Test Type: {request.test_type}")
         logger.info(f"   MCQ Type Config: {request.mcq_type_config}")
+        logger.info(f"   DEBUG - Request dict: {request.model_dump()}")
         logger.info(f"   Num Options: {request.num_options}")
         logger.info(f"   Num Correct Answers: {request.num_correct_answers}")
 
