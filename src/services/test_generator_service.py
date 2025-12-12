@@ -314,7 +314,12 @@ BEFORE generating questions, carefully analyze the user query below:
 
 **THEN you MUST:**
 1. Follow those specifications EXACTLY - they override all other instructions below
-2. Use appropriate "question_type" for each format (e.g., "short_answer" for phonetics/error correction, "completion" for cloze test, "mcq" for standard multiple choice)
+2. Choose appropriate "question_type" based on format:
+   - **PHONETICS / PRONUNCIATION / WORD STRESS / ERROR IDENTIFICATION**: Use "mcq" (standard multiple choice with 4 options, 1 correct answer)
+   - **CLOZE TEST**: Use "completion" (fill-in-the-blank format with template field)
+   - **SENTENCE TRANSFORMATION / REWRITE**: Use "short_answer" (free-text answer with multiple acceptable variations)
+   - **READING COMPREHENSION / VOCABULARY / GRAMMAR**: Use "mcq" (standard multiple choice)
+   - **COMMUNICATION / DIALOGUE**: Use "mcq" (standard multiple choice)
 3. Structure questions according to the user's specified parts/sections
 4. Match the requested question counts per section
 
@@ -1715,7 +1720,11 @@ BEFORE generating questions, carefully analyze the user query:
 
 **If the user query specifies particular question formats or structured sections (e.g., "PART 1: PHONETICS", "error identification", "cloze test"), you MUST:**
 1. Follow those specifications EXACTLY - they override the general instructions below
-2. Use appropriate "question_type" for each format (e.g., "short_answer" for phonetics/error correction, "completion" for cloze test)
+2. Choose appropriate "question_type" based on format:
+   - **PHONETICS / PRONUNCIATION / WORD STRESS / ERROR IDENTIFICATION**: Use "mcq" (4 options, 1 correct)
+   - **CLOZE TEST**: Use "completion" (fill-in-the-blank)
+   - **SENTENCE TRANSFORMATION**: Use "short_answer" (free-text with variations)
+   - **READING COMPREHENSION / VOCABULARY / GRAMMAR / COMMUNICATION**: Use "mcq"
 3. Structure questions according to the user's requested layout
 
 **CRITICAL INSTRUCTIONS:**
