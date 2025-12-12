@@ -765,6 +765,14 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         if not all(
                             k in q for k in ["question_text", "template", "explanation"]
                         ):
+                            logger.error(
+                                f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
+                            )
+                            logger.error(
+                                f"   Required fields: question_text, template, explanation"
+                            )
+                            logger.error(f"   Question keys present: {list(q.keys())}")
+                            logger.error(f"   RAW QUESTION DATA: {q}")
                             raise ValueError(
                                 f"Question {idx + 1} missing required fields for {question_type}"
                             )
@@ -779,12 +787,28 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 "explanation",
                             ]
                         ):
+                            logger.error(
+                                f"❌ VALIDATION FAILED - Question {idx + 1} (matching)"
+                            )
+                            logger.error(
+                                f"   Required fields: question_text, left_items, right_options, explanation"
+                            )
+                            logger.error(f"   Question keys present: {list(q.keys())}")
+                            logger.error(f"   RAW QUESTION DATA: {q}")
                             raise ValueError(
                                 f"Question {idx + 1} missing required fields for matching"
                             )
                     elif question_type == "short_answer":
                         # Short answer questions don't need options
                         if not all(k in q for k in ["question_text", "explanation"]):
+                            logger.error(
+                                f"❌ VALIDATION FAILED - Question {idx + 1} (short_answer)"
+                            )
+                            logger.error(
+                                f"   Required fields: question_text, explanation"
+                            )
+                            logger.error(f"   Question keys present: {list(q.keys())}")
+                            logger.error(f"   RAW QUESTION DATA: {q}")
                             raise ValueError(
                                 f"Question {idx + 1} missing required fields for short_answer"
                             )
@@ -793,6 +817,14 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         if not all(
                             k in q for k in ["question_text", "options", "explanation"]
                         ):
+                            logger.error(
+                                f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
+                            )
+                            logger.error(
+                                f"   Required fields: question_text, options, explanation"
+                            )
+                            logger.error(f"   Question keys present: {list(q.keys())}")
+                            logger.error(f"   RAW QUESTION DATA: {q}")
                             raise ValueError(
                                 f"Question {idx + 1} missing required fields"
                             )
@@ -1215,6 +1247,16 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 k in q
                                 for k in ["question_text", "template", "explanation"]
                             ):
+                                logger.error(
+                                    f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
+                                )
+                                logger.error(
+                                    f"   Required fields: question_text, template, explanation"
+                                )
+                                logger.error(
+                                    f"   Question keys present: {list(q.keys())}"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
                                 raise ValueError(
                                     f"Question {idx + 1} missing required fields for {question_type}"
                                 )
@@ -1229,6 +1271,16 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                     "explanation",
                                 ]
                             ):
+                                logger.error(
+                                    f"❌ VALIDATION FAILED - Question {idx + 1} (matching)"
+                                )
+                                logger.error(
+                                    f"   Required fields: question_text, left_items, right_options, explanation"
+                                )
+                                logger.error(
+                                    f"   Question keys present: {list(q.keys())}"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
                                 raise ValueError(
                                     f"Question {idx + 1} missing required fields for matching"
                                 )
@@ -1237,6 +1289,16 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                             if not all(
                                 k in q for k in ["question_text", "explanation"]
                             ):
+                                logger.error(
+                                    f"❌ VALIDATION FAILED - Question {idx + 1} (short_answer)"
+                                )
+                                logger.error(
+                                    f"   Required fields: question_text, explanation"
+                                )
+                                logger.error(
+                                    f"   Question keys present: {list(q.keys())}"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
                                 raise ValueError(
                                     f"Question {idx + 1} missing required fields for short_answer"
                                 )
