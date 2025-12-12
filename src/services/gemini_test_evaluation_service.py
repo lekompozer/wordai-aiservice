@@ -142,11 +142,30 @@ class GeminiTestEvaluationService:
             q_max_points = q.get("max_points", 1)
 
             if q_type == "mcq" or q_type == "mcq_multiple":
-                correct_answer = q.get("correct_answer_key", "N/A")
-                # For diagnostic tests, there is no "correct" answer
-                is_correct = (
-                    user_answer == correct_answer if not is_diagnostic_test else None
+                # Get correct answer(s) - handle both array and legacy single key
+                correct_answer_keys = q.get("correct_answer_keys") or [
+                    q.get("correct_answer_key")
+                ]
+                correct_answer = (
+                    correct_answer_keys[0]
+                    if len(correct_answer_keys) == 1
+                    else correct_answer_keys
                 )
+
+                # For diagnostic tests, there is no "correct" answer
+                # Check if user answer matches any correct answer (for single or multiple)
+                if isinstance(correct_answer, list):
+                    is_correct = (
+                        user_answer in correct_answer
+                        if not is_diagnostic_test
+                        else None
+                    )
+                else:
+                    is_correct = (
+                        user_answer == correct_answer
+                        if not is_diagnostic_test
+                        else None
+                    )
 
                 # Track earned points
                 if is_correct and not is_diagnostic_test:
