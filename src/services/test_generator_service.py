@@ -839,8 +839,14 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 f"Question {idx + 1} must have at least 2 options"
                             )
 
-                    # Normalize to correct_answer_keys array format (only for academic)
-                    if not is_diagnostic and question_type != "matching":
+                    # Normalize to correct_answer_keys array format (only for academic MCQ questions)
+                    # Skip normalization for IELTS question types (completion, sentence_completion, short_answer)
+                    if not is_diagnostic and question_type not in [
+                        "matching",
+                        "completion",
+                        "sentence_completion",
+                        "short_answer",
+                    ]:
                         if has_correct_answer_key and not has_correct_answer_keys:
                             q["correct_answer_keys"] = [q["correct_answer_key"]]
                         elif has_correct_answer_keys:
@@ -1284,8 +1290,14 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                     f"Question {idx + 1} must have at least 2 options"
                                 )
 
-                        # Normalize to correct_answer_keys array format
-                        if question_type != "matching":
+                        # Normalize to correct_answer_keys array format (only for MCQ questions)
+                        # Skip normalization for IELTS question types
+                        if question_type not in [
+                            "matching",
+                            "completion",
+                            "sentence_completion",
+                            "short_answer",
+                        ]:
                             if has_correct_answer_key and not has_correct_answer_keys:
                                 # Convert old format (string) to new format (array)
                                 q["correct_answer_keys"] = [q["correct_answer_key"]]
