@@ -197,7 +197,11 @@ Generate the following question types:
 - For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
 - For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answer_keys": ["A", "B", ...] (2+ answers)
 - For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
-- For completion: Use "question_type": "completion" with "template" field containing blanks like _____(1)_____, _____(2)_____
+- For completion: Use "question_type": "completion" with IELTS format ONLY:
+  * "template" field containing blanks like _____(1)_____, _____(2)_____
+  * "blanks" array: [{{"key": "1", "position": "description"}}, ...]
+  * "correct_answers" array: [{{"blank_key": "1", "answers": ["answer", "variation1", "variation2"]}}, ...]
+  * Provide multiple answer variations for each blank for flexible grading
 - For sentence completion: Use "question_type": "sentence_completion" with "template" field
 - For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of all acceptable answer variations (include synonyms, different phrasings, with/without articles). Provide at least 3-5 variations for flexible grading.
 
@@ -217,7 +221,10 @@ You have the flexibility to use a variety of question types to create the most e
 1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options
 2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers (select all that apply)
 3. **Matching** ("question_type": "matching"): Match left items to right options using "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
-4. **Completion** ("question_type": "completion"): Fill blanks in forms/notes/tables using "template" field with _____(1)_____, _____(2)_____
+4. **Completion** ("question_type": "completion"): Fill blanks in forms/notes/tables using IELTS format:
+   - "template" field with _____(1)_____, _____(2)_____
+   - "blanks" array: [{{"key": "1", "position": "description"}}, ...]
+   - "correct_answers" array: [{{"blank_key": "1", "answers": ["answer", "var1", "var2"]}}, ...] with multiple variations
 5. **Sentence completion** ("question_type": "sentence_completion"): Complete sentences using "template" field
 6. **Short answer** ("question_type": "short_answer"): 1-3 word answers using "correct_answer_keys" array (provide multiple acceptable variations for grading flexibility)
 
@@ -271,7 +278,14 @@ You have the flexibility to use a variety of question types to create the most e
          "question_type": "completion",
          "question_text": "Completion question",
          "template": "Fill in: _____(1)_____ and _____(2)_____",
-         "correct_answer_keys": ["blank1_answer", "blank2_answer"],
+         "blanks": [
+           {"key": "1", "position": "first blank"},
+           {"key": "2", "position": "second blank"}
+         ],
+         "correct_answers": [
+           {"blank_key": "1", "answers": ["answer1", "variation1"]},
+           {"blank_key": "2", "answers": ["answer2", "variation2"]}
+         ],
          "explanation": "Correct completions",
          "max_points": 2
        }
@@ -761,45 +775,16 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
                     # Different question types have different required fields
                     if question_type in ["completion", "sentence_completion"]:
-                        # Completion questions support TWO formats:
-                        # 1. IELTS format: template + blanks + correct_answers
-                        # 2. MCQ format: options + correct_answer_keys (Cloze test style)
-                        has_ielts_format = "template" in q
-                        has_mcq_format = "options" in q
-                        
-                        if not has_ielts_format and not has_mcq_format:
-                            logger.error(
-                                f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
-                            )
-                            logger.error(
-                                f"   Expected either IELTS format (template) or MCQ format (options)"
-                            )
-                            logger.error(f"   Question keys present: {list(q.keys())}")
-                            logger.error(f"   RAW QUESTION DATA: {q}")
-                            raise ValueError(
-                                f"Question {idx + 1} missing required fields for {question_type}"
-                            )
-                        
-                        # Validate format-specific requirements
-                        if has_ielts_format and not all(k in q for k in ["question_text", "template", "explanation"]):
+                        # Completion questions ONLY use IELTS format (like listening test)
+                        # Format: template + blanks + correct_answers
+                        if not all(
+                            k in q for k in ["question_text", "template", "explanation"]
+                        ):
                             logger.error(
                                 f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
                             )
                             logger.error(
                                 f"   IELTS format requires: question_text, template, explanation"
-                            )
-                            logger.error(f"   Question keys present: {list(q.keys())}")
-                            logger.error(f"   RAW QUESTION DATA: {q}")
-                            raise ValueError(
-                                f"Question {idx + 1} missing required fields for {question_type}"
-                            )
-                        
-                        if has_mcq_format and not all(k in q for k in ["question_text", "options", "explanation"]):
-                            logger.error(
-                                f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
-                            )
-                            logger.error(
-                                f"   MCQ format requires: question_text, options, explanation"
                             )
                             logger.error(f"   Question keys present: {list(q.keys())}")
                             logger.error(f"   RAW QUESTION DATA: {q}")
@@ -867,15 +852,24 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                     f"Question {idx + 1} missing correct_matches for matching question"
                                 )
                         elif question_type == "completion":
-                            # Completion questions support TWO formats:
-                            # 1. IELTS format: correct_answers dict
-                            # 2. MCQ format: correct_answer_keys array
-                            has_ielts_answers = "correct_answers" in q
-                            has_mcq_answers = has_correct_answer_key or has_correct_answer_keys
-                            
-                            if not has_ielts_answers and not has_mcq_answers:
+                            # Completion questions ONLY use IELTS format
+                            # Must have correct_answers array with blank_key and answers variations
+                            if "correct_answers" not in q:
+                                logger.error(
+                                    f"❌ ANSWER VALIDATION FAILED - Question {idx + 1} (completion)"
+                                )
+                                logger.error(
+                                    f"   Expected: correct_answers array with blank_key and answers"
+                                )
+                                logger.error(
+                                    f'   Example: [{{"blank_key": "1", "answers": ["answer", "variation"]}}]'
+                                )
+                                logger.error(
+                                    f"   Question keys present: {list(q.keys())}"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
                                 raise ValueError(
-                                    f"Question {idx + 1} missing correct_answers or correct_answer_keys for completion question"
+                                    f"Question {idx + 1} missing correct_answers for completion question"
                                 )
                         elif question_type == "sentence_completion":
                             # Sentence completion uses sentences array with correct_answers
@@ -907,14 +901,14 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                             )
 
                     # Normalize to correct_answer_keys array format
-                    # Skip normalization for IELTS-format questions (with template/sentences/questions arrays)
-                    # BUT normalize MCQ-format completion questions (with options array)
+                    # Skip normalization for IELTS question types (matching, completion, sentence_completion, short_answer)
                     should_skip_normalization = (
                         question_type == "matching"
-                        or (question_type in ["completion", "sentence_completion"] and "template" in q)
+                        or question_type == "completion"
+                        or question_type == "sentence_completion"
                         or (question_type == "short_answer" and "questions" in q)
                     )
-                    
+
                     if not is_diagnostic and not should_skip_normalization:
                         if has_correct_answer_key and not has_correct_answer_keys:
                             q["correct_answer_keys"] = [q["correct_answer_key"]]
@@ -1279,49 +1273,17 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
                         # Different question types have different required fields
                         if question_type in ["completion", "sentence_completion"]:
-                            # Completion questions support TWO formats:
-                            # 1. IELTS format: template + blanks + correct_answers
-                            # 2. MCQ format: options + correct_answer_keys (Cloze test style)
-                            has_ielts_format = "template" in q
-                            has_mcq_format = "options" in q
-                            
-                            if not has_ielts_format and not has_mcq_format:
-                                logger.error(
-                                    f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
-                                )
-                                logger.error(
-                                    f"   Expected either IELTS format (template) or MCQ format (options)"
-                                )
-                                logger.error(
-                                    f"   Question keys present: {list(q.keys())}"
-                                )
-                                logger.error(f"   RAW QUESTION DATA: {q}")
-                                raise ValueError(
-                                    f"Question {idx + 1} missing required fields for {question_type}"
-                                )
-                            
-                            # Validate format-specific requirements
-                            if has_ielts_format and not all(k in q for k in ["question_text", "template", "explanation"]):
+                            # Completion questions ONLY use IELTS format (like listening test)
+                            # Format: template + blanks + correct_answers
+                            if not all(
+                                k in q
+                                for k in ["question_text", "template", "explanation"]
+                            ):
                                 logger.error(
                                     f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
                                 )
                                 logger.error(
                                     f"   IELTS format requires: question_text, template, explanation"
-                                )
-                                logger.error(
-                                    f"   Question keys present: {list(q.keys())}"
-                                )
-                                logger.error(f"   RAW QUESTION DATA: {q}")
-                                raise ValueError(
-                                    f"Question {idx + 1} missing required fields for {question_type}"
-                                )
-                            
-                            if has_mcq_format and not all(k in q for k in ["question_text", "options", "explanation"]):
-                                logger.error(
-                                    f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
-                                )
-                                logger.error(
-                                    f"   MCQ format requires: question_text, options, explanation"
                                 )
                                 logger.error(
                                     f"   Question keys present: {list(q.keys())}"
@@ -1388,15 +1350,24 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                     f"Question {idx + 1} missing correct_matches for matching question"
                                 )
                         elif question_type == "completion":
-                            # Completion questions support TWO formats:
-                            # 1. IELTS format: correct_answers dict
-                            # 2. MCQ format: correct_answer_keys array
-                            has_ielts_answers = "correct_answers" in q
-                            has_mcq_answers = has_correct_answer_key or has_correct_answer_keys
-                            
-                            if not has_ielts_answers and not has_mcq_answers:
+                            # Completion questions ONLY use IELTS format
+                            # Must have correct_answers array with blank_key and answers variations
+                            if "correct_answers" not in q:
+                                logger.error(
+                                    f"❌ ANSWER VALIDATION FAILED - Question {idx + 1} (completion)"
+                                )
+                                logger.error(
+                                    f"   Expected: correct_answers array with blank_key and answers"
+                                )
+                                logger.error(
+                                    f'   Example: [{{"blank_key": "1", "answers": ["answer", "variation"]}}]'
+                                )
+                                logger.error(
+                                    f"   Question keys present: {list(q.keys())}"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
                                 raise ValueError(
-                                    f"Question {idx + 1} missing correct_answers or correct_answer_keys for completion question"
+                                    f"Question {idx + 1} missing correct_answers for completion question"
                                 )
                         elif question_type == "sentence_completion":
                             # Sentence completion uses sentences array with correct_answers
@@ -1428,14 +1399,14 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 )
 
                         # Normalize to correct_answer_keys array format
-                        # Skip normalization for IELTS-format questions (with template/sentences/questions arrays)
-                        # BUT normalize MCQ-format completion questions (with options array)
+                        # Skip normalization for IELTS question types (matching, completion, sentence_completion, short_answer)
                         should_skip_normalization = (
                             question_type == "matching"
-                            or (question_type in ["completion", "sentence_completion"] and "template" in q)
+                            or question_type == "completion"
+                            or question_type == "sentence_completion"
                             or (question_type == "short_answer" and "questions" in q)
                         )
-                        
+
                         if not should_skip_normalization:
                             if has_correct_answer_key and not has_correct_answer_keys:
                                 # Convert old format (string) to new format (array)
