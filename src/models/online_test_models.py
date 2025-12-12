@@ -195,7 +195,7 @@ class GenerateTestRequest(BaseModel):
     )
 
     # MCQ type distribution configuration (NEW)
-    mcq_type_config: Optional[MCQTypeDistribution] = Field(
+    mcq_type_config: Optional[Dict] = Field(
         None,
         description="Optional: Configure distribution of different MCQ question types (single/multiple answer, matching, completion, etc.). If not provided, AI uses default single-answer MCQ format.",
     )

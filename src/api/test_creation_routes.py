@@ -507,6 +507,12 @@ class GenerateGeneralTestRequest(BaseModel):
         if not isinstance(data, dict):
             return data
 
+        import logging
+        logger = logging.getLogger("chatbot")
+        logger.info(f"🔍 VALIDATOR DEBUG - Input data keys: {list(data.keys())}")
+        logger.info(f"🔍 VALIDATOR DEBUG - mcq_type_config value BEFORE: {data.get('mcq_type_config')}")
+        logger.info(f"🔍 VALIDATOR DEBUG - mcqTypeConfig value BEFORE: {data.get('mcqTypeConfig')}")
+
         # Common camelCase to snake_case mappings for top-level fields
         camel_to_snake = {
             "userQuery": "user_query",
@@ -533,6 +539,7 @@ class GenerateGeneralTestRequest(BaseModel):
         # Handle mcqTypeConfig (camelCase) → mcq_type_config
         if "mcqTypeConfig" in data and "mcq_type_config" not in data:
             config = data["mcqTypeConfig"]
+            logger.info(f"🔍 VALIDATOR DEBUG - Converting mcqTypeConfig: {config}")
             if isinstance(config, dict):
                 # Convert nested camelCase keys to snake_case
                 key_mapping = {
@@ -549,12 +556,14 @@ class GenerateGeneralTestRequest(BaseModel):
                     converted_key = key_mapping.get(key, key)
                     converted[converted_key] = value
                 data["mcq_type_config"] = converted
+                logger.info(f"🔍 VALIDATOR DEBUG - Converted to: {data['mcq_type_config']}")
             else:
                 data["mcq_type_config"] = config
             del data["mcqTypeConfig"]
 
         # If frontend already sends snake_case, keep it as-is
-        # (No action needed, Pydantic will pick it up directly)
+        logger.info(f"🔍 VALIDATOR DEBUG - mcq_type_config value AFTER: {data.get('mcq_type_config')}")
+        logger.info(f"🔍 VALIDATOR DEBUG - Output data keys: {list(data.keys())}")
 
         return data
 
