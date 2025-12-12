@@ -502,8 +502,18 @@ class GenerateGeneralTestRequest(BaseModel):
     @classmethod
     def convert_mcq_type_config_keys(cls, data):
         """Convert camelCase keys in mcqTypeConfig to snake_case"""
-        if isinstance(data, dict) and "mcqTypeConfig" in data:
-            config = data["mcqTypeConfig"]
+        if not isinstance(data, dict):
+            return data
+
+        # Check both camelCase (from frontend) and snake_case (after Pydantic conversion)
+        config_key = None
+        if "mcqTypeConfig" in data:
+            config_key = "mcqTypeConfig"
+        elif "mcq_type_config" in data:
+            config_key = "mcq_type_config"
+
+        if config_key:
+            config = data[config_key]
             if isinstance(config, dict):
                 # Convert camelCase to snake_case for nested keys
                 converted = {}
@@ -519,7 +529,9 @@ class GenerateGeneralTestRequest(BaseModel):
                 for key, value in config.items():
                     converted_key = key_mapping.get(key, key)
                     converted[converted_key] = value
+                # Update both possible keys to ensure it works
                 data["mcqTypeConfig"] = converted
+                data["mcq_type_config"] = converted
         return data
 
     @model_validator(mode="after")
