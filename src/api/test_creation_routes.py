@@ -507,6 +507,29 @@ class GenerateGeneralTestRequest(BaseModel):
         if not isinstance(data, dict):
             return data
 
+        # Common camelCase to snake_case mappings for top-level fields
+        camel_to_snake = {
+            "userQuery": "user_query",
+            "testCategory": "test_category",
+            "testType": "test_type",
+            "numQuestions": "num_questions",
+            "timeLimitMinutes": "time_limit_minutes",
+            "maxRetries": "max_retries",
+            "passingScore": "passing_score",
+            "creatorName": "creator_name",
+            "numOptions": "num_options",
+            "numCorrectAnswers": "num_correct_answers",
+            "numMcqQuestions": "num_mcq_questions",
+            "numEssayQuestions": "num_essay_questions",
+            "mcqPoints": "mcq_points",
+            "essayPoints": "essay_points",
+            "showAnswersTiming": "show_answers_timing",
+        }
+
+        for camel, snake in camel_to_snake.items():
+            if camel in data and snake not in data:
+                data[snake] = data[camel]
+
         # Handle mcqTypeConfig (camelCase) → mcq_type_config
         if "mcqTypeConfig" in data and "mcq_type_config" not in data:
             config = data["mcqTypeConfig"]
