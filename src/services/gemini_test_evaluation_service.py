@@ -817,7 +817,9 @@ class GeminiTestEvaluationService:
             response_text = response.text
 
             logger.info(f"✅ Gemini evaluation received")
-            logger.info(f"📝 Response preview (first 500 chars): {response_text[:500]}")
+            logger.info(f"📊 Response length: {len(response_text)} characters")
+            logger.info(f"📝 First 500 chars: {response_text[:500]}")
+            logger.info(f"📝 Last 500 chars: {response_text[-500:]}")
 
             # Parse JSON response
             # Remove markdown code blocks if present
