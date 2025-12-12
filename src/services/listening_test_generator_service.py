@@ -959,7 +959,7 @@ Return ONLY the questions array in JSON format."""
         creator_id: str,
         # ========== PHASE 7 & 8: New parameters ==========
         user_transcript: Optional[str] = None,
-        youtube_url: Optional[str] = None,
+        audio_file_path: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Main method to generate complete listening test
@@ -967,7 +967,7 @@ Return ONLY the questions array in JSON format."""
         Supports 3 generation modes:
         1. AI Generated (default): AI creates script + questions + TTS audio
         2. User Transcript (Phase 7): User provides transcript → AI generates questions + TTS audio (parallel)
-        3. YouTube URL (Phase 8): Gemini 2.5 Flash transcribes + generates questions (ONE call)
+        3. Audio File Upload (Phase 8): User uploads audio → Upload to R2 → Gemini transcribes + generates questions
 
         Returns:
         {
@@ -981,8 +981,34 @@ Return ONLY the questions array in JSON format."""
         try:
             # ========== PHASE 8: Audio File Upload mode ==========
             if audio_file_path:
-                logger.info(f"🎵 Mode: Audio File Upload - Using Gemini 3 Pro Preview Audio")
+                logger.info(
+                    f"🎵 Mode: Audio File Upload - Using Gemini 3 Pro Preview Audio"
+                )
                 logger.info(f"   File: {audio_file_path}")
+
+                # STEP 1: Upload audio to R2 immediately (for frontend to play)
+                import os
+
+                logger.info(f"📤 Step 1: Uploading audio to R2...")
+                with open(audio_file_path, "rb") as f:
+                    audio_bytes = f.read()
+
+                # Generate test_id for R2 key (will be passed from background job)
+                test_id_for_r2 = creator_id  # Use creator_id as fallback if no test_id
+                if hasattr(self, "_current_test_id"):
+                    test_id_for_r2 = self._current_test_id
+
+                audio_url, library_file_id = await self._upload_audio_to_r2(
+                    audio_bytes=audio_bytes,
+                    creator_id=creator_id,
+                    test_id=test_id_for_r2,
+                    section_num=1,
+                )
+
+                logger.info(f"✅ Audio uploaded to R2: {audio_url}")
+
+                # STEP 2: Send audio to Gemini for transcription + question generation
+                logger.info(f"🤖 Step 2: Processing with Gemini...")
 
                 from src.services.gemini_audio_listening_service import (
                     get_gemini_audio_listening_service,
@@ -990,21 +1016,33 @@ Return ONLY the questions array in JSON format."""
 
                 gemini_audio_service = get_gemini_audio_listening_service()
 
-                result = await gemini_audio_service.generate_from_audio_file(
-                    audio_file_path=audio_file_path,
-                    title=title,
-                    language=language,
-                    difficulty=difficulty,
-                    num_questions=num_questions,
-                    user_query=user_query,
-                )
+                try:
+                    result = await gemini_audio_service.generate_from_audio_file(
+                        audio_file_path=audio_file_path,
+                        title=title,
+                        language=language,
+                        difficulty=difficulty,
+                        num_questions=num_questions,
+                        user_query=user_query,
+                    )
+                finally:
+                    # STEP 3: Cleanup temp file (always execute, even if Gemini fails)
+                    try:
+                        if os.path.exists(audio_file_path):
+                            os.unlink(audio_file_path)
+                            logger.info(
+                                f"🗑️ Cleaned up temp audio file: {audio_file_path}"
+                            )
+                    except Exception as cleanup_error:
+                        logger.warning(f"Failed to delete temp file: {cleanup_error}")
 
                 # Format response to match expected structure
                 audio_sections = [
                     {
                         "section_number": 1,
                         "section_title": result["title"],
-                        "audio_file_path": result["audio_file_path"],
+                        "audio_url": audio_url,  # Use R2 URL, not local path
+                        "library_file_id": library_file_id,  # Link to library
                         "duration_seconds": result["duration_seconds"],
                         "transcript": self._format_transcript_text(
                             result["transcript"]
@@ -1026,6 +1064,7 @@ Return ONLY the questions array in JSON format."""
                     questions.append(q)
 
                 logger.info(f"✅ Audio file test generated successfully!")
+                logger.info(f"   - R2 URL: {audio_url}")
                 logger.info(f"   - Duration: {result['duration_seconds']}s")
                 logger.info(f"   - Speakers: {result['num_speakers']}")
                 logger.info(f"   - Questions: {len(questions)}")

@@ -2987,7 +2987,7 @@ class GenerateListeningTestRequest(BaseModel):
             raise ValueError(f"Audio file not found: {v}")
 
         # Check file extension
-        valid_extensions = ('.mp3', '.m4a', '.wav', '.ogg', '.flac', '.aac')
+        valid_extensions = (".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac")
         if not v.lower().endswith(valid_extensions):
             raise ValueError(
                 f"Invalid audio format. Supported: {', '.join(valid_extensions)}"
@@ -3145,13 +3145,15 @@ async def generate_listening_test(
             # ========== PHASE 7 & 8: Source tracking ==========
             "source_type": (
                 "ai_generated"
-                if not request.user_transcript and not request.youtube_url
-                else ("user_transcript" if request.user_transcript else "youtube")
+                if not request.user_transcript and not request.audio_file_path
+                else ("user_transcript" if request.user_transcript else "audio_file")
             ),
             "user_provided_transcript": (
                 request.user_transcript if request.user_transcript else None
             ),
-            "source_url": request.youtube_url if request.youtube_url else None,
+            "audio_file_path": (
+                request.audio_file_path if request.audio_file_path else None
+            ),
             "status": "pending",
             "progress_percent": 0,
             "progress_message": "Initializing listening test generation...",
@@ -3227,6 +3229,9 @@ async def generate_listening_test_background_job(
         # Initialize generator
         generator = get_listening_test_generator()
 
+        # Pass test_id to generator for R2 key generation (Phase 8)
+        generator._current_test_id = test_id
+
         # Generate test
         result = await generator.generate_listening_test(
             title=request.title,
@@ -3243,7 +3248,7 @@ async def generate_listening_test_background_job(
             use_pro_model=request.use_pro_model,
             creator_id=user_id,
             user_transcript=request.user_transcript,  # Phase 7
-            youtube_url=request.youtube_url,  # Phase 8
+            audio_file_path=request.audio_file_path,  # Phase 8
         )
 
         # Update test with results

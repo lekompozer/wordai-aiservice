@@ -41,9 +41,9 @@ class GeminiAudioListeningTestService:
         """Check if file is valid audio file"""
         if not os.path.exists(file_path):
             return False
-        
+
         # Check file extension
-        valid_extensions = ('.mp3', '.m4a', '.wav', '.ogg', '.flac', '.aac')
+        valid_extensions = (".mp3", ".m4a", ".wav", ".ogg", ".flac", ".aac")
         return file_path.lower().endswith(valid_extensions)
 
     def _build_audio_understanding_prompt(
