@@ -661,7 +661,9 @@ Now, analyze the audio file and generate the complete IELTS listening test. Retu
                 ],
                 config=types.GenerateContentConfig(
                     response_mime_type="application/json",
-                    response_schema=self._get_response_schema(),
+                    # ❌ REMOVED response_schema - it conflicts with prompt!
+                    # Schema was too rigid and didn't define sentences/questions/left_items fields
+                    # Prompt is detailed enough to guide AI without schema constraints
                     max_output_tokens=25000,
                     temperature=0.4,
                 ),
