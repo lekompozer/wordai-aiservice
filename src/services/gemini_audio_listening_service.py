@@ -293,46 +293,67 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
 
         valid_questions = []
 
-        for q in questions:
+        for idx, q in enumerate(questions, 1):
             q_type = q.get("question_type")
+            q_text = q.get("question_text", "")[:60]
 
             # Validate MCQ
             if q_type == "mcq":
                 if not q.get("options") or len(q["options"]) < 2:
-                    logger.warning(f"Skipping MCQ without valid options")
+                    logger.warning(
+                        f"❌ Question {idx} INVALID: MCQ without valid options - '{q_text}...'"
+                    )
                     continue
                 if not q.get("correct_answer_keys"):
-                    logger.warning(f"Skipping MCQ without correct_answer_keys")
+                    logger.warning(
+                        f"❌ Question {idx} INVALID: MCQ without correct_answer_keys - '{q_text}...'"
+                    )
                     continue
 
             # Validate Matching
             elif q_type == "matching":
                 if not q.get("left_items") or not q.get("right_options"):
-                    logger.warning(f"Skipping matching without left/right items")
+                    logger.warning(
+                        f"❌ Question {idx} INVALID: Matching without left/right items - '{q_text}...'"
+                    )
                     continue
 
             # Validate Completion
             elif q_type == "completion":
                 if not q.get("template") or not q.get("blanks"):
-                    logger.warning(f"Skipping completion without template/blanks")
+                    logger.warning(
+                        f"❌ Question {idx} INVALID: Completion without template/blanks - '{q_text}...'"
+                    )
                     continue
 
             # Validate Sentence Completion
             elif q_type == "sentence_completion":
                 if not q.get("sentences"):
-                    logger.warning(f"Skipping sentence_completion without sentences")
+                    logger.warning(
+                        f"❌ Question {idx} INVALID: Sentence completion without sentences - '{q_text}...'"
+                    )
                     continue
 
             # Validate Short Answer
             elif q_type == "short_answer":
                 if not q.get("questions"):
-                    logger.warning(f"Skipping short_answer without questions array")
+                    logger.warning(
+                        f"❌ Question {idx} INVALID: Short answer without questions array - '{q_text}...'"
+                    )
                     continue
+
+            # Unknown type
+            else:
+                logger.warning(
+                    f"❌ Question {idx} INVALID: Unknown question_type '{q_type}' - '{q_text}...'"
+                )
+                continue
 
             # Ensure question_id exists
             if "question_id" not in q:
                 q["question_id"] = str(uuid.uuid4())
 
+            logger.info(f"✅ Question {idx} VALID: {q_type} - '{q_text}...'")
             valid_questions.append(q)
 
         return valid_questions
