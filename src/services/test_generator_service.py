@@ -276,18 +276,16 @@ You have the flexibility to use a variety of question types to create the most e
        },
        {
          "question_type": "completion",
-         "question_text": "Completion question",
-         "template": "Fill in: _____(1)_____ and _____(2)_____",
+         "question_text": "Cloze Test: Fill in blank (1) in the text: 'Students _____(1)_____ a lot of time at school.'",
+         "template": "Students _____(1)_____ a lot of time at school.",
          "blanks": [
-           {"key": "1", "position": "first blank"},
-           {"key": "2", "position": "second blank"}
+           {"key": "1", "position": "verb before 'a lot of time'"}
          ],
          "correct_answers": [
-           {"blank_key": "1", "answers": ["answer1", "variation1"]},
-           {"blank_key": "2", "answers": ["answer2", "variation2"]}
+           {"blank_key": "1", "answers": ["spend", "spent", "are spending"]}
          ],
-         "explanation": "Correct completions",
-         "max_points": 2
+         "explanation": "The collocation is 'spend time'. Multiple verb forms are acceptable.",
+         "max_points": 1
        }
      ]
    }"""
@@ -347,7 +345,11 @@ BEFORE generating questions, carefully analyze the user query below:
 **THEN you MUST:**
 1. Choose appropriate "question_type" based on format:
    - **PHONETICS / PRONUNCIATION / WORD STRESS / ERROR IDENTIFICATION**: Use "mcq" (standard multiple choice with 4 options, 1 correct answer)
-   - **CLOZE TEST**: Use "completion" (fill-in-the-blank format with template field)
+   - **CLOZE TEST**: Use "completion" with IELTS format:
+     * "template": Text with blanks marked as _____(1)_____, _____(2)_____
+     * "blanks": Array like [{{\"key\": \"1\", \"position\": \"description\"}}]
+     * "correct_answers": Array like [{{\"blank_key\": \"1\", \"answers\": [\"answer\", \"variation1\", \"variation2\"]}}]
+     * DO NOT use "options" or "correct_answer_keys" for completion type
    - **SENTENCE TRANSFORMATION / REWRITE**: Use "short_answer" (free-text answer with multiple acceptable variations)
    - **READING COMPREHENSION / VOCABULARY / GRAMMAR**: Use "mcq" (standard multiple choice)
    - **COMMUNICATION / DIALOGUE**: Use "mcq" (standard multiple choice)
@@ -365,7 +367,13 @@ BEFORE generating questions, carefully analyze the user query below:
 8. {correct_answer_constraint}
 9. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
 10. {points_instruction}
-11. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
+11. **CRITICAL: For "completion" question_type, you MUST use IELTS format:**
+    - Include "template" field with text containing _____(1)_____, _____(2)_____ placeholders
+    - Include "blanks" array with metadata for each blank
+    - Include "correct_answers" array with blank_key and multiple answer variations
+    - DO NOT use "options" array for completion questions
+    - DO NOT use "correct_answer_keys" for completion questions
+12. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
 {mcq_type_instruction}
 
 **DOCUMENT CONTENT:**
