@@ -3021,6 +3021,131 @@ class GenerateListeningTestRequest(BaseModel):
         return self
 
 
+# ========== Audio File Upload for Listening Tests (Phase 8) ==========
+
+
+@router.post("/upload/audio")
+async def upload_audio_file(
+    audio: UploadFile = File(...),
+    user_info: dict = Depends(require_auth),
+):
+    """
+    Upload audio file for listening test generation (Phase 8)
+
+    **Purpose:** Upload user's audio file to temp storage before generating test
+
+    **Supported Formats:**
+    - MP3 (.mp3)
+    - M4A (.m4a)
+    - WAV (.wav)
+    - OGG (.ogg)
+    - FLAC (.flac)
+    - AAC (.aac)
+
+    **Max Size:** 100MB
+
+    **Flow:**
+    1. Frontend uploads audio file
+    2. Backend saves to /tmp/uploads/audio_{uuid}.{ext}
+    3. Returns temp path
+    4. Frontend calls /generate/listening with audio_file_path
+    5. Backend processes and cleans up temp file
+
+    **Example Response:**
+    ```json
+    {
+      "temp_path": "/tmp/uploads/audio_abc123.mp3",
+      "filename": "meeting_recording.mp3",
+      "size_bytes": 10485760,
+      "duration_seconds": 180
+    }
+    ```
+    """
+    try:
+        import tempfile
+        import shutil
+
+        user_id = user_info["uid"]
+
+        logger.info(f"📤 Audio file upload from user {user_id}")
+        logger.info(f"   Filename: {audio.filename}")
+        logger.info(f"   Content-Type: {audio.content_type}")
+
+        # ========== Validate file type ==========
+        valid_extensions = ('.mp3', '.m4a', '.wav', '.ogg', '.flac', '.aac')
+        valid_content_types = [
+            'audio/mpeg', 'audio/mp3', 'audio/mp4', 'audio/m4a',
+            'audio/wav', 'audio/x-wav', 'audio/ogg', 'audio/flac',
+            'audio/aac', 'audio/x-aac'
+        ]
+
+        # Check extension
+        file_ext = os.path.splitext(audio.filename)[1].lower()
+        if file_ext not in valid_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid audio format. Supported: {', '.join(valid_extensions)}"
+            )
+
+        # Check content type (optional, some browsers may not set correctly)
+        if audio.content_type and audio.content_type not in valid_content_types:
+            logger.warning(f"⚠️ Unexpected content-type: {audio.content_type}, but extension is valid")
+
+        # ========== Check file size (max 100MB) ==========
+        MAX_SIZE = 100 * 1024 * 1024  # 100MB
+        audio.file.seek(0, 2)  # Seek to end
+        file_size = audio.file.tell()
+        audio.file.seek(0)  # Reset to beginning
+
+        if file_size > MAX_SIZE:
+            raise HTTPException(
+                status_code=400,
+                detail=f"File too large. Max size: 100MB, uploaded: {file_size / (1024*1024):.1f}MB"
+            )
+
+        logger.info(f"   File size: {file_size / (1024*1024):.2f} MB")
+
+        # ========== Save to temp directory ==========
+        temp_dir = "/tmp/uploads"
+        os.makedirs(temp_dir, exist_ok=True)
+
+        # Generate unique filename
+        unique_id = uuid.uuid4().hex[:12]
+        temp_filename = f"audio_{unique_id}{file_ext}"
+        temp_path = os.path.join(temp_dir, temp_filename)
+
+        # Save file
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(audio.file, buffer)
+
+        logger.info(f"✅ Audio saved to: {temp_path}")
+
+        # ========== Try to get audio duration (optional) ==========
+        duration_seconds = None
+        try:
+            from pydub import AudioSegment
+            audio_segment = AudioSegment.from_file(temp_path)
+            duration_seconds = int(audio_segment.duration_seconds)
+            logger.info(f"   Duration: {duration_seconds}s")
+        except Exception as e:
+            logger.warning(f"Could not detect audio duration: {e}")
+
+        return {
+            "temp_path": temp_path,
+            "filename": audio.filename,
+            "size_bytes": file_size,
+            "size_mb": round(file_size / (1024 * 1024), 2),
+            "duration_seconds": duration_seconds,
+            "message": "Audio file uploaded successfully. Use temp_path in /generate/listening request."
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Audio upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload audio: {str(e)}")
+
+
 @router.post("/generate/listening")
 async def generate_listening_test(
     request: GenerateListeningTestRequest,
