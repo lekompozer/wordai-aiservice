@@ -94,7 +94,7 @@ def fix_question_types(dry_run=True):
     
     # Connect to MongoDB
     client, db = get_mongodb_connection()
-    if not client or not db:
+    if client is None or db is None:
         print("❌ Failed to connect to MongoDB")
         sys.exit(1)
     
