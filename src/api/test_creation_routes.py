@@ -494,29 +494,24 @@ class GenerateGeneralTestRequest(BaseModel):
     # MCQ type distribution configuration (NEW)
     mcq_type_config: Optional[Dict] = Field(
         None,
-        alias="mcqTypeConfig",  # Accept camelCase from frontend
         description="Optional: Configure distribution of different MCQ question types. Example: {'distribution_mode': 'manual', 'num_single_answer_mcq': 5, 'num_multiple_answer_mcq': 3}. If not provided, AI uses default single-answer MCQ format.",
     )
 
     @model_validator(mode="before")
     @classmethod
-    def convert_mcq_type_config_keys(cls, data):
-        """Convert camelCase keys in mcqTypeConfig to snake_case"""
+    def convert_camel_to_snake_case(cls, data):
+        """
+        Convert all camelCase keys from frontend to snake_case for backend.
+        Bypass Pydantic alias mechanism completely - manual field mapping.
+        """
         if not isinstance(data, dict):
             return data
 
-        # Check both camelCase (from frontend) and snake_case (after Pydantic conversion)
-        config_key = None
-        if "mcqTypeConfig" in data:
-            config_key = "mcqTypeConfig"
-        elif "mcq_type_config" in data:
-            config_key = "mcq_type_config"
-
-        if config_key:
-            config = data[config_key]
+        # CRITICAL: Map mcqTypeConfig → mcq_type_config manually
+        if "mcqTypeConfig" in data and "mcq_type_config" not in data:
+            config = data["mcqTypeConfig"]
             if isinstance(config, dict):
-                # Convert camelCase to snake_case for nested keys
-                converted = {}
+                # Convert nested camelCase keys to snake_case
                 key_mapping = {
                     "distributionMode": "distribution_mode",
                     "numSingleAnswerMcq": "num_single_answer_mcq",
@@ -526,12 +521,17 @@ class GenerateGeneralTestRequest(BaseModel):
                     "numSentenceCompletion": "num_sentence_completion",
                     "numShortAnswer": "num_short_answer",
                 }
+                converted = {}
                 for key, value in config.items():
                     converted_key = key_mapping.get(key, key)
                     converted[converted_key] = value
-                # Update both possible keys to ensure it works
-                data["mcqTypeConfig"] = converted
                 data["mcq_type_config"] = converted
+            else:
+                # In case it's not a dict (shouldn't happen but be safe)
+                data["mcq_type_config"] = config
+            # Remove camelCase key to avoid confusion
+            del data["mcqTypeConfig"]
+
         return data
 
     @model_validator(mode="after")
