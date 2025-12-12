@@ -2950,11 +2950,11 @@ class GenerateListeningTestRequest(BaseModel):
         description="Phase 7: User-provided transcript (text format, max 6000 chars). If provided, AI will generate questions from this transcript and TTS will create audio.",
     )
 
-    # ========== PHASE 8: YouTube URL ==========
-    youtube_url: Optional[str] = Field(
+    # ========== PHASE 8: Audio File Upload ==========
+    audio_file_path: Optional[str] = Field(
         None,
         max_length=500,
-        description="Phase 8: YouTube video URL. Gemini 2.5 Flash will transcribe audio and generate questions in one API call.",
+        description="Phase 8: Path to uploaded audio file (mp3, m4a, wav). Gemini 3 Pro Preview will transcribe audio and generate questions in one API call.",
     )
 
     @field_validator("audio_config")
@@ -2973,21 +2973,24 @@ class GenerateListeningTestRequest(BaseModel):
 
         return v
 
-    @field_validator("youtube_url")
+    @field_validator("audio_file_path")
     @classmethod
-    def validate_youtube_url(cls, v):
-        """Validate YouTube URL format (Phase 8)"""
+    def validate_audio_file_path(cls, v):
+        """Validate audio file path (Phase 8)"""
         if v is None:
             return v
 
-        import re
+        import os
 
-        youtube_regex = (
-            r"(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/"
-        )
-        if not re.match(youtube_regex, v):
+        # Check if file exists
+        if not os.path.exists(v):
+            raise ValueError(f"Audio file not found: {v}")
+
+        # Check file extension
+        valid_extensions = ('.mp3', '.m4a', '.wav', '.ogg', '.flac', '.aac')
+        if not v.lower().endswith(valid_extensions):
             raise ValueError(
-                "Invalid YouTube URL format. Must be a valid YouTube video URL."
+                f"Invalid audio format. Supported: {', '.join(valid_extensions)}"
             )
 
         return v
@@ -2996,12 +2999,12 @@ class GenerateListeningTestRequest(BaseModel):
     def validate_generation_method(self):
         """Validate that only one generation method is used"""
         methods_count = sum(
-            [self.user_transcript is not None, self.youtube_url is not None]
+            [self.user_transcript is not None, self.audio_file_path is not None]
         )
 
         if methods_count > 1:
             raise ValueError(
-                "Cannot use both user_transcript and youtube_url. Choose one generation method."
+                "Cannot use both user_transcript and audio_file_path. Choose one generation method."
             )
 
         # If user_transcript provided, validate it

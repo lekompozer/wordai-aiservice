@@ -979,10 +979,10 @@ Return ONLY the questions array in JSON format."""
         """
 
         try:
-            # ========== PHASE 8: YouTube URL mode ==========
-            if youtube_url:
-                logger.info(f"🎥 Mode: YouTube URL - Using Gemini 2.5 Flash Audio")
-                logger.info(f"   URL: {youtube_url}")
+            # ========== PHASE 8: Audio File Upload mode ==========
+            if audio_file_path:
+                logger.info(f"🎵 Mode: Audio File Upload - Using Gemini 3 Pro Preview Audio")
+                logger.info(f"   File: {audio_file_path}")
 
                 from src.services.gemini_audio_listening_service import (
                     get_gemini_audio_listening_service,
@@ -990,8 +990,8 @@ Return ONLY the questions array in JSON format."""
 
                 gemini_audio_service = get_gemini_audio_listening_service()
 
-                result = await gemini_audio_service.generate_from_youtube(
-                    youtube_url=youtube_url,
+                result = await gemini_audio_service.generate_from_audio_file(
+                    audio_file_path=audio_file_path,
                     title=title,
                     language=language,
                     difficulty=difficulty,
@@ -1004,13 +1004,13 @@ Return ONLY the questions array in JSON format."""
                     {
                         "section_number": 1,
                         "section_title": result["title"],
-                        "audio_url": result["audio_url"],
+                        "audio_file_path": result["audio_file_path"],
                         "duration_seconds": result["duration_seconds"],
                         "transcript": self._format_transcript_text(
                             result["transcript"]
                         ),
                         "voice_config": {
-                            "source": "youtube",
+                            "source": "audio_file",
                             "num_speakers": result["num_speakers"],
                         },
                         "questions": result["questions"],
@@ -1025,7 +1025,7 @@ Return ONLY the questions array in JSON format."""
                     q["max_points"] = 1
                     questions.append(q)
 
-                logger.info(f"✅ YouTube test generated successfully!")
+                logger.info(f"✅ Audio file test generated successfully!")
                 logger.info(f"   - Duration: {result['duration_seconds']}s")
                 logger.info(f"   - Speakers: {result['num_speakers']}")
                 logger.info(f"   - Questions: {len(questions)}")

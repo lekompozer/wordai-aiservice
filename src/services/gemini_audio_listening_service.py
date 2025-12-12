@@ -1,7 +1,7 @@
 """
 Gemini Audio Listening Test Service (Phase 8)
-Use Gemini 2.5 Flash Audio Understanding API for YouTube-based listening tests
-- Download audio from YouTube
+Use Gemini 3 Pro Preview Audio Understanding API for audio file-based listening tests
+- User uploads audio file (mp3, m4a, wav)
 - Upload to Gemini File API
 - Transcribe audio with speaker diarization
 - Generate questions in ONE API call
@@ -26,7 +26,7 @@ logger = logging.getLogger("chatbot")
 
 
 class GeminiAudioListeningTestService:
-    """Generate listening test from YouTube URL using Gemini 2.5 Flash Audio"""
+    """Generate listening test from audio file using Gemini 3 Pro Preview Audio"""
 
     def __init__(self):
         """Initialize Gemini client"""
@@ -37,12 +37,14 @@ class GeminiAudioListeningTestService:
         self.client = genai.Client(api_key=self.gemini_api_key)
         self.model = "gemini-3-pro-preview"  # Latest model with audio understanding
 
-    def _is_valid_youtube_url(self, url: str) -> bool:
-        """Check if URL is valid YouTube URL"""
-        youtube_regex = (
-            r"(https?://)?(www\.)?(youtube|youtu|youtube-nocookie)\.(com|be)/"
-        )
-        return re.match(youtube_regex, url) is not None
+    def _validate_audio_file(self, file_path: str) -> bool:
+        """Check if file is valid audio file"""
+        if not os.path.exists(file_path):
+            return False
+        
+        # Check file extension
+        valid_extensions = ('.mp3', '.m4a', '.wav', '.ogg', '.flac', '.aac')
+        return file_path.lower().endswith(valid_extensions)
 
     def _build_audio_understanding_prompt(
         self,
@@ -358,9 +360,9 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
 
         return valid_questions
 
-    async def generate_from_youtube(
+    async def generate_from_audio_file(
         self,
-        youtube_url: str,
+        audio_file_path: str,
         title: Optional[str],
         language: str,
         difficulty: str,
@@ -368,7 +370,7 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
         user_query: str,
     ) -> Dict:
         """
-        Generate listening test from YouTube URL using Gemini Audio API
+        Generate listening test from audio file using Gemini Audio API
 
         🎯 ONE API CALL does EVERYTHING:
         - Transcribe audio with speaker diarization
@@ -377,37 +379,38 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
         - Generate questions
 
         Steps:
-        1. Validate YouTube URL
-        2. Send URL directly to Gemini (no download needed!)
-        3. Get structured response: transcript + questions
-        4. Validate and return
+        1. Validate audio file
+        2. Upload to Gemini File API
+        3. Send to Gemini for processing
+        4. Get structured response: transcript + questions
+        5. Validate and return
 
         Returns:
         {
           "title": str,
           "transcript": {...},
           "questions": [...],
-          "audio_url": youtube_url,
+          "audio_url": str,
           "duration_seconds": int,
           "num_speakers": int,
-          "source_type": "youtube"
+          "source_type": "audio_file"
         }
         """
 
-        logger.info(f"🎥 === YOUTUBE LISTENING TEST GENERATION STARTED ===")
-        logger.info(f"   YouTube URL: {youtube_url}")
+        logger.info(f"🎵 === AUDIO FILE LISTENING TEST GENERATION STARTED ===")
+        logger.info(f"   Audio file: {audio_file_path}")
         logger.info(f"   Title: {title}")
         logger.info(f"   Language: {language}")
         logger.info(f"   Difficulty: {difficulty}")
         logger.info(f"   Num Questions: {num_questions}")
         logger.info(f"   Model: {self.model}")
 
-        # Step 1: Validate URL
-        if not self._is_valid_youtube_url(youtube_url):
-            logger.error(f"❌ Invalid YouTube URL: {youtube_url}")
-            raise ValueError("Invalid YouTube URL")
+        # Step 1: Validate audio file
+        if not self._validate_audio_file(audio_file_path):
+            logger.error(f"❌ Invalid audio file: {audio_file_path}")
+            raise ValueError("Invalid audio file or unsupported format")
 
-        logger.info(f"✅ YouTube URL validated successfully")
+        logger.info(f"✅ Audio file validated successfully")
 
         # Step 2: Build comprehensive prompt
         prompt = self._build_audio_understanding_prompt(
@@ -417,37 +420,23 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
             user_query=user_query,
         )
 
-        # Step 3: Download audio from YouTube
-        logger.info(f"📥 Downloading audio from YouTube...")
-        logger.info(f"   URL: {youtube_url}")
-
-        audio_path = None
+        # Step 3: Get file information
         try:
-            audio_path = await self._download_youtube_audio(youtube_url)
-
-            # Log detailed file information
-            if os.path.exists(audio_path):
-                file_size_bytes = os.path.getsize(audio_path)
-                file_size_mb = file_size_bytes / (1024 * 1024)
-                logger.info(f"✅ Audio downloaded successfully!")
-                logger.info(f"   📁 File path: {audio_path}")
-                logger.info(
-                    f"   📊 File size: {file_size_mb:.2f} MB ({file_size_bytes:,} bytes)"
-                )
-                logger.info(f"   📝 File exists: True")
-            else:
-                logger.error(f"❌ Audio file NOT found at: {audio_path}")
-                raise FileNotFoundError(
-                    f"Downloaded audio file not found: {audio_path}"
-                )
+            file_size_bytes = os.path.getsize(audio_file_path)
+            file_size_mb = file_size_bytes / (1024 * 1024)
+            logger.info(f"📁 Audio file ready for upload")
+            logger.info(f"   File path: {audio_file_path}")
+            logger.info(
+                f"   File size: {file_size_mb:.2f} MB ({file_size_bytes:,} bytes)"
+            )
 
             # Step 4: Upload to Gemini File API
             logger.info(f"☁️ Uploading audio to Gemini File API...")
             logger.info(f"   Uploading {file_size_mb:.2f} MB to Gemini...")
 
-            # Upload file (API updated: use file= instead of path=)
+            # Upload file
             audio_file = await asyncio.to_thread(
-                self.client.files.upload, file=audio_path
+                self.client.files.upload, file=audio_file_path
             )
 
             logger.info(f"✅ Audio uploaded to Gemini successfully!")
@@ -505,14 +494,13 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
                 )
 
             return {
-                "title": title or result.get("audio_summary", "YouTube Listening Test"),
+                "title": title or result.get("audio_summary", "Audio Listening Test"),
                 "transcript": result["transcript"],
                 "questions": validated_questions,
-                "audio_url": youtube_url,  # Use YouTube URL directly
+                "audio_file_path": audio_file_path,  # Return file path for later use
                 "duration_seconds": result.get("duration_seconds", 0),
                 "num_speakers": result.get("num_speakers", 1),
-                "source_type": "youtube",
-                "source_url": youtube_url,
+                "source_type": "audio_file",
                 "audio_summary": result["audio_summary"],
             }
 
@@ -523,14 +511,6 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
         except Exception as e:
             logger.error(f"❌ Gemini Audio processing failed: {e}")
             raise
-        finally:
-            # Clean up downloaded audio file
-            if audio_path and os.path.exists(audio_path):
-                try:
-                    os.unlink(audio_path)
-                    logger.info(f"🗑️ Cleaned up temp audio file")
-                except Exception as e:
-                    logger.warning(f"Failed to delete temp file: {e}")
 
     async def _download_youtube_audio(self, youtube_url: str) -> str:
         """
