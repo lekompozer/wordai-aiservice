@@ -804,7 +804,30 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 raise ValueError(
                                     f"Question {idx + 1} missing correct_matches for matching question"
                                 )
+                        elif question_type == "completion":
+                            # Completion questions use correct_answers dict
+                            if "correct_answers" not in q:
+                                raise ValueError(
+                                    f"Question {idx + 1} missing correct_answers for completion question"
+                                )
+                        elif question_type == "sentence_completion":
+                            # Sentence completion uses sentences array with correct_answers
+                            if "sentences" not in q:
+                                raise ValueError(
+                                    f"Question {idx + 1} missing sentences for sentence_completion question"
+                                )
+                        elif question_type == "short_answer":
+                            # Short answer can use questions array OR correct_answer_keys
+                            if (
+                                "questions" not in q
+                                and not has_correct_answer_key
+                                and not has_correct_answer_keys
+                            ):
+                                raise ValueError(
+                                    f"Question {idx + 1} missing questions array or correct_answer_keys for short_answer question"
+                                )
                         elif not has_correct_answer_key and not has_correct_answer_keys:
+                            # Standard MCQ questions need correct_answer_keys
                             raise ValueError(
                                 f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
                             )
@@ -1226,7 +1249,30 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                 raise ValueError(
                                     f"Question {idx + 1} missing correct_matches for matching question"
                                 )
+                        elif question_type == "completion":
+                            # Completion questions use correct_answers dict
+                            if "correct_answers" not in q:
+                                raise ValueError(
+                                    f"Question {idx + 1} missing correct_answers for completion question"
+                                )
+                        elif question_type == "sentence_completion":
+                            # Sentence completion uses sentences array with correct_answers
+                            if "sentences" not in q:
+                                raise ValueError(
+                                    f"Question {idx + 1} missing sentences for sentence_completion question"
+                                )
+                        elif question_type == "short_answer":
+                            # Short answer can use questions array OR correct_answer_keys
+                            if (
+                                "questions" not in q
+                                and not has_correct_answer_key
+                                and not has_correct_answer_keys
+                            ):
+                                raise ValueError(
+                                    f"Question {idx + 1} missing questions array or correct_answer_keys for short_answer question"
+                                )
                         elif not has_correct_answer_key and not has_correct_answer_keys:
+                            # Standard MCQ questions need correct_answer_keys
                             raise ValueError(
                                 f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
                             )
