@@ -251,14 +251,19 @@ async def evaluate_test_result(
             q_type = q.get("question_type", "mcq")
             user_answer = user_answers_dict.get(question_id)
 
-            if q_type == "mcq":
-                correct_answer = q.get("correct_answer_key")
-                is_correct = user_answer == correct_answer
+            if q_type == "mcq" or q_type == "mcq_multiple":
+                correct_answer = q.get("correct_answer_keys") or [
+                    q.get("correct_answer_key")
+                ]
+                is_correct = (
+                    user_answer in correct_answer
+                    if isinstance(user_answer, str)
+                    else False
+                )
 
                 # Extract options
                 options = []
                 for opt in q.get("options", []):
-                    # Database stores as option_key/option_text (from Gemini schema)
                     options.append(
                         {
                             "key": opt.get("option_key") or opt.get("key"),
@@ -269,29 +274,84 @@ async def evaluate_test_result(
                 question_evaluations.append(
                     QuestionEvaluation(
                         question_id=question_id,
+                        question_type=q_type,
                         question_text=q["question_text"],
                         user_answer=user_answer,
-                        correct_answer=correct_answer,
+                        correct_answer=(
+                            correct_answer[0]
+                            if len(correct_answer) == 1
+                            else correct_answer
+                        ),
                         is_correct=is_correct,
                         explanation=q.get("explanation"),
                         options=options,
+                        max_points=q.get("max_points", 1),
                         ai_feedback=ai_feedbacks.get(
-                            question_id, "No feedback available for this question"
+                            question_id, "No feedback available"
                         ),
                     )
                 )
+
             elif q_type == "essay":
-                # For essay questions, we don't have correct_answer or is_correct
                 question_evaluations.append(
                     QuestionEvaluation(
                         question_id=question_id,
+                        question_type=q_type,
                         question_text=q["question_text"],
                         user_answer=user_answer,
-                        correct_answer=None,  # Essays don't have a single correct answer
-                        is_correct=None,  # Not applicable for essays
+                        correct_answer=None,
+                        is_correct=None,
                         explanation=q.get("grading_rubric"),
+                        max_points=q.get("max_points", 1),
                         ai_feedback=ai_feedbacks.get(
-                            question_id, "No feedback available for this question"
+                            question_id, "No feedback available"
+                        ),
+                    )
+                )
+
+            # IELTS question types
+            elif q_type in [
+                "matching",
+                "completion",
+                "sentence_completion",
+                "short_answer",
+            ]:
+                # Format correct answer based on type
+                if q_type == "matching":
+                    correct_answer = {
+                        m["left_key"]: m["right_key"]
+                        for m in q.get("correct_matches", [])
+                    }
+                elif q_type == "completion":
+                    correct_answer = {
+                        ca["blank_key"]: ca["answers"]
+                        for ca in q.get("correct_answers", [])
+                    }
+                elif q_type == "sentence_completion":
+                    correct_answer = {
+                        s["key"]: s["correct_answers"] for s in q.get("sentences", [])
+                    }
+                elif q_type == "short_answer":
+                    if "questions" in q:
+                        correct_answer = {
+                            sq["key"]: sq["correct_answers"]
+                            for sq in q.get("questions", [])
+                        }
+                    else:
+                        correct_answer = q.get("correct_answer_keys", [])
+
+                question_evaluations.append(
+                    QuestionEvaluation(
+                        question_id=question_id,
+                        question_type=q_type,
+                        question_text=q["question_text"],
+                        user_answer=user_answer,
+                        correct_answer=correct_answer,
+                        is_correct=None,  # Complex scoring, not simple true/false
+                        explanation=q.get("explanation"),
+                        max_points=q.get("max_points", 1),
+                        ai_feedback=ai_feedbacks.get(
+                            question_id, "No feedback available"
                         ),
                     )
                 )

@@ -26,11 +26,16 @@ class QuestionEvaluation(BaseModel):
 
     question_id: str = Field(..., description="Question ID")
     question_text: str = Field(..., description="Question text")
-    user_answer: Optional[str] = Field(
-        None, description="User's answer (MCQ: A/B/C/D, Essay: text)"
+    question_type: Optional[str] = Field(
+        None, description="Question type (mcq, essay, matching, etc.)"
     )
-    correct_answer: Optional[str] = Field(
-        None, description="Correct answer (only for MCQ)"
+
+    # MCQ/Essay fields
+    user_answer: Optional[Any] = Field(
+        None, description="User's answer (MCQ: string, IELTS: dict, Essay: text)"
+    )
+    correct_answer: Optional[Any] = Field(
+        None, description="Correct answer (MCQ: string, IELTS: varies by type)"
     )
     is_correct: Optional[bool] = Field(
         None, description="Whether user answered correctly (only for MCQ)"
@@ -41,6 +46,18 @@ class QuestionEvaluation(BaseModel):
     options: Optional[List[Dict[str, Any]]] = Field(
         None, description="List of options for MCQ questions (key, text)"
     )
+
+    # IELTS specific fields
+    score_details: Optional[str] = Field(
+        None, description="Score breakdown for IELTS questions (e.g., '2/3 correct')"
+    )
+    points_earned: Optional[float] = Field(
+        None, description="Points earned for this question (for partial credit)"
+    )
+    max_points: Optional[float] = Field(
+        None, description="Maximum points for this question"
+    )
+
     ai_feedback: str = Field(
         ...,
         description="AI feedback on this specific question (why wrong, how to improve, or essay commentary)",
