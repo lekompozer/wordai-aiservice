@@ -141,7 +141,7 @@ class GeminiTestEvaluationService:
             user_answer = user_answers.get(question_id, "No answer")
             q_max_points = q.get("max_points", 1)
 
-            if q_type == "mcq":
+            if q_type == "mcq" or q_type == "mcq_multiple":
                 correct_answer = q.get("correct_answer_key", "N/A")
                 # For diagnostic tests, there is no "correct" answer
                 is_correct = (
@@ -189,6 +189,185 @@ class GeminiTestEvaluationService:
                         "grading_rubric": q.get("grading_rubric", "No rubric provided"),
                     }
                 )
+
+            # ========== IELTS QUESTION TYPES ==========
+            elif q_type == "matching":
+                # Matching: Match left items to right options
+                user_matches = user_answer if isinstance(user_answer, dict) else {}
+                correct_matches = {
+                    m["left_key"]: m["right_key"] for m in q.get("correct_matches", [])
+                }
+
+                # Calculate correctness
+                correct_count = sum(
+                    1 for k, v in user_matches.items() if correct_matches.get(k) == v
+                )
+                total_items = len(q.get("left_items", []))
+                points_earned = (
+                    (correct_count / total_items * q_max_points)
+                    if total_items > 0
+                    else 0
+                )
+                user_earned_points += points_earned
+
+                question_analysis.append(
+                    {
+                        "question_id": question_id,
+                        "question_type": "matching",
+                        "question_text": q["question_text"],
+                        "left_items": q.get("left_items", []),
+                        "right_options": q.get("right_options", []),
+                        "user_matches": user_matches,
+                        "correct_matches": correct_matches,
+                        "correct_count": f"{correct_count}/{total_items}",
+                        "max_points": q_max_points,
+                        "points_earned": round(points_earned, 2),
+                        "explanation": q.get("explanation", "No explanation provided"),
+                    }
+                )
+
+            elif q_type == "completion":
+                # Completion: Fill in blanks
+                user_blanks = user_answer if isinstance(user_answer, dict) else {}
+                correct_answers_list = q.get("correct_answers", [])
+
+                # Calculate correctness (check each blank)
+                correct_count = 0
+                total_blanks = len(q.get("blanks", []))
+                for ca in correct_answers_list:
+                    blank_key = ca.get("blank_key")
+                    accepted = [ans.lower().strip() for ans in ca.get("answers", [])]
+                    user_ans = str(user_blanks.get(blank_key, "")).lower().strip()
+                    if user_ans in accepted:
+                        correct_count += 1
+
+                points_earned = (
+                    (correct_count / total_blanks * q_max_points)
+                    if total_blanks > 0
+                    else 0
+                )
+                user_earned_points += points_earned
+
+                question_analysis.append(
+                    {
+                        "question_id": question_id,
+                        "question_type": "completion",
+                        "question_text": q["question_text"],
+                        "template": q.get("template", ""),
+                        "blanks": q.get("blanks", []),
+                        "user_answers": user_blanks,
+                        "correct_answers": correct_answers_list,
+                        "correct_count": f"{correct_count}/{total_blanks}",
+                        "max_points": q_max_points,
+                        "points_earned": round(points_earned, 2),
+                        "explanation": q.get("explanation", "No explanation provided"),
+                    }
+                )
+
+            elif q_type == "sentence_completion":
+                # Sentence completion: Complete multiple sentences
+                user_sentences = user_answer if isinstance(user_answer, dict) else {}
+                sentences = q.get("sentences", [])
+
+                correct_count = 0
+                for sent in sentences:
+                    key = sent.get("key")
+                    accepted = [
+                        ans.lower().strip() for ans in sent.get("correct_answers", [])
+                    ]
+                    user_ans = str(user_sentences.get(key, "")).lower().strip()
+                    if user_ans in accepted:
+                        correct_count += 1
+
+                total_sentences = len(sentences)
+                points_earned = (
+                    (correct_count / total_sentences * q_max_points)
+                    if total_sentences > 0
+                    else 0
+                )
+                user_earned_points += points_earned
+
+                question_analysis.append(
+                    {
+                        "question_id": question_id,
+                        "question_type": "sentence_completion",
+                        "question_text": q["question_text"],
+                        "sentences": sentences,
+                        "user_answers": user_sentences,
+                        "correct_count": f"{correct_count}/{total_sentences}",
+                        "max_points": q_max_points,
+                        "points_earned": round(points_earned, 2),
+                        "explanation": q.get("explanation", "No explanation provided"),
+                    }
+                )
+
+            elif q_type == "short_answer":
+                # Short answer: Can have either questions array (IELTS) or correct_answer_keys (legacy)
+                if "questions" in q:
+                    # IELTS format with multiple sub-questions
+                    user_short_answers = (
+                        user_answer if isinstance(user_answer, dict) else {}
+                    )
+                    questions_list = q.get("questions", [])
+
+                    correct_count = 0
+                    for sq in questions_list:
+                        key = sq.get("key")
+                        accepted = [
+                            ans.lower().strip() for ans in sq.get("correct_answers", [])
+                        ]
+                        user_ans = str(user_short_answers.get(key, "")).lower().strip()
+                        if user_ans in accepted:
+                            correct_count += 1
+
+                    total_questions = len(questions_list)
+                    points_earned = (
+                        (correct_count / total_questions * q_max_points)
+                        if total_questions > 0
+                        else 0
+                    )
+                    user_earned_points += points_earned
+
+                    question_analysis.append(
+                        {
+                            "question_id": question_id,
+                            "question_type": "short_answer",
+                            "question_text": q["question_text"],
+                            "questions": questions_list,
+                            "user_answers": user_short_answers,
+                            "correct_count": f"{correct_count}/{total_questions}",
+                            "max_points": q_max_points,
+                            "points_earned": round(points_earned, 2),
+                            "explanation": q.get(
+                                "explanation", "No explanation provided"
+                            ),
+                        }
+                    )
+                else:
+                    # Legacy format with single answer
+                    correct_answers = q.get("correct_answer_keys", [])
+                    accepted = [ans.lower().strip() for ans in correct_answers]
+                    user_ans = str(user_answer).lower().strip()
+                    is_correct = user_ans in accepted
+
+                    points_earned = q_max_points if is_correct else 0
+                    user_earned_points += points_earned
+
+                    question_analysis.append(
+                        {
+                            "question_id": question_id,
+                            "question_type": "short_answer",
+                            "question_text": q["question_text"],
+                            "user_answer": user_answer,
+                            "correct_answers": correct_answers,
+                            "is_correct": is_correct,
+                            "max_points": q_max_points,
+                            "points_earned": points_earned,
+                            "explanation": q.get(
+                                "explanation", "No explanation provided"
+                            ),
+                        }
+                    )
 
         # Build prompt based on test type
         score_display = (
@@ -244,7 +423,9 @@ class GeminiTestEvaluationService:
         )
 
         for idx, qa in enumerate(question_analysis, 1):
-            if qa.get("question_type") == "mcq":
+            q_type = qa.get("question_type")
+
+            if q_type in ("mcq", "mcq_multiple"):
                 status = "✅ CORRECT" if qa["is_correct"] else "❌ INCORRECT"
                 points_info = (
                     f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
@@ -263,7 +444,8 @@ class GeminiTestEvaluationService:
                         "",
                     ]
                 )
-            elif qa.get("question_type") == "essay":
+
+            elif q_type == "essay":
                 prompt_parts.extend(
                     [
                         f"### Question {idx} (Essay) ⏳ PENDING OFFICIAL GRADING",
@@ -276,6 +458,128 @@ class GeminiTestEvaluationService:
                         "",
                     ]
                 )
+
+            elif q_type == "matching":
+                points_info = (
+                    f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
+                )
+                # Format left items and right options
+                left_items_str = ", ".join(
+                    [
+                        f"{item['key']}: {item['text']}"
+                        for item in qa.get("left_items", [])
+                    ]
+                )
+                right_opts_str = ", ".join(
+                    [
+                        f"{opt['key']}: {opt['text']}"
+                        for opt in qa.get("right_options", [])
+                    ]
+                )
+
+                prompt_parts.extend(
+                    [
+                        f"### Question {idx} (Matching) {qa['correct_count']} correct {points_info}",
+                        f"**ID:** {qa['question_id']}",
+                        f"**Question:** {qa['question_text']}",
+                        f"**Left Items:** {left_items_str}",
+                        f"**Right Options:** {right_opts_str}",
+                        f"**User's Matches:** {qa['user_matches']}",
+                        f"**Correct Matches:** {qa['correct_matches']}",
+                        f"**Score:** {qa['correct_count']}",
+                        f"**Max Points:** {qa.get('max_points', 1)}",
+                        f"**Points Earned:** {qa.get('points_earned', 0)}",
+                        f"**Explanation:** {qa['explanation']}",
+                        "",
+                    ]
+                )
+
+            elif q_type == "completion":
+                points_info = (
+                    f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
+                )
+                prompt_parts.extend(
+                    [
+                        f"### Question {idx} (Completion) {qa['correct_count']} correct {points_info}",
+                        f"**ID:** {qa['question_id']}",
+                        f"**Question:** {qa['question_text']}",
+                        f"**Template:** {qa['template']}",
+                        f"**User's Answers:** {qa['user_answers']}",
+                        f"**Correct Answers:** {qa['correct_answers']}",
+                        f"**Score:** {qa['correct_count']}",
+                        f"**Max Points:** {qa.get('max_points', 1)}",
+                        f"**Points Earned:** {qa.get('points_earned', 0)}",
+                        f"**Explanation:** {qa['explanation']}",
+                        "",
+                    ]
+                )
+
+            elif q_type == "sentence_completion":
+                points_info = (
+                    f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
+                )
+                # Format sentences
+                sentences_str = ", ".join(
+                    [f"{s['key']}: {s['template']}" for s in qa.get("sentences", [])]
+                )
+
+                prompt_parts.extend(
+                    [
+                        f"### Question {idx} (Sentence Completion) {qa['correct_count']} correct {points_info}",
+                        f"**ID:** {qa['question_id']}",
+                        f"**Question:** {qa['question_text']}",
+                        f"**Sentences:** {sentences_str}",
+                        f"**User's Answers:** {qa['user_answers']}",
+                        f"**Score:** {qa['correct_count']}",
+                        f"**Max Points:** {qa.get('max_points', 1)}",
+                        f"**Points Earned:** {qa.get('points_earned', 0)}",
+                        f"**Explanation:** {qa['explanation']}",
+                        "",
+                    ]
+                )
+
+            elif q_type == "short_answer":
+                if "questions" in qa:
+                    # IELTS format
+                    points_info = f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
+                    # Format sub-questions
+                    subqs_str = ", ".join(
+                        [f"{sq['key']}: {sq['text']}" for sq in qa.get("questions", [])]
+                    )
+
+                    prompt_parts.extend(
+                        [
+                            f"### Question {idx} (Short Answer) {qa['correct_count']} correct {points_info}",
+                            f"**ID:** {qa['question_id']}",
+                            f"**Question:** {qa['question_text']}",
+                            f"**Sub-questions:** {subqs_str}",
+                            f"**User's Answers:** {qa['user_answers']}",
+                            f"**Score:** {qa['correct_count']}",
+                            f"**Max Points:** {qa.get('max_points', 1)}",
+                            f"**Points Earned:** {qa.get('points_earned', 0)}",
+                            f"**Explanation:** {qa['explanation']}",
+                            "",
+                        ]
+                    )
+                else:
+                    # Legacy format
+                    status = "✅ CORRECT" if qa.get("is_correct") else "❌ INCORRECT"
+                    points_info = f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
+                    correct_ans_str = ", ".join(qa.get("correct_answers", []))
+
+                    prompt_parts.extend(
+                        [
+                            f"### Question {idx} (Short Answer) {status} {points_info}",
+                            f"**ID:** {qa['question_id']}",
+                            f"**Question:** {qa['question_text']}",
+                            f"**User's Answer:** {qa['user_answer']}",
+                            f"**Correct Answers:** {correct_ans_str}",
+                            f"**Max Points:** {qa.get('max_points', 1)}",
+                            f"**Points Earned:** {qa.get('points_earned', 0)}",
+                            f"**Explanation:** {qa['explanation']}",
+                            "",
+                        ]
+                    )
 
         # Add evaluation instructions based on test category
         if is_diagnostic_test:
