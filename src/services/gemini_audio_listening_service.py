@@ -424,8 +424,9 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
             logger.info(f"☁️ Uploading audio to Gemini File API...")
             logger.info(f"   Uploading {file_size_mb:.2f} MB to Gemini...")
 
+            # Upload file (API updated: use file= instead of path=)
             audio_file = await asyncio.to_thread(
-                self.client.files.upload, path=audio_path
+                self.client.files.upload, file=audio_path
             )
 
             logger.info(f"✅ Audio uploaded to Gemini successfully!")
@@ -555,7 +556,9 @@ Now, analyze the audio and generate the test. Return ONLY the JSON object."""
                 ydl_opts["cookiefile"] = cookies_path
             else:
                 logger.warning(f"⚠️ YouTube cookies file not found at: {cookies_path}")
-                logger.info("💡 Tip: Export cookies from browser using extension like 'Get cookies.txt LOCALLY'")
+                logger.info(
+                    "💡 Tip: Export cookies from browser using extension like 'Get cookies.txt LOCALLY'"
+                )
 
             # Download in thread pool to avoid blocking
             def download():
