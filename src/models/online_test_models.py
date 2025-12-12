@@ -200,6 +200,66 @@ class GenerateTestRequest(BaseModel):
         description="Optional: Configure distribution of different MCQ question types (single/multiple answer, matching, completion, etc.). If not provided, AI uses default single-answer MCQ format.",
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def convert_camel_to_snake_case(cls, data):
+        """
+        Convert all camelCase keys from frontend to snake_case for backend.
+        Handles both camelCase (old frontend) and snake_case (new frontend).
+        """
+        if not isinstance(data, dict):
+            return data
+
+        # Common camelCase to snake_case mappings for top-level fields
+        camel_to_snake = {
+            "sourceType": "source_type",
+            "sourceId": "source_id",
+            "creatorName": "creator_name",
+            "userQuery": "user_query",
+            "testType": "test_type",
+            "numQuestions": "num_questions",
+            "numMcqQuestions": "num_mcq_questions",
+            "numEssayQuestions": "num_essay_questions",
+            "mcqPoints": "mcq_points",
+            "essayPoints": "essay_points",
+            "timeLimitMinutes": "time_limit_minutes",
+            "maxRetries": "max_retries",
+            "passingScore": "passing_score",
+            "showAnswersTiming": "show_answers_timing",
+            "numOptions": "num_options",
+            "numCorrectAnswers": "num_correct_answers",
+            "testCategory": "test_category",
+        }
+
+        for camel, snake in camel_to_snake.items():
+            if camel in data and snake not in data:
+                data[snake] = data[camel]
+
+        # Handle mcqTypeConfig (camelCase) → mcq_type_config
+        if "mcqTypeConfig" in data and "mcq_type_config" not in data:
+            config = data["mcqTypeConfig"]
+            if isinstance(config, dict):
+                # Convert nested camelCase keys to snake_case
+                key_mapping = {
+                    "distributionMode": "distribution_mode",
+                    "numSingleAnswerMcq": "num_single_answer_mcq",
+                    "numMultipleAnswerMcq": "num_multiple_answer_mcq",
+                    "numMatching": "num_matching",
+                    "numCompletion": "num_completion",
+                    "numSentenceCompletion": "num_sentence_completion",
+                    "numShortAnswer": "num_short_answer",
+                }
+                converted = {}
+                for key, value in config.items():
+                    converted_key = key_mapping.get(key, key)
+                    converted[converted_key] = value
+                data["mcq_type_config"] = converted
+            else:
+                data["mcq_type_config"] = config
+            del data["mcqTypeConfig"]
+
+        return data
+
     @model_validator(mode="after")
     def validate_test_configuration(self):
         """Validate test type and question counts"""
