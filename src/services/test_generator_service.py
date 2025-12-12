@@ -146,13 +146,22 @@ class TestGeneratorService:
         # MCQ Type Distribution Instructions (NEW)
         logger.info(f"🎯 Building prompt with MCQ type config: {mcq_type_config}")
 
-        # Check if MCQ type config is provided
-        has_mcq_type_config = mcq_type_config and mcq_type_config.get(
-            "distribution_mode"
-        ) in ["manual", "auto"]
+        # Default to AUTO mode unless explicitly set to traditional/none
+        # If no config or config is None -> AUTO
+        # If distribution_mode is "none" or "traditional" -> TRADITIONAL
+        # Otherwise -> respect the config (manual/auto)
+        if not mcq_type_config or mcq_type_config.get("distribution_mode") is None:
+            # No config provided -> Default to AUTO mode
+            mcq_type_config = {"distribution_mode": "auto"}
+            logger.info("⚙️ No MCQ type config provided -> Defaulting to AUTO mode")
+
+        distribution_mode = mcq_type_config.get("distribution_mode")
+
+        # Check if using advanced MCQ type config (manual or auto)
+        has_mcq_type_config = distribution_mode in ["manual", "auto"]
 
         mcq_type_instruction = ""
-        if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
+        if distribution_mode == "manual":
             # User specified exact MCQ type distribution
             type_counts = []
 
@@ -207,7 +216,7 @@ Generate the following question types:
 
 Each question MUST include a "question_type" field to identify its type."""
                 logger.info(f"✅ Manual MCQ distribution configured: {type_counts}")
-        elif mcq_type_config and mcq_type_config.get("distribution_mode") == "auto":
+        elif distribution_mode == "auto":
             # AI decides optimal distribution of question types
             logger.info(
                 f"🤖 Auto mode: AI will decide optimal question type distribution"
@@ -236,9 +245,9 @@ You have the flexibility to use a variety of question types to create the most e
 - Each question MUST include a "question_type" field
 - When user query does not specify formats, Standard MCQ can be the primary type with other types used strategically"""
         else:
-            # No MCQ type config provided - use traditional format
+            # Traditional format: Only when explicitly set to "none" or "traditional"
             logger.info(
-                f"⚙️ No MCQ type config - using traditional format with {num_options} options, {num_correct_answers} correct answer(s)"
+                f"⚙️ Traditional format mode (distribution_mode={distribution_mode}) - using traditional format with {num_options} options, {num_correct_answers} correct answer(s)"
             )
             mcq_type_instruction = f"""
 
@@ -1834,13 +1843,19 @@ Now, generate the essay questions based on the instructions and the document pro
         # MCQ Type Distribution Instructions (NEW)
         logger.info(f"🎯 Mixed test - MCQ type config: {mcq_type_config}")
 
-        # Check if MCQ type config is provided
-        has_mcq_type_config = mcq_type_config and mcq_type_config.get(
-            "distribution_mode"
-        ) in ["manual", "auto"]
+        # Default to AUTO mode unless explicitly set to traditional/none
+        if not mcq_type_config or mcq_type_config.get("distribution_mode") is None:
+            # No config provided -> Default to AUTO mode
+            mcq_type_config = {"distribution_mode": "auto"}
+            logger.info("⚙️ Mixed test: No MCQ type config -> Defaulting to AUTO mode")
+
+        distribution_mode = mcq_type_config.get("distribution_mode")
+
+        # Check if using advanced MCQ type config (manual or auto)
+        has_mcq_type_config = distribution_mode in ["manual", "auto"]
 
         mcq_type_instruction = ""
-        if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
+        if distribution_mode == "manual":
             # User specified exact MCQ type distribution
             type_counts = []
 
@@ -1891,7 +1906,7 @@ The {num_mcq_questions} MCQ questions should be distributed as follows:
 
 Each MCQ question MUST include a "question_type" field to identify its type."""
                 logger.info(f"✅ Manual MCQ distribution for mixed test: {type_counts}")
-        elif mcq_type_config and mcq_type_config.get("distribution_mode") == "auto":
+        elif distribution_mode == "auto":
             # AI decides optimal distribution of MCQ question types
             logger.info(
                 f"🤖 Auto mode for mixed test: AI will decide MCQ type distribution"
@@ -1916,9 +1931,9 @@ For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety
 - When user query does not specify formats, Standard MCQ can be the primary type
 - Each MCQ question MUST include a "question_type" field"""
         else:
-            # No MCQ type config - traditional format
+            # Traditional format: Only when explicitly set to "none" or "traditional"
             logger.info(
-                f"⚙️ No MCQ type config for mixed test - using traditional format"
+                f"⚙️ Traditional format for mixed test (distribution_mode={distribution_mode})"
             )
             mcq_type_instruction = f"""
 
