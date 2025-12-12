@@ -388,6 +388,8 @@ async def generate_test(
 class GenerateGeneralTestRequest(BaseModel):
     """Request model for AI-generated test from general knowledge"""
 
+    model_config = {"populate_by_name": True}  # Accept both alias and field name
+
     title: str = Field(..., description="Test title", min_length=5, max_length=200)
     description: Optional[str] = Field(
         None,
@@ -492,6 +494,7 @@ class GenerateGeneralTestRequest(BaseModel):
     # MCQ type distribution configuration (NEW)
     mcq_type_config: Optional[Dict] = Field(
         None,
+        alias="mcqTypeConfig",  # Accept camelCase from frontend
         description="Optional: Configure distribution of different MCQ question types. Example: {'distribution_mode': 'manual', 'num_single_answer_mcq': 5, 'num_multiple_answer_mcq': 3}. If not provided, AI uses default single-answer MCQ format.",
     )
 
