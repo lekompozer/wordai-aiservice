@@ -20,6 +20,7 @@ from fastapi import (
     File,
     Form,
     Query,
+    Request,
 )
 from pydantic import BaseModel, Field, model_validator
 
@@ -608,7 +609,7 @@ class GenerateGeneralTestRequest(BaseModel):
 
 @router.post("/generate/general")
 async def generate_test_from_general_knowledge(
-    request: GenerateGeneralTestRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     user_info: dict = Depends(require_auth),
 ):
@@ -629,6 +630,15 @@ async def generate_test_from_general_knowledge(
     4. Frontend polls status endpoint
     """
     try:
+        # Get raw request body to debug
+        raw_body = await http_request.json()
+        logger.info(f"🔍 RAW REQUEST BODY: {raw_body}")
+        logger.info(f"🔍 RAW mcq_type_config: {raw_body.get('mcq_type_config')}")
+        logger.info(f"🔍 RAW mcqTypeConfig: {raw_body.get('mcqTypeConfig')}")
+
+        # Now parse with Pydantic
+        request = GenerateGeneralTestRequest(**raw_body)
+
         logger.info(f"📝 General test generation request from user {user_info['uid']}")
         logger.info(f"   Topic: {request.topic}")
         logger.info(f"   Category: {request.test_category}")
