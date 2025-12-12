@@ -222,11 +222,12 @@ You have the flexibility to use a variety of question types to create the most e
 6. **Short answer** ("question_type": "short_answer"): 1-3 word answers using "correct_answer_keys" array (provide multiple acceptable variations for grading flexibility)
 
 **IMPORTANT GUIDELINES:**
+- **CRITICAL: If the user query specifies particular question formats/types (e.g., "phonetics", "error identification", "cloze test", "reading comprehension"), you MUST follow those specifications exactly. The user's requirements override these general guidelines.**
 - Vary question types throughout the test to assess different skills
-- Choose question types that best fit the content (e.g., use matching for relationships, completion for structured data)
-- Aim for a balanced distribution but prioritize content appropriateness
+- Choose question types that best fit the content (e.g., use matching for relationships, completion for structured data, short_answer for phonetics/error correction)
+- Aim for a balanced distribution but prioritize content appropriateness over format variety
 - Each question MUST include a "question_type" field
-- Standard MCQ should be the primary type, with other types used strategically"""
+- When user query does not specify formats, Standard MCQ can be the primary type with other types used strategically"""
         else:
             # No MCQ type config provided - use traditional format
             logger.info(
@@ -297,24 +298,38 @@ You have the flexibility to use a variety of question types to create the most e
             options_instruction = f"Each question has {num_options} options ({', '.join(option_keys)}). Adjust if user query indicates otherwise."
             correct_answer_constraint = f"{correct_answer_instruction} However, adjust if question complexity requires it."
 
-        prompt = f"""You are an expert in creating educational assessments. Your task is to generate a multiple-choice quiz based on the provided document and user query.
+        prompt = f"""You are an expert in creating educational assessments. Your task is to generate a comprehensive test based on the provided document and user query.
 
 **TEST TYPE: {test_type_instruction}**
+
+**🎯 PRIMARY DIRECTIVE - USER QUERY ANALYSIS:**
+BEFORE generating questions, carefully analyze the user query below:
+"{user_query}"
+
+**If the user query specifies:**
+- Specific question formats (e.g., "phonetics", "pronunciation", "word stress", "error identification", "cloze test", "reading comprehension", "sentence transformation")
+- Particular sections/parts with different question types
+- Structured test layout (e.g., "PART 1: PHONETICS", "PART 2: VOCABULARY")
+- Specific question counts per section
+
+**THEN you MUST:**
+1. Follow those specifications EXACTLY - they override all other instructions below
+2. Use appropriate "question_type" for each format (e.g., "short_answer" for phonetics/error correction, "completion" for cloze test, "mcq" for standard multiple choice)
+3. Structure questions according to the user's specified parts/sections
+4. Match the requested question counts per section
 
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
 {escape_instructions}
 3. {lang_instruction}
-4. **IMPORTANT: If the user query specifies different requirements, follow the user's specifications FIRST.**
-5. The JSON object must conform to the following structure:{json_structure_example}
-6. Generate exactly {num_questions} questions (unless user query specifies otherwise).
-7. The questions must be relevant to the user's query: "{user_query}".
-8. All information used to create questions, answers, and explanations must come directly from the provided document.
-9. {options_instruction}
-10. {correct_answer_constraint}
-11. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
-12. {points_instruction}
-13. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
+4. The JSON object must conform to the following structure:{json_structure_example}
+5. Generate exactly {num_questions} questions (unless user query specifies otherwise or breaks it down by sections).
+6. All information used to create questions, answers, and explanations must come directly from the provided document.
+7. {options_instruction}
+8. {correct_answer_constraint}
+9. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
+10. {points_instruction}
+11. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
 {mcq_type_instruction}
 
 **DOCUMENT CONTENT:**
@@ -1667,9 +1682,10 @@ For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety
 6. **Short answer** ("question_type": "short_answer"): 1-3 word answers
 
 **GUIDELINES:**
+- **CRITICAL: If the user query specifies particular question formats/types, follow those specifications exactly. User requirements override these guidelines.**
 - Vary MCQ question types to assess different skills
-- Choose types that best fit the content
-- Standard MCQ should be the primary type
+- Choose types that best fit the content (e.g., short_answer for phonetics/pronunciation/error correction, completion for cloze test)
+- When user query does not specify formats, Standard MCQ can be the primary type
 - Each MCQ question MUST include a "question_type" field"""
         else:
             # No MCQ type config - traditional format
@@ -1693,11 +1709,20 @@ For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety
 
         prompt = f"""You are an expert in creating educational assessments. Your task is to generate a MIXED test (Multiple-Choice + Essay) based on the provided document and user query.
 
+**🎯 PRIMARY DIRECTIVE - USER QUERY ANALYSIS:**
+BEFORE generating questions, carefully analyze the user query:
+"{user_query}"
+
+**If the user query specifies particular question formats or structured sections (e.g., "PART 1: PHONETICS", "error identification", "cloze test"), you MUST:**
+1. Follow those specifications EXACTLY - they override the general instructions below
+2. Use appropriate "question_type" for each format (e.g., "short_answer" for phonetics/error correction, "completion" for cloze test)
+3. Structure questions according to the user's requested layout
+
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
 2. {lang_instruction}
-3. Generate exactly {num_mcq_questions} MCQ questions AND {num_essay_questions} essay questions.
-4. The questions must be relevant to the user's query: "{user_query}".
+3. Generate exactly {num_mcq_questions} MCQ questions AND {num_essay_questions} essay questions (unless user query specifies different breakdown by sections).
+4. The questions must be relevant to the user's query.
 5. All information must come from the provided document.
 6. The JSON object must conform to the following structure:
    {{
