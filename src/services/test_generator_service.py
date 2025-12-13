@@ -690,6 +690,23 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                             "required": ["questions"],
                         }
 
+                # 🐛 DEBUG: Save prompt for analysis
+                try:
+                    debug_dir = "/tmp/gemini_prompts"
+                    os.makedirs(debug_dir, exist_ok=True)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    prompt_file = f"{debug_dir}/prompt_{timestamp}.txt"
+                    with open(prompt_file, "w", encoding="utf-8") as f:
+                        f.write("=== PROMPT ===\n")
+                        f.write(prompt)
+                        f.write(f"\n\n=== CONFIG ===\n")
+                        f.write(f"num_questions: {num_questions}\n")
+                        f.write(f"max_output_tokens: 25000\n")
+                        f.write(f"temperature: 0.3\n")
+                    logger.info(f"   💾 Saved prompt to {prompt_file}")
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Could not save prompt: {e}")
+
                 # Call Gemini with JSON Mode and response schema
                 # Run blocking Gemini call in thread pool to avoid blocking event loop
                 loop = asyncio.get_event_loop()
