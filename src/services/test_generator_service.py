@@ -70,14 +70,20 @@ class TestGeneratorService:
             json_str = re.sub(
                 r'"max_points":\s*(\d)0{10,}', r'"max_points": \1', json_str
             )
+            
+            # 5. Fix unescaped newlines within JSON strings
+            # Replace actual newlines within quoted strings with escaped \n
+            # This handles cases like "explanation": "text\nmore text" which is invalid JSON
+            json_str = re.sub(
+                r'("(?:[^"\\]|\\.)*?)\n\s*([^"]*?")',
+                r'\1\\n\2',
+                json_str
+            )
 
             return json_str
         except Exception as e:
             logger.warning(f"Error in _fix_json_string: {e}")
             return json_str
-        logger.info(
-            "🤖 Test Generator Service initialized (Gemini 2.5 Pro with ChatGPT fallback)"
-        )
 
     def _build_generation_prompt(
         self,
@@ -136,7 +142,7 @@ class TestGeneratorService:
                     f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
                 )
             test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
-            points_instruction = "Assign a 'max_points' value (small positive integer between 1-10) to each question based on difficulty (e.g., 1 for easy, 2 for medium, 3-5 for hard). CRITICAL: max_points MUST be a single digit or small number, never use trailing zeros."
+            points_instruction = "Assign a 'max_points' value to each question based on difficulty: use 1 for easy questions, 2-3 for medium difficulty, and 4-5 for hard questions. The value MUST be a single digit from 1 to 5 only."
             points_example = ',\n         "max_points": 1'
 
         # Escape sequence instructions (can't use backslash in f-string)

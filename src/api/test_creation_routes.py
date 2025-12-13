@@ -1235,22 +1235,27 @@ async def get_test_status(
     ```
     """
     try:
+        logger.info(f"📊 GET /tests/{test_id}/status - User: {user_info['uid']}")
+        
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
 
         test = collection.find_one({"_id": ObjectId(test_id)})
 
         if not test:
+            logger.warning(f"   ⚠️ Test {test_id} not found")
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Check access (owner, public, or shared)
         access_info = check_test_access(test_id, user_info["uid"], test)
         logger.info(
-            f"   ✅ Status check access granted: type={access_info['access_type']}"
+            f"   ✅ Access granted: {access_info['access_type']}"
         )
 
         status = test.get("status", "pending")
         progress = test.get("progress_percent", 0)
+        
+        logger.info(f"   📍 Current status: {status} (progress: {progress}%)")
 
         response = {
             "test_id": test_id,
@@ -1260,8 +1265,10 @@ async def get_test_status(
 
         if status == "pending":
             response["message"] = "Test is queued for generation..."
+            logger.info(f"   ⏳ Returning: Test queued")
         elif status == "generating":
             response["message"] = f"AI is generating questions... ({progress}%)"
+            logger.info(f"   🔄 Returning: Generating ({progress}%)")
         elif status == "ready":
             response.update(
                 {
@@ -1278,6 +1285,7 @@ async def get_test_status(
                     ),
                 }
             )
+            logger.info(f"   ✅ Returning: Test ready - {test.get('num_questions')} questions")
         elif status == "failed":
             response.update(
                 {
@@ -1285,13 +1293,14 @@ async def get_test_status(
                     "error_message": test.get("error_message"),
                 }
             )
+            logger.error(f"   ❌ Returning: Test failed - {test.get('error_message')}")
 
         return response
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get test status: {e}")
+        logger.error(f"❌ Failed to get test status for {test_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
