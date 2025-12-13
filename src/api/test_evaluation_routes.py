@@ -323,10 +323,7 @@ async def evaluate_test_result(
                 if q_type == "matching":
                     # Use correct_answers as primary, fallback to correct_matches
                     matches = q.get("correct_answers") or q.get("correct_matches", [])
-                    correct_answer = {
-                        m["left_key"]: m["right_key"]
-                        for m in matches
-                    }
+                    correct_answer = {m["left_key"]: m["right_key"] for m in matches}
                 elif q_type == "completion":
                     # Handle both object format (correct) and string format (legacy)
                     correct_answers_list = q.get("correct_answers", [])
@@ -348,7 +345,9 @@ async def evaluate_test_result(
                         }
                     else:
                         # Use correct_answers as primary, fallback to correct_answer_keys
-                        correct_answer = q.get("correct_answers") or q.get("correct_answer_keys", [])
+                        correct_answer = q.get("correct_answers") or q.get(
+                            "correct_answer_keys", []
+                        )
 
                 question_evaluations.append(
                     QuestionEvaluation(

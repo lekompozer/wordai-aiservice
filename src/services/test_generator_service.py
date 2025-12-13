@@ -340,11 +340,9 @@ class TestGeneratorService:
                                                     ],
                                                 },
                                             },
-                                            "correct_answer_keys": {
-                                                "type": "array",
-                                                "items": {"type": "string"},
-                                            },
                                             "template": {"type": "string"},
+                                            "blanks": {"type": "array"},
+                                            "sentences": {"type": "array"},
                                             "left_items": {
                                                 "type": "array",
                                                 "items": {"type": "string"},
@@ -353,16 +351,9 @@ class TestGeneratorService:
                                                 "type": "array",
                                                 "items": {"type": "string"},
                                             },
-                                            "correct_matches": {
+                                            "correct_answers": {
                                                 "type": "array",
-                                                "items": {
-                                                    "type": "object",
-                                                    "properties": {
-                                                        "key": {"type": "string"},
-                                                        "value": {"type": "string"},
-                                                    },
-                                                    "required": ["key", "value"],
-                                                },
+                                                "description": "Universal field: For MCQ=strings, For matching/completion=objects with keys",
                                             },
                                             "explanation": {"type": "string"},
                                             "points": {
@@ -705,6 +696,23 @@ class TestGeneratorService:
                         elif question_type == "completion":
                             # Completion questions ONLY use IELTS format
                             # Must have correct_answers array with blank_key and answers variations
+
+                            # Check if AI confused completion with matching (wrong field)
+                            if "correct_matches" in q and "correct_answers" not in q:
+                                logger.error(
+                                    f"❌ AI CONFUSION DETECTED - Question {idx + 1} (completion)"
+                                )
+                                logger.error(
+                                    f"   AI generated 'correct_matches' field (for matching type) instead of 'correct_answers'"
+                                )
+                                logger.error(
+                                    f"   This completion question is INVALID and will be rejected"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
+                                raise ValueError(
+                                    f"Question {idx + 1}: AI generated invalid completion question with 'correct_matches' field. Expected 'correct_answers' with blank_key structure."
+                                )
+
                             if "correct_answers" not in q:
                                 logger.error(
                                     f"❌ ANSWER VALIDATION FAILED - Question {idx + 1} (completion)"
@@ -1237,6 +1245,23 @@ class TestGeneratorService:
                         elif question_type == "completion":
                             # Completion questions ONLY use IELTS format
                             # Must have correct_answers array with blank_key and answers variations
+
+                            # Check if AI confused completion with matching (wrong field)
+                            if "correct_matches" in q and "correct_answers" not in q:
+                                logger.error(
+                                    f"❌ AI CONFUSION DETECTED - Question {idx + 1} (completion)"
+                                )
+                                logger.error(
+                                    f"   AI generated 'correct_matches' field (for matching type) instead of 'correct_answers'"
+                                )
+                                logger.error(
+                                    f"   This completion question is INVALID and will be rejected"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
+                                raise ValueError(
+                                    f"Question {idx + 1}: AI generated invalid completion question with 'correct_matches' field. Expected 'correct_answers' with blank_key structure."
+                                )
+
                             if "correct_answers" not in q:
                                 logger.error(
                                     f"❌ ANSWER VALIDATION FAILED - Question {idx + 1} (completion)"
@@ -1822,11 +1847,11 @@ The {num_mcq_questions} MCQ questions should be distributed as follows:
 
 **IMPORTANT:**
 - For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
-- For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answer_keys": ["A", "B", ...] (2+ answers)
-- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" fields
-- For completion: Use "question_type": "completion" with "template" field containing blanks like _____(1)_____, _____(2)_____
+- For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answers": ["A", "B", ...] (2+ answers)
+- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_answers": [{"left_key": "1", "right_key": "A"}, ...]
+- For completion: Use "question_type": "completion" with "template" field and "correct_answers": [{"blank_key": "1", "answers": ["word"]}, ...]
 - For sentence completion: Use "question_type": "sentence_completion" with "template" field
-- For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of acceptable answers (1-3 words)
+- For short answer: Use "question_type": "short_answer" with "correct_answers" as array of acceptable answers (1-3 words)
 
 Each MCQ question MUST include a "question_type" field to identify its type."""
                 logger.info(f"✅ Manual MCQ distribution for mixed test: {type_counts}")
@@ -1841,12 +1866,12 @@ Each MCQ question MUST include a "question_type" field to identify its type."""
 For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety of question types:
 
 **Available MCQ types:**
-1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options
-2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers
-3. **Matching** ("question_type": "matching"): Match items using "left_items", "right_options", "correct_matches"
-4. **Completion** ("question_type": "completion"): Fill blanks using "template" field
+1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options, use "correct_answers": ["A"]
+2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers, use "correct_answers": ["A", "B"]
+3. **Matching** ("question_type": "matching"): Match items, use "correct_answers": [{"left_key": "1", "right_key": "A"}]
+4. **Completion** ("question_type": "completion"): Fill blanks, use "correct_answers": [{"blank_key": "1", "answers": ["word"]}]
 5. **Sentence completion** ("question_type": "sentence_completion"): Complete sentences using "template"
-6. **Short answer** ("question_type": "short_answer"): 1-3 word answers
+6. **Short answer** ("question_type": "short_answer"): 1-3 word answers, use "correct_answers": ["word"]
 
 **GUIDELINES:**
 - **CRITICAL: If the user query specifies particular question formats/types, follow those specifications exactly. User requirements override these guidelines.**
