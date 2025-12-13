@@ -76,14 +76,10 @@ class TestGeneratorService:
             # Only fix newlines that appear INSIDE quoted values after a colon
             def fix_string_newlines(match):
                 # match.group(0) is the full match: "key": "value"
-                return match.group(0).replace('\n', '\\n')
-            
+                return match.group(0).replace("\n", "\\n")
+
             # Match quoted strings that are values (come after :) and contain newlines
-            json_str = re.sub(
-                r':\s*"[^"]*\n[^"]*"',
-                fix_string_newlines,
-                json_str
-            )
+            json_str = re.sub(r':\s*"[^"]*\n[^"]*"', fix_string_newlines, json_str)
 
             return json_str
         except Exception as e:
