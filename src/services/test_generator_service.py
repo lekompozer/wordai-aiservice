@@ -72,14 +72,25 @@ class TestGeneratorService:
             )
 
             # 5. Fix unescaped newlines within JSON string VALUES only
-            # Match pattern: "key": "value with\n newline"
+            # Match pattern: "key": "value with\n newline(s)"
             # Only fix newlines that appear INSIDE quoted values after a colon
             def fix_string_newlines(match):
-                # match.group(0) is the full match: "key": "value"
+                # match.group(0) is the full match including colon and quotes
                 return match.group(0).replace("\n", "\\n")
 
-            # Match quoted strings that are values (come after :) and contain newlines
-            json_str = re.sub(r':\s*"[^"]*\n[^"]*"', fix_string_newlines, json_str)
+            # Match quoted strings that are values (come after :) and contain ANY number of newlines
+            # Pattern: : "any content with newlines"
+            # Uses [^"\\]|\\.  to match: any char except " and \, OR any escaped char
+            # This properly handles multi-line strings with multiple newlines
+            json_str = re.sub(
+                r':\s*"(?:[^"\\\n]|\\.|\n)*?"',
+                lambda m: (
+                    m.group(0).replace("\n", "\\n")
+                    if "\n" in m.group(0)
+                    else m.group(0)
+                ),
+                json_str,
+            )
 
             return json_str
         except Exception as e:
