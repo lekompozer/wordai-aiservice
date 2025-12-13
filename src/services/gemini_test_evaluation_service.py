@@ -142,10 +142,12 @@ class GeminiTestEvaluationService:
             q_max_points = q.get("max_points", 1)
 
             if q_type == "mcq" or q_type == "mcq_multiple":
-                # Get correct answer(s) - handle both array and legacy single key
-                correct_answer_keys = q.get("correct_answer_keys") or [
-                    q.get("correct_answer_key")
-                ]
+                # Get correct answer(s) - use correct_answers as primary, fallback to old fields
+                correct_answer_keys = (
+                    q.get("correct_answers")
+                    or q.get("correct_answer_keys")
+                    or [q.get("correct_answer_key")]
+                )
                 correct_answer = (
                     correct_answer_keys[0]
                     if len(correct_answer_keys) == 1
@@ -213,9 +215,9 @@ class GeminiTestEvaluationService:
             elif q_type == "matching":
                 # Matching: Match left items to right options
                 user_matches = user_answer if isinstance(user_answer, dict) else {}
-                correct_matches = {
-                    m["left_key"]: m["right_key"] for m in q.get("correct_matches", [])
-                }
+                # Use correct_answers as primary field, fallback to correct_matches for backward compatibility
+                matches_data = q.get("correct_answers") or q.get("correct_matches", [])
+                correct_matches = {m["left_key"]: m["right_key"] for m in matches_data}
 
                 # Calculate correctness
                 correct_count = sum(
@@ -254,11 +256,22 @@ class GeminiTestEvaluationService:
                 correct_count = 0
                 total_blanks = len(q.get("blanks", []))
                 for ca in correct_answers_list:
-                    blank_key = ca.get("blank_key")
-                    accepted = [ans.lower().strip() for ans in ca.get("answers", [])]
-                    user_ans = str(user_blanks.get(blank_key, "")).lower().strip()
-                    if user_ans in accepted:
-                        correct_count += 1
+                    # Handle both object format (correct) and string format (legacy)
+                    if isinstance(ca, dict):
+                        blank_key = ca.get("blank_key")
+                        accepted = [
+                            ans.lower().strip() for ans in ca.get("answers", [])
+                        ]
+                    else:
+                        # Legacy format: ca is a string, use it as the answer
+                        # Try to match with any blank key
+                        blank_key = None
+                        accepted = [str(ca).lower().strip()]
+
+                    if blank_key:
+                        user_ans = str(user_blanks.get(blank_key, "")).lower().strip()
+                        if user_ans in accepted:
+                            correct_count += 1
 
                 points_earned = (
                     (correct_count / total_blanks * q_max_points)
@@ -364,7 +377,10 @@ class GeminiTestEvaluationService:
                     )
                 else:
                     # Legacy format with single answer
-                    correct_answers = q.get("correct_answer_keys", [])
+                    # Use correct_answers as primary field, fallback to correct_answer_keys for backward compatibility
+                    correct_answers = q.get("correct_answers") or q.get(
+                        "correct_answer_keys", []
+                    )
                     accepted = [ans.lower().strip() for ans in correct_answers]
                     user_ans = str(user_answer).lower().strip()
                     is_correct = user_ans in accepted
