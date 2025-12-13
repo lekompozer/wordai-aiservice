@@ -71,11 +71,18 @@ class TestGeneratorService:
                 r'"max_points":\s*(\d)0{10,}', r'"max_points": \1', json_str
             )
 
-            # 5. Fix unescaped newlines within JSON strings
-            # Replace actual newlines within quoted strings with escaped \n
-            # This handles cases like "explanation": "text\nmore text" which is invalid JSON
+            # 5. Fix unescaped newlines within JSON string VALUES only
+            # Match pattern: "key": "value with\n newline"
+            # Only fix newlines that appear INSIDE quoted values after a colon
+            def fix_string_newlines(match):
+                # match.group(0) is the full match: "key": "value"
+                return match.group(0).replace('\n', '\\n')
+            
+            # Match quoted strings that are values (come after :) and contain newlines
             json_str = re.sub(
-                r'("(?:[^"\\]|\\.)*?)\n\s*([^"]*?")', r"\1\\n\2", json_str
+                r':\s*"[^"]*\n[^"]*"',
+                fix_string_newlines,
+                json_str
             )
 
             return json_str
