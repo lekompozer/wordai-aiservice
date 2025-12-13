@@ -630,25 +630,29 @@ async def generate_test_from_general_knowledge(
     4. Frontend polls status endpoint
     """
     try:
-        # Get raw request body to debug
+        # Parse request
         raw_body = await http_request.json()
-        logger.info(f"🔍 RAW REQUEST BODY: {raw_body}")
-        logger.info(f"🔍 RAW mcq_type_config: {raw_body.get('mcq_type_config')}")
-        logger.info(f"🔍 RAW mcqTypeConfig: {raw_body.get('mcqTypeConfig')}")
-
-        # Now parse with Pydantic
         request = GenerateGeneralTestRequest(**raw_body)
+
+        # Determine effective distribution mode
+        if request.mcq_type_config and request.mcq_type_config.get("distribution_mode"):
+            effective_mode = request.mcq_type_config.get("distribution_mode")
+            mode_source = "provided"
+        elif request.mcq_type_config and request.mcq_type_config.get(
+            "distribution_mode"
+        ) in ["none", "traditional"]:
+            effective_mode = "traditional"
+            mode_source = "provided"
+        else:
+            effective_mode = "auto"
+            mode_source = "defaulted"
 
         logger.info(f"📝 General test generation request from user {user_info['uid']}")
         logger.info(f"   Topic: {request.topic}")
         logger.info(f"   Category: {request.test_category}")
         logger.info(f"   Title: {request.title}")
-        logger.info(f"   Test Type: {request.test_type}")
-        logger.info(f"   MCQ Type Config: {request.mcq_type_config}")
-        logger.info(f"   MCQ Type Config TYPE: {type(request.mcq_type_config)}")
-        logger.info(f"   DEBUG - Request dict: {request.model_dump()}")
-        logger.info(f"   Num Options: {request.num_options}")
-        logger.info(f"   Num Correct Answers: {request.num_correct_answers}")
+        logger.info(f"   Questions: {request.num_questions}")
+        logger.info(f"   Distribution Mode: {effective_mode} ({mode_source})")
 
         # Create test record
         mongo_service = get_mongodb_service()

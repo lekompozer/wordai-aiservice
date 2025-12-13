@@ -8,6 +8,7 @@ import asyncio
 import json
 import re
 import os
+import sys
 from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from bson import ObjectId
@@ -15,6 +16,10 @@ from bson import ObjectId
 from google import genai
 from google.genai import types
 import config.config as config
+
+# Increase integer string conversion limit to handle potential large numbers from AI
+# This prevents "Exceeds the limit" errors when AI returns malformed responses
+sys.set_int_max_str_digits(100000)
 
 logger = logging.getLogger(__name__)
 
@@ -728,8 +733,20 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     # Try to parse directly first
                     questions_json = json.loads(response_text)
                     logger.info(f"   ✅ JSON parsed successfully on first attempt")
-                except json.JSONDecodeError as e:
+                except (json.JSONDecodeError, ValueError) as e:
                     logger.warning(f"   ⚠️ Initial JSON parse failed: {e}")
+
+                    # If it's an integer conversion error, log response preview
+                    if "integer string conversion" in str(e):
+                        logger.error(
+                            f"   ❌ Gemini returned malformed response with huge integer"
+                        )
+                        logger.error(f"   First 1000 chars: {response_text[:1000]}")
+                        logger.error(f"   Last 1000 chars: {response_text[-1000:]}")
+                        raise Exception(
+                            f"Gemini returned invalid integer in response: {e}"
+                        )
+
                     logger.warning(f"   Attempting to fix JSON formatting...")
 
                     # Apply JSON fixes
@@ -739,7 +756,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                     try:
                         questions_json = json.loads(fixed_json)
                         logger.info(f"   ✅ JSON parsing successful after cleanup")
-                    except json.JSONDecodeError as e2:
+                    except (json.JSONDecodeError, ValueError) as e2:
                         # Log the problematic part of JSON for debugging
                         error_pos = e2.pos if hasattr(e2, "pos") else 0
                         snippet_start = max(0, error_pos - 200)
