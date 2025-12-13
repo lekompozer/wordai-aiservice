@@ -328,10 +328,14 @@ async def evaluate_test_result(
                         for m in matches
                     }
                 elif q_type == "completion":
-                    correct_answer = {
-                        ca["blank_key"]: ca["answers"]
-                        for ca in q.get("correct_answers", [])
-                    }
+                    # Handle both object format (correct) and string format (legacy)
+                    correct_answers_list = q.get("correct_answers", [])
+                    correct_answer = {}
+                    for ca in correct_answers_list:
+                        if isinstance(ca, dict):
+                            # Correct format: object with blank_key and answers
+                            correct_answer[ca["blank_key"]] = ca["answers"]
+                        # Legacy format: ca is a string, skip it (can't map without blank_key)
                 elif q_type == "sentence_completion":
                     correct_answer = {
                         s["key"]: s["correct_answers"] for s in q.get("sentences", [])
