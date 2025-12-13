@@ -238,7 +238,7 @@ class PromptBuilder:
 1. **OUTPUT FORMAT:**
    - MUST be valid JSON with "questions" array
    - Each question MUST have "question_type" field
-   - Properly escape special characters: use \\" for quotes, \\n for newlines, \\\\\\\\ for backslashes
+   - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions
@@ -314,7 +314,7 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 1. **OUTPUT FORMAT:**
    - MUST be valid JSON with "questions" array
    - Each question MUST have "question_type" field
-   - Properly escape special characters: use \\" for quotes, \\n for newlines, \\\\\\\\ for backslashes
+   - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions
@@ -387,7 +387,7 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - Each question uses "question_type": "mcq" (standard multiple choice)
    - DO NOT include "correct_answer_keys" field
    - DO NOT include "points" field
-   - Properly escape special characters: use \\" for quotes, \\n for newlines, \\\\\\\\ for backslashes
+   - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions
