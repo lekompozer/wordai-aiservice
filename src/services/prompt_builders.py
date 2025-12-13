@@ -245,14 +245,15 @@ class PromptBuilder:
    - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
-   - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
+   - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
    - IGNORE any question count mentioned in USER REQUIREMENTS above
    - ONLY use the {num_questions} value from TEST CONFIGURATION
-   - If user query says "35 questions" but config says 20, generate 20 ONLY
+   - If user query breaks down parts ("PART 1: 4 questions, PART 2: 8 questions"), these are SUGGESTIONS for distribution, NOT separate generation tasks
+   - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
+   - Count the length of your "questions" array - it MUST equal {num_questions}
    - NO DUPLICATES - each question must be unique
-   - Count your output before returning
-   - STOP IMMEDIATELY after generating {num_questions} questions
-   - If you reach {num_questions} questions, close the JSON array and object
+   - STOP IMMEDIATELY when "questions" array has {num_questions} items
+   - Close the JSON immediately: no extra questions, no continuation
 
 3. **CONTENT SOURCE:**
    - ALL questions, answers, and explanations MUST come from the provided document
@@ -330,14 +331,15 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
-   - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
+   - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
    - IGNORE any question count mentioned in USER REQUIREMENTS above
    - ONLY use the {num_questions} value from TEST CONFIGURATION
-   - If user query says "35 questions" but config says 20, generate 20 ONLY
+   - If user query breaks down parts ("PART 1: 4 questions, PART 2: 8 questions"), these are SUGGESTIONS for distribution, NOT separate generation tasks
+   - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
+   - Count the length of your "questions" array - it MUST equal {num_questions}
    - NO DUPLICATES - each question must be unique
-   - Count your output before returning
-   - STOP IMMEDIATELY after generating {num_questions} questions
-   - If you reach {num_questions} questions, close the JSON array and object
+   - STOP IMMEDIATELY when "questions" array has {num_questions} items
+   - Close the JSON immediately: no extra questions, no continuation
 
 3. **CONTENT SOURCE:**
    - Use general knowledge about: {topic}
@@ -410,15 +412,17 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
-   - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
+   - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
    - IGNORE any question count mentioned in USER REQUIREMENTS above
    - ONLY use the {num_questions} value from TEST CONFIGURATION
-   - If user query says "35 questions" but config says 20, generate 20 ONLY
+   - If user query breaks down parts ("PART 1: 4 questions, PART 2: 8 questions"), these are SUGGESTIONS for distribution, NOT separate generation tasks
+   - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
+   - Count the length of your "questions" array - it MUST equal {num_questions}
    - NO DUPLICATES - each question must be unique
-   - STOP IMMEDIATELY after generating {num_questions} questions
-   - If you reach {num_questions} questions, close the JSON array and object
+   - STOP IMMEDIATELY when "questions" array has {num_questions} items
+   - Close the JSON immediately: no extra questions, no continuation
 
-3. **QUESTION DESIGN:**
+3. **QUESTION DESIGN:
    - Focus on behaviors, preferences, reactions, tendencies
    - Options should represent distinct personality traits
    - Avoid judgmental language - all options are valid choices
