@@ -220,9 +220,17 @@ class PromptBuilder:
         difficulty_instruction = difficulty_map.get(
             difficulty, difficulty_map["medium"]
         )
-        
+
         # Convert language code to full name for clarity
-        language_full = "English" if language.lower() in ["en", "english"] else "Vietnamese" if language.lower() in ["vi", "vn", "vietnamese"] else language
+        language_full = (
+            "English"
+            if language.lower() in ["en", "english"]
+            else (
+                "Vietnamese"
+                if language.lower() in ["vi", "vn", "vietnamese"]
+                else language
+            )
+        )
 
         prompt = f"""# ROLE
 You are an expert educational assessment creator specializing in ACADEMIC tests.
@@ -344,9 +352,17 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
         difficulty_instruction = difficulty_map.get(
             difficulty, difficulty_map["medium"]
         )
-        
+
         # Convert language code to full name for clarity
-        language_full = "English" if language.lower() in ["en", "english"] else "Vietnamese" if language.lower() in ["vi", "vn", "vietnamese"] else language
+        language_full = (
+            "English"
+            if language.lower() in ["en", "english"]
+            else (
+                "Vietnamese"
+                if language.lower() in ["vi", "vn", "vietnamese"]
+                else language
+            )
+        )
 
         prompt = f"""# ROLE
 You are an expert educational assessment creator specializing in ACADEMIC tests.
@@ -451,9 +467,17 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
         - Includes 'diagnostic_criteria' with result types
         - Options represent different personality traits
         """
-        
+
         # Convert language code to full name for clarity
-        language_full = "English" if language.lower() in ["en", "english"] else "Vietnamese" if language.lower() in ["vi", "vn", "vietnamese"] else language
+        language_full = (
+            "English"
+            if language.lower() in ["en", "english"]
+            else (
+                "Vietnamese"
+                if language.lower() in ["vi", "vn", "vietnamese"]
+                else language
+            )
+        )
 
         prompt = f"""# ROLE
 You are an expert psychologist and personality assessment creator specializing in DIAGNOSTIC tests.
