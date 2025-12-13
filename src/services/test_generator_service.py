@@ -413,7 +413,10 @@ BEFORE generating questions, carefully analyze the user query below:
 {escape_instructions}
 3. {lang_instruction}
 4. The JSON object must conform to the following structure:{json_structure_example}
-5. Generate exactly {num_questions} questions (unless user query specifies otherwise or breaks it down by sections).
+5. **⚠️ CRITICAL - QUESTION COUNT:** You MUST generate EXACTLY {num_questions} questions total. NO MORE, NO LESS.
+   - This count is ABSOLUTE and CANNOT be changed regardless of user query content
+   - If user query mentions sections/parts, distribute these {num_questions} questions across those sections
+   - NEVER generate duplicate questions - each question must be unique
 6. All information used to create questions, answers, and explanations must come directly from the provided document.
 7. {options_instruction}
 8. {correct_answer_constraint}
@@ -1528,6 +1531,60 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         if "points" in q and "max_points" not in q:
                             q["max_points"] = q.pop("points")
 
+                    # 🔥 CRITICAL: Validate question count
+                    if len(questions_list) != num_questions:
+                        logger.error(
+                            f"   ❌ Wrong question count: Expected {num_questions}, got {len(questions_list)}"
+                        )
+                        if attempt < self.max_retries - 1:
+                            wait_time = (2**attempt) + 1
+                            logger.warning(f"   ⚠️ Retrying in {wait_time}s...")
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            # Adjust to requested count
+                            if len(questions_list) > num_questions:
+                                logger.warning(
+                                    f"   ⚠️ Truncating to {num_questions} questions"
+                                )
+                                questions_list = questions_list[:num_questions]
+                            else:
+                                logger.warning(
+                                    f"   ⚠️ Continuing with {len(questions_list)} questions (less than requested {num_questions})"
+                                )
+                            questions_json["questions"] = questions_list
+
+                    # 🔥 CRITICAL: Detect duplicate questions (AI hallucination)
+                    question_texts = [
+                        q.get("question_text", "") for q in questions_list
+                    ]
+                    unique_questions = len(set(question_texts))
+                    if unique_questions < len(questions_list) * 0.8:  # >20% duplicates
+                        logger.error(
+                            f"   ❌ Duplicate questions detected: {len(questions_list)} total, only {unique_questions} unique"
+                        )
+                        if attempt < self.max_retries - 1:
+                            wait_time = (2**attempt) + 1
+                            logger.warning(
+                                f"   ⚠️ Retrying with clearer prompt in {wait_time}s..."
+                            )
+                            await asyncio.sleep(wait_time)
+                            continue
+                        else:
+                            # Remove duplicates and continue with unique questions
+                            logger.warning(
+                                "   ⚠️ Removing duplicates and continuing with unique questions"
+                            )
+                            seen = set()
+                            unique_list = []
+                            for q in questions_list:
+                                q_text = q.get("question_text", "")
+                                if q_text not in seen:
+                                    seen.add(q_text)
+                                    unique_list.append(q)
+                            questions_list = unique_list
+                            questions_json["questions"] = questions_list
+
                     logger.info(
                         f"   ✅ Generated {len(questions_list)} valid questions"
                     )
@@ -1829,7 +1886,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
 2. {lang_instruction}
-3. Generate exactly {num_questions} essay questions.
+3. **⚠️ CRITICAL - QUESTION COUNT:** Generate EXACTLY {num_questions} essay questions. NO MORE, NO LESS. This is an ABSOLUTE requirement.
 4. The questions must be relevant to the user's query: "{user_query}".
 5. All information used to create questions must come from the provided document.
 6. The JSON object must conform to the following structure:
@@ -2033,7 +2090,10 @@ BEFORE generating questions, carefully analyze the user query:
 **CRITICAL INSTRUCTIONS:**
 1. Your output MUST be a single, valid JSON object.
 2. {lang_instruction}
-3. Generate exactly {num_mcq_questions} MCQ questions AND {num_essay_questions} essay questions (unless user query specifies different breakdown by sections).
+3. **⚠️ CRITICAL - QUESTION COUNT:** Generate EXACTLY {num_mcq_questions} MCQ questions AND EXACTLY {num_essay_questions} essay questions. NO MORE, NO LESS.
+   - Total questions: {num_mcq_questions} + {num_essay_questions} = {num_mcq_questions + num_essay_questions}
+   - These counts are ABSOLUTE and CANNOT be changed
+   - NEVER generate duplicate questions - each question must be unique
 4. The questions must be relevant to the user's query.
 5. All information must come from the provided document.
 6. The JSON object must conform to the following structure:
