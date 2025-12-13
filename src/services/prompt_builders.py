@@ -246,6 +246,9 @@ class PromptBuilder:
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
+   - IGNORE any question count mentioned in USER REQUIREMENTS above
+   - ONLY use the {num_questions} value from TEST CONFIGURATION
+   - If user query says "35 questions" but config says 20, generate 20 ONLY
    - NO DUPLICATES - each question must be unique
    - Count your output before returning
    - STOP IMMEDIATELY after generating {num_questions} questions
@@ -328,6 +331,9 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
+   - IGNORE any question count mentioned in USER REQUIREMENTS above
+   - ONLY use the {num_questions} value from TEST CONFIGURATION
+   - If user query says "35 questions" but config says 20, generate 20 ONLY
    - NO DUPLICATES - each question must be unique
    - Count your output before returning
    - STOP IMMEDIATELY after generating {num_questions} questions
@@ -405,6 +411,9 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
+   - IGNORE any question count mentioned in USER REQUIREMENTS above
+   - ONLY use the {num_questions} value from TEST CONFIGURATION
+   - If user query says "35 questions" but config says 20, generate 20 ONLY
    - NO DUPLICATES - each question must be unique
    - STOP IMMEDIATELY after generating {num_questions} questions
    - If you reach {num_questions} questions, close the JSON array and object
