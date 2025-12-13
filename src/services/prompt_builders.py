@@ -217,7 +217,9 @@ class PromptBuilder:
             "medium": "Create MEDIUM questions testing comprehension and application of concepts",
             "hard": "Create HARD questions testing deep analysis, synthesis, and critical thinking",
         }
-        difficulty_instruction = difficulty_map.get(difficulty, difficulty_map["medium"])
+        difficulty_instruction = difficulty_map.get(
+            difficulty, difficulty_map["medium"]
+        )
 
         prompt = f"""You are an expert educational assessment creator specializing in ACADEMIC tests.
 
@@ -293,7 +295,9 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
             "medium": "Create MEDIUM questions testing standard knowledge and understanding",
             "hard": "Create HARD questions testing advanced knowledge and critical thinking",
         }
-        difficulty_instruction = difficulty_map.get(difficulty, difficulty_map["medium"])
+        difficulty_instruction = difficulty_map.get(
+            difficulty, difficulty_map["medium"]
+        )
 
         prompt = f"""You are an expert educational assessment creator specializing in ACADEMIC tests.
 
@@ -412,40 +416,39 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - ALL content (questions, options, explanations) in {language}
 
 **JSON OUTPUT STRUCTURE:**
-```json
-{
+Example:
+{{
   "questions": [
-    {
+    {{
       "question_type": "mcq",
       "question_text": "When facing a challenging problem at work, you prefer to:",
       "options": [
-        {"option_key": "A", "option_text": "Analyze data and create detailed plans"},
-        {"option_key": "B", "option_text": "Brainstorm creative solutions"},
-        {"option_key": "C", "option_text": "Discuss with team members"},
-        {"option_key": "D", "option_text": "Take immediate action and adjust as needed"}
+        {{"option_key": "A", "option_text": "Analyze data and create detailed plans"}},
+        {{"option_key": "B", "option_text": "Brainstorm creative solutions"}},
+        {{"option_key": "C", "option_text": "Discuss with team members"}},
+        {{"option_key": "D", "option_text": "Take immediate action and adjust as needed"}}
       ],
       "explanation": "A indicates analytical thinking, B shows creativity, C suggests collaboration, D demonstrates action-oriented approach."
-    }
+    }}
   ],
-  "diagnostic_criteria": {
+  "diagnostic_criteria": {{
     "result_types": [
-      {
+      {{
         "type_id": "analytical",
         "title": "Analytical Thinker",
         "description": "You approach problems systematically with data and logic",
         "traits": ["detail-oriented", "logical", "methodical"]
-      },
-      {
+      }},
+      {{
         "type_id": "creative",
         "title": "Creative Problem Solver",
         "description": "You value innovation and out-of-the-box thinking",
         "traits": ["imaginative", "flexible", "innovative"]
-      }
+      }}
     ],
     "mapping_rules": "Count answer patterns: Mostly A → Analytical, Mostly B → Creative, Mostly C → Collaborative, Mostly D → Action-oriented. Mixed patterns indicate balanced personality."
-  }
-}
-```
+  }}
+}}
 
 Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
