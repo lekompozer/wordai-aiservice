@@ -220,20 +220,60 @@ class PromptBuilder:
         difficulty_instruction = difficulty_map.get(
             difficulty, difficulty_map["medium"]
         )
+        
+        # Convert language code to full name for clarity
+        language_full = "English" if language.lower() in ["en", "english"] else "Vietnamese" if language.lower() in ["vi", "vn", "vietnamese"] else language
 
-        prompt = f"""You are an expert educational assessment creator specializing in ACADEMIC tests.
+        prompt = f"""# ROLE
+You are an expert educational assessment creator specializing in ACADEMIC tests.
 
-⚠️ CRITICAL: Generate EXACTLY {num_questions} questions - NOT {num_questions + 1}, NOT {num_questions - 1}. COUNT YOUR OUTPUT!
+# STEP 1: ANALYZE USER REQUEST
+Read and understand what the user wants:
+---
+{user_query}
+---
+
+The above describes the test structure, topics, and requirements. Use this to understand WHAT content to create, but IGNORE any numbers mentioned.
+
+# STEP 2: EXECUTE GENERATION WITH STRICT CONFIGURATION
+
+⚠️ CRITICAL: Follow ONLY these configuration values, NOT any numbers from Step 1:
 
 **TEST CONFIGURATION:**
 - Title: {title}
 - Topic: {topic}
-- Language: {language}
+- Language: {language_full}
 - Difficulty: {difficulty_instruction}
-- Number of Questions: {num_questions} (MUST BE EXACT - STOP after reaching this count)
+- Number of Questions: {num_questions} (ABSOLUTE - ignore any other count)
 
-**USER REQUIREMENTS:**
-{user_query}
+**MCQ DISTRIBUTION MODE: {mcq_type_config.get("distribution_mode", "auto").upper() if mcq_type_config else "AUTO"}**
+
+Choose how to distribute question types based on this mode:
+
+🔹 **AUTO MODE** (Default - AI decides):
+   - You decide the optimal mix of question types based on content
+   - Use mcq, mcq_multiple, matching, completion, sentence_completion, short_answer as appropriate
+   - Balance variety and appropriateness for the topic
+   - Example: 60% mcq, 20% completion, 10% matching, 10% short_answer
+
+🔹 **TRADITIONAL MODE** (90% single + 10% multiple):
+   - 90% of MCQ questions should be "mcq" (single correct answer)
+   - 10% of MCQ questions should be "mcq_multiple" (2+ correct answers)
+   - Other question types (completion, matching, etc.) allowed as specified in Step 1
+   - Example: If 30 total questions and 20 are MCQ → 18 single mcq + 2 mcq_multiple
+
+🔹 **USER_MANUAL MODE** (Follow Step 1 exactly):
+   - Follow EXACTLY the breakdown specified in Step 1
+   - If Step 1 says "10 single MCQ, 5 multiple MCQ" → generate exactly that
+   - If Step 1 says "Part A: 5 mcq, Part B: 3 completion" → follow precisely
+   - No deviation from user's explicit instructions
+
+**EXECUTION RULES:**
+- Generate EXACTLY {num_questions} questions TOTAL
+- Your final "questions" array length MUST be {num_questions}
+- All content (questions, options, explanations) in {language_full}
+
+# STEP 3: QUESTION TYPES & INSTRUCTIONS
 
 {question_types}
 
@@ -246,9 +286,6 @@ class PromptBuilder:
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
-   - IGNORE any question count mentioned in USER REQUIREMENTS above
-   - ONLY use the {num_questions} value from TEST CONFIGURATION
-   - If user query breaks down parts ("PART 1: 4 questions, PART 2: 8 questions"), these are SUGGESTIONS for distribution, NOT separate generation tasks
    - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
    - Count the length of your "questions" array - it MUST equal {num_questions}
    - NO DUPLICATES - each question must be unique
@@ -265,13 +302,14 @@ class PromptBuilder:
    - Explanations MUST explain WHY answers are correct
    - For completion/short_answer: provide multiple acceptable variations
 
-5. **LANGUAGE:**
-   - ALL content (questions, options, explanations) in {language}
+# STEP 4: DOCUMENT CONTENT
 
-**DOCUMENT CONTENT:**
+Use ONLY information from this document:
 ---
 {document_content}
 ---
+
+# STEP 5: GENERATE OUTPUT
 
 Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
@@ -306,20 +344,60 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
         difficulty_instruction = difficulty_map.get(
             difficulty, difficulty_map["medium"]
         )
+        
+        # Convert language code to full name for clarity
+        language_full = "English" if language.lower() in ["en", "english"] else "Vietnamese" if language.lower() in ["vi", "vn", "vietnamese"] else language
 
-        prompt = f"""You are an expert educational assessment creator specializing in ACADEMIC tests.
+        prompt = f"""# ROLE
+You are an expert educational assessment creator specializing in ACADEMIC tests.
 
-⚠️ CRITICAL: Generate EXACTLY {num_questions} questions - NOT {num_questions + 1}, NOT {num_questions - 1}. COUNT YOUR OUTPUT!
+# STEP 1: ANALYZE USER REQUEST
+Read and understand what the user wants:
+---
+{user_query}
+---
+
+The above describes the test structure, topics, and requirements. Use this to understand WHAT content to create, but IGNORE any numbers mentioned.
+
+# STEP 2: EXECUTE GENERATION WITH STRICT CONFIGURATION
+
+⚠️ CRITICAL: Follow ONLY these configuration values, NOT any numbers from Step 1:
 
 **TEST CONFIGURATION:**
 - Title: {title}
 - Topic: {topic}
-- Language: {language}
+- Language: {language_full}
 - Difficulty: {difficulty_instruction}
-- Number of Questions: {num_questions} (MUST BE EXACT - STOP after reaching this count)
+- Number of Questions: {num_questions} (ABSOLUTE - ignore any other count)
 
-**USER REQUIREMENTS:**
-{user_query}
+**MCQ DISTRIBUTION MODE: {mcq_type_config.get("distribution_mode", "auto").upper() if mcq_type_config else "AUTO"}**
+
+Choose how to distribute question types based on this mode:
+
+🔹 **AUTO MODE** (Default - AI decides):
+   - You decide the optimal mix of question types based on content
+   - Use mcq, mcq_multiple, matching, completion, sentence_completion, short_answer as appropriate
+   - Balance variety and appropriateness for the topic
+   - Example: 60% mcq, 20% completion, 10% matching, 10% short_answer
+
+🔹 **TRADITIONAL MODE** (90% single + 10% multiple):
+   - 90% of MCQ questions should be "mcq" (single correct answer)
+   - 10% of MCQ questions should be "mcq_multiple" (2+ correct answers)
+   - Other question types (completion, matching, etc.) allowed as specified in Step 1
+   - Example: If 30 total questions and 20 are MCQ → 18 single mcq + 2 mcq_multiple
+
+🔹 **USER_MANUAL MODE** (Follow Step 1 exactly):
+   - Follow EXACTLY the breakdown specified in Step 1
+   - If Step 1 says "10 single MCQ, 5 multiple MCQ" → generate exactly that
+   - If Step 1 says "Part A: 5 mcq, Part B: 3 completion" → follow precisely
+   - No deviation from user's explicit instructions
+
+**EXECUTION RULES:**
+- Generate EXACTLY {num_questions} questions TOTAL
+- Your final "questions" array length MUST be {num_questions}
+- All content (questions, options, explanations) in {language_full}
+
+# STEP 3: QUESTION TYPES & INSTRUCTIONS
 
 {question_types}
 
@@ -332,9 +410,6 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
-   - IGNORE any question count mentioned in USER REQUIREMENTS above
-   - ONLY use the {num_questions} value from TEST CONFIGURATION
-   - If user query breaks down parts ("PART 1: 4 questions, PART 2: 8 questions"), these are SUGGESTIONS for distribution, NOT separate generation tasks
    - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
    - Count the length of your "questions" array - it MUST equal {num_questions}
    - NO DUPLICATES - each question must be unique
@@ -345,19 +420,14 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - Use general knowledge about: {topic}
    - Use common/standard information from educational resources
    - Ensure accuracy - use well-established facts
+   - You are NOT given a document - generate from general knowledge
 
 4. **ANSWER ACCURACY:**
    - All questions MUST have correct answers
    - Explanations MUST explain WHY answers are correct
    - For completion/short_answer: provide multiple acceptable variations
 
-5. **LANGUAGE:**
-   - ALL content (questions, options, explanations) in {language}
-
-6. **NO DOCUMENT PROVIDED:**
-   - You are NOT given a document
-   - Generate questions from general knowledge
-   - Focus on widely-known information about the topic
+# STEP 4: GENERATE OUTPUT
 
 Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
@@ -381,20 +451,37 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
         - Includes 'diagnostic_criteria' with result types
         - Options represent different personality traits
         """
+        
+        # Convert language code to full name for clarity
+        language_full = "English" if language.lower() in ["en", "english"] else "Vietnamese" if language.lower() in ["vi", "vn", "vietnamese"] else language
 
-        prompt = f"""You are an expert psychologist and personality assessment creator specializing in DIAGNOSTIC tests.
+        prompt = f"""# ROLE
+You are an expert psychologist and personality assessment creator specializing in DIAGNOSTIC tests.
 
-⚠️ CRITICAL: Generate EXACTLY {num_questions} questions - NOT {num_questions + 1}, NOT {num_questions - 1}. COUNT YOUR OUTPUT!
+# STEP 1: ANALYZE USER REQUEST
+Read and understand what the user wants:
+---
+{user_query}
+---
+
+The above describes the test structure and requirements. Use this to understand WHAT content to create, but IGNORE any numbers mentioned.
+
+# STEP 2: EXECUTE GENERATION WITH STRICT CONFIGURATION
+
+⚠️ CRITICAL: Follow ONLY these configuration values, NOT any numbers from Step 1:
 
 **TEST CONFIGURATION:**
 - Title: {title}
 - Topic: {topic}
-- Language: {language}
-- Number of Questions: {num_questions} (MUST BE EXACT - STOP after reaching this count)
+- Language: {language_full}
+- Number of Questions: {num_questions} (ABSOLUTE - ignore any other count)
 - Options per Question: {num_options}
 
-**USER REQUIREMENTS:**
-{user_query}
+**EXECUTION RULES:**
+- Generate EXACTLY {num_questions} questions TOTAL
+- If Step 1 mentions "PART 1: 4 questions, PART 2: 8 questions", treat as distribution suggestions only
+- Your final "questions" array length MUST be {num_questions}
+- All content (questions, options, explanations) in {language_full}
 
 **DIAGNOSTIC TEST CHARACTERISTICS:**
 - This is a PERSONALITY/DIAGNOSTIC test - NOT a knowledge test
@@ -402,7 +489,7 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 - There are NO "correct" answers - all options are equally valid
 - Each option represents a different trait or preference
 
-**CRITICAL INSTRUCTIONS:**
+# STEP 3: CRITICAL INSTRUCTIONS
 
 1. **OUTPUT FORMAT:**
    - MUST be valid JSON with "questions" array AND "diagnostic_criteria" object
@@ -413,16 +500,13 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
-   - IGNORE any question count mentioned in USER REQUIREMENTS above
-   - ONLY use the {num_questions} value from TEST CONFIGURATION
-   - If user query breaks down parts ("PART 1: 4 questions, PART 2: 8 questions"), these are SUGGESTIONS for distribution, NOT separate generation tasks
    - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
    - Count the length of your "questions" array - it MUST equal {num_questions}
    - NO DUPLICATES - each question must be unique
    - STOP IMMEDIATELY when "questions" array has {num_questions} items
    - Close the JSON immediately: no extra questions, no continuation
 
-3. **QUESTION DESIGN:
+3. **QUESTION DESIGN:**
    - Focus on behaviors, preferences, reactions, tendencies
    - Options should represent distinct personality traits
    - Avoid judgmental language - all options are valid choices
@@ -436,9 +520,6 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - Define 3-5 result types (personality types/categories)
    - Include mapping rules for interpreting answer patterns
    - Example: "Mostly A answers → Analytical Type, Mostly B answers → Creative Type"
-
-6. **LANGUAGE:**
-   - ALL content (questions, options, explanations) in {language}
 
 **JSON OUTPUT STRUCTURE:**
 Example:
@@ -474,6 +555,8 @@ Example:
     "mapping_rules": "Count answer patterns: Mostly A → Analytical, Mostly B → Creative, Mostly C → Collaborative, Mostly D → Action-oriented. Mixed patterns indicate balanced personality."
   }}
 }}
+
+# STEP 4: GENERATE OUTPUT
 
 Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
