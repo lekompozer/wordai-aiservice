@@ -1236,7 +1236,7 @@ async def get_test_status(
     """
     try:
         logger.info(f"📊 GET /tests/{test_id}/status - User: {user_info['uid']}")
-        
+
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
 
@@ -1248,13 +1248,11 @@ async def get_test_status(
 
         # Check access (owner, public, or shared)
         access_info = check_test_access(test_id, user_info["uid"], test)
-        logger.info(
-            f"   ✅ Access granted: {access_info['access_type']}"
-        )
+        logger.info(f"   ✅ Access granted: {access_info['access_type']}")
 
         status = test.get("status", "pending")
         progress = test.get("progress_percent", 0)
-        
+
         logger.info(f"   📍 Current status: {status} (progress: {progress}%)")
 
         response = {
@@ -1285,7 +1283,9 @@ async def get_test_status(
                     ),
                 }
             )
-            logger.info(f"   ✅ Returning: Test ready - {test.get('num_questions')} questions")
+            logger.info(
+                f"   ✅ Returning: Test ready - {test.get('num_questions')} questions"
+            )
         elif status == "failed":
             response.update(
                 {

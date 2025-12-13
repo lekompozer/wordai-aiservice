@@ -70,14 +70,12 @@ class TestGeneratorService:
             json_str = re.sub(
                 r'"max_points":\s*(\d)0{10,}', r'"max_points": \1', json_str
             )
-            
+
             # 5. Fix unescaped newlines within JSON strings
             # Replace actual newlines within quoted strings with escaped \n
             # This handles cases like "explanation": "text\nmore text" which is invalid JSON
             json_str = re.sub(
-                r'("(?:[^"\\]|\\.)*?)\n\s*([^"]*?")',
-                r'\1\\n\2',
-                json_str
+                r'("(?:[^"\\]|\\.)*?)\n\s*([^"]*?")', r"\1\\n\2", json_str
             )
 
             return json_str
