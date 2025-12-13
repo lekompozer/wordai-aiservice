@@ -356,9 +356,7 @@ async def generate_test(
             test_type=request.test_type,
             num_mcq_questions=request.num_mcq_questions,
             num_essay_questions=request.num_essay_questions,
-            mcq_type_config=(
-                request.mcq_type_config.dict() if request.mcq_type_config else None
-            ),
+            mcq_type_config=request.mcq_type_config,
             topic=request.description if request.description else request.title,
             is_general_knowledge=False,
         )
