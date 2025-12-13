@@ -876,10 +876,16 @@ async def submit_test(
                     result["selected_answer_keys"] = user_answer_data.get(
                         "selected_answer_keys", []
                     )
-                    result["correct_answer_keys"] = q.get("correct_answer_keys", [])
+                    # Use correct_answers as primary, fallback to correct_answer_keys
+                    result["correct_answer_keys"] = q.get("correct_answers") or q.get(
+                        "correct_answer_keys", []
+                    )
                 elif question_type == "matching":
                     result["user_matches"] = user_answer_data.get("matches", {})
-                    result["correct_matches"] = q.get("correct_matches", {})
+                    # Use correct_answers as primary, fallback to correct_matches
+                    result["correct_matches"] = q.get("correct_answers") or q.get(
+                        "correct_matches", {}
+                    )
                 elif question_type == "map_labeling":
                     result["user_labels"] = user_answer_data.get("labels", {})
                     result["correct_labels"] = q.get("correct_labels", {})
@@ -1682,10 +1688,16 @@ async def get_submission_detail(
                 # MCQ result
                 user_answers = user_answer_data.get("selected_answer_keys", [])
 
-                # Get correct answers (support both array and legacy)
-                correct_answers = q.get("correct_answer_keys", [])
-                if not correct_answers and "correct_answer_key" in q:
-                    correct_answers = [q.get("correct_answer_key")]
+                # Get correct answers - use correct_answers as primary field
+                correct_answers = (
+                    q.get("correct_answers")
+                    or q.get("correct_answer_keys")
+                    or (
+                        [q.get("correct_answer_key")]
+                        if "correct_answer_key" in q
+                        else []
+                    )
+                )
 
                 # Compare as sets (all answers must match)
                 is_correct = (
@@ -1749,7 +1761,10 @@ async def get_submission_detail(
                     result["left_items"] = q.get("left_items", [])
                     result["right_options"] = q.get("right_options", [])
                     result["user_matches"] = user_answer_data.get("matches", {})
-                    result["correct_matches"] = q.get("correct_matches", {})
+                    # Use correct_answers as primary, fallback to correct_matches
+                    result["correct_matches"] = q.get("correct_answers") or q.get(
+                        "correct_matches", {}
+                    )
 
                 elif q_type == "completion":
                     result["template"] = q.get("template", "")

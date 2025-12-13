@@ -970,10 +970,13 @@ async def create_manual_test(
 
                 # Add MCQ-specific fields
                 if q_type == "mcq":
+                    # Store in unified correct_answers field, keep old field for backward compatibility
+                    correct_answers = [q.correct_answer_key] if q.correct_answer_key else []
                     question_dict.update(
                         {
                             "options": q.options,
-                            "correct_answer_key": q.correct_answer_key,
+                            "correct_answer_key": q.correct_answer_key,  # Keep for backward compatibility
+                            "correct_answers": correct_answers,  # Primary field
                             "explanation": q.explanation,
                         }
                     )
@@ -1593,50 +1596,50 @@ async def update_test_questions(
                 test_category = test_doc.get("test_category", "academic")
                 is_diagnostic = test_category == "diagnostic"
 
-                # Support both correct_answer_key (string) and correct_answer_keys (array)
+                # Support unified correct_answers and legacy fields
+                has_correct_answers = q.get("correct_answers")
                 has_correct_answer_key = q.get("correct_answer_key")
                 has_correct_answer_keys = q.get("correct_answer_keys")
 
                 # Skip correct_answer validation for diagnostic tests
                 if not is_diagnostic:
-                    if not has_correct_answer_key and not has_correct_answer_keys:
+                    if not has_correct_answers and not has_correct_answer_key and not has_correct_answer_keys:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: MCQ requires correct_answer_key or correct_answer_keys",
+                            detail=f"Question {idx + 1}: MCQ requires correct_answers (or correct_answer_key/correct_answer_keys)",
                         )
 
                 # Get option keys for validation
                 option_keys = [opt.get("key") for opt in q["options"]]
 
-                # Normalize to correct_answer_keys array format (only for academic tests)
+                # Normalize to unified correct_answers array format (only for academic tests)
                 if not is_diagnostic:
-                    if has_correct_answer_keys:
-                        # Ensure it's an array
-                        if isinstance(q["correct_answer_keys"], str):
-                            q["correct_answer_keys"] = [q["correct_answer_keys"]]
+                    correct_answers = []
 
-                        # Validate all correct answers exist in options
-                        for ans in q["correct_answer_keys"]:
-                            if ans not in option_keys:
-                                raise HTTPException(
-                                    status_code=400,
-                                    detail=f"Question {idx + 1}: correct answer '{ans}' not found in options {option_keys}",
-                                )
-
-                        # Also set correct_answer_key for backwards compatibility (first correct answer)
-                        q["correct_answer_key"] = q["correct_answer_keys"][0]
-
+                    if has_correct_answers:
+                        # Already using unified field
+                        correct_answers = q["correct_answers"] if isinstance(q["correct_answers"], list) else [q["correct_answers"]]
+                    elif has_correct_answer_keys:
+                        # Legacy array format
+                        correct_answers = q["correct_answer_keys"] if isinstance(q["correct_answer_keys"], list) else [q["correct_answer_keys"]]
                     elif has_correct_answer_key:
-                        # Old format: single correct answer
-                        if q["correct_answer_key"] not in option_keys:
+                        # Legacy single format
+                        correct_answers = [q["correct_answer_key"]]
+
+                    # Validate all correct answers exist in options
+                    for ans in correct_answers:
+                        if ans not in option_keys:
                             raise HTTPException(
                                 status_code=400,
-                                detail=f"Question {idx + 1}: correct_answer_key '{q['correct_answer_key']}' "
-                                f"not found in options {option_keys}",
+                                detail=f"Question {idx + 1}: correct answer '{ans}' not found in options {option_keys}",
                             )
 
-                        # Convert to new format
-                        q["correct_answer_keys"] = [q["correct_answer_key"]]
+                    # Set unified field as primary
+                    q["correct_answers"] = correct_answers
+
+                    # Keep old fields for backward compatibility
+                    q["correct_answer_keys"] = correct_answers
+                    q["correct_answer_key"] = correct_answers[0] if correct_answers else None
 
             elif q_type == "essay":
                 # Essay validation

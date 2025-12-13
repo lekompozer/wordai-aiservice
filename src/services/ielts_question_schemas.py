@@ -82,9 +82,14 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                             },
                                         },
                                     },
+                                    "correct_answers": {
+                                        "type": "array",
+                                        "description": "Unified field for correct answers (primary)",
+                                    },
                                     "correct_answer_keys": {
                                         "type": "array",
                                         "items": {"type": "string"},
+                                        "description": "Deprecated: use correct_answers instead",
                                     },
                                     # Matching fields
                                     "left_items": {
@@ -116,6 +121,7 @@ def get_ielts_question_schema() -> Dict[str, Any]:
                                                 "right_key": {"type": "string"},
                                             },
                                         },
+                                        "description": "Deprecated: use correct_answers instead",
                                     },
                                     # Completion fields
                                     "template": {"type": "string"},
@@ -298,7 +304,7 @@ Below is an example showing how to structure multiple sections. **YOU MUST GENER
             {{"option_key": "C", "option_text": "To return books"}},
             {{"option_key": "D", "option_text": "To ask for directions"}}
           ],
-          "correct_answer_keys": ["B"],
+          "correct_answers": ["B"],
           "timestamp_hint": "0:00-0:10",
           "explanation": "Student explicitly states wanting to register for a library card."
         }},
@@ -336,12 +342,7 @@ Below is an example showing how to structure multiple sections. **YOU MUST GENER
             {{"key": "D", "text": "Third floor"}},
             {{"key": "E", "text": "Basement"}}
           ],
-          "correct_matches": [
-            {{"left_key": "5", "right_key": "B"}},
-            {{"left_key": "6", "right_key": "B"}},
-            {{"left_key": "7", "right_key": "C"}}
-          ],
-          "timestamp_hint": "0:45-1:10",
+          \"correct_answers\": [\n            {{\"left_key\": \"5\", \"right_key\": \"B\"}},\n            {{\"left_key\": \"6\", \"right_key\": \"B\"}},\n            {{\"left_key\": \"7\", \"right_key\": \"C\"}}\n          ],\n          \"timestamp_hint\": \"0:45-1:10\",
           "explanation": "Librarian describes locations of facilities."
         }},
         {{
@@ -403,9 +404,7 @@ Below is an example showing how to structure multiple sections. **YOU MUST GENER
             {{"option_key": "C", "option_text": "Career office"}},
             {{"option_key": "D", "option_text": "Sports facilities"}}
           ],
-          "correct_answer_keys": ["B"],
-          "timestamp_hint": "0:00-0:15",
-          "explanation": "Speaker explicitly mentions health center first."
+                    \"correct_answers\": [\"B\"],\n          \"timestamp_hint\": \"0:00-0:15\",\n          \"explanation\": \"Speaker explicitly mentions health center first.\"
         }}
       ]
     }}

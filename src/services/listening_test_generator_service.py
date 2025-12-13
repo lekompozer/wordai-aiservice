@@ -108,7 +108,7 @@ class ListeningTestGeneratorService:
             {{"option_key": "C", "option_text": "Rome"}},
             {{"option_key": "D", "option_text": "Berlin"}}
           ],
-          "correct_answer_keys": ["B"],
+          "correct_answers": ["B"],
           "timestamp_hint": "0:05-0:08",
           "explanation": "The customer says 'I'd like to book a flight to Paris' at the beginning."
         }}
@@ -252,11 +252,20 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                             f"⚠️ Skipping broken MCQ question: {question.get('question_text', 'No text')[:50]}... - Missing or invalid options"
                         )
                         continue
-                    if not question.get("correct_answer_keys"):
+                    # Check for unified correct_answers field, fallback to old field
+                    if not question.get("correct_answers") and not question.get(
+                        "correct_answer_keys"
+                    ):
                         logger.warning(
                             f"⚠️ Skipping MCQ question without correct answers: {question.get('question_text', 'No text')[:50]}..."
                         )
                         continue
+                    # Normalize to unified field
+                    if (
+                        "correct_answer_keys" in question
+                        and "correct_answers" not in question
+                    ):
+                        question["correct_answers"] = question["correct_answer_keys"]
 
                 # Matching validation
                 elif q_type == "matching":
@@ -298,14 +307,21 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                         )
                         continue
 
-                # Convert correct_matches array to object
-                if "correct_matches" in question and isinstance(
-                    question["correct_matches"], list
+                # Normalize matching questions: support both correct_answers and correct_matches
+                if "correct_matches" in question:
+                    if isinstance(question["correct_matches"], list):
+                        matches_dict = {}
+                        for match in question["correct_matches"]:
+                            matches_dict[match["left_key"]] = match["right_key"]
+                        question["correct_matches"] = matches_dict
+                    # Also store in unified field
+                    if "correct_answers" not in question:
+                        question["correct_answers"] = question["correct_matches"]
+                elif "correct_answers" in question and isinstance(
+                    question["correct_answers"], dict
                 ):
-                    matches_dict = {}
-                    for match in question["correct_matches"]:
-                        matches_dict[match["left_key"]] = match["right_key"]
-                    question["correct_matches"] = matches_dict
+                    # If correct_answers is dict format (matching), also set correct_matches for backward compat
+                    question["correct_matches"] = question["correct_answers"]
 
                 # Convert correct_answers array to object
                 if "correct_answers" in question and isinstance(

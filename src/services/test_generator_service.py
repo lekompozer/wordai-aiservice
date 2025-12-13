@@ -691,10 +691,17 @@ class TestGeneratorService:
                     # Skip correct_answer validation for diagnostic tests
                     if not is_diagnostic:
                         if question_type == "matching":
-                            if "correct_matches" not in q:
+                            # Check for unified correct_answers field first, then fallback to correct_matches
+                            if (
+                                "correct_answers" not in q
+                                and "correct_matches" not in q
+                            ):
                                 raise ValueError(
-                                    f"Question {idx + 1} missing correct_matches for matching question"
+                                    f"Question {idx + 1} missing correct_answers (or correct_matches) for matching question"
                                 )
+                            # Normalize to unified field
+                            if "correct_matches" in q and "correct_answers" not in q:
+                                q["correct_answers"] = q["correct_matches"]
                         elif question_type == "completion":
                             # Completion questions ONLY use IELTS format
                             # Must have correct_answers array with blank_key and answers variations
@@ -744,8 +751,8 @@ class TestGeneratorService:
                                 f"Question {idx + 1} must have at least 2 options"
                             )
 
-                    # Normalize to correct_answer_keys array format
-                    # Skip normalization for IELTS question types (matching, completion, sentence_completion, short_answer)
+                    # Normalize to unified correct_answers array format
+                    # Skip normalization for IELTS question types that have their own structure
                     should_skip_normalization = (
                         question_type == "matching"
                         or question_type == "completion"
@@ -754,22 +761,29 @@ class TestGeneratorService:
                     )
 
                     if not is_diagnostic and not should_skip_normalization:
+                        # Convert old fields to unified correct_answers field
                         if has_correct_answer_key and not has_correct_answer_keys:
-                            q["correct_answer_keys"] = [q["correct_answer_key"]]
+                            correct_answers = [q["correct_answer_key"]]
                         elif has_correct_answer_keys:
                             if isinstance(q["correct_answer_keys"], str):
-                                q["correct_answer_keys"] = [q["correct_answer_keys"]]
+                                correct_answers = [q["correct_answer_keys"]]
+                            else:
+                                correct_answers = q["correct_answer_keys"]
+                        else:
+                            correct_answers = []
 
-                        # Keep backwards compatibility
+                        # Set unified field as primary
+                        q["correct_answers"] = correct_answers
+
+                        # Keep old fields for backward compatibility
+                        q["correct_answer_keys"] = correct_answers
                         q["correct_answer_key"] = (
-                            q["correct_answer_keys"][0]
-                            if q["correct_answer_keys"]
-                            else None
+                            correct_answers[0] if correct_answers else None
                         )
 
                         # 🔥 CRITICAL: Auto-correct question_type based on number of correct answers
                         if question_type in ["mcq", "mcq_multiple"]:
-                            num_correct = len(q.get("correct_answer_keys", []))
+                            num_correct = len(correct_answers)
                             if num_correct == 1 and question_type != "mcq":
                                 logger.warning(
                                     f"Question {idx + 1}: Correcting question_type from '{question_type}' to 'mcq' (1 correct answer)"
@@ -939,22 +953,43 @@ class TestGeneratorService:
             for idx, q in enumerate(questions_list):
                 has_correct_answer_key = "correct_answer_key" in q
                 has_correct_answer_keys = "correct_answer_keys" in q
+                has_correct_answers = "correct_answers" in q
 
                 if not all(k in q for k in ["question_text", "options", "explanation"]):
                     raise ValueError(f"Question {idx + 1} missing required fields")
 
-                if not has_correct_answer_key and not has_correct_answer_keys:
+                if (
+                    not has_correct_answers
+                    and not has_correct_answer_key
+                    and not has_correct_answer_keys
+                ):
                     raise ValueError(f"Question {idx + 1} missing correct answer")
 
-                # Normalize to array format
-                if has_correct_answer_key and not has_correct_answer_keys:
-                    q["correct_answer_keys"] = [q["correct_answer_key"]]
+                # Normalize to unified correct_answers array format
+                if has_correct_answers:
+                    # Already has unified field
+                    correct_answers = (
+                        q["correct_answers"]
+                        if isinstance(q["correct_answers"], list)
+                        else [q["correct_answers"]]
+                    )
+                elif has_correct_answer_key and not has_correct_answer_keys:
+                    correct_answers = [q["correct_answer_key"]]
                 elif has_correct_answer_keys:
                     if isinstance(q["correct_answer_keys"], str):
-                        q["correct_answer_keys"] = [q["correct_answer_keys"]]
+                        correct_answers = [q["correct_answer_keys"]]
+                    else:
+                        correct_answers = q["correct_answer_keys"]
+                else:
+                    correct_answers = []
 
+                # Set unified field as primary
+                q["correct_answers"] = correct_answers
+
+                # Keep old fields for backward compatibility
+                q["correct_answer_keys"] = correct_answers
                 q["correct_answer_key"] = (
-                    q["correct_answer_keys"][0] if q["correct_answer_keys"] else None
+                    correct_answers[0] if correct_answers else None
                 )
                 q["question_id"] = str(ObjectId())
 

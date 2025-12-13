@@ -252,9 +252,12 @@ async def evaluate_test_result(
             user_answer = user_answers_dict.get(question_id)
 
             if q_type == "mcq" or q_type == "mcq_multiple":
-                correct_answer = q.get("correct_answer_keys") or [
-                    q.get("correct_answer_key")
-                ]
+                # Use correct_answers as primary field, fallback to old fields for backward compatibility
+                correct_answer = (
+                    q.get("correct_answers")
+                    or q.get("correct_answer_keys")
+                    or [q.get("correct_answer_key")]
+                )
                 is_correct = (
                     user_answer in correct_answer
                     if isinstance(user_answer, str)
@@ -318,9 +321,11 @@ async def evaluate_test_result(
             ]:
                 # Format correct answer based on type
                 if q_type == "matching":
+                    # Use correct_answers as primary, fallback to correct_matches
+                    matches = q.get("correct_answers") or q.get("correct_matches", [])
                     correct_answer = {
                         m["left_key"]: m["right_key"]
-                        for m in q.get("correct_matches", [])
+                        for m in matches
                     }
                 elif q_type == "completion":
                     correct_answer = {
@@ -338,7 +343,8 @@ async def evaluate_test_result(
                             for sq in q.get("questions", [])
                         }
                     else:
-                        correct_answer = q.get("correct_answer_keys", [])
+                        # Use correct_answers as primary, fallback to correct_answer_keys
+                        correct_answer = q.get("correct_answers") or q.get("correct_answer_keys", [])
 
                 question_evaluations.append(
                     QuestionEvaluation(
