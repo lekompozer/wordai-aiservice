@@ -64,12 +64,28 @@ class TestGeneratorService:
             # 3. Remove any BOM or invisible characters
             json_str = json_str.strip("\ufeff\u200b")
 
-            # 4. Fix malformed max_points with excessive zeros (Gemini hallucination)
-            # Replace patterns like "max_points": 50000000...000 with "max_points": 5
-            # Match max_points values with 10+ consecutive zeros
-            json_str = re.sub(
-                r'"max_points":\s*(\d)0{10,}', r'"max_points": \1', json_str
-            )
+            # 4. Check for incomplete JSON (missing closing brackets)
+            # Count opening and closing brackets - they must match
+            open_braces = json_str.count("{")
+            close_braces = json_str.count("}")
+            open_brackets = json_str.count("[")
+            close_brackets = json_str.count("]")
+
+            if open_braces != close_braces or open_brackets != close_brackets:
+                logger.error(f"   ❌ Incomplete JSON detected:")
+                logger.error(
+                    f"      Opening {{ : {open_braces}, Closing }} : {close_braces}"
+                )
+                logger.error(
+                    f"      Opening [ : {open_brackets}, Closing ] : {close_brackets}"
+                )
+                logger.error(
+                    f"      Response likely truncated due to token limit or huge numbers"
+                )
+                raise ValueError(
+                    f"Incomplete JSON: {open_braces} {{ vs {close_braces} }}, "
+                    f"{open_brackets} [ vs {close_brackets} ]"
+                )
 
             # 5. Fix unescaped newlines within JSON string VALUES only
             # Match pattern: "key": "value with\n newline(s)"
@@ -154,8 +170,8 @@ class TestGeneratorService:
                     f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
                 )
             test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
-            points_instruction = "Assign a 'max_points' value to each question based on difficulty: use 1 for easy questions, 2-3 for medium difficulty, and 4-5 for hard questions. The value MUST be a single digit from 1 to 5 only."
-            points_example = ',\n         "max_points": 1'
+            points_instruction = "Assign a 'points' value (1-5) to each question based on difficulty: 1=very easy, 2=easy, 3=medium, 4=hard, 5=very hard."
+            points_example = ',\n         "points": 1'
 
         # Escape sequence instructions (can't use backslash in f-string)
         escape_instructions = """2. **IMPORTANT: Properly escape all special characters in JSON strings:**
@@ -303,15 +319,13 @@ You have the flexibility to use a variety of question types to create the most e
            {"option_key": "D", "option_text": "Option D"}
          ],
          "correct_answer_keys": ["A"],
-         "explanation": "Explain why A is correct",
-         "max_points": 1
+         "explanation": "Explain why A is correct"
        },
        {
          "question_type": "short_answer",
          "question_text": "Short answer question",
          "correct_answer_keys": ["answer1", "answer2", "answer3"],
-         "explanation": "Acceptable answers with variations",
-         "max_points": 1
+         "explanation": "Acceptable answers with variations"
        },
        {
          "question_type": "completion",
@@ -323,8 +337,7 @@ You have the flexibility to use a variety of question types to create the most e
          "correct_answers": [
            {"blank_key": "1", "answers": ["spend", "spent", "are spending"]}
          ],
-         "explanation": "The collocation is 'spend time'. Multiple verb forms are acceptable.",
-         "max_points": 1
+         "explanation": "The collocation is 'spend time'. Multiple verb forms are acceptable."
        }
      ]
    }"""
@@ -605,7 +618,11 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                                 },
                                             },
                                             "explanation": {"type": "string"},
-                                            "max_points": {"type": "integer"},
+                                            "points": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 5,
+                                            },
                                         },
                                         "required": [
                                             "question_type",
@@ -652,7 +669,11 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                                                 "items": {"type": "string"},
                                             },
                                             "explanation": {"type": "string"},
-                                            "max_points": {"type": "integer"},
+                                            "points": {
+                                                "type": "integer",
+                                                "minimum": 1,
+                                                "maximum": 5,
+                                            },
                                         },
                                         "required": [
                                             "question_text",
@@ -1503,6 +1524,10 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                         # Add question_id to each question
                         q["question_id"] = str(ObjectId())
 
+                        # Map AI's "points" (1-5) → "max_points" for DB storage
+                        if "points" in q and "max_points" not in q:
+                            q["max_points"] = q.pop("points")
+
                     logger.info(
                         f"   ✅ Generated {len(questions_list)} valid questions"
                     )
@@ -1660,6 +1685,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 "question_id": q["question_id"],
                 "question_text": q["question_text"],
                 "question_type": q_type,
+                "max_points": q.get("max_points", 1),
                 # Do NOT include: correct_answer_key, explanation, correct_answers, correct_matches, correct_labels
             }
 
@@ -1716,7 +1742,6 @@ Now, generate the quiz based on the instructions and the document provided. Retu
 
             # Essay-specific fields
             elif q_type == "essay":
-                question_data["max_points"] = q.get("max_points", 1)
                 # Optionally include grading rubric for students to see expectations
                 if q.get("grading_rubric"):
                     question_data["grading_rubric"] = q.get("grading_rubric")
@@ -1813,7 +1838,6 @@ Now, generate the quiz based on the instructions and the document provided. Retu
        {{
          "question_type": "essay",
          "question_text": "Essay question prompt (clear and specific)",
-         "max_points": 10,
          "grading_rubric": "Detailed grading criteria (e.g., Content: 40%, Organization: 30%, Grammar: 30%). Specify what students should include in their answers.",
          "sample_answer": "A comprehensive sample answer demonstrating expected quality and depth."
        }}
@@ -1821,7 +1845,6 @@ Now, generate the quiz based on the instructions and the document provided. Retu
    }}
 7. Each essay question should have:
    - Clear question_text (prompt)
-   - max_points (suggested: 5-15 points based on complexity)
    - grading_rubric (detailed criteria for evaluation)
    - sample_answer (model answer for reference){difficulty_instruction}
 8. Questions should test deep understanding, not just recall.
@@ -2023,21 +2046,18 @@ BEFORE generating questions, carefully analyze the user query:
            {options_example}
          ],
          {correct_answer_example},
-         "explanation": "Explain WHY the correct answer(s) are right.",
-         "max_points": 1
+         "explanation": "Explain WHY the correct answer(s) are right."
        }},
        {{
          "question_type": "essay",
          "question_text": "Essay prompt",
-         "max_points": 10,
          "grading_rubric": "Detailed grading criteria",
          "sample_answer": "Model answer"
        }}
      ]
    }}
 7. {mcq_format_instruction}
-8. Essay questions: {num_essay_questions} questions with grading rubrics and sample answers.
-9. Assign appropriate max_points to each question (MCQ: 1-3, Essay: 5-15).{difficulty_instruction}
+8. Essay questions: {num_essay_questions} questions with grading rubrics and sample answers.{difficulty_instruction}
 10. **VALIDATE your JSON output before returning it.**
 {mcq_type_instruction}
 
@@ -2080,14 +2100,12 @@ Now, generate the mixed test based on the instructions and the document provided
                         "properties": {
                             "question_type": {"type": "string", "enum": ["essay"]},
                             "question_text": {"type": "string"},
-                            "max_points": {"type": "integer"},
                             "grading_rubric": {"type": "string"},
                             "sample_answer": {"type": "string"},
                         },
                         "required": [
                             "question_type",
                             "question_text",
-                            "max_points",
                             "grading_rubric",
                         ],
                     },
@@ -2194,11 +2212,10 @@ Now, generate the mixed test based on the instructions and the document provided
                                 "items": {"type": "string"},
                             },
                             "explanation": {"type": "string"},
-                            "max_points": {"type": "integer"},
                             "grading_rubric": {"type": "string"},
                             "sample_answer": {"type": "string"},
                         },
-                        "required": ["question_type", "question_text", "max_points"],
+                        "required": ["question_type", "question_text"],
                     },
                 }
             },

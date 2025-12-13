@@ -335,10 +335,10 @@ class ManualTestQuestion(BaseModel):
         None, description="Optional explanation or solution", max_length=5000
     )
 
-    # Essay-specific fields
+    # Question scoring
     max_points: Optional[int] = Field(
         default=1,
-        description="Maximum points for this question (used for weighted scoring)",
+        description="Points for this question (AI generates 1-5 based on difficulty, but can be manually adjusted for essays)",
         ge=1,
         le=100,
     )

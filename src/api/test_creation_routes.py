@@ -925,6 +925,7 @@ async def create_manual_test(
                             detail=f"Question {idx+1}: Essay questions cannot have options or correct_answer_key",
                         )
 
+                    # For essay, allow max_points 1-100 for grading flexibility
                     if not q.max_points or q.max_points < 1 or q.max_points > 100:
                         raise HTTPException(
                             status_code=400,
@@ -1739,21 +1740,17 @@ async def update_test_questions(
                         detail=f"Question {idx + 1}: Listening test requires audio_sections",
                     )
 
-            # Validate and set max_points for all question types
-            max_points = q.get("max_points", 1)
-            if (
-                not isinstance(max_points, (int, float))
-                or max_points < 1
-                or max_points > 100
-            ):
+            # Validate and set points for all question types
+            points = q.get("points", 1)
+            if not isinstance(points, (int, float)) or points < 1 or points > 5:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Question {idx + 1}: max_points must be between 1 and 100",
+                    detail=f"Question {idx + 1}: points must be between 1 and 5 based on difficulty",
                 )
 
-            # Set default max_points if not provided
-            if "max_points" not in q:
-                q["max_points"] = 1
+            # Set default points if not provided
+            if "points" not in q:
+                q["points"] = 1
 
             # Validate media fields if present
             if q.get("media_type"):
@@ -2299,20 +2296,16 @@ async def full_edit_test(
                             detail=f"Question {idx + 1}: Essay questions cannot have options or correct_answer_key",
                         )
 
-                    max_points = q.get("max_points", 1)
-                    if (
-                        not isinstance(max_points, (int, float))
-                        or max_points < 1
-                        or max_points > 100
-                    ):
+                    points = q.get("points", 1)
+                    if not isinstance(points, (int, float)) or points < 1 or points > 5:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: max_points must be between 1 and 100",
+                            detail=f"Question {idx + 1}: points must be between 1 and 5 based on difficulty",
                         )
 
-                    # Set default max_points if not provided
-                    if "max_points" not in q:
-                        q["max_points"] = 1
+                    # Set default points if not provided
+                    if "points" not in q:
+                        q["points"] = 1
 
                 elif q_type == "matching":
                     # Matching validation
@@ -4132,7 +4125,7 @@ async def merge_tests(
             if q.get("question_type") == "essay":
                 max_points += q.get("max_score", 10)
             else:
-                max_points += 1  # MCQ/Listening = 1 point each
+                max_points += q.get("max_points", 1)
 
         logger.info(f"📊 Computed max_points: {max_points}")
 
