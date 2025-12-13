@@ -223,12 +223,14 @@ class PromptBuilder:
 
         prompt = f"""You are an expert educational assessment creator specializing in ACADEMIC tests.
 
+⚠️ CRITICAL: Generate EXACTLY {num_questions} questions - NOT {num_questions + 1}, NOT {num_questions - 1}. COUNT YOUR OUTPUT!
+
 **TEST CONFIGURATION:**
 - Title: {title}
 - Topic: {topic}
 - Language: {language}
 - Difficulty: {difficulty_instruction}
-- Number of Questions: {num_questions} (EXACTLY - no more, no less)
+- Number of Questions: {num_questions} (MUST BE EXACT - STOP after reaching this count)
 
 **USER REQUIREMENTS:**
 {user_query}
@@ -243,9 +245,11 @@ class PromptBuilder:
    - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
-   - Generate EXACTLY {num_questions} questions
+   - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
    - NO DUPLICATES - each question must be unique
    - Count your output before returning
+   - STOP IMMEDIATELY after generating {num_questions} questions
+   - If you reach {num_questions} questions, close the JSON array and object
 
 3. **CONTENT SOURCE:**
    - ALL questions, answers, and explanations MUST come from the provided document
@@ -301,12 +305,14 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
         prompt = f"""You are an expert educational assessment creator specializing in ACADEMIC tests.
 
+⚠️ CRITICAL: Generate EXACTLY {num_questions} questions - NOT {num_questions + 1}, NOT {num_questions - 1}. COUNT YOUR OUTPUT!
+
 **TEST CONFIGURATION:**
 - Title: {title}
 - Topic: {topic}
 - Language: {language}
 - Difficulty: {difficulty_instruction}
-- Number of Questions: {num_questions} (EXACTLY - no more, no less)
+- Number of Questions: {num_questions} (MUST BE EXACT - STOP after reaching this count)
 
 **USER REQUIREMENTS:**
 {user_query}
@@ -321,9 +327,11 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
-   - Generate EXACTLY {num_questions} questions
+   - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
    - NO DUPLICATES - each question must be unique
    - Count your output before returning
+   - STOP IMMEDIATELY after generating {num_questions} questions
+   - If you reach {num_questions} questions, close the JSON array and object
 
 3. **CONTENT SOURCE:**
    - Use general knowledge about: {topic}
@@ -368,11 +376,13 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
 
         prompt = f"""You are an expert psychologist and personality assessment creator specializing in DIAGNOSTIC tests.
 
+⚠️ CRITICAL: Generate EXACTLY {num_questions} questions - NOT {num_questions + 1}, NOT {num_questions - 1}. COUNT YOUR OUTPUT!
+
 **TEST CONFIGURATION:**
 - Title: {title}
 - Topic: {topic}
 - Language: {language}
-- Number of Questions: {num_questions} (EXACTLY - no more, no less)
+- Number of Questions: {num_questions} (MUST BE EXACT - STOP after reaching this count)
 - Options per Question: {num_options}
 
 **USER REQUIREMENTS:**
@@ -394,8 +404,10 @@ Return ONLY the JSON object, no additional text, no markdown code blocks."""
    - Properly escape special characters in JSON strings
 
 2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
-   - Generate EXACTLY {num_questions} questions
+   - Generate EXACTLY {num_questions} questions - NOT ONE MORE, NOT ONE LESS
    - NO DUPLICATES - each question must be unique
+   - STOP IMMEDIATELY after generating {num_questions} questions
+   - If you reach {num_questions} questions, close the JSON array and object
 
 3. **QUESTION DESIGN:**
    - Focus on behaviors, preferences, reactions, tendencies

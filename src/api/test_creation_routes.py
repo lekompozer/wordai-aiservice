@@ -1240,7 +1240,7 @@ async def get_test_status(
     ```
     """
     try:
-        logger.info(f"📊 GET /tests/{test_id}/status - User: {user_info['uid']}")
+        logger.info(f"🔍🔍🔍 [STATUS CHECK] GET /tests/{test_id}/status - User: {user_info['uid']} - Timestamp: {datetime.now().isoformat()}")
 
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
@@ -1258,7 +1258,7 @@ async def get_test_status(
         status = test.get("status", "pending")
         progress = test.get("progress_percent", 0)
 
-        logger.info(f"   📍 Current status: {status} (progress: {progress}%)")
+        logger.info(f"   📍 [STATUS CHECK] Current status: {status} (progress: {progress}%)")
 
         response = {
             "test_id": test_id,
@@ -1268,10 +1268,10 @@ async def get_test_status(
 
         if status == "pending":
             response["message"] = "Test is queued for generation..."
-            logger.info(f"   ⏳ Returning: Test queued")
+            logger.info(f"   ⏳ [STATUS CHECK] Returning: Test queued")
         elif status == "generating":
             response["message"] = f"AI is generating questions... ({progress}%)"
-            logger.info(f"   🔄 Returning: Generating ({progress}%)")
+            logger.info(f"   🔄 [STATUS CHECK] Returning: Generating ({progress}%)")
         elif status == "ready":
             response.update(
                 {
@@ -1289,7 +1289,7 @@ async def get_test_status(
                 }
             )
             logger.info(
-                f"   ✅ Returning: Test ready - {test.get('num_questions')} questions"
+                f"   ✅ [STATUS CHECK] Returning: Test ready - {test.get('num_questions')} questions"
             )
         elif status == "failed":
             response.update(
@@ -1298,8 +1298,9 @@ async def get_test_status(
                     "error_message": test.get("error_message"),
                 }
             )
-            logger.error(f"   ❌ Returning: Test failed - {test.get('error_message')}")
+            logger.error(f"   ❌ [STATUS CHECK] Returning: Test failed - {test.get('error_message')}")
 
+        logger.info(f"🔍🔍🔍 [STATUS CHECK] Response sent for test {test_id}: {response}")
         return response
 
     except HTTPException:
