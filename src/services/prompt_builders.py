@@ -32,7 +32,7 @@ class PromptBuilder:
 
 1. **MCQ (Multiple Choice)** - "question_type": "mcq"
    - Single correct answer with 4 options (A-D)
-   - Fields: question_text, options, correct_answer_keys, explanation, points
+   - Fields: question_text, options, correct_answers (array of option keys), explanation, points
    - Example:
    ```json
    {
@@ -44,7 +44,7 @@ class PromptBuilder:
        {"option_key": "C", "option_text": "Berlin"},
        {"option_key": "D", "option_text": "Madrid"}
      ],
-     "correct_answer_keys": ["B"],
+     "correct_answers": ["B"],
      "explanation": "Paris is the capital and largest city of France.",
      "points": 1
    }
@@ -52,7 +52,7 @@ class PromptBuilder:
 
 2. **MCQ Multiple** - "question_type": "mcq_multiple"
    - 2+ correct answers (select all that apply)
-   - Fields: question_text, options, correct_answer_keys (array with 2+ items), explanation, points
+   - Fields: question_text, options, correct_answers (array with 2+ option keys), explanation, points
    - Example:
    ```json
    {
@@ -64,7 +64,7 @@ class PromptBuilder:
        {"option_key": "C", "option_text": "Berlin"},
        {"option_key": "D", "option_text": "Sydney"}
      ],
-     "correct_answer_keys": ["A", "C"],
+     "correct_answers": ["A", "C"],
      "explanation": "Paris (France) and Berlin (Germany) are European capitals.",
      "points": 2
    }
@@ -72,7 +72,7 @@ class PromptBuilder:
 
 3. **Matching** - "question_type": "matching"
    - Match left items to right options
-   - Fields: question_text, left_items, right_options, correct_matches, explanation, points
+   - Fields: question_text, left_items, right_options, correct_answers (array of match pairs), explanation, points
    - Example:
    ```json
    {
@@ -90,7 +90,7 @@ class PromptBuilder:
        {"key": "D", "text": "Madrid"},
        {"key": "E", "text": "Athens"}
      ],
-     "correct_matches": [
+     "correct_answers": [
        {"left_key": "1", "right_key": "A"},
        {"left_key": "2", "right_key": "B"},
        {"left_key": "3", "right_key": "C"}
@@ -127,14 +127,14 @@ class PromptBuilder:
 
 5. **Sentence Completion** - "question_type": "sentence_completion"
    - Complete sentences with specific words
-   - Fields: question_text, template, correct_answer_keys, explanation, points
+   - Fields: question_text, template, correct_answers (array of acceptable text variations), explanation, points
    - Example:
    ```json
    {
      "question_type": "sentence_completion",
      "question_text": "Complete the sentence",
      "template": "The library opens at _____.",
-     "correct_answer_keys": ["8 AM", "8:00 AM", "eight o'clock"],
+     "correct_answers": ["8 AM", "8:00 AM", "eight o'clock"],
      "explanation": "Operating hours start at 8 AM.",
      "points": 1
    }
@@ -142,13 +142,13 @@ class PromptBuilder:
 
 6. **Short Answer** - "question_type": "short_answer"
    - Brief answer (1-3 words)
-   - Fields: question_text, correct_answer_keys (array of acceptable variations), explanation, points
+   - Fields: question_text, correct_answers (array of acceptable text variations), explanation, points
    - Example:
    ```json
    {
      "question_type": "short_answer",
      "question_text": "What is the speaker's occupation?",
-     "correct_answer_keys": ["software engineer", "Software Engineer", "engineer"],
+     "correct_answers": ["software engineer", "Software Engineer", "engineer"],
      "explanation": "Speaker mentions being a software engineer.",
      "points": 1
    }
@@ -170,7 +170,7 @@ class PromptBuilder:
       "question_type": "mcq",
       "question_text": "...",
       "options": [...],
-      "correct_answer_keys": ["A"],
+      "correct_answers": ["A"],
       "explanation": "...",
       "points": 1
     },
@@ -186,6 +186,15 @@ class PromptBuilder:
   ]
 }
 ```
+
+⚠️ **CRITICAL: ALL question types use "correct_answers" field**
+- MCQ/MCQ Multiple: ["A"] or ["A", "C"] (array of option keys)
+- Matching: [{"left_key": "1", "right_key": "A"}] (array of match objects)
+- Completion: [{"blank_key": "1", "answers": ["text"]}] (array of blank objects)
+- Sentence Completion: ["text", "variation"] (array of acceptable strings)
+- Short Answer: ["text", "variation"] (array of acceptable strings)
+
+DO NOT use: correct_answer_keys, correct_matches, or any other field name!
 """
 
         return common_types
