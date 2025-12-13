@@ -359,6 +359,8 @@ async def generate_test(
             mcq_type_config=(
                 request.mcq_type_config.dict() if request.mcq_type_config else None
             ),
+            topic=request.description if request.description else request.title,
+            is_general_knowledge=False,
         )
 
         logger.info(f"🚀 Background job queued for test {test_id}")
@@ -735,6 +737,8 @@ Generate a comprehensive {request.test_category} test based on general knowledge
             mcq_type_config=(
                 request.mcq_type_config if request.mcq_type_config else None
             ),
+            topic=request.topic,
+            is_general_knowledge=True,
         )
 
         logger.info(f"🚀 Background job queued for general test {test_id}")

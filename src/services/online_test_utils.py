@@ -233,6 +233,8 @@ async def generate_test_background(
     num_mcq_questions: Optional[int] = None,
     num_essay_questions: Optional[int] = None,
     mcq_type_config: Optional[Dict] = None,
+    topic: str = "",
+    is_general_knowledge: bool = False,
 ):
     """
     Background job to generate test questions with AI
@@ -277,6 +279,9 @@ async def generate_test_background(
                 num_correct_answers=num_correct_answers,
                 test_category=test_category,
                 mcq_type_config=mcq_type_config,
+                title=title,
+                topic=topic if topic else title,
+                is_general_knowledge=is_general_knowledge,
             )
         elif test_type == "essay":
             logger.info(f"🤖 Calling AI to generate {num_questions} essay questions...")

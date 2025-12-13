@@ -17,6 +17,8 @@ from google import genai
 from google.genai import types
 import config.config as config
 
+from src.services.prompt_builders import prompt_builder
+
 # Increase integer string conversion limit to handle potential large numbers from AI
 # This prevents "Exceeds the limit" errors when AI returns malformed responses
 sys.set_int_max_str_digits(100000)
@@ -124,321 +126,57 @@ class TestGeneratorService:
         num_correct_answers: int = 1,
         test_category: str = "academic",
         mcq_type_config: Optional[Dict] = None,
+        title: str = "",
+        topic: str = "",
+        is_general_knowledge: bool = False,
     ) -> str:
-        """Build prompt for test generation with language support, flexible answer options, and MCQ type distribution"""
+        """
+        Build prompt for test generation
 
-        # Language instruction - now supports ANY language dynamically
-        lang_instruction = (
-            f"Generate all questions, options, and explanations in {language} language."
-        )
+        Routes to appropriate prompt builder based on test_category and source type:
+        - academic + document → Academic Document Prompt
+        - academic + general → Academic General Prompt
+        - diagnostic → Diagnostic Prompt
+        """
 
-        # Difficulty instructions
-        difficulty_map = {
-            "easy": "Create EASY questions that test basic understanding and recall of straightforward facts from the document. Questions should be simple and clear.",
-            "medium": "Create MEDIUM difficulty questions that test comprehension and application of concepts. Questions should require understanding relationships between ideas.",
-            "hard": "Create HARD questions that test deep analysis, synthesis, and critical thinking. Questions should be challenging and require thorough understanding of complex concepts.",
-        }
-        difficulty_instruction = ""
-        if difficulty and difficulty.lower() in difficulty_map:
-            difficulty_instruction = (
-                f"\n10. DIFFICULTY LEVEL: {difficulty_map[difficulty.lower()]}"
+        # Ensure difficulty is set
+        if not difficulty:
+            difficulty = "medium"
+
+        # Route to appropriate prompt builder
+        if test_category == "diagnostic":
+            logger.info("🎭 Using DIAGNOSTIC prompt builder")
+            return prompt_builder.build_diagnostic_prompt(
+                title=title,
+                topic=topic,
+                num_questions=num_questions,
+                language=language,
+                user_query=user_query,
+                num_options=num_options,
             )
-
-        # Generate option keys dynamically (A, B, C, D, E, F, G, H, I, J)
-        option_keys = [chr(65 + i) for i in range(num_options)]  # 65 is ASCII for 'A'
-        option_examples = [
-            f'{{"option_key": "{key}", "option_text": "string"}}' for key in option_keys
-        ]
-        options_example = ",\n           ".join(option_examples)
-
-        # Correct answer instruction (different for diagnostic vs academic)
-        is_diagnostic = test_category == "diagnostic"
-
-        if is_diagnostic:
-            correct_answer_instruction = 'DO NOT include "correct_answer_keys" field. Each option represents a different trait or preference - there is no "correct" answer.'
-            correct_answer_example = ""
-            test_type_instruction = "This is a DIAGNOSTIC/PERSONALITY test. Questions should reveal personality traits, preferences, or tendencies - NOT test knowledge."
-            points_instruction = ""
-            points_example = ""
-        else:
-            if num_correct_answers == 1:
-                correct_answer_instruction = 'The "correct_answer_keys" field must be an array with exactly ONE correct option key.'
-                correct_answer_example = f'"correct_answer_keys": ["{option_keys[0]}"]'
-            else:
-                correct_answer_instruction = f'The "correct_answer_keys" field must be an array with exactly {num_correct_answers} correct option keys.'
-                correct_answer_example = (
-                    f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
-                )
-            test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
-            points_instruction = "Assign a 'points' value (1-5) to each question based on difficulty: 1=very easy, 2=easy, 3=medium, 4=hard, 5=very hard."
-            points_example = ',\n         "points": 1'
-
-        # Escape sequence instructions (can't use backslash in f-string)
-        escape_instructions = """2. **IMPORTANT: Properly escape all special characters in JSON strings:**
-   - Use \\" for double quotes inside strings
-   - Use \\n for newlines inside strings
-   - Use \\\\ for backslashes inside strings"""
-
-        # Diagnostic criteria example (can't use \n in f-string expression)
-        if is_diagnostic:
-            diagnostic_criteria_json = """,
-     "diagnostic_criteria": {
-       "result_types": [{"type_id": "string", "title": "string", "description": "string", "traits": ["string"]}],
-       "mapping_rules": "Detailed rules for mapping answer patterns to result types (e.g., mostly A -> Type 1, mostly B -> Type 2)"
-     }"""
-        else:
-            diagnostic_criteria_json = ""
-
-        # MCQ Type Distribution Instructions (NEW)
-        logger.info(f"🎯 Building prompt with MCQ type config: {mcq_type_config}")
-
-        # Default to AUTO mode unless explicitly set to traditional/none
-        # If no config or config is None -> AUTO
-        # If distribution_mode is "none" or "traditional" -> TRADITIONAL
-        # Otherwise -> respect the config (manual/auto)
-        if not mcq_type_config or mcq_type_config.get("distribution_mode") is None:
-            # No config provided -> Default to AUTO mode
-            mcq_type_config = {"distribution_mode": "auto"}
-            logger.info("⚙️ No MCQ type config provided -> Defaulting to AUTO mode")
-
-        distribution_mode = mcq_type_config.get("distribution_mode")
-
-        # Check if using advanced MCQ type config (manual or auto)
-        has_mcq_type_config = distribution_mode in ["manual", "auto"]
-
-        mcq_type_instruction = ""
-        if distribution_mode == "manual":
-            # User specified exact MCQ type distribution
-            type_counts = []
-
-            if mcq_type_config.get("num_single_answer_mcq"):
-                type_counts.append(
-                    f"{mcq_type_config['num_single_answer_mcq']} standard MCQ questions with 1 correct answer"
-                )
-
-            if mcq_type_config.get("num_multiple_answer_mcq"):
-                type_counts.append(
-                    f"{mcq_type_config['num_multiple_answer_mcq']} MCQ questions with 2+ correct answers (select all that apply)"
-                )
-
-            if mcq_type_config.get("num_matching"):
-                type_counts.append(
-                    f"{mcq_type_config['num_matching']} matching questions (match left items to right options)"
-                )
-
-            if mcq_type_config.get("num_completion"):
-                type_counts.append(
-                    f"{mcq_type_config['num_completion']} completion questions (fill blanks in form/note/table)"
-                )
-
-            if mcq_type_config.get("num_sentence_completion"):
-                type_counts.append(
-                    f"{mcq_type_config['num_sentence_completion']} sentence completion questions"
-                )
-
-            if mcq_type_config.get("num_short_answer"):
-                type_counts.append(
-                    f"{mcq_type_config['num_short_answer']} short answer questions (1-3 words)"
-                )
-
-            if type_counts:
-                mcq_type_instruction = f"""
-
-**MCQ TYPE DISTRIBUTION (USER SPECIFIED):**
-Generate the following question types:
-{chr(10).join(f"- {tc}" for tc in type_counts)}
-
-**IMPORTANT:**
-- For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
-- For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answer_keys": ["A", "B", ...] (2+ answers)
-- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
-- For completion: Use "question_type": "completion" with IELTS format ONLY:
-  * "template" field containing blanks like _____(1)_____, _____(2)_____
-  * "blanks" array: [{{"key": "1", "position": "description"}}, ...]
-  * "correct_answers" array: [{{"blank_key": "1", "answers": ["answer", "variation1", "variation2"]}}, ...]
-  * Provide multiple answer variations for each blank for flexible grading
-- For sentence completion: Use "question_type": "sentence_completion" with "template" field
-- For short answer: Use "question_type": "short_answer" with "correct_answer_keys" as array of all acceptable answer variations (include synonyms, different phrasings, with/without articles). Provide at least 3-5 variations for flexible grading.
-
-Each question MUST include a "question_type" field to identify its type."""
-                logger.info(f"✅ Manual MCQ distribution configured: {type_counts}")
-        elif distribution_mode == "auto":
-            # AI decides optimal distribution of question types
-            logger.info(
-                f"🤖 Auto mode: AI will decide optimal question type distribution"
-            )
-            mcq_type_instruction = f"""
-
-**MCQ TYPE DISTRIBUTION (AI AUTO MODE):**
-You have the flexibility to use a variety of question types to create the most effective assessment. Generate a mix of different question types based on the content:
-
-**Available question types:**
-1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options
-2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers (select all that apply)
-3. **Matching** ("question_type": "matching"): Match left items to right options using "left_items", "right_options", "correct_matches" (array of {{key, value}} objects) fields
-4. **Completion** ("question_type": "completion"): Fill blanks in forms/notes/tables using IELTS format:
-   - "template" field with _____(1)_____, _____(2)_____
-   - "blanks" array: [{{"key": "1", "position": "description"}}, ...]
-   - "correct_answers" array: [{{"blank_key": "1", "answers": ["answer", "var1", "var2"]}}, ...] with multiple variations
-5. **Sentence completion** ("question_type": "sentence_completion"): Complete sentences using "template" field
-6. **Short answer** ("question_type": "short_answer"): 1-3 word answers using "correct_answer_keys" array (provide multiple acceptable variations for grading flexibility)
-
-**IMPORTANT GUIDELINES:**
-- **CRITICAL: If the user query specifies particular question formats/types (e.g., "phonetics", "error identification", "cloze test", "reading comprehension"), you MUST follow those specifications exactly. The user's requirements override these general guidelines.**
-- Vary question types throughout the test to assess different skills
-- Choose question types that best fit the content (e.g., use matching for relationships, completion for structured data, short_answer for phonetics/error correction)
-- Aim for a balanced distribution but prioritize content appropriateness over format variety
-- Each question MUST include a "question_type" field
-- When user query does not specify formats, Standard MCQ can be the primary type with other types used strategically"""
-        else:
-            # Traditional format: Only when explicitly set to "none" or "traditional"
-            logger.info(
-                f"⚙️ Traditional format mode (distribution_mode={distribution_mode}) - using traditional format with {num_options} options, {num_correct_answers} correct answer(s)"
-            )
-            mcq_type_instruction = f"""
-
-**MCQ FORMAT:**
-- Generate traditional multiple-choice questions with "question_type": "mcq"
-- Each question has {num_options} options ({", ".join([chr(65 + i) for i in range(num_options)])})
-- Each question has {num_correct_answers} correct answer(s)
-- All questions follow the same format for consistency"""
-
-        # Build JSON structure example and instructions based on mode
-        if has_mcq_type_config:
-            # Auto/Manual mode: Show variety of question types in example
-            json_structure_example = """
-   {
-     "questions": [
-       {
-         "question_type": "mcq",
-         "question_text": "Standard MCQ question",
-         "options": [
-           {"option_key": "A", "option_text": "Option A"},
-           {"option_key": "B", "option_text": "Option B"},
-           {"option_key": "C", "option_text": "Option C"},
-           {"option_key": "D", "option_text": "Option D"}
-         ],
-         "correct_answer_keys": ["A"],
-         "explanation": "Explain why A is correct"
-       },
-       {
-         "question_type": "short_answer",
-         "question_text": "Short answer question",
-         "correct_answer_keys": ["answer1", "answer2", "answer3"],
-         "explanation": "Acceptable answers with variations"
-       },
-       {
-         "question_type": "completion",
-         "question_text": "Cloze Test: Fill in blank (1) in the text: 'Students _____(1)_____ a lot of time at school.'",
-         "template": "Students _____(1)_____ a lot of time at school.",
-         "blanks": [
-           {"key": "1", "position": "verb before 'a lot of time'"}
-         ],
-         "correct_answers": [
-           {"blank_key": "1", "answers": ["spend", "spent", "are spending"]}
-         ],
-         "explanation": "The collocation is 'spend time'. Multiple verb forms are acceptable."
-       }
-     ]
-   }"""
-            options_instruction = "The number of options and correct answers vary based on question_type (see MCQ TYPE DISTRIBUTION below)."
-            correct_answer_constraint = (
-                "Follow the question_type specific format for correct_answer_keys."
+        elif is_general_knowledge:
+            logger.info("🧠 Using ACADEMIC GENERAL prompt builder (no document)")
+            return prompt_builder.build_academic_general_prompt(
+                title=title,
+                topic=topic,
+                num_questions=num_questions,
+                language=language,
+                difficulty=difficulty,
+                user_query=user_query,
+                mcq_type_config=mcq_type_config,
             )
         else:
-            # Traditional mode: Fixed format
-            json_structure_example = f"""
-   {{
-     "questions": [
-       {{
-         "question_text": "string",
-         "options": [
-           {options_example}
-         ],{(' ' + correct_answer_example + ',') if correct_answer_example else ''}
-         "explanation": "string ({'Explain what this question reveals about personality/preferences' if is_diagnostic else 'Explain WHY the correct answer(s) are right, based on the document'})."{points_example}
-       }}
-     ]{diagnostic_criteria_json}
-   }}"""
-            options_instruction = f"Each question has {num_options} options ({', '.join(option_keys)}). Adjust if user query indicates otherwise."
-            correct_answer_constraint = f"{correct_answer_instruction} However, adjust if question complexity requires it."
-
-        # Special handling for manual MCQ type config priority
-        if mcq_type_config and mcq_type_config.get("distribution_mode") == "manual":
-            user_query_priority_note = """
-
-**⚠️ CRITICAL PRIORITY NOTE:**
-The user has specified EXACT question type distribution via system config (see MCQ TYPE DISTRIBUTION below).
-This OVERRIDES any question type or count mentioned in the user query text.
-
-**You MUST generate EXACTLY:**
-- The question types specified in MCQ TYPE DISTRIBUTION section
-- The exact counts specified for each question type
-- Use appropriate question_type field for each question
-
-If user query mentions sections/parts (e.g., "PART 1: PHONETICS"), you may organize questions into those sections,
-but you MUST respect the question type counts from MCQ TYPE DISTRIBUTION."""
-        else:
-            user_query_priority_note = ""
-
-        prompt = f"""You are an expert in creating educational assessments. Your task is to generate a comprehensive test based on the provided document and user query.
-
-**TEST TYPE: {test_type_instruction}**
-
-**🎯 PRIMARY DIRECTIVE - USER QUERY ANALYSIS:**
-BEFORE generating questions, carefully analyze the user query below:
-"{user_query}"{user_query_priority_note}
-
-**If the user query specifies:**
-- Specific question formats (e.g., "phonetics", "pronunciation", "word stress", "error identification", "cloze test", "reading comprehension", "sentence transformation")
-- Particular sections/parts with different question types
-- Structured test layout (e.g., "PART 1: PHONETICS", "PART 2: VOCABULARY")
-- Specific question counts per section
-
-**THEN you MUST:**
-1. Choose appropriate "question_type" based on format:
-   - **PHONETICS / PRONUNCIATION / WORD STRESS / ERROR IDENTIFICATION**: Use "mcq" (standard multiple choice with 4 options, 1 correct answer)
-   - **CLOZE TEST**: Use "completion" with IELTS format:
-     * "template": Text with blanks marked as _____(1)_____, _____(2)_____
-     * "blanks": Array like [{{\"key\": \"1\", \"position\": \"description\"}}]
-     * "correct_answers": Array like [{{\"blank_key\": \"1\", \"answers\": [\"answer\", \"variation1\", \"variation2\"]}}]
-     * DO NOT use "options" or "correct_answer_keys" for completion type
-   - **SENTENCE TRANSFORMATION / REWRITE**: Use "short_answer" (free-text answer with multiple acceptable variations)
-   - **READING COMPREHENSION / VOCABULARY / GRAMMAR**: Use "mcq" (standard multiple choice)
-   - **COMMUNICATION / DIALOGUE**: Use "mcq" (standard multiple choice)
-2. Structure questions according to the user's specified parts/sections
-3. If MCQ TYPE DISTRIBUTION is specified below, follow those exact counts. Otherwise, match the requested question counts per section from user query
-
-**CRITICAL INSTRUCTIONS:**
-1. Your output MUST be a single, valid JSON object.
-{escape_instructions}
-3. {lang_instruction}
-4. The JSON object must conform to the following structure:{json_structure_example}
-5. **⚠️ CRITICAL - QUESTION COUNT:** You MUST generate EXACTLY {num_questions} questions total. NO MORE, NO LESS.
-   - This count is ABSOLUTE and CANNOT be changed regardless of user query content
-   - If user query mentions sections/parts, distribute these {num_questions} questions across those sections
-   - NEVER generate duplicate questions - each question must be unique
-6. All information used to create questions, answers, and explanations must come directly from the provided document.
-7. {options_instruction}
-8. {correct_answer_constraint}
-9. Explanations should be clear and reference specific information from the document.{difficulty_instruction}
-10. {points_instruction}
-11. **CRITICAL: For "completion" question_type, you MUST use IELTS format:**
-    - Include "template" field with text containing _____(1)_____, _____(2)_____ placeholders
-    - Include "blanks" array with metadata for each blank
-    - Include "correct_answers" array with blank_key and multiple answer variations
-    - DO NOT use "options" array for completion questions
-    - DO NOT use "correct_answer_keys" for completion questions
-12. **VALIDATE your JSON output before returning it. Make sure all strings are properly escaped and all brackets are balanced.**
-{mcq_type_instruction}
-
-**DOCUMENT CONTENT:**
----
-{document_content}
----
-
-Now, generate the quiz based on the instructions and the document provided. Return ONLY the JSON object, no additional text, no markdown code blocks."""
-
-        return prompt
+            logger.info("📄 Using ACADEMIC DOCUMENT prompt builder")
+            return prompt_builder.build_academic_document_prompt(
+                title=title,
+                topic=topic,
+                num_questions=num_questions,
+                language=language,
+                difficulty=difficulty,
+                user_query=user_query,
+                document_content=document_content,
+                mcq_type_config=mcq_type_config,
+            )
 
     async def _generate_questions_with_ai(
         self,
@@ -452,6 +190,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         num_correct_answers: int = 1,
         test_category: str = "academic",
         mcq_type_config: Optional[Dict] = None,
+        title: str = "",
+        topic: str = "",
+        is_general_knowledge: bool = False,
     ) -> Dict[str, Any]:
         """
         Generate questions using AI (used by background job)
@@ -470,6 +211,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             num_correct_answers=num_correct_answers,
             test_category=test_category,
             mcq_type_config=mcq_type_config,
+            title=title,
+            topic=topic,
+            is_general_knowledge=is_general_knowledge,
         )
 
         # Generate with retry logic
@@ -1237,6 +981,8 @@ Now, generate the quiz based on the instructions and the document provided. Retu
         gemini_pdf_bytes: Optional[bytes] = None,  # NEW: PDF content as bytes
         num_options: int = 4,  # NEW: Number of options per question (2-10)
         num_correct_answers: int = 1,  # NEW: Number of correct answers (1-num_options)
+        topic: str = "",  # NEW: Topic/description for prompt context
+        is_general_knowledge: bool = False,  # NEW: Flag for general vs document-based
     ) -> Tuple[str, Dict]:
         """
         Generate test from text content OR PDF bytes using Gemini AI with JSON Mode
@@ -1286,6 +1032,7 @@ Now, generate the quiz based on the instructions and the document provided. Retu
             logger.info(f"   Title: {title}")
             logger.info(f"   User query: {user_query}")
             logger.info(f"   Language: {language}")
+            logger.info(f"   Is General Knowledge: {is_general_knowledge}")
 
             # Build prompt with language parameter
             prompt = self._build_generation_prompt(
@@ -1295,6 +1042,9 @@ Now, generate the quiz based on the instructions and the document provided. Retu
                 language,
                 num_options=num_options,
                 num_correct_answers=num_correct_answers,
+                title=title,
+                topic=topic if topic else title,
+                is_general_knowledge=is_general_knowledge,
             )
 
             # Generate with retry logic
