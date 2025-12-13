@@ -64,6 +64,13 @@ class TestGeneratorService:
             # 3. Remove any BOM or invisible characters
             json_str = json_str.strip("\ufeff\u200b")
 
+            # 4. Fix malformed max_points with excessive zeros (Gemini hallucination)
+            # Replace patterns like "max_points": 50000000...000 with "max_points": 5
+            # Match max_points values with 10+ consecutive zeros
+            json_str = re.sub(
+                r'"max_points":\s*(\d)0{10,}', r'"max_points": \1', json_str
+            )
+
             return json_str
         except Exception as e:
             logger.warning(f"Error in _fix_json_string: {e}")
@@ -129,7 +136,7 @@ class TestGeneratorService:
                     f'"correct_answer_keys": {option_keys[:num_correct_answers]}'
                 )
             test_type_instruction = "This is an ACADEMIC test. Questions should test knowledge with clear correct answers."
-            points_instruction = "Assign a 'max_points' value (integer) to each question based on difficulty (e.g., 1 for easy, 2 for medium, 3 for hard)."
+            points_instruction = "Assign a 'max_points' value (small positive integer between 1-10) to each question based on difficulty (e.g., 1 for easy, 2 for medium, 3-5 for hard). CRITICAL: max_points MUST be a single digit or small number, never use trailing zeros."
             points_example = ',\n         "max_points": 1'
 
         # Escape sequence instructions (can't use backslash in f-string)
