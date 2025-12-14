@@ -341,18 +341,25 @@ class TestGeneratorService:
                                                 },
                                             },
                                             "template": {"type": "string"},
-                                            "blanks": {"type": "array"},
-                                            "sentences": {"type": "array"},
+                                            "blanks": {
+                                                "type": "array",
+                                                "items": {"type": "object"},
+                                            },
+                                            "sentences": {
+                                                "type": "array",
+                                                "items": {"type": "object"},
+                                            },
                                             "left_items": {
                                                 "type": "array",
-                                                "items": {"type": "string"},
+                                                "items": {"type": "object"},
                                             },
                                             "right_options": {
                                                 "type": "array",
-                                                "items": {"type": "string"},
+                                                "items": {"type": "object"},
                                             },
                                             "correct_answers": {
                                                 "type": "array",
+                                                "items": {},
                                                 "description": "Universal field: For MCQ=strings, For matching/completion=objects with keys",
                                             },
                                             "explanation": {"type": "string"},
