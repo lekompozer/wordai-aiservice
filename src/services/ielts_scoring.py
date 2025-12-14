@@ -88,7 +88,9 @@ def score_matching_question(
         (is_correct, points_earned, feedback)
     """
     # Use correct_answers (unified field), fallback to correct_matches (legacy)
-    correct_matches_raw = question.get("correct_answers") or question.get("correct_matches", {})
+    correct_matches_raw = question.get("correct_answers") or question.get(
+        "correct_matches", {}
+    )
 
     # Convert array format to dict if needed
     if isinstance(correct_matches_raw, list):
