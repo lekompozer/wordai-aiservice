@@ -612,6 +612,7 @@ class TestGeneratorService:
                     # Check for required fields (support both old and new format)
                     has_correct_answer_key = "correct_answer_key" in q
                     has_correct_answer_keys = "correct_answer_keys" in q
+                    has_correct_answers = "correct_answers" in q
                     question_type = q.get("question_type", "mcq")
 
                     # Different question types have different required fields
@@ -743,19 +744,20 @@ class TestGeneratorService:
                                     f"Question {idx + 1} missing sentences for sentence_completion question"
                                 )
                         elif question_type == "short_answer":
-                            # Short answer can use questions array OR correct_answer_keys
+                            # Short answer can use questions array OR correct_answers
                             if (
                                 "questions" not in q
+                                and not has_correct_answers
                                 and not has_correct_answer_key
                                 and not has_correct_answer_keys
                             ):
                                 raise ValueError(
-                                    f"Question {idx + 1} missing questions array or correct_answer_keys for short_answer question"
+                                    f"Question {idx + 1} missing questions array or correct_answers for short_answer question"
                                 )
-                        elif not has_correct_answer_key and not has_correct_answer_keys:
-                            # Standard MCQ questions need correct_answer_keys
+                        elif not has_correct_answers and not has_correct_answer_key and not has_correct_answer_keys:
+                            # Standard MCQ questions need correct_answers (or old fields for backward compat)
                             raise ValueError(
-                                f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
+                                f"Question {idx + 1} missing correct_answers (or correct_answer_key/correct_answer_keys)"
                             )
 
                     # Validate options only for standard MCQ questions
@@ -1168,6 +1170,7 @@ class TestGeneratorService:
                         # Check for required fields (support both old and new format)
                         has_correct_answer_key = "correct_answer_key" in q
                         has_correct_answer_keys = "correct_answer_keys" in q
+                        has_correct_answers = "correct_answers" in q
                         question_type = q.get("question_type", "mcq")
 
                         # Different question types have different required fields
@@ -1292,19 +1295,20 @@ class TestGeneratorService:
                                     f"Question {idx + 1} missing sentences for sentence_completion question"
                                 )
                         elif question_type == "short_answer":
-                            # Short answer can use questions array OR correct_answer_keys
+                            # Short answer can use questions array OR correct_answers
                             if (
                                 "questions" not in q
+                                and not has_correct_answers
                                 and not has_correct_answer_key
                                 and not has_correct_answer_keys
                             ):
                                 raise ValueError(
-                                    f"Question {idx + 1} missing questions array or correct_answer_keys for short_answer question"
+                                    f"Question {idx + 1} missing questions array or correct_answers for short_answer question"
                                 )
-                        elif not has_correct_answer_key and not has_correct_answer_keys:
-                            # Standard MCQ questions need correct_answer_keys
+                        elif not has_correct_answers and not has_correct_answer_key and not has_correct_answer_keys:
+                            # Standard MCQ questions need correct_answers (or old fields for backward compat)
                             raise ValueError(
-                                f"Question {idx + 1} missing correct_answer_key or correct_answer_keys"
+                                f"Question {idx + 1} missing correct_answers (or correct_answer_key/correct_answer_keys)"
                             )
 
                         # Validate options only for standard MCQ questions
