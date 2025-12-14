@@ -605,6 +605,25 @@ class TestGeneratorService:
                         "Invalid JSON: 'questions' must be a non-empty array"
                     )
 
+                # 🐛 DEBUG: Save parsed JSON for detailed analysis
+                try:
+                    debug_dir = "/tmp/gemini_parsed_json"
+                    os.makedirs(debug_dir, exist_ok=True)
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+                    json_file = f"{debug_dir}/parsed_{timestamp}.json"
+                    with open(json_file, "w", encoding="utf-8") as f:
+                        json.dump(questions_json, f, indent=2, ensure_ascii=False)
+                    logger.info(f"   💾 Saved parsed JSON to {json_file}")
+
+                    # Log summary of each question
+                    logger.info(f"   📊 Generated {len(questions_list)} questions:")
+                    for idx, q in enumerate(questions_list):
+                        q_type = q.get("question_type", "mcq")
+                        q_fields = list(q.keys())
+                        logger.info(f"      Q{idx+1}: type={q_type}, fields={q_fields}")
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Could not save parsed JSON: {e}")
+
                 # Validate each question (skip correct_answer validation for diagnostic)
                 is_diagnostic = test_category == "diagnostic"
 
@@ -754,7 +773,11 @@ class TestGeneratorService:
                                 raise ValueError(
                                     f"Question {idx + 1} missing questions array or correct_answers for short_answer question"
                                 )
-                        elif not has_correct_answers and not has_correct_answer_key and not has_correct_answer_keys:
+                        elif (
+                            not has_correct_answers
+                            and not has_correct_answer_key
+                            and not has_correct_answer_keys
+                        ):
                             # Standard MCQ questions need correct_answers (or old fields for backward compat)
                             raise ValueError(
                                 f"Question {idx + 1} missing correct_answers (or correct_answer_key/correct_answer_keys)"
@@ -1305,7 +1328,11 @@ class TestGeneratorService:
                                 raise ValueError(
                                     f"Question {idx + 1} missing questions array or correct_answers for short_answer question"
                                 )
-                        elif not has_correct_answers and not has_correct_answer_key and not has_correct_answer_keys:
+                        elif (
+                            not has_correct_answers
+                            and not has_correct_answer_key
+                            and not has_correct_answer_keys
+                        ):
                             # Standard MCQ questions need correct_answers (or old fields for backward compat)
                             raise ValueError(
                                 f"Question {idx + 1} missing correct_answers (or correct_answer_key/correct_answer_keys)"
