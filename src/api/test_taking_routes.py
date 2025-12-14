@@ -888,7 +888,10 @@ async def submit_test(
                     )
                 elif question_type == "map_labeling":
                     result["user_labels"] = user_answer_data.get("labels", {})
-                    result["correct_labels"] = q.get("correct_labels", {})
+                    # Use correct_answers as primary, fallback to correct_labels
+                    result["correct_labels"] = q.get("correct_answers") or q.get(
+                        "correct_labels", {}
+                    )
                 elif question_type in [
                     "completion",
                     "sentence_completion",
