@@ -1880,6 +1880,9 @@ async def get_submission_detail(
                 ),  # None if pending
                 "mcq_score": submission.get("mcq_score"),  # NEW: Separate MCQ score
                 "mcq_correct_count": submission.get("mcq_correct_count"),  # NEW
+                "essay_score": submission.get(
+                    "essay_score"
+                ),  # NEW: Separate essay score
                 "total_questions": submission["total_questions"],
                 "correct_answers": submission.get("correct_answers"),  # MCQ only
                 "time_taken_seconds": submission.get("time_taken_seconds", 0),
@@ -1911,6 +1914,8 @@ async def get_submission_detail(
                 "grading_status": grading_status,
                 "score": submission.get("score"),
                 "score_percentage": submission.get("score_percentage"),
+                "mcq_score": submission.get("mcq_score"),  # NEW
+                "essay_score": submission.get("essay_score"),  # NEW
                 "total_questions": submission["total_questions"],
                 "correct_answers": submission.get(
                     "correct_answers"

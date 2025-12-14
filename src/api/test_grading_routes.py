@@ -345,6 +345,7 @@ async def grade_single_essay(
             update_data["score"] = final_score["score"]
             update_data["score_percentage"] = final_score["score_percentage"]
             update_data["is_passed"] = final_score["is_passed"]
+            update_data["essay_score"] = final_score["essay_score"]  # NEW
 
         mongo_service.db["test_submissions"].update_one(
             {"_id": ObjectId(submission_id)}, {"$set": update_data}
@@ -429,6 +430,7 @@ def calculate_final_score(submission: dict, test_doc: dict, essay_grades: list) 
         "is_passed": is_passed,
         "total_score": total_score,
         "max_total": max_total,
+        "essay_score": essay_score,  # NEW: Separate essay score for frontend
     }
 
 
@@ -522,6 +524,7 @@ async def grade_all_essays(
                     "score": final_score["score"],
                     "score_percentage": final_score["score_percentage"],
                     "is_passed": final_score["is_passed"],
+                    "essay_score": final_score["essay_score"],  # NEW
                 }
             },
         )
