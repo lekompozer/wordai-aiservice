@@ -1970,6 +1970,7 @@ async def add_test_attachment(
     """
     try:
         from src.services.subscription_service import get_subscription_service
+        from src.models.subscription import SubscriptionUsageUpdate
 
         user_id = user_info["uid"]
         mongo_service = get_mongodb_service()
