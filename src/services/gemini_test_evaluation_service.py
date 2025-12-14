@@ -843,9 +843,15 @@ class GeminiTestEvaluationService:
             logger.info(f"   Language: {language}")
 
             # Call Gemini API with Pro model for higher quality evaluation
-            response = self.client.models.generate_content(
-                model="gemini-2.5-pro",
-                contents=prompt,
+            # Run in thread pool to avoid blocking event loop
+            import asyncio
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.models.generate_content(
+                    model="gemini-2.5-pro",
+                    contents=prompt,
+                ),
             )
 
             # Extract response text
