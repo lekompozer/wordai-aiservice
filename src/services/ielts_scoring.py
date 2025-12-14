@@ -81,13 +81,14 @@ def score_matching_question(
     Score Matching question
 
     Args:
-        question: Question data with correct_matches [{'left_key': '1', 'right_key': 'A'}, ...] or {'1': 'A', ...}
+        question: Question data with correct_answers [{'left_key': '1', 'right_key': 'A'}, ...] or {'1': 'A', ...}
         user_answer: User's matches {'1': 'A', '2': 'C', ...}
 
     Returns:
         (is_correct, points_earned, feedback)
     """
-    correct_matches_raw = question.get("correct_matches", {})
+    # Use correct_answers (unified field), fallback to correct_matches (legacy)
+    correct_matches_raw = question.get("correct_answers") or question.get("correct_matches", {})
 
     # Convert array format to dict if needed
     if isinstance(correct_matches_raw, list):
