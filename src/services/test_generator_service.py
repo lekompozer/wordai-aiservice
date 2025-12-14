@@ -343,24 +343,23 @@ class TestGeneratorService:
                                             "template": {"type": "string"},
                                             "blanks": {
                                                 "type": "array",
-                                                "items": {"type": "object"},
+                                                "items": {},
                                             },
                                             "sentences": {
                                                 "type": "array",
-                                                "items": {"type": "object"},
+                                                "items": {},
                                             },
                                             "left_items": {
                                                 "type": "array",
-                                                "items": {"type": "object"},
+                                                "items": {},
                                             },
                                             "right_options": {
                                                 "type": "array",
-                                                "items": {"type": "object"},
+                                                "items": {},
                                             },
                                             "correct_answers": {
                                                 "type": "array",
                                                 "items": {},
-                                                "description": "Universal field: For MCQ=strings, For matching/completion=objects with keys",
                                             },
                                             "explanation": {"type": "string"},
                                             "points": {
