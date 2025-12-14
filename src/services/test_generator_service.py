@@ -805,14 +805,21 @@ class TestGeneratorService:
 
                     if not is_diagnostic and not should_skip_normalization:
                         # Convert old fields to unified correct_answers field
-                        if has_correct_answer_key and not has_correct_answer_keys:
+                        # PRIORITY: Keep existing correct_answers if already present (Gemini generates this directly)
+                        if has_correct_answers:
+                            # Gemini generated correct_answers directly - KEEP IT!
+                            correct_answers = q["correct_answers"]
+                        elif has_correct_answer_key and not has_correct_answer_keys:
+                            # Old format: single answer
                             correct_answers = [q["correct_answer_key"]]
                         elif has_correct_answer_keys:
+                            # Old format: multiple answers
                             if isinstance(q["correct_answer_keys"], str):
                                 correct_answers = [q["correct_answer_keys"]]
                             else:
                                 correct_answers = q["correct_answer_keys"]
                         else:
+                            # No answer fields at all - set empty
                             correct_answers = []
 
                         # Set unified field as primary
