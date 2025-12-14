@@ -627,6 +627,12 @@ class TestGeneratorService:
                 # Validate each question (skip correct_answer validation for diagnostic)
                 is_diagnostic = test_category == "diagnostic"
 
+                # 🔧 VALIDATION FIX - Location 1: After JSON parsing in exception handler
+                # Removed strict sentences-only check (lines 761-765)
+                # Now accepts BOTH formats: sentences array OR single template
+
+                # FLAG_LOCATION_1_UNIQUE_MARKER_DO_NOT_DUPLICATE
+
                 for idx, q in enumerate(questions_list):
                     # Check for required fields (support both old and new format)
                     has_correct_answer_key = "correct_answer_key" in q
@@ -636,8 +642,8 @@ class TestGeneratorService:
 
                     # Different question types have different required fields
                     if question_type in ["completion", "sentence_completion"]:
-                        # Completion questions ONLY use IELTS format (like listening test)
-                        # Format: template + blanks + correct_answers
+                        # Both completion and sentence_completion support template format
+                        # sentence_completion ALSO supports sentences array (IELTS format)
                         if not all(
                             k in q for k in ["question_text", "template", "explanation"]
                         ):
@@ -645,7 +651,7 @@ class TestGeneratorService:
                                 f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
                             )
                             logger.error(
-                                f"   IELTS format requires: question_text, template, explanation"
+                                f"   Required: question_text, template, explanation"
                             )
                             logger.error(f"   Question keys present: {list(q.keys())}")
                             logger.error(f"   RAW QUESTION DATA: {q}")
@@ -757,11 +763,9 @@ class TestGeneratorService:
                                     f"Question {idx + 1} missing correct_answers for completion question"
                                 )
                         elif question_type == "sentence_completion":
-                            # Sentence completion uses sentences array with correct_answers
-                            if "sentences" not in q:
-                                raise ValueError(
-                                    f"Question {idx + 1} missing sentences for sentence_completion question"
-                                )
+                            # ✅ FIX APPLIED: Removed strict sentences-only validation
+                            # Now accepts BOTH formats: sentences array OR single template
+                            pass
                         elif question_type == "short_answer":
                             # Short answer can use questions array OR correct_answers
                             if (
@@ -1189,6 +1193,10 @@ class TestGeneratorService:
                         )
 
                     # Validate each question
+                    # 🔧 VALIDATION FIX - Location 2: Second validation block
+
+                    # FLAG_LOCATION_2_UNIQUE_MARKER_DO_NOT_DUPLICATE
+
                     for idx, q in enumerate(questions_list):
                         # Check for required fields (support both old and new format)
                         has_correct_answer_key = "correct_answer_key" in q
@@ -1198,8 +1206,8 @@ class TestGeneratorService:
 
                         # Different question types have different required fields
                         if question_type in ["completion", "sentence_completion"]:
-                            # Completion questions ONLY use IELTS format (like listening test)
-                            # Format: template + blanks + correct_answers
+                            # Both completion and sentence_completion support template format
+                            # sentence_completion ALSO supports sentences array (IELTS format)
                             if not all(
                                 k in q
                                 for k in ["question_text", "template", "explanation"]
@@ -1208,7 +1216,7 @@ class TestGeneratorService:
                                     f"❌ VALIDATION FAILED - Question {idx + 1} ({question_type})"
                                 )
                                 logger.error(
-                                    f"   IELTS format requires: question_text, template, explanation"
+                                    f"   Required: question_text, template, explanation"
                                 )
                                 logger.error(
                                     f"   Question keys present: {list(q.keys())}"
@@ -1312,11 +1320,9 @@ class TestGeneratorService:
                                     f"Question {idx + 1} missing correct_answers for completion question"
                                 )
                         elif question_type == "sentence_completion":
-                            # Sentence completion uses sentences array with correct_answers
-                            if "sentences" not in q:
-                                raise ValueError(
-                                    f"Question {idx + 1} missing sentences for sentence_completion question"
-                                )
+                            # ✅ FIX APPLIED: Removed strict sentences-only validation
+                            # Now accepts BOTH formats: sentences array OR single template
+                            pass
                         elif question_type == "short_answer":
                             # Short answer can use questions array OR correct_answers
                             if (
