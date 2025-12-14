@@ -444,6 +444,11 @@ class GeminiImageEditService:
             # Call Gemini API with generate_content method (Gemini 2.5 Flash Image)
             logger.info(f"🤖 Calling Gemini API: {GEMINI_MODEL}")
 
+            # Run in thread pool to avoid blocking event loop
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+
             # Construct contents for generate_content
             contents = []
 
@@ -482,29 +487,32 @@ class GeminiImageEditService:
                     logger.info(
                         f"🤖 Calling Gemini API: {GEMINI_MODEL} (Attempt {attempt + 1}/{max_retries})"
                     )
-                    response = self.client.models.generate_content(
-                        model=GEMINI_MODEL,
-                        contents=contents,
-                        config=types.GenerateContentConfig(
-                            response_modalities=["IMAGE", "TEXT"],
-                            safety_settings=[
-                                types.SafetySetting(
-                                    category="HARM_CATEGORY_HATE_SPEECH",
-                                    threshold="BLOCK_ONLY_HIGH",
-                                ),
-                                types.SafetySetting(
-                                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
-                                    threshold="BLOCK_ONLY_HIGH",
-                                ),
-                                types.SafetySetting(
-                                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                                    threshold="BLOCK_ONLY_HIGH",
-                                ),
-                                types.SafetySetting(
-                                    category="HARM_CATEGORY_HARASSMENT",
-                                    threshold="BLOCK_ONLY_HIGH",
-                                ),
-                            ],
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda: self.client.models.generate_content(
+                            model=GEMINI_MODEL,
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                response_modalities=["IMAGE", "TEXT"],
+                                safety_settings=[
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_HATE_SPEECH",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_HARASSMENT",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                ],
+                            ),
                         ),
                     )
 

@@ -155,13 +155,20 @@ class GeminiTestCoverService:
             logger.info(f"   Aspect Ratio: {self.TEST_ASPECT_RATIO}")
 
             # Generate image using Gemini
-            response = self.client.models.generate_content(
-                model="gemini-3-pro-image-preview",
-                contents=full_prompt,
-                config=types.GenerateContentConfig(
-                    response_modalities=["TEXT", "IMAGE"],
-                    image_config=types.ImageConfig(
-                        aspect_ratio=self.TEST_ASPECT_RATIO,
+            # Run in thread pool to avoid blocking event loop
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.models.generate_content(
+                    model="gemini-3-pro-image-preview",
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["TEXT", "IMAGE"],
+                        image_config=types.ImageConfig(
+                            aspect_ratio=self.TEST_ASPECT_RATIO,
+                        ),
                     ),
                 ),
             )

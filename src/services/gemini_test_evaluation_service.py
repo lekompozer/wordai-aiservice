@@ -845,6 +845,7 @@ class GeminiTestEvaluationService:
             # Call Gemini API with Pro model for higher quality evaluation
             # Run in thread pool to avoid blocking event loop
             import asyncio
+
             loop = asyncio.get_event_loop()
             response = await loop.run_in_executor(
                 None,

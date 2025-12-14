@@ -419,12 +419,19 @@ class AIChatService:
                 # Create Gemini model
                 model = genai_client.GenerativeModel(model_name)
 
-                # Generate response
-                response = model.generate_content(
-                    gemini_prompt,
-                    generation_config=genai_client.types.GenerationConfig(
-                        temperature=temperature,
-                        max_output_tokens=max_tokens,
+                # Generate content
+                # Run in thread pool to avoid blocking event loop
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: model.generate_content(
+                        gemini_prompt,
+                        generation_config=genai_client.types.GenerationConfig(
+                            temperature=temperature,
+                            max_output_tokens=max_tokens,
+                        ),
                     ),
                 )
 
@@ -567,13 +574,20 @@ class AIChatService:
                 model = genai_client.GenerativeModel(model_name)
 
                 # Generate streaming response
-                response = model.generate_content(
-                    gemini_prompt,
-                    generation_config=genai_client.types.GenerationConfig(
-                        temperature=temperature,
-                        max_output_tokens=max_tokens,
+                # Run in thread pool to avoid blocking event loop
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: model.generate_content(
+                        gemini_prompt,
+                        generation_config=genai_client.types.GenerationConfig(
+                            temperature=temperature,
+                            max_output_tokens=max_tokens,
+                        ),
+                        stream=True,
                     ),
-                    stream=True,
                 )
 
                 # Once stream is established, yield chunks

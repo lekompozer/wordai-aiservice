@@ -176,7 +176,14 @@ Analyze all slides and return the JSON array:"""
                 logger.info("🤖 Using model: gemini-pro-vision")
 
         # Generate content with PDF
-        response = model.generate_content([prompt, genai.get_file(pdf_file_uri)])
+        # Run in thread pool to avoid blocking event loop
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: model.generate_content([prompt, genai.get_file(pdf_file_uri)]),
+        )
 
         logger.info(f"✅ Got response from Gemini: {len(response.text)} chars")
 

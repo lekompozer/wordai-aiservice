@@ -515,13 +515,20 @@ class EnhancedTemplateUploadService:
                 )
 
                 # Generate response with inline PDF
-                response = client.models.generate_content(
-                    model="gemini-2.5-pro",
-                    contents=[pdf_part, analysis_prompt],
-                    config=types.GenerateContentConfig(
-                        max_output_tokens=8000,
-                        temperature=0.1,  # Low temperature for accurate analysis
-                        response_mime_type="application/json",  # Ensure JSON response
+                # Run in thread pool to avoid blocking event loop
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: client.models.generate_content(
+                        model="gemini-2.5-pro",
+                        contents=[pdf_part, analysis_prompt],
+                        config=types.GenerateContentConfig(
+                            max_output_tokens=8000,
+                            temperature=0.1,  # Low temperature for accurate analysis
+                            response_mime_type="application/json",  # Ensure JSON response
+                        ),
                     ),
                 )
 

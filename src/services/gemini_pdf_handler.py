@@ -196,11 +196,18 @@ class GeminiPDFHandler:
 
             # Generate content
             logger.info("   🤖 Generating content with Gemini...")
-            response = model.generate_content(
-                [uploaded_file, prompt],
-                generation_config=genai.GenerationConfig(
-                    max_output_tokens=cls.MAX_OUTPUT_TOKENS,
-                    temperature=0.3,
+            # Run in thread pool to avoid blocking event loop
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: model.generate_content(
+                    [uploaded_file, prompt],
+                    generation_config=genai.GenerationConfig(
+                        max_output_tokens=cls.MAX_OUTPUT_TOKENS,
+                        temperature=0.3,
+                    ),
                 ),
             )
 

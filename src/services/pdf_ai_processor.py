@@ -458,13 +458,20 @@ class PDFAIProcessor:
                 )
 
                 # Generate response with inline PDF
-                response = self.client.models.generate_content(
-                    model="gemini-2.5-pro",
-                    contents=[pdf_part, system_prompt],
-                    config=types.GenerateContentConfig(
-                        max_output_tokens=32000,  # 32k tokens for large documents/slides
-                        temperature=0.1,  # Low temperature for accurate conversion
-                        response_mime_type="text/plain",
+                # Run in thread pool to avoid blocking event loop
+                import asyncio
+
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(
+                    None,
+                    lambda: self.client.models.generate_content(
+                        model="gemini-2.5-pro",
+                        contents=[pdf_part, system_prompt],
+                        config=types.GenerateContentConfig(
+                            max_output_tokens=32000,  # 32k tokens for large documents/slides
+                            temperature=0.1,  # Low temperature for accurate conversion
+                            response_mime_type="text/plain",
+                        ),
                     ),
                 )
 

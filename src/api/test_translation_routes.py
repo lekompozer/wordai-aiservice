@@ -235,9 +235,16 @@ Return ONLY valid JSON, no markdown, no code blocks, no explanations."""
 
         logger.info(f"🤖 Calling Gemini 2.5 pro for translation")
 
-        response = gemini_client.models.generate_content(
-            model="gemini-2.5-pro",
-            contents=prompt,
+        # Run in thread pool to avoid blocking event loop
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: gemini_client.models.generate_content(
+                model="gemini-2.5-pro",
+                contents=prompt,
+            ),
         )
 
         # Extract response text

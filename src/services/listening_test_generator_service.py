@@ -860,13 +860,20 @@ Return ONLY the questions array in JSON format."""
             f"   📡 Generating {num_questions} questions from user transcript..."
         )
 
-        response = self.client.models.generate_content(
-            model="gemini-3-pro-preview",
-            contents=[prompt],
-            config=types.GenerateContentConfig(
-                max_output_tokens=15000,
-                temperature=0.4,
-                response_mime_type="application/json",
+        # Run in thread pool to avoid blocking event loop
+        import asyncio
+
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            None,
+            lambda: self.client.models.generate_content(
+                model="gemini-3-pro-preview",
+                contents=[prompt],
+                config=types.GenerateContentConfig(
+                    max_output_tokens=15000,
+                    temperature=0.4,
+                    response_mime_type="application/json",
+                ),
             ),
         )
 

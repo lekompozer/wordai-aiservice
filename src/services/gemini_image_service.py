@@ -187,13 +187,20 @@ class GeminiImageService:
             logger.info(f"   Aspect ratio: {aspect_ratio}")
 
             # Call Gemini API (same pattern as book_cover_service)
-            response = self.client.models.generate_content(
-                model=GEMINI_MODEL,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_modalities=["TEXT", "IMAGE"],
-                    image_config=types.ImageConfig(
-                        aspect_ratio=aspect_ratio,
+            # Run in thread pool to avoid blocking event loop
+            import asyncio
+
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.models.generate_content(
+                    model=GEMINI_MODEL,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        response_modalities=["TEXT", "IMAGE"],
+                        image_config=types.ImageConfig(
+                            aspect_ratio=aspect_ratio,
+                        ),
                     ),
                 ),
             )
