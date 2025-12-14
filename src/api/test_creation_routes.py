@@ -969,7 +969,9 @@ async def create_manual_test(
                 # Add MCQ-specific fields
                 if q_type == "mcq":
                     # Store in unified correct_answers field, keep old field for backward compatibility
-                    correct_answers = [q.correct_answer_key] if q.correct_answer_key else []
+                    correct_answers = (
+                        [q.correct_answer_key] if q.correct_answer_key else []
+                    )
                     question_dict.update(
                         {
                             "options": q.options,
@@ -1241,7 +1243,9 @@ async def get_test_status(
     ```
     """
     try:
-        logger.info(f"🔍🔍🔍 [STATUS CHECK] GET /tests/{test_id}/status - User: {user_info['uid']} - Timestamp: {datetime.now().isoformat()}")
+        logger.info(
+            f"🔍🔍🔍 [STATUS CHECK] GET /tests/{test_id}/status - User: {user_info['uid']} - Timestamp: {datetime.now().isoformat()}"
+        )
 
         mongo_service = get_mongodb_service()
         collection = mongo_service.db["online_tests"]
@@ -1259,7 +1263,9 @@ async def get_test_status(
         status = test.get("status", "pending")
         progress = test.get("progress_percent", 0)
 
-        logger.info(f"   📍 [STATUS CHECK] Current status: {status} (progress: {progress}%)")
+        logger.info(
+            f"   📍 [STATUS CHECK] Current status: {status} (progress: {progress}%)"
+        )
 
         response = {
             "test_id": test_id,
@@ -1299,9 +1305,13 @@ async def get_test_status(
                     "error_message": test.get("error_message"),
                 }
             )
-            logger.error(f"   ❌ [STATUS CHECK] Returning: Test failed - {test.get('error_message')}")
+            logger.error(
+                f"   ❌ [STATUS CHECK] Returning: Test failed - {test.get('error_message')}"
+            )
 
-        logger.info(f"🔍🔍🔍 [STATUS CHECK] Response sent for test {test_id}: {response}")
+        logger.info(
+            f"🔍🔍🔍 [STATUS CHECK] Response sent for test {test_id}: {response}"
+        )
         return response
 
     except HTTPException:
@@ -1547,7 +1557,31 @@ async def update_test_questions(
                 status_code=403, detail="Only the test creator can edit questions"
             )
 
-        # Validate questions structure
+        # Check if questions actually changed
+        existing_questions = test_doc.get("questions", [])
+        questions_changed = (
+            len(request.questions) != len(existing_questions)
+            or request.questions != existing_questions
+        )
+
+        # If questions haven't changed, skip validation and update
+        if not questions_changed:
+            logger.info(
+                f"ℹ️  Questions unchanged for test {test_id}, skipping validation"
+            )
+            # Still update timestamp
+            mongo_service.db["online_tests"].update_one(
+                {"_id": ObjectId(test_id)}, {"$set": {"updated_at": datetime.utcnow()}}
+            )
+            return {
+                "success": True,
+                "test_id": test_id,
+                "questions_updated": len(request.questions),
+                "message": "No changes to questions",
+                "updated_at": datetime.utcnow().isoformat(),
+            }
+
+        # Validate questions structure only if changed
         if not request.questions or len(request.questions) == 0:
             raise HTTPException(
                 status_code=400, detail="At least one question is required"
@@ -1601,7 +1635,11 @@ async def update_test_questions(
 
                 # Skip correct_answer validation for diagnostic tests
                 if not is_diagnostic:
-                    if not has_correct_answers and not has_correct_answer_key and not has_correct_answer_keys:
+                    if (
+                        not has_correct_answers
+                        and not has_correct_answer_key
+                        and not has_correct_answer_keys
+                    ):
                         raise HTTPException(
                             status_code=400,
                             detail=f"Question {idx + 1}: MCQ requires correct_answers (or correct_answer_key/correct_answer_keys)",
@@ -1616,10 +1654,18 @@ async def update_test_questions(
 
                     if has_correct_answers:
                         # Already using unified field
-                        correct_answers = q["correct_answers"] if isinstance(q["correct_answers"], list) else [q["correct_answers"]]
+                        correct_answers = (
+                            q["correct_answers"]
+                            if isinstance(q["correct_answers"], list)
+                            else [q["correct_answers"]]
+                        )
                     elif has_correct_answer_keys:
                         # Legacy array format
-                        correct_answers = q["correct_answer_keys"] if isinstance(q["correct_answer_keys"], list) else [q["correct_answer_keys"]]
+                        correct_answers = (
+                            q["correct_answer_keys"]
+                            if isinstance(q["correct_answer_keys"], list)
+                            else [q["correct_answer_keys"]]
+                        )
                     elif has_correct_answer_key:
                         # Legacy single format
                         correct_answers = [q["correct_answer_key"]]
@@ -1637,7 +1683,9 @@ async def update_test_questions(
 
                     # Keep old fields for backward compatibility
                     q["correct_answer_keys"] = correct_answers
-                    q["correct_answer_key"] = correct_answers[0] if correct_answers else None
+                    q["correct_answer_key"] = (
+                        correct_answers[0] if correct_answers else None
+                    )
 
             elif q_type == "essay":
                 # Essay validation
@@ -1663,10 +1711,11 @@ async def update_test_questions(
                         status_code=400,
                         detail=f"Question {idx + 1}: Matching requires at least 2 right_options",
                     )
-                if not q.get("correct_matches"):
+                # Support unified correct_answers and legacy correct_matches
+                if not q.get("correct_answers") and not q.get("correct_matches"):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: Matching requires correct_matches",
+                        detail=f"Question {idx + 1}: Matching requires correct_answers (or correct_matches)",
                     )
 
             elif q_type == "map_labeling":
