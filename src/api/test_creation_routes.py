@@ -1719,16 +1719,22 @@ async def update_test_questions(
                     )
 
             elif q_type == "map_labeling":
-                # Map labeling validation
-                if not q.get("map_url"):
+                # Map labeling validation (manual creation only - not AI generated)
+                if not q.get("diagram_url"):
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: Map labeling requires map_url",
+                        detail=f"Question {idx + 1}: Map labeling requires diagram_url",
                     )
-                if not q.get("positions") or len(q["positions"]) < 1:
+                if not q.get("label_positions") or len(q["label_positions"]) < 1:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: Map labeling requires at least 1 position",
+                        detail=f"Question {idx + 1}: Map labeling requires at least 1 label_positions",
+                    )
+                # Support unified correct_answers and legacy correct_labels
+                if not q.get("correct_answers") and not q.get("correct_labels"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Question {idx + 1}: Map labeling requires correct_answers (or correct_labels)",
                     )
 
             elif q_type == "completion":

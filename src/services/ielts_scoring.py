@@ -320,18 +320,24 @@ def score_map_labeling_question(
     Same logic as matching (label positions to options)
 
     Args:
-        question: Question data with correct_labels [{'position_key': '1', 'label': 'A'}, ...] or {'1': 'A', ...}
+        question: Question data with correct_answers [{'label_key': '1', 'option_key': 'A'}, ...] or correct_labels {'1': 'A', ...} (legacy)
         user_answer: User's labels {'1': 'A', '2': 'C', ...}
 
     Returns:
         (is_correct, points_earned, feedback)
     """
-    correct_labels_raw = question.get("correct_labels", {})
+    # Use correct_answers (unified field), fallback to correct_labels (legacy)
+    correct_labels_raw = question.get("correct_answers") or question.get(
+        "correct_labels", {}
+    )
 
     # Convert array format to dict if needed
     if isinstance(correct_labels_raw, list):
         correct_labels = {
-            item["position_key"]: item["label"] for item in correct_labels_raw
+            item.get("label_key")
+            or item.get("position_key"): item.get("option_key")
+            or item.get("label")
+            for item in correct_labels_raw
         }
     else:
         correct_labels = correct_labels_raw
