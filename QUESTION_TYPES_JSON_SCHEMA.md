@@ -537,22 +537,219 @@ GET /api/v1/tests/{test_id}
 Authorization: Bearer {firebase_token}
 ```
 
-**Response:**
+⚠️ **IMPORTANT:** Response varies based on user's relationship to the test!
+
+#### 1️⃣ **OWNER VIEW** (Creator/Owner)
+
+**Includes:** Full test configuration + ALL questions **WITH correct_answers**
+
 ```json
 {
-  "_id": "693eb0d83456aa028c4ee7fe",
-  "title": "Test Title",
-  "description": "...",
+  "success": true,
+  "test_id": "693eb0d83456aa028c4ee7fe",
+  "view_type": "owner",
+  "is_owner": true,
+  "access_type": "owner",
+
+  // Basic info
+  "title": "Advanced Reading Test",
+  "description": "IELTS style reading comprehension",
+  "test_type": "mcq",
+  "test_category": "academic",
+  "is_active": true,
   "status": "ready",
-  "questions": [ /* Array of question objects */ ],
+
+  // Test settings
+  "max_retries": 3,
+  "time_limit_minutes": 60,
+  "passing_score": 70,
+  "deadline": "2025-12-31T23:59:59",
+  "show_answers_timing": "immediate",
+
+  // Questions (WITH correct_answers for owner!)
   "num_questions": 15,
-  "time_limit_minutes": 20,
+  "questions": [
+    {
+      "question_id": "...",
+      "question_type": "mcq",
+      "question_text": "What is...?",
+      "options": [...],
+      "correct_answers": ["B"],          // ✅ INCLUDED for owner
+      "explanation": "...",              // ✅ INCLUDED for owner
+      "max_points": 1
+    },
+    {
+      "question_type": "sentence_completion",
+      "question_text": "Complete the sentence...",
+      "template": "The economy has _____.",
+      "correct_answers": ["grown"],      // ✅ INCLUDED for owner
+      "explanation": "...",
+      "max_points": 1
+    }
+  ],
+
+  // Audio sections (if listening test)
+  "audio_sections": [
+    {
+      "section_number": 1,
+      "section_title": "Conversation",
+      "audio_url": "https://...",
+      "duration_seconds": 180,
+      "transcript": "Full transcript..."  // ✅ INCLUDED for owner
+    }
+  ],
+
+  // Creation info
+  "creation_type": "ai_generated",
+  "test_language": "en",
+  "evaluation_criteria": {...},
+
+  // Statistics
+  "total_submissions": 42,
+
+  // Marketplace (if published)
+  "is_published": true,
+  "marketplace_config": {...},
+
+  // Timestamps
   "created_at": "2025-12-14T19:43:04.547000",
-  "generated_at": "2025-12-14T19:43:58.501000",
-  "user_uid": "...",
-  "user_email": "..."
+  "updated_at": "2025-12-14T20:00:00.000000"
 }
 ```
+
+#### 2️⃣ **SHARED VIEW** (Invited Users/Test Takers)
+
+**Includes:** Questions for taking **WITHOUT correct_answers**
+
+```json
+{
+  "success": true,
+  "test_id": "693eb0d83456aa028c4ee7fe",
+  "view_type": "shared",
+  "is_owner": false,
+  "access_type": "shared",
+  "status": "ready",
+
+  "title": "Advanced Reading Test",
+  "description": "IELTS style reading comprehension",
+  "time_limit_minutes": 60,
+  "num_questions": 15,
+
+  "questions": [
+    {
+      "question_id": "...",
+      "question_type": "mcq",
+      "question_text": "What is...?",
+      "options": [...],
+      "max_points": 1
+      // ❌ NO correct_answers
+      // ❌ NO explanation
+    },
+    {
+      "question_type": "sentence_completion",
+      "question_text": "Complete the sentence...",
+      "sentences": [
+        {
+          "key": "1",
+          "template": "The economy has _____.",
+          "word_limit": 1
+          // ❌ NO correct_answers
+        }
+      ],
+      "max_points": 1
+      // ❌ NO explanation
+    }
+  ],
+
+  // Attachments (PDF for reading comprehension)
+  "attachments": [
+    {
+      "attachment_id": "...",
+      "title": "Reading Passage 1",
+      "description": "...",
+      "file_url": "https://..."
+    }
+  ],
+
+  // Audio sections (if listening test)
+  "audio_sections": [
+    {
+      "section_number": 1,
+      "section_title": "Conversation",
+      "audio_url": "https://...",
+      "duration_seconds": 180
+      // ❌ NO transcript (owner-only)
+    }
+  ]
+}
+```
+
+#### 3️⃣ **PUBLIC VIEW** (Marketplace - Not Purchased)
+
+**Includes:** Marketplace info only, NO questions revealed
+
+```json
+{
+  "success": true,
+  "test_id": "693eb0d83456aa028c4ee7fe",
+  "view_type": "public",
+  "is_owner": false,
+  "access_type": "public",
+
+  // Marketplace info
+  "title": "Advanced Reading Test",
+  "description": "Complete IELTS style test...",
+  "short_description": "Perfect for exam prep",
+  "cover_image_url": "https://...",
+
+  // Test configuration (basic)
+  "num_questions": 15,
+  "time_limit_minutes": 60,
+  "passing_score": 70,
+  "max_retries": 3,
+
+  // Marketplace metadata
+  "price_points": 500,
+  "category": "ielts",
+  "tags": ["reading", "academic"],
+  "difficulty_level": "advanced",
+  "version": "v1",
+
+  // Community statistics
+  "total_participants": 328,
+  "average_participant_score": 72.5,
+  "average_rating": 4.7,
+  "rating_count": 156,
+
+  // Publication info
+  "published_at": "2025-11-01T00:00:00",
+  "creator_id": "...",
+
+  // User-specific info
+  "already_participated": false,
+  "attempts_used": 0,
+  "user_best_score": null,
+
+  // Additional metadata
+  "creation_type": "ai_generated",
+  "test_language": "en"
+
+  // ❌ NO questions (must purchase first)
+}
+```
+
+#### Access Control Summary
+
+| User Type | Questions Included? | Correct Answers? | Explanation? | Full Config? |
+|-----------|-------------------|-----------------|--------------|--------------|
+| **Owner** | ✅ All questions | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Shared** | ✅ All questions | ❌ No | ❌ No | ❌ Basic only |
+| **Public** | ❌ No questions | ❌ No | ❌ No | ❌ Marketplace only |
+
+**Key Points:**
+- **Owner:** Sees everything including correct_answers, explanation, transcript
+- **Shared:** Gets questions for taking, but NO correct_answers or explanation
+- **Public:** Marketplace info only, must purchase to get access
 
 ### Get My Tests
 ```http
@@ -669,32 +866,9 @@ const calculateScore = (userAnswers, questions) => {
 
 ---
 
-## MongoDB Query Examples
 
-### Get Test (Python)
-```python
-from pymongo import MongoClient
-from bson import ObjectId
 
-client = MongoClient("mongodb://admin:ai_admin_2025_secure_password@mongodb:27017/?authSource=admin")
-db = client["ai_service_db"]
 
-# Get test by ID (as ObjectId)
-test = db.online_tests.find_one({"_id": ObjectId("693eb0d83456aa028c4ee7fe")})
-
-# Get questions 11-15
-if test and test.get('questions'):
-    questions_11_15 = test['questions'][10:15]
-```
-
-### Get Test (mongosh)
-```bash
-docker exec mongodb mongosh -u admin -p ai_admin_2025_secure_password \
-  --authenticationDatabase admin ai_service_db --quiet --eval '
-var test = db.online_tests.findOne({_id: ObjectId("693eb0d83456aa028c4ee7fe")});
-printjson(test.questions);
-'
-```
 
 ---
 
