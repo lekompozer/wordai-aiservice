@@ -56,38 +56,39 @@ class GoogleTTSService:
             "zh": "Chinese",  # Additional common language
         }
 
-        # All 30 available voices from Gemini TTS
+        # All 30 available voices from Gemini TTS with gender info
+        # Gender classification based on voice characteristics and common usage
         self.all_voices = {
-            "Zephyr": "Bright",
-            "Puck": "Upbeat",
-            "Charon": "Informative",
-            "Kore": "Firm",
-            "Fenrir": "Excitable",
-            "Leda": "Youthful",
-            "Orus": "Firm",
-            "Aoede": "Breezy",
-            "Callirrhoe": "Easy-going",
-            "Autonoe": "Bright",
-            "Enceladus": "Breathy",
-            "Iapetus": "Clear",
-            "Umbriel": "Easy-going",
-            "Algieba": "Smooth",
-            "Despina": "Smooth",
-            "Erinome": "Clear",
-            "Algenib": "Gravelly",
-            "Rasalgethi": "Informative",
-            "Laomedeia": "Upbeat",
-            "Achernar": "Soft",
-            "Alnilam": "Firm",
-            "Schedar": "Even",
-            "Gacrux": "Mature",
-            "Pulcherrima": "Forward",
-            "Achird": "Friendly",
-            "Zubenelgenubi": "Casual",
-            "Vindemiatrix": "Gentle",
-            "Sadachbia": "Lively",
-            "Sadaltager": "Knowledgeable",
-            "Sulafat": "Warm",
+            "Zephyr": {"description": "Bright", "gender": "NEUTRAL"},
+            "Puck": {"description": "Upbeat", "gender": "MALE"},
+            "Charon": {"description": "Informative", "gender": "MALE"},
+            "Kore": {"description": "Firm", "gender": "FEMALE"},
+            "Fenrir": {"description": "Excitable", "gender": "MALE"},
+            "Leda": {"description": "Youthful", "gender": "FEMALE"},
+            "Orus": {"description": "Firm", "gender": "MALE"},
+            "Aoede": {"description": "Breezy", "gender": "FEMALE"},
+            "Callirrhoe": {"description": "Easy-going", "gender": "FEMALE"},
+            "Autonoe": {"description": "Bright", "gender": "FEMALE"},
+            "Enceladus": {"description": "Breathy", "gender": "MALE"},
+            "Iapetus": {"description": "Clear", "gender": "MALE"},
+            "Umbriel": {"description": "Easy-going", "gender": "NEUTRAL"},
+            "Algieba": {"description": "Smooth", "gender": "MALE"},
+            "Despina": {"description": "Smooth", "gender": "FEMALE"},
+            "Erinome": {"description": "Clear", "gender": "FEMALE"},
+            "Algenib": {"description": "Gravelly", "gender": "MALE"},
+            "Rasalgethi": {"description": "Informative", "gender": "MALE"},
+            "Laomedeia": {"description": "Upbeat", "gender": "FEMALE"},
+            "Achernar": {"description": "Soft", "gender": "FEMALE"},
+            "Alnilam": {"description": "Firm", "gender": "MALE"},
+            "Schedar": {"description": "Even", "gender": "NEUTRAL"},
+            "Gacrux": {"description": "Mature", "gender": "MALE"},
+            "Pulcherrima": {"description": "Forward", "gender": "FEMALE"},
+            "Achird": {"description": "Friendly", "gender": "NEUTRAL"},
+            "Zubenelgenubi": {"description": "Casual", "gender": "MALE"},
+            "Vindemiatrix": {"description": "Gentle", "gender": "FEMALE"},
+            "Sadachbia": {"description": "Lively", "gender": "FEMALE"},
+            "Sadaltager": {"description": "Knowledgeable", "gender": "MALE"},
+            "Sulafat": {"description": "Warm", "gender": "FEMALE"},
         }
 
     def _convert_pcm_to_wav(
@@ -187,16 +188,17 @@ class GoogleTTSService:
 
     async def get_available_voices(self, language: str = "vi") -> List[Dict]:
         """
-        Get all 30 available Gemini TTS voices
+        Get all 30 available Gemini TTS voices with gender info
 
         All voices work with all languages (Gemini auto-detects language)
         """
         voices = []
-        for voice_name, description in self.all_voices.items():
+        for voice_name, info in self.all_voices.items():
             voices.append(
                 {
                     "name": voice_name,
-                    "description": description,
+                    "description": info["description"],
+                    "gender": info["gender"],
                     "language_codes": list(self.supported_languages.keys()),
                     "natural_sample_rate_hertz": 24000,
                 }
