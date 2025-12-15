@@ -2778,7 +2778,7 @@ async def delete_test(
 
         # Invalidate marketplace stats cache if test was public
         if test_doc.get("marketplace_config", {}).get("is_public", False):
-            await MarketplaceCacheService.invalidate_cache()
+            MarketplaceCacheService.invalidate_cache()
             logger.info(f"🗑️ Invalidated marketplace cache (deleted public test)")
 
         logger.info(f"🗑️ Soft deleted test {test_id}")

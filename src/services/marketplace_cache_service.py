@@ -3,14 +3,31 @@ Marketplace Cache Service
 Handles cached statistics for marketplace performance optimization
 """
 
+import os
 import json
 import logging
+import redis
 from datetime import datetime
 from typing import Dict, Optional
-from src.database.mongodb_service import get_mongodb_service
-from src.database.redis_service import get_redis_client
+from src.services.online_test_utils import get_mongodb_service
 
 logger = logging.getLogger(__name__)
+
+# Redis client for caching
+_redis_client = None
+
+
+def get_redis_client():
+    """Get Redis client for caching"""
+    global _redis_client
+    if _redis_client is None:
+        _redis_client = redis.Redis(
+            host=os.getenv("REDIS_HOST", "localhost"),
+            port=int(os.getenv("REDIS_PORT", 6379)),
+            db=int(os.getenv("REDIS_DB", 0)),
+            decode_responses=True,
+        )
+    return _redis_client
 
 
 class MarketplaceCacheService:
@@ -35,7 +52,7 @@ class MarketplaceCacheService:
         # Try cache first (unless force refresh)
         if not force_refresh:
             try:
-                cached = await redis_client.get(MarketplaceCacheService.CACHE_KEY)
+                cached = redis_client.get(MarketplaceCacheService.CACHE_KEY)
                 if cached:
                     logger.info("📊 Cache hit - returning cached marketplace stats")
                     return json.loads(cached)
@@ -48,7 +65,7 @@ class MarketplaceCacheService:
 
         # Cache the result
         try:
-            await redis_client.setex(
+            redis_client.setex(
                 MarketplaceCacheService.CACHE_KEY,
                 MarketplaceCacheService.CACHE_TTL,
                 json.dumps(stats, default=str),
@@ -197,14 +214,14 @@ class MarketplaceCacheService:
         }
 
     @staticmethod
-    async def invalidate_cache():
+    def invalidate_cache():
         """
         Invalidate marketplace statistics cache
         Call this when test is published/unpublished/deleted
         """
         redis_client = get_redis_client()
         try:
-            await redis_client.delete(MarketplaceCacheService.CACHE_KEY)
+            redis_client.delete(MarketplaceCacheService.CACHE_KEY)
             logger.info("🗑️ Invalidated marketplace stats cache")
         except Exception as e:
             logger.warning(f"Cache invalidation error: {e}")

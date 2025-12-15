@@ -293,7 +293,7 @@ async def publish_test_to_marketplace(
         )
 
         # Invalidate marketplace stats cache
-        await MarketplaceCacheService.invalidate_cache()
+        MarketplaceCacheService.invalidate_cache()
 
         logger.info(
             f"Published test {test_id} to marketplace at {price_points} points (version {version_number})"
@@ -405,7 +405,7 @@ async def unpublish_test(test_id: str, user_info: dict = Depends(require_auth)):
             )
 
         # Invalidate marketplace stats cache
-        await MarketplaceCacheService.invalidate_cache()
+        MarketplaceCacheService.invalidate_cache()
 
         logger.info(f"Unpublished test {test_id} from marketplace")
 
