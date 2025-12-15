@@ -1107,17 +1107,17 @@ async def submit_test(
             q_id = user_ans.get("question_id")
             # Find corresponding result with scoring
             result = next((r for r in results if r["question_id"] == q_id), None)
-            
+
             # Start with original user answer
             enriched_ans = dict(user_ans)
-            
+
             # Add scoring data if available
             if result:
                 enriched_ans["max_points"] = result.get("max_points", 1)
                 enriched_ans["points_earned"] = result.get("points_awarded")
                 if "is_correct" in result:
                     enriched_ans["is_correct"] = result["is_correct"]
-            
+
             enriched_user_answers.append(enriched_ans)
 
         # Save submission
