@@ -192,6 +192,7 @@ class PromptBuilder:
    }
    ```
    - **GUIDELINES FOR TRUE/FALSE MULTIPLE:**
+     * 🛑 CRITICAL: DO NOT use "options" array. Use "statements" array only!
      * Use "partial" scoring (recommended): student gets (correct_count/total) × points
      * Use "all_or_nothing" for challenging exams: must get all statements correct
      * Create 2-5 statements per question (usually 4 for Vietnamese exams)
