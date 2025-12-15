@@ -1792,7 +1792,16 @@ async def get_submission_detail(
                     result["template"] = q.get("template", "")
                     result["blanks"] = q.get("blanks", [])
                     result["user_answers"] = user_answer_data.get("answers", {})
-                    result["correct_answers"] = q.get("correct_answers", {})
+
+                    # Completion has 2 formats:
+                    # 1. Standard: correct_answers at root (array of {blank_key, answers})
+                    # 2. Listening: questions array (each with key, text, correct_answers)
+                    if q.get("questions"):
+                        # Listening format - questions array contains correct answers
+                        result["questions"] = q.get("questions", [])
+                    else:
+                        # Standard format - correct_answers at root
+                        result["correct_answers"] = q.get("correct_answers", [])
 
                 elif q_type == "sentence_completion":
                     result["sentences"] = q.get("sentences", [])

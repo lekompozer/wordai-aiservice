@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field, model_validator
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
 from src.services.online_test_utils import *
+from src.services.marketplace_cache_service import MarketplaceCacheService
 
 logger = logging.getLogger("chatbot")
 
@@ -2774,6 +2775,11 @@ async def delete_test(
 
         if result.modified_count == 0:
             raise HTTPException(status_code=500, detail="Failed to delete test")
+
+        # Invalidate marketplace stats cache if test was public
+        if test_doc.get("marketplace_config", {}).get("is_public", False):
+            await MarketplaceCacheService.invalidate_cache()
+            logger.info(f"🗑️ Invalidated marketplace cache (deleted public test)")
 
         logger.info(f"🗑️ Soft deleted test {test_id}")
 

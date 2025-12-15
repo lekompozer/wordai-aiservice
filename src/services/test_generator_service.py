@@ -1648,6 +1648,18 @@ class TestGeneratorService:
                 question_data["template"] = q.get("template")
                 question_data["blanks"] = q.get("blanks", [])
 
+                # Listening tests may have questions array (without correct_answers)
+                if q.get("questions"):
+                    questions_list = q.get("questions", [])
+                    question_data["questions"] = [
+                        {
+                            "key": qq.get("key"),
+                            "text": qq.get("text"),
+                            "word_limit": qq.get("word_limit"),
+                        }
+                        for qq in questions_list
+                    ]
+
             # Sentence Completion-specific fields
             elif q_type == "sentence_completion":
                 # Sentence completion has 2 valid formats:
