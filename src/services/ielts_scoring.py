@@ -369,6 +369,92 @@ def score_map_labeling_question(
     return is_correct, points_earned, feedback
 
 
+def score_true_false_multiple_question(
+    question: Dict[str, Any], user_answer: Dict[str, Any]
+) -> Tuple[bool, float, str]:
+    """
+    Score a True/False Multiple question
+
+    User must evaluate multiple statements as true or false
+
+    Question format:
+    {
+        "question_type": "true_false_multiple",
+        "statements": [
+            {"key": "a", "text": "...", "correct_value": true},
+            {"key": "b", "text": "...", "correct_value": false},
+            ...
+        ],
+        "scoring_mode": "partial" | "all_or_nothing",
+        "points": 4
+    }
+
+    User answer format:
+    {
+        "question_id": "q1",
+        "user_answer": {"a": true, "b": false, "c": true, "d": false}
+    }
+
+    Returns:
+        (is_correct, points_earned, feedback)
+    """
+    statements = question.get("statements", [])
+    scoring_mode = question.get("scoring_mode", "partial")
+    max_points = question.get("points", 1)
+
+    # Extract user's answers
+    user_answers = user_answer.get("user_answer", {})
+
+    if not isinstance(user_answers, dict):
+        return False, 0.0, "Invalid answer format (expected dict)"
+
+    # Check each statement
+    correct_count = 0
+    total_count = len(statements)
+    breakdown = {}
+
+    for stmt in statements:
+        key = stmt.get("key")
+        correct_value = stmt.get("correct_value")
+        user_value = user_answers.get(key)
+
+        # Check if user answered and if it's correct
+        is_correct = user_value == correct_value
+
+        if is_correct:
+            correct_count += 1
+
+        breakdown[key] = {
+            "user": user_value,
+            "correct": correct_value,
+            "is_correct": is_correct,
+        }
+
+    # Calculate points based on scoring mode
+    if scoring_mode == "all_or_nothing":
+        # Must get all statements correct
+        all_correct = correct_count == total_count
+        points_earned = float(max_points) if all_correct else 0.0
+        is_correct = all_correct
+
+        feedback = (
+            f"All {total_count}/{total_count} correct"
+            if all_correct
+            else f"{correct_count}/{total_count} correct (need all for points)"
+        )
+
+    else:  # partial scoring (default)
+        # Proportional scoring
+        points_earned = round((correct_count / total_count) * max_points, 2)
+        is_correct = correct_count == total_count
+
+        feedback = f"{correct_count}/{total_count} statements correct"
+        if correct_count < total_count:
+            feedback += f". Score: {points_earned}/{max_points} points"
+
+    return is_correct, points_earned, feedback
+
+
 def score_question(
     question: Dict[str, Any], user_answer: Dict[str, Any]
 ) -> Tuple[bool, int, str]:
@@ -404,6 +490,9 @@ def score_question(
 
         elif question_type == "map_labeling":
             return score_map_labeling_question(question, user_answer)
+
+        elif question_type == "true_false_multiple":
+            return score_true_false_multiple_question(question, user_answer)
 
         elif question_type == "essay":
             # Essay questions cannot be auto-scored
@@ -461,8 +550,13 @@ def get_answer_format_for_type(question_type: str) -> Dict[str, Any]:
             "question_type": "map_labeling",
             "labels": {"1": "A", "2": "C", "3": "B"},
         },
-        "essay": {
+        "true_false_multiple": {
             "question_id": "q7",
+            "question_type": "true_false_multiple",
+            "user_answer": {"a": True, "b": False, "c": True, "d": False},
+        },
+        "essay": {
+            "question_id": "q8",
             "question_type": "essay",
             "answer_text": "Essay answer text here...",
             "media_attachments": [],  # Optional

@@ -1695,6 +1695,21 @@ class TestGeneratorService:
                     for qq in questions_list
                 ]
 
+            # True/False Multiple-specific fields
+            elif q_type == "true_false_multiple":
+                # Remove correct_value from statements (SECURITY: students should NOT see answers)
+                statements = q.get("statements", [])
+                question_data["statements"] = [
+                    {
+                        "key": s.get("key"),
+                        "text": s.get("text"),
+                        # Do NOT include: correct_value
+                    }
+                    for s in statements
+                ]
+                # Include scoring_mode so students know how it's graded
+                question_data["scoring_mode"] = q.get("scoring_mode", "partial")
+
             # Essay-specific fields
             elif q_type == "essay":
                 # Optionally include grading rubric for students to see expectations

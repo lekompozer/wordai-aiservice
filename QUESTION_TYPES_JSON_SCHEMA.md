@@ -46,8 +46,10 @@ All test endpoints return tests with a `questions` array:
 | `completion` | Fill Blanks (IELTS) | `correct_answers` | `[{"blank_key": "1", "answers": ["text"]}]` |
 | `sentence_completion` | Complete Sentence | `correct_answers` | `["word", "variation"]` |
 | `short_answer` | Short Answer | `correct_answers` | `["answer", "variation"]` |
+| `true_false_multiple` | True/False Statements | `statements` | `[{"key": "a", "correct_value": true}]` |
 
 ⚠️ **CRITICAL:** ALL question types use `correct_answers` field (NOT `correct_answer_keys`, `correct_matches`, etc.)
+⚠️ **NEW:** `true_false_multiple` uses `statements` array with `correct_value` for each statement
 
 ---
 
@@ -869,6 +871,182 @@ const calculateScore = (userAnswers, questions) => {
 
 
 
+
+---
+
+## 7. True/False Multiple (NEW)
+
+**Type:** `"question_type": "true_false_multiple"`
+
+### JSON Schema
+
+```json
+{
+  "question_type": "true_false_multiple",
+  "question_text": "Câu 1: Cho hàm số f(x) = x² - 4x + 3. Xét tính đúng sai của các khẳng định sau:",
+  "statements": [
+    {
+      "key": "a",
+      "text": "Hàm số có đồ thị là parabol với đỉnh I(2, -1)",
+      "correct_value": true
+    },
+    {
+      "key": "b",
+      "text": "Hàm số nghịch biến trên khoảng (-∞, 2)",
+      "correct_value": false
+    },
+    {
+      "key": "c",
+      "text": "Đồ thị cắt trục hoành tại 2 điểm",
+      "correct_value": true
+    },
+    {
+      "key": "d",
+      "text": "Giá trị nhỏ nhất của hàm số là -2",
+      "correct_value": false
+    }
+  ],
+  "scoring_mode": "partial",
+  "points": 4,
+  "explanation": "a) Đúng. Đỉnh parabol tại x = -b/2a = 4/2 = 2, y = f(2) = 4 - 8 + 3 = -1.\nb) Sai. Hàm số có a = 1 > 0 nên đồng biến trên (2, +∞) và nghịch biến trên (-∞, 2).\nc) Đúng. Δ = 16 - 12 = 4 > 0 nên có 2 nghiệm phân biệt.\nd) Sai. Giá trị nhỏ nhất là y_đỉnh = -1 (không phải -2).",
+  "question_id": "675f1234abcd5678ef901234"
+}
+```
+
+### Required Fields
+- `question_type`: `"true_false_multiple"`
+- `question_text`: String (đề bài chính, có thể chứa MathJax/LaTeX)
+- `statements`: Array of statement objects (at least 2 statements)
+  - `key`: String (a, b, c, d, e, ...)
+  - `text`: String (nội dung khẳng định)
+  - `correct_value`: Boolean (true = Đúng, false = Sai)
+- `scoring_mode`: String (`"partial"` or `"all_or_nothing"`)
+- `points`: Integer (1-5, total points for the question)
+- `explanation`: String (giải thích chi tiết cho từng ý)
+
+### Scoring Modes
+
+**1. Partial Scoring (Recommended):**
+```
+Score = (Correct Statements / Total Statements) × Points
+
+Example: 4 statements, 3 correct → (3/4) × 4 = 3 điểm
+```
+
+**2. All-or-Nothing:**
+```
+Score = Points if ALL correct, else 0
+
+Example: 4 statements, 3 correct → 0 điểm (must get all 4)
+```
+
+### Frontend Display
+
+**Student View (Taking Test):**
+```typescript
+// Response does NOT include correct_value
+{
+  "question_type": "true_false_multiple",
+  "question_text": "Câu 1: Cho hàm số...",
+  "statements": [
+    {"key": "a", "text": "Khẳng định a"},
+    {"key": "b", "text": "Khẳng định b"},
+    {"key": "c", "text": "Khẳng định c"},
+    {"key": "d", "text": "Khẳng định d"}
+  ],
+  "scoring_mode": "partial",
+  "points": 4,
+  "question_id": "..."
+}
+
+// UI: Radio buttons for each statement
+a) Khẳng định a     ○ Đúng   ○ Sai
+b) Khẳng định b     ○ Đúng   ○ Sai
+c) Khẳng định c     ○ Đúng   ○ Sai
+d) Khẳng định d     ○ Đúng   ○ Sai
+```
+
+**Owner View (Editing):**
+```typescript
+// Response INCLUDES correct_value
+{
+  "question_type": "true_false_multiple",
+  "question_text": "Câu 1: Cho hàm số...",
+  "statements": [
+    {"key": "a", "text": "...", "correct_value": true},
+    {"key": "b", "text": "...", "correct_value": false},
+    {"key": "c", "text": "...", "correct_value": true},
+    {"key": "d", "text": "...", "correct_value": false}
+  ],
+  "scoring_mode": "partial",
+  "points": 4,
+  "explanation": "a) Đúng vì...\nb) Sai vì...",
+  "question_id": "..."
+}
+```
+
+### Answer Submission Format
+
+```json
+{
+  "question_id": "675f1234abcd5678ef901234",
+  "user_answer": {
+    "a": true,
+    "b": false,
+    "c": true,
+    "d": false
+  }
+}
+```
+
+⚠️ **IMPORTANT:** Must provide answer for ALL statements. Missing statements = incorrect.
+
+### Result Response Format
+
+```json
+{
+  "question_id": "675f1234abcd5678ef901234",
+  "question_type": "true_false_multiple",
+  "question_text": "Câu 1: Cho hàm số...",
+  "statements": [
+    {"key": "a", "text": "...", "correct_value": true},
+    {"key": "b", "text": "...", "correct_value": false},
+    {"key": "c", "text": "...", "correct_value": true},
+    {"key": "d", "text": "...", "correct_value": false}
+  ],
+  "user_answer": {"a": true, "b": false, "c": true, "d": true},
+  "score": 3.0,
+  "max_score": 4.0,
+  "is_correct": false,
+  "breakdown": {
+    "a": {"user": true, "correct": true, "is_correct": true},
+    "b": {"user": false, "correct": false, "is_correct": true},
+    "c": {"user": true, "correct": true, "is_correct": true},
+    "d": {"user": true, "correct": false, "is_correct": false}
+  },
+  "scoring_mode": "partial",
+  "explanation": "a) Đúng vì...\nb) Sai vì...\nc) Đúng vì...\nd) Sai vì..."
+}
+```
+
+**Breakdown Fields:**
+- `user`: User's answer (true/false)
+- `correct`: Correct answer (true/false)
+- `is_correct`: Whether user's answer matches correct answer
+
+### Use Cases
+
+✅ **Perfect for:**
+- Đề thi Toán (hàm số, hình học, đại số)
+- Đề thi Lý (chuyển động, điện, quang)
+- Đề thi Hóa (phản ứng, tính chất, phương trình)
+- Đề thi Sinh (sinh thái, di truyền, tế bào)
+- Bất kỳ môn học nào có format đánh giá Đúng/Sai từng khẳng định
+
+❌ **Not suitable for:**
+- Essay questions (use `essay` type)
+- Open-ended questions (use `short_answer`)
+- Multiple choice with options (use `mcq` or `mcq_multiple`)
 
 ---
 

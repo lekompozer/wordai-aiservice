@@ -154,6 +154,51 @@ class PromptBuilder:
    }
    ```
 
+7. **True/False Multiple** - "question_type": "true_false_multiple"
+   - Multiple statements, each evaluated as True or False
+   - Fields: question_text, statements, scoring_mode, explanation, points
+   - Scoring modes: "partial" (proportional) or "all_or_nothing" (must get all correct)
+   - PERFECT FOR: Vietnamese academic exams (Math/Physics/Chemistry/Biology)
+   - Example:
+   ```json
+   {
+     "question_type": "true_false_multiple",
+     "question_text": "Câu 1: Cho hàm số f(x) = x² - 4x + 3. Xét tính đúng sai của các khẳng định sau:",
+     "statements": [
+       {
+         "key": "a",
+         "text": "Hàm số có đồ thị là parabol với đỉnh I(2, -1)",
+         "correct_value": true
+       },
+       {
+         "key": "b",
+         "text": "Hàm số nghịch biến trên khoảng (-∞, 2)",
+         "correct_value": false
+       },
+       {
+         "key": "c",
+         "text": "Đồ thị cắt trục hoành tại 2 điểm phân biệt",
+         "correct_value": true
+       },
+       {
+         "key": "d",
+         "text": "Giá trị nhỏ nhất của hàm số là -2",
+         "correct_value": false
+       }
+     ],
+     "scoring_mode": "partial",
+     "explanation": "a) Đúng. Đỉnh I có x = -b/2a = 4/2 = 2, y = f(2) = 4 - 8 + 3 = -1\\nb) Sai. Với a = 1 > 0, hàm đồng biến khi x > 2\\nc) Đúng. Δ = 16 - 12 = 4 > 0 nên có 2 nghiệm phân biệt\\nd) Sai. Giá trị nhỏ nhất là y_đỉnh = -1",
+     "points": 4
+   }
+   ```
+   - **GUIDELINES FOR TRUE/FALSE MULTIPLE:**
+     * Use "partial" scoring (recommended): student gets (correct_count/total) × points
+     * Use "all_or_nothing" for challenging exams: must get all statements correct
+     * Create 2-5 statements per question (usually 4 for Vietnamese exams)
+     * Each statement must be clearly True or False (no ambiguity)
+     * Mix true and false statements (don't make all true or all false)
+     * Write detailed explanation for each statement in the explanation field
+
 **POINTS SYSTEM:**
 - Assign 'points' (1-5) based on difficulty:
   * 1 = very easy (simple recall)
@@ -182,17 +227,29 @@ class PromptBuilder:
       "correct_answers": [...],
       "explanation": "...",
       "points": 3
+    },
+    {
+      "question_type": "true_false_multiple",
+      "question_text": "...",
+      "statements": [
+        {"key": "a", "text": "...", "correct_value": true},
+        {"key": "b", "text": "...", "correct_value": false}
+      ],
+      "scoring_mode": "partial",
+      "explanation": "...",
+      "points": 4
     }
   ]
 }
 ```
 
-⚠️ **CRITICAL: ALL question types use "correct_answers" field**
-- MCQ/MCQ Multiple: ["A"] or ["A", "C"] (array of option keys)
-- Matching: [{"left_key": "1", "right_key": "A"}] (array of match objects)
-- Completion: [{"blank_key": "1", "answers": ["text"]}] (array of blank objects)
-- Sentence Completion: ["text", "variation"] (array of acceptable strings)
-- Short Answer: ["text", "variation"] (array of acceptable strings)
+⚠️ **CRITICAL: Field names by question type**
+- MCQ/MCQ Multiple: use "correct_answers" field (array of option keys)
+- Matching: use "correct_answers" field (array of match objects)
+- Completion: use "correct_answers" field (array of blank objects)
+- Sentence Completion: use "correct_answers" field (array of acceptable strings)
+- Short Answer: use "correct_answers" field (array of acceptable strings)
+- **True/False Multiple**: use "statements" field (array with correct_value) + "scoring_mode"
 
 DO NOT use: correct_answer_keys, correct_matches, or any other field name!
 """

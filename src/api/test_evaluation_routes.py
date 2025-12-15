@@ -197,6 +197,10 @@ async def evaluate_test_result(
                 # Short answer: use answers dict {question_key: answer}
                 user_answers_dict[question_id] = ans.get("answers", {})
 
+            elif question_type == "true_false_multiple":
+                # True/False Multiple: use user_answer dict {statement_key: true/false}
+                user_answers_dict[question_id] = ans.get("user_answer", {})
+
         score = submission.get("score", 0)
         score_percentage = (
             submission.get("score_percentage") or 0
@@ -318,6 +322,7 @@ async def evaluate_test_result(
                 "completion",
                 "sentence_completion",
                 "short_answer",
+                "true_false_multiple",
             ]:
                 # Format correct answer based on type
                 if q_type == "matching":
@@ -348,6 +353,12 @@ async def evaluate_test_result(
                         correct_answer = q.get("correct_answers") or q.get(
                             "correct_answer_keys", []
                         )
+                elif q_type == "true_false_multiple":
+                    # True/False Multiple: format as {statement_key: correct_value}
+                    statements = q.get("statements", [])
+                    correct_answer = {
+                        stmt["key"]: stmt["correct_value"] for stmt in statements
+                    }
 
                 question_evaluations.append(
                     QuestionEvaluation(

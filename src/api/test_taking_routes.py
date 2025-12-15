@@ -812,6 +812,12 @@ async def submit_test(
                     ),  # Store media attachments (images, audio, documents)
                 }
 
+            elif ans_type == "true_false_multiple":
+                user_answers_map[q_id] = {
+                    "type": "true_false_multiple",
+                    "user_answer": ans.get("user_answer", {}),
+                }
+
         # ========== Auto-grade ALL auto-gradable questions (MCQ + IELTS types) ==========
         mcq_correct_count = 0
         mcq_score = 0
@@ -900,6 +906,30 @@ async def submit_test(
                     result["user_answers"] = user_answer_data.get("answers", {})
                     # Don't expose all correct answers immediately (show after deadline if configured)
                     # Frontend will show feedback only
+
+                elif question_type == "true_false_multiple":
+                    # Add statement-by-statement breakdown
+                    statements = q.get("statements", [])
+                    user_answers = user_answer_data.get("user_answer", {})
+                    breakdown = {}
+
+                    for stmt in statements:
+                        key = stmt.get("key")
+                        correct_value = stmt.get("correct_value")
+                        user_value = user_answers.get(key)
+
+                        breakdown[key] = {
+                            "user": user_value,
+                            "correct": correct_value,
+                            "is_correct": user_value == correct_value,
+                        }
+
+                    result["statements"] = (
+                        statements  # Include all statements with correct_value
+                    )
+                    result["user_answer"] = user_answers  # User's choices
+                    result["breakdown"] = breakdown  # Statement-by-statement comparison
+                    result["scoring_mode"] = q.get("scoring_mode", "partial")
 
                 results.append(result)
 
@@ -1694,6 +1724,11 @@ async def get_submission_detail(
                     "type": "essay",
                     "essay_answer": ans.get("essay_answer", ""),
                 }
+            elif ans_type == "true_false_multiple":
+                user_answers_map[q_id] = {
+                    "type": "true_false_multiple",
+                    "user_answer": ans.get("user_answer", {}),
+                }
 
         # Get essay grades if available
         essay_grades_map = {}
@@ -1817,6 +1852,48 @@ async def get_submission_detail(
                         result["questions"] = q.get("questions", [])
                     else:
                         result["correct_answers"] = q.get("correct_answers", {})
+
+                results.append(result)
+
+            elif q_type == "true_false_multiple":
+                # True/False Multiple - Use ielts_scoring module
+                user_answer_data = user_answers_map.get(question_id, {})
+
+                # Score using IELTS scoring logic
+                is_correct, points_earned, feedback = score_question(
+                    q, user_answer_data
+                )
+
+                # Calculate statement-by-statement breakdown
+                statements = q.get("statements", [])
+                user_answers = user_answer_data.get("user_answer", {})
+                breakdown = {}
+
+                for stmt in statements:
+                    key = stmt.get("key")
+                    correct_value = stmt.get("correct_value")
+                    user_value = user_answers.get(key)
+
+                    breakdown[key] = {
+                        "user": user_value,
+                        "correct": correct_value,
+                        "is_correct": user_value == correct_value,
+                    }
+
+                result = {
+                    "question_id": question_id,
+                    "question_text": q["question_text"],
+                    "question_type": "true_false_multiple",
+                    "is_correct": is_correct,
+                    "max_points": q.get("max_points", 1),
+                    "points_awarded": points_earned,
+                    "feedback": feedback,
+                    "explanation": q.get("explanation"),
+                    "statements": statements,  # Include all statements with correct_value
+                    "user_answer": user_answers,  # User's choices
+                    "breakdown": breakdown,  # Statement-by-statement comparison
+                    "scoring_mode": q.get("scoring_mode", "partial"),
+                }
 
                 results.append(result)
 
