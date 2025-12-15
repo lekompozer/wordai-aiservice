@@ -1650,16 +1650,25 @@ class TestGeneratorService:
 
             # Sentence Completion-specific fields
             elif q_type == "sentence_completion":
-                # Remove correct_answers from sentences
-                sentences = q.get("sentences", [])
-                question_data["sentences"] = [
-                    {
-                        "key": s.get("key"),
-                        "template": s.get("template"),
-                        "word_limit": s.get("word_limit"),
-                    }
-                    for s in sentences
-                ]
+                # Sentence completion has 2 valid formats:
+                # Format 1 (Simple): Single template field
+                # Format 2 (IELTS): sentences array with multiple templates
+
+                if q.get("template") and not q.get("sentences"):
+                    # Format 1: Single template
+                    question_data["template"] = q.get("template")
+                elif q.get("sentences"):
+                    # Format 2: Multiple sentences (IELTS)
+                    # Remove correct_answers from sentences
+                    sentences = q.get("sentences", [])
+                    question_data["sentences"] = [
+                        {
+                            "key": s.get("key"),
+                            "template": s.get("template"),
+                            "word_limit": s.get("word_limit"),
+                        }
+                        for s in sentences
+                    ]
 
             # Short Answer-specific fields
             elif q_type == "short_answer":
