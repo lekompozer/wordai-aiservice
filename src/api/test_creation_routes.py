@@ -1756,42 +1756,80 @@ async def update_test_questions(
                     )
 
             elif q_type == "sentence_completion":
-                # Sentence completion validation
-                if not q.get("sentences") or len(q["sentences"]) < 1:
+                # Sentence completion has 2 valid formats:
+                # Format 1: Single template (has template + correct_answers)
+                # Format 2: IELTS (has sentences array)
+                has_single_template = q.get("template") and not q.get("sentences")
+                has_sentences_array = q.get("sentences")
+
+                if not has_single_template and not has_sentences_array:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: Sentence completion requires at least 1 sentence",
+                        detail=f"Question {idx + 1}: Sentence completion must have either 'template' (Format 1) OR 'sentences' array (Format 2)",
                     )
-                for sent in q["sentences"]:
-                    if not sent.get("template"):
+
+                # Validate Format 1 (single template)
+                if has_single_template:
+                    if not q.get("correct_answers"):
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: Each sentence requires template",
-                        )
-                    if not sent.get("correct_answers"):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}: Each sentence requires correct_answers",
+                            detail=f"Question {idx + 1}: Sentence completion Format 1 requires correct_answers array",
                         )
 
+                # Validate Format 2 (IELTS sentences array)
+                if has_sentences_array:
+                    if len(q["sentences"]) < 1:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: Sentence completion Format 2 requires at least 1 sentence",
+                        )
+                    for sent in q["sentences"]:
+                        if not sent.get("template"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}: Each sentence requires template",
+                            )
+                        if not sent.get("correct_answers"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}: Each sentence requires correct_answers",
+                            )
+
             elif q_type == "short_answer":
-                # Short answer validation
-                if not q.get("questions") or len(q["questions"]) < 1:
+                # Short answer has 2 valid formats:
+                # Format 1: Simple (has question_text + correct_answers)
+                # Format 2: IELTS (has questions array)
+                has_simple_format = (
+                    q.get("question_text")
+                    and q.get("correct_answers")
+                    and not q.get("questions")
+                )
+                has_questions_array = q.get("questions")
+
+                if not has_simple_format and not has_questions_array:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: Short answer requires at least 1 question",
+                        detail=f"Question {idx + 1}: Short answer must have either 'question_text + correct_answers' (Format 1) OR 'questions' array (Format 2)",
                     )
-                for sub_q in q["questions"]:
-                    if not sub_q.get("text"):
+
+                # Validate Format 2 (questions array)
+                if has_questions_array:
+                    if len(q["questions"]) < 1:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: Each question requires text",
+                            detail=f"Question {idx + 1}: Short answer Format 2 requires at least 1 question",
                         )
-                    if not sub_q.get("correct_answers"):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}: Each question requires correct_answers",
-                        )
+                    for sub_q in q["questions"]:
+                        if not sub_q.get("text"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}: Each question requires text",
+                            )
+                        if not sub_q.get("correct_answers"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}: Each question requires correct_answers",
+                            )
 
             elif q_type == "listening":
                 # Listening test validation (has audio_sections)
@@ -2410,19 +2448,33 @@ async def full_edit_test(
                         )
 
                 elif q_type == "sentence_completion":
-                    # Sentence completion validation
-                    if not q.get("sentences") or len(q["sentences"]) < 1:
+                    # Sentence completion has 2 valid formats:
+                    # Format 1: Single template (has template + correct_answers)
+                    # Format 2: IELTS (has sentences array)
+                    has_single_template = q.get("template") and not q.get("sentences")
+                    has_sentences_array = q.get("sentences")
+
+                    if not has_single_template and not has_sentences_array:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: Sentence completion requires at least 1 sentence",
+                            detail=f"Question {idx + 1}: Sentence completion must have either 'template' OR 'sentences' array",
                         )
 
                 elif q_type == "short_answer":
-                    # Short answer validation
-                    if not q.get("questions") or len(q["questions"]) < 1:
+                    # Short answer has 2 valid formats:
+                    # Format 1: Simple (has question_text + correct_answers)
+                    # Format 2: IELTS (has questions array)
+                    has_simple_format = (
+                        q.get("question_text")
+                        and q.get("correct_answers")
+                        and not q.get("questions")
+                    )
+                    has_questions_array = q.get("questions")
+
+                    if not has_simple_format and not has_questions_array:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: Short answer requires at least 1 question",
+                            detail=f"Question {idx + 1}: Short answer must have either 'question_text + correct_answers' OR 'questions' array",
                         )
 
                 elif q_type == "listening":
