@@ -134,7 +134,8 @@ class MarketplaceCacheService:
                                     "$sum": "$marketplace_config.total_revenue"
                                 },
                             }
-                        }
+                        },
+                        {"$project": {"_id": 0}},
                     ],
                     # Popular tests (top 5 by purchases)
                     "popular_tests": [
@@ -142,9 +143,11 @@ class MarketplaceCacheService:
                         {"$limit": 5},
                         {
                             "$project": {
+                                "_id": 0,
                                 "test_id": {"$toString": "$_id"},
                                 "title": 1,
                                 "total_purchases": "$marketplace_config.total_purchases",
+                                "price_points": "$marketplace_config.price_points",
                             }
                         },
                     ],
@@ -155,10 +158,12 @@ class MarketplaceCacheService:
                         {"$limit": 5},
                         {
                             "$project": {
+                                "_id": 0,
                                 "test_id": {"$toString": "$_id"},
                                 "title": 1,
                                 "avg_rating": "$marketplace_config.avg_rating",
                                 "rating_count": "$marketplace_config.rating_count",
+                                "price_points": "$marketplace_config.price_points",
                             }
                         },
                     ],

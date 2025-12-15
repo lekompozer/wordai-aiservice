@@ -668,7 +668,8 @@ async def upload_file(
         # === UPDATE USAGE COUNTERS (NO POINTS DEDUCTION) ===
         try:
             await subscription_service.update_usage(
-                user_id=user_id, update={"storage_mb": file_size_mb, "upload_files": 1}
+                user_id=user_id,
+                update=SubscriptionUsageUpdate(storage_mb=file_size_mb, upload_files=1),
             )
             logger.info(
                 f"📊 Updated storage (+{file_size_mb:.2f}MB) and file counter (+1)"
