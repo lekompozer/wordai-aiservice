@@ -1101,6 +1101,25 @@ async def submit_test(
                 or user_doc.get("email")
             )
 
+        # Build enriched user_answers with scoring data
+        enriched_user_answers = []
+        for user_ans in request.user_answers:
+            q_id = user_ans.get("question_id")
+            # Find corresponding result with scoring
+            result = next((r for r in results if r["question_id"] == q_id), None)
+            
+            # Start with original user answer
+            enriched_ans = dict(user_ans)
+            
+            # Add scoring data if available
+            if result:
+                enriched_ans["max_points"] = result.get("max_points", 1)
+                enriched_ans["points_earned"] = result.get("points_awarded")
+                if "is_correct" in result:
+                    enriched_ans["is_correct"] = result["is_correct"]
+            
+            enriched_user_answers.append(enriched_ans)
+
         # Save submission
         submission_doc = {
             "test_id": test_id,
@@ -1108,7 +1127,7 @@ async def submit_test(
             "test_category": test_category,  # NEW: Store test category
             "user_id": user_info["uid"],
             "user_name": user_name,  # For statistics
-            "user_answers": request.user_answers,
+            "user_answers": enriched_user_answers,  # Use enriched answers with scoring
             "grading_status": grading_status,  # NEW: auto_graded or pending_grading
             "score": final_score,  # None if has essay, score/10 if MCQ only
             "score_percentage": score_percentage,  # None if has essay
