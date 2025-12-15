@@ -325,10 +325,13 @@ The above describes the test structure, topics, and requirements. Use this to un
 Choose how to distribute question types based on this mode:
 
 🔹 **AUTO MODE** (Default - AI decides):
-   - You decide the optimal mix of question types based on content
-   - Use mcq, mcq_multiple, matching, completion, sentence_completion, short_answer as appropriate
+   - You decide the optimal mix of question types based on content and document structure
+   - Choose from ALL available types: mcq, mcq_multiple, matching, completion, sentence_completion, short_answer, true_false_multiple
    - Balance variety and appropriateness for the topic
-   - Example: 60% mcq, 20% completion, 10% matching, 10% short_answer
+   - Prioritize question types that best fit the content (e.g., true_false_multiple for Vietnamese academic exams with Đúng/Sai statements)
+   - Example distributions:
+     * General topics: 60% mcq, 20% completion, 10% matching, 10% short_answer
+     * Vietnamese academic exams: 50% mcq, 30% true_false_multiple, 20% other types
 
 🔹 **TRADITIONAL MODE** (90% single + 10% multiple):
    - 90% of MCQ questions should be "mcq" (single correct answer)
@@ -358,7 +361,27 @@ Choose how to distribute question types based on this mode:
    - Each question MUST have "question_type" field
    - Properly escape special characters in JSON strings
 
-2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
+2. **MATHEMATICAL NOTATION (for Math/Physics/Chemistry/Biology topics):**
+   - Use KaTeX/LaTeX syntax for ALL mathematical expressions, formulas, equations
+   - Apply to ALL fields: question_text, option_text, statement text, explanation, template
+   - Inline math: wrap in single $, e.g., "Cho hàm số $f(x) = x^2 - 4x + 3$"
+   - Display math: wrap in double $$, e.g., "$$\\int_{{1}}^{{2}} (2x + 1) dx$$"
+   - Common patterns:
+     * Powers: $x^2$, $2^n$, $x^{{-1}}$
+     * Fractions: $\\frac{{a}}{{b}}$, $\\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$
+     * Roots: $\\sqrt{{x}}$, $\\sqrt[3]{{x}}$
+     * Greek letters: $\\alpha$, $\\beta$, $\\Delta$, $\\pi$, $\\theta$
+     * Integrals: $\\int$, $\\int_{{a}}^{{b}}$, $\\oint$
+     * Limits: $\\lim_{{x \\to 0}}$, $\\lim_{{n \\to \\infty}}$
+     * Trigonometry: $\\sin x$, $\\cos x$, $\\tan x$
+     * Vectors: $\\vec{{v}}$, $\\overrightarrow{{AB}}$
+     * Inequalities: $\\leq$, $\\geq$, $\\neq$, $<$, $>$
+     * Sets: $\\in$, $\\subset$, $\\cup$, $\\cap$, $\\mathbb{{R}}$, $\\mathbb{{Z}}$
+     * Infinity: $\\infty$, $+\\infty$, $-\\infty$
+   - Example: "Giải phương trình $x^2 - 5x + 6 = 0$ với $\\Delta = b^2 - 4ac$"
+   - Benefits: Beautiful rendering on frontend, professional math display
+
+3. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
    - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
    - Count the length of your "questions" array - it MUST equal {num_questions}
@@ -366,12 +389,12 @@ Choose how to distribute question types based on this mode:
    - STOP IMMEDIATELY when "questions" array has {num_questions} items
    - Close the JSON immediately: no extra questions, no continuation
 
-3. **CONTENT SOURCE:**
+4. **CONTENT SOURCE:**
    - ALL questions, answers, and explanations MUST come from the provided document
    - Reference specific document sections in explanations
    - Do NOT use external knowledge
 
-4. **ANSWER ACCURACY:**
+5. **ANSWER ACCURACY:**
    - All questions MUST have correct answers
    - Explanations MUST explain WHY answers are correct
    - For completion/short_answer: provide multiple acceptable variations
@@ -457,10 +480,13 @@ The above describes the test structure, topics, and requirements. Use this to un
 Choose how to distribute question types based on this mode:
 
 🔹 **AUTO MODE** (Default - AI decides):
-   - You decide the optimal mix of question types based on content
-   - Use mcq, mcq_multiple, matching, completion, sentence_completion, short_answer as appropriate
+   - You decide the optimal mix of question types based on content and structure
+   - Choose from ALL available types: mcq, mcq_multiple, matching, completion, sentence_completion, short_answer, true_false_multiple
    - Balance variety and appropriateness for the topic
-   - Example: 60% mcq, 20% completion, 10% matching, 10% short_answer
+   - Prioritize question types that best fit the content (e.g., true_false_multiple for Vietnamese academic exams with Đúng/Sai statements)
+   - Example distributions:
+     * General topics: 60% mcq, 20% completion, 10% matching, 10% short_answer
+     * Vietnamese academic exams: 50% mcq, 30% true_false_multiple, 20% other types
 
 🔹 **TRADITIONAL MODE** (90% single + 10% multiple):
    - 90% of MCQ questions should be "mcq" (single correct answer)
@@ -490,7 +516,26 @@ Choose how to distribute question types based on this mode:
    - Each question MUST have "question_type" field
    - Properly escape special characters in JSON strings
 
-2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
+2. **MATHEMATICAL NOTATION (for Math/Physics/Chemistry/Biology topics):**
+   - Use KaTeX/LaTeX syntax for ALL mathematical expressions, formulas, equations
+   - Apply to ALL fields: question_text, option_text, statement text, explanation, template
+   - Inline math: wrap in single $, e.g., "Cho hàm số $f(x) = x^2 - 4x + 3$"
+   - Display math: wrap in double $$, e.g., "$$\\int_{{1}}^{{2}} (2x + 1) dx$$"
+   - Common patterns:
+     * Powers: $x^2$, $2^n$, $x^{{-1}}$
+     * Fractions: $\\frac{{a}}{{b}}$, $\\frac{{-b \\pm \\sqrt{{b^2-4ac}}}}{{2a}}$
+     * Roots: $\\sqrt{{x}}$, $\\sqrt[3]{{x}}$
+     * Greek letters: $\\alpha$, $\\beta$, $\\Delta$, $\\pi$, $\\theta$
+     * Integrals: $\\int$, $\\int_{{a}}^{{b}}$, $\\oint$
+     * Limits: $\\lim_{{x \\to 0}}$, $\\lim_{{n \\to \\infty}}$
+     * Trigonometry: $\\sin x$, $\\cos x$, $\\tan x$
+     * Vectors: $\\vec{{v}}$, $\\overrightarrow{{AB}}$
+     * Inequalities: $\\leq$, $\\geq$, $\\neq$, $<$, $>$
+     * Sets: $\\in$, $\\subset$, $\\cup$, $\\cap$, $\\mathbb{{R}}$, $\\mathbb{{Z}}$
+   - Example: "Giải phương trình $x^2 - 5x + 6 = 0$ với $\\Delta = b^2 - 4ac$"
+   - Benefits: Beautiful rendering on frontend, professional math display
+
+3. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
    - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
    - Count the length of your "questions" array - it MUST equal {num_questions}
@@ -498,13 +543,13 @@ Choose how to distribute question types based on this mode:
    - STOP IMMEDIATELY when "questions" array has {num_questions} items
    - Close the JSON immediately: no extra questions, no continuation
 
-3. **CONTENT SOURCE:**
+4. **CONTENT SOURCE:**
    - Use general knowledge about: {topic}
    - Use common/standard information from educational resources
    - Ensure accuracy - use well-established facts
    - You are NOT given a document - generate from general knowledge
 
-4. **ANSWER ACCURACY:**
+5. **ANSWER ACCURACY:**
    - All questions MUST have correct answers
    - Explanations MUST explain WHY answers are correct
    - For completion/short_answer: provide multiple acceptable variations
@@ -588,7 +633,15 @@ The above describes the test structure and requirements. Use this to understand 
    - DO NOT include "points" field
    - Properly escape special characters in JSON strings
 
-2. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
+2. **MATHEMATICAL NOTATION (for Math/Science topics - if applicable):**
+   - Use KaTeX/LaTeX syntax for ALL mathematical expressions, formulas, equations
+   - Apply to ALL fields: question_text, option_text, explanation
+   - Inline math: wrap in single $, e.g., "Your learning style for $f(x) = x^2$"
+   - Common patterns: $x^2$, $\\frac{{a}}{{b}}$, $\\sqrt{{x}}$, $\\Delta$, $\\pi$
+   - Example: "When solving $x^2 - 5x + 6 = 0$, you prefer..."
+   - Benefits: Beautiful rendering on frontend, professional math display
+
+3. **QUESTION COUNT (ABSOLUTE REQUIREMENT):**
    - Generate EXACTLY {num_questions} questions TOTAL in the "questions" array
    - The "questions" array should contain {num_questions} items TOTAL, regardless of how user describes parts
    - Count the length of your "questions" array - it MUST equal {num_questions}
