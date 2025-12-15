@@ -1700,16 +1700,16 @@ async def update_test_questions(
                     )
 
             elif q_type == "matching":
-                # Matching validation
-                if not q.get("left_items") or len(q["left_items"]) < 2:
+                # Matching validation (allow 1+ items - AI can generate single-item matching)
+                if not q.get("left_items") or len(q["left_items"]) < 1:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: Matching requires at least 2 left_items",
+                        detail=f"Question {idx + 1}: Matching requires at least 1 left_item",
                     )
-                if not q.get("right_options") or len(q["right_options"]) < 2:
+                if not q.get("right_options") or len(q["right_options"]) < 1:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: Matching requires at least 2 right_options",
+                        detail=f"Question {idx + 1}: Matching requires at least 1 right_option",
                     )
                 # Support unified correct_answers and legacy correct_matches
                 if not q.get("correct_answers") and not q.get("correct_matches"):
@@ -2409,16 +2409,16 @@ async def full_edit_test(
                         q["points"] = 1
 
                 elif q_type == "matching":
-                    # Matching validation
-                    if not q.get("left_items") or len(q["left_items"]) < 2:
+                    # Matching validation (allow 1+ items - AI can generate single-item matching)
+                    if not q.get("left_items") or len(q["left_items"]) < 1:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: Matching requires at least 2 left_items",
+                            detail=f"Question {idx + 1}: Matching requires at least 1 left_item",
                         )
-                    if not q.get("right_options") or len(q["right_options"]) < 2:
+                    if not q.get("right_options") or len(q["right_options"]) < 1:
                         raise HTTPException(
                             status_code=400,
-                            detail=f"Question {idx + 1}: Matching requires at least 2 right_options",
+                            detail=f"Question {idx + 1}: Matching requires at least 1 right_option",
                         )
 
                 elif q_type == "map_labeling":
