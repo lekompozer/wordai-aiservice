@@ -1609,6 +1609,7 @@ async def update_test_questions(
                 "sentence_completion",
                 "short_answer",
                 "listening",
+                "true_false_multiple",
             ]
 
             if q_type not in valid_types:
@@ -2468,6 +2469,7 @@ async def full_edit_test(
                     "sentence_completion",
                     "short_answer",
                     "listening",
+                    "true_false_multiple",
                 ]
 
                 if q_type not in valid_types:

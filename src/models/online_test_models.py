@@ -439,6 +439,7 @@ class ManualTestQuestion(BaseModel):
             "completion",
             "sentence_completion",
             "short_answer",
+            "true_false_multiple",
         ]
         if v not in valid_types:
             raise ValueError(f"question_type must be one of: {', '.join(valid_types)}")
