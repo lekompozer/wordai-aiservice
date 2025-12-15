@@ -207,6 +207,13 @@ class PromptBuilder:
   * 4 = hard (synthesis/evaluation)
   * 5 = very hard (complex critical thinking)
 
+🛑 **CRITICAL WARNING FOR TRUE/FALSE MULTIPLE QUESTIONS:**
+   - DO NOT use "options" or "correct_answers" for true_false_multiple!
+   - YOU MUST USE "statements" array with "correct_value" (true/false) inside each statement object.
+   - WRONG: "options": [{"option_key": "A", ...}]
+   - CORRECT: "statements": [{"key": "a", "text": "...", "correct_value": true}]
+   - This is the most common error. PLEASE CHECK CAREFULLY.
+
 **JSON OUTPUT STRUCTURE:**
 ```json
 {
