@@ -161,7 +161,10 @@ async def evaluate_test_result(
         user_answers_list = submission.get("user_answers", [])
 
         # Convert user answers to dict - handle ALL question types
+        # Also extract media attachments for essay questions
         user_answers_dict = {}
+        media_attachments_by_question = {}  # {question_id: [media_files]}
+
         for ans in user_answers_list:
             question_id = ans.get("question_id")
             question_type = ans.get("question_type", "mcq")
@@ -178,8 +181,16 @@ async def evaluate_test_result(
                 )
 
             elif question_type == "essay":
-                # Essay: use essay_answer
+                # Essay: use essay_answer and extract media attachments
                 user_answers_dict[question_id] = ans.get("essay_answer", "No answer")
+
+                # Extract media attachments if present
+                media_files = ans.get("media_attachments", [])
+                if media_files:
+                    media_attachments_by_question[question_id] = media_files
+                    logger.info(
+                        f"   📎 Question {question_id}: {len(media_files)} media file(s)"
+                    )
 
             elif question_type == "matching":
                 # Matching: use matches dict {left_key: right_key}
@@ -212,6 +223,15 @@ async def evaluate_test_result(
         # ===== STEP 7: Call AI evaluation service =====
         evaluation_service = get_gemini_evaluation_service()
 
+        # Log media attachments summary
+        if media_attachments_by_question:
+            total_files = sum(
+                len(files) for files in media_attachments_by_question.values()
+            )
+            logger.info(
+                f"   📎 Total media attachments: {total_files} file(s) across {len(media_attachments_by_question)} question(s)"
+            )
+
         evaluation_result = await evaluation_service.evaluate_test_result(
             test_title=test_doc.get("title", "Untitled Test"),
             test_description=test_doc.get("description", "No description"),
@@ -222,6 +242,7 @@ async def evaluate_test_result(
             evaluation_criteria=evaluation_criteria,
             language=request.language,
             test_category=test_doc.get("test_category", "academic"),
+            media_attachments=media_attachments_by_question,  # NEW: Pass media files
         )
 
         generation_time_ms = int((time.time() - start_time) * 1000)

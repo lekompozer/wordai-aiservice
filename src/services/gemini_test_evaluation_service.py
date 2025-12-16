@@ -912,6 +912,7 @@ class GeminiTestEvaluationService:
         evaluation_criteria: Optional[str] = None,
         language: str = "vi",
         test_category: str = "academic",
+        media_attachments: Optional[Dict[str, List[Dict[str, Any]]]] = None,
     ) -> Dict[str, Any]:
         """
         Evaluate test result using Gemini AI
@@ -926,11 +927,43 @@ class GeminiTestEvaluationService:
             evaluation_criteria: Optional evaluation criteria from creator
             language: Language for AI feedback (default: "vi")
             test_category: "academic" or "personality"
+            media_attachments: Dict mapping question_id to list of media files
+                               Format: {question_id: [{media_type, media_url, filename, ...}]}
 
         Returns:
             Dict with evaluation results
         """
         try:
+            # Detect if test has essay questions
+            has_essay = any(q.get("question_type") == "essay" for q in questions)
+            has_media = media_attachments and len(media_attachments) > 0
+
+            logger.info(f"🤖 Evaluating test result with Gemini AI")
+            logger.info(f"   Test: {test_title}")
+            logger.info(f"   Category: {test_category}")
+            logger.info(f"   Questions: {len(questions)}")
+            logger.info(f"   Has essay: {has_essay}")
+            logger.info(f"   Has media: {has_media}")
+            logger.info(f"   Score: {score_percentage:.1f}%")
+            logger.info(f"   Language: {language}")
+
+            # Use different evaluation path for essay tests with media
+            if has_essay and has_media:
+                logger.info(f"   🎯 Using essay-specific evaluation with media files")
+                return await self._evaluate_essay_with_media(
+                    test_title=test_title,
+                    test_description=test_description,
+                    questions=questions,
+                    user_answers=user_answers,
+                    score_percentage=score_percentage,
+                    is_passed=is_passed,
+                    evaluation_criteria=evaluation_criteria,
+                    language=language,
+                    test_category=test_category,
+                    media_attachments=media_attachments,
+                )
+
+            # Standard evaluation (no media files)
             # Build prompt
             prompt = self._build_evaluation_prompt(
                 test_title=test_title,
@@ -943,13 +976,6 @@ class GeminiTestEvaluationService:
                 language=language,
                 test_category=test_category,
             )
-
-            logger.info(f"🤖 Evaluating test result with Gemini AI")
-            logger.info(f"   Test: {test_title}")
-            logger.info(f"   Category: {test_category}")
-            logger.info(f"   Questions: {len(questions)}")
-            logger.info(f"   Score: {score_percentage:.1f}%")
-            logger.info(f"   Language: {language}")
 
             # Call Gemini API with Pro model for higher quality evaluation
             # Run in thread pool to avoid blocking event loop
@@ -1000,6 +1026,420 @@ class GeminiTestEvaluationService:
         except Exception as e:
             logger.error(f"❌ Gemini evaluation failed: {e}", exc_info=True)
             raise ValueError(f"Test evaluation failed: {str(e)}")
+
+    def _build_essay_evaluation_prompt(
+        self,
+        test_title: str,
+        test_description: str,
+        questions: List[Dict[str, Any]],
+        user_answers: Dict[str, str],
+        score_percentage: float,
+        is_passed: bool,
+        evaluation_criteria: Optional[str] = None,
+        language: str = "vi",
+        files_by_question: Dict[str, List[Dict[str, Any]]] = None,
+    ) -> str:
+        """
+        Build prompt for essay evaluation with media files
+
+        Clearly maps each file to its question for proper AI assessment.
+        """
+        # Detect question types
+        essay_questions = [q for q in questions if q.get("question_type") == "essay"]
+        mcq_questions = [
+            q for q in questions if q.get("question_type") in ("mcq", "mcq_multiple")
+        ]
+
+        is_mixed = len(essay_questions) > 0 and len(mcq_questions) > 0
+        test_type = "Mixed (MCQ + Essay)" if is_mixed else "Essay Only"
+
+        # Build file reference section
+        file_references = "\n\n## 📎 MEDIA FILES PROVIDED:\n\n"
+        file_index = 1
+
+        for question_id, question_files in (files_by_question or {}).items():
+            # Find question details
+            question_obj = next(
+                (q for q in questions if q["question_id"] == question_id), None
+            )
+            if not question_obj:
+                continue
+
+            q_text = question_obj.get("question_text", "")[:100]
+            file_references += f"**Question {question_id}** ('{q_text}...'):\n"
+
+            for file_info in question_files:
+                file_references += f"  - File #{file_index}: {file_info['filename']} ({file_info['media_type']}, {file_info['size_mb']:.2f}MB)\n"
+                file_index += 1
+
+            file_references += "\n"
+
+        # Build question analysis section
+        question_analysis_text = ""
+
+        for idx, q in enumerate(questions, 1):
+            question_id = q["question_id"]
+            q_type = q.get("question_type", "mcq")
+            user_answer = user_answers.get(question_id, "No answer")
+            q_max_points = q.get("max_points", 1)
+
+            question_analysis_text += f"\n### Question {idx} (ID: {question_id}, Type: {q_type}, Max Points: {q_max_points})\n\n"
+            question_analysis_text += (
+                f"**Question Text:**\n{q.get('question_text', 'N/A')}\n\n"
+            )
+
+            if q_type == "essay":
+                grading_rubric = q.get("grading_rubric", "No rubric provided")
+                question_analysis_text += f"**Grading Rubric:**\n{grading_rubric}\n\n"
+                question_analysis_text += f"**Student's Answer:**\n{user_answer}\n\n"
+
+                # Reference attached files
+                if question_id in (files_by_question or {}):
+                    num_files = len(files_by_question[question_id])
+                    question_analysis_text += f"**📎 {num_files} file(s) attached** (see Media Files section above)\n\n"
+                    question_analysis_text += f"**IMPORTANT:** When grading this essay, carefully review ALL {num_files} attached file(s). These files are part of the student's answer and must be evaluated according to the grading rubric.\n\n"
+
+            elif q_type in ("mcq", "mcq_multiple"):
+                correct_answer_keys = (
+                    q.get("correct_answers")
+                    or q.get("correct_answer_keys")
+                    or [q.get("correct_answer_key")]
+                )
+                correct_answer = (
+                    correct_answer_keys[0]
+                    if len(correct_answer_keys) == 1
+                    else correct_answer_keys
+                )
+
+                options_text = []
+                for opt in q.get("options", []):
+                    key = opt.get("option_key") or opt.get("key", "")
+                    text = opt.get("option_text") or opt.get("text", "")
+                    options_text.append(f"  {key}: {text}")
+
+                question_analysis_text += (
+                    f"**Options:**\n" + "\n".join(options_text) + "\n\n"
+                )
+                question_analysis_text += f"**User Selected:** {user_answer}\n"
+                question_analysis_text += f"**Correct Answer:** {correct_answer}\n"
+                question_analysis_text += (
+                    f"**Explanation:** {q.get('explanation', 'N/A')}\n\n"
+                )
+
+        # Build language-specific instructions
+        if language == "vi":
+            lang_instruction = "Vui lòng phản hồi bằng tiếng Việt."
+            grading_instruction = """
+## YÊU CẦU CHẤM ĐIỂM:
+
+1. **Đánh giá từng câu hỏi:**
+   - MCQ: Đã được chấm tự động
+   - Essay: BẠN PHẢI chấm điểm dựa trên:
+     * Grading Rubric (tiêu chí chấm điểm)
+     * Nội dung văn bản của học sinh
+     * **TẤT CẢ CÁC FILE ĐÍNH KÈM** (hình ảnh, tài liệu, âm thanh)
+
+2. **Cách chấm Essay:**
+   - Đọc kỹ Grading Rubric
+   - Xem xét câu trả lời văn bản
+   - **QUAN TRỌNG:** Xem và phân tích TẤT CẢ các file đính kèm
+   - Cho điểm từ 0 đến max_points
+   - Giải thích rõ ràng tại sao cho điểm đó
+   - Nêu điểm mạnh và điểm yếu cụ thể
+
+3. **Tổng kết:**
+   - Tính tổng điểm essay
+   - Kết hợp với điểm MCQ (nếu có)
+   - Đưa ra nhận xét tổng quan
+"""
+        else:
+            lang_instruction = "Please respond in English."
+            grading_instruction = """
+## GRADING REQUIREMENTS:
+
+1. **Evaluate each question:**
+   - MCQ: Already auto-graded
+   - Essay: YOU MUST grade based on:
+     * Grading Rubric (grading criteria)
+     * Student's written answer
+     * **ALL ATTACHED FILES** (images, documents, audio)
+
+2. **How to grade Essays:**
+   - Read the Grading Rubric carefully
+   - Review the written answer
+   - **IMPORTANT:** View and analyze ALL attached files
+   - Award points from 0 to max_points
+   - Explain clearly why you gave that score
+   - List specific strengths and weaknesses
+
+3. **Summary:**
+   - Calculate total essay score
+   - Combine with MCQ score (if any)
+   - Provide overall evaluation
+"""
+
+        # Evaluation criteria section
+        criteria_section = ""
+        if evaluation_criteria:
+            criteria_section = f"\n## 📋 EVALUATION CRITERIA FROM TEST CREATOR:\n\n{evaluation_criteria}\n"
+
+        # Build complete prompt
+        prompt = f"""# TEST RESULT EVALUATION WITH MEDIA FILES
+
+{lang_instruction}
+
+You are an expert educator evaluating a student's test performance.
+
+## TEST INFORMATION:
+- **Title:** {test_title}
+- **Description:** {test_description or 'N/A'}
+- **Type:** {test_type}
+- **Total Questions:** {len(questions)} ({len(essay_questions)} essay, {len(mcq_questions)} MCQ)
+- **Student Score:** {score_percentage:.1f}%
+- **Pass Status:** {'Passed ✅' if is_passed else 'Failed ❌'}
+
+{file_references}
+
+{grading_instruction}
+
+{criteria_section}
+
+## QUESTIONS AND ANSWERS:
+
+{question_analysis_text}
+
+---
+
+## OUTPUT FORMAT (JSON):
+
+Provide a comprehensive evaluation in the following JSON format:
+
+```json
+{{
+  "overall_evaluation": {{
+    "overall_rating": "Excellent|Good|Average|Needs Improvement|Poor",
+    "strengths": ["strength 1", "strength 2", ...],
+    "weaknesses": ["weakness 1", "weakness 2", ...],
+    "recommendations": ["recommendation 1", "recommendation 2", ...],
+    "study_plan": "Detailed study plan based on performance..."
+  }},
+  "question_evaluations": [
+    {{
+      "question_id": "question_id_here",
+      "ai_feedback": "Detailed feedback for this specific question. For essay questions with files, MUST reference and evaluate the attached files. For MCQ, explain why the answer was correct/incorrect."
+    }},
+    ...
+  ]
+}}
+```
+
+**CRITICAL:** For essay questions with attached files, your feedback MUST include:
+- Analysis of ALL attached files (images, documents, audio)
+- How the files relate to the grading rubric
+- Specific comments on the quality and relevance of the files
+- The points awarded and justification
+
+Begin evaluation:
+"""
+
+        return prompt
+
+    async def _evaluate_essay_with_media(
+        self,
+        test_title: str,
+        test_description: str,
+        questions: List[Dict[str, Any]],
+        user_answers: Dict[str, str],
+        score_percentage: float,
+        is_passed: bool,
+        evaluation_criteria: Optional[str] = None,
+        language: str = "vi",
+        test_category: str = "academic",
+        media_attachments: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate essay test with media attachments using Gemini AI
+
+        Downloads media files and sends them with prompt for comprehensive evaluation.
+        Supports multiple files per question (max 10 files/question, 50MB total).
+
+        Args:
+            Same as evaluate_test_result() but requires media_attachments
+
+        Returns:
+            Dict with evaluation results including essay-specific grading
+        """
+        try:
+            # Download and prepare media files
+            import httpx
+            from google import genai
+            from google.genai import types
+            import io
+            import asyncio
+
+            logger.info(f"📎 Downloading media files for essay evaluation...")
+
+            # Organize files by question
+            files_by_question = {}  # {question_id: [Part objects]}
+            total_size_mb = 0
+
+            for question_id, media_list in (media_attachments or {}).items():
+                question_files = []
+
+                for idx, media in enumerate(
+                    media_list[:10]
+                ):  # Max 10 files per question
+                    media_url = media.get("media_url")
+                    media_type = media.get("media_type", "image")
+                    filename = media.get("filename", f"file_{idx}")
+                    file_size_mb = media.get("file_size_mb", 0)
+
+                    # Check total size limit (50MB)
+                    if total_size_mb + file_size_mb > 50:
+                        logger.warning(
+                            f"⚠️ Skipping file {filename}: Would exceed 50MB limit"
+                        )
+                        continue
+
+                    try:
+                        # Download file
+                        async with httpx.AsyncClient(timeout=30.0) as client:
+                            response = await client.get(media_url)
+                            response.raise_for_status()
+                            file_bytes = response.content
+
+                        # Determine MIME type
+                        mime_type_map = {
+                            "image": "image/jpeg",  # Default, will detect from extension
+                            "audio": "audio/mpeg",
+                            "document": "application/pdf",
+                        }
+
+                        # Detect from filename extension
+                        if filename.lower().endswith((".png", ".PNG")):
+                            mime_type = "image/png"
+                        elif filename.lower().endswith(
+                            (".jpg", ".jpeg", ".JPG", ".JPEG")
+                        ):
+                            mime_type = "image/jpeg"
+                        elif filename.lower().endswith((".gif", ".GIF")):
+                            mime_type = "image/gif"
+                        elif filename.lower().endswith((".webp", ".WEBP")):
+                            mime_type = "image/webp"
+                        elif filename.lower().endswith((".mp3", ".MP3")):
+                            mime_type = "audio/mpeg"
+                        elif filename.lower().endswith((".wav", ".WAV")):
+                            mime_type = "audio/wav"
+                        elif filename.lower().endswith((".m4a", ".M4A")):
+                            mime_type = "audio/mp4"
+                        elif filename.lower().endswith((".pdf", ".PDF")):
+                            mime_type = "application/pdf"
+                        elif filename.lower().endswith((".docx", ".DOCX")):
+                            mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        else:
+                            mime_type = mime_type_map.get(
+                                media_type, "application/octet-stream"
+                            )
+
+                        # Create Gemini Part
+                        part = types.Part.from_bytes(
+                            data=file_bytes, mime_type=mime_type
+                        )
+
+                        question_files.append(
+                            {
+                                "part": part,
+                                "filename": filename,
+                                "media_type": media_type,
+                                "size_mb": file_size_mb,
+                            }
+                        )
+
+                        total_size_mb += file_size_mb
+                        logger.info(
+                            f"   ✅ Downloaded: {filename} ({file_size_mb:.2f}MB, {mime_type})"
+                        )
+
+                    except Exception as e:
+                        logger.error(f"   ❌ Failed to download {filename}: {e}")
+                        continue
+
+                if question_files:
+                    files_by_question[question_id] = question_files
+
+            logger.info(
+                f"📎 Downloaded {sum(len(f) for f in files_by_question.values())} files ({total_size_mb:.2f}MB total)"
+            )
+
+            # Build essay-specific prompt
+            prompt = self._build_essay_evaluation_prompt(
+                test_title=test_title,
+                test_description=test_description,
+                questions=questions,
+                user_answers=user_answers,
+                score_percentage=score_percentage,
+                is_passed=is_passed,
+                evaluation_criteria=evaluation_criteria,
+                language=language,
+                files_by_question=files_by_question,
+            )
+
+            # Prepare content for API call: [file1, file2, ..., prompt_text]
+            contents = []
+
+            # Add all files first, with clear labels
+            for question_id, question_files in files_by_question.items():
+                for file_info in question_files:
+                    contents.append(file_info["part"])
+
+            # Add prompt text last
+            contents.append(prompt)
+
+            logger.info(f"   🎯 Calling Gemini with {len(contents)-1} files + prompt")
+
+            # Call Gemini API
+            loop = asyncio.get_event_loop()
+            response = await loop.run_in_executor(
+                None,
+                lambda: self.client.models.generate_content(
+                    model="gemini-2.5-pro",
+                    contents=contents,
+                ),
+            )
+
+            # Extract and parse response
+            response_text = response.text
+
+            logger.info(f"✅ Essay evaluation with media completed")
+            logger.info(f"📊 Response length: {len(response_text)} characters")
+
+            # Parse JSON response
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0]
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0]
+
+            response_text = response_text.strip()
+
+            try:
+                evaluation_result = json.loads(response_text)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse Gemini response as JSON: {e}")
+                logger.error(f"Response text: {response_text[:500]}...")
+                raise ValueError(f"Failed to parse AI evaluation response: {str(e)}")
+
+            return {
+                "overall_evaluation": evaluation_result.get("overall_evaluation", {}),
+                "question_evaluations": evaluation_result.get(
+                    "question_evaluations", []
+                ),
+                "model": "gemini-2.5-pro",
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+
+        except Exception as e:
+            logger.error(f"❌ Essay evaluation with media failed: {e}", exc_info=True)
+            raise ValueError(f"Essay evaluation failed: {str(e)}")
 
 
 # Singleton instance
