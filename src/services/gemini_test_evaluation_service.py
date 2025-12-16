@@ -220,11 +220,13 @@ class GeminiTestEvaluationService:
                     # New format: options array with correct_answers keys
                     options = q["options"]
                     correct_keys = q["correct_answers"]
-                    
+
                     # Count correctness
-                    correct_count = sum(1 for key in user_selections if key in correct_keys)
+                    correct_count = sum(
+                        1 for key in user_selections if key in correct_keys
+                    )
                     total_statements = len(options)
-                    
+
                     # Build display data
                     statements_display = []
                     for opt in options:
@@ -232,17 +234,19 @@ class GeminiTestEvaluationService:
                         text = opt.get("option_text")
                         is_correct_answer = key in correct_keys
                         user_selected = key in user_selections
-                        statements_display.append({
-                            "key": key,
-                            "text": text,
-                            "correct_value": is_correct_answer,
-                            "user_selected": user_selected
-                        })
-                    
+                        statements_display.append(
+                            {
+                                "key": key,
+                                "text": text,
+                                "correct_value": is_correct_answer,
+                                "user_selected": user_selected,
+                            }
+                        )
+
                 elif "statements" in q:
                     # Legacy format: statements array with correct_value fields
                     statements = q["statements"]
-                    
+
                     # Count correctness
                     correct_count = 0
                     for stmt in statements:
@@ -250,14 +254,18 @@ class GeminiTestEvaluationService:
                         correct_value = stmt.get("correct_value")
                         user_selected = key in user_selections
                         # Correct if (true statement and selected) or (false statement and not selected)
-                        if (correct_value and user_selected) or (not correct_value and not user_selected):
+                        if (correct_value and user_selected) or (
+                            not correct_value and not user_selected
+                        ):
                             correct_count += 1
-                    
+
                     total_statements = len(statements)
                     statements_display = statements
                 else:
                     # No valid format
-                    logger.warning(f"⚠️ Question {question_id} has no options or statements for true_false_multiple")
+                    logger.warning(
+                        f"⚠️ Question {question_id} has no options or statements for true_false_multiple"
+                    )
                     total_statements = 0
                     correct_count = 0
                     statements_display = []
