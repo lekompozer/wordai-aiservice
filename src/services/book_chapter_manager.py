@@ -120,12 +120,28 @@ class GuideBookBookChapterManager:
         order_index = data.get("order", data.get("order_index", 0))
 
         # Determine content storage model
-        content_source = data.get("content_source", "inline")  # Default: inline
         document_id = data.get("document_id")
+        content_source = data.get("content_source", "inline")  # Default: inline
 
-        # If document_id provided, force content_source to 'document'
-        if document_id:
-            content_source = "document"
+        # NEW LOGIC: Only use 'document' mode if EXPLICITLY set
+        # If document_id exists but content_source not specified → use 'inline' (copy content)
+        # This ensures chapters store their own content in book_chapters collection
+
+        # If inline mode but document_id provided, fetch content from document
+        content_html_to_save = data.get("content_html")
+        content_json_to_save = data.get("content_json")
+
+        if content_source == "inline" and document_id and not content_html_to_save:
+            # Fetch content from document and copy to chapter
+            doc = self.db["documents"].find_one(
+                {"document_id": document_id},
+                {"content_html": 1, "content": 1, "_id": 0},
+            )
+            if doc:
+                content_html_to_save = doc.get("content_html") or doc.get("content", "")
+                logger.info(
+                    f"📋 Copying content from document {document_id} to chapter (inline mode)"
+                )
 
         chapter_doc = {
             "chapter_id": chapter_id,
@@ -137,13 +153,13 @@ class GuideBookBookChapterManager:
             "depth": depth,
             # Content storage model
             "content_source": content_source,  # "inline" or "document"
-            "document_id": document_id if content_source == "document" else None,
-            # Inline content (only for content_source="inline")
+            "document_id": document_id,  # Keep reference even in inline mode
+            # Inline content (always save for inline mode)
             "content_html": (
-                data.get("content_html") if content_source == "inline" else None
+                content_html_to_save if content_source == "inline" else None
             ),
             "content_json": (
-                data.get("content_json") if content_source == "inline" else None
+                content_json_to_save if content_source == "inline" else None
             ),
             # Publishing & preview
             "is_published": data.get("is_published", True),

@@ -458,7 +458,7 @@ async def get_chapter(
                 detail="You don't have access to this book",
             )
 
-        # Get chapter
+        # Get chapter (inline mode: content in chapter, document mode: load from document)
         chapter = chapter_manager.get_chapter(chapter_id)
 
         if not chapter or chapter.get("book_id") != book_id:
@@ -467,13 +467,15 @@ async def get_chapter(
                 detail=f"Chapter not found in book {book_id}",
             )
 
-        # Get document content
-        document_id = chapter.get("document_id")
-        if document_id:
-            document = document_manager.get_document(document_id)
-            if document:
-                chapter["content_html"] = document.get("content_html", "")
-                chapter["content_text"] = document.get("content_text", "")
+        # If content_source='document', load content from document
+        content_source = chapter.get("content_source", "inline")
+        if content_source == "document":
+            document_id = chapter.get("document_id")
+            if document_id:
+                document = document_manager.get_document(document_id)
+                if document:
+                    chapter["content_html"] = document.get("content_html", "")
+                    chapter["content_text"] = document.get("content_text", "")
 
         # Apply language translation if requested
         default_language = chapter.get(

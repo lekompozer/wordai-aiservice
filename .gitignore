@@ -93,6 +93,7 @@ docs/
 # Test files with credentials
 tests/
 check/
+migrations/
 
 # WordAI specific scripts
 setup-nginx-wordai.sh
