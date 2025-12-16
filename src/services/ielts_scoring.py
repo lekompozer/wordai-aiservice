@@ -414,12 +414,12 @@ def score_true_false_multiple_question(
 
     # Extract user's answers
     user_answers = user_answer.get("user_answer", {})
-    
+
     # Support both NEW format (options + correct_answers) and LEGACY format (statements)
     statements = question.get("statements", [])
     options = question.get("options", [])
     correct_answers = question.get("correct_answers", [])
-    
+
     # Build unified format for scoring
     if options and correct_answers:
         # NEW FORMAT: options with correct_answers
@@ -427,13 +427,17 @@ def score_true_false_multiple_question(
             {
                 "key": opt.get("option_key"),
                 "text": opt.get("option_text"),
-                "correct_value": opt.get("option_key") in correct_answers
+                "correct_value": opt.get("option_key") in correct_answers,
             }
             for opt in options
         ]
     elif not statements:
         # No valid format found
-        return False, 0.0, "Invalid question format: missing both 'statements' and 'options'"
+        return (
+            False,
+            0.0,
+            "Invalid question format: missing both 'statements' and 'options'",
+        )
 
     if not isinstance(user_answers, dict):
         return False, 0.0, "Invalid answer format (expected dict)"

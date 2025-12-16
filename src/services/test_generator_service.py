@@ -1750,7 +1750,7 @@ class TestGeneratorService:
                 # Support both NEW format (options) and LEGACY format (statements)
                 options = q.get("options", [])
                 statements = q.get("statements", [])
-                
+
                 if options:
                     # NEW FORMAT: Just send options (do NOT include correct_answers)
                     question_data["options"] = [
@@ -1770,7 +1770,7 @@ class TestGeneratorService:
                         }
                         for s in statements
                     ]
-                
+
                 # Include scoring_mode so students know how it's graded
                 question_data["scoring_mode"] = q.get("scoring_mode", "partial")
 

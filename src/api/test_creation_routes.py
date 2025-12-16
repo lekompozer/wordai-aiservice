@@ -1846,7 +1846,7 @@ async def update_test_questions(
                 # Support both NEW format (options + correct_answers) and LEGACY format (statements)
                 has_statements = q.get("statements")
                 has_options = q.get("options")
-                
+
                 if not has_statements and not has_options:
                     raise HTTPException(
                         status_code=400,
@@ -1861,7 +1861,7 @@ async def update_test_questions(
                             status_code=400,
                             detail=f"Question {idx + 1}: true_false_multiple requires at least 2 options",
                         )
-                    
+
                     # Validate each option
                     for opt_idx, opt in enumerate(options):
                         if not opt.get("option_key"):
@@ -1874,11 +1874,13 @@ async def update_test_questions(
                                 status_code=400,
                                 detail=f"Question {idx + 1}, Option {opt_idx + 1}: 'option_text' is required",
                             )
-                    
+
                     # Validate correct_answers
                     if not q.get("correct_answers"):
-                        logger.warning(f"⚠️ Question {idx + 1}: true_false_multiple missing 'correct_answers' - frontend will handle")
-                
+                        logger.warning(
+                            f"⚠️ Question {idx + 1}: true_false_multiple missing 'correct_answers' - frontend will handle"
+                        )
+
                 elif has_statements:
                     # LEGACY FORMAT: statements with correct_value
                     statements = q.get("statements", [])
@@ -1901,7 +1903,9 @@ async def update_test_questions(
                                 detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'text' is required",
                             )
                         if "correct_value" not in stmt:
-                            logger.warning(f"⚠️ Question {idx + 1}, Statement {stmt_idx + 1}: missing 'correct_value' - frontend will handle")
+                            logger.warning(
+                                f"⚠️ Question {idx + 1}, Statement {stmt_idx + 1}: missing 'correct_value' - frontend will handle"
+                            )
                         elif not isinstance(stmt.get("correct_value"), bool):
                             raise HTTPException(
                                 status_code=400,

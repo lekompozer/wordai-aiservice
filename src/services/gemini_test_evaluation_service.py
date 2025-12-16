@@ -211,6 +211,78 @@ class GeminiTestEvaluationService:
                     }
                 )
 
+            elif q_type == "true_false_multiple":
+                # True/False Multiple: Multiple statements, each marked as true or false
+                user_selections = user_answer if isinstance(user_answer, list) else []
+
+                # Support both formats: options (new) and statements (legacy)
+                if "options" in q and "correct_answers" in q:
+                    # New format: options array with correct_answers keys
+                    options = q["options"]
+                    correct_keys = q["correct_answers"]
+                    
+                    # Count correctness
+                    correct_count = sum(1 for key in user_selections if key in correct_keys)
+                    total_statements = len(options)
+                    
+                    # Build display data
+                    statements_display = []
+                    for opt in options:
+                        key = opt.get("option_key")
+                        text = opt.get("option_text")
+                        is_correct_answer = key in correct_keys
+                        user_selected = key in user_selections
+                        statements_display.append({
+                            "key": key,
+                            "text": text,
+                            "correct_value": is_correct_answer,
+                            "user_selected": user_selected
+                        })
+                    
+                elif "statements" in q:
+                    # Legacy format: statements array with correct_value fields
+                    statements = q["statements"]
+                    
+                    # Count correctness
+                    correct_count = 0
+                    for stmt in statements:
+                        key = stmt.get("key")
+                        correct_value = stmt.get("correct_value")
+                        user_selected = key in user_selections
+                        # Correct if (true statement and selected) or (false statement and not selected)
+                        if (correct_value and user_selected) or (not correct_value and not user_selected):
+                            correct_count += 1
+                    
+                    total_statements = len(statements)
+                    statements_display = statements
+                else:
+                    # No valid format
+                    logger.warning(f"⚠️ Question {question_id} has no options or statements for true_false_multiple")
+                    total_statements = 0
+                    correct_count = 0
+                    statements_display = []
+
+                points_earned = (
+                    (correct_count / total_statements * q_max_points)
+                    if total_statements > 0
+                    else 0
+                )
+                user_earned_points += points_earned
+
+                question_analysis.append(
+                    {
+                        "question_id": question_id,
+                        "question_type": "true_false_multiple",
+                        "question_text": q["question_text"],
+                        "statements": statements_display,
+                        "user_selections": user_selections,
+                        "correct_count": f"{correct_count}/{total_statements}",
+                        "max_points": q_max_points,
+                        "points_earned": round(points_earned, 2),
+                        "explanation": q.get("explanation", "No explanation provided"),
+                    }
+                )
+
             # ========== IELTS QUESTION TYPES ==========
             elif q_type == "matching":
                 # Matching: Match left items to right options
@@ -490,6 +562,35 @@ class GeminiTestEvaluationService:
                         f"**Max Points:** {qa.get('max_points', 1)}",
                         f"**Grading Rubric:** {qa['grading_rubric']}",
                         f"**Note:** This essay answer is awaiting official scoring by the test owner. Provide informal feedback on the response quality, relevance, and content.",
+                        "",
+                    ]
+                )
+
+            elif q_type == "true_false_multiple":
+                points_info = (
+                    f"({qa.get('points_earned', 0)}/{qa.get('max_points', 1)} points)"
+                )
+                # Format statements
+                statements_str = "; ".join(
+                    [
+                        f"{s.get('key')}: {s.get('text') or s.get('statement_text', '')} "
+                        f"({'TRUE' if s.get('correct_value') else 'FALSE'}, "
+                        f"User: {'SELECTED' if s.get('user_selected') else 'NOT SELECTED'})"
+                        for s in qa.get("statements", [])
+                    ]
+                )
+
+                prompt_parts.extend(
+                    [
+                        f"### Question {idx} (True/False Multiple) {qa['correct_count']} correct {points_info}",
+                        f"**ID:** {qa['question_id']}",
+                        f"**Question:** {qa['question_text']}",
+                        f"**Statements:** {statements_str}",
+                        f"**User's Selections:** {qa['user_selections']}",
+                        f"**Score:** {qa['correct_count']}",
+                        f"**Max Points:** {qa.get('max_points', 1)}",
+                        f"**Points Earned:** {qa.get('points_earned', 0)}",
+                        f"**Explanation:** {qa['explanation']}",
                         "",
                     ]
                 )
