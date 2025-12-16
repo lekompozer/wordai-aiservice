@@ -1803,9 +1803,9 @@ class TestGeneratorService:
 
             # Essay-specific fields
             elif q_type == "essay":
-                # Optionally include grading rubric for students to see expectations
-                if q.get("grading_rubric"):
-                    question_data["grading_rubric"] = q.get("grading_rubric")
+                # Do NOT include grading_rubric or sample_answer during test taking
+                # These are only for grading and should be hidden from students
+                pass
 
             # Include media if present (for all question types)
             if q.get("media_type"):
