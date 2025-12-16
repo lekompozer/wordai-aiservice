@@ -1299,6 +1299,24 @@ class TestGeneratorService:
                                 raise ValueError(
                                     f"Question {idx + 1} missing required fields for short_answer"
                                 )
+                        elif question_type == "essay":
+                            # Essay questions need question_text and grading_rubric
+                            if not all(
+                                k in q for k in ["question_text", "grading_rubric"]
+                            ):
+                                logger.error(
+                                    f"❌ VALIDATION FAILED - Question {idx + 1} (essay)"
+                                )
+                                logger.error(
+                                    f"   Required fields: question_text, grading_rubric"
+                                )
+                                logger.error(
+                                    f"   Question keys present: {list(q.keys())}"
+                                )
+                                logger.error(f"   RAW QUESTION DATA: {q}")
+                                raise ValueError(
+                                    f"Question {idx + 1} missing required fields for essay"
+                                )
                         elif question_type == "true_false_multiple":
                             # True/False Multiple: Accept both old format (statements) and new format (options)
                             has_statements = "statements" in q
