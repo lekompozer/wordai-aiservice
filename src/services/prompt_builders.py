@@ -400,7 +400,22 @@ Choose how to distribute question types based on this mode:
    - Explanations MUST explain WHY answers are correct
    - For completion/short_answer: provide multiple acceptable variations
 
-# STEP 4: DOCUMENT CONTENT
+# STEP 4: DOCUMENT CONTENT & EXTRACTION MODE
+
+**IMPORTANT: Detect if user wants to EXTRACT existing questions or CREATE new ones:**
+
+🔸 **EXTRACTION MODE** (User wants exact questions from document):
+   - Trigger keywords: "chính xác", "exact", "có trong tài liệu", "from document", "sao chép", "extract"
+   - Action: Find and extract existing questions from the document
+   - Preserve original wording, formatting, and mathematical notation
+   - Keep question numbering if present
+   - Example: If document has "Câu 1: Phương trình...", extract it exactly
+
+🔸 **CREATION MODE** (User wants AI to generate new questions):
+   - Default mode when no extraction keywords detected
+   - Action: Create new original questions based on document content
+   - Use document as reference material
+   - Rephrase and create variations
 
 Use ONLY information from this document:
 ---
