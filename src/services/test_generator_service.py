@@ -1874,8 +1874,7 @@ class TestGeneratorService:
 2. {lang_instruction}
 3. **⚠️ CRITICAL - QUESTION COUNT:** Generate EXACTLY {num_questions} essay questions. NO MORE, NO LESS. This is an ABSOLUTE requirement.
 4. The questions must be relevant to the user's query: "{user_query}".
-5. All information used to create questions must come from the provided document.
-6. The JSON object must conform to the following structure:
+5. The JSON object must conform to the following structure:
    {{
      "questions": [
        {{
@@ -1886,12 +1885,32 @@ class TestGeneratorService:
        }}
      ]
    }}
-7. Each essay question should have:
+6. Each essay question should have:
    - Clear question_text (prompt)
    - grading_rubric (detailed criteria for evaluation)
    - sample_answer (model answer for reference){difficulty_instruction}
-8. Questions should test deep understanding, not just recall.
-9. **VALIDATE your JSON output before returning it.**
+
+**IMPORTANT: EXTRACTION MODE vs CREATION MODE**
+
+Analyze the user query to determine the mode:
+
+🔸 **EXTRACTION MODE** (User wants exact questions from document):
+   - Trigger keywords in query: "chính xác", "exact", "có trong tài liệu", "from document", "sao chép", "extract", "y nguyên", "đề bài trong"
+   - Action: Find and extract existing essay questions EXACTLY as written in the document
+   - Preserve original wording, formatting, mathematical notation (KaTeX/LaTeX)
+   - Keep question numbering if present (e.g., "Câu 1:", "Question 1:", "Bài 1:")
+   - Extract grading rubric if provided in document, otherwise create appropriate rubric
+   - For mathematical problems: preserve all formulas, equations, and mathematical expressions using KaTeX syntax
+   - Example: If document has "Câu 1: Giải phương trình $x^2 - 5x + 6 = 0$", extract it EXACTLY including the $ signs
+
+🔸 **CREATION MODE** (User wants AI to generate new questions):
+   - Default mode when no extraction keywords detected
+   - Action: Create new original essay questions based on document content
+   - Use document as reference material for topics and concepts
+   - Rephrase and create variations
+   - Questions should test deep understanding, not just recall
+
+7. **VALIDATE your JSON output before returning it.**
 
 **DOCUMENT CONTENT:**
 ---
