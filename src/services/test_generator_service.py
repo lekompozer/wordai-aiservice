@@ -1451,8 +1451,10 @@ class TestGeneratorService:
                                     )
                                     q["question_type"] = "mcq_multiple"
 
-                        # Add question_id to each question
-                        q["question_id"] = str(ObjectId())
+                    # 🔥 CRITICAL: Add question_id to ALL questions (moved outside type-specific blocks)
+                    for q in questions_list:
+                        if "question_id" not in q:
+                            q["question_id"] = str(ObjectId())
 
                         # Map AI's "points" (1-5) → "max_points" for DB storage
                         if "points" in q and "max_points" not in q:
@@ -1662,12 +1664,19 @@ class TestGeneratorService:
         # Remove correct answers and explanations
         questions_for_user = []
         for q in test_doc["questions"]:
+            # Skip questions without question_id (malformed data)
+            if "question_id" not in q:
+                logger.warning(
+                    f"⚠️ Skipping question without question_id in test {test_id}"
+                )
+                continue
+
             # Get question_type (default to 'mcq' for backward compatibility)
             q_type = q.get("question_type", "mcq")
 
             question_data = {
                 "question_id": q["question_id"],
-                "question_text": q["question_text"],
+                "question_text": q.get("question_text", ""),
                 "question_type": q_type,
                 "max_points": q.get("max_points", 1),
                 # Do NOT include: correct_answer_key, explanation, correct_answers, correct_matches, correct_labels

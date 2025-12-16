@@ -16,6 +16,14 @@
 | `qdrant` | Vector DB | Qdrant vector search (if used) |
 | `redis` | Cache | Redis cache server (if used) |
 
+ssh root@104.248.147.155 "docker ps"
+CONTAINER ID   IMAGE                                       COMMAND                  CREATED          STATUS                      PORTS                                                                          NAMES
+3c2925a0d1d5   nginx:1.26-alpine                           "/docker-entrypoint.…"   32 minutes ago   Up 32 minutes (healthy)     0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp   nginx-gateway
+2024f7a23300   lekompozer/wordai-payment-service:146b3b9   "docker-entrypoint.s…"   32 minutes ago   Up 32 minutes (unhealthy)   0.0.0.0:3000->3000/tcp, [::]:3000->3000/tcp                                    payment-service
+483413e29907   lekompozer/wordai-aiservice:146b3b9         "uvicorn serve:app -…"   32 minutes ago   Up 32 minutes (healthy)     0.0.0.0:8000->8000/tcp, [::]:8000->8000/tcp                                    ai-chatbot-rag
+219741c4aee7   mongo:7.0                                   "docker-entrypoint.s…"   32 minutes ago   Up 32 minutes               0.0.0.0:27017->27017/tcp, [::]:27017->27017/tcp                                mongodb
+632bfacd8496   redis:7-alpine                              "docker-entrypoint.s…"   32 minutes ago   Up 32 minutes (healthy)     0.0.0.0:6379->6379/tcp, [::]:6379->6379/tcp                                    redis-server
+
 ### Docker Commands
 
 ```bash
