@@ -1843,41 +1843,70 @@ async def update_test_questions(
 
             elif q_type == "true_false_multiple":
                 # True/False Multiple validation
-                if not q.get("statements"):
+                # Support both NEW format (options + correct_answers) and LEGACY format (statements)
+                has_statements = q.get("statements")
+                has_options = q.get("options")
+                
+                if not has_statements and not has_options:
                     raise HTTPException(
                         status_code=400,
-                        detail=f"Question {idx + 1}: true_false_multiple requires statements array",
+                        detail=f"Question {idx + 1}: true_false_multiple requires either 'statements' (legacy) or 'options' (new format)",
                     )
 
-                statements = q.get("statements", [])
-                if len(statements) < 2:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Question {idx + 1}: true_false_multiple requires at least 2 statements",
-                    )
+                if has_options:
+                    # NEW FORMAT: options + correct_answers
+                    options = q.get("options", [])
+                    if len(options) < 2:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: true_false_multiple requires at least 2 options",
+                        )
+                    
+                    # Validate each option
+                    for opt_idx, opt in enumerate(options):
+                        if not opt.get("option_key"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}, Option {opt_idx + 1}: 'option_key' is required",
+                            )
+                        if not opt.get("option_text"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}, Option {opt_idx + 1}: 'option_text' is required",
+                            )
+                    
+                    # Validate correct_answers
+                    if not q.get("correct_answers"):
+                        logger.warning(f"⚠️ Question {idx + 1}: true_false_multiple missing 'correct_answers' - frontend will handle")
+                
+                elif has_statements:
+                    # LEGACY FORMAT: statements with correct_value
+                    statements = q.get("statements", [])
+                    if len(statements) < 2:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Question {idx + 1}: true_false_multiple requires at least 2 statements",
+                        )
 
-                # Validate each statement
-                for stmt_idx, stmt in enumerate(statements):
-                    if not stmt.get("key"):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'key' is required (e.g., 'a', 'b', 'c')",
-                        )
-                    if not stmt.get("text"):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'text' is required",
-                        )
-                    if "correct_value" not in stmt:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'correct_value' is required",
-                        )
-                    if not isinstance(stmt["correct_value"], bool):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'correct_value' must be boolean (true or false)",
-                        )
+                    # Validate each statement
+                    for stmt_idx, stmt in enumerate(statements):
+                        if not stmt.get("key"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'key' is required (e.g., 'a', 'b', 'c')",
+                            )
+                        if not stmt.get("text"):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'text' is required",
+                            )
+                        if "correct_value" not in stmt:
+                            logger.warning(f"⚠️ Question {idx + 1}, Statement {stmt_idx + 1}: missing 'correct_value' - frontend will handle")
+                        elif not isinstance(stmt.get("correct_value"), bool):
+                            raise HTTPException(
+                                status_code=400,
+                                detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'correct_value' must be boolean (true or false)",
+                            )
 
                 # Validate scoring_mode
                 scoring_mode = q.get("scoring_mode", "partial")
@@ -1890,14 +1919,6 @@ async def update_test_questions(
                 # Set default scoring_mode if not provided
                 if "scoring_mode" not in q:
                     q["scoring_mode"] = "partial"
-
-            elif q_type == "true_false_multiple":
-                # True/False Multiple validation
-                if not q.get("statements"):
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Question {idx + 1}: true_false_multiple requires statements array",
-                    )
 
                 statements = q.get("statements", [])
                 if len(statements) < 2:

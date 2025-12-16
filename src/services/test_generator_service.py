@@ -1747,16 +1747,30 @@ class TestGeneratorService:
 
             # True/False Multiple-specific fields
             elif q_type == "true_false_multiple":
-                # Remove correct_value from statements (SECURITY: students should NOT see answers)
+                # Support both NEW format (options) and LEGACY format (statements)
+                options = q.get("options", [])
                 statements = q.get("statements", [])
-                question_data["statements"] = [
-                    {
-                        "key": s.get("key"),
-                        "text": s.get("text"),
-                        # Do NOT include: correct_value
-                    }
-                    for s in statements
-                ]
+                
+                if options:
+                    # NEW FORMAT: Just send options (do NOT include correct_answers)
+                    question_data["options"] = [
+                        {
+                            "option_key": opt.get("option_key"),
+                            "option_text": opt.get("option_text"),
+                        }
+                        for opt in options
+                    ]
+                elif statements:
+                    # LEGACY FORMAT: Remove correct_value from statements (SECURITY)
+                    question_data["statements"] = [
+                        {
+                            "key": s.get("key"),
+                            "text": s.get("text"),
+                            # Do NOT include: correct_value
+                        }
+                        for s in statements
+                    ]
+                
                 # Include scoring_mode so students know how it's graded
                 question_data["scoring_mode"] = q.get("scoring_mode", "partial")
 

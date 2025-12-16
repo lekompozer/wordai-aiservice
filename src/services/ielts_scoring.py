@@ -377,13 +377,24 @@ def score_true_false_multiple_question(
 
     User must evaluate multiple statements as true or false
 
-    Question format:
+    Question format (NEW - using options):
+    {
+        "question_type": "true_false_multiple",
+        "options": [
+            {"option_key": "a", "option_text": "..."},
+            {"option_key": "b", "option_text": "..."},
+        ],
+        "correct_answers": ["a"],  // Keys of TRUE statements
+        "scoring_mode": "partial" | "all_or_nothing",
+        "points": 4
+    }
+
+    Question format (LEGACY - using statements):
     {
         "question_type": "true_false_multiple",
         "statements": [
             {"key": "a", "text": "...", "correct_value": true},
             {"key": "b", "text": "...", "correct_value": false},
-            ...
         ],
         "scoring_mode": "partial" | "all_or_nothing",
         "points": 4
@@ -398,12 +409,31 @@ def score_true_false_multiple_question(
     Returns:
         (is_correct, points_earned, feedback)
     """
-    statements = question.get("statements", [])
     scoring_mode = question.get("scoring_mode", "partial")
     max_points = question.get("points", 1)
 
     # Extract user's answers
     user_answers = user_answer.get("user_answer", {})
+    
+    # Support both NEW format (options + correct_answers) and LEGACY format (statements)
+    statements = question.get("statements", [])
+    options = question.get("options", [])
+    correct_answers = question.get("correct_answers", [])
+    
+    # Build unified format for scoring
+    if options and correct_answers:
+        # NEW FORMAT: options with correct_answers
+        statements = [
+            {
+                "key": opt.get("option_key"),
+                "text": opt.get("option_text"),
+                "correct_value": opt.get("option_key") in correct_answers
+            }
+            for opt in options
+        ]
+    elif not statements:
+        # No valid format found
+        return False, 0.0, "Invalid question format: missing both 'statements' and 'options'"
 
     if not isinstance(user_answers, dict):
         return False, 0.0, "Invalid answer format (expected dict)"
