@@ -155,8 +155,9 @@ class PromptBuilder:
    ```
 
 7. **True/False Multiple** - "question_type": "true_false_multiple"
-   - Multiple statements, each evaluated as True or False
-   - Fields: question_text, statements, scoring_mode, explanation, points
+   - Multiple statements to evaluate as True or False
+   - Fields: question_text, options, correct_answers, scoring_mode, explanation, points
+   - Similar to MCQ but each option is a statement to judge true/false
    - Scoring modes: "partial" (proportional) or "all_or_nothing" (must get all correct)
    - PERFECT FOR: Vietnamese academic exams (Math/Physics/Chemistry/Biology)
    - Example:
@@ -164,35 +165,34 @@ class PromptBuilder:
    {
      "question_type": "true_false_multiple",
      "question_text": "Câu 1: Cho hàm số f(x) = x² - 4x + 3. Xét tính đúng sai của các khẳng định sau:",
-     "statements": [
+     "options": [
        {
-         "key": "a",
-         "text": "Hàm số có đồ thị là parabol với đỉnh I(2, -1)",
-         "correct_value": true
+         "option_key": "a",
+         "option_text": "Hàm số có đồ thị là parabol với đỉnh I(2, -1)"
        },
        {
-         "key": "b",
-         "text": "Hàm số nghịch biến trên khoảng (-∞, 2)",
-         "correct_value": false
+         "option_key": "b",
+         "option_text": "Hàm số nghịch biến trên khoảng (-∞, 2)"
        },
        {
-         "key": "c",
-         "text": "Đồ thị cắt trục hoành tại 2 điểm phân biệt",
-         "correct_value": true
+         "option_key": "c",
+         "option_text": "Đồ thị cắt trục hoành tại 2 điểm phân biệt"
        },
        {
-         "key": "d",
-         "text": "Giá trị nhỏ nhất của hàm số là -2",
-         "correct_value": false
+         "option_key": "d",
+         "option_text": "Giá trị nhỏ nhất của hàm số là -2"
        }
      ],
+     "correct_answers": ["a", "c"],
      "scoring_mode": "partial",
      "explanation": "a) Đúng. Đỉnh I có x = -b/2a = 4/2 = 2, y = f(2) = 4 - 8 + 3 = -1\\nb) Sai. Với a = 1 > 0, hàm đồng biến khi x > 2\\nc) Đúng. Δ = 16 - 12 = 4 > 0 nên có 2 nghiệm phân biệt\\nd) Sai. Giá trị nhỏ nhất là y_đỉnh = -1",
      "points": 4
    }
    ```
    - **GUIDELINES FOR TRUE/FALSE MULTIPLE:**
-     * 🛑 CRITICAL: DO NOT use "options" array. Use "statements" array only!
+     * Use "options" array with option_key (a, b, c, d) and option_text
+     * Use "correct_answers" array to list keys of TRUE statements
+     * Statements NOT in correct_answers are considered FALSE
      * Use "partial" scoring (recommended): student gets (correct_count/total) × points
      * Use "all_or_nothing" for challenging exams: must get all statements correct
      * Create 2-5 statements per question (usually 4 for Vietnamese exams)
@@ -208,14 +208,7 @@ class PromptBuilder:
   * 4 = hard (synthesis/evaluation)
   * 5 = very hard (complex critical thinking)
 
-🛑 **CRITICAL WARNING FOR TRUE/FALSE MULTIPLE QUESTIONS:**
-   - DO NOT use "options" or "correct_answers" for true_false_multiple!
-   - YOU MUST USE "statements" array with "correct_value" (true/false) inside each statement object.
-   - WRONG: "options": [{"option_key": "A", ...}]
-   - CORRECT: "statements": [{"key": "a", "text": "...", "correct_value": true}]
-   - This is the most common error. PLEASE CHECK CAREFULLY.
-
-**JSON OUTPUT STRUCTURE:**
+**JSON OUTPUT STRUCTURE:
 ```json
 {
   "questions": [

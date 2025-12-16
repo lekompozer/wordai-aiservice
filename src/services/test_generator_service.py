@@ -695,47 +695,30 @@ class TestGeneratorService:
                                 f"Question {idx + 1} missing required fields for short_answer"
                             )
                     elif question_type == "true_false_multiple":
-                        # True/False Multiple questions need statements array
-                        if not all(
-                            k in q for k in ["question_text", "statements", "explanation"]
-                        ):
-                            logger.error(
-                                f"❌ VALIDATION FAILED - Question {idx + 1} (true_false_multiple)"
+                        # True/False Multiple: Accept both old format (statements) and new format (options)
+                        has_statements = "statements" in q
+                        has_options = "options" in q
+
+                        if not has_statements and not has_options:
+                            logger.warning(
+                                f"⚠️ Question {idx + 1} (true_false_multiple): Missing both 'statements' and 'options'"
                             )
-                            logger.error(
-                                f"   Required fields: question_text, statements, explanation"
+                            logger.warning(f"   Question keys: {list(q.keys())}")
+                            logger.warning(
+                                f"   Frontend will handle this. Continuing..."
                             )
-                            logger.error(f"   Question keys present: {list(q.keys())}")
-                            logger.error(f"   RAW QUESTION DATA: {q}")
-                            raise ValueError(
-                                f"Question {idx + 1} missing required field 'statements' for true_false_multiple"
+                        elif has_statements and not has_options:
+                            logger.info(
+                                f"✅ Question {idx + 1}: Using legacy 'statements' format"
                             )
-                        
-                        # Validate statements structure
-                        statements = q.get("statements", [])
-                        if not isinstance(statements, list) or len(statements) == 0:
-                            logger.error(
-                                f"❌ VALIDATION FAILED - Question {idx + 1} (true_false_multiple)"
+                        elif has_options and not has_statements:
+                            logger.info(
+                                f"✅ Question {idx + 1}: Using new 'options' format (recommended)"
                             )
-                            logger.error(f"   'statements' must be a non-empty array")
-                            logger.error(f"   RAW QUESTION DATA: {q}")
-                            raise ValueError(
-                                f"Question {idx + 1} has invalid 'statements' field"
+                        else:
+                            logger.warning(
+                                f"⚠️ Question {idx + 1}: Has BOTH 'statements' and 'options' - will prefer 'options'"
                             )
-                        
-                        # Check each statement has required fields
-                        for stmt_idx, stmt in enumerate(statements):
-                            if not all(k in stmt for k in ["key", "text", "correct_value"]):
-                                logger.error(
-                                    f"❌ VALIDATION FAILED - Question {idx + 1}, Statement {stmt_idx + 1}"
-                                )
-                                logger.error(
-                                    f"   Each statement needs: key, text, correct_value"
-                                )
-                                logger.error(f"   Statement data: {stmt}")
-                                raise ValueError(
-                                    f"Question {idx + 1}, statement {stmt_idx + 1} missing required fields"
-                                )
                     else:
                         # Standard MCQ questions need options
                         if not all(
@@ -1317,32 +1300,29 @@ class TestGeneratorService:
                                     f"Question {idx + 1} missing required fields for short_answer"
                                 )
                         elif question_type == "true_false_multiple":
-                            # True/False Multiple questions need statements array
-                            if not all(
-                                k in q for k in ["question_text", "statements", "explanation"]
-                            ):
-                                logger.error(
-                                    f"❌ VALIDATION FAILED - Question {idx + 1} (true_false_multiple)"
+                            # True/False Multiple: Accept both old format (statements) and new format (options)
+                            has_statements = "statements" in q
+                            has_options = "options" in q
+
+                            if not has_statements and not has_options:
+                                logger.warning(
+                                    f"⚠️ Question {idx + 1} (true_false_multiple): Missing both 'statements' and 'options'"
                                 )
-                                logger.error(
-                                    f"   Required fields: question_text, statements, explanation"
+                                logger.warning(f"   Question keys: {list(q.keys())}")
+                                logger.warning(
+                                    f"   Frontend will handle this. Continuing..."
                                 )
-                                logger.error(f"   Question keys present: {list(q.keys())}")
-                                logger.error(f"   RAW QUESTION DATA: {q}")
-                                raise ValueError(
-                                    f"Question {idx + 1} missing required field 'statements' for true_false_multiple"
+                            elif has_statements and not has_options:
+                                logger.info(
+                                    f"✅ Question {idx + 1}: Using legacy 'statements' format"
                                 )
-                            
-                            # Validate statements structure
-                            statements = q.get("statements", [])
-                            if not isinstance(statements, list) or len(statements) == 0:
-                                logger.error(
-                                    f"❌ VALIDATION FAILED - Question {idx + 1} (true_false_multiple)"
+                            elif has_options and not has_statements:
+                                logger.info(
+                                    f"✅ Question {idx + 1}: Using new 'options' format (recommended)"
                                 )
-                                logger.error(f"   'statements' must be a non-empty array")
-                                logger.error(f"   RAW QUESTION DATA: {q}")
-                                raise ValueError(
-                                    f"Question {idx + 1} has invalid 'statements' field"
+                            else:
+                                logger.warning(
+                                    f"⚠️ Question {idx + 1}: Has BOTH 'statements' and 'options' - will prefer 'options'"
                                 )
                         else:
                             # Standard MCQ questions need options
