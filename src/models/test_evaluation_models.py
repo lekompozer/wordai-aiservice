@@ -166,3 +166,135 @@ class EvaluateTestResultResponse(BaseModel):
         ..., description="Time taken to generate evaluation (milliseconds)"
     )
     timestamp: str = Field(..., description="Evaluation timestamp (ISO 8601)")
+
+
+class EvaluationHistoryItem(BaseModel):
+    """Single evaluation history item"""
+
+    evaluation_id: str = Field(..., description="Unique evaluation ID")
+    submission_id: str = Field(..., description="Submission ID")
+    test_id: str = Field(..., description="Test ID")
+    test_title: str = Field(..., description="Test title")
+    test_category: str = Field(
+        ..., description="Test category (academic, iq_test, diagnostic)"
+    )
+
+    overall_evaluation: OverallEvaluation = Field(
+        ..., description="Overall evaluation result"
+    )
+    question_evaluations: List[QuestionEvaluation] = Field(
+        ..., description="Question-level evaluations"
+    )
+
+    model: str = Field(..., description="AI model used")
+    generation_time_ms: int = Field(..., description="Generation time in milliseconds")
+    points_cost: int = Field(..., description="Points deducted for this evaluation")
+    language: str = Field(..., description="Evaluation language (vi, en, etc.)")
+    created_at: str = Field(..., description="Evaluation timestamp (ISO 8601)")
+
+
+class GetEvaluationHistoryResponse(BaseModel):
+    """Response for evaluation history retrieval"""
+
+    success: bool = Field(..., description="Request success status")
+    evaluations: List[EvaluationHistoryItem] = Field(
+        ..., description="List of evaluations"
+    )
+    total: int = Field(..., description="Total number of evaluations")
+    page: int = Field(..., description="Current page number")
+    limit: int = Field(..., description="Items per page")
+
+
+class GetUserEvaluationsResponse(BaseModel):
+    """Response for user's all evaluations"""
+
+    success: bool = Field(..., description="Request success status")
+    evaluations: List[EvaluationHistoryItem] = Field(
+        ..., description="List of evaluations"
+    )
+    total: int = Field(..., description="Total number of evaluations")
+    page: int = Field(..., description="Current page number")
+    limit: int = Field(..., description="Items per page")
+
+
+class TestOwnerEvaluationItem(BaseModel):
+    """Evaluation item for test owner view"""
+
+    evaluation_id: str = Field(..., description="Unique evaluation ID")
+    submission_id: str = Field(..., description="Submission ID")
+    user_id: str = Field(..., description="Student user ID")
+    user_name: Optional[str] = Field(None, description="Student name")
+    user_email: Optional[str] = Field(None, description="Student email")
+
+    overall_evaluation: OverallEvaluation = Field(
+        ..., description="Overall evaluation result"
+    )
+    question_evaluations: List[QuestionEvaluation] = Field(
+        ..., description="Question-level evaluations"
+    )
+
+    model: str = Field(..., description="AI model used")
+    generation_time_ms: int = Field(..., description="Generation time in milliseconds")
+    points_cost: int = Field(..., description="Points deducted for this evaluation")
+    language: str = Field(..., description="Evaluation language (vi, en, etc.)")
+    created_at: str = Field(..., description="Evaluation timestamp (ISO 8601)")
+
+
+class GetTestEvaluationsResponse(BaseModel):
+    """Response for test owner viewing all evaluations of their test"""
+
+    success: bool = Field(..., description="Request success status")
+    test_id: str = Field(..., description="Test ID")
+    test_title: str = Field(..., description="Test title")
+    evaluations: List[TestOwnerEvaluationItem] = Field(
+        ..., description="List of evaluations from all students"
+    )
+    total: int = Field(..., description="Total number of evaluations")
+    page: int = Field(..., description="Current page number")
+    limit: int = Field(..., description="Items per page")
+
+
+class EssayQuestionForGrading(BaseModel):
+    """Essay question details for grading interface"""
+
+    question_id: str = Field(..., description="Question ID")
+    question_text: str = Field(..., description="Question text")
+    question_type: str = Field(..., description="Question type (essay)")
+    max_points: float = Field(..., description="Maximum points for this question")
+    grading_rubric: Optional[str] = Field(None, description="Grading rubric/criteria")
+    sample_answer: Optional[str] = Field(None, description="Sample correct answer")
+    student_answer: str = Field(..., description="Student's answer")
+    points_earned: Optional[float] = Field(
+        None, description="Points earned (if already graded)"
+    )
+    feedback: Optional[str] = Field(None, description="Grading feedback (if any)")
+    is_correct: Optional[bool] = Field(None, description="Whether answer is correct")
+
+
+class SubmissionForGradingResponse(BaseModel):
+    """Response for getting submission details for teacher grading"""
+
+    success: bool = Field(..., description="Request success status")
+    submission_id: str = Field(..., description="Submission ID")
+    test_id: str = Field(..., description="Test ID")
+    test_title: str = Field(..., description="Test title")
+
+    # Student info
+    user_id: str = Field(..., description="Student user ID")
+    user_name: Optional[str] = Field(None, description="Student name")
+    user_email: Optional[str] = Field(None, description="Student email")
+    submitted_at: str = Field(..., description="Submission timestamp")
+
+    # Score info
+    mcq_score: Optional[float] = Field(None, description="MCQ score (if any)")
+    mcq_correct_count: Optional[int] = Field(None, description="MCQ correct count")
+    essay_graded_count: int = Field(..., description="Number of essays graded")
+    essay_question_count: int = Field(..., description="Total essay questions")
+    grading_status: str = Field(
+        ..., description="Status: auto_graded, pending_grading, partially_graded"
+    )
+
+    # Questions for grading
+    essay_questions: List[EssayQuestionForGrading] = Field(
+        ..., description="Essay questions with student answers"
+    )
