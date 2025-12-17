@@ -1924,48 +1924,6 @@ async def update_test_questions(
                 if "scoring_mode" not in q:
                     q["scoring_mode"] = "partial"
 
-                statements = q.get("statements", [])
-                if len(statements) < 2:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Question {idx + 1}: true_false_multiple requires at least 2 statements",
-                    )
-
-                # Validate each statement
-                for stmt_idx, stmt in enumerate(statements):
-                    if not stmt.get("key"):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'key' is required (e.g., 'a', 'b', 'c')",
-                        )
-                    if not stmt.get("text"):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'text' is required",
-                        )
-                    if "correct_value" not in stmt:
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'correct_value' is required",
-                        )
-                    if not isinstance(stmt["correct_value"], bool):
-                        raise HTTPException(
-                            status_code=400,
-                            detail=f"Question {idx + 1}, Statement {stmt_idx + 1}: 'correct_value' must be boolean (true or false)",
-                        )
-
-                # Validate scoring_mode
-                scoring_mode = q.get("scoring_mode", "partial")
-                if scoring_mode not in ["partial", "all_or_nothing"]:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Question {idx + 1}: scoring_mode must be 'partial' or 'all_or_nothing'",
-                    )
-
-                # Set default scoring_mode if not provided
-                if "scoring_mode" not in q:
-                    q["scoring_mode"] = "partial"
-
             # Validate and set points for all question types
             points = q.get("points", 1)
             if not isinstance(points, (int, float)) or points < 1 or points > 5:
