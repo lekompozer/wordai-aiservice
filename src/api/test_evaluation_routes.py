@@ -216,7 +216,9 @@ async def evaluate_test_result(
         score = submission.get("score")  # Can be None for essay tests
         score_percentage = submission.get("score_percentage") or 0  # 0 if None
         total_questions = submission.get("total_questions", len(questions))
-        correct_answers = submission.get("correct_answers")  # Can be None for essay tests
+        correct_answers = submission.get(
+            "correct_answers"
+        )  # Can be None for essay tests
         is_passed = submission.get("is_passed", False)
 
         # ===== STEP 7: Call AI evaluation service =====
