@@ -2973,21 +2973,20 @@ async def get_test_attempts(
             attempts_remaining = max(0, max_retries - attempts_used)
             can_retake = attempts_remaining > 0
 
-        # Get best score
+        # Get best score (handle None values)
         best_score = 0
         if submissions:
-            best_score = max(sub.get("score", 0) for sub in submissions)
+            best_score = max((sub.get("score") or 0) for sub in submissions)
 
         # Build submission list with more details
         submission_list = []
         for sub in submissions:
+            score = sub.get("score") or 0
             submission_list.append(
                 {
                     "submission_id": str(sub["_id"]),
-                    "score": sub.get("score", 0),  # Thang điểm 10
-                    "score_percentage": sub.get(
-                        "score_percentage", sub.get("score", 0) * 10
-                    ),
+                    "score": score,  # Thang điểm 10
+                    "score_percentage": sub.get("score_percentage", score * 10),
                     "correct_answers": sub.get("correct_answers", 0),
                     "total_questions": sub.get("total_questions", 0),
                     "is_passed": sub.get("is_passed", False),
