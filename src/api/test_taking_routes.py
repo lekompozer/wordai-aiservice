@@ -3,6 +3,7 @@ Online Test Taking Routes
 Endpoints for accessing tests, starting, submitting, auto-save, and history
 """
 
+import asyncio
 import logging
 import os
 import uuid

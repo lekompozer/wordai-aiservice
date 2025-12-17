@@ -1217,7 +1217,7 @@ Provide a comprehensive evaluation in the following JSON format:
 ```json
 {{
   "overall_evaluation": {{
-    "overall_rating": "Excellent|Good|Average|Needs Improvement|Poor",
+    "overall_rating": 0.0,  // Score from 0-10 (float number, e.g., 7.5)
     "strengths": ["strength 1", "strength 2", ...],
     "weaknesses": ["weakness 1", "weakness 2", ...],
     "recommendations": ["recommendation 1", "recommendation 2", ...],
