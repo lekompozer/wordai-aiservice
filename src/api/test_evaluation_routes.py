@@ -212,12 +212,11 @@ async def evaluate_test_result(
                 # True/False Multiple: use user_answer dict {statement_key: true/false}
                 user_answers_dict[question_id] = ans.get("user_answer", {})
 
-        score = submission.get("score", 0)
-        score_percentage = (
-            submission.get("score_percentage") or 0
-        )  # Handle None for pending grading
+        # Handle None values for essay tests pending grading
+        score = submission.get("score")  # Can be None for essay tests
+        score_percentage = submission.get("score_percentage") or 0  # 0 if None
         total_questions = submission.get("total_questions", len(questions))
-        correct_answers = submission.get("correct_answers") or 0  # Handle None case
+        correct_answers = submission.get("correct_answers")  # Can be None for essay tests
         is_passed = submission.get("is_passed", False)
 
         # ===== STEP 7: Call AI evaluation service =====

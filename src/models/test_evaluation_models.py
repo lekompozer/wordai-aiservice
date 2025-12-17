@@ -137,10 +137,10 @@ class EvaluateTestResultResponse(BaseModel):
     success: bool = Field(..., description="Evaluation success status")
     submission_id: str = Field(..., description="Submission ID evaluated")
     test_title: str = Field(..., description="Test title")
-    score: float = Field(..., description="Test score (0-10)")
-    score_percentage: float = Field(..., description="Test score percentage (0-100)")
+    score: Optional[float] = Field(None, description="Test score (0-10), None if essay grading pending")
+    score_percentage: float = Field(..., description="Test score percentage (0-100), 0 if pending")
     total_questions: int = Field(..., description="Total questions in test")
-    correct_answers: int = Field(..., description="Number of correct answers")
+    correct_answers: Optional[int] = Field(None, description="Number of correct answers, None if essay grading pending")
     is_passed: bool = Field(..., description="Whether user passed the test")
 
     # AI Evaluation
