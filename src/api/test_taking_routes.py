@@ -8,7 +8,7 @@ import logging
 import os
 import uuid
 from typing import Optional, Dict, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 
 from fastapi import (
@@ -1906,6 +1906,7 @@ async def get_submission_detail(
             elif q_type == "essay":
                 # Essay result
                 essay_answer = user_answer_data.get("essay_answer", "")
+                media_attachments = user_answer_data.get("media_attachments", [])
                 essay_grade = essay_grades_map.get(question_id)
 
                 result = {
@@ -1913,6 +1914,7 @@ async def get_submission_detail(
                     "question_text": q["question_text"],
                     "question_type": "essay",
                     "your_answer": essay_answer,
+                    "media_attachments": media_attachments,  # Include media files
                     "max_points": q.get("max_points", 1),
                     "grading_rubric": q.get("grading_rubric"),
                 }
