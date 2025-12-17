@@ -8,7 +8,7 @@ from config.config import get_mongodb
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(chatbot)
+logger = logging.getLogger(__name__)
 
 
 def create_ai_evaluations_indexes():
