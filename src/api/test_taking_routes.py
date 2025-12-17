@@ -1729,6 +1729,7 @@ async def get_submission_detail(
                 user_answers_map[q_id] = {
                     "type": "essay",
                     "essay_answer": ans.get("essay_answer", ""),
+                    "media_attachments": ans.get("media_attachments", []),
                 }
             elif ans_type == "true_false_multiple":
                 user_answers_map[q_id] = {
