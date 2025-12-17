@@ -263,6 +263,43 @@ User notifications
 - `user_id`: For user notifications
 - `is_read`: For unread count
 
+#### 10. **ai_evaluations** ⭐ NEW
+AI-powered test evaluations (Gemini)
+
+**Fields:**
+- `_id`: ObjectId (evaluation ID)
+- `submission_id`: String
+- `test_id`: String
+- `user_id`: String (Firebase UID)
+- `test_title`: String
+- `test_category`: String
+- `overall_evaluation`: Object
+  - `overall_rating`: Float (0-10)
+  - `strengths`: Array[String]
+  - `weaknesses`: Array[String]
+  - `recommendations`: Array[String]
+  - `study_plan`: String
+- `question_evaluations`: Array
+  - `question_id`: String
+  - `question_type`: String
+  - `user_answer`: String
+  - `ai_feedback`: String
+- `model`: String (e.g., "gemini-2.5-pro")
+- `generation_time_ms`: Integer
+- `points_cost`: Integer (default: 1)
+- `language`: String ("vi" or "en")
+- `created_at`: DateTime
+
+**Indexes:**
+- `submission_id`: For submission evaluations
+- `{user_id, created_at}`: For user's evaluation history (sorted)
+- `{test_id, user_id}`: For filtering by test
+
+**Security:**
+- User must own submission to view evaluations
+- Test owner can view all students' evaluations
+- Evaluations stored permanently for history
+
 ---
 
 ## 📁 File System Structure
@@ -511,6 +548,50 @@ Backend extracts user info from token:
 - `uid`: Firebase user ID (used as `creator_id`, `user_id`)
 - `email`: User email
 - `name`: Display name
+
+---
+
+## 🔐 Security Considerations
+
+### Media File Access (Student Answer Attachments)
+
+**Current Status:**
+- Files stored in Cloudflare R2 bucket
+- URLs are **PUBLIC** by default: `https://static.wordai.pro/attachments/...`
+- Anyone with the URL can access files
+
+**Security Risks:**
+- ❌ Student answers may contain sensitive information
+- ❌ URLs can be shared outside platform
+- ❌ No expiration on access
+- ❌ Search engines may index files
+
+**Recommended Solution: Signed URLs**
+- ✅ Implemented: `generate_presigned_download_url()` in `R2StorageService`
+- ✅ URLs expire after 7 days (configurable)
+- ✅ Cannot access after expiration
+- ✅ Unique token per generation
+
+**Implementation Status:**
+- 🟡 **Signed URL method available** (not yet used by default)
+- 🔴 **Action Required:** Update upload endpoints to use signed URLs
+- 🔴 **R2 Bucket:** Should be set to private (no public read)
+
+**Migration Plan:**
+1. Set R2 bucket to **private** (Cloudflare dashboard)
+2. Update `generate_presigned_upload_url()` to return signed URLs
+3. Update `upload_file()` to use `generate_presigned_download_url()`
+4. Regenerate signed URLs on-demand when expired
+5. Add endpoint: `GET /media/refresh-url/{media_id}` for expired URLs
+
+**Example Usage:**
+```python
+# Generate signed URL (7 days expiration)
+signed_url = r2_service.generate_presigned_download_url(
+    key="attachments/file.png",
+    expiration=604800  # 7 days in seconds
+)
+```
 
 ---
 

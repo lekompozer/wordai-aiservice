@@ -109,11 +109,16 @@ async def get_answer_media_presigned_url(
             content_type=request.content_type,
         )
 
-        # Return presigned URL with file_size for tracking
+        # Generate signed download URL (7 days expiration) for security
+        signed_download_url = r2_service.generate_presigned_download_url(
+            key=result["key"], expiration=604800  # 7 days
+        )
+
+        # Return presigned upload URL + signed download URL
         return {
             "success": True,
             "presigned_url": result["presigned_url"],
-            "file_url": result["file_url"],
+            "file_url": signed_download_url,  # ✅ Now returns signed URL instead of public
             "file_size_mb": request.file_size_mb,  # Return for frontend tracking
             "expires_in": result["expires_in"],
         }

@@ -156,6 +156,44 @@ class R2StorageService:
         key = key.lstrip("/")
         return f"{self.public_url}/{key}"
 
+    def generate_presigned_download_url(
+        self, key: str, expiration: int = 604800
+    ) -> str:
+        """
+        Generate presigned URL for downloading/viewing a file
+
+        Args:
+            key: S3 object key (path in bucket)
+            expiration: URL expiration time in seconds (default: 604800 = 7 days)
+
+        Returns:
+            Presigned URL with temporary access token
+
+        Security:
+            - URL automatically expires after specified time
+            - Cannot be accessed after expiration
+            - Unique token per URL generation
+            - Prevents unauthorized sharing
+        """
+        try:
+            # Generate presigned URL for GET operation
+            presigned_url = self.s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self.bucket_name, "Key": key},
+                ExpiresIn=expiration,
+                HttpMethod="GET",
+            )
+
+            logger.debug(
+                f"Generated signed download URL for {key} (expires in {expiration}s)"
+            )
+            return presigned_url
+
+        except Exception as e:
+            logger.error(f"❌ Failed to generate presigned URL for {key}: {e}")
+            # Fallback to public URL (temporary compatibility)
+            return self.get_public_url(key)
+
     async def upload_file(
         self, file_content: bytes, r2_key: str, content_type: str
     ) -> Dict[str, Any]:
