@@ -1133,6 +1133,7 @@ async def get_submission_for_grading(
                         grading_rubric=q.get("grading_rubric"),
                         sample_answer=q.get("sample_answer"),
                         student_answer=user_ans.get("essay_answer", ""),
+                        media_attachments=user_ans.get("media_attachments", []),
                         points_earned=(
                             existing_grade.get("points_awarded")
                             if existing_grade

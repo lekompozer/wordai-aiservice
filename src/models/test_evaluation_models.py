@@ -263,7 +263,11 @@ class EssayQuestionForGrading(BaseModel):
     max_points: float = Field(..., description="Maximum points for this question")
     grading_rubric: Optional[str] = Field(None, description="Grading rubric/criteria")
     sample_answer: Optional[str] = Field(None, description="Sample correct answer")
-    student_answer: str = Field(..., description="Student's answer")
+    student_answer: str = Field(..., description="Student's text answer")
+    media_attachments: Optional[list] = Field(
+        None,
+        description="Media files attached to answer (images, audio, documents)",
+    )
     points_earned: Optional[float] = Field(
         None, description="Points earned (if already graded)"
     )
