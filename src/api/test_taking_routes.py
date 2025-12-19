@@ -761,16 +761,20 @@ async def submit_test(
         test_category = test_doc.get("test_category", "academic")
         is_diagnostic = test_category == "diagnostic"
 
-        mcq_questions = [q for q in questions if q.get("question_type", "mcq") == "mcq"]
+        # Count questions by type
         essay_questions = [
             q for q in questions if q.get("question_type", "mcq") == "essay"
         ]
+        # All non-essay questions are auto-gradable (MCQ, true_false_multiple, matching, completion, etc.)
+        auto_gradable_questions = [
+            q for q in questions if q.get("question_type", "mcq") != "essay"
+        ]
 
         has_essay = len(essay_questions) > 0
-        has_mcq = len(mcq_questions) > 0
+        has_mcq = len(auto_gradable_questions) > 0
 
         logger.info(
-            f"   📊 Test format: {len(mcq_questions)} MCQ, {len(essay_questions)} Essay"
+            f"   📊 Test format: {len(auto_gradable_questions)} auto-gradable, {len(essay_questions)} Essay"
         )
         logger.info(f"   📊 Test category: {test_category}")
 
