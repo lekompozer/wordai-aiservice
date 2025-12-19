@@ -223,7 +223,7 @@ async def get_test(
                 # Test settings
                 "max_retries": test.get("max_retries"),
                 "time_limit_minutes": test.get("time_limit_minutes"),
-                "passing_score": test.get("passing_score"),
+                "passing_score": test.get("passing_score", 50),
                 "deadline": (
                     test.get("deadline").isoformat() if test.get("deadline") else None
                 ),
@@ -291,7 +291,7 @@ async def get_test(
                 # Test configuration (basic)
                 "num_questions": len(test.get("questions", [])),
                 "time_limit_minutes": test.get("time_limit_minutes"),
-                "passing_score": test.get("passing_score"),
+                "passing_score": test.get("passing_score", 50),
                 "max_retries": test.get("max_retries"),
                 # Marketplace metadata
                 "price_points": marketplace_config.get("price_points", 0),
