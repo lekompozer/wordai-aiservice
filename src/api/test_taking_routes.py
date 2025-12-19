@@ -919,7 +919,22 @@ async def submit_test(
 
                 elif question_type == "true_false_multiple":
                     # Add statement-by-statement breakdown
+                    # Support both NEW format (options + correct_answers) and LEGACY format (statements)
                     statements = q.get("statements", [])
+                    options = q.get("options", [])
+                    correct_answers = q.get("correct_answers", [])
+                    
+                    # Convert NEW format to unified format if needed
+                    if options and correct_answers and not statements:
+                        statements = [
+                            {
+                                "key": opt.get("option_key"),
+                                "text": opt.get("option_text"),
+                                "correct_value": opt.get("option_key") in correct_answers,
+                            }
+                            for opt in options
+                        ]
+                    
                     user_answers = user_answer_data.get("user_answer", {})
                     breakdown = {}
 
@@ -934,9 +949,7 @@ async def submit_test(
                             "is_correct": user_value == correct_value,
                         }
 
-                    result["statements"] = (
-                        statements  # Include all statements with correct_value
-                    )
+                    result["statements"] = statements  # Include all statements with correct_value
                     result["user_answer"] = user_answers  # User's choices
                     result["breakdown"] = breakdown  # Statement-by-statement comparison
                     result["scoring_mode"] = q.get("scoring_mode", "partial")
