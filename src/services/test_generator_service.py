@@ -2044,9 +2044,9 @@ The {num_mcq_questions} MCQ questions should be distributed as follows:
 **IMPORTANT:**
 - For standard MCQ with 1 correct answer: Use "question_type": "mcq" with "correct_answer_keys": ["A"]
 - For MCQ with multiple correct answers: Use "question_type": "mcq_multiple" with "correct_answers": ["A", "B", ...] (2+ answers)
-- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_answers": [{"left_key": "1", "right_key": "A"}, ...]
-- For completion: Use "question_type": "completion" with SINGLE "template" field containing blanks, and "correct_answers": [{"blank_key": "1", "answers": ["word"]}, ...]
-- For sentence_completion: Use "question_type": "sentence_completion" with "sentences" ARRAY (multiple templates), each sentence has {"key", "template", "word_limit", "correct_answers": ["word"]}
+- For matching: Use "question_type": "matching" with "left_items", "right_options", "correct_answers": [{{"left_key": "1", "right_key": "A"}}, ...]
+- For completion: Use "question_type": "completion" with SINGLE "template" field containing blanks, and "correct_answers": [{{"blank_key": "1", "answers": ["word"]}}, ...]
+- For sentence_completion: Use "question_type": "sentence_completion" with "sentences" ARRAY (multiple templates), each sentence has {{"key", "template", "word_limit", "correct_answers": ["word"]}}
 - For short answer: Use "question_type": "short_answer" with "correct_answers" as array of acceptable answers (1-3 words)
 
 Each MCQ question MUST include a "question_type" field to identify its type."""
@@ -2064,9 +2064,9 @@ For the {num_mcq_questions} MCQ questions, you have flexibility to use a variety
 **Available MCQ types:**
 1. **Standard MCQ** ("question_type": "mcq"): Single correct answer with {num_options} options, use "correct_answers": ["A"]
 2. **Multiple-answer MCQ** ("question_type": "mcq_multiple"): 2+ correct answers, use "correct_answers": ["A", "B"]
-3. **Matching** ("question_type": "matching"): Match items, use "correct_answers": [{"left_key": "1", "right_key": "A"}]
-4. **Completion** ("question_type": "completion"): ONE passage with blanks, use "correct_answers": [{"blank_key": "1", "answers": ["word"]}]
-5. **Sentence completion** ("question_type": "sentence_completion"): MULTIPLE separate sentences, use "sentences": [{"key", "template", "correct_answers": ["word"]}]
+3. **Matching** ("question_type": "matching"): Match items, use "correct_answers": [{{"left_key": "1", "right_key": "A"}}]
+4. **Completion** ("question_type": "completion"): ONE passage with blanks, use "correct_answers": [{{"blank_key": "1", "answers": ["word"]}}]
+5. **Sentence completion** ("question_type": "sentence_completion"): MULTIPLE separate sentences, use "sentences": [{{"key", "template", "correct_answers": ["word"]}}]
 6. **Short answer** ("question_type": "short_answer"): 1-3 word answers, use "correct_answers": ["word"]
 
 **GUIDELINES:**
