@@ -2276,6 +2276,9 @@ Now, generate the mixed test based on the instructions and the document provided
         )
 
         # Response schema for mixed questions
+        # Flexible schema to support both MCQ and Essay questions
+        # MCQ questions may have various types (mcq, mcq_multiple, matching, completion, etc.)
+        # Essay questions only need question_text, grading_rubric, sample_answer
         response_schema = {
             "type": "object",
             "properties": {
@@ -2286,17 +2289,40 @@ Now, generate the mixed test based on the instructions and the document provided
                         "properties": {
                             "question_type": {
                                 "type": "string",
-                                "enum": ["mcq", "essay"],
                             },
                             "question_text": {"type": "string"},
-                            "options": {"type": "array"},
+                            "options": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "option_key": {"type": "string"},
+                                        "option_text": {"type": "string"},
+                                    },
+                                    "required": ["option_key", "option_text"],
+                                },
+                            },
                             "correct_answer_keys": {
                                 "type": "array",
                                 "items": {"type": "string"},
                             },
+                            "correct_answers": {
+                                "type": "array",
+                                "items": {},
+                            },
+                            "template": {"type": "string"},
+                            "blanks": {"type": "array", "items": {}},
+                            "sentences": {"type": "array", "items": {}},
+                            "left_items": {"type": "array", "items": {}},
+                            "right_options": {"type": "array", "items": {}},
                             "explanation": {"type": "string"},
                             "grading_rubric": {"type": "string"},
                             "sample_answer": {"type": "string"},
+                            "points": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10,
+                            },
                         },
                         "required": ["question_type", "question_text"],
                     },
