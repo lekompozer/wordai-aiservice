@@ -355,6 +355,9 @@ class TestWebSocketService:
                         ]:
                             # Text-based types: {"answers": {...}}
                             normalized_answers[question_id] = answer_data
+                        elif q_type == "true_false_multiple":
+                            # True/False Multiple: {"statements": {statement_id: true/false}}
+                            normalized_answers[question_id] = answer_data
                         elif q_type == "essay":
                             # Essay: {"essay_answer": "...", "media_attachments": [...]}
                             normalized_answers[question_id] = answer_data
@@ -496,6 +499,11 @@ class TestWebSocketService:
                     answer_data = {
                         "question_type": "short_answer",
                         "answers": data.get("answers", {}),
+                    }
+                elif question_type == "true_false_multiple":
+                    answer_data = {
+                        "question_type": "true_false_multiple",
+                        "statements": data.get("statements", {}),
                     }
                 elif question_type == "essay":
                     answer_data = {
