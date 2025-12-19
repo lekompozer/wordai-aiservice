@@ -55,6 +55,7 @@ PaymentMethod = Literal[
     "MASTERCARD",
     "MOMO",
     "ZALOPAY",
+    "USDT_BEP20",  # USDT cryptocurrency payment (BEP20 network)
 ]
 PlanType = Literal["premium", "pro", "vip"]
 DurationType = Literal["3_months", "12_months"]

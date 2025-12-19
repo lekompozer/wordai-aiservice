@@ -56,6 +56,7 @@ PaymentMethod = Literal[
     "MASTERCARD",
     "MOMO",
     "ZALOPAY",
+    "USDT_BEP20",  # USDT cryptocurrency payment (BEP20 network)
 ]
 
 
