@@ -241,6 +241,7 @@ from src.api.test_evaluation_routes import router as test_evaluation_router
 from src.api.book_background_routes import router as book_background_router
 from src.api.book_background_routes import (
     upload_router as book_background_upload_router,
+    slide_router as slide_background_router,
 )
 
 # ✅ ADDED: Author API - Community books author management
@@ -1005,10 +1006,16 @@ def create_app() -> FastAPI:
         tags=["Book Backgrounds", "Chapter Backgrounds", "AI Background Generation"],
     )
 
-    # ✅ Background image upload endpoint (no prefix)
+    # ✅ Background image upload endpoint
     app.include_router(
         book_background_upload_router,
         tags=["Book Background Upload"],
+    )
+
+    # ✅ Slide background generation endpoint
+    app.include_router(
+        slide_background_router,
+        tags=["Slide Backgrounds", "AI Background Generation"],
     )
 
     # ✅ NEW: Author API - Community books author management

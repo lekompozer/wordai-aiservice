@@ -31,8 +31,13 @@ R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
 
 router = APIRouter(prefix="/api/v1/books", tags=["Book Backgrounds"])
 
-# Separate router for upload endpoint (no prefix)
-upload_router = APIRouter(tags=["Book Background Upload"])
+# Separate router for upload endpoint with proper prefix
+upload_router = APIRouter(
+    prefix="/api/book-backgrounds", tags=["Book Background Upload"]
+)
+
+# Separate router for slide backgrounds
+slide_router = APIRouter(prefix="/api/slide-backgrounds", tags=["Slide Backgrounds"])
 
 # Initialize services
 db_manager = DBManager()
@@ -585,8 +590,8 @@ async def upload_background_image(
 # ==================== SLIDE BACKGROUND GENERATION ENDPOINT ====================
 
 
-@upload_router.post(
-    "/api/slide-backgrounds/generate",
+@slide_router.post(
+    "/generate",
     response_model=GenerateBackgroundResponse,
     summary="Generate AI background for presentation slides",
 )
