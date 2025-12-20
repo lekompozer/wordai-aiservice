@@ -294,7 +294,6 @@ class DocumentManager:
 
             log_parts.append(f"(version +1){title_info}")
             logger.info(" ".join(log_parts))
-                )
             return True
 
         logger.warning(f"⚠️ Document {document_id} not found or not modified")
