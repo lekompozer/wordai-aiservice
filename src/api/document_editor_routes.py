@@ -565,13 +565,15 @@ async def get_document_by_file(
 
         # Log slide_elements info if present
         slide_elements = document.get("slide_elements", [])
+        slide_backgrounds = document.get("slide_backgrounds", [])
         if slide_elements:
             total_elements = sum(
                 len(slide.get("elements", [])) for slide in slide_elements
             )
             logger.info(
                 f"🎨 [SLIDE_ELEMENTS_API_LOAD] document_id={new_doc_id}, file_id={file_id}, "
-                f"slides={len(slide_elements)}, total_overlay_elements={total_elements}"
+                f"slides={len(slide_elements)}, total_overlay_elements={total_elements}, "
+                f"slide_backgrounds={len(slide_backgrounds)}"
             )
 
         response = DocumentResponse(
@@ -588,7 +590,10 @@ async def get_document_by_file(
             file_id=document.get("file_id"),
             slide_elements=document.get(
                 "slide_elements", []
-            ),  # ✅ FIX: Return overlay elements
+            ),  # ✅ Return overlay elements
+            slide_backgrounds=document.get(
+                "slide_backgrounds", []
+            ),  # ✅ Return slide backgrounds
         )
 
         logger.warning(f"🔍 FRONTEND: Created NEW document copy #{copy_number}")
@@ -1098,6 +1103,7 @@ async def get_document(
 
         # Log slide_elements info when returning document
         slide_elements = document.get("slide_elements", [])
+        slide_backgrounds = document.get("slide_backgrounds", [])
         if slide_elements:
             total_elements = sum(
                 len(slide.get("elements", [])) for slide in slide_elements
@@ -1105,6 +1111,7 @@ async def get_document(
             logger.info(
                 f"🎨 [SLIDE_ELEMENTS_API_LOAD] document_id={document_id}, user_id={user_id}, "
                 f"slides={len(slide_elements)}, total_overlay_elements={total_elements}, "
+                f"slide_backgrounds={len(slide_backgrounds)}, "
                 f"document_type={document.get('document_type')}"
             )
         else:
@@ -1129,7 +1136,10 @@ async def get_document(
             file_id=document.get("file_id"),
             slide_elements=document.get(
                 "slide_elements", []
-            ),  # ✅ NEW: Return overlay elements
+            ),  # ✅ Return overlay elements
+            slide_backgrounds=document.get(
+                "slide_backgrounds", []
+            ),  # ✅ Return slide backgrounds
         )
 
     except HTTPException:
@@ -1173,6 +1183,7 @@ async def save_document(
         logger.info(
             f"📥 [PUT_REQUEST_DEBUG] document_id={document_id}, user_id={user_id}, "
             f"has_slide_elements={update_data.slide_elements is not None}, "
+            f"has_slide_backgrounds={update_data.slide_backgrounds is not None}, "
             f"slide_elements_type={type(update_data.slide_elements)}, "
             f"is_auto_save={update_data.is_auto_save}"
         )
@@ -1185,20 +1196,24 @@ async def save_document(
 
             content_text = re.sub(r"<[^>]+>", "", update_data.content_html)
 
-        # Log slide_elements info before saving
-        if update_data.slide_elements:
+        # Log slide_elements and slide_backgrounds info before saving
+        if update_data.slide_elements or update_data.slide_backgrounds:
             total_elements = sum(
-                len(slide.get("elements", [])) for slide in update_data.slide_elements
+                len(slide.get("elements", []))
+                for slide in (update_data.slide_elements or [])
             )
+            total_backgrounds = len(update_data.slide_backgrounds or [])
             logger.info(
-                f"🎨 [SLIDE_ELEMENTS_API_SAVE] document_id={document_id}, user_id={user_id}, "
-                f"slides={len(update_data.slide_elements)}, total_overlay_elements={total_elements}, "
+                f"🎨 [SLIDE_DATA_API_SAVE] document_id={document_id}, user_id={user_id}, "
+                f"slides_with_elements={len(update_data.slide_elements or [])}, "
+                f"total_overlay_elements={total_elements}, "
+                f"slides_with_backgrounds={total_backgrounds}, "
                 f"is_auto_save={update_data.is_auto_save}"
             )
         else:
             logger.info(
-                f"📄 [SLIDE_ELEMENTS_API_SAVE] document_id={document_id}, user_id={user_id}, "
-                f"slide_elements=None or empty, is_auto_save={update_data.is_auto_save}"
+                f"📄 [SLIDE_DATA_API_SAVE] document_id={document_id}, user_id={user_id}, "
+                f"slide_elements=None, slide_backgrounds=None, is_auto_save={update_data.is_auto_save}"
             )
 
         success = await asyncio.to_thread(
@@ -1209,7 +1224,8 @@ async def save_document(
             content_text=content_text,
             title=update_data.title,
             is_auto_save=update_data.is_auto_save,
-            slide_elements=update_data.slide_elements,  # ✅ NEW: Pass slide_elements for slides
+            slide_elements=update_data.slide_elements,  # ✅ Pass slide_elements for slides
+            slide_backgrounds=update_data.slide_backgrounds,  # ✅ NEW: Pass slide_backgrounds
         )
 
         if not success:

@@ -51,6 +51,10 @@ class DocumentUpdate(BaseModel):
         None,
         description="Overlay elements for slides only (JSON array) - format: [{slideIndex: int, elements: []}]",
     )
+    slide_backgrounds: Optional[list] = Field(
+        None,
+        description="Background settings for slides (JSON array) - format: [{slideIndex: int, background: {type, value, ...}}]",
+    )
 
 
 class DocumentResponse(BaseModel):
@@ -67,8 +71,9 @@ class DocumentResponse(BaseModel):
     source_type: str = "file"  # "file" | "created"
     document_type: Optional[str] = None  # "doc" | "slide" | "note"
     file_id: Optional[str] = None  # Có thể null nếu là created document
-    slide_elements: Optional[list] = (
-        None  # ✅ NEW: Overlay elements for slides (JSON array)
+    slide_elements: Optional[list] = None  # ✅ Overlay elements for slides (JSON array)
+    slide_backgrounds: Optional[list] = (
+        None  # ✅ Background settings for slides (JSON array)
     )
 
 

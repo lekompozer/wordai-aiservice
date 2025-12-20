@@ -211,8 +211,9 @@ class DocumentManager:
         title: Optional[str] = None,
         is_auto_save: bool = False,
         slide_elements: Optional[list] = None,
+        slide_backgrounds: Optional[list] = None,
     ) -> bool:
-        """Cập nhật nội dung document (bao gồm title và slide_elements cho slide documents)"""
+        """Cập nhật nội dung document (bao gồm title, slide_elements, và slide_backgrounds cho slide documents)"""
         now = datetime.utcnow()
 
         update_data = {
@@ -228,7 +229,7 @@ class DocumentManager:
         if title is not None:
             update_data["title"] = title
 
-        # ✅ NEW: Save slide_elements separately (only for slide documents)
+        # ✅ Save slide_elements separately (only for slide documents)
         if slide_elements is not None:
             update_data["slide_elements"] = slide_elements
             # Count total elements across all slides
@@ -243,6 +244,19 @@ class DocumentManager:
         else:
             logger.info(
                 f"📄 [SLIDE_ELEMENTS_SAVE] No overlay elements to save: document_id={document_id}, "
+                f"user_id={user_id}"
+            )
+
+        # ✅ NEW: Save slide_backgrounds separately (only for slide documents)
+        if slide_backgrounds is not None:
+            update_data["slide_backgrounds"] = slide_backgrounds
+            logger.info(
+                f"🎨 [SLIDE_BACKGROUNDS_SAVE] Preparing to save: document_id={document_id}, "
+                f"user_id={user_id}, slides_with_backgrounds={len(slide_backgrounds)}"
+            )
+        else:
+            logger.info(
+                f"📄 [SLIDE_BACKGROUNDS_SAVE] No backgrounds to save: document_id={document_id}, "
                 f"user_id={user_id}"
             )
 
@@ -266,18 +280,20 @@ class DocumentManager:
             save_type = "auto-saved" if is_auto_save else "manually saved"
             title_info = f" (title: {title})" if title else ""
 
-            # ✅ Enhanced logging for slide_elements database confirmation
+            # ✅ Enhanced logging for slide_elements and slide_backgrounds database confirmation
+            log_parts = [f"✅ [DB_SAVED] Document {document_id} {save_type}"]
+
             if slide_elements is not None:
                 total_elements = sum(
                     len(slide.get("elements", [])) for slide in slide_elements
                 )
-                logger.info(
-                    f"✅ [DB_SAVED] Document {document_id} {save_type} with {len(slide_elements)} slides "
-                    f"and {total_elements} overlay elements (version +1){title_info}"
-                )
-            else:
-                logger.info(
-                    f"💾 Document {document_id} {save_type} (version +1){title_info}"
+                log_parts.append(f"{len(slide_elements)} slides with {total_elements} overlay elements")
+
+            if slide_backgrounds is not None:
+                log_parts.append(f"{len(slide_backgrounds)} slides with backgrounds")
+
+            log_parts.append(f"(version +1){title_info}")
+            logger.info(" ".join(log_parts))
                 )
             return True
 
