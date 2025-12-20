@@ -39,35 +39,46 @@ class BookBackgroundService:
             Dict with image_url, r2_key, file_id, prompt_used, generation_time_ms, ai_metadata
         """
         try:
-            # Build A4-optimized prompt
-            a4_prompt = self._build_a4_prompt(request.prompt, request.style)
+            # Build optimized prompt based on generation type
+            if request.generation_type == "slide_background":
+                optimized_prompt = self._build_slide_prompt(
+                    request.prompt, request.style
+                )
+                gen_type = "slide_background"
+                filename_prefix = "slide_bg"
+            else:  # book_cover (default)
+                optimized_prompt = self._build_a4_prompt(request.prompt, request.style)
+                gen_type = "background_a4"
+                filename_prefix = "background_a4"
 
-            logger.info(f"🎨 Generating A4 background for user {user_id}")
+            logger.info(f"🎨 Generating {request.generation_type} for user {user_id}")
             logger.info(f"   Prompt: {request.prompt[:50]}...")
             logger.info(f"   Aspect Ratio: {request.aspect_ratio}")
 
             # Generate image using Gemini service
             result = await self.gemini_service.generate_image(
-                prompt=a4_prompt,
-                generation_type="background_a4",
+                prompt=optimized_prompt,
+                generation_type=gen_type,
                 user_options={"style": request.style} if request.style else {},
-                aspect_ratio=request.aspect_ratio,  # "3:4" for A4 portrait
+                aspect_ratio=request.aspect_ratio,
             )
 
             # Upload to R2
-            filename = f"background_a4_{uuid.uuid4().hex[:8]}.png"
+            filename = f"{filename_prefix}_{uuid.uuid4().hex[:8]}.png"
             upload_result = await self.gemini_service.upload_to_r2(
                 image_bytes=result["image_bytes"], user_id=user_id, filename=filename
             )
 
-            logger.info(f"☁️  Uploaded background to R2: {upload_result['file_url']}")
+            logger.info(
+                f"☁️  Uploaded {request.generation_type} to R2: {upload_result['file_url']}"
+            )
 
             # Save to library
             from src.models.image_generation_models import ImageGenerationMetadata
 
             metadata = ImageGenerationMetadata(
                 source="gemini-3-pro-image-preview",
-                generation_type="background_a4",
+                generation_type=gen_type,
                 prompt=request.prompt,
                 aspect_ratio=request.aspect_ratio,
                 generation_time_ms=result["generation_time_ms"],
@@ -75,7 +86,7 @@ class BookBackgroundService:
                 reference_images_count=0,
                 user_options={
                     "style": request.style,
-                    "page_size": "A4",
+                    "generation_type": request.generation_type,
                     "type": "background",
                 },
             )
@@ -96,7 +107,7 @@ class BookBackgroundService:
                 "image_url": upload_result["file_url"],
                 "r2_key": upload_result["r2_key"],
                 "file_id": library_doc["file_id"],
-                "prompt_used": a4_prompt,
+                "prompt_used": optimized_prompt,
                 "generation_time_ms": result["generation_time_ms"],
                 "ai_metadata": AIMetadata(
                     prompt=request.prompt,
@@ -120,7 +131,7 @@ class BookBackgroundService:
             raise Exception(f"Background generation failed: {str(e)}")
 
     def _build_a4_prompt(self, user_prompt: str, style: Optional[str]) -> str:
-        """Build A4-optimized prompt for Gemini"""
+        """Build A4-optimized prompt for Gemini (book covers, documents)"""
         prompt_parts = [
             "Create a high-quality A4 portrait background image (3:4 aspect ratio, 210mm × 297mm).",
             "",
@@ -137,6 +148,100 @@ class BookBackgroundService:
 
         if style:
             prompt_parts.append(f"- Artistic style: {style}")
+
+        return "\n".join(prompt_parts)
+
+    def _build_slide_prompt(self, user_prompt: str, style: Optional[str]) -> str:
+        """Build slide-optimized prompt for Gemini (presentations, educational slides)"""
+
+        # Map common style keywords to presentation contexts
+        style_contexts = {
+            "business": "corporate business presentation with professional aesthetics",
+            "startup": "modern startup pitch deck with innovative and dynamic design",
+            "corporate": "formal corporate presentation with clean and trustworthy design",
+            "education": "educational presentation with clear learning-focused design",
+            "academic": "academic presentation with scholarly and research-focused design",
+            "creative": "creative presentation with artistic and expressive design",
+            "minimalist": "minimalist presentation with clean and simple design",
+            "modern": "modern presentation with contemporary and sleek design",
+        }
+
+        context = style_contexts.get(
+            style.lower() if style else "", "professional presentation"
+        )
+
+        prompt_parts = [
+            "Create a high-quality presentation slide background image (16:9 aspect ratio, 1920×1080px).",
+            "",
+            f"BACKGROUND DESCRIPTION: {user_prompt}",
+            "",
+            f"PRESENTATION CONTEXT: {context}",
+            "",
+            "REQUIREMENTS:",
+            "- Designed specifically for presentation slides (not documents)",
+            "- Optimized for 16:9 widescreen display",
+            "- Maximum visual impact for audience engagement",
+            "- Excellent readability for text/content overlay",
+            "- Professional quality suitable for:",
+            "  * Business presentations and pitch decks",
+            "  * Educational lectures and training materials",
+            "  * Conference talks and workshops",
+            "  * Corporate communications",
+            "- Balanced composition with strategic empty space for content",
+            "- High contrast areas for text placement",
+            "- Visually appealing but not overwhelming",
+            "- Modern and polished aesthetic",
+        ]
+
+        # Add style-specific guidelines
+        if style:
+            style_lower = style.lower()
+            if style_lower in ["business", "corporate"]:
+                prompt_parts.extend(
+                    [
+                        "",
+                        "STYLE GUIDELINES:",
+                        "- Professional color palette (blues, grays, whites)",
+                        "- Clean lines and geometric patterns",
+                        "- Trustworthy and authoritative feel",
+                        "- Subtle gradients or solid backgrounds",
+                    ]
+                )
+            elif style_lower == "startup":
+                prompt_parts.extend(
+                    [
+                        "",
+                        "STYLE GUIDELINES:",
+                        "- Bold and energetic color palette",
+                        "- Dynamic angles and modern shapes",
+                        "- Innovative and forward-thinking feel",
+                        "- Gradients with vibrant colors",
+                    ]
+                )
+            elif style_lower in ["education", "academic"]:
+                prompt_parts.extend(
+                    [
+                        "",
+                        "STYLE GUIDELINES:",
+                        "- Clear and focused design",
+                        "- Learning-friendly color palette",
+                        "- Organized and structured layout",
+                        "- Calm and concentration-promoting",
+                    ]
+                )
+            elif style_lower == "minimalist":
+                prompt_parts.extend(
+                    [
+                        "",
+                        "STYLE GUIDELINES:",
+                        "- Extremely clean and simple",
+                        "- Monochromatic or limited color palette",
+                        "- Lots of white/negative space",
+                        "- Focus on essential elements only",
+                    ]
+                )
+            else:
+                prompt_parts.append(f"- Artistic style: {style}")
 
         return "\n".join(prompt_parts)
 

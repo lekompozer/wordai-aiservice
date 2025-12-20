@@ -101,6 +101,21 @@ class GenerateBackgroundRequest(BaseModel):
     """Request to generate AI background"""
 
     prompt: str = Field(
+        ..., min_length=10, max_length=500, description="Background description"
+    )
+    aspect_ratio: str = Field(
+        default="3:4", description="Aspect ratio (3:4 for A4, 16:9 for slides)"
+    )
+    style: Optional[str] = Field(
+        None, description="Optional style modifier (minimalist, modern, abstract, etc.)"
+    )
+    generation_type: Literal["book_cover", "slide_background"] = Field(
+        default="book_cover",
+        description="Type of background to generate (book_cover for A4 documents, slide_background for presentations)",
+    )
+    """Request to generate AI background"""
+
+    prompt: str = Field(
         ...,
         min_length=10,
         max_length=500,

@@ -580,3 +580,134 @@ async def upload_background_image(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to upload background image",
         )
+
+
+# ==================== SLIDE BACKGROUND GENERATION ENDPOINT ====================
+
+
+@upload_router.post(
+    "/api/slide-backgrounds/generate",
+    response_model=GenerateBackgroundResponse,
+    summary="Generate AI background for presentation slides",
+)
+async def generate_slide_background(
+    request: GenerateBackgroundRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Generate AI background specifically optimized for presentation slides
+
+    **Authentication:** Required
+
+    **Cost:** 2 points per generation
+
+    **Request Body:**
+    - prompt: Detailed background description (10-500 chars)
+    - aspect_ratio: Default "16:9" for slides (can use "3:4" for portrait)
+    - style: Presentation style (business, startup, corporate, education, academic, creative, minimalist, modern)
+    - generation_type: Must be "slide_background"
+
+    **Optimized Styles:**
+    - **business**: Professional corporate presentations with clean design
+    - **startup**: Dynamic pitch decks with bold colors and modern shapes
+    - **corporate**: Formal presentations with trustworthy aesthetics
+    - **education**: Learning-focused designs with clear layouts
+    - **academic**: Scholarly presentations for research/conferences
+    - **creative**: Artistic and expressive designs
+    - **minimalist**: Clean, simple with lots of white space
+    - **modern**: Contemporary sleek designs
+
+    **Returns:**
+    - success: Generation status
+    - image_url: R2 public URL
+    - r2_key: Storage key
+    - file_id: Library file ID
+    - prompt_used: Full optimized prompt sent to AI
+    - generation_time_ms: Generation time
+    - points_deducted: Points cost (2)
+    - ai_metadata: Generation metadata
+
+    **Errors:**
+    - 402: Insufficient points
+    - 404: Resource not found
+    - 500: Generation failed
+
+    **Example:**
+    ```json
+    {
+      "prompt": "Modern tech startup background with gradient blue tones",
+      "aspect_ratio": "16:9",
+      "style": "startup",
+      "generation_type": "slide_background"
+    }
+    ```
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Override generation_type to ensure it's slide_background
+        request.generation_type = "slide_background"
+
+        # Default to 16:9 for slides if not specified
+        if not request.aspect_ratio or request.aspect_ratio == "3:4":
+            request.aspect_ratio = "16:9"
+
+        # Check points availability first (but DON'T deduct yet)
+        points_service = get_points_service()
+        check = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=POINTS_COST_BACKGROUND,
+            service="slide_background_generation",
+        )
+
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "error": "INSUFFICIENT_POINTS",
+                    "message": f"Không đủ điểm để tạo slide background. Cần: {POINTS_COST_BACKGROUND}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_COST_BACKGROUND,
+                    "points_available": check["points_available"],
+                },
+            )
+
+        logger.info(f"🎨 User {user_id} generating slide background")
+        logger.info(f"   Style: {request.style or 'default'}")
+        logger.info(f"   Aspect Ratio: {request.aspect_ratio}")
+
+        # Generate background (may fail with 503 or other errors)
+        bg_service = get_book_background_service(db)
+        result = await bg_service.generate_ai_background(user_id, request)
+
+        # Only deduct points AFTER successful generation
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_COST_BACKGROUND,
+            service="slide_background_generation",
+            resource_id=f"slide_bg_{result['file_id']}",
+            description=f"Slide background: {request.prompt[:50]}",
+        )
+
+        logger.info(
+            f"✅ Generated slide background (style: {request.style or 'default'})"
+        )
+
+        return GenerateBackgroundResponse(
+            success=True,
+            image_url=result["image_url"],
+            r2_key=result["r2_key"],
+            file_id=result["file_id"],
+            prompt_used=result["prompt_used"],
+            generation_time_ms=result["generation_time_ms"],
+            points_deducted=POINTS_COST_BACKGROUND,
+            ai_metadata=result["ai_metadata"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to generate slide background: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Slide background generation failed: {str(e)}",
+        )
