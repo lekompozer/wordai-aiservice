@@ -287,7 +287,9 @@ class DocumentManager:
                 total_elements = sum(
                     len(slide.get("elements", [])) for slide in slide_elements
                 )
-                log_parts.append(f"{len(slide_elements)} slides with {total_elements} overlay elements")
+                log_parts.append(
+                    f"{len(slide_elements)} slides with {total_elements} overlay elements"
+                )
 
             if slide_backgrounds is not None:
                 log_parts.append(f"{len(slide_backgrounds)} slides with backgrounds")
