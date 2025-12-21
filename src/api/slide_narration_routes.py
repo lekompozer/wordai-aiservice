@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
 import logging
 from bson import ObjectId
-from typing import List
+from typing import List, Dict, Any, Dict, Any
 
 from src.models.slide_narration_models import (
     SubtitleGenerateRequest,
@@ -30,13 +30,16 @@ from src.models.slide_narration_models import (
     LibraryAudioListResponse,
 )
 from src.services.slide_narration_service import get_slide_narration_service
-from src.services.user_management_service import get_user_management_service
-from src.models.user_management import UserInDB
-from src.api.dependencies import get_current_user
-from src.database import get_db
+from src.services.points_service import get_points_service
+from src.middleware.firebase_auth import get_current_user
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 router = APIRouter()
+
+# Initialize DB connection
+db_manager = DBManager()
+db = db_manager.db
 
 # Points cost for each step
 POINTS_COST_SUBTITLE = 2
@@ -73,35 +76,47 @@ POINTS_COST_AUDIO = 2
 async def generate_subtitles(
     presentation_id: str,
     request: SubtitleGenerateRequest,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Generate subtitles for presentation slides"""
     try:
+        user_id = current_user["uid"]
+        user_email = current_user.get("email", "unknown")
+
         logger.info(f"🎙️ Subtitle generation request: {presentation_id}")
         logger.info(
-            f"   User: {current_user.email}, Mode: {request.mode}, Language: {request.language}"
+            f"   User: {user_email}, Mode: {request.mode}, Language: {request.language}"
         )
 
         # Validate presentation_id in request matches URL
         if request.presentation_id != presentation_id:
             raise HTTPException(400, "Presentation ID mismatch")
 
-        # Get user service
-        user_service = get_user_management_service()
+        # Get points service
+        points_service = get_points_service()
 
         # Check points BEFORE generation
-        user_points = await user_service.get_user_points(str(current_user.id))
-        if user_points < POINTS_COST_SUBTITLE:
+        check = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=POINTS_COST_SUBTITLE,
+            service="slide_narration_subtitles",
+        )
+
+        if not check["has_points"]:
             logger.warning(
-                f"❌ Insufficient points: {user_points} < {POINTS_COST_SUBTITLE}"
+                f"❌ Insufficient points: {check['points_available']} < {POINTS_COST_SUBTITLE}"
             )
             raise HTTPException(
                 status_code=402,
-                detail=f"Insufficient points. Need {POINTS_COST_SUBTITLE}, have {user_points}",
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_COST_SUBTITLE}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_COST_SUBTITLE,
+                    "points_available": check["points_available"],
+                },
             )
 
         # Fetch presentation from database
-        db = get_db()
         presentation = await db.presentations.find_one(
             {"_id": ObjectId(presentation_id)}
         )
@@ -109,7 +124,7 @@ async def generate_subtitles(
             raise HTTPException(404, "Presentation not found")
 
         # Check ownership
-        if str(presentation.get("user_id")) != str(current_user.id):
+        if str(presentation.get("user_id")) != user_id:
             raise HTTPException(403, "Not authorized to narrate this presentation")
 
         # Get slides data
@@ -129,7 +144,7 @@ async def generate_subtitles(
             user_query=request.user_query,
             title=presentation.get("title", "Untitled"),
             topic=presentation.get("topic", ""),
-            user_id=str(current_user.id),
+            user_id=user_id,
         )
 
         # Calculate total duration
@@ -138,7 +153,7 @@ async def generate_subtitles(
         # Save to database
         narration_doc = {
             "presentation_id": ObjectId(presentation_id),
-            "user_id": ObjectId(current_user.id),
+            "user_id": ObjectId(user_id),
             "version": await _get_next_version(presentation_id),
             "status": "subtitles_only",
             "mode": request.mode,
@@ -155,8 +170,8 @@ async def generate_subtitles(
         narration_id = str(insert_result.inserted_id)
 
         # Deduct points AFTER successful generation
-        await user_service.deduct_points(
-            user_id=str(current_user.id),
+        await points_service.deduct_points(
+            user_id=user_id,
             points=POINTS_COST_SUBTITLE,
             reason=f"slide_narration_subtitles:{narration_id}",
         )
@@ -215,55 +230,59 @@ async def generate_audio(
     presentation_id: str,
     narration_id: str,
     request: AudioGenerateRequest,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Generate audio from existing subtitles"""
     try:
+        user_id = current_user["uid"]
+        user_email = current_user.get("email", "unknown")
+
         logger.info(f"🔊 Audio generation request: {narration_id}")
-        logger.info(
-            f"   User: {current_user.email}, Provider: {request.voice_config.provider}"
-        )
+        logger.info(f"   User: {user_email}, Provider: {request.voice_config.provider}")
 
         # Validate narration_id in request matches URL
         if request.narration_id != narration_id:
             raise HTTPException(400, "Narration ID mismatch")
 
-        # Get user service
-        user_service = get_user_management_service()
+        # Get points service
+        points_service = get_points_service()
 
         # Check points BEFORE generation
-        user_points = await user_service.get_user_points(str(current_user.id))
-        if user_points < POINTS_COST_AUDIO:
+        check = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=POINTS_COST_AUDIO,
+            service="slide_narration_audio",
+        )
+
+        if not check["has_points"]:
             logger.warning(
-                f"❌ Insufficient points: {user_points} < {POINTS_COST_AUDIO}"
+                f"❌ Insufficient points: {check['points_available']} < {POINTS_COST_AUDIO}"
             )
             raise HTTPException(
                 status_code=402,
-                detail=f"Insufficient points. Need {POINTS_COST_AUDIO}, have {user_points}",
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_COST_AUDIO}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_COST_AUDIO,
+                    "points_available": check["points_available"],
+                },
             )
 
         # Fetch narration from database
-        db = get_db()
         narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
         if not narration:
             raise HTTPException(404, "Narration not found")
 
         # Check ownership
-        if str(narration.get("user_id")) != str(current_user.id):
-            raise HTTPException(403, "Not authorized to access this narration")
+        if str(narration.get("user_id")) != user_id:
+            raise HTTPException(403, "Not authorized to modify this narration")
 
-        # Check presentation_id matches
-        if str(narration.get("presentation_id")) != presentation_id:
-            raise HTTPException(400, "Narration does not belong to this presentation")
-
-        # Check status
+        # Check has subtitles
         if narration.get("status") == "completed":
             raise HTTPException(400, "Audio already generated for this narration")
 
-        # Get slides with subtitles
-        slides_with_subtitles = narration.get("slides", [])
-        if not slides_with_subtitles:
-            raise HTTPException(400, "No subtitles found in narration")
+        if not narration.get("slides"):
+            raise HTTPException(400, "Narration has no subtitles")
 
         # Get narration service
         narration_service = get_slide_narration_service()
@@ -271,43 +290,41 @@ async def generate_audio(
         # Generate audio
         result = await narration_service.generate_audio(
             narration_id=narration_id,
-            slides_with_subtitles=slides_with_subtitles,
-            voice_config=request.voice_config.dict(),
-            user_id=str(current_user.id),
+            slides=narration["slides"],
+            language=narration["language"],
+            voice_config=request.voice_config,
+            user_id=user_id,
         )
 
-        # Calculate total duration
-        total_duration = sum(audio["duration"] for audio in result["audio_files"])
-
-        # Update narration record
+        # Update database with audio files
         await db.slide_narrations.update_one(
             {"_id": ObjectId(narration_id)},
             {
                 "$set": {
-                    "status": "completed",
                     "audio_files": result["audio_files"],
                     "voice_config": request.voice_config.dict(),
+                    "status": "completed",
                     "updated_at": datetime.now(),
                 }
             },
         )
 
         # Deduct points AFTER successful generation
-        await user_service.deduct_points(
-            user_id=str(current_user.id),
+        await points_service.deduct_points(
+            user_id=user_id,
             points=POINTS_COST_AUDIO,
             reason=f"slide_narration_audio:{narration_id}",
         )
 
         logger.info(
-            f"✅ Audio generated: {len(result['audio_files'])} files, {total_duration:.1f}s"
+            f"✅ Audio generated: {narration_id}, {len(result['audio_files'])} files, {result['total_duration']:.1f}s"
         )
 
         return AudioGenerateResponse(
             success=True,
             narration_id=narration_id,
             audio_files=result["audio_files"],
-            total_duration=total_duration,
+            total_duration=result["total_duration"],
             processing_time_ms=result["processing_time_ms"],
             points_deducted=POINTS_COST_AUDIO,
         )
@@ -334,11 +351,11 @@ async def generate_audio(
 )
 async def list_narrations(
     presentation_id: str,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """List all narration versions for presentation"""
     try:
-        db = get_db()
+        user_id = current_user["uid"]
 
         # Check presentation exists and user owns it
         presentation = await db.presentations.find_one(
@@ -347,14 +364,14 @@ async def list_narrations(
         if not presentation:
             raise HTTPException(404, "Presentation not found")
 
-        if str(presentation.get("user_id")) != str(current_user.id):
+        if str(presentation.get("user_id")) != user_id:
             raise HTTPException(403, "Not authorized to view this presentation")
 
         # Fetch all narrations
         cursor = db.slide_narrations.find(
             {
                 "presentation_id": ObjectId(presentation_id),
-                "user_id": ObjectId(current_user.id),
+                "user_id": ObjectId(user_id),
             }
         ).sort("created_at", -1)
 
@@ -391,7 +408,6 @@ async def list_narrations(
 
 async def _get_next_version(presentation_id: str) -> int:
     """Get next version number for narration"""
-    db = get_db()
     latest = await db.slide_narrations.find_one(
         {"presentation_id": ObjectId(presentation_id)}, sort=[("version", -1)]
     )
@@ -419,14 +435,14 @@ async def _get_next_version(presentation_id: str) -> int:
     - Check audio generation status
     """,
 )
-async def get_narration_by_id(
+async def delete_narration(
     presentation_id: str,
     narration_id: str,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Get narration details by ID"""
+    """Delete narration version"""
     try:
-        db = get_db()
+        user_id = current_user["uid"]
 
         # Fetch narration
         narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
@@ -434,7 +450,7 @@ async def get_narration_by_id(
             raise HTTPException(404, "Narration not found")
 
         # Check ownership
-        if str(narration.get("user_id")) != str(current_user.id):
+        if str(narration.get("user_id")) != user_id:
             raise HTTPException(403, "Not authorized to access this narration")
 
         # Check presentation_id matches
@@ -496,13 +512,12 @@ async def update_subtitles(
     presentation_id: str,
     narration_id: str,
     request: UpdateSubtitlesRequest,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Update subtitles before audio generation"""
     try:
+        user_id = current_user["uid"]
         logger.info(f"📝 Updating subtitles for narration {narration_id}")
-
-        db = get_db()
 
         # Fetch narration
         narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
@@ -510,7 +525,7 @@ async def update_subtitles(
             raise HTTPException(404, "Narration not found")
 
         # Check ownership
-        if str(narration.get("user_id")) != str(current_user.id):
+        if str(narration.get("user_id")) != user_id:
             raise HTTPException(403, "Not authorized to edit this narration")
 
         # Check presentation_id matches
@@ -598,13 +613,12 @@ async def update_subtitles(
 async def delete_narration(
     presentation_id: str,
     narration_id: str,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Delete narration and associated audio files"""
     try:
+        user_id = current_user["uid"]
         logger.info(f"🗑️ Deleting narration {narration_id}")
-
-        db = get_db()
 
         # Fetch narration
         narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
@@ -612,7 +626,7 @@ async def delete_narration(
             raise HTTPException(404, "Narration not found")
 
         # Check ownership
-        if str(narration.get("user_id")) != str(current_user.id):
+        if str(narration.get("user_id")) != user_id:
             raise HTTPException(403, "Not authorized to delete this narration")
 
         # Check presentation_id matches
@@ -687,34 +701,31 @@ async def delete_narration(
     """,
 )
 async def list_library_audio(
-    source_type: str = None,
-    search_query: str = None,
-    limit: int = 50,
-    offset: int = 0,
-    current_user: UserInDB = Depends(get_current_user),
+    request: LibraryAudioListRequest = Depends(),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """List library audio files with filters"""
+    """Browse and search library audio files"""
     try:
-        db = get_db()
+        user_id = current_user["uid"]
 
-        # Build query
-        query = {"user_id": ObjectId(current_user.id)}
+        # Build query filter
+        query = {"user_id": ObjectId(user_id)}
 
-        if source_type:
-            query["source_type"] = source_type
+        if request.source_type:
+            query["source_type"] = request.source_type
 
-        if search_query:
-            query["file_name"] = {"$regex": search_query, "$options": "i"}
+        if request.search_query:
+            query["file_name"] = {"$regex": request.search_query, "$options": "i"}
 
         # Get total count
         total_count = await db.library_audio.count_documents(query)
 
-        # Fetch audio files
+        # Fetch audio files with pagination
         cursor = (
             db.library_audio.find(query)
             .sort("created_at", -1)
-            .skip(offset)
-            .limit(limit)
+            .skip(request.offset)
+            .limit(request.limit)
         )
 
         audio_files = []
@@ -724,28 +735,28 @@ async def list_library_audio(
                     audio_id=str(doc["_id"]),
                     file_name=doc.get("file_name", ""),
                     r2_url=doc.get("r2_url", ""),
-                    duration=doc.get("metadata", {}).get("duration_seconds", 0),
+                    duration=doc.get("duration", 0),
                     file_size=doc.get("file_size", 0),
                     format=doc.get("format", "mp3"),
                     source_type=doc.get("source_type", "unknown"),
-                    created_at=doc.get("created_at", datetime.now()),
+                    created_at=(
+                        doc.get("created_at").isoformat()
+                        if doc.get("created_at")
+                        else ""
+                    ),
                     metadata=doc.get("metadata", {}),
                 )
             )
-
-        has_more = (offset + limit) < total_count
-
-        logger.info(
-            f"📚 Listed {len(audio_files)} audio files (total: {total_count}, offset: {offset})"
-        )
 
         return LibraryAudioListResponse(
             success=True,
             audio_files=audio_files,
             total_count=total_count,
-            has_more=has_more,
+            has_more=(request.offset + request.limit) < total_count,
         )
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Failed to list library audio: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to list library audio: {str(e)}")
@@ -782,13 +793,12 @@ async def assign_library_audio(
     presentation_id: str,
     narration_id: str,
     request: AssignAudioRequest,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Assign library audio files to slides"""
     try:
+        user_id = current_user["uid"]
         logger.info(f"🎵 Assigning library audio to narration {narration_id}")
-
-        db = get_db()
 
         # Fetch narration
         narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
@@ -796,7 +806,7 @@ async def assign_library_audio(
             raise HTTPException(404, "Narration not found")
 
         # Check ownership
-        if str(narration.get("user_id")) != str(current_user.id):
+        if str(narration.get("user_id")) != user_id:
             raise HTTPException(403, "Not authorized to edit this narration")
 
         # Check presentation_id matches
@@ -888,15 +898,14 @@ async def remove_slide_audio(
     presentation_id: str,
     narration_id: str,
     slide_index: int,
-    current_user: UserInDB = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Remove audio assignment from specific slide"""
     try:
+        user_id = current_user["uid"]
         logger.info(
             f"🗑️ Removing audio from slide {slide_index} in narration {narration_id}"
         )
-
-        db = get_db()
 
         # Fetch narration
         narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
@@ -904,7 +913,7 @@ async def remove_slide_audio(
             raise HTTPException(404, "Narration not found")
 
         # Check ownership
-        if str(narration.get("user_id")) != str(current_user.id):
+        if str(narration.get("user_id")) != user_id:
             raise HTTPException(403, "Not authorized to edit this narration")
 
         # Check presentation_id matches
