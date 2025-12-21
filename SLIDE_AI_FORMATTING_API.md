@@ -1,32 +1,45 @@
-# Slide AI Formatting API Documentation
+# Slide AI API Documentation
 
 ## 📖 Overview
 
-API endpoint cho tính năng **AI-powered slide formatting and editing**. Cho phép người dùng cải thiện slide tự động với AI, bao gồm:
+API endpoints cho các tính năng AI cho slides:
 
-- ✅ **Format Mode**: Cải thiện layout, typography, visual hierarchy (giữ nguyên nội dung)
-- ✅ **Edit Mode**: Viết lại nội dung theo yêu cầu của người dùng
-- ✅ **Context-Aware**: AI phân tích toàn bộ slide (HTML + Elements + Background)
-- ✅ **Smart Suggestions**: Gợi ý di chuyển elements và thay đổi background (optional)
-
-### 🤖 AI Models Used
-
-| Mode | AI Model | Purpose | Strengths |
-|------|----------|---------|-----------|
-| **Edit** | **Gemini 3 Pro Preview** | Content rewriting & creation | Tốt nhất cho creative writing, rewriting nội dung phức tạp |
-| **Format** | **Claude Sonnet 4.5** | Layout & design optimization | Tốt nhất cho design thinking, visual hierarchy, formatting |
-
-**Lý do chọn model:**
-- **Edit Mode**: Gemini 3 Pro có khả năng creative writing tốt hơn, hiểu context sâu hơn → Phù hợp cho viết lại nội dung
-- **Format Mode**: Claude Sonnet 4.5 có khả năng phân tích design, spacing, typography tốt hơn → Phù hợp cho cải thiện layout
+1. ✅ **Slide Formatting & Editing**: Cải thiện slide tự động với AI
+2. ✅ **Slide Narration**: Tạo subtitles và audio cho presentation
 
 ---
 
-## 🔗 Endpoint
+## 🤖 AI Models Used
+
+| Feature | Mode | AI Model | Purpose |
+|---------|------|----------|---------|
+| **Formatting** | Format | **Claude Sonnet 4.5** | Layout & design optimization |
+| **Formatting** | Edit | **Gemini 3 Pro Preview** | Content rewriting & creation |
+| **Narration** | Subtitles | **Gemini 3 Pro Preview** | Natural narration generation |
+| **Narration** | Audio | **Google TTS (Neural2)** | High-quality speech synthesis |
+
+---
+
+## 🎨 SLIDE FORMATTING & EDITING API
+
+### Endpoint
 
 ```
 POST /api/slides/ai-format
 ```
+
+### Overview
+
+Cho phép người dùng cải thiện slide tự động với AI, bao gồm:
+
+- ✅ **Format Mode**: Cải thiện layout, typography, visual hierarchy (giữ nguyên nội dung)
+- ✅ **Edit Mode**: Viết lại nội dung theo yêu cầu của người dụng
+- ✅ **Context-Aware**: AI phân tích toàn bộ slide (HTML + Elements + Background)
+- ✅ **Smart Suggestions**: Gợi ý di chuyển elements và thay đổi background (optional)
+
+**Lý do chọn model:**
+- **Edit Mode**: Gemini 3 Pro có khả năng creative writing tốt hơn, hiểu context sâu hơn → Phù hợp cho viết lại nội dung
+- **Format Mode**: Claude Sonnet 4.5 có khả năng phân tích design, spacing, typography tốt hơn → Phù hợp cho cải thiện layout
 
 **Base URL**: `https://ai.wordai.pro` (Production)
 
@@ -490,12 +503,279 @@ interface SlideAIFormatResponse {
 
 ---
 
+## 🎙️ SLIDE NARRATION API
+
+### Overview
+
+2-step flow cho tạo narration tự động cho presentation:
+
+1. **Step 1**: Generate Subtitles (2 points) - Tạo subtitles với timestamps
+2. **Step 2**: Generate Audio (2 points) - Convert subtitles thành MP3 audio
+
+**Total Cost**: 4 points (2 + 2) cho complete narration
+
+### Step 1: Generate Subtitles
+
+#### Endpoint
+
+```
+POST /api/presentations/{presentation_id}/narration/generate-subtitles
+```
+
+#### Request Schema
+
+```typescript
+interface SubtitleGenerateRequest {
+  presentation_id: string;  // Presentation ID
+  mode: "presentation" | "academy";  // Narration mode
+  language: "vi" | "en" | "zh";      // Language
+  user_query?: string;               // Optional instructions
+}
+```
+
+**Modes:**
+- **presentation**: Concise narration (30-60s per slide, ~150 words/min)
+- **academy**: Detailed teaching (60-180s per slide, ~130 words/min)
+
+#### Response Schema
+
+```typescript
+interface SubtitleGenerateResponse {
+  success: boolean;
+  narration_id: string;          // Save for Step 2
+  version: number;               // Version number
+  slides: SlideSubtitleData[];   // Slides with subtitles
+  total_duration: number;        // Total duration (seconds)
+  processing_time_ms: number;
+  points_deducted: 2;            // Always 2 points
+}
+
+interface SlideSubtitleData {
+  slide_index: number;
+  slide_duration: number;        // Slide duration (seconds)
+  subtitles: SubtitleEntry[];
+  auto_advance: boolean;
+  transition_delay: number;
+}
+
+interface SubtitleEntry {
+  subtitle_index: number;
+  start_time: number;            // Start time (seconds)
+  end_time: number;              // End time (seconds)
+  duration: number;
+  text: string;                  // Subtitle text
+  speaker_index: number;         // Speaker (0 for single voice)
+  element_references: string[];  // Element IDs referenced
+}
+```
+
+#### Example Response
+
+```json
+{
+  "success": true,
+  "narration_id": "507f1f77bcf86cd799439099",
+  "version": 1,
+  "slides": [
+    {
+      "slide_index": 0,
+      "slide_duration": 15.5,
+      "subtitles": [
+        {
+          "subtitle_index": 0,
+          "start_time": 0.0,
+          "end_time": 3.5,
+          "duration": 3.5,
+          "text": "Chào mừng đến với bài thuyết trình này.",
+          "speaker_index": 0,
+          "element_references": []
+        },
+        {
+          "subtitle_index": 1,
+          "start_time": 4.0,
+          "end_time": 8.2,
+          "duration": 4.2,
+          "text": "Như bạn thấy trong biểu đồ, quy trình có ba giai đoạn chính.",
+          "speaker_index": 0,
+          "element_references": ["elem_0"]
+        }
+      ],
+      "auto_advance": true,
+      "transition_delay": 2.0
+    }
+  ],
+  "total_duration": 45.8,
+  "processing_time_ms": 3200,
+  "points_deducted": 2
+}
+```
+
+---
+
+### Step 2: Generate Audio
+
+#### Endpoint
+
+```
+POST /api/presentations/{presentation_id}/narration/{narration_id}/generate-audio
+```
+
+#### Request Schema
+
+```typescript
+interface AudioGenerateRequest {
+  narration_id: string;        // From Step 1
+  voice_config: VoiceConfig;
+}
+
+interface VoiceConfig {
+  provider: "google" | "openai" | "elevenlabs";
+  voices: VoiceSettings[];
+  use_pro_model: boolean;      // Use premium voices
+}
+
+interface VoiceSettings {
+  voice_name: string;          // Voice ID
+  language: string;            // Language code
+  speaking_rate: number;       // 0.5-2.0
+  pitch?: number;              // -20.0 to 20.0 (Google only)
+}
+```
+
+#### Response Schema
+
+```typescript
+interface AudioGenerateResponse {
+  success: boolean;
+  narration_id: string;
+  audio_files: AudioFile[];
+  total_duration: number;        // Total audio duration (seconds)
+  processing_time_ms: number;
+  points_deducted: 2;            // Always 2 points
+}
+
+interface AudioFile {
+  slide_index: number;
+  audio_url: string;             // R2 CDN URL
+  library_audio_id: string;      // Library audio ID
+  file_size: number;             // Bytes
+  format: "mp3";
+  duration: number;              // Seconds
+  speaker_count: number;
+}
+```
+
+#### Example Response
+
+```json
+{
+  "success": true,
+  "narration_id": "507f1f77bcf86cd799439099",
+  "audio_files": [
+    {
+      "slide_index": 0,
+      "audio_url": "https://cdn.r2.com/narr_507f_slide_0.mp3",
+      "library_audio_id": "507f1f77bcf86cd799439088",
+      "file_size": 245678,
+      "format": "mp3",
+      "duration": 15.5,
+      "speaker_count": 1
+    }
+  ],
+  "total_duration": 45.8,
+  "processing_time_ms": 8500,
+  "points_deducted": 2
+}
+```
+
+---
+
+### Step 3: List Narration Versions
+
+#### Endpoint
+
+```
+GET /api/presentations/{presentation_id}/narrations
+```
+
+#### Response Schema
+
+```typescript
+interface NarrationListResponse {
+  success: boolean;
+  narrations: NarrationVersion[];
+  total_count: number;
+}
+
+interface NarrationVersion {
+  narration_id: string;
+  version: number;
+  status: "subtitles_only" | "completed" | "failed";
+  mode: "presentation" | "academy";
+  language: string;
+  total_duration: number;
+  created_at: string;           // ISO datetime
+  audio_ready: boolean;
+}
+```
+
+---
+
+### Narration Pricing
+
+| Step | Operation | Cost | What You Get |
+|------|-----------|------|--------------|
+| 1 | Generate Subtitles | **2 points** | Subtitles with timestamps, element references |
+| 2 | Generate Audio | **2 points** | MP3 audio files uploaded to R2 CDN |
+
+**Total**: 4 points for complete narration (subtitles + audio)
+
+**Note**: You can skip Step 2 if you only need subtitles (e.g., for custom audio recording)
+
+---
+
+### Error Codes
+
+| Status | Error | Description |
+|--------|-------|-------------|
+| 402 | Insufficient Points | Need 2 points for generation |
+| 404 | Presentation Not Found | Invalid presentation ID |
+| 404 | Narration Not Found | Invalid narration ID (Step 2) |
+| 403 | Forbidden | Not authorized to access resource |
+| 400 | Validation Error | Invalid request parameters |
+| 500 | AI Error | AI generation failed |
+
+---
+
+### Best Practices
+
+**Subtitle Generation:**
+1. Choose mode carefully (presentation vs academy)
+2. Provide clear user_query for specific narration style
+3. Review subtitles before generating audio
+4. Check element_references for animation sync
+
+**Audio Generation:**
+1. Use premium voices (use_pro_model: true) for production
+2. Adjust speaking_rate based on presentation speed
+3. Test voice settings with short slides first
+4. Download audio files from R2 URLs for offline use
+
+---
+
 ## 🔄 Changelog
+
+### Version 1.1.0 (January 2025)
+- ✅ Added Slide Narration API (2-step flow)
+- ✅ Gemini 3 Pro Preview for subtitle generation
+- ✅ Google TTS Neural2 for audio generation
+- ✅ Version management for multiple narrations
+- ✅ Element reference tracking for animations
 
 ### Version 1.0.0 (December 2024)
 - ✅ Initial release
-- ✅ Format mode with Claude 3.5 Sonnet
-- ✅ Edit mode with Gemini 2.0 Pro 3 Preview
+- ✅ Format mode with Claude Sonnet 4.5
+- ✅ Edit mode with Gemini 3 Pro Preview
 - ✅ Points system integration
 - ✅ Element and background suggestions
 - ✅ Comprehensive error handling
@@ -519,6 +799,9 @@ interface SlideAIFormatResponse {
 **Planned Features:**
 - [ ] Batch formatting (format multiple slides at once)
 - [ ] Style presets (corporate, creative, academic, etc.)
+- [ ] Multi-speaker narration support
+- [ ] Custom voice cloning
+- [ ] Subtitle translation
 - [ ] A/B testing (generate 2 variations)
 - [ ] History tracking (revert to previous versions)
 - [ ] Custom AI instructions templates
