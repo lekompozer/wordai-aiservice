@@ -507,12 +507,37 @@ interface SlideAIFormatResponse {
 
 ### Overview
 
-2-step flow cho tạo narration tự động cho presentation:
+Complete narration system với 2-step flow và full CRUD operations:
 
+**AI Generation:**
 1. **Step 1**: Generate Subtitles (2 points) - Tạo subtitles với timestamps
 2. **Step 2**: Generate Audio (2 points) - Convert subtitles thành MP3 audio
 
+**CRUD Operations (No cost):**
+- **GET by ID**: View narration details
+- **UPDATE**: Edit subtitles before audio generation
+- **DELETE**: Remove narration version
+- **LIST**: View all versions
+
 **Total Cost**: 4 points (2 + 2) cho complete narration
+
+---
+
+### API Endpoints Summary
+
+| Method | Endpoint | Cost | Description |
+|--------|----------|------|-------------|
+| POST | `/presentations/{id}/narration/generate-subtitles` | 2 pts | Generate subtitles with AI |
+| POST | `/presentations/{id}/narration/{narration_id}/generate-audio` | 2 pts | Generate audio from subtitles |
+| GET | `/presentations/{id}/narrations` | Free | List all narration versions |
+| GET | `/presentations/{id}/narration/{narration_id}` | Free | Get narration details by ID |
+| PUT | `/presentations/{id}/narration/{narration_id}` | Free | Update/edit subtitles |
+| DELETE | `/presentations/{id}/narration/{narration_id}` | Free | Delete narration version |
+| **GET** | **/library-audio** | **Free** | **Browse library audio files** |
+| **POST** | **/presentations/{id}/narration/{narration_id}/assign-audio** | **Free** | **Assign library audio to slides** |
+| **DELETE** | **/presentations/{id}/narration/{narration_id}/audio/{slide_index}** | **Free** | **Remove audio from slide** |
+
+---
 
 ### Step 1: Generate Subtitles
 
@@ -690,6 +715,241 @@ interface AudioFile {
 
 ---
 
+### CRUD Operations
+
+#### Get Narration by ID
+
+**Endpoint:**
+```
+GET /api/presentations/{presentation_id}/narration/{narration_id}
+```
+
+**Response Schema:**
+```typescript
+interface NarrationDetailResponse {
+  success: boolean;
+  narration_id: string;
+  presentation_id: string;
+  version: number;
+  status: "subtitles_only" | "completed" | "failed";
+  mode: "presentation" | "academy";
+  language: string;
+  user_query: string;
+  slides: SlideSubtitleData[];       // All subtitles
+  audio_files: AudioFile[];          // Empty if not generated
+  voice_config?: VoiceConfig;        // Only if audio generated
+  total_duration: number;
+  created_at: string;                // ISO datetime
+  updated_at: string;
+}
+```
+
+**Use Cases:**
+- Preview subtitles before audio generation
+- Review AI-generated content
+- Check audio generation status
+- Load data for editing modal
+
+---
+
+#### Update Subtitles
+
+**Endpoint:**
+```
+PUT /api/presentations/{presentation_id}/narration/{narration_id}
+```
+
+**Request Schema:**
+```typescript
+interface UpdateSubtitlesRequest {
+  slides: SlideSubtitleData[];  // Updated slides with edited subtitles
+}
+```
+
+**Response Schema:**
+```typescript
+interface UpdateSubtitlesResponse {
+  success: boolean;
+  narration_id: string;
+  slides: SlideSubtitleData[];
+  total_duration: number;        // Recalculated
+  updated_at: string;
+}
+```
+
+**Validation:**
+- ✅ Can only edit if status is "subtitles_only"
+- ✅ Cannot edit after audio is generated
+- ✅ Timestamps must not overlap
+- ✅ Automatic duration recalculation
+
+**Use Cases:**
+- Fix AI-generated subtitle errors
+- Adjust timing for better sync
+- Customize text before audio generation
+- Change speaker assignments
+
+---
+
+#### Delete Narration
+
+**Endpoint:**
+```
+DELETE /api/presentations/{presentation_id}/narration/{narration_id}
+```
+
+**Response Schema:**
+```typescript
+interface DeleteNarrationResponse {
+  success: boolean;
+  narration_id: string;
+  message: string;
+}
+```
+
+**What Gets Deleted:**
+- ✅ Narration record with all subtitles
+- ✅ Audio files from R2 storage (if generated)
+- ✅ Library audio records
+
+**Warning:** This action cannot be undone!
+
+---
+
+### Library Audio Integration
+
+#### List Library Audio Files
+
+**Endpoint:**
+```
+GET /api/library-audio?source_type=slide_narration&search_query=intro&limit=50&offset=0
+```
+
+**Query Parameters:**
+- `source_type` (optional): Filter by source (`slide_narration`, `listening_test`, `upload`)
+- `search_query` (optional): Search in file names
+- `limit` (optional): Max results (1-100, default: 50)
+- `offset` (optional): Pagination offset (default: 0)
+
+**Response Schema:**
+```typescript
+interface LibraryAudioListResponse {
+  success: boolean;
+  audio_files: LibraryAudioItem[];
+  total_count: number;
+  has_more: boolean;
+}
+
+interface LibraryAudioItem {
+  audio_id: string;
+  file_name: string;
+  r2_url: string;
+  duration: number;            // seconds
+  file_size: number;           // bytes
+  format: string;              // "mp3"
+  source_type: string;         // "slide_narration", "listening_test", "upload"
+  created_at: string;          // ISO datetime
+  metadata?: object;
+}
+```
+
+**Use Cases:**
+- Browse available audio files
+- Search for specific audio
+- Select audio for slide assignment
+- Preview audio before assigning
+
+---
+
+#### Assign Library Audio to Slides
+
+**Endpoint:**
+```
+POST /api/presentations/{id}/narration/{narration_id}/assign-audio
+```
+
+**Request Schema:**
+```typescript
+interface AssignAudioRequest {
+  audio_assignments: AudioAssignment[];
+}
+
+interface AudioAssignment {
+  slide_index: number;
+  library_audio_id: string;
+}
+```
+
+**Response Schema:**
+```typescript
+interface AssignAudioResponse {
+  success: boolean;
+  narration_id: string;
+  audio_files: AudioFile[];
+  message: string;
+}
+```
+
+**Example Request:**
+```json
+{
+  "audio_assignments": [
+    {
+      "slide_index": 0,
+      "library_audio_id": "507f1f77bcf86cd799439088"
+    },
+    {
+      "slide_index": 1,
+      "library_audio_id": "507f1f77bcf86cd799439089"
+    },
+    {
+      "slide_index": 2,
+      "library_audio_id": "507f1f77bcf86cd799439090"
+    }
+  ]
+}
+```
+
+**Features:**
+- ✅ Assign different audio to each slide
+- ✅ Replace existing audio assignments
+- ✅ Use pre-recorded/uploaded audio instead of TTS
+- ✅ Mix TTS with custom audio
+- ✅ No points cost (just assignment)
+
+**Use Cases:**
+- Use custom recorded narration
+- Reuse audio from other presentations
+- Replace TTS audio with professional recording
+- Assign uploaded audio files
+
+---
+
+#### Remove Audio from Slide
+
+**Endpoint:**
+```
+DELETE /api/presentations/{id}/narration/{narration_id}/audio/{slide_index}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "narration_id": "507f...",
+  "slide_index": 0,
+  "message": "Audio removed from slide 0",
+  "remaining_audio_count": 4
+}
+```
+
+**Notes:**
+- Does NOT delete audio from library_audio (just removes assignment)
+- Can remove audio from individual slides
+- Narration status updates to "subtitles_only" if all audio removed
+
+---
+
 ### Step 3: List Narration Versions
 
 #### Endpoint
@@ -738,12 +998,128 @@ interface NarrationVersion {
 
 | Status | Error | Description |
 |--------|-------|-------------|
-| 402 | Insufficient Points | Need 2 points for generation |
+| 402 | Insufficient Points | Need 2 points for AI generation |
 | 404 | Presentation Not Found | Invalid presentation ID |
-| 404 | Narration Not Found | Invalid narration ID (Step 2) |
+| 404 | Narration Not Found | Invalid narration ID |
 | 403 | Forbidden | Not authorized to access resource |
 | 400 | Validation Error | Invalid request parameters |
+| 400 | Already Generated | Cannot edit after audio generation |
+| 400 | Overlapping Timestamps | Subtitle timestamps overlap |
 | 500 | AI Error | AI generation failed |
+
+---
+
+### Workflow Example
+
+**Complete Narration Flow:**
+
+```typescript
+// Step 1: Generate subtitles with AI (2 points)
+const subtitleResponse = await generateSubtitles({
+  presentation_id: "507f...",
+  mode: "presentation",
+  language: "vi",
+  user_query: "Focus on key benefits"
+});
+
+const narrationId = subtitleResponse.narration_id;
+
+// Optional: Preview and edit subtitles (no cost)
+const narration = await getNarrationById(presentationId, narrationId);
+
+// Optional: Edit subtitles if needed (no cost)
+await updateSubtitles(presentationId, narrationId, {
+  slides: editedSlides  // Modified subtitles
+});
+
+// Step 2: Generate audio (2 points)
+const audioResponse = await generateAudio(presentationId, narrationId, {
+  voice_config: {
+    provider: "google",
+    voices: [{
+      voice_name: "vi-VN-Neural2-A",
+      language: "vi-VN",
+      speaking_rate: 1.0
+    }],
+    use_pro_model: true
+  }
+});
+
+// Use audio URLs in presentation
+const audioFiles = audioResponse.audio_files;
+```
+
+**Alternative Flow (Subtitles Only):**
+
+```typescript
+// Generate subtitles only (2 points)
+const response = await generateSubtitles({
+  presentation_id: "507f...",
+  mode: "academy",
+  language: "vi"
+});
+
+// Use subtitles for custom audio recording
+// No need to call generateAudio
+```
+
+**Library Audio Assignment Flow:**
+
+```typescript
+// Step 1: Browse library audio
+const libraryAudio = await fetch('/api/library-audio?source_type=upload&limit=50');
+const audioFiles = libraryAudio.audio_files;
+
+// Step 2: Select audio for each slide
+const assignments = [
+  { slide_index: 0, library_audio_id: audioFiles[0].audio_id },
+  { slide_index: 1, library_audio_id: audioFiles[1].audio_id },
+  { slide_index: 2, library_audio_id: audioFiles[2].audio_id }
+];
+
+// Step 3: Assign to narration (no cost)
+await fetch(`/api/presentations/${presentationId}/narration/${narrationId}/assign-audio`, {
+  method: 'POST',
+  body: JSON.stringify({ audio_assignments: assignments })
+});
+
+// Step 4: Use assigned audio in presentation
+// Audio URLs are now in narration.audio_files
+```
+
+**Mixed Audio Flow (TTS + Custom):**
+
+```typescript
+// Step 1: Generate audio for some slides (2 points)
+const audioResponse = await generateAudio(presentationId, narrationId, {
+  voice_config: { /* TTS config */ }
+});
+
+// Step 2: Replace specific slides with custom audio (no cost)
+const customAssignments = [
+  { slide_index: 0, library_audio_id: "custom_intro_audio_id" },
+  // Keep TTS audio for slides 1-4
+  { slide_index: 5, library_audio_id: "custom_outro_audio_id" }
+];
+
+await assignLibraryAudio(presentationId, narrationId, {
+  audio_assignments: customAssignments
+});
+```
+
+**Version Management:**
+
+```typescript
+// List all versions
+const versions = await listNarrations(presentationId);
+
+// Get specific version
+const v1 = await getNarrationById(presentationId, versions[0].narration_id);
+const v2 = await getNarrationById(presentationId, versions[1].narration_id);
+
+// Delete old version
+await deleteNarration(presentationId, v1.narration_id);
+```
 
 ---
 
@@ -752,14 +1128,27 @@ interface NarrationVersion {
 **Subtitle Generation:**
 1. Choose mode carefully (presentation vs academy)
 2. Provide clear user_query for specific narration style
-3. Review subtitles before generating audio
+3. Review subtitles before generating audio (use GET endpoint)
 4. Check element_references for animation sync
+5. Wait up to 4 minutes for AI generation (average: 3-5 seconds)
+
+**Subtitle Editing:**
+1. Use PUT endpoint to fix AI errors before audio generation
+2. Validate timestamps don't overlap
+3. Test edited subtitles in preview before generating audio
+4. Cannot edit after audio is generated - create new version instead
 
 **Audio Generation:**
 1. Use premium voices (use_pro_model: true) for production
 2. Adjust speaking_rate based on presentation speed
 3. Test voice settings with short slides first
 4. Download audio files from R2 URLs for offline use
+
+**Version Management:**
+1. Keep only necessary versions (delete old ones)
+2. Use version numbers to track iterations
+3. Test new versions before deleting old ones
+4. Each regeneration creates new version (increments automatically)
 
 ---
 

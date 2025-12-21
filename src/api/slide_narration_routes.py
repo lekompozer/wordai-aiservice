@@ -18,6 +18,16 @@ from src.models.slide_narration_models import (
     NarrationVersion,
     SlideSubtitleData,
     AudioFile,
+    NarrationDetailResponse,
+    UpdateSubtitlesRequest,
+    UpdateSubtitlesResponse,
+    DeleteNarrationResponse,
+    VoiceConfig,
+    LibraryAudioItem,
+    AssignAudioRequest,
+    AssignAudioResponse,
+    LibraryAudioListRequest,
+    LibraryAudioListResponse,
 )
 from src.services.slide_narration_service import get_slide_narration_service
 from src.services.user_management_service import get_user_management_service
@@ -386,3 +396,554 @@ async def _get_next_version(presentation_id: str) -> int:
         {"presentation_id": ObjectId(presentation_id)}, sort=[("version", -1)]
     )
     return (latest.get("version", 0) + 1) if latest else 1
+
+
+@router.get(
+    "/presentations/{presentation_id}/narration/{narration_id}",
+    response_model=NarrationDetailResponse,
+    summary="Get Narration by ID",
+    description="""
+    **Get detailed narration data by ID**
+
+    Returns complete narration record including:
+    - All subtitles with timestamps
+    - Audio files (if generated)
+    - Voice configuration (if audio generated)
+    - Version and status information
+
+    **No points cost** (read-only operation)
+
+    Use this to:
+    - Preview subtitles before audio generation
+    - Review/edit subtitles
+    - Check audio generation status
+    """,
+)
+async def get_narration_by_id(
+    presentation_id: str,
+    narration_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Get narration details by ID"""
+    try:
+        db = get_db()
+
+        # Fetch narration
+        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        if not narration:
+            raise HTTPException(404, "Narration not found")
+
+        # Check ownership
+        if str(narration.get("user_id")) != str(current_user.id):
+            raise HTTPException(403, "Not authorized to access this narration")
+
+        # Check presentation_id matches
+        if str(narration.get("presentation_id")) != presentation_id:
+            raise HTTPException(400, "Narration does not belong to this presentation")
+
+        return NarrationDetailResponse(
+            success=True,
+            narration_id=str(narration["_id"]),
+            presentation_id=str(narration.get("presentation_id")),
+            version=narration.get("version", 1),
+            status=narration.get("status", "unknown"),
+            mode=narration.get("mode", "presentation"),
+            language=narration.get("language", "vi"),
+            user_query=narration.get("user_query", ""),
+            slides=narration.get("slides", []),
+            audio_files=narration.get("audio_files", []),
+            voice_config=narration.get("voice_config"),
+            total_duration=narration.get("total_duration", 0.0),
+            created_at=narration.get("created_at", datetime.now()),
+            updated_at=narration.get("updated_at", datetime.now()),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get narration: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get narration: {str(e)}")
+
+
+@router.put(
+    "/presentations/{presentation_id}/narration/{narration_id}",
+    response_model=UpdateSubtitlesResponse,
+    summary="Update Subtitles",
+    description="""
+    **Update/edit subtitles before audio generation**
+
+    Allows manual editing of:
+    - Subtitle text
+    - Timestamps (start_time, end_time, duration)
+    - Speaker assignments
+    - Element references
+    - Slide duration and auto-advance settings
+
+    **No points cost** (editing only)
+
+    **Requirements:**
+    - Narration must be in 'subtitles_only' status
+    - Cannot edit after audio is generated
+    - Timestamps must not overlap
+
+    Use this to:
+    - Fix AI-generated subtitle errors
+    - Adjust timing for better sync
+    - Customize narration before audio generation
+    """,
+)
+async def update_subtitles(
+    presentation_id: str,
+    narration_id: str,
+    request: UpdateSubtitlesRequest,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Update subtitles before audio generation"""
+    try:
+        logger.info(f"📝 Updating subtitles for narration {narration_id}")
+
+        db = get_db()
+
+        # Fetch narration
+        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        if not narration:
+            raise HTTPException(404, "Narration not found")
+
+        # Check ownership
+        if str(narration.get("user_id")) != str(current_user.id):
+            raise HTTPException(403, "Not authorized to edit this narration")
+
+        # Check presentation_id matches
+        if str(narration.get("presentation_id")) != presentation_id:
+            raise HTTPException(400, "Narration does not belong to this presentation")
+
+        # Check status - can only edit before audio generation
+        if narration.get("status") == "completed":
+            raise HTTPException(
+                400,
+                "Cannot edit subtitles after audio has been generated. Create a new version instead.",
+            )
+
+        # Validate timestamps don't overlap
+        for slide in request.slides:
+            subtitles = slide.subtitles
+            for i in range(len(subtitles) - 1):
+                current = subtitles[i]
+                next_sub = subtitles[i + 1]
+                if current.end_time > next_sub.start_time:
+                    raise HTTPException(
+                        400,
+                        f"Overlapping timestamps in slide {slide.slide_index}: "
+                        f"subtitle {current.subtitle_index} ends at {current.end_time}s, "
+                        f"but subtitle {next_sub.subtitle_index} starts at {next_sub.start_time}s",
+                    )
+
+        # Calculate new total duration
+        total_duration = sum(slide.slide_duration for slide in request.slides)
+
+        # Update in database
+        updated_at = datetime.now()
+        await db.slide_narrations.update_one(
+            {"_id": ObjectId(narration_id)},
+            {
+                "$set": {
+                    "slides": [slide.dict() for slide in request.slides],
+                    "total_duration": total_duration,
+                    "updated_at": updated_at,
+                }
+            },
+        )
+
+        logger.info(
+            f"✅ Updated subtitles for {len(request.slides)} slides, total: {total_duration:.1f}s"
+        )
+
+        return UpdateSubtitlesResponse(
+            success=True,
+            narration_id=narration_id,
+            slides=request.slides,
+            total_duration=total_duration,
+            updated_at=updated_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update subtitles: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to update subtitles: {str(e)}")
+
+
+@router.delete(
+    "/presentations/{presentation_id}/narration/{narration_id}",
+    response_model=DeleteNarrationResponse,
+    summary="Delete Narration",
+    description="""
+    **Delete a narration version**
+
+    Permanently deletes:
+    - Narration record with all subtitles
+    - Associated audio files from R2 (if generated)
+    - Library audio records
+
+    **No points cost** (deletion)
+
+    **Warning:** This action cannot be undone!
+
+    Use this to:
+    - Remove unwanted narration versions
+    - Clean up test data
+    - Free up storage space
+    """,
+)
+async def delete_narration(
+    presentation_id: str,
+    narration_id: str,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Delete narration and associated audio files"""
+    try:
+        logger.info(f"🗑️ Deleting narration {narration_id}")
+
+        db = get_db()
+
+        # Fetch narration
+        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        if not narration:
+            raise HTTPException(404, "Narration not found")
+
+        # Check ownership
+        if str(narration.get("user_id")) != str(current_user.id):
+            raise HTTPException(403, "Not authorized to delete this narration")
+
+        # Check presentation_id matches
+        if str(narration.get("presentation_id")) != presentation_id:
+            raise HTTPException(400, "Narration does not belong to this presentation")
+
+        # Delete associated audio files from library_audio
+        audio_files = narration.get("audio_files", [])
+        if audio_files:
+            from src.services.library_audio_service import LibraryAudioService
+
+            audio_service = LibraryAudioService()
+            for audio in audio_files:
+                library_audio_id = audio.get("library_audio_id")
+                if library_audio_id:
+                    try:
+                        # Delete from R2 and database
+                        await audio_service.delete_audio(library_audio_id)
+                        logger.info(f"   Deleted audio: {library_audio_id}")
+                    except Exception as e:
+                        logger.warning(
+                            f"   Failed to delete audio {library_audio_id}: {e}"
+                        )
+
+        # Delete narration record
+        await db.slide_narrations.delete_one({"_id": ObjectId(narration_id)})
+
+        logger.info(
+            f"✅ Deleted narration {narration_id} with {len(audio_files)} audio files"
+        )
+
+        return DeleteNarrationResponse(
+            success=True,
+            narration_id=narration_id,
+            message=f"Narration version {narration.get('version', 1)} deleted successfully",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete narration: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to delete narration: {str(e)}")
+
+
+# ============================================================
+# LIBRARY AUDIO INTEGRATION
+# ============================================================
+
+
+@router.get(
+    "/library-audio",
+    response_model=LibraryAudioListResponse,
+    summary="List Library Audio Files",
+    description="""
+    **Browse/search library audio files**
+
+    Returns list of audio files from library_audio collection.
+
+    **Filters:**
+    - source_type: Filter by source (slide_narration, listening_test, upload)
+    - search_query: Search in file names
+    - limit: Max results per page (1-100)
+    - offset: Pagination offset
+
+    **No points cost** (read-only)
+
+    Use this to:
+    - Browse available audio files
+    - Search for specific audio
+    - Select audio for slide assignment
+    - Preview audio before assigning
+    """,
+)
+async def list_library_audio(
+    source_type: str = None,
+    search_query: str = None,
+    limit: int = 50,
+    offset: int = 0,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """List library audio files with filters"""
+    try:
+        db = get_db()
+
+        # Build query
+        query = {"user_id": ObjectId(current_user.id)}
+
+        if source_type:
+            query["source_type"] = source_type
+
+        if search_query:
+            query["file_name"] = {"$regex": search_query, "$options": "i"}
+
+        # Get total count
+        total_count = await db.library_audio.count_documents(query)
+
+        # Fetch audio files
+        cursor = (
+            db.library_audio.find(query)
+            .sort("created_at", -1)
+            .skip(offset)
+            .limit(limit)
+        )
+
+        audio_files = []
+        async for doc in cursor:
+            audio_files.append(
+                LibraryAudioItem(
+                    audio_id=str(doc["_id"]),
+                    file_name=doc.get("file_name", ""),
+                    r2_url=doc.get("r2_url", ""),
+                    duration=doc.get("metadata", {}).get("duration_seconds", 0),
+                    file_size=doc.get("file_size", 0),
+                    format=doc.get("format", "mp3"),
+                    source_type=doc.get("source_type", "unknown"),
+                    created_at=doc.get("created_at", datetime.now()),
+                    metadata=doc.get("metadata", {}),
+                )
+            )
+
+        has_more = (offset + limit) < total_count
+
+        logger.info(
+            f"📚 Listed {len(audio_files)} audio files (total: {total_count}, offset: {offset})"
+        )
+
+        return LibraryAudioListResponse(
+            success=True,
+            audio_files=audio_files,
+            total_count=total_count,
+            has_more=has_more,
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Failed to list library audio: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to list library audio: {str(e)}")
+
+
+@router.post(
+    "/presentations/{presentation_id}/narration/{narration_id}/assign-audio",
+    response_model=AssignAudioResponse,
+    summary="Assign Library Audio to Slides",
+    description="""
+    **Assign existing library audio to slides**
+
+    Allows selecting audio files from library_audio collection and assigning them to slides.
+
+    **Features:**
+    - Assign different audio to each slide
+    - Replace existing audio assignments
+    - Use pre-recorded/uploaded audio instead of TTS
+    - No points cost (just assignment)
+
+    **Requirements:**
+    - Narration must exist
+    - Audio files must belong to current user
+    - Can assign to narrations in any status
+
+    **Use Cases:**
+    - Use custom recorded narration
+    - Reuse audio from other presentations
+    - Mix TTS with custom audio
+    - Replace TTS audio with professional recording
+    """,
+)
+async def assign_library_audio(
+    presentation_id: str,
+    narration_id: str,
+    request: AssignAudioRequest,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Assign library audio files to slides"""
+    try:
+        logger.info(f"🎵 Assigning library audio to narration {narration_id}")
+
+        db = get_db()
+
+        # Fetch narration
+        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        if not narration:
+            raise HTTPException(404, "Narration not found")
+
+        # Check ownership
+        if str(narration.get("user_id")) != str(current_user.id):
+            raise HTTPException(403, "Not authorized to edit this narration")
+
+        # Check presentation_id matches
+        if str(narration.get("presentation_id")) != presentation_id:
+            raise HTTPException(400, "Narration does not belong to this presentation")
+
+        # Build audio_files array
+        audio_files = []
+
+        for assignment in request.audio_assignments:
+            slide_index = assignment.get("slide_index")
+            library_audio_id = assignment.get("library_audio_id")
+
+            # Fetch audio from library
+            audio_doc = await db.library_audio.find_one(
+                {"_id": ObjectId(library_audio_id)}
+            )
+
+            if not audio_doc:
+                raise HTTPException(404, f"Audio not found: {library_audio_id}")
+
+            # Verify ownership
+            if str(audio_doc.get("user_id")) != str(current_user.id):
+                raise HTTPException(
+                    403, f"Not authorized to use audio: {library_audio_id}"
+                )
+
+            # Add to audio_files array
+            audio_files.append(
+                {
+                    "slide_index": slide_index,
+                    "audio_url": audio_doc.get("r2_url", ""),
+                    "library_audio_id": str(audio_doc["_id"]),
+                    "file_size": audio_doc.get("file_size", 0),
+                    "format": audio_doc.get("format", "mp3"),
+                    "duration": audio_doc.get("metadata", {}).get(
+                        "duration_seconds", 0
+                    ),
+                    "speaker_count": 1,
+                }
+            )
+
+        # Update narration with assigned audio
+        await db.slide_narrations.update_one(
+            {"_id": ObjectId(narration_id)},
+            {
+                "$set": {
+                    "audio_files": audio_files,
+                    "status": "completed",  # Mark as completed
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+
+        logger.info(f"✅ Assigned {len(audio_files)} audio files to narration")
+
+        return AssignAudioResponse(
+            success=True,
+            narration_id=narration_id,
+            audio_files=audio_files,
+            message=f"Successfully assigned {len(audio_files)} audio files",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to assign audio: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to assign audio: {str(e)}")
+
+
+@router.delete(
+    "/presentations/{presentation_id}/narration/{narration_id}/audio/{slide_index}",
+    summary="Remove Audio from Slide",
+    description="""
+    **Remove audio assignment from specific slide**
+
+    Removes audio file assignment from a single slide.
+    Does NOT delete the audio from library_audio (just removes assignment).
+
+    **No points cost**
+
+    Use this to:
+    - Remove unwanted audio from slide
+    - Clear audio before reassigning
+    - Revert to subtitle-only mode for specific slide
+    """,
+)
+async def remove_slide_audio(
+    presentation_id: str,
+    narration_id: str,
+    slide_index: int,
+    current_user: UserInDB = Depends(get_current_user),
+):
+    """Remove audio assignment from specific slide"""
+    try:
+        logger.info(
+            f"🗑️ Removing audio from slide {slide_index} in narration {narration_id}"
+        )
+
+        db = get_db()
+
+        # Fetch narration
+        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        if not narration:
+            raise HTTPException(404, "Narration not found")
+
+        # Check ownership
+        if str(narration.get("user_id")) != str(current_user.id):
+            raise HTTPException(403, "Not authorized to edit this narration")
+
+        # Check presentation_id matches
+        if str(narration.get("presentation_id")) != presentation_id:
+            raise HTTPException(400, "Narration does not belong to this presentation")
+
+        # Remove audio for specified slide
+        audio_files = narration.get("audio_files", [])
+        updated_audio_files = [
+            audio for audio in audio_files if audio.get("slide_index") != slide_index
+        ]
+
+        # Determine new status
+        new_status = "completed" if updated_audio_files else "subtitles_only"
+
+        # Update narration
+        await db.slide_narrations.update_one(
+            {"_id": ObjectId(narration_id)},
+            {
+                "$set": {
+                    "audio_files": updated_audio_files,
+                    "status": new_status,
+                    "updated_at": datetime.now(),
+                }
+            },
+        )
+
+        logger.info(f"✅ Removed audio from slide {slide_index}")
+
+        return {
+            "success": True,
+            "narration_id": narration_id,
+            "slide_index": slide_index,
+            "message": f"Audio removed from slide {slide_index}",
+            "remaining_audio_count": len(updated_audio_files),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to remove audio: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to remove audio: {str(e)}")
