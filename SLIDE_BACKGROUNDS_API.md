@@ -320,6 +320,8 @@ STYLE GUIDELINES:
         colors: string[];
         stops?: number[];
       };
+      overlayOpacity?: number;  // ✅ NEW: 0-1 for image/ai-image types
+      overlayColor?: string;    // ✅ NEW: Hex color for overlay
     };
   }>;
 }
@@ -418,7 +420,9 @@ slide_backgrounds: [
     slideIndex: 2,
     background: {
       type: 'image',
-      value: 'https://r2.cloudflare.com/...'
+      value: 'https://r2.cloudflare.com/...',
+      overlayOpacity: 0.3,
+      overlayColor: '#000000'
     }
   },
   {
@@ -426,7 +430,9 @@ slide_backgrounds: [
     background: {
       type: 'ai-image',
       value: 'https://r2.cloudflare.com/generated/...',
-      prompt: 'A beautiful sunset over mountains'
+      prompt: 'A beautiful sunset over mountains',
+      overlayOpacity: 0.25,
+      overlayColor: '#ffffff'
     }
   }
 ]
@@ -439,8 +445,8 @@ slide_backgrounds: [
 const slideBackgrounds = new Map<number, BackgroundSettings>([
   [0, { type: 'color', value: '#FF5733' }],
   [1, { type: 'gradient', gradient: {...} }],
-  [2, { type: 'image', value: 'https://...' }],
-  [3, { type: 'ai-image', value: 'https://...', prompt: '...' }]
+  [2, { type: 'image', value: 'https://...', overlayOpacity: 0.3, overlayColor: '#000000' }],
+  [3, { type: 'ai-image', value: 'https://...', prompt: '...', overlayOpacity: 0.2, overlayColor: '#ffffff' }]
 ]);
 ```
 
@@ -564,7 +570,9 @@ const slideBackgrounds = new Map<number, BackgroundSettings>([
 ```typescript
 {
   type: 'image',
-  value: 'https://static.wordai.pro/backgrounds/user123/bg_1234567890.png'  // R2 URL from upload endpoint
+  value: 'https://static.wordai.pro/backgrounds/user123/bg_1234567890.png',  // R2 URL from upload endpoint
+  overlayOpacity?: number;  // ✅ NEW: 0-1 (0 = no overlay, 1 = fully opaque)
+  overlayColor?: string;    // ✅ NEW: Hex color (e.g., "#000000" for dark, "#ffffff" for light)
 }
 ```
 
@@ -574,19 +582,28 @@ const slideBackgrounds = new Map<number, BackgroundSettings>([
 3. Backend validates (format, size), uploads to R2, saves to library
 4. Backend returns `image_url`
 5. Frontend sets `{type: 'image', value: image_url}` as background
-6. Save document with `slide_backgrounds` array
+6. User optionally adjusts overlay (opacity + color) in UI
+7. Save document with `slide_backgrounds` array including overlay settings
 
 **Validation:**
 - Formats: JPG, PNG, WebP only
 - Max size: 10MB
 - Recommended: High-res images (1754x2480px for A4)
 
+**Overlay Feature:**
+- `overlayOpacity`: 0 (transparent) to 1 (opaque) - Controls overlay darkness/lightness
+- `overlayColor`: Hex color - "#000000" (black) for darkening, "#ffffff" (white) for brightening
+- Use case: Improve text readability on busy backgrounds
+- Example: Bright image + 0.4 opacity black overlay = Better contrast for white text
+
 ### 5. AI-Generated Image
 ```typescript
 {
   type: 'ai-image',
   value: 'https://static.wordai.pro/ai-generated-images/user123/img_1234567890.png',  // R2 URL from AI generation
-  prompt?: 'A beautiful sunset over mountains'  // Optional: store prompt for reference
+  prompt?: string;          // Optional: store prompt for reference
+  overlayOpacity?: number;  // ✅ NEW: 0-1 (0 = no overlay, 1 = fully opaque)
+  overlayColor?: string;    // ✅ NEW: Hex color for overlay tint
 }
 ```
 
@@ -718,9 +735,21 @@ Backend saves to documents.slide_backgrounds
 ```typescript
 {
   type: 'image',
-  value: 'https://r2.cloudflare.com/bucket/file.jpg'
+  value: 'https://r2.cloudflare.com/bucket/file.jpg',
+  overlayOpacity?: 0.3,     // ✅ NEW: 0-1 (optional, default 0)
+  overlayColor?: '#000000'  // ✅ NEW: Hex color (optional)
 }
 ```
+
+**Overlay Feature:**
+- Improves text readability on busy/bright backgrounds
+- `overlayOpacity`: 0 (transparent) to 1 (fully opaque)
+- `overlayColor`: "#000000" (black) for darkening, "#ffffff" (white) for brightening
+
+**Use Cases:**
+- Bright background + dark overlay (0.3-0.5 opacity) → Better for white text
+- Dark background + light overlay (0.2-0.3 opacity) → Better for black text
+- Perfect contrast background → No overlay needed (opacity 0)
 
 ### 5. AI-Generated Image
 ```typescript
@@ -728,9 +757,117 @@ Backend saves to documents.slide_backgrounds
   type: 'ai-image',
   value: 'https://r2.cloudflare.com/bucket/generated.jpg',
   prompt: 'A beautiful sunset over mountains',  // Optional
-  model: 'dall-e-3'                             // Optional
+  overlayOpacity?: 0.25,    // ✅ NEW: 0-1 (optional, default 0)
+  overlayColor?: '#ffffff'  // ✅ NEW: Hex color (optional)
 }
 ```
+
+---
+
+## 🎨 Overlay Feature (New)
+
+### Overview
+
+Background overlays allow you to add a semi-transparent color layer on top of image/AI backgrounds to improve text readability.
+
+**Applies to**: `type: 'image'` and `type: 'ai-image'` only
+**Not for**: `type: 'color'` or `type: 'gradient'` (no need)
+
+### Fields
+
+```typescript
+{
+  overlayOpacity?: number;  // 0-1 (0 = invisible, 1 = fully opaque)
+  overlayColor?: string;    // Hex color (e.g., "#000000", "#ffffff")
+}
+```
+
+### Backend Behavior
+
+✅ **No validation** - Backend accepts any valid number (0-1) and hex color
+✅ **Optional fields** - Can be omitted, defaults handled by frontend
+✅ **Pass-through storage** - Saved directly to MongoDB JSONB without transformation
+✅ **Backward compatible** - Old backgrounds without overlay fields still work
+
+### Common Patterns
+
+**Dark Overlay (for bright backgrounds)**
+```typescript
+{
+  type: 'image',
+  value: 'https://.../bright-beach.jpg',
+  overlayOpacity: 0.4,      // 40% dark overlay
+  overlayColor: '#000000'    // Black
+}
+// Result: Darkened background, white text readable
+```
+
+**Light Overlay (for dark backgrounds)**
+```typescript
+{
+  type: 'ai-image',
+  value: 'https://.../dark-corporate.jpg',
+  overlayOpacity: 0.2,      // 20% light overlay
+  overlayColor: '#ffffff'    // White
+}
+// Result: Lightened background, black text readable
+```
+
+**No Overlay (perfect contrast)**
+```typescript
+{
+  type: 'image',
+  value: 'https://.../perfect-background.jpg'
+  // overlayOpacity omitted or 0
+}
+// Result: Original image, no modification
+```
+
+### Frontend Implementation
+
+**Rendering Order (Z-index)**
+```
+Background Image (z-index: 0)
+      ↓
+Overlay Layer (z-index: 1) ← Semi-transparent color
+      ↓
+Content/Text (z-index: 2)
+      ↓
+Interactive Elements (z-index: 10+)
+```
+
+**CSS Example**
+```css
+.slide-background {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-image: url(background.value);
+  background-size: cover;
+}
+
+.slide-overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: background.overlayColor;
+  opacity: background.overlayOpacity;
+  pointer-events: none; /* Allow clicks through */
+}
+```
+
+### Migration
+
+**No migration needed!**
+
+Existing backgrounds without overlay fields:
+- Backend returns them as-is (no overlay fields)
+- Frontend treats `overlayOpacity === undefined` as `0` (no overlay)
+- User can add overlay later via UI
+
+New backgrounds with overlay:
+- Backend stores overlay fields in JSONB
+- Frontend renders overlay layer when `overlayOpacity > 0`
 
 ---
 
@@ -750,6 +887,16 @@ Backend saves to documents.slide_backgrounds
 3. **Auto-save không lưu backgrounds**
    - Check: Auto-save flow có gọi `getSlideBackgrounds()` không
    - Verify: `is_auto_save=true` request vẫn gửi `slide_backgrounds`
+
+4. **Overlay không hiển thị**
+   - Check: `overlayOpacity > 0` (0 = invisible)
+   - Verify: Background type là `image` hoặc `ai-image`
+   - Check: `overlayColor` có giá trị hex hợp lệ
+
+5. **Overlay quá đậm/quá nhạt**
+   - Adjust: `overlayOpacity` từ 0.1 (10%) đến 0.8 (80%)
+   - Recommended: 0.2-0.4 cho hầu hết trường hợp
+   - Test: Preview trước khi save
 
 ---
 
@@ -813,6 +960,19 @@ Backend saves to documents.slide_backgrounds
 - [ ] Concurrent saves (auto + manual) → no race conditions
 - [ ] User cancels upload mid-flight → no orphaned files
 - [ ] AI generation retries → idempotent (no duplicate charges)
+
+### Overlay Feature Tests
+
+- [ ] Set overlay on image background → opacity 0.3, black → saved correctly
+- [ ] Set overlay on AI background → opacity 0.2, white → saved correctly
+- [ ] Change overlay opacity from 0 to 0.5 → updates smoothly
+- [ ] Change overlay color from black to white → visual change immediate
+- [ ] Remove overlay (set opacity to 0) → overlay disappears
+- [ ] Save background with overlay → reload → overlay persists
+- [ ] Background without overlay fields → loads normally (backward compatible)
+- [ ] Overlay on color/gradient background → ignored (not applicable)
+- [ ] Extreme values (opacity 0, 1) → handled correctly
+- [ ] Invalid overlay color → validation error or fallback
 
 ---
 

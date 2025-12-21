@@ -244,6 +244,9 @@ from src.api.book_background_routes import (
     slide_router as slide_background_router,
 )
 
+# ✅ ADDED: Slide AI API - AI-powered slide formatting and editing
+from src.api.slide_ai_routes import router as slide_ai_router
+
 # ✅ ADDED: Author API - Community books author management
 from src.api.author_routes import router as author_router
 
@@ -1016,6 +1019,12 @@ def create_app() -> FastAPI:
     app.include_router(
         slide_background_router,
         tags=["Slide Backgrounds", "AI Background Generation"],
+    )
+
+    # ✅ NEW: Slide AI API - AI-powered slide formatting and editing
+    app.include_router(
+        slide_ai_router,
+        tags=["Slide AI", "AI Formatting"],
     )
 
     # ✅ NEW: Author API - Community books author management
