@@ -1079,26 +1079,203 @@ class DocumentExportService:
         """
 
         elif element_type == "shape":
-            border_radius = (
-                "50%"
-                if element.get("shape") == "circle"
-                else f"{element.get('borderRadius', 0)}px"
-            )
+            # Enhanced shape rendering with full feature support
+            shape_type = element.get("shapeType", "rectangle")
+
+            # Determine border radius and special shapes
+            if shape_type in ["circle"]:
+                border_radius = "50%"
+            elif shape_type == "ellipse":
+                border_radius = "50%"
+            elif shape_type == "sticky-note":
+                border_radius = "8px"  # Rounded corners for sticky notes
+            elif shape_type == "icon-circle-plus":
+                border_radius = "50%"  # Circle shape
+            else:
+                border_radius = f"{element.get('borderRadius', 0)}px"
+
+            # Fill (solid or gradient)
+            fill_enabled = element.get("fillEnabled", True)
+            fill_type = element.get("fillType", "solid")
+            background_style = ""
+
+            if fill_enabled:
+                if fill_type == "gradient":
+                    gradient = element.get("gradient", {})
+                    gradient_type = gradient.get("type", "linear")
+                    colors = gradient.get("colors", ["#667eea", "#764ba2"])
+
+                    if gradient_type == "linear":
+                        angle = gradient.get("angle", 135)
+                        gradient_colors = ", ".join(colors)
+                        background_style = f"background: linear-gradient({angle}deg, {gradient_colors});"
+                    else:  # radial
+                        gradient_colors = ", ".join(colors)
+                        background_style = (
+                            f"background: radial-gradient(circle, {gradient_colors});"
+                        )
+                else:  # solid
+                    fill_color = element.get("fillColor", "#cccccc")
+                    background_style = f"background-color: {fill_color};"
+            else:
+                background_style = "background: transparent;"
+
+            # Border
+            border_enabled = element.get("borderEnabled", True)
+            border_style_css = ""
+
+            if border_enabled:
+                border_width = element.get("borderWidth", 2)
+                border_color = element.get("borderColor", "#000000")
+                border_style_type = element.get("borderStyle", "solid")
+                border_style_css = (
+                    f"border: {border_width}px {border_style_type} {border_color};"
+                )
+            else:
+                border_style_css = "border: none;"
+
+            # Shadow
+            shadow_enabled = element.get("shadowEnabled", False)
+            shadow_style = ""
+
+            if shadow_enabled:
+                shadow_x = element.get("shadowOffsetX", 0)
+                shadow_y = element.get("shadowOffsetY", 4)
+                shadow_blur = element.get("shadowBlur", 8)
+                shadow_color = element.get("shadowColor", "rgba(0, 0, 0, 0.3)")
+                shadow_style = f"box-shadow: {shadow_x}px {shadow_y}px {shadow_blur}px {shadow_color};"
+
+            # Text overlay
+            text_html = ""
+            text_enabled = element.get("textEnabled", False)
+
+            if text_enabled and element.get("text"):
+                text_content = element.get("text", "")
+                text_color = element.get("textColor", "#000000")
+                text_size = element.get("textSize", 16)
+                text_align = element.get("textAlign", "center")
+                text_v_align = element.get("textVerticalAlign", "middle")
+                text_bold = element.get("textBold", False)
+                text_italic = element.get("textItalic", False)
+
+                align_items_map = {
+                    "top": "flex-start",
+                    "middle": "center",
+                    "bottom": "flex-end",
+                }
+
+                text_html = f"""
+            <div style="
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: {align_items_map.get(text_v_align, 'center')};
+                justify-content: {text_align};
+                padding: 10px;
+                color: {text_color};
+                font-size: {text_size}px;
+                font-weight: {'bold' if text_bold else 'normal'};
+                font-style: {'italic' if text_italic else 'normal'};
+                text-align: {text_align};
+                pointer-events: none;
+            ">{text_content}</div>
+            """
+
+            # Special shape rendering (icons, 3D shapes, etc.)
+            special_shape_html = ""
+
+            # Zigzag line pattern
+            if shape_type == "line-zigzag":
+                special_shape_html = """
+            <svg width="100%" height="100%" style="position: absolute; top: 0; left: 0;">
+                <path d="M 0,50 L 25,25 L 50,50 L 75,25 L 100,50" stroke="currentColor" stroke-width="2" fill="none" />
+            </svg>
+            """
+
+            # 3D Cube
+            elif shape_type == "cube-3d":
+                special_shape_html = """
+            <svg width="100%" height="100%" viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0;">
+                <polygon points="50,10 90,30 90,70 50,90 10,70 10,30" fill="currentColor" opacity="0.8"/>
+                <polygon points="50,10 90,30 50,50 10,30" fill="currentColor" opacity="0.9"/>
+                <polygon points="50,50 90,70 90,30 50,10" fill="currentColor" opacity="0.7"/>
+            </svg>
+            """
+
+            # 3D Cylinder
+            elif shape_type == "cylinder-3d":
+                special_shape_html = """
+            <svg width="100%" height="100%" viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0;">
+                <ellipse cx="50" cy="20" rx="40" ry="15" fill="currentColor" opacity="0.9"/>
+                <rect x="10" y="20" width="80" height="60" fill="currentColor" opacity="0.8"/>
+                <ellipse cx="50" cy="80" rx="40" ry="15" fill="currentColor" opacity="0.9"/>
+            </svg>
+            """
+
+            # Sticky Note (with folded corner effect)
+            elif shape_type == "sticky-note":
+                sticky_bg = element.get("fillColor", "#fef08a")
+                special_shape_html = f"""
+            <div style="
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: {sticky_bg};
+                clip-path: polygon(0 0, 85% 0, 100% 15%, 100% 100%, 0 100%);
+            "></div>
+            <div style="
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 15%;
+                height: 15%;
+                background: linear-gradient(135deg, transparent 50%, rgba(0,0,0,0.1) 50%);
+            "></div>
+            """
+
+            # Puzzle Piece
+            elif shape_type == "puzzle-piece":
+                special_shape_html = """
+            <svg width="100%" height="100%" viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0;">
+                <path d="M 20,20 L 45,20 Q 50,10 55,20 L 80,20 L 80,45 Q 90,50 80,55 L 80,80 L 55,80 Q 50,90 45,80 L 20,80 L 20,55 Q 10,50 20,45 Z"
+                      fill="currentColor" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
+            </svg>
+            """
+
+            # Circle Plus Icon
+            elif shape_type == "icon-circle-plus":
+                icon_color = element.get("fillColor", "#10b981")
+                special_shape_html = f"""
+            <svg width="100%" height="100%" viewBox="0 0 100 100" style="position: absolute; top: 0; left: 0;">
+                <circle cx="50" cy="50" r="45" fill="{icon_color}" stroke="rgba(0,0,0,0.2)" stroke-width="2"/>
+                <line x1="50" y1="25" x2="50" y2="75" stroke="white" stroke-width="6" stroke-linecap="round"/>
+                <line x1="25" y1="50" x2="75" y2="50" stroke="white" stroke-width="6" stroke-linecap="round"/>
+            </svg>
+            """
+
             return f"""
-        <div class="overlay-shape" style="
+        <div class="overlay-shape shape-{shape_type}" style="
             position: absolute;
             left: {element.get('x', 0)}px;
             top: {element.get('y', 0)}px;
             width: {element.get('width', 100)}px;
             height: {element.get('height', 100)}px;
-            background-color: {element.get('backgroundColor', '#cccccc')};
-            border: {element.get('borderWidth', 0)}px {element.get('borderStyle', 'solid')} {element.get('borderColor', '#000')};
+            {background_style if not special_shape_html else ''}
+            {border_style_css if not special_shape_html else ''}
             border-radius: {border_radius};
             transform: rotate({element.get('rotation', 0)}deg);
             transform-origin: center;
             z-index: {element.get('zIndex', 1)};
             opacity: {element.get('opacity', 1)};
-        "></div>
+            {shadow_style}
+            overflow: hidden;
+            color: {element.get('fillColor', '#667eea')};
+        ">{special_shape_html}{text_html}</div>
         """
 
         return ""  # Unknown type
