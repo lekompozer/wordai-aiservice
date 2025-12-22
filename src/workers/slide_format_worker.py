@@ -151,13 +151,13 @@ class SlideFormatWorker:
 
         while self.running:
             try:
-                # Fetch task from Redis queue (blocking with timeout)
-                task_data = await self.queue_manager.dequeue_task(
+                # Fetch task from Redis queue
+                task_data = await self.queue_manager.dequeue_generic_task(
                     worker_id=self.worker_id, timeout=5
                 )
 
                 if not task_data:
-                    # No task available, continue loop
+                    await asyncio.sleep(1)
                     continue
 
                 # Parse task
@@ -166,7 +166,6 @@ class SlideFormatWorker:
                 except Exception as parse_error:
                     logger.error(f"❌ Failed to parse task: {parse_error}")
                     continue
-
                 # Process task
                 success = await self.process_task(task)
 

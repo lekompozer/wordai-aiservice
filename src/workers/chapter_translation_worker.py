@@ -395,7 +395,7 @@ class ChapterTranslationWorker:
         while self.running:
             try:
                 # Fetch task from Redis queue
-                task_data = await self.queue_manager.dequeue_task(
+                task_data = await self.queue_manager.dequeue_generic_task(
                     worker_id=self.worker_id, timeout=5
                 )
 
