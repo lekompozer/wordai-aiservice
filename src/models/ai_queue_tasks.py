@@ -31,6 +31,15 @@ class AIEditorTask(BaseModel):
         None, description="'slash_separated' or 'line_break'"
     )
 
+    # Slide-specific fields (for format type with slides)
+    slide_index: Optional[int] = Field(None, description="Slide index (for slides)")
+    elements: Optional[list] = Field(
+        None, description="Slide elements (shapes, images, videos, text boxes)"
+    )
+    background: Optional[dict] = Field(
+        None, description="Slide background (color, gradient, image)"
+    )
+
     # Task metadata
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     priority: int = Field(default=1, description="1=normal, 2=high, 3=urgent")

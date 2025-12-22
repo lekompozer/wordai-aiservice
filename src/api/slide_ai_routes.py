@@ -78,9 +78,7 @@ async def ai_format_slide(
 
         # Determine points cost based on format type
         points_cost = (
-            POINTS_COST_FORMAT
-            if request.format_type == "format"
-            else POINTS_COST_EDIT
+            POINTS_COST_FORMAT if request.format_type == "format" else POINTS_COST_EDIT
         )
 
         # Check points
@@ -200,15 +198,17 @@ async def get_slide_format_job_status(
         return SlideFormatJobStatusResponse(
             job_id=job["job_id"],
             status=SlideFormatJobStatus(job["status"]),
-            created_at=job.get("created_at", "").isoformat()
-            if job.get("created_at")
-            else None,
-            started_at=job.get("started_at", "").isoformat()
-            if job.get("started_at")
-            else None,
-            completed_at=job.get("completed_at", "").isoformat()
-            if job.get("completed_at")
-            else None,
+            created_at=(
+                job.get("created_at", "").isoformat() if job.get("created_at") else None
+            ),
+            started_at=(
+                job.get("started_at", "").isoformat() if job.get("started_at") else None
+            ),
+            completed_at=(
+                job.get("completed_at", "").isoformat()
+                if job.get("completed_at")
+                else None
+            ),
             processing_time_seconds=job.get("processing_time_seconds"),
             formatted_html=job.get("formatted_html"),
             suggested_elements=job.get("suggested_elements"),
@@ -222,75 +222,3 @@ async def get_slide_format_job_status(
     except Exception as e:
         logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
-    ```
-
-    **Errors:**
-    - 402: Insufficient points
-    - 500: AI processing failed
-    """
-    try:
-        user_id = current_user["uid"]
-
-        # Determine points cost based on format type
-        points_cost = (
-            POINTS_COST_EDIT if request.format_type == "edit" else POINTS_COST_FORMAT
-        )
-
-        # Check points availability (but don't deduct yet)
-        points_service = get_points_service()
-        check = await points_service.check_sufficient_points(
-            user_id=user_id,
-            points_needed=points_cost,
-            service="slide_ai_formatting",
-        )
-
-        if not check["has_points"]:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail={
-                    "error": "INSUFFICIENT_POINTS",
-                    "message": f"Không đủ điểm để format slide. Cần: {points_cost}, Còn: {check['points_available']}",
-                    "points_needed": points_cost,
-                    "points_available": check["points_available"],
-                },
-            )
-
-        logger.info(f"🎨 User {user_id} formatting slide {request.slide_index}")
-        logger.info(f"   Format type: {request.format_type}")
-        logger.info(f"   Points cost: {points_cost}")
-
-        # Call AI service
-        ai_service = get_slide_ai_service()
-        result = await ai_service.format_slide(request, user_id)
-
-        # Deduct points AFTER successful formatting
-        await points_service.deduct_points(
-            user_id=user_id,
-            amount=points_cost,
-            service="slide_ai_formatting",
-            resource_id=f"slide_{request.slide_index}",
-            description=f"AI {request.format_type}: {request.user_instruction or 'Auto format'}",
-        )
-
-        logger.info(
-            f"✅ Slide formatted successfully ({result['processing_time_ms']}ms)"
-        )
-
-        return SlideAIFormatResponse(
-            success=True,
-            formatted_html=result["formatted_html"],
-            suggested_elements=result.get("suggested_elements", []),
-            suggested_background=result.get("suggested_background"),
-            ai_explanation=result["ai_explanation"],
-            processing_time_ms=result["processing_time_ms"],
-            points_deducted=points_cost,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to format slide: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"AI formatting failed: {str(e)}",
-        )

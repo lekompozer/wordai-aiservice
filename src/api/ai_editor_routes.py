@@ -214,6 +214,15 @@ class AIFormatRequest(BaseModel):
         None, description="Additional user formatting instruction"
     )
 
+    # Slide-specific fields (optional, for slides only)
+    slide_index: Optional[int] = Field(None, description="Slide index (for slides)")
+    elements: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Slide elements (shapes, images, videos, text boxes)"
+    )
+    background: Optional[Dict[str, Any]] = Field(
+        None, description="Slide background (color, gradient, image)"
+    )
+
     def validate_ids(self):
         """Ensure either document_id or chapter_id is provided"""
         if not self.document_id and not self.chapter_id:
@@ -615,6 +624,10 @@ async def format_document(
             content_type=content_type,
             content=request.context_html,
             user_query=request.user_query,
+            # Slide-specific fields
+            slide_index=request.slide_index,
+            elements=request.elements,
+            background=request.background,
         )
 
         success = await queue.enqueue_generic_task(task)
