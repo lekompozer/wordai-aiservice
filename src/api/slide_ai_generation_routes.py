@@ -72,14 +72,41 @@ async def get_slide_generation_status(
                 detail="Not an AI-generated slide. This endpoint is only for AI slide generation status.",
             )
 
+        # Build status message
+        status = document.get("ai_generation_status", "pending")
+        progress = document.get("ai_progress_percent", 0)
+        num_slides = document.get("ai_num_slides")
+
+        if status == "pending":
+            message = "Slide generation is starting..."
+        elif status == "processing":
+            message = f"Generating slides... ({progress}% complete)"
+        elif status == "completed":
+            message = f"Successfully generated {num_slides} slides!"
+        elif status == "failed":
+            message = "Slide generation failed. No points were deducted."
+        else:
+            message = "Unknown status"
+
         # Return status
         return SlideGenerationStatus(
             document_id=document_id,
-            status=document.get("ai_generation_status", "pending"),
-            progress_percent=document.get("ai_progress_percent", 0),
+            status=status,
+            progress_percent=progress,
             error_message=document.get("ai_error_message"),
-            num_slides=document.get("ai_num_slides"),
+            num_slides=num_slides,
             title=document.get("title"),
+            created_at=(
+                document.get("created_at", datetime.now()).isoformat()
+                if isinstance(document.get("created_at"), datetime)
+                else document.get("created_at", datetime.now().isoformat())
+            ),
+            updated_at=(
+                document.get("updated_at", datetime.now()).isoformat()
+                if isinstance(document.get("updated_at"), datetime)
+                else document.get("updated_at", datetime.now().isoformat())
+            ),
+            message=message,
         )
 
     except HTTPException:
