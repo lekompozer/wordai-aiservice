@@ -118,7 +118,9 @@ class TranslationWorker:
         while self.running:
             try:
                 # Fetch task from Redis queue (blocking with timeout)
-                task_data = await self.queue_manager.dequeue_task(timeout=5)
+                task_data = await self.queue_manager.dequeue_task(
+                    worker_id=self.worker_id, timeout=5
+                )
 
                 if not task_data:
                     # No task available, continue loop

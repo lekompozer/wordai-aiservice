@@ -100,15 +100,25 @@ class AIEditorWorker:
                 f"⚙️ Processing AI editor job {job_id} (type={task.job_type}, size={len(task.content):,} chars)"
             )
 
-            # Update status to processing
-            await self.jobs_collection.update_one(
+            # Create job in MongoDB (upsert to handle race conditions)
+            self.jobs_collection.update_one(
                 {"job_id": job_id},
                 {
+                    "$setOnInsert": {
+                        "job_id": job_id,
+                        "document_id": task.document_id,
+                        "job_type": task.job_type,
+                        "content_type": task.content_type,
+                        "created_at": start_time,
+                        "content_size": len(task.content),
+                        "estimated_tokens": len(task.content) // 4,
+                    },
                     "$set": {
                         "status": "processing",
                         "started_at": start_time,
-                    }
+                    },
                 },
+                upsert=True,
             )
 
             # Process based on job type and content type
@@ -118,7 +128,7 @@ class AIEditorWorker:
             processing_time = (end_time - start_time).total_seconds()
 
             # Update status to completed
-            await self.jobs_collection.update_one(
+            self.jobs_collection.update_one(
                 {"job_id": job_id},
                 {
                     "$set": {
@@ -141,7 +151,7 @@ class AIEditorWorker:
             logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
 
             # Update status to failed
-            await self.jobs_collection.update_one(
+            self.jobs_collection.update_one(
                 {"job_id": job_id},
                 {
                     "$set": {
@@ -213,7 +223,9 @@ class AIEditorWorker:
         while self.running:
             try:
                 # Fetch task from Redis queue (blocking with timeout)
-                task_data = await self.queue_manager.dequeue_task(timeout=5)
+                task_data = await self.queue_manager.dequeue_task(
+                    worker_id=self.worker_id, timeout=5
+                )
 
                 if not task_data:
                     # No task available, continue loop

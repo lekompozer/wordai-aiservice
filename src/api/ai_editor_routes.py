@@ -604,37 +604,16 @@ async def format_document(
             logger.error(f"❌ Error deducting points: {points_error}")
             raise HTTPException(status_code=500, detail="Failed to deduct points")
 
-        # === CREATE JOB IN MONGODB ===
+        # === ENQUEUE TASK TO REDIS (Pure Redis Pattern) ===
+        # Worker will create job in MongoDB when processing starts
         import uuid
-        from datetime import datetime
 
-        job_id = str(uuid.uuid4())
-        job_doc = {
-            "job_id": job_id,
-            "document_id": resource_id,
-            "job_type": "format",
-            "content_type": content_type,
-            "status": "pending",
-            "content": request.context_html,
-            "user_query": request.user_query,
-            "result": None,
-            "error": None,
-            "created_at": datetime.utcnow(),
-            "started_at": None,
-            "completed_at": None,
-            "content_size": len(request.context_html),
-            "estimated_tokens": len(request.context_html) // 4,
-        }
-
-        await mongo_service.db["ai_editor_jobs"].insert_one(job_doc)
-        logger.info(f"📝 Created job {job_id} in MongoDB")
-
-        # === ENQUEUE TASK TO REDIS ===
+        task_id = str(uuid.uuid4())
         queue = await get_ai_editor_queue()
 
         task = AIEditorTask(
-            task_id=job_id,
-            job_id=job_id,
+            task_id=task_id,
+            job_id=task_id,  # Worker will create job with this ID
             user_id=user_id,
             document_id=resource_id,
             job_type="format",
@@ -646,18 +625,18 @@ async def format_document(
         success = await queue.enqueue_generic_task(task)
 
         if not success:
-            # Rollback: Delete job from MongoDB
-            await mongo_service.db["ai_editor_jobs"].delete_one({"job_id": job_id})
+            # TODO: Rollback points if needed
+            logger.error(f"❌ Failed to enqueue task {task_id}")
             raise HTTPException(
                 status_code=500, detail="Failed to enqueue task to Redis"
             )
 
-        logger.info(f"✅ Task {job_id} enqueued to Redis ai_editor queue")
+        logger.info(f"✅ Task {task_id} enqueued to Redis ai_editor queue")
 
         return CreateAIEditorJobResponse(
-            job_id=job_id,
+            job_id=task_id,
             status=AIEditorJobStatus.PENDING,
-            message="Format job created. Poll /api/ai/editor/jobs/{job_id} for status.",
+            message="Format job queued. Poll /api/ai/editor/jobs/{job_id} for status.",
             estimated_time="2-10 minutes",
         )
 
