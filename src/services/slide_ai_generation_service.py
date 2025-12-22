@@ -25,7 +25,7 @@ class SlideAIGenerationService:
             raise ValueError("GEMINI_API_KEY not configured")
 
         self.client = genai.Client(api_key=self.gemini_api_key)
-        self.model_name = "gemini-2.0-flash-exp"  # Gemini 2.0 Flash
+        self.model_name = "gemini-3-pro-preview"  # Gemini Pro 3 Preview
 
     def build_analysis_prompt(
         self,

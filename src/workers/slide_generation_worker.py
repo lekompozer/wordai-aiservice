@@ -339,7 +339,7 @@ class SlideGenerationWorker:
         while self.running:
             try:
                 # Fetch task from Redis queue (blocking with timeout)
-                task_data = await self.queue_manager.dequeue_task(
+                task_data = await self.queue_manager.dequeue_generic_task(
                     worker_id=self.worker_id, timeout=5
                 )
 
