@@ -17,6 +17,8 @@ _storage_queue: Optional[QueueManager] = None
 _ai_editor_queue: Optional[QueueManager] = None
 _slide_generation_queue: Optional[QueueManager] = None
 _translation_queue: Optional[QueueManager] = None
+_slide_format_queue: Optional[QueueManager] = None
+_chapter_translation_queue: Optional[QueueManager] = None
 
 
 async def get_extraction_queue() -> QueueManager:
@@ -115,10 +117,43 @@ async def get_translation_queue() -> QueueManager:
     return _translation_queue
 
 
+async def get_slide_format_queue() -> QueueManager:
+    """Get Redis queue manager for slide AI format tasks"""
+    global _slide_format_queue
+    if _slide_format_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        _slide_format_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="slide_format",
+            status_expiry_hours=24,
+            max_queue_size=3000,
+        )
+        await _slide_format_queue.connect()
+        logger.info("✅ Slide Format queue manager connected")
+    return _slide_format_queue
+
+
+async def get_chapter_translation_queue() -> QueueManager:
+    """Get Redis queue manager for chapter translation tasks"""
+    global _chapter_translation_queue
+    if _chapter_translation_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        _chapter_translation_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="chapter_translation",
+            status_expiry_hours=24,
+            max_queue_size=2000,
+        )
+        await _chapter_translation_queue.connect()
+        logger.info("✅ Chapter Translation queue manager connected")
+    return _chapter_translation_queue
+
+
 async def cleanup_queues():
     """Cleanup queue connections on shutdown"""
     global _extraction_queue, _document_queue, _storage_queue
     global _ai_editor_queue, _slide_generation_queue, _translation_queue
+    global _slide_format_queue, _chapter_translation_queue
 
     if _extraction_queue:
         await _extraction_queue.disconnect()
@@ -149,5 +184,13 @@ async def cleanup_queues():
         await _translation_queue.disconnect()
         _translation_queue = None
         logger.info("🧹 Translation queue disconnected")
-        _storage_queue = None
-        logger.info("🧹 Storage queue disconnected")
+
+    if _slide_format_queue:
+        await _slide_format_queue.disconnect()
+        _slide_format_queue = None
+        logger.info("🧹 Slide Format queue disconnected")
+
+    if _chapter_translation_queue:
+        await _chapter_translation_queue.disconnect()
+        _chapter_translation_queue = None
+        logger.info("🧹 Chapter Translation queue disconnected")

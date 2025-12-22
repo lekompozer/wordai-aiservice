@@ -21,12 +21,20 @@ from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.services.points_service import get_points_service
 from src.services.r2_storage_service import get_r2_service
+from src.services.online_test_utils import get_mongodb_service
+from src.queue.queue_dependencies import get_chapter_translation_queue
 
 # Database
 from src.database.db_manager import DBManager
 
 # Models
 from src.api.ai_editor_routes import BilingualStyle
+from src.models.ai_queue_tasks import ChapterTranslationTask
+from src.models.chapter_translation_job_models import (
+    CreateChapterTranslationJobResponse,
+    ChapterTranslationJobStatusResponse,
+    ChapterTranslationJobStatus,
+)
 
 logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api/v1/books", tags=["Book Advanced"])
@@ -527,6 +535,214 @@ async def translate_chapter(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Translation failed: {str(e)}",
+        )
+
+
+@router.post(
+    "/{book_id}/chapters/{chapter_id}/translate/async",
+    response_model=CreateChapterTranslationJobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def translate_chapter_async(
+    book_id: str,
+    chapter_id: str,
+    request: TranslateChapterRequest,
+    current_user: dict = Depends(get_current_user),
+    queue=Depends(get_chapter_translation_queue),
+):
+    """
+    🚀 **ASYNC** Translate chapter to another language using Redis Queue
+
+    **Cost:** 2 points (deducted immediately)
+    **Processing time:** 1-5 minutes (async)
+
+    **Returns:** Job ID for polling status
+    **Poll at:** GET /api/books/{book_id}/chapters/translation-jobs/{job_id}
+
+    **Workflow:**
+    1. ✅ Check user owns the book
+    2. 💰 Deduct 2 points BEFORE queueing
+    3. 📤 Enqueue translation task to Redis
+    4. 🔄 Worker processes translation with Gemini Pro
+    5. 📊 Frontend polls for job status
+
+    **Worker handles:**
+    - AI translation using Gemini Pro
+    - Optional new chapter creation with unique title/slug
+    - Vietnamese text slugification
+    - Result storage in MongoDB
+    """
+    logger.info(
+        f"📖 [ASYNC] Translation request - book: {book_id}, chapter: {chapter_id}"
+    )
+
+    try:
+        user_id = current_user["uid"]
+        points_service = get_points_service()
+        db = DBManager.get_instance()
+
+        # 1. Verify book ownership
+        book = db.get_book_by_id(book_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Book not found"
+            )
+
+        if book.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to translate this book",
+            )
+
+        # 2. Check chapter exists
+        chapter = db.get_chapter_by_id(chapter_id)
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+            )
+
+        if chapter.get("book_id") != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chapter does not belong to this book",
+            )
+
+        content_html = chapter.get("content_html")
+        if not content_html or content_html.strip() == "":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chapter content is empty, cannot translate",
+            )
+
+        # 3. Check points BEFORE queueing
+        TRANSLATION_COST = 2
+        current_points = points_service.get_user_points(user_id)
+
+        if current_points < TRANSLATION_COST:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail=f"Insufficient points. Required: {TRANSLATION_COST}, Available: {current_points}",
+            )
+
+        # 4. Deduct points IMMEDIATELY (before queueing)
+        points_service.deduct_points(
+            user_id=user_id,
+            points=TRANSLATION_COST,
+            description=f"Async chapter translation: {chapter.get('title', 'Untitled')[:50]}",
+        )
+
+        logger.info(f"💰 Deducted {TRANSLATION_COST} points from user {user_id}")
+
+        # 5. Create translation task
+        job_id = str(uuid.uuid4())
+
+        task = ChapterTranslationTask(
+            job_id=job_id,
+            user_id=user_id,
+            book_id=book_id,
+            chapter_id=chapter_id,
+            content_html=content_html,
+            source_language=request.source_language,
+            target_language=request.target_language,
+            create_new_chapter=request.create_new_chapter,
+            new_chapter_title_suffix=request.new_chapter_title_suffix,
+        )
+
+        # 6. Enqueue to Redis
+        await queue.enqueue_generic_task(task)
+
+        logger.info(f"✅ Chapter translation task enqueued - job_id: {job_id}")
+
+        return CreateChapterTranslationJobResponse(
+            job_id=job_id,
+            status=ChapterTranslationJobStatus.PENDING,
+            message="Translation task queued successfully. Poll /translation-jobs/{job_id} for status.",
+            estimated_time_seconds=180,  # 3 minutes estimate
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to queue translation: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to queue translation: {str(e)}",
+        )
+
+
+@router.get(
+    "/{book_id}/chapters/translation-jobs/{job_id}",
+    response_model=ChapterTranslationJobStatusResponse,
+)
+async def get_chapter_translation_job_status(
+    book_id: str,
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+    mongodb_service=Depends(get_mongodb_service),
+):
+    """
+    📊 Poll chapter translation job status
+
+    **Poll every 3-5 seconds** until status is 'completed' or 'failed'
+
+    **Returns:**
+    - Job status (pending/processing/completed/failed)
+    - Translated HTML (when completed)
+    - New chapter info (if create_new_chapter=true)
+    - Error message (if failed)
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Get job from MongoDB
+        jobs_collection = mongodb_service.get_collection("chapter_translation_jobs")
+        job = jobs_collection.find_one({"job_id": job_id})
+
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Translation job not found",
+            )
+
+        # Verify ownership
+        if job.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't have permission to view this job",
+            )
+
+        # Verify book matches
+        if job.get("book_id") != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Job does not belong to this book",
+            )
+
+        return ChapterTranslationJobStatusResponse(
+            job_id=job["job_id"],
+            status=job["status"],
+            user_id=job["user_id"],
+            book_id=job["book_id"],
+            chapter_id=job["chapter_id"],
+            source_language=job.get("source_language"),
+            target_language=job.get("target_language"),
+            create_new_chapter=job.get("create_new_chapter", False),
+            translated_html=job.get("translated_html"),
+            new_chapter_id=job.get("new_chapter_id"),
+            new_chapter_title=job.get("new_chapter_title"),
+            new_chapter_slug=job.get("new_chapter_slug"),
+            error_message=job.get("error_message"),
+            created_at=job.get("created_at"),
+            updated_at=job.get("updated_at"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get job status: {str(e)}",
         )
 
 

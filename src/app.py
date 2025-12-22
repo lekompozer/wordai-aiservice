@@ -475,6 +475,42 @@ async def start_background_workers():
 
         print("✅ Translation Worker started")
 
+        # ===== START SLIDE FORMAT WORKER =====
+        print("🎨 Starting Slide Format Worker...")
+        from src.workers.slide_format_worker import SlideFormatWorker
+
+        slide_format_worker = SlideFormatWorker(worker_id="app_slide_format_worker")
+
+        await slide_format_worker.initialize()
+
+        slide_format_worker_task = asyncio.create_task(slide_format_worker.run())
+        background_workers["slide_format_worker"] = {
+            "worker": slide_format_worker,
+            "task": slide_format_worker_task,
+        }
+
+        print("✅ Slide Format Worker started")
+
+        # ===== START CHAPTER TRANSLATION WORKER =====
+        print("📖 Starting Chapter Translation Worker...")
+        from src.workers.chapter_translation_worker import ChapterTranslationWorker
+
+        chapter_translation_worker = ChapterTranslationWorker(
+            worker_id="app_chapter_translation_worker"
+        )
+
+        await chapter_translation_worker.initialize()
+
+        chapter_translation_worker_task = asyncio.create_task(
+            chapter_translation_worker.run()
+        )
+        background_workers["chapter_translation_worker"] = {
+            "worker": chapter_translation_worker,
+            "task": chapter_translation_worker_task,
+        }
+
+        print("✅ Chapter Translation Worker started")
+
         # ===== START USDT PAYMENT VERIFICATION WORKER =====
         print("💰 Starting USDT Payment Verification Worker...")
         from src.services.usdt_verification_job import start_verification_job
@@ -506,6 +542,12 @@ async def start_background_workers():
         )
         print(
             "   🌐 Translation Worker → Book translation jobs (translation_jobs queue)"
+        )
+        print(
+            "   🎨 Slide Format Worker → Single slide AI formatting (slide_format queue)"
+        )
+        print(
+            "   📖 Chapter Translation Worker → Chapter translation + optional new chapter creation (chapter_translation queue)"
         )
         print(
             "   💰 USDT Verification Worker → Scan blockchain for pending USDT payments"

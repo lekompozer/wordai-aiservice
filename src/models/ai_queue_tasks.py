@@ -61,8 +61,53 @@ class SlideGenerationTask(BaseModel):
     retry_count: int = Field(default=0)
 
 
+class SlideFormatTask(BaseModel):
+    """Task for Slide AI Format queue"""
+
+    task_id: str = Field(..., description="Unique task ID (same as job_id)")
+    job_id: str = Field(..., description="Job ID for status tracking")
+    user_id: str = Field(..., description="User ID")
+    slide_index: int = Field(..., description="Slide index")
+    current_html: str = Field(..., description="Current slide HTML")
+    elements: list = Field(..., description="Current slide elements")
+    background: dict = Field(..., description="Current slide background")
+    user_instruction: Optional[str] = Field(None, description="User instruction")
+    format_type: str = Field(..., description="'format' or 'edit'")
+
+    # Task metadata
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    priority: int = Field(default=1)
+    max_retries: int = Field(default=3)
+    retry_count: int = Field(default=0)
+
+
+class ChapterTranslationTask(BaseModel):
+    """Task for Chapter Translation queue"""
+
+    task_id: str = Field(..., description="Unique task ID (same as job_id)")
+    job_id: str = Field(..., description="Job ID for status tracking")
+    user_id: str = Field(..., description="User ID")
+    book_id: str = Field(..., description="Book ID")
+    chapter_id: str = Field(..., description="Chapter ID to translate")
+    source_language: str = Field(..., description="Source language")
+    target_language: str = Field(..., description="Target language")
+    content_html: str = Field(..., description="HTML content to translate")
+    create_new_chapter: bool = Field(
+        default=False, description="Create new chapter with translation"
+    )
+    new_chapter_title_suffix: Optional[str] = Field(
+        None, description="Suffix for new chapter title"
+    )
+
+    # Task metadata
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    priority: int = Field(default=1)
+    max_retries: int = Field(default=3)
+    retry_count: int = Field(default=0)
+
+
 class TranslationTask(BaseModel):
-    """Task for Translation queue"""
+    """Task for Book Translation queue (full book translation job)"""
 
     task_id: str = Field(..., description="Unique task ID")
     job_id: str = Field(..., description="Translation job ID")
