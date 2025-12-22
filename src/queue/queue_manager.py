@@ -45,6 +45,7 @@ class IngestionTask:
     max_retries: int = 3
     retry_count: int = 0
     created_at: Optional[str] = None
+    job_id: Optional[str] = None  # For compatibility with new task types
 
     def __post_init__(self):
         if self.created_at is None:
@@ -930,3 +931,152 @@ def create_queue_manager() -> QueueManager:
         status_expiry_hours=int(os.getenv("TASK_STATUS_EXPIRY_HOURS", "24")),
         max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10000")),
     )
+
+
+# ============================================================================
+# PURE REDIS JOB TRACKING METHODS
+# ============================================================================
+
+
+async def set_job_status(
+    redis_client,
+    job_id: str,
+    status: str,
+    user_id: str = None,
+    **additional_fields,
+) -> bool:
+    """
+    Store job status in Redis (Pure Redis pattern - no MongoDB)
+
+    Args:
+        redis_client: Redis client instance
+        job_id: Unique job identifier
+        status: Job status (pending/processing/completed/failed)
+        user_id: User who created the job
+        **additional_fields: Any additional data (result, error, etc.)
+
+    Returns:
+        True if successful
+
+    Example:
+        await set_job_status(
+            redis_client,
+            job_id="abc-123",
+            status="completed",
+            user_id="user_456",
+            formatted_html="<div>...</div>",
+            processing_time_ms=1500
+        )
+    """
+    try:
+        from datetime import datetime
+
+        job_key = f"job:{job_id}"
+
+        # Build job data
+        job_data = {
+            "job_id": job_id,
+            "status": status,
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+
+        if user_id:
+            job_data["user_id"] = user_id
+
+        # Add timestamp fields based on status
+        if status == "pending":
+            job_data["created_at"] = datetime.utcnow().isoformat()
+        elif status == "processing":
+            job_data["started_at"] = datetime.utcnow().isoformat()
+        elif status in ["completed", "failed"]:
+            job_data["completed_at"] = datetime.utcnow().isoformat()
+
+        # Add all additional fields
+        job_data.update(additional_fields)
+
+        # Store in Redis with 24h TTL
+        await redis_client.hset(job_key, mapping=job_data)
+        await redis_client.expire(job_key, 86400)  # 24 hours
+
+        logger.info(f"✅ Job {job_id} status set to '{status}' in Redis")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Failed to set job status in Redis: {e}")
+        return False
+
+
+async def get_job_status(redis_client, job_id: str) -> dict:
+    """
+    Get job status from Redis (Pure Redis pattern - no MongoDB)
+
+    Args:
+        redis_client: Redis client instance
+        job_id: Unique job identifier
+
+    Returns:
+        Dict with job data, or None if not found
+
+    Example:
+        job = await get_job_status(redis_client, "abc-123")
+        if job:
+            print(f"Status: {job['status']}")
+    """
+    try:
+        job_key = f"job:{job_id}"
+        job_data = await redis_client.hgetall(job_key)
+
+        if not job_data:
+            logger.warning(f"⚠️ Job {job_id} not found in Redis")
+            return None
+
+        # Convert bytes to strings
+        job_dict = {
+            k.decode() if isinstance(k, bytes) else k: (
+                v.decode() if isinstance(v, bytes) else v
+            )
+            for k, v in job_data.items()
+        }
+
+        return job_dict
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status from Redis: {e}")
+        return None
+
+
+async def update_job_field(
+    redis_client,
+    job_id: str,
+    field: str,
+    value: any,
+) -> bool:
+    """
+    Update single field in job (Pure Redis pattern)
+
+    Args:
+        redis_client: Redis client instance
+        job_id: Unique job identifier
+        field: Field name to update
+        value: New value
+
+    Returns:
+        True if successful
+    """
+    try:
+        job_key = f"job:{job_id}"
+
+        # Update field
+        await redis_client.hset(job_key, field, str(value))
+
+        # Update timestamp
+        from datetime import datetime
+
+        await redis_client.hset(job_key, "updated_at", datetime.utcnow().isoformat())
+
+        logger.debug(f"✅ Job {job_id} field '{field}' updated")
+        return True
+
+    except Exception as e:
+        logger.error(f"❌ Failed to update job field in Redis: {e}")
+        return False

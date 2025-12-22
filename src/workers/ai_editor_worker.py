@@ -22,10 +22,9 @@ env_var = os.getenv("ENVIRONMENT", os.getenv("ENV", "production"))
 env_file = "development.env" if env_var == "development" else ".env"
 load_dotenv(env_file)
 
-from src.queue.queue_manager import QueueManager
+from src.queue.queue_manager import QueueManager, set_job_status, update_job_field
 from src.models.ai_queue_tasks import AIEditorTask
 from src.services.claude_service import ClaudeService
-from src.services.online_test_utils import get_mongodb_service
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -56,8 +55,6 @@ class AIEditorWorker:
             redis_url=self.redis_url, queue_name="ai_editor"
         )
         self.claude = ClaudeService()
-        self.mongo = get_mongodb_service()
-        self.jobs_collection = self.mongo.db["ai_editor_jobs"]
 
         logger.info(f"🔧 AI Editor Worker {self.worker_id} initialized")
         logger.info(f"   📡 Redis: {self.redis_url}")
@@ -102,25 +99,15 @@ class AIEditorWorker:
                 f"⚙️ Processing AI editor job {job_id} (type={task.job_type}, size={len(task.content):,} chars)"
             )
 
-            # Create job in MongoDB (upsert to handle race conditions)
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$setOnInsert": {
-                        "job_id": job_id,
-                        "document_id": task.document_id,
-                        "job_type": task.job_type,
-                        "content_type": task.content_type,
-                        "created_at": start_time,
-                        "content_size": len(task.content),
-                        "estimated_tokens": len(task.content) // 4,
-                    },
-                    "$set": {
-                        "status": "processing",
-                        "started_at": start_time,
-                    },
-                },
-                upsert=True,
+            # Update job status to "processing" in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="processing",
+                user_id=task.user_id,
+                started_at=start_time.isoformat(),
+                content_size=len(task.content),
+                estimated_tokens=len(task.content) // 4,
             )
 
             # Process based on job type and content type
@@ -129,17 +116,15 @@ class AIEditorWorker:
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
 
-            # Update status to completed
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "status": "completed",
-                        "result": result,
-                        "completed_at": end_time,
-                        "processing_time_seconds": processing_time,
-                    }
-                },
+            # Update status to completed in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="completed",
+                user_id=task.user_id,
+                result=result,
+                completed_at=end_time.isoformat(),
+                processing_time_seconds=processing_time,
             )
 
             logger.info(
@@ -152,16 +137,14 @@ class AIEditorWorker:
         except Exception as e:
             logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
 
-            # Update status to failed
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "status": "failed",
-                        "error": str(e),
-                        "completed_at": datetime.utcnow(),
-                    }
-                },
+            # Update status to failed in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="failed",
+                user_id=task.user_id,
+                error=str(e),
+                completed_at=datetime.utcnow().isoformat(),
             )
 
             return False

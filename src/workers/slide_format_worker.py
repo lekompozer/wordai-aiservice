@@ -10,9 +10,8 @@ import signal
 from datetime import datetime
 from typing import Optional
 
-from src.queue.queue_manager import QueueManager
+from src.queue.queue_manager import QueueManager, set_job_status, update_job_field
 from src.models.ai_queue_tasks import SlideFormatTask
-from src.services.online_test_utils import get_mongodb_service
 from src.services.slide_ai_service import get_slide_ai_service
 
 logger = logging.getLogger("chatbot")
@@ -37,8 +36,6 @@ class SlideFormatWorker:
             redis_url=self.redis_url, queue_name="slide_format"
         )
         self.slide_ai_service = get_slide_ai_service()
-        self.mongo = get_mongodb_service()
-        self.jobs_collection = self.mongo.db["slide_format_jobs"]
 
         logger.info(f"🔧 Slide Format Worker {self.worker_id} initialized")
         logger.info(f"   📡 Redis: {self.redis_url}")
@@ -81,23 +78,15 @@ class SlideFormatWorker:
                 f"⚙️ Processing slide format job {job_id} (slide={task.slide_index}, type={task.format_type})"
             )
 
-            # Create job in MongoDB (upsert to handle race conditions)
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$setOnInsert": {
-                        "job_id": job_id,
-                        "user_id": task.user_id,
-                        "slide_index": task.slide_index,
-                        "format_type": task.format_type,
-                        "created_at": start_time,
-                    },
-                    "$set": {
-                        "status": "processing",
-                        "started_at": start_time,
-                    },
-                },
-                upsert=True,
+            # Update job status to "processing" in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="processing",
+                user_id=task.user_id,
+                started_at=start_time.isoformat(),
+                slide_index=task.slide_index,
+                format_type=task.format_type,
             )
 
             # Build request object for slide AI service
@@ -117,20 +106,18 @@ class SlideFormatWorker:
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
 
-            # Update status to completed
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "status": "completed",
-                        "formatted_html": result["formatted_html"],
-                        "suggested_elements": result.get("suggested_elements", []),
-                        "suggested_background": result.get("suggested_background"),
-                        "ai_explanation": result["ai_explanation"],
-                        "completed_at": end_time,
-                        "processing_time_seconds": processing_time,
-                    }
-                },
+            # Update status to completed in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="completed",
+                user_id=task.user_id,
+                formatted_html=result["formatted_html"],
+                suggested_elements=result.get("suggested_elements", []),
+                suggested_background=result.get("suggested_background"),
+                ai_explanation=result["ai_explanation"],
+                completed_at=end_time.isoformat(),
+                processing_time_seconds=processing_time,
             )
 
             logger.info(
@@ -143,16 +130,14 @@ class SlideFormatWorker:
         except Exception as e:
             logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
 
-            # Update status to failed
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "status": "failed",
-                        "error": str(e),
-                        "completed_at": datetime.utcnow(),
-                    }
-                },
+            # Update status to failed in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="failed",
+                user_id=task.user_id,
+                error=str(e),
+                completed_at=datetime.utcnow().isoformat(),
             )
 
             return False

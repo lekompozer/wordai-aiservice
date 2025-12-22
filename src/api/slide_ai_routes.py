@@ -11,6 +11,7 @@ import uuid
 from src.middleware.firebase_auth import get_current_user
 from src.services.points_service import get_points_service
 from src.queue.queue_dependencies import get_slide_format_queue
+from src.queue.queue_manager import set_job_status, get_job_status
 from src.models.ai_queue_tasks import SlideFormatTask
 from src.models.slide_format_job_models import (
     CreateSlideFormatJobResponse,
@@ -18,7 +19,6 @@ from src.models.slide_format_job_models import (
     SlideFormatJobStatus,
 )
 from src.models.slide_ai_models import SlideAIFormatRequest
-from src.services.online_test_utils import get_mongodb_service
 
 logger = logging.getLogger("chatbot")
 
@@ -115,9 +115,19 @@ async def ai_format_slide(
 
         logger.info(f"💸 Deducted {points_cost} points for slide AI format")
 
-        # Enqueue task to Redis
+        # Enqueue task to Redis + Create job in Redis
         task_id = str(uuid.uuid4())
         queue = await get_slide_format_queue()
+
+        # Create job in Redis BEFORE enqueueing task
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=task_id,
+            status="pending",
+            user_id=user_id,
+            slide_index=request.slide_index,
+            format_type=request.format_type,
+        )
 
         task = SlideFormatTask(
             task_id=task_id,
@@ -178,15 +188,25 @@ async def get_slide_format_job_status(
     """
     try:
         user_id = current_user["uid"]
-        mongo_service = get_mongodb_service()
-        jobs_collection = mongo_service.db["slide_format_jobs"]
 
-        job = jobs_collection.find_one({"job_id": job_id})
+        # Get job from Redis (Pure Redis pattern)
+        queue = await get_slide_format_queue()
+        job = await get_job_status(queue.redis_client, job_id)
 
         if not job:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Job {job_id} not found. It may not have started processing yet.",
+            # Job not in Redis - expired (24h TTL) or invalid job_id
+            return SlideFormatJobStatusResponse(
+                job_id=job_id,
+                status=SlideFormatJobStatus.PENDING,
+                created_at=None,
+                started_at=None,
+                completed_at=None,
+                processing_time_seconds=None,
+                formatted_html=None,
+                suggested_elements=None,
+                suggested_background=None,
+                ai_explanation=None,
+                error=None,
             )
 
         # Verify ownership
@@ -198,17 +218,9 @@ async def get_slide_format_job_status(
         return SlideFormatJobStatusResponse(
             job_id=job["job_id"],
             status=SlideFormatJobStatus(job["status"]),
-            created_at=(
-                job.get("created_at", "").isoformat() if job.get("created_at") else None
-            ),
-            started_at=(
-                job.get("started_at", "").isoformat() if job.get("started_at") else None
-            ),
-            completed_at=(
-                job.get("completed_at", "").isoformat()
-                if job.get("completed_at")
-                else None
-            ),
+            created_at=job.get("created_at"),
+            started_at=job.get("started_at"),
+            completed_at=job.get("completed_at"),
             processing_time_seconds=job.get("processing_time_seconds"),
             formatted_html=job.get("formatted_html"),
             suggested_elements=job.get("suggested_elements"),

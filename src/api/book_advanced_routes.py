@@ -23,6 +23,7 @@ from src.services.points_service import get_points_service
 from src.services.r2_storage_service import get_r2_service
 from src.services.online_test_utils import get_mongodb_service
 from src.queue.queue_dependencies import get_chapter_translation_queue
+from src.queue.queue_manager import set_job_status, get_job_status
 
 # Database
 from src.database.db_manager import DBManager
@@ -633,8 +634,21 @@ async def translate_chapter_async(
 
         logger.info(f"💰 Deducted {TRANSLATION_COST} points from user {user_id}")
 
-        # 5. Create translation task
+        # 5. Create translation task + job in Redis
         job_id = str(uuid.uuid4())
+
+        # Create job in Redis BEFORE enqueueing task
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=job_id,
+            status="pending",
+            user_id=user_id,
+            book_id=book_id,
+            chapter_id=chapter_id,
+            source_language=request.source_language,
+            target_language=request.target_language,
+            create_new_chapter=request.create_new_chapter,
+        )
 
         task = ChapterTranslationTask(
             job_id=job_id,
@@ -678,7 +692,7 @@ async def get_chapter_translation_job_status(
     book_id: str,
     job_id: str,
     current_user: dict = Depends(get_current_user),
-    mongodb_service=Depends(get_mongodb_service),
+    queue=Depends(get_chapter_translation_queue),
 ):
     """
     📊 Poll chapter translation job status
@@ -694,14 +708,27 @@ async def get_chapter_translation_job_status(
     try:
         user_id = current_user["uid"]
 
-        # Get job from MongoDB
-        jobs_collection = mongodb_service.get_collection("chapter_translation_jobs")
-        job = jobs_collection.find_one({"job_id": job_id})
+        # Get job from Redis (Pure Redis pattern)
+        job = await get_job_status(queue.redis_client, job_id)
 
         if not job:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Translation job not found",
+            # Job not in Redis - expired (24h TTL) or invalid job_id
+            return ChapterTranslationJobStatusResponse(
+                job_id=job_id,
+                status="pending",
+                user_id=user_id,
+                book_id=book_id,
+                chapter_id=None,
+                source_language=None,
+                target_language=None,
+                create_new_chapter=False,
+                translated_html=None,
+                new_chapter_id=None,
+                new_chapter_title=None,
+                new_chapter_slug=None,
+                error_message=None,
+                created_at=None,
+                updated_at=None,
             )
 
         # Verify ownership

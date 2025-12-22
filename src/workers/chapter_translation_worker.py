@@ -12,7 +12,7 @@ import re
 from datetime import datetime
 from typing import Optional
 
-from src.queue.queue_manager import QueueManager
+from src.queue.queue_manager import QueueManager, set_job_status, update_job_field
 from src.models.ai_queue_tasks import ChapterTranslationTask
 from src.services.online_test_utils import get_mongodb_service
 from src.services.ai_chat_service import ai_chat_service, AIProvider
@@ -183,8 +183,7 @@ class ChapterTranslationWorker:
             redis_url=self.redis_url, queue_name="chapter_translation"
         )
         self.mongo = get_mongodb_service()
-        self.jobs_collection = self.mongo.db["chapter_translation_jobs"]
-        self.db = self.mongo.db
+        self.db = self.mongo.db  # Still needed for chapter data operations
 
         logger.info(f"🔧 Chapter Translation Worker {self.worker_id} initialized")
         logger.info(f"   📡 Redis: {self.redis_url}")
@@ -228,26 +227,18 @@ class ChapterTranslationWorker:
                 f"({task.source_language} -> {task.target_language})"
             )
 
-            # Create job in MongoDB (upsert)
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$setOnInsert": {
-                        "job_id": job_id,
-                        "user_id": task.user_id,
-                        "book_id": task.book_id,
-                        "chapter_id": task.chapter_id,
-                        "source_language": task.source_language,
-                        "target_language": task.target_language,
-                        "create_new_chapter": task.create_new_chapter,
-                        "created_at": start_time,
-                    },
-                    "$set": {
-                        "status": "processing",
-                        "started_at": start_time,
-                    },
-                },
-                upsert=True,
+            # Update job status to "processing" in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="processing",
+                user_id=task.user_id,
+                started_at=start_time.isoformat(),
+                book_id=task.book_id,
+                chapter_id=task.chapter_id,
+                source_language=task.source_language,
+                target_language=task.target_language,
+                create_new_chapter=task.create_new_chapter,
             )
 
             # AI Translation
@@ -361,20 +352,18 @@ class ChapterTranslationWorker:
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
 
-            # Update status to completed
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "status": "completed",
-                        "translated_html": translated_html,
-                        "new_chapter_id": new_chapter_id,
-                        "new_chapter_title": new_chapter_title,
-                        "new_chapter_slug": new_chapter_slug,
-                        "completed_at": end_time,
-                        "processing_time_seconds": processing_time,
-                    }
-                },
+            # Update status to completed in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="completed",
+                user_id=task.user_id,
+                translated_html=translated_html,
+                new_chapter_id=new_chapter_id,
+                new_chapter_title=new_chapter_title,
+                new_chapter_slug=new_chapter_slug,
+                completed_at=end_time.isoformat(),
+                processing_time_seconds=processing_time,
             )
 
             logger.info(f"✅ Job {job_id} completed in {processing_time:.1f}s")
@@ -384,16 +373,14 @@ class ChapterTranslationWorker:
         except Exception as e:
             logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
 
-            # Update status to failed
-            self.jobs_collection.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "status": "failed",
-                        "error": str(e),
-                        "completed_at": datetime.utcnow(),
-                    }
-                },
+            # Update status to failed in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="failed",
+                user_id=task.user_id,
+                error=str(e),
+                completed_at=datetime.utcnow().isoformat(),
             )
 
             return False

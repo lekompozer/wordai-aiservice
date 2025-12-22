@@ -19,6 +19,7 @@ from src.services.subscription_service import get_subscription_service
 from src.services.points_service import get_points_service
 from src.services.online_test_utils import get_mongodb_service
 from src.queue.queue_dependencies import get_ai_editor_queue
+from src.queue.queue_manager import set_job_status, get_job_status
 from src.models.ai_queue_tasks import AIEditorTask
 from src.models.ai_editor_job_models import (
     CreateAIEditorJobResponse,
@@ -609,15 +610,25 @@ async def format_document(
             raise HTTPException(status_code=500, detail="Failed to deduct points")
 
         # === ENQUEUE TASK TO REDIS (Pure Redis Pattern) ===
-        # Worker will create job in MongoDB when processing starts
         import uuid
 
         task_id = str(uuid.uuid4())
         queue = await get_ai_editor_queue()
 
+        # Create job in Redis BEFORE enqueueing task
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=task_id,
+            status="pending",
+            user_id=user_id,
+            job_type="format",
+            document_id=resource_id,
+            content_type=content_type,
+        )
+
         task = AIEditorTask(
             task_id=task_id,
-            job_id=task_id,  # Worker will create job with this ID
+            job_id=task_id,
             user_id=user_id,
             document_id=resource_id,
             job_type="format",
@@ -679,11 +690,24 @@ async def get_ai_editor_job_status(
     try:
         user_id = user_info["uid"]
 
-        # Get job from MongoDB
-        job = await mongo_service.db["ai_editor_jobs"].find_one({"job_id": job_id})
+        # Get job from Redis (Pure Redis pattern)
+        queue = await get_ai_editor_queue()
+        job = await get_job_status(queue.redis_client, job_id)
 
         if not job:
-            raise HTTPException(status_code=404, detail="Job not found")
+            # Job not in Redis - might be expired (24h TTL) or invalid job_id
+            return AIEditorJobStatusResponse(
+                job_id=job_id,
+                status=AIEditorJobStatus.PENDING,
+                user_id=user_id,
+                message="Job not found - may have expired (24h TTL) or invalid job_id",
+                created_at=None,
+                started_at=None,
+                completed_at=None,
+                content_type=None,
+                formatted_content=None,
+                error=None,
+            )
 
         # Build status message
         status = job["status"]
