@@ -454,7 +454,7 @@ async def analyze_slide_from_pdf(
 
         # Call Gemini with PDF
         try:
-            model = genai.GenerativeModel("gemini-2.0-flash-exp")
+            model = genai.GenerativeModel("gemini-3-pro-preview")
 
             response = model.generate_content(
                 [uploaded_file, pdf_analysis_prompt],

@@ -165,15 +165,15 @@ Analyze all slides and return the JSON array:"""
 
         # Create model (use latest available Gemini model)
         try:
-            model = genai.GenerativeModel("gemini-2.0-flash-exp")
-            logger.info("🤖 Using model: gemini-2.0-flash-exp")
+            model = genai.GenerativeModel("gemini-3-pro-preview")
+            logger.info("🤖 Using model: gemini-3-pro-preview")
         except:
             try:
-                model = genai.GenerativeModel("gemini-1.5-pro")
-                logger.info("🤖 Using model: gemini-1.5-pro")
+                model = genai.GenerativeModel("gemini-3-pro-preview")
+                logger.info("🤖 Using model: gemini-3-pro-preview")
             except:
-                model = genai.GenerativeModel("gemini-pro-vision")
-                logger.info("🤖 Using model: gemini-pro-vision")
+                model = genai.GenerativeModel("gemini-3-pro-preview")
+                logger.info("🤖 Using model: gemini-3-pro-preview")
 
         # Generate content with PDF
         # Run in thread pool to avoid blocking event loop

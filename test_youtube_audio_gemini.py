@@ -114,11 +114,11 @@ async def test_gemini_audio(audio_path: str):
     """
 
     print(f"\n🎯 Testing Gemini 2.0 Flash Experimental audio understanding...")
-    print(f"   Model: gemini-2.0-flash-exp")
+    print(f"   Model: gemini-3-pro-preview")
 
     response = await asyncio.to_thread(
         client.models.generate_content,
-        model="gemini-2.0-flash-exp",
+        model="gemini-3-pro-preview",
         contents=[
             types.Content(
                 parts=[
