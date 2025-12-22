@@ -4,7 +4,7 @@ Pydantic models for AI-powered slide generation system
 """
 
 from pydantic import BaseModel, Field, validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -216,3 +216,24 @@ class RegenerateSlideRequest(BaseModel):
     slide_images: Optional[List[SlideImageAttachment]] = Field(
         default_factory=list, description="Updated image URLs"
     )
+
+
+# ============ BASIC SLIDE CREATION (NO AI) ============
+
+
+class CreateBasicSlideRequest(BaseModel):
+    """Request to create basic slide from analysis outline (no AI generation)"""
+
+    analysis_id: str = Field(..., description="Analysis ID from Step 1")
+    creator_name: Optional[str] = Field(None, description="Presenter name (optional)")
+
+
+class CreateBasicSlideResponse(BaseModel):
+    """Response for basic slide creation"""
+
+    success: bool = Field(default=True)
+    document_id: str = Field(..., description="Created slide document ID")
+    title: str = Field(..., description="Presentation title")
+    num_slides: int = Field(..., description="Number of slides")
+    created_at: str = Field(..., description="ISO timestamp")
+    message: str = Field(..., description="Success message")

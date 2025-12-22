@@ -21,6 +21,8 @@ from src.models.slide_ai_generation_models import (
     CreateSlideResponse,
     SlideGenerationStatus,
     SlideImageAttachment,
+    CreateBasicSlideRequest,
+    CreateBasicSlideResponse,
 )
 from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.points_service import get_points_service
@@ -52,7 +54,7 @@ async def get_slide_generation_status(
     """
     try:
         mongo_service = get_mongodb_service()
-        doc_manager = DocumentManager()
+        doc_manager = DocumentManager(mongo_service.db)
 
         # Get document (validates user owns it)
         document = doc_manager.get_document(document_id, user_info["uid"])
@@ -624,7 +626,7 @@ async def create_slides_from_analysis(
             validate_creator_name(request.creator_name, user_email, user_info["uid"])
 
         # 5. Create slide document using DocumentManager (compatible with existing system)
-        doc_manager = DocumentManager()
+        doc_manager = DocumentManager(mongo_service.db)
         document_id = doc_manager.create_document(
             user_id=user_info["uid"],
             title=analysis["title"],
@@ -725,7 +727,7 @@ async def generate_slide_html_background(
     """
     mongo_service = get_mongodb_service()
     ai_service = get_slide_ai_service()
-    doc_manager = DocumentManager()
+    doc_manager = DocumentManager(mongo_service.db)
 
     try:
         logger.info(f"🎨 [BG] Starting slide HTML generation: {document_id}")
@@ -928,3 +930,136 @@ def _create_default_backgrounds(num_slides: int, slide_type: str) -> List[dict]:
         )
 
     return backgrounds
+
+
+# ============ BASIC SLIDE CREATION (NO AI) ============
+
+
+@router.post("/create-basic", response_model=CreateBasicSlideResponse)
+async def create_basic_slide_from_analysis(
+    request: CreateBasicSlideRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **Create basic slide from analysis outline (NO AI generation)**
+
+    **Cost:** FREE (0 points)
+
+    **Purpose:**
+    - Save the outline from Step 1 as a slide document
+    - User can manually edit slides later (add content, images, backgrounds)
+    - No AI HTML generation - just creates empty slides with titles and bullet points
+
+    **Flow:**
+    1. Get analysis from Step 1 (analysis_id)
+    2. Create slide document with basic HTML structure
+    3. Each slide has: title + content points as bullet list
+    4. User can edit everything in the slide editor
+
+    **Returns:**
+    - document_id: New slide document (ready to edit)
+    - No background job, no polling needed
+    """
+    try:
+        logger.info(f"📄 Basic slide creation from analysis {request.analysis_id}")
+
+        mongo_service = get_mongodb_service()
+
+        # 1. Get analysis from database
+        analysis = mongo_service.db["slide_analyses"].find_one(
+            {"_id": ObjectId(request.analysis_id), "user_id": user_info["uid"]}
+        )
+
+        if not analysis:
+            raise HTTPException(
+                status_code=404,
+                detail="Analysis not found. Please run Step 1 first.",
+            )
+
+        # 2. Validate creator_name if provided
+        if request.creator_name:
+            from src.services.creator_name_validator import validate_creator_name
+
+            user_email = user_info.get("email", "")
+            validate_creator_name(request.creator_name, user_email, user_info["uid"])
+
+        # 3. Build basic HTML from outline
+        slides_outline = analysis["slides_outline"]
+        num_slides = len(slides_outline)
+
+        slides_html = []
+        for slide_data in slides_outline:
+            slide_num = slide_data["slide_number"]
+            title = slide_data["title"]
+            points = slide_data.get("content_points", [])
+
+            # Create simple HTML for each slide
+            points_html = "".join([f"<li>{point}</li>" for point in points])
+
+            slide_html = f"""<div class="slide" data-slide-number="{slide_num}">
+  <div class="slide-content">
+    <h1>{title}</h1>
+    <ul>
+{points_html}
+    </ul>
+  </div>
+</div>"""
+            slides_html.append(slide_html)
+
+        final_html = "\n\n".join(slides_html)
+
+        # 4. Create default backgrounds
+        slide_backgrounds = _create_default_backgrounds(
+            num_slides, analysis["slide_type"]
+        )
+
+        # 5. Create slide document
+        doc_manager = DocumentManager(mongo_service.db)
+        document_id = doc_manager.create_document(
+            user_id=user_info["uid"],
+            title=analysis["title"],
+            content_html=final_html,
+            content_text=analysis.get("presentation_summary", ""),
+            source_type="created",
+            document_type="slide",
+        )
+
+        # 6. Add metadata
+        mongo_service.db["documents"].update_one(
+            {"document_id": document_id},
+            {
+                "$set": {
+                    # Link to analysis
+                    "ai_analysis_id": request.analysis_id,
+                    "ai_slide_type": analysis["slide_type"],
+                    "ai_language": analysis["language"],
+                    "ai_num_slides": num_slides,
+                    # Mark as basic (not AI generated)
+                    "ai_generation_type": "basic",
+                    # Slide data
+                    "slide_elements": [],
+                    "slide_backgrounds": slide_backgrounds,
+                    # Creator info
+                    "creator_name": request.creator_name or user_info.get("email", ""),
+                }
+            },
+        )
+
+        logger.info(
+            f"✅ Basic slide created: {document_id} ({num_slides} slides, 0 points)"
+        )
+
+        return CreateBasicSlideResponse(
+            success=True,
+            document_id=document_id,
+            title=analysis["title"],
+            num_slides=num_slides,
+            created_at=datetime.now().isoformat(),
+            message=f"Slide outline saved successfully. {num_slides} slides ready to edit.",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Basic slide creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
