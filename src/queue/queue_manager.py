@@ -76,7 +76,7 @@ class QueueManager:
 
     def __init__(
         self,
-        redis_url: str = "redis://localhost:6379",
+        redis_url: str = "redis://redis-server:6379",  # Docker network service name
         queue_name: str = "document_ingestion",
         status_expiry_hours: int = 24,
         max_queue_size: int = 10000,
@@ -925,7 +925,7 @@ def create_queue_manager() -> QueueManager:
         Configured QueueManager instance
     """
     return QueueManager(
-        redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+        redis_url=os.getenv("REDIS_URL", "redis://redis-server:6379"),  # Docker network
         queue_name=os.getenv("QUEUE_NAME", "document_ingestion"),
         status_expiry_hours=int(os.getenv("TASK_STATUS_EXPIRY_HOURS", "24")),
         max_queue_size=int(os.getenv("MAX_QUEUE_SIZE", "10000")),

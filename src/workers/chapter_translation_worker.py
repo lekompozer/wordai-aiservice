@@ -172,7 +172,7 @@ class ChapterTranslationWorker:
     def __init__(
         self,
         worker_id: str = "chapter_translation_worker",
-        redis_url: str = "redis://localhost:6379",
+        redis_url: str = "redis://redis-server:6379",
     ):
         self.worker_id = worker_id
         self.redis_url = redis_url
@@ -445,7 +445,7 @@ async def main():
     """Main entry point for worker"""
     worker = ChapterTranslationWorker(
         worker_id=os.getenv("WORKER_ID", "chapter_translation_worker_1"),
-        redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+        redis_url=os.getenv("REDIS_URL", "redis://redis-server:6379"),
     )
 
     # Handle shutdown signals

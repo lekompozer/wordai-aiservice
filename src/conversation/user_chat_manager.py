@@ -85,7 +85,7 @@ class UserChatManager:
     def __init__(
         self,
         qdrant_manager: QdrantManager,
-        redis_url: str = "redis://localhost:6379",
+        redis_url: str = "redis://redis-server:6379",
         openai_api_key: Optional[str] = None,
         model_name: str = "gpt-3.5-turbo",
         session_expiry_hours: int = 24,
@@ -551,7 +551,7 @@ def create_user_chat_manager(qdrant_manager: QdrantManager) -> UserChatManager:
     """
     return UserChatManager(
         qdrant_manager=qdrant_manager,
-        redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+        redis_url=os.getenv("REDIS_URL", "redis://redis-server:6379"),
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         model_name=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
         session_expiry_hours=int(os.getenv("CHAT_SESSION_EXPIRY_HOURS", "24")),

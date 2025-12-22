@@ -39,7 +39,9 @@ class StorageProcessingWorker:
         max_retries: int = 3,
     ):
         self.worker_id = worker_id or f"storage_worker_{int(time.time())}_{os.getpid()}"
-        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
+        self.redis_url = redis_url or os.getenv(
+            "REDIS_URL", "redis://redis-server:6379"
+        )
         self.poll_interval = poll_interval
         self.max_retries = max_retries
         self.running = False

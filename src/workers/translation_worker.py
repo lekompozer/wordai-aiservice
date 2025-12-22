@@ -42,7 +42,9 @@ class TranslationWorker:
         self.worker_id = (
             worker_id or f"translation_worker_{int(time.time())}_{os.getpid()}"
         )
-        self.redis_url = redis_url or os.getenv("REDIS_URL", "redis://localhost:6379")
+        self.redis_url = redis_url or os.getenv(
+            "REDIS_URL", "redis://redis-server:6379"
+        )
         self.batch_size = batch_size
         self.max_retries = max_retries
         self.running = False

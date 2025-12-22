@@ -25,7 +25,7 @@ async def get_extraction_queue() -> QueueManager:
     """Get Redis queue manager for extraction tasks"""
     global _extraction_queue
     if _extraction_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _extraction_queue = QueueManager(
             redis_url=redis_url,
             queue_name="products_extraction",
@@ -41,7 +41,7 @@ async def get_document_queue() -> QueueManager:
     """Get Redis queue manager for document processing tasks"""
     global _document_queue
     if _document_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _document_queue = QueueManager(
             redis_url=redis_url,
             queue_name="document_processing",
@@ -57,7 +57,7 @@ async def get_storage_queue() -> QueueManager:
     """Get Redis queue manager for storage processing tasks"""
     global _storage_queue
     if _storage_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _storage_queue = QueueManager(
             redis_url=redis_url,
             queue_name="storage_processing",  # Separate queue for storage tasks
@@ -73,7 +73,7 @@ async def get_ai_editor_queue() -> QueueManager:
     """Get Redis queue manager for AI editor tasks (Edit/Format)"""
     global _ai_editor_queue
     if _ai_editor_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _ai_editor_queue = QueueManager(
             redis_url=redis_url,
             queue_name="ai_editor",
@@ -89,7 +89,7 @@ async def get_slide_generation_queue() -> QueueManager:
     """Get Redis queue manager for slide generation tasks"""
     global _slide_generation_queue
     if _slide_generation_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _slide_generation_queue = QueueManager(
             redis_url=redis_url,
             queue_name="slide_generation",
@@ -105,7 +105,7 @@ async def get_translation_queue() -> QueueManager:
     """Get Redis queue manager for translation jobs"""
     global _translation_queue
     if _translation_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _translation_queue = QueueManager(
             redis_url=redis_url,
             queue_name="translation_jobs",
@@ -121,7 +121,7 @@ async def get_slide_format_queue() -> QueueManager:
     """Get Redis queue manager for slide AI format tasks"""
     global _slide_format_queue
     if _slide_format_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _slide_format_queue = QueueManager(
             redis_url=redis_url,
             queue_name="slide_format",
@@ -137,7 +137,7 @@ async def get_chapter_translation_queue() -> QueueManager:
     """Get Redis queue manager for chapter translation tasks"""
     global _chapter_translation_queue
     if _chapter_translation_queue is None:
-        redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
         _chapter_translation_queue = QueueManager(
             redis_url=redis_url,
             queue_name="chapter_translation",

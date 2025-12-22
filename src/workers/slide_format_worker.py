@@ -24,7 +24,7 @@ class SlideFormatWorker:
     def __init__(
         self,
         worker_id: str = "slide_format_worker",
-        redis_url: str = "redis://localhost:6379",
+        redis_url: str = "redis://redis-server:6379",
         batch_size: int = 1,
     ):
         self.worker_id = worker_id
@@ -205,7 +205,7 @@ async def main():
     """Main entry point for worker"""
     worker = SlideFormatWorker(
         worker_id=os.getenv("WORKER_ID", "slide_format_worker_1"),
-        redis_url=os.getenv("REDIS_URL", "redis://localhost:6379"),
+        redis_url=os.getenv("REDIS_URL", "redis://redis-server:6379"),
     )
 
     # Handle shutdown signals
