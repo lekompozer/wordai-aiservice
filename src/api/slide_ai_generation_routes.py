@@ -130,16 +130,18 @@ async def analyze_slide_requirements(
 
         # 1. Check points (2 points for analysis)
         points_service = get_points_service()
-        points_available = await points_service.check_points(user_info["uid"])
+        points_check = await points_service.check_sufficient_points(
+            user_id=user_info["uid"], points_needed=2, service="slide_ai_analysis"
+        )
 
-        if points_available < 2:
+        if not points_check["has_points"]:
             raise HTTPException(
                 status_code=402,
                 detail={
                     "error": "INSUFFICIENT_POINTS",
-                    "message": f"Không đủ điểm để phân tích slide. Cần: 2, Còn: {points_available}",
+                    "message": f"Không đủ điểm để phân tích slide. Cần: 2, Còn: {points_check['points_available']}",
                     "points_needed": 2,
-                    "points_available": points_available,
+                    "points_available": points_check["points_available"],
                 },
             )
 
@@ -202,13 +204,10 @@ async def analyze_slide_requirements(
         # 4. Deduct points (only after success)
         await points_service.deduct_points(
             user_id=user_info["uid"],
-            points=2,
-            reason="Slide AI Analysis",
-            metadata={
-                "analysis_id": analysis_id,
-                "num_slides": len(slides_outline),
-                "slide_type": request.slide_type,
-            },
+            amount=2,
+            service="slide_ai_analysis",
+            resource_id=analysis_id,
+            description=f"Slide AI Analysis: {request.title}",
         )
 
         logger.info(f"💰 Deducted 2 points from user {user_info['uid']}")
@@ -280,16 +279,18 @@ async def analyze_slide_from_pdf(
 
         # 1. Check points
         points_service = get_points_service()
-        points_available = await points_service.check_points(user_info["uid"])
+        points_check = await points_service.check_sufficient_points(
+            user_id=user_info["uid"], points_needed=2, service="slide_ai_analysis_pdf"
+        )
 
-        if points_available < 2:
+        if not points_check["has_points"]:
             raise HTTPException(
                 status_code=402,
                 detail={
                     "error": "INSUFFICIENT_POINTS",
-                    "message": f"Không đủ điểm để phân tích slide từ PDF. Cần: 2, Còn: {points_available}",
+                    "message": f"Không đủ điểm để phân tích slide từ PDF. Cần: 2, Còn: {points_check['points_available']}",
                     "points_needed": 2,
-                    "points_available": points_available,
+                    "points_available": points_check["points_available"],
                 },
             )
 
@@ -501,14 +502,10 @@ async def analyze_slide_from_pdf(
         # 7. Deduct points (only after success)
         await points_service.deduct_points(
             user_id=user_info["uid"],
-            points=2,
-            reason="Slide AI Analysis from PDF",
-            metadata={
-                "analysis_id": analysis_id,
-                "num_slides": len(slides_outline),
-                "slide_type": request.slide_type,
-                "source_file_id": request.file_id,
-            },
+            amount=2,
+            service="slide_ai_analysis_pdf",
+            resource_id=analysis_id,
+            description=f"Slide AI Analysis from PDF: {request.title}",
         )
 
         logger.info(f"💰 Deducted 2 points from user {user_info['uid']}")
@@ -602,16 +599,20 @@ async def create_slides_from_analysis(
 
         # 3. Check points
         points_service = get_points_service()
-        points_available = await points_service.check_points(user_info["uid"])
+        points_check = await points_service.check_sufficient_points(
+            user_id=user_info["uid"],
+            points_needed=points_needed,
+            service="slide_ai_generation",
+        )
 
-        if points_available < points_needed:
+        if not points_check["has_points"]:
             raise HTTPException(
                 status_code=402,
                 detail={
                     "error": "INSUFFICIENT_POINTS",
-                    "message": f"Không đủ điểm để tạo {num_slides} slides. Cần: {points_needed}, Còn: {points_available}",
+                    "message": f"Không đủ điểm để tạo {num_slides} slides. Cần: {points_needed}, Còn: {points_check['points_available']}",
                     "points_needed": points_needed,
-                    "points_available": points_available,
+                    "points_available": points_check["points_available"],
                 },
             )
 
@@ -829,7 +830,9 @@ async def generate_slide_html_background(
         points_service = get_points_service()
         await points_service.deduct_points(
             user_id=user_id,
-            points=points_needed,
+            amount=points_needed,
+            service="slide_ai_generation",
+            resource_id=document_id,
             description=f"AI Slide Generation: {num_slides} slides ({total_batches} batches)",
         )
 
