@@ -201,11 +201,80 @@ class AIEditorWorker:
                 )
 
         elif task.job_type == "edit":
-            # Edit content with Claude
-            logger.info(f"✏️ Editing with Claude (job={task.job_id})")
-            result = await self.claude.edit_html(
-                html_content=task.content,
-                user_query=task.user_query,
+            # Edit content based on content type
+            if task.content_type == "slide":
+                # Use Claude for slides
+                logger.info(f"✏️ Editing SLIDE with Claude (job={task.job_id})")
+                result = await self.claude.edit_html(
+                    html_content=task.content,
+                    user_instruction=task.user_query,
+                    document_type="slide",
+                )
+            else:
+                # Use Gemini for documents/chapters
+                logger.info(f"✏️ Editing DOCUMENT with Gemini (job={task.job_id})")
+                from src.providers.gemini_provider import gemini_provider
+
+                if not gemini_provider.enabled:
+                    raise Exception("Gemini service is not available")
+
+                result = await gemini_provider.edit_document_html(
+                    html_content=task.content,
+                    user_instruction=task.user_query,
+                )
+
+        elif task.job_type == "bilingual":
+            # Convert to bilingual format
+            logger.info(
+                f"🌐 Converting to bilingual {task.source_language}->{task.target_language} "
+                f"with Gemini (job={task.job_id})"
+            )
+            from src.services.ai_chat_service import ai_chat_service, AIProvider
+
+            # Build style-specific examples
+            if task.bilingual_style == "slash_separated":
+                style_description = "'Original / Translated' for slash_separated"
+                example_input = "<td>Item 1</td>"
+                example_output = "<td>Item 1 / Mục 1</td>"
+            else:  # line_break
+                style_description = (
+                    "place translation on a new line with <br> for line_break"
+                )
+                example_input = "<p>This is a paragraph.</p>"
+                example_output = "<p>This is a paragraph.<br>Đây là một đoạn văn.</p>"
+
+            prompt = f"""You are an expert document translator specializing in creating bilingual documents. Your task is to convert the provided HTML document into a bilingual version, combining the source and target languages while preserving the original HTML structure.
+
+- Source Language: '{task.source_language}'
+- Target Language: '{task.target_language}'
+- Bilingual Format Style: '{task.bilingual_style}' (e.g., {style_description}).
+
+**CRITICAL RULES:**
+1.  **ONLY return the modified bilingual HTML content.**
+2.  **DO NOT translate HTML tags, attributes, or CSS styles.**
+3.  **Preserve the original HTML structure meticulously (e.g., <h1>, <p>, <li>, <table>, <span>).**
+4.  For every piece of text inside a tag, provide both the original and the translation according to the specified style.
+
+**Example:**
+- Input: `{example_input}`
+- Output: `{example_output}`
+
+Now, convert the following HTML document:
+{task.content}"""
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": "You are an expert bilingual document converter. You only return clean bilingual HTML without any markdown or explanations.",
+                },
+                {"role": "user", "content": prompt},
+            ]
+
+            result = await ai_chat_service.chat(
+                provider=AIProvider.GEMINI_PRO,
+                messages=messages,
+                temperature=0.3,
+                max_tokens=16000,
             )
 
         else:

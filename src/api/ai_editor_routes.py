@@ -260,16 +260,18 @@ class AIEditorResponse(BaseModel):
 # ============ ENDPOINTS ============
 
 
-@router.post("/edit-by-ai", response_model=AIEditorResponse)
+@router.post("/edit-by-ai", response_model=CreateAIEditorJobResponse)
 async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_auth)):
     """
     Edit document or chapter content based on user's natural language instruction
-    Uses Claude Haiku 4.5 for fast and accurate content editing
-    Context-aware: automatically adapts for A4 documents vs Slides
+    Uses Redis queue for async processing - returns job_id immediately
 
     **Cost: 2 points** (AI operation)
+    **Processing time**: 1-5 minutes
 
     **Supports**: document_id OR chapter_id
+
+    **Returns**: job_id for polling at GET /api/ai/editor/jobs/{job_id}
     """
     try:
         user_id = user_info["uid"]
@@ -316,13 +318,8 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
         )
 
         doc_type = context["doc_type"]
-        resource_id = context["resource_id"]
-
-        logger.info(f"📄 {resource_type.capitalize()} type: {doc_type}")
-
-        # Log content size for debugging
         content_length = len(request.context_html)
-        logger.info(f"📊 Content HTML length: {content_length:,} chars")
+        logger.info(f"📄 Content type: {doc_type}, size: {content_length:,} chars")
 
         # Check content size
         MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
@@ -333,40 +330,7 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
                 detail=f"Content too large ({content_length:,} chars). Please edit in smaller chunks or use selection mode.",
             )
 
-        # AI Provider Strategy:
-        # - Gemini: For documents & chapters (faster, more stable, 120s timeout)
-        # - Claude: For slides only (better editing for presentations)
-
-        if doc_type == "slide":
-            # Use Claude for slide editing
-            logger.info("📊 Editing SLIDE with Claude Sonnet")
-            from src.services.claude_service import get_claude_service
-
-            claude = get_claude_service()
-            edited_html = await claude.edit_html(
-                html_content=request.context_html,
-                user_instruction=request.user_prompt,
-                document_type=doc_type,
-            )
-        else:
-            # Use Gemini 2.5 Pro for document & chapter editing
-            logger.info(f"📄 Editing DOCUMENT (type: {doc_type}) with Gemini 2.5 Pro")
-            from src.providers.gemini_provider import gemini_provider
-
-            if not gemini_provider.enabled:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Gemini service is not available. Please contact support.",
-                )
-
-            edited_html = await gemini_provider.edit_document_html(
-                html_content=request.context_html,
-                user_instruction=request.user_prompt,
-            )
-
-        logger.info(f"✅ Edit by AI completed for {resource_type} {resource_id}")
-
-        # === DEDUCT POINTS AFTER SUCCESS ===
+        # === DEDUCT POINTS BEFORE QUEUEING ===
         try:
             await points_service.deduct_points(
                 user_id=user_id,
@@ -378,15 +342,46 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
             logger.info(f"💸 Deducted {points_needed} points for AI Edit")
         except Exception as points_error:
             logger.error(f"❌ Error deducting points: {points_error}")
-            # Don't fail the request if points deduction fails
+            raise HTTPException(status_code=500, detail="Failed to deduct points")
 
-        return AIEditorResponse(success=True, edited_html=edited_html.strip())
+        # === ENQUEUE TASK TO REDIS ===
+        import uuid
+
+        task_id = str(uuid.uuid4())
+        queue = await get_ai_editor_queue()
+
+        task = AIEditorTask(
+            task_id=task_id,
+            job_id=task_id,
+            user_id=user_id,
+            document_id=resource_id,
+            job_type="edit",
+            content_type=doc_type,
+            content=request.context_html,
+            user_query=request.user_prompt,
+        )
+
+        success = await queue.enqueue_generic_task(task)
+
+        if not success:
+            logger.error(f"❌ Failed to enqueue task {task_id}")
+            raise HTTPException(
+                status_code=500, detail="Failed to enqueue task to Redis"
+            )
+
+        logger.info(f"✅ Task {task_id} enqueued to Redis ai_editor queue")
+
+        return CreateAIEditorJobResponse(
+            job_id=task_id,
+            status=AIEditorJobStatus.PENDING,
+            message="Edit job queued. Poll /api/ai/editor/jobs/{job_id} for status.",
+            estimated_time="1-5 minutes",
+        )
 
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        logger.error(f"❌ Edit by AI failed: {e}")
+        logger.error(f"❌ Edit by AI failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -710,22 +705,25 @@ async def get_ai_editor_job_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/bilingual-convert", response_model=AIEditorResponse)
+@router.post("/bilingual-convert", response_model=CreateAIEditorJobResponse)
 async def bilingual_convert(
     request: BilingualConvertRequest, user_info: dict = Depends(require_auth)
 ):
     """
     Convert entire document or chapter to bilingual format
-    Uses Gemini 2.5 Pro for handling large context and complex formatting
+    Uses Redis queue for async processing - returns job_id immediately
 
     **Cost: 3 points** (AI operation with large output)
+    **Processing time**: 2-10 minutes
 
     **Supports**: document_id OR chapter_id
 
-    **NEW: Auto-generate feature**
-    - For chapters: Creates NEW chapter with bilingual content in same book
-    - For documents: Creates NEW document with bilingual content
-    - Original content unchanged
+    **Returns**: job_id for polling at GET /api/ai/editor/jobs/{job_id}
+
+    **Note**: Result will include:
+    - `result`: Bilingual HTML content
+    - `new_resource_id`: Auto-generated chapter/document ID (if applicable)
+    - `new_resource_title`: Title of new resource
     """
     try:
         user_id = user_info["uid"]
@@ -797,388 +795,59 @@ async def bilingual_convert(
                 },
             )
 
-        # Build style-specific examples
-        if request.style == BilingualStyle.SLASH_SEPARATED:
-            style_description = "'Original / Translated' for slash_separated"
-            example_input = "<td>Item 1</td>"
-            example_output = "<td>Item 1 / Mục 1</td>"
-        else:  # LINE_BREAK
-            style_description = (
-                "place translation on a new line with <br> for line_break"
-            )
-            example_input = "<p>This is a paragraph.</p>"
-            example_output = "<p>This is a paragraph.<br>Đây là một đoạn văn.</p>"
-
-        # Build prompt for AI
-        prompt = f"""You are an expert document translator specializing in creating bilingual documents. Your task is to convert the provided HTML document into a bilingual version, combining the source and target languages while preserving the original HTML structure.
-
-- Source Language: '{request.source_language}'
-- Target Language: '{request.target_language}'
-- Bilingual Format Style: '{request.style.value}' (e.g., {style_description}).
-
-**CRITICAL RULES:**
-1.  **ONLY return the modified bilingual HTML content.**
-2.  **DO NOT translate HTML tags, attributes, or CSS styles.**
-3.  **Preserve the original HTML structure meticulously (e.g., <h1>, <p>, <li>, <table>, <span>).**
-4.  For every piece of text inside a tag, provide both the original and the translation according to the specified style.
-
-**Example:**
-- Input: `{example_input}`
-- Output: `{example_output}`
-
-Now, convert the following HTML document:
-{content_html}"""
-
-        # Call AI service (Gemini Pro)
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an expert bilingual document converter. You only return clean bilingual HTML without any markdown or explanations.",
-            },
-            {"role": "user", "content": prompt},
-        ]
-
-        # Get response from AI (non-streaming)
-        try:
-            bilingual_html = await ai_chat_service.chat(
-                provider=AIProvider.GEMINI_PRO,
-                messages=messages,
-                temperature=0.3,
-                max_tokens=16000,  # Larger token limit for full documents
-            )
-        except Exception as ai_error:
-            error_msg = str(ai_error).lower()
-            # Check if error is due to content length
-            if any(
-                keyword in error_msg
-                for keyword in ["too long", "token", "length", "size", "quota", "limit"]
-            ):
-                logger.error(f"❌ AI error (likely content too large): {ai_error}")
-                raise HTTPException(
-                    status_code=400,
-                    detail={
-                        "error": "content_processing_failed",
-                        "message": "Nội dung quá dài hoặc phức tạp để xử lý. Vui lòng thử với nội dung ngắn hơn hoặc chia nhỏ tài liệu.",
-                        "suggestion": "Hãy chuyển đổi từng phần nhỏ thay vì toàn bộ tài liệu.",
-                        "technical_details": "AI model token limit exceeded",
-                    },
-                )
-            else:
-                # Other AI errors
-                logger.error(f"❌ AI service error: {ai_error}")
-                raise HTTPException(
-                    status_code=500, detail=f"AI service error: {str(ai_error)}"
-                )
-
-        logger.info(
-            f"✅ Bilingual conversion completed for {resource_type} {resource_id}"
-        )
-
-        # === AUTO-GENERATE NEW CHAPTER/DOCUMENT ===
-        new_resource_id = None
-        new_resource_title = None
-
-        if request.chapter_id:
-            # Auto-generate NEW chapter with bilingual content
-            try:
-                chapter = db.book_chapters.find_one({"chapter_id": request.chapter_id})
-                if chapter:
-                    import uuid
-                    from datetime import datetime
-
-                    book_id = chapter["book_id"]
-                    original_title = chapter["title"]
-
-                    # Generate unique title
-                    suffix = f" ({request.source_language[:2].upper()}/{request.target_language[:2].upper()})"
-                    attempt = 0
-                    while True:
-                        if attempt == 0:
-                            new_title = f"{original_title}{suffix}"
-                        else:
-                            new_title = f"{original_title}{suffix}_{attempt}"
-
-                        existing = db.book_chapters.find_one(
-                            {"book_id": book_id, "title": new_title}
-                        )
-                        if not existing:
-                            break
-                        attempt += 1
-
-                    # Generate unique slug
-                    import re
-
-                    def slugify(text: str) -> str:
-                        # Vietnamese character mapping
-                        vietnamese_map = {
-                            "à": "a",
-                            "á": "a",
-                            "ạ": "a",
-                            "ả": "a",
-                            "ã": "a",
-                            "â": "a",
-                            "ầ": "a",
-                            "ấ": "a",
-                            "ậ": "a",
-                            "ẩ": "a",
-                            "ẫ": "a",
-                            "ă": "a",
-                            "ằ": "a",
-                            "ắ": "a",
-                            "ặ": "a",
-                            "ẳ": "a",
-                            "ẵ": "a",
-                            "è": "e",
-                            "é": "e",
-                            "ẹ": "e",
-                            "ẻ": "e",
-                            "ẽ": "e",
-                            "ê": "e",
-                            "ề": "e",
-                            "ế": "e",
-                            "ệ": "e",
-                            "ể": "e",
-                            "ễ": "e",
-                            "ì": "i",
-                            "í": "i",
-                            "ị": "i",
-                            "ỉ": "i",
-                            "ĩ": "i",
-                            "ò": "o",
-                            "ó": "o",
-                            "ọ": "o",
-                            "ỏ": "o",
-                            "õ": "o",
-                            "ô": "o",
-                            "ồ": "o",
-                            "ố": "o",
-                            "ộ": "o",
-                            "ổ": "o",
-                            "ỗ": "o",
-                            "ơ": "o",
-                            "ờ": "o",
-                            "ớ": "o",
-                            "ợ": "o",
-                            "ở": "o",
-                            "ỡ": "o",
-                            "ù": "u",
-                            "ú": "u",
-                            "ụ": "u",
-                            "ủ": "u",
-                            "ũ": "u",
-                            "ư": "u",
-                            "ừ": "u",
-                            "ứ": "u",
-                            "ự": "u",
-                            "ử": "u",
-                            "ữ": "u",
-                            "ỳ": "y",
-                            "ý": "y",
-                            "ỵ": "y",
-                            "ỷ": "y",
-                            "ỹ": "y",
-                            "đ": "d",
-                            "À": "A",
-                            "Á": "A",
-                            "Ạ": "A",
-                            "Ả": "A",
-                            "Ã": "A",
-                            "Â": "A",
-                            "Ầ": "A",
-                            "Ấ": "A",
-                            "Ậ": "A",
-                            "Ẩ": "A",
-                            "Ẫ": "A",
-                            "Ă": "A",
-                            "Ằ": "A",
-                            "Ắ": "A",
-                            "Ặ": "A",
-                            "Ẳ": "A",
-                            "Ẵ": "A",
-                            "È": "E",
-                            "É": "E",
-                            "Ẹ": "E",
-                            "Ẻ": "E",
-                            "Ẽ": "E",
-                            "Ê": "E",
-                            "Ề": "E",
-                            "Ế": "E",
-                            "Ệ": "E",
-                            "Ể": "E",
-                            "Ễ": "E",
-                            "Ì": "I",
-                            "Í": "I",
-                            "Ị": "I",
-                            "Ỉ": "I",
-                            "Ĩ": "I",
-                            "Ò": "O",
-                            "Ó": "O",
-                            "Ọ": "O",
-                            "Ỏ": "O",
-                            "Õ": "O",
-                            "Ô": "O",
-                            "Ồ": "O",
-                            "Ố": "O",
-                            "Ộ": "O",
-                            "Ổ": "O",
-                            "Ỗ": "O",
-                            "Ơ": "O",
-                            "Ờ": "O",
-                            "Ớ": "O",
-                            "Ợ": "O",
-                            "Ở": "O",
-                            "Ỡ": "O",
-                            "Ù": "U",
-                            "Ú": "U",
-                            "Ụ": "U",
-                            "Ủ": "U",
-                            "Ũ": "U",
-                            "Ư": "U",
-                            "Ừ": "U",
-                            "Ứ": "U",
-                            "Ự": "U",
-                            "Ử": "U",
-                            "Ữ": "U",
-                            "Ỳ": "Y",
-                            "Ý": "Y",
-                            "Ỵ": "Y",
-                            "Ỷ": "Y",
-                            "Ỹ": "Y",
-                            "Đ": "D",
-                        }
-                        for vn_char, en_char in vietnamese_map.items():
-                            text = text.replace(vn_char, en_char)
-                        text = text.lower()
-                        text = re.sub(r"[^\w\s-:]", "", text)
-                        text = re.sub(r"[-\s]+", "-", text)
-                        return text.strip("-")[:100]
-
-                    base_slug = slugify(new_title)
-                    slug_attempt = 0
-                    while True:
-                        if slug_attempt == 0:
-                            new_slug = base_slug
-                        else:
-                            new_slug = f"{base_slug}-{slug_attempt}"
-
-                        existing_slug = db.book_chapters.find_one(
-                            {"book_id": book_id, "slug": new_slug}
-                        )
-                        if not existing_slug:
-                            break
-                        slug_attempt += 1
-
-                    # Create new chapter
-                    new_chapter_id = f"chapter_{uuid.uuid4().hex[:12]}"
-                    now = datetime.utcnow()
-
-                    new_chapter = {
-                        "chapter_id": new_chapter_id,
-                        "book_id": book_id,
-                        "parent_id": chapter.get("parent_id"),
-                        "title": new_title,
-                        "slug": new_slug,
-                        "order_index": chapter.get("order_index", 0) + 1,
-                        "depth": chapter.get("depth", 0),
-                        "content_source": "inline",
-                        "document_id": None,
-                        "content_html": bilingual_html.strip(),
-                        "content_json": None,
-                        "is_published": True,
-                        "is_preview_free": chapter.get("is_preview_free", False),
-                        "created_at": now,
-                        "updated_at": now,
-                    }
-
-                    db.book_chapters.insert_one(new_chapter)
-                    new_resource_id = new_chapter_id
-                    new_resource_title = new_title
-
-                    logger.info(
-                        f"✅ Auto-generated bilingual chapter: {new_chapter_id} "
-                        f"(title: '{new_title}')"
-                    )
-            except Exception as chapter_error:
-                logger.error(f"❌ Failed to auto-generate chapter: {chapter_error}")
-
-        elif request.document_id:
-            # Auto-generate NEW document with bilingual content
-            try:
-                document = db.documents.find_one({"document_id": request.document_id})
-                if document:
-                    import uuid
-                    from datetime import datetime
-
-                    original_name = document.get("name") or document.get(
-                        "title", "Untitled"
-                    )
-
-                    # Generate unique name
-                    suffix = f" ({request.source_language[:2].upper()}/{request.target_language[:2].upper()})"
-                    attempt = 0
-                    while True:
-                        if attempt == 0:
-                            new_name = f"{original_name}{suffix}"
-                        else:
-                            new_name = f"{original_name}{suffix}_{attempt}"
-
-                        existing = db.documents.find_one(
-                            {"user_id": user_id, "name": new_name}
-                        )
-                        if not existing:
-                            break
-                        attempt += 1
-
-                    # Create new document
-                    new_document_id = f"doc_{uuid.uuid4().hex[:12]}"
-                    now = datetime.utcnow()
-
-                    new_document = {
-                        "document_id": new_document_id,
-                        "user_id": user_id,
-                        "name": new_name,
-                        "title": new_name,
-                        "content_html": bilingual_html.strip(),
-                        "content_json": None,
-                        "doc_type": document.get("doc_type", "doc"),
-                        "folder_id": document.get("folder_id"),
-                        "created_at": now,
-                        "updated_at": now,
-                    }
-
-                    db.documents.insert_one(new_document)
-                    new_resource_id = new_document_id
-                    new_resource_title = new_name
-
-                    logger.info(
-                        f"✅ Auto-generated bilingual document: {new_document_id} "
-                        f"(name: '{new_name}')"
-                    )
-            except Exception as doc_error:
-                logger.error(f"❌ Failed to auto-generate document: {doc_error}")
-
-        # === DEDUCT POINTS AFTER SUCCESS ===
+        # === DEDUCT POINTS BEFORE QUEUEING ===
         try:
             await points_service.deduct_points(
                 user_id=user_id,
                 amount=points_needed,
                 service="ai_dual_language",
                 resource_id=resource_id,
-                description=f"AI Bilingual {resource_type}: {request.source_language} -> {request.target_language}",
+                description=f"AI Bilingual {resource_type}: {request.source_language}->{request.target_language}",
             )
-            logger.info(f"💸 Deducted {points_needed} points for AI Bilingual Convert")
+            logger.info(f"💸 Deducted {points_needed} points for AI Bilingual")
         except Exception as points_error:
             logger.error(f"❌ Error deducting points: {points_error}")
+            raise HTTPException(status_code=500, detail="Failed to deduct points")
 
-        return AIEditorResponse(
-            success=True,
-            edited_html=bilingual_html.strip(),
-            new_resource_id=new_resource_id,
-            new_resource_title=new_resource_title,
+        # === ENQUEUE TASK TO REDIS ===
+        import uuid
+
+        task_id = str(uuid.uuid4())
+        queue = await get_ai_editor_queue()
+
+        task = AIEditorTask(
+            task_id=task_id,
+            job_id=task_id,
+            user_id=user_id,
+            document_id=resource_id,
+            job_type="bilingual",
+            content_type=resource_type,
+            content=content_html,
+            user_query=None,
+            source_language=request.source_language,
+            target_language=request.target_language,
+            bilingual_style=request.style.value,
+        )
+
+        success = await queue.enqueue_generic_task(task)
+
+        if not success:
+            logger.error(f"❌ Failed to enqueue task {task_id}")
+            raise HTTPException(
+                status_code=500, detail="Failed to enqueue task to Redis"
+            )
+
+        logger.info(f"✅ Task {task_id} enqueued to Redis ai_editor queue")
+
+        return CreateAIEditorJobResponse(
+            job_id=task_id,
+            status=AIEditorJobStatus.PENDING,
+            message="Bilingual conversion job queued. Poll /api/ai/editor/jobs/{job_id} for status.",
+            estimated_time="2-10 minutes",
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Bilingual conversion failed: {e}")
+        logger.error(f"❌ Bilingual conversion failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

@@ -9,16 +9,27 @@ from datetime import datetime
 
 
 class AIEditorTask(BaseModel):
-    """Task for AI Editor queue (Edit/Format operations)"""
+    """Task for AI Editor queue (Edit/Format/Bilingual operations)"""
 
     task_id: str = Field(..., description="Unique task ID (same as job_id in MongoDB)")
     job_id: str = Field(..., description="Job ID for status tracking in MongoDB")
     user_id: str = Field(..., description="User ID who requested the task")
     document_id: str = Field(..., description="Document or chapter ID")
-    job_type: str = Field(..., description="'edit' or 'format'")
-    content_type: str = Field(..., description="'document', 'slide', etc.")
+    job_type: str = Field(..., description="'edit', 'format', or 'bilingual'")
+    content_type: str = Field(..., description="'document', 'slide', 'chapter', etc.")
     content: str = Field(..., description="HTML content to process")
-    user_query: Optional[str] = Field(None, description="User instruction")
+    user_query: Optional[str] = Field(None, description="User instruction/prompt")
+
+    # Bilingual-specific fields
+    source_language: Optional[str] = Field(
+        None, description="Source language for bilingual"
+    )
+    target_language: Optional[str] = Field(
+        None, description="Target language for bilingual"
+    )
+    bilingual_style: Optional[str] = Field(
+        None, description="'slash_separated' or 'line_break'"
+    )
 
     # Task metadata
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())

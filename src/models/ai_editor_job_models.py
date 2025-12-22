@@ -14,6 +14,7 @@ class AIEditorJobType(str, Enum):
 
     EDIT = "edit"
     FORMAT = "format"
+    BILINGUAL = "bilingual"
 
 
 class AIEditorJobStatus(str, Enum):
