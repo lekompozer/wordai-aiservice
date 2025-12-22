@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.slide_ai_generation_models import (
     AnalyzeSlideRequest,
+    AnalyzeSlideFromPdfRequest,
     AnalyzeSlideResponse,
     SlideOutlineItem,
     CreateSlideRequest,
@@ -226,20 +227,308 @@ async def analyze_slide_requirements(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ [BG] Slide generation failed: {document_id}, error: {e}")
+        logger.error(f"❌ Slide analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
-        # Mark as failed
-        mongo_service.db["documents"].update_one(
-            {"document_id": document_id},
-            {
-                "$set": {
-                    "ai_generation_status": "failed",
-                    "ai_error_message": str(e),
-                    "updated_at": datetime.now(),
-                }
+
+# ============ STEP 1B: ANALYSIS FROM PDF ============
+
+
+@router.post("/analyze-from-pdf", response_model=AnalyzeSlideResponse)
+async def analyze_slide_from_pdf(
+    request: AnalyzeSlideFromPdfRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **STEP 1 (PDF): Analyze PDF content and generate structured slide outline**
+
+    **Cost:** 2 points (same as regular analysis)
+
+    **Difference from regular analyze:**
+    - Accepts `file_id` instead of relying only on user_query
+    - Extracts content from PDF file (max 20MB)
+    - AI generates outline based on PDF content + user instructions
+
+    **Flow:**
+    1. User uploads PDF via `/api/files/upload` → gets `file_id`
+    2. User provides: title, goal, type, slide range, language, user_query
+    3. Backend downloads PDF from R2 storage
+    4. Backend uploads PDF to Gemini Files API
+    5. AI analyzes PDF content + user instructions
+    6. Returns outline with slide structure
+
+    **Returns:**
+    - Same as `/analyze` endpoint
+    - analysis_id for Step 2
+    - slides_outline (user can add image URLs before Step 2)
+    """
+    try:
+        import os
+        import time
+        import json
+        import google.generativeai as genai
+        from src.core.config import APP_CONFIG
+        from src.services.file_download_service import FileDownloadService
+
+        logger.info(f"📄 PDF slide analysis request from user {user_info['uid']}")
+        logger.info(f"   File ID: {request.file_id}")
+        logger.info(f"   Title: {request.title}")
+        logger.info(f"   Type: {request.slide_type}")
+        logger.info(
+            f"   Range: {request.num_slides_range.min}-{request.num_slides_range.max}"
+        )
+
+        # 1. Check points
+        points_service = get_points_service()
+        points_available = await points_service.check_points(user_info["uid"])
+
+        if points_available < 2:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "INSUFFICIENT_POINTS",
+                    "message": f"Không đủ điểm để phân tích slide từ PDF. Cần: 2, Còn: {points_available}",
+                    "points_needed": 2,
+                    "points_available": points_available,
+                },
+            )
+
+        # 2. Get file from database
+        mongo_service = get_mongodb_service()
+        files_collection = mongo_service.db["files"]
+
+        file_doc = files_collection.find_one(
+            {"file_id": request.file_id, "user_id": user_info["uid"]}
+        )
+
+        if not file_doc:
+            raise HTTPException(
+                status_code=404,
+                detail="File not found. Please upload file first via /api/files/upload",
+            )
+
+        # Validate file type
+        file_type = file_doc.get("file_type", "").lower()
+        if file_type != ".pdf":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {file_type}. Only PDF files are supported.",
+            )
+
+        # Check file size (max 20MB)
+        file_size = file_doc.get("file_size_bytes", 0)
+        max_size = 20 * 1024 * 1024  # 20MB
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=400,
+                detail=f"PDF file too large: {file_size / 1024 / 1024:.1f}MB. Maximum: 20MB",
+            )
+
+        # 3. Download PDF from R2
+        r2_key = file_doc.get("r2_key")
+        if not r2_key:
+            raise HTTPException(status_code=500, detail="File R2 key not found")
+
+        logger.info(f"📥 Downloading PDF from R2: {r2_key}")
+
+        temp_pdf_path = await FileDownloadService._download_file_from_r2_with_boto3(
+            r2_key=r2_key, file_type="pdf"
+        )
+
+        if not temp_pdf_path:
+            raise HTTPException(
+                status_code=500, detail="Failed to download PDF from R2"
+            )
+
+        logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
+
+        # 4. Upload PDF to Gemini Files API
+        uploaded_file = None
+        try:
+            genai.configure(api_key=APP_CONFIG["gemini_api_key"])
+
+            logger.info(f"📤 Uploading PDF to Gemini Files API...")
+            uploaded_file = genai.upload_file(temp_pdf_path)
+            logger.info(f"✅ PDF uploaded: {uploaded_file.uri}")
+
+            # Wait for file processing
+            while uploaded_file.state.name == "PROCESSING":
+                logger.info("⏳ Waiting for PDF processing...")
+                time.sleep(2)
+                uploaded_file = genai.get_file(uploaded_file.name)
+
+            if uploaded_file.state.name == "FAILED":
+                raise Exception("PDF processing failed in Gemini")
+
+            logger.info(f"✅ PDF ready: {uploaded_file.state.name}")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to upload PDF to Gemini: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to process PDF: {str(e)}"
+            )
+        finally:
+            # Cleanup temp file
+            if temp_pdf_path and os.path.exists(temp_pdf_path):
+                try:
+                    os.unlink(temp_pdf_path)
+                    logger.info(f"🗑️ Cleaned up temp file: {temp_pdf_path}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to cleanup temp file: {e}")
+
+        # 5. Call AI for analysis with PDF
+        ai_service = get_slide_ai_service()
+        start_time = datetime.now()
+
+        # Build prompt for PDF-based analysis
+        pdf_analysis_prompt = f"""Analyze this PDF document and create a structured slide presentation outline.
+
+**User Requirements:**
+- Title: {request.title}
+- Goal: {request.target_goal}
+- Type: {request.slide_type}
+- Slides: {request.num_slides_range.min}-{request.num_slides_range.max}
+- Language: {request.language}
+- Additional Instructions: {request.user_query}
+
+**Your Task:**
+1. Read and understand the PDF content thoroughly
+2. Extract key information, main topics, and supporting details
+3. Create a logical slide structure that covers the content
+4. Generate {request.num_slides_range.min}-{request.num_slides_range.max} slides
+
+**Output Format (JSON):**
+{{
+  "presentation_summary": "Brief overview of the presentation...",
+  "num_slides": <number between min and max>,
+  "slides": [
+    {{
+      "slide_number": 1,
+      "title": "Slide title",
+      "content_points": ["Point 1", "Point 2", "Point 3"],
+      "suggested_visuals": ["Visual 1", "Visual 2"],
+      "image_suggestion": "Description of suggested image",
+      "estimated_duration": "2-3 minutes"
+    }}
+  ]
+}}
+
+**IMPORTANT:**
+- Content MUST come from the PDF document
+- Follow user instructions: {request.user_query}
+- Adapt to {request.slide_type} style (academy = educational, business = professional)
+- Use {request.language} language for all text
+- Return ONLY valid JSON, no markdown"""
+
+        # Call Gemini with PDF
+        try:
+            model = genai.GenerativeModel("gemini-2.0-flash-exp")
+
+            response = model.generate_content(
+                [uploaded_file, pdf_analysis_prompt],
+                generation_config={
+                    "temperature": 0.7,
+                    "response_mime_type": "application/json",
+                },
+            )
+
+            # Parse AI response
+            analysis_result = json.loads(response.text)
+
+            # Validate response structure
+            if "slides" not in analysis_result or "num_slides" not in analysis_result:
+                raise ValueError("Invalid AI response format")
+
+        except Exception as e:
+            logger.error(f"❌ AI analysis failed: {e}")
+            raise HTTPException(status_code=500, detail=f"AI analysis failed: {str(e)}")
+        finally:
+            # Delete file from Gemini after processing
+            if uploaded_file:
+                try:
+                    genai.delete_file(uploaded_file.name)
+                    logger.info(f"🗑️ Deleted file from Gemini: {uploaded_file.name}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to delete Gemini file: {e}")
+
+        processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
+
+        # 6. Save analysis to database (same as regular)
+        collection = mongo_service.db["slide_analyses"]
+
+        slides_outline = []
+        for slide_data in analysis_result["slides"]:
+            slides_outline.append(
+                SlideOutlineItem(
+                    slide_number=slide_data["slide_number"],
+                    title=slide_data["title"],
+                    content_points=slide_data.get("content_points", []),
+                    suggested_visuals=slide_data.get("suggested_visuals", []),
+                    image_suggestion=slide_data.get("image_suggestion"),
+                    estimated_duration=slide_data.get("estimated_duration"),
+                    image_url=None,
+                )
+            )
+
+        analysis_doc = {
+            "user_id": user_info["uid"],
+            "title": request.title,
+            "target_goal": request.target_goal,
+            "slide_type": request.slide_type,
+            "num_slides_range": request.num_slides_range.dict(),
+            "language": request.language,
+            "user_query": request.user_query,
+            "presentation_summary": analysis_result.get("presentation_summary", ""),
+            "num_slides": analysis_result["num_slides"],
+            "slides_outline": [slide.dict() for slide in slides_outline],
+            "status": "completed",
+            "processing_time_ms": processing_time,
+            # PDF-specific metadata
+            "source": "pdf",
+            "source_file_id": request.file_id,
+            "source_file_name": file_doc.get("original_file_name", ""),
+            "created_at": datetime.now(),
+            "updated_at": datetime.now(),
+        }
+
+        result = collection.insert_one(analysis_doc)
+        analysis_id = str(result.inserted_id)
+
+        logger.info(
+            f"✅ PDF analysis saved: {analysis_id} ({len(slides_outline)} slides)"
+        )
+
+        # 7. Deduct points (only after success)
+        await points_service.deduct_points(
+            user_id=user_info["uid"],
+            points=2,
+            reason="Slide AI Analysis from PDF",
+            metadata={
+                "analysis_id": analysis_id,
+                "num_slides": len(slides_outline),
+                "slide_type": request.slide_type,
+                "source_file_id": request.file_id,
             },
         )
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+        logger.info(f"💰 Deducted 2 points from user {user_info['uid']}")
+
+        # 8. Return response (same format)
+        return AnalyzeSlideResponse(
+            success=True,
+            analysis_id=analysis_id,
+            presentation_summary=analysis_result.get("presentation_summary", ""),
+            num_slides=len(slides_outline),
+            slides_outline=slides_outline,
+            processing_time_ms=processing_time,
+            points_deducted=2,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ PDF slide analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============ STEP 2: HTML GENERATION ============

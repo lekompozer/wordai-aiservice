@@ -34,11 +34,11 @@ class AnalyzeSlideRequest(BaseModel):
         ..., min_length=1, max_length=2000, description="Target goal/objective"
     )
     slide_type: str = Field(
-        ..., regex="^(academy|business)$", description="Presentation type"
+        ..., pattern="^(academy|business)$", description="Presentation type"
     )
     num_slides_range: SlideRange = Field(..., description="Desired slide count range")
     language: str = Field(
-        ..., regex="^(vi|en|zh)$", description="Presentation language"
+        ..., pattern="^(vi|en|zh)$", description="Presentation language"
     )
     user_query: str = Field(
         ...,
@@ -50,6 +50,37 @@ class AnalyzeSlideRequest(BaseModel):
     # Optional - for regeneration
     previous_analysis_id: Optional[str] = Field(
         None, description="Previous analysis ID for regeneration with new query"
+    )
+
+
+class AnalyzeSlideFromPdfRequest(BaseModel):
+    """Request to analyze slide requirements from PDF file content"""
+
+    # Same fields as AnalyzeSlideRequest
+    title: str = Field(
+        ..., min_length=1, max_length=2000, description="Presentation title"
+    )
+    target_goal: str = Field(
+        ..., min_length=1, max_length=2000, description="Target goal/objective"
+    )
+    slide_type: str = Field(
+        ..., pattern="^(academy|business)$", description="Presentation type"
+    )
+    num_slides_range: SlideRange = Field(..., description="Desired slide count range")
+    language: str = Field(
+        ..., pattern="^(vi|en|zh)$", description="Presentation language"
+    )
+    user_query: str = Field(
+        ...,
+        min_length=1,
+        max_length=6000,
+        description="Additional instructions for content generation",
+    )
+
+    # PDF-specific field
+    file_id: str = Field(
+        ...,
+        description="File ID from upload (must be PDF, max 20MB)",
     )
 
 
