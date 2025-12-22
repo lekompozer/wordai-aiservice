@@ -24,7 +24,7 @@ from src.models.slide_ai_generation_models import (
 )
 from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.points_service import get_points_service
-from src.database.mongodb_service import get_mongodb_service
+from src.services.online_test_utils import get_mongodb_service
 from src.services.document_manager import DocumentManager
 
 logger = logging.getLogger("chatbot")
