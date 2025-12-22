@@ -17,6 +17,15 @@ from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.services.subscription_service import get_subscription_service
 from src.services.points_service import get_points_service
+from src.services.mongo_service import get_mongo_service
+from src.queue.queue_dependencies import get_ai_editor_queue
+from src.models.ai_queue_tasks import AIEditorTask
+from src.models.ai_editor_job_models import (
+    CreateAIEditorJobResponse,
+    AIEditorJobStatusResponse,
+    AIEditorJobType,
+    AIEditorJobStatus,
+)
 from src.utils.logger import setup_logger
 from src.database.db_manager import DBManager
 
@@ -27,6 +36,9 @@ router = APIRouter(prefix="/api/ai/editor", tags=["AI Editor"])
 db_manager = DBManager()
 db = db_manager.db
 chapter_manager = GuideBookBookChapterManager(db)
+
+# MongoDB service for job tracking
+mongo_service = get_mongo_service()
 
 
 # ============ ENUMS ============
@@ -489,16 +501,27 @@ HTML to translate:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/format", response_model=AIEditorResponse)
+@router.post("/format", response_model=CreateAIEditorJobResponse)
 async def format_document(
     request: AIFormatRequest, user_info: dict = Depends(require_auth)
 ):
     """
-    Format and clean up document/slide/chapter content with context-aware instructions
-    Uses Claude Haiku 4.5 for fast and intelligent formatting
-    Supports both A4 documents and presentation slides
+    Format and clean up document/slide/chapter content with AI (ASYNC with Redis Queue)
 
-    **Cost: 2 points** (AI operation)
+    **Returns job_id immediately**, poll /api/ai/editor/jobs/{job_id} for status
+
+    **Cost: 2 points** (deducted immediately)
+
+    **Processing Time**: 2-10 minutes depending on content size
+
+    **Workflow**:
+    1. POST /format → Get job_id
+    2. Poll GET /jobs/{job_id} every 2-5 seconds
+    3. When status=completed, get result from response
+
+    **AI Provider Strategy**:
+    - **Claude Sonnet 4.5**: For slides (5-minute timeout, chunking support)
+    - **Gemini 2.5 Flash**: For documents & chapters (faster, stable)
 
     **Supports**: document_id OR chapter_id
     """
@@ -507,7 +530,7 @@ async def format_document(
         resource_id = request.document_id or request.chapter_id
         resource_type = "chapter" if request.chapter_id else "document"
 
-        logger.info(f"✨ Format request from user {user_id}")
+        logger.info(f"✨ Format job request from user {user_id}")
         logger.info(
             f"{resource_type.capitalize()} ID: {resource_id}, Scope: {request.scope}"
         )
@@ -548,14 +571,15 @@ async def format_document(
 
         # Determine document type
         doc_type = request.document_type or context["doc_type"]
+        content_type = doc_type.value if hasattr(doc_type, "value") else str(doc_type)
 
-        logger.info(f"📝 {resource_type.capitalize()} type detected: {doc_type}")
+        logger.info(f"📝 {resource_type.capitalize()} type detected: {content_type}")
 
         # Log content size for debugging
         content_length = len(request.context_html)
         logger.info(f"📊 Content HTML length: {content_length:,} chars")
 
-        # Check content size (Gemini 2.5 Flash supports 1M tokens ≈ 4M chars)
+        # Check content size
         MAX_CONTENT_SIZE = 500_000  # 500K chars safety limit
         if content_length > MAX_CONTENT_SIZE:
             logger.error(
@@ -566,60 +590,144 @@ async def format_document(
                 detail=f"Content too large ({content_length:,} chars). Please format in smaller chunks or use selection mode.",
             )
 
-        # AI Provider Strategy:
-        # - Gemini: For documents & chapters (faster, more stable, 120s timeout)
-        # - Claude: For slides only (better formatting for presentations)
-
-        if doc_type == DocumentType.SLIDE:
-            # Use Claude for slide formatting
-            logger.info("📊 Formatting as SLIDE with Claude Sonnet")
-            from src.services.claude_service import get_claude_service
-
-            claude = get_claude_service()
-            formatted_html = await claude.format_slide_html(
-                html_content=request.context_html,
-                user_query=request.user_query,
-            )
-        else:
-            # Use Gemini for document & chapter formatting
-            logger.info(
-                f"📄 Formatting as DOCUMENT (type: {doc_type}) with Gemini 2.5 Flash"
-            )
-            from src.providers.gemini_provider import gemini_provider
-
-            if not gemini_provider.enabled:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Gemini service is not available. Please contact support.",
-                )
-
-            formatted_html = await gemini_provider.format_document_html(
-                html_content=request.context_html,
-                user_query=request.user_query,
-            )
-
-        logger.info(f"✅ Formatting completed for {resource_type} {resource_id}")
-
-        # === DEDUCT POINTS AFTER SUCCESS ===
+        # === DEDUCT POINTS IMMEDIATELY (before job creation) ===
         try:
             await points_service.deduct_points(
                 user_id=user_id,
                 amount=points_needed,
                 service="ai_format",
                 resource_id=resource_id,
-                description=f"AI Format {doc_type} {resource_type}",
+                description=f"AI Format {content_type} {resource_type}",
             )
             logger.info(f"💸 Deducted {points_needed} points for AI Format")
         except Exception as points_error:
             logger.error(f"❌ Error deducting points: {points_error}")
+            raise HTTPException(status_code=500, detail="Failed to deduct points")
 
-        return AIEditorResponse(success=True, edited_html=formatted_html.strip())
+        # === CREATE JOB IN MONGODB ===
+        import uuid
+        from datetime import datetime
+
+        job_id = str(uuid.uuid4())
+        job_doc = {
+            "job_id": job_id,
+            "document_id": resource_id,
+            "job_type": "format",
+            "content_type": content_type,
+            "status": "pending",
+            "content": request.context_html,
+            "user_query": request.user_query,
+            "result": None,
+            "error": None,
+            "created_at": datetime.utcnow(),
+            "started_at": None,
+            "completed_at": None,
+            "content_size": len(request.context_html),
+            "estimated_tokens": len(request.context_html) // 4,
+        }
+
+        await mongo_service.db["ai_editor_jobs"].insert_one(job_doc)
+        logger.info(f"📝 Created job {job_id} in MongoDB")
+
+        # === ENQUEUE TASK TO REDIS ===
+        queue = await get_ai_editor_queue()
+
+        task = AIEditorTask(
+            task_id=job_id,
+            job_id=job_id,
+            user_id=user_id,
+            document_id=resource_id,
+            job_type="format",
+            content_type=content_type,
+            content=request.context_html,
+            user_query=request.user_query,
+        )
+
+        success = await queue.enqueue_generic_task(task)
+
+        if not success:
+            # Rollback: Delete job from MongoDB
+            await mongo_service.db["ai_editor_jobs"].delete_one({"job_id": job_id})
+            raise HTTPException(
+                status_code=500, detail="Failed to enqueue task to Redis"
+            )
+
+        logger.info(f"✅ Task {job_id} enqueued to Redis ai_editor queue")
+
+        return CreateAIEditorJobResponse(
+            job_id=job_id,
+            status=AIEditorJobStatus.PENDING,
+            message="Format job created. Poll /api/ai/editor/jobs/{job_id} for status.",
+            estimated_time="2-10 minutes",
+        )
 
     except HTTPException:
-        # Re-raise HTTP exceptions
         raise
     except Exception as e:
-        logger.error(f"❌ Formatting failed: {e}")
+        logger.error(f"❌ Format job creation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/jobs/{job_id}", response_model=AIEditorJobStatusResponse)
+async def get_ai_editor_job_status(
+    job_id: str, user_info: dict = Depends(require_auth)
+):
+    """
+    Get AI Editor job status (polling endpoint)
+
+    Poll this endpoint every 2-5 seconds to check job progress
+
+    **Status values**:
+    - `pending`: Job queued, waiting for worker
+    - `processing`: Worker is processing the job
+    - `completed`: Job finished successfully (result available)
+    - `failed`: Job failed (error message available)
+
+    **Response includes**:
+    - `result`: Formatted HTML (only when status=completed)
+    - `error`: Error message (only when status=failed)
+    - `created_at`, `started_at`, `completed_at`: Timestamps
+    - `message`: Human-readable status message
+    """
+    try:
+        user_id = user_info["uid"]
+
+        # Get job from MongoDB
+        job = await mongo_service.db["ai_editor_jobs"].find_one({"job_id": job_id})
+
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+        # Build status message
+        status = job["status"]
+        if status == "pending":
+            message = "Job is queued, waiting for worker to process"
+        elif status == "processing":
+            message = "AI is formatting your content..."
+        elif status == "completed":
+            message = "Formatting completed successfully"
+        elif status == "failed":
+            message = f"Formatting failed: {job.get('error', 'Unknown error')}"
+        else:
+            message = f"Unknown status: {status}"
+
+        return AIEditorJobStatusResponse(
+            job_id=job["job_id"],
+            status=AIEditorJobStatus(job["status"]),
+            job_type=AIEditorJobType(job["job_type"]),
+            document_id=job["document_id"],
+            created_at=job["created_at"],
+            started_at=job.get("started_at"),
+            completed_at=job.get("completed_at"),
+            result=job.get("result"),
+            error=job.get("error"),
+            message=message,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

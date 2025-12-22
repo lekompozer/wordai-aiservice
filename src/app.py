@@ -427,6 +427,54 @@ async def start_background_workers():
 
         print("✅ StorageProcessingWorker started")
 
+        # ===== START AI EDITOR WORKER =====
+        print("🎨 Starting AI Editor Worker (Edit/Format)...")
+        from src.workers.ai_editor_worker import AIEditorWorker
+
+        ai_editor_worker = AIEditorWorker(worker_id="app_ai_editor_worker")
+
+        await ai_editor_worker.initialize()
+
+        ai_editor_worker_task = asyncio.create_task(ai_editor_worker.run())
+        background_workers["ai_editor_worker"] = {
+            "worker": ai_editor_worker,
+            "task": ai_editor_worker_task,
+        }
+
+        print("✅ AI Editor Worker started")
+
+        # ===== START SLIDE GENERATION WORKER =====
+        print("📊 Starting Slide Generation Worker...")
+        from src.workers.slide_generation_worker import SlideGenerationWorker
+
+        slide_gen_worker = SlideGenerationWorker(worker_id="app_slide_gen_worker")
+
+        await slide_gen_worker.initialize()
+
+        slide_gen_worker_task = asyncio.create_task(slide_gen_worker.run())
+        background_workers["slide_generation_worker"] = {
+            "worker": slide_gen_worker,
+            "task": slide_gen_worker_task,
+        }
+
+        print("✅ Slide Generation Worker started")
+
+        # ===== START TRANSLATION WORKER =====
+        print("🌐 Starting Translation Worker...")
+        from src.workers.translation_worker import TranslationWorker
+
+        translation_worker = TranslationWorker(worker_id="app_translation_worker")
+
+        await translation_worker.initialize()
+
+        translation_worker_task = asyncio.create_task(translation_worker.run())
+        background_workers["translation_worker"] = {
+            "worker": translation_worker,
+            "task": translation_worker_task,
+        }
+
+        print("✅ Translation Worker started")
+
         # ===== START USDT PAYMENT VERIFICATION WORKER =====
         print("💰 Starting USDT Payment Verification Worker...")
         from src.services.usdt_verification_job import start_verification_job
@@ -451,6 +499,13 @@ async def start_background_workers():
         )
         print(
             "   💾 StorageProcessingWorker → Worker 2: Qdrant storage + backend callbacks"
+        )
+        print("   🎨 AI Editor Worker → AI Edit/Format operations (ai_editor queue)")
+        print(
+            "   📊 Slide Generation Worker → AI slide HTML generation (slide_generation queue)"
+        )
+        print(
+            "   🌐 Translation Worker → Book translation jobs (translation_jobs queue)"
         )
         print(
             "   💰 USDT Verification Worker → Scan blockchain for pending USDT payments"

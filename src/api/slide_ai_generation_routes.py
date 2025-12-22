@@ -28,6 +28,8 @@ from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.points_service import get_points_service
 from src.services.online_test_utils import get_mongodb_service
 from src.services.document_manager import DocumentManager
+from src.queue.queue_dependencies import get_slide_generation_queue
+from src.models.ai_queue_tasks import SlideGenerationTask
 
 logger = logging.getLogger("chatbot")
 
@@ -563,7 +565,6 @@ async def analyze_slide_from_pdf(
 @router.post("/create", response_model=CreateSlideResponse)
 async def create_slides_from_analysis(
     request: CreateSlideRequest,
-    background_tasks: BackgroundTasks,
     user_info: dict = Depends(require_auth),
 ):
     """
@@ -697,19 +698,44 @@ async def create_slides_from_analysis(
             for img in request.slide_images:
                 slide_images_dict[img.slide_number] = img.image_url
 
-        # 7. Start background job (non-blocking)
-        background_tasks.add_task(
-            generate_slide_html_background,
+        # 7. Enqueue task to Redis (replaces BackgroundTasks)
+        import json
+
+        queue = await get_slide_generation_queue()
+
+        task = SlideGenerationTask(
+            task_id=document_id,
             document_id=document_id,
-            analysis=analysis,
-            logo_url=request.logo_url,
-            slide_images=slide_images_dict,
-            user_query=request.user_query,
-            points_needed=points_needed,
             user_id=user_info["uid"],
+            step=2,  # HTML generation step
+            analysis_id=request.analysis_id,
         )
 
-        logger.info(f"🚀 Background job queued for slide generation: {document_id}")
+        # Store additional data in document for worker to use
+        mongo_service.db["documents"].update_one(
+            {"document_id": document_id},
+            {
+                "$set": {
+                    "slide_generation_data": {
+                        "logo_url": request.logo_url,
+                        "slide_images": slide_images_dict,
+                        "user_query": request.user_query,
+                        "points_needed": points_needed,
+                    }
+                }
+            },
+        )
+
+        success = await queue.enqueue_generic_task(task)
+
+        if not success:
+            # Rollback: Delete document
+            mongo_service.db["documents"].delete_one({"document_id": document_id})
+            raise HTTPException(
+                status_code=500, detail="Failed to enqueue slide generation task"
+            )
+
+        logger.info(f"🚀 Slide generation task enqueued to Redis: {document_id}")
 
         # 8. Return immediately
         return CreateSlideResponse(

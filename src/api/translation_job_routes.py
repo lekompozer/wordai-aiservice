@@ -1,11 +1,11 @@
 """
 Translation Job Routes
-API endpoints for background translation jobs
+API endpoints for background translation jobs with Redis queue
 """
 
 import logging
 import asyncio
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends
 from typing import Dict, Any, Optional, List
 
 from src.middleware.firebase_auth import get_current_user
@@ -13,6 +13,8 @@ from src.database.db_manager import DBManager
 from src.services.translation_job_service import TranslationJobService
 from src.services.book_manager import UserBookManager
 from src.services.points_service import get_points_service
+from src.queue.queue_dependencies import get_translation_queue
+from src.models.ai_queue_tasks import TranslationTask
 from src.models.translation_job_models import (
     StartTranslationJobRequest,
     TranslationJobResponse,
@@ -74,17 +76,16 @@ def format_job_response(job_data: Dict[str, Any]) -> TranslationJobResponse:
 @router.post("/start", response_model=TranslationJobResponse)
 async def start_translation_job(
     book_id: str,
-    background_tasks: BackgroundTasks,
     request: StartTranslationJobRequest,
     user: dict = Depends(get_current_user),
     job_service: TranslationJobService = Depends(get_job_service),
     book_manager: UserBookManager = Depends(get_book_manager),
 ):
     """
-    Start a background translation job for all chapters
+    Start a background translation job for all chapters (Redis Queue)
 
     Returns immediately with job_id for status polling.
-    Translation happens in background.
+    Translation happens in background worker.
 
     **Flow:**
     1. Validates book ownership/permissions
@@ -92,7 +93,7 @@ async def start_translation_job(
     3. Counts chapters to translate
     4. Calculates and deducts points (2 for book + 2 per chapter)
     5. Creates job with PENDING status
-    6. Starts background translation
+    6. Enqueues task to Redis
     7. Returns job_id immediately
 
     **Points:** 2 points for book metadata + 2 points per chapter
@@ -194,11 +195,31 @@ async def start_translation_job(
             custom_background=custom_background,
         )
 
-        # Start background processing (fire and forget)
-        asyncio.create_task(job_service.process_job(job_id))
+        # Enqueue task to Redis (replaces asyncio.create_task)
+        queue = await get_translation_queue()
+
+        task = TranslationTask(
+            task_id=job_id,
+            job_id=job_id,
+            book_id=book_id,
+            user_id=user_id,
+            target_language=request.target_language,
+            source_language=source_language,
+            preserve_background=preserve_background,
+            custom_background=custom_background,
+        )
+
+        success = await queue.enqueue_generic_task(task)
+
+        if not success:
+            # Rollback: Delete job
+            job_service.jobs_collection.delete_one({"job_id": job_id})
+            raise HTTPException(
+                status_code=500, detail="Failed to enqueue translation task"
+            )
 
         logger.info(
-            f"🚀 Started translation job {job_id} for book {book_id} "
+            f"🚀 Translation task enqueued to Redis: {job_id} for book {book_id} "
             f"({chapters_count} chapters, {request.target_language})"
         )
 
