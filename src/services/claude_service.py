@@ -87,8 +87,8 @@ class ClaudeService:
 
         for attempt in range(max_retries):
             try:
-                # Timeout: 120 seconds for all requests
-                async with httpx.AsyncClient(timeout=120.0) as client:
+                # Timeout: 300 seconds (5 minutes) for large content
+                async with httpx.AsyncClient(timeout=300.0) as client:
                     response = await client.post(
                         self.api_url,
                         headers={
@@ -132,7 +132,7 @@ class ClaudeService:
 
             except httpx.ReadTimeout as e:
                 logger.error(
-                    f"❌ Claude request timeout after 120s (attempt {attempt + 1}/{max_retries}): {e}"
+                    f"❌ Claude request timeout after 300s (attempt {attempt + 1}/{max_retries}): {e}"
                 )
                 if attempt < max_retries - 1:
                     wait_time = (2**attempt) + 1
@@ -425,6 +425,7 @@ OUTPUT REQUIREMENTS:
         """
         Format and beautify presentation slide HTML content
         Optimized for slide formatting (concise, visual)
+        Automatically chunks large content to avoid timeouts
 
         Args:
             html_content: Slide HTML to format
@@ -433,6 +434,33 @@ OUTPUT REQUIREMENTS:
 
         Returns:
             Formatted slide HTML content
+        """
+        # Estimate tokens (rough: 1 token ≈ 4 chars)
+        estimated_tokens = len(html_content) // 4
+        MAX_TOKENS_PER_CHUNK = 60000  # ~240KB chars, leaves room for output
+
+        logger.info(
+            f"📊 Content size: {len(html_content):,} chars (~{estimated_tokens:,} tokens)"
+        )
+
+        # If content is too large, split by slides
+        if estimated_tokens > MAX_TOKENS_PER_CHUNK:
+            logger.warning(f"⚠️ Content too large, splitting into chunks...")
+            return await self._format_slide_html_chunked(
+                html_content, user_query, model
+            )
+
+        # Normal formatting for smaller content
+        return await self._format_slide_html_single(html_content, user_query, model)
+
+    async def _format_slide_html_single(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> str:
+        """
+        Format slide HTML in a single request
         """
         system_prompt = """You are an expert presentation formatter. Your task is to format and beautify slide content for TipTap editor.
 
@@ -484,12 +512,61 @@ OUTPUT REQUIREMENTS:
         result = await self.chat(
             messages=messages,
             model=model or self.default_model,
-            max_tokens=16384,
+            max_tokens=64000,  # Allow large slide content (64k tokens)
             temperature=0.3,  # Lower temp for consistent formatting
             system_prompt=system_prompt,
         )
 
         return result.strip()
+
+    async def _format_slide_html_chunked(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+        model: Optional[str] = None,
+    ) -> str:
+        """
+        Format large slide HTML by splitting into chunks
+        Splits by individual slides to maintain coherence
+        """
+        from bs4 import BeautifulSoup
+
+        logger.info("🔪 Splitting slides for chunked formatting...")
+
+        # Parse HTML and find all slides
+        soup = BeautifulSoup(html_content, "html.parser")
+        slide_divs = soup.find_all("div", class_="slide")
+
+        if not slide_divs:
+            logger.warning("⚠️ No slides found, treating as single chunk")
+            return await self._format_slide_html_single(html_content, user_query, model)
+
+        logger.info(f"📄 Found {len(slide_divs)} slides, processing in chunks...")
+
+        # Process slides in chunks of 5
+        SLIDES_PER_CHUNK = 5
+        formatted_slides = []
+
+        for i in range(0, len(slide_divs), SLIDES_PER_CHUNK):
+            chunk_slides = slide_divs[i : i + SLIDES_PER_CHUNK]
+            chunk_html = "\n\n".join(str(slide) for slide in chunk_slides)
+
+            logger.info(
+                f"🎨 Formatting slides {i+1}-{min(i+SLIDES_PER_CHUNK, len(slide_divs))} of {len(slide_divs)}..."
+            )
+
+            formatted_chunk = await self._format_slide_html_single(
+                chunk_html, user_query, model
+            )
+
+            formatted_slides.append(formatted_chunk)
+            logger.info(f"✅ Chunk {i//SLIDES_PER_CHUNK + 1} formatted")
+
+        # Combine all formatted chunks
+        result = "\n\n".join(formatted_slides)
+        logger.info(f"✅ All {len(slide_divs)} slides formatted successfully")
+
+        return result
 
 
 # Singleton instance
