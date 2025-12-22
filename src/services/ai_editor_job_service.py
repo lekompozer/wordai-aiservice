@@ -9,7 +9,6 @@ from typing import Optional, Dict
 import uuid
 from loguru import logger
 
-from src.services.mongo_service import MongoService
 from src.services.claude_service import ClaudeService
 from src.models.ai_editor_job_models import (
     AIEditorJobDocument,
@@ -21,7 +20,7 @@ from src.models.ai_editor_job_models import (
 class AIEditorJobService:
     """Service for managing AI editor async jobs"""
 
-    def __init__(self, mongo_service: MongoService):
+    def __init__(self, mongo_service):
         self.mongo = mongo_service
         self.db = mongo_service.db
         self.jobs_collection = self.db["ai_editor_jobs"]

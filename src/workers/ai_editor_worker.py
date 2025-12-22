@@ -25,7 +25,7 @@ load_dotenv(env_file)
 from src.queue.queue_manager import QueueManager
 from src.models.ai_queue_tasks import AIEditorTask
 from src.services.claude_service import ClaudeService
-from src.services.mongo_service import get_mongo_service
+from src.services.online_test_utils import get_mongodb_service
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -54,7 +54,7 @@ class AIEditorWorker:
             redis_url=self.redis_url, queue_name="ai_editor"
         )
         self.claude = ClaudeService()
-        self.mongo = get_mongo_service()
+        self.mongo = get_mongodb_service()
         self.jobs_collection = self.mongo.db["ai_editor_jobs"]
 
         logger.info(f"🔧 AI Editor Worker {self.worker_id} initialized")

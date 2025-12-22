@@ -17,7 +17,7 @@ from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.services.subscription_service import get_subscription_service
 from src.services.points_service import get_points_service
-from src.services.mongo_service import get_mongo_service
+from src.services.online_test_utils import get_mongodb_service
 from src.queue.queue_dependencies import get_ai_editor_queue
 from src.models.ai_queue_tasks import AIEditorTask
 from src.models.ai_editor_job_models import (
@@ -38,7 +38,7 @@ db = db_manager.db
 chapter_manager = GuideBookBookChapterManager(db)
 
 # MongoDB service for job tracking
-mongo_service = get_mongo_service()
+mongo_service = get_mongodb_service()
 
 
 # ============ ENUMS ============
