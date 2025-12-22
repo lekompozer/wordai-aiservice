@@ -10,7 +10,12 @@ import signal
 from datetime import datetime
 from typing import Optional
 
-from src.queue.queue_manager import QueueManager, set_job_status, update_job_field
+from src.queue.queue_manager import (
+    QueueManager,
+    set_job_status,
+    update_job_field,
+    get_job_status,
+)
 from src.models.ai_queue_tasks import SlideFormatTask
 from src.services.slide_ai_service import get_slide_ai_service
 
@@ -78,6 +83,11 @@ class SlideFormatWorker:
                 f"⚙️ Processing slide format job {job_id} (slide={task.slide_index}, type={task.format_type})"
             )
 
+            if task.is_batch:
+                logger.info(
+                    f"   📦 Batch job: {task.batch_job_id} ({task.slide_position + 1}/{task.total_slides})"
+                )
+
             # Update job status to "processing" in Redis
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
@@ -106,7 +116,7 @@ class SlideFormatWorker:
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
 
-            # Update status to completed in Redis
+            # Update individual job status to completed
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
@@ -119,6 +129,15 @@ class SlideFormatWorker:
                 completed_at=end_time.isoformat(),
                 processing_time_seconds=processing_time,
             )
+
+            # If part of batch, update parent batch job
+            if task.is_batch and task.batch_job_id:
+                await self._update_batch_job(
+                    batch_job_id=task.batch_job_id,
+                    slide_index=task.slide_index,
+                    result=result,
+                    error=None,
+                )
 
             logger.info(
                 f"✅ Job {job_id} completed in {processing_time:.1f}s "
@@ -140,7 +159,97 @@ class SlideFormatWorker:
                 completed_at=datetime.utcnow().isoformat(),
             )
 
+            # If part of batch, update parent batch job with error
+            if task.is_batch and task.batch_job_id:
+                await self._update_batch_job(
+                    batch_job_id=task.batch_job_id,
+                    slide_index=task.slide_index,
+                    result=None,
+                    error=str(e),
+                )
+
             return False
+
+    async def _update_batch_job(
+        self,
+        batch_job_id: str,
+        slide_index: int,
+        result: dict = None,
+        error: str = None,
+    ):
+        """Update parent batch job with slide result"""
+        try:
+            # Get current batch job
+            batch_job = await get_job_status(
+                self.queue_manager.redis_client, batch_job_id
+            )
+            if not batch_job:
+                logger.warning(f"⚠️ Batch job {batch_job_id} not found in Redis")
+                return
+
+            # Get or initialize slides_results
+            slides_results = batch_job.get("slides_results", [])
+
+            # Add/update this slide's result
+            slide_result = {
+                "slide_index": slide_index,
+                "formatted_html": result.get("formatted_html") if result else None,
+                "suggested_elements": (
+                    result.get("suggested_elements", []) if result else None
+                ),
+                "suggested_background": (
+                    result.get("suggested_background") if result else None
+                ),
+                "ai_explanation": result.get("ai_explanation") if result else None,
+                "error": error,
+            }
+
+            # Remove existing result for this slide (if any) and add new one
+            slides_results = [
+                r for r in slides_results if r.get("slide_index") != slide_index
+            ]
+            slides_results.append(slide_result)
+
+            # Count completed and failed
+            completed_slides = len(
+                [r for r in slides_results if r.get("formatted_html")]
+            )
+            failed_slides = len([r for r in slides_results if r.get("error")])
+            total_slides = batch_job.get("total_slides", 0)
+
+            # Determine if batch is complete
+            all_done = (completed_slides + failed_slides) == total_slides
+
+            # Update batch job
+            update_data = {
+                "slides_results": slides_results,
+                "completed_slides": completed_slides,
+                "failed_slides": failed_slides,
+            }
+
+            if all_done:
+                update_data["status"] = "completed"
+                update_data["completed_at"] = datetime.utcnow().isoformat()
+            elif completed_slides > 0 or failed_slides > 0:
+                update_data["status"] = "processing"
+                if not batch_job.get("started_at"):
+                    update_data["started_at"] = datetime.utcnow().isoformat()
+
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=batch_job_id,
+                user_id=batch_job.get("user_id"),
+                **update_data,
+            )
+
+            logger.info(
+                f"📦 Batch job {batch_job_id}: {completed_slides}/{total_slides} completed, {failed_slides} failed"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"❌ Failed to update batch job {batch_job_id}: {e}", exc_info=True
+            )
 
     async def run(self):
         """Main worker loop"""

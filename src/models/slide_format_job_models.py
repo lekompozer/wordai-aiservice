@@ -41,15 +41,31 @@ class SlideFormatJobStatusResponse(BaseModel):
         None, description="Total processing time"
     )
 
-    # Results (when completed)
-    formatted_html: Optional[str] = Field(None, description="Formatted HTML result")
+    # Batch info
+    is_batch: bool = Field(default=False, description="True if batch job")
+    total_slides: Optional[int] = Field(None, description="Total slides in batch")
+    completed_slides: Optional[int] = Field(None, description="Completed slides count")
+    failed_slides: Optional[int] = Field(None, description="Failed slides count")
+
+    # Results (when completed) - single slide
+    formatted_html: Optional[str] = Field(
+        None, description="Formatted HTML result (single slide)"
+    )
     suggested_elements: Optional[List[Dict[str, Any]]] = Field(
-        None, description="Suggested elements"
+        None, description="Suggested elements (single slide)"
     )
     suggested_background: Optional[Dict[str, Any]] = Field(
-        None, description="Suggested background"
+        None, description="Suggested background (single slide)"
     )
-    ai_explanation: Optional[str] = Field(None, description="AI explanation")
+    ai_explanation: Optional[str] = Field(
+        None, description="AI explanation (single slide)"
+    )
+
+    # Results (when completed) - batch
+    slides_results: Optional[List[Dict[str, Any]]] = Field(
+        None,
+        description="Array of results for batch job. Each: {slide_index, formatted_html, suggested_elements, suggested_background, ai_explanation, error}",
+    )
 
     # Error (when failed)
     error: Optional[str] = Field(None, description="Error message if failed")

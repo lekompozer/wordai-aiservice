@@ -33,19 +33,43 @@ class SlideBackground(BaseModel):
     overlayColor: Optional[str] = Field(None, description="Overlay hex color")
 
 
-class SlideAIFormatRequest(BaseModel):
-    """Request to format slide with AI"""
+class SlideData(BaseModel):
+    """Data for a single slide"""
 
-    slide_index: int = Field(..., description="Slide index to format")
-    current_html: str = Field(
-        ..., min_length=1, description="Current slide HTML content"
-    )
+    slide_index: int = Field(..., description="Slide index")
+    current_html: str = Field(..., min_length=1, description="Slide HTML content")
     elements: Optional[List[SlideElement]] = Field(
-        default=[], description="Current slide elements"
+        default=[], description="Slide elements"
+    )
+    background: Optional[SlideBackground] = Field(None, description="Slide background")
+
+
+class SlideAIFormatRequest(BaseModel):
+    """Request to format slide(s) with AI - supports 3 modes"""
+
+    # Mode 1: Single slide (backward compatible)
+    slide_index: Optional[int] = Field(None, description="Single slide index to format")
+    current_html: Optional[str] = Field(None, description="Single slide HTML content")
+    elements: Optional[List[SlideElement]] = Field(
+        default=None, description="Single slide elements"
     )
     background: Optional[SlideBackground] = Field(
-        None, description="Current slide background"
+        None, description="Single slide background"
     )
+
+    # Mode 2 & 3: Multiple slides or entire document
+    slides_data: Optional[List[SlideData]] = Field(
+        None,
+        description="Array of slide data for batch processing. Each slide already has HTML split per slide.",
+    )
+
+    # Mode 3 marker: Entire document (process all slides)
+    process_all_slides: Optional[bool] = Field(
+        None,
+        description="Set to true to process all slides in document. Must provide slides_data array.",
+    )
+
+    # Common fields
     user_instruction: Optional[str] = Field(
         None,
         max_length=500,

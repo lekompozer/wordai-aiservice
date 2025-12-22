@@ -71,7 +71,7 @@ class SlideGenerationTask(BaseModel):
 
 
 class SlideFormatTask(BaseModel):
-    """Task for Slide AI Format queue"""
+    """Task for Slide AI Format queue - single slide processing"""
 
     task_id: str = Field(..., description="Unique task ID (same as job_id)")
     job_id: str = Field(..., description="Job ID for status tracking")
@@ -82,6 +82,14 @@ class SlideFormatTask(BaseModel):
     background: dict = Field(..., description="Current slide background")
     user_instruction: Optional[str] = Field(None, description="User instruction")
     format_type: str = Field(..., description="'format' or 'edit'")
+
+    # Batch tracking (if part of multi-slide job)
+    is_batch: bool = Field(default=False, description="True if part of batch job")
+    batch_job_id: Optional[str] = Field(None, description="Parent batch job ID")
+    total_slides: Optional[int] = Field(None, description="Total slides in batch")
+    slide_position: Optional[int] = Field(
+        None, description="Position in batch (0-based)"
+    )
 
     # Task metadata
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
