@@ -4,6 +4,7 @@ Processes slide AI formatting tasks from Redis queue
 """
 
 import asyncio
+import json
 import logging
 import os
 import signal
@@ -84,9 +85,12 @@ class SlideFormatWorker:
             )
 
             if task.is_batch:
-                logger.info(
-                    f"   📦 Batch processing: {task.total_slides} slides (1 AI call)"
-                )
+                if task.total_chunks and task.total_chunks > 1:
+                    logger.info(
+                        f"   📦 Chunk {task.chunk_index + 1}/{task.total_chunks}: {task.total_slides} slides"
+                    )
+                else:
+                    logger.info(f"   📦 Batch processing: {task.total_slides} slides")
                 if task.process_entire_document:
                     logger.info(f"   📋 Mode 3: Entire document")
                 else:
@@ -131,10 +135,10 @@ class SlideFormatWorker:
                 slide_htmls = re.split(r"<!-- Slide \d+ -->\s*", formatted_html)
                 slide_htmls = [html.strip() for html in slide_htmls if html.strip()]
 
-                # Update batch job with all results at once
-                slides_results = []
+                # Prepare results for this chunk
+                chunk_results = []
                 for i, html in enumerate(slide_htmls):
-                    slides_results.append(
+                    chunk_results.append(
                         {
                             "slide_index": i,
                             "formatted_html": html,
@@ -145,21 +149,17 @@ class SlideFormatWorker:
                         }
                     )
 
-                # Update batch job status to completed
-                await set_job_status(
-                    redis_client=self.queue_manager.redis_client,
-                    job_id=task.batch_job_id,
-                    status="completed",
-                    user_id=task.user_id,
-                    completed_slides=len(slides_results),
-                    failed_slides=0,
-                    slides_results=slides_results,
-                    completed_at=end_time.isoformat(),
-                    processing_time_seconds=processing_time,
+                # Update batch job with chunk results
+                await self._merge_chunk_results(
+                    batch_job_id=task.batch_job_id,
+                    chunk_index=task.chunk_index or 0,
+                    total_chunks=task.total_chunks or 1,
+                    chunk_results=chunk_results,
+                    processing_time=processing_time,
                 )
 
                 logger.info(
-                    f"✅ Batch completed: {len(slides_results)} slides in {processing_time:.1f}s (1 AI call)"
+                    f"✅ Chunk {task.chunk_index + 1}/{task.total_chunks} completed: {len(chunk_results)} slides in {processing_time:.1f}s"
                 )
             else:
                 # Mode 1: Single slide processing
@@ -289,6 +289,93 @@ class SlideFormatWorker:
         except Exception as e:
             logger.error(
                 f"❌ Failed to update batch job {batch_job_id}: {e}", exc_info=True
+            )
+
+    async def _merge_chunk_results(
+        self,
+        batch_job_id: str,
+        chunk_index: int,
+        total_chunks: int,
+        chunk_results: list,
+        processing_time: float,
+    ):
+        """Merge chunk results into batch job and mark complete when all chunks done"""
+        try:
+            # Get current batch job
+            batch_job = await get_job_status(
+                self.queue_manager.redis_client, batch_job_id
+            )
+            if not batch_job:
+                logger.warning(f"⚠️ Batch job {batch_job_id} not found in Redis")
+                return
+
+            # Get or initialize chunk results storage
+            chunk_results_key = f"chunks:{batch_job_id}"
+
+            # Store this chunk's results
+            await self.queue_manager.redis_client.hset(
+                chunk_results_key, str(chunk_index), json.dumps(chunk_results)
+            )
+            await self.queue_manager.redis_client.expire(chunk_results_key, 86400)
+
+            # Check if all chunks are complete
+            all_chunks = await self.queue_manager.redis_client.hgetall(
+                chunk_results_key
+            )
+            chunks_completed = len(all_chunks)
+
+            logger.info(
+                f"📦 Batch job {batch_job_id}: {chunks_completed}/{total_chunks} chunks completed"
+            )
+
+            if chunks_completed == total_chunks:
+                # All chunks done - merge all results
+                all_slides_results = []
+                for idx in range(total_chunks):
+                    chunk_data = all_chunks.get(
+                        str(idx).encode()
+                        if isinstance(list(all_chunks.keys())[0], bytes)
+                        else str(idx)
+                    )
+                    if chunk_data:
+                        if isinstance(chunk_data, bytes):
+                            chunk_data = chunk_data.decode()
+                        chunk_slides = json.loads(chunk_data)
+                        all_slides_results.extend(chunk_slides)
+
+                # Update batch job status to completed
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=batch_job_id,
+                    status="completed",
+                    user_id=batch_job.get("user_id"),
+                    completed_slides=len(all_slides_results),
+                    failed_slides=0,
+                    slides_results=all_slides_results,
+                    completed_at=datetime.utcnow().isoformat(),
+                    processing_time_seconds=processing_time,
+                )
+
+                # Cleanup chunk results
+                await self.queue_manager.redis_client.delete(chunk_results_key)
+
+                logger.info(
+                    f"✅ Batch job {batch_job_id} COMPLETED: All {total_chunks} chunks merged, {len(all_slides_results)} total slides"
+                )
+            else:
+                # Update progress
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=batch_job_id,
+                    status="processing",
+                    user_id=batch_job.get("user_id"),
+                    completed_slides=chunks_completed * 12,  # Approximate
+                )
+
+        except Exception as e:
+            logger.error(
+                f"❌ Failed to merge chunk results for batch job {batch_job_id}: {e}",
+                exc_info=True,
             )
 
     async def run(self):

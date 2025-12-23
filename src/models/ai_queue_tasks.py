@@ -94,6 +94,10 @@ class SlideFormatTask(BaseModel):
         default=False, description="True if Mode 3 (entire document in single task)"
     )
 
+    # Chunking (for large batches split into smaller AI calls)
+    chunk_index: Optional[int] = Field(None, description="Chunk index (0-based)")
+    total_chunks: Optional[int] = Field(None, description="Total number of chunks")
+
     # Task metadata
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     priority: int = Field(default=1)

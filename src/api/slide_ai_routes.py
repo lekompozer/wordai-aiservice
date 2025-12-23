@@ -27,6 +27,7 @@ router = APIRouter(prefix="/api/slides", tags=["Slide AI"])
 # Points cost
 POINTS_COST_FORMAT = 2  # Layout optimization with Claude Sonnet 4.5
 POINTS_COST_EDIT = 2  # Content rewriting with Gemini 3 Pro
+MAX_SLIDES_PER_CHUNK = 12  # Maximum slides per AI call to avoid token limit
 
 
 @router.post(
@@ -142,14 +143,14 @@ async def ai_format_slide(
         points_per_slide = (
             POINTS_COST_FORMAT if request.format_type == "format" else POINTS_COST_EDIT
         )
-        total_points_cost = num_slides * points_per_slide
 
-        # Calculate points cost
-        num_slides = len(slides_to_process)
-        points_per_slide = (
-            POINTS_COST_FORMAT if request.format_type == "format" else POINTS_COST_EDIT
-        )
-        total_points_cost = num_slides * points_per_slide
+        # Points cost logic:
+        # - Mode 1 (single slide): 2 points (1 AI call)
+        # - Mode 2 & 3 (batch): 2 points (1 AI call for all slides)
+        if is_batch:
+            total_points_cost = points_per_slide  # Only 1 AI call
+        else:
+            total_points_cost = points_per_slide  # Single slide
 
         # Check points
         points_service = get_points_service()
@@ -173,20 +174,29 @@ async def ai_format_slide(
 
         logger.info(f"🎨 User {user_id} formatting {num_slides} slide(s)")
         logger.info(f"   Format type: {request.format_type}")
-        logger.info(
-            f"   Total points cost: {total_points_cost} ({num_slides} × {points_per_slide})"
-        )
+        if is_batch:
+            logger.info(
+                f"   Total points cost: {total_points_cost} (1 AI call for {num_slides} slides)"
+            )
+        else:
+            logger.info(f"   Total points cost: {total_points_cost} (1 slide)")
 
         # Deduct points BEFORE queueing
         await points_service.deduct_points(
             user_id=user_id,
             amount=total_points_cost,
             service="slide_ai_formatting",
-            resource_id=f"slides_batch_{num_slides}",
+            resource_id=(
+                f"slides_batch_{num_slides}"
+                if is_batch
+                else f"slide_{slides_to_process[0].slide_index}"
+            ),
             description=f"AI {request.format_type}: {num_slides} slide(s) - {request.user_instruction or 'Auto format'}",
         )
 
-        logger.info(f"💸 Deducted {total_points_cost} points for {num_slides} slide(s)")
+        logger.info(
+            f"💸 Deducted {total_points_cost} points ({num_slides} slide(s), 1 AI call)"
+        )
 
         # Create batch job or single job
         batch_job_id = str(uuid.uuid4())
@@ -208,44 +218,60 @@ async def ai_format_slide(
                 process_entire_document=process_entire_document,
             )
 
-            # Mode 2 & 3: ALWAYS create SINGLE task with ALL slides combined
-            combined_html = "\n\n".join(
-                [
-                    f"<!-- Slide {s.slide_index} -->\n{s.current_html}"
-                    for s in slides_to_process
-                ]
+            # Split slides into chunks (max 12 slides per chunk)
+            chunks = []
+            for i in range(0, len(slides_to_process), MAX_SLIDES_PER_CHUNK):
+                chunks.append(slides_to_process[i : i + MAX_SLIDES_PER_CHUNK])
+
+            num_chunks = len(chunks)
+            logger.info(
+                f"📦 Splitting {num_slides} slides into {num_chunks} chunk(s) (max {MAX_SLIDES_PER_CHUNK} slides/chunk)"
             )
 
-            task = SlideFormatTask(
-                task_id=batch_job_id,  # Single task ID = batch job ID
-                job_id=batch_job_id,
-                user_id=user_id,
-                slide_index=0,  # Not used for batch
-                current_html=combined_html,
-                elements=[],  # Not used for batch
-                background={},
-                user_instruction=request.user_instruction,
-                format_type=request.format_type,
-                is_batch=True,
-                batch_job_id=batch_job_id,
-                total_slides=num_slides,
-                slide_position=0,
-                process_entire_document=process_entire_document,
-            )
+            # Create tasks for each chunk
+            for chunk_idx, chunk_slides in enumerate(chunks):
+                chunk_task_id = f"{batch_job_id}_chunk_{chunk_idx}"
 
-            success = await queue.enqueue_generic_task(task)
-            if not success:
-                logger.error(f"❌ Failed to enqueue batch task {batch_job_id}")
-            else:
-                logger.info(
-                    f"✅ Enqueued SINGLE task for {num_slides} slides (1 AI call)"
+                # Combine HTML for this chunk
+                combined_html = "\n\n".join(
+                    [
+                        f"<!-- Slide {s.slide_index} -->\n{s.current_html}"
+                        for s in chunk_slides
+                    ]
                 )
+
+                task = SlideFormatTask(
+                    task_id=chunk_task_id,
+                    job_id=chunk_task_id,
+                    user_id=user_id,
+                    slide_index=0,  # Not used for batch
+                    current_html=combined_html,
+                    elements=[],
+                    background={},
+                    user_instruction=request.user_instruction,
+                    format_type=request.format_type,
+                    is_batch=True,
+                    batch_job_id=batch_job_id,
+                    total_slides=len(chunk_slides),
+                    slide_position=chunk_idx,
+                    process_entire_document=process_entire_document,
+                    chunk_index=chunk_idx,
+                    total_chunks=num_chunks,
+                )
+
+                success = await queue.enqueue_generic_task(task)
+                if not success:
+                    logger.error(f"❌ Failed to enqueue chunk task {chunk_task_id}")
+                else:
+                    logger.info(
+                        f"✅ Enqueued chunk {chunk_idx + 1}/{num_chunks} ({len(chunk_slides)} slides)"
+                    )
 
             return CreateSlideFormatJobResponse(
                 job_id=batch_job_id,
                 status=SlideFormatJobStatus.PENDING,
-                message=f"Batch job queued: {num_slides} slide(s). Poll /api/slides/jobs/{{{batch_job_id}}} for status.",
-                estimated_time=f"30-120 seconds (single AI call for {num_slides} slides)",
+                message=f"Batch job queued: {num_slides} slide(s) in {num_chunks} chunk(s). Poll /api/slides/jobs/{{{batch_job_id}}} for status.",
+                estimated_time=f"{num_chunks * 30}-{num_chunks * 120} seconds ({num_chunks} AI call(s))",
             )
 
         else:
