@@ -99,21 +99,23 @@ async def ai_format_slide(
 
         # Validate request and determine mode
         is_batch = False
+        process_entire_document = False  # Flag for Mode 3
         slides_to_process = []
 
         # Mode detection
         if request.slides_data:
-            # Mode 2 or 3: Batch processing
+            # Mode 2 or 3: Batch processing (ALWAYS 1 TASK)
             is_batch = True
             slides_to_process = request.slides_data
 
             if request.process_all_slides:
+                process_entire_document = True  # Mode 3: Entire document
                 logger.info(
-                    f"📋 Mode 3: Processing ALL {len(slides_to_process)} slides"
+                    f"📋 Mode 3: Processing ALL {len(slides_to_process)} slides (1 AI call)"
                 )
             else:
                 logger.info(
-                    f"📋 Mode 2: Processing {len(slides_to_process)} specific slides"
+                    f"📋 Mode 2: Processing {len(slides_to_process)} specific slides (1 AI call)"
                 )
 
         elif request.slide_index is not None and request.current_html:
@@ -203,41 +205,47 @@ async def ai_format_slide(
                 failed_slides=0,
                 slides_results=[],
                 format_type=request.format_type,
+                process_entire_document=process_entire_document,
             )
 
-            # Enqueue individual tasks for each slide
-            for i, slide_data in enumerate(slides_to_process):
-                task_id = f"{batch_job_id}_slide_{slide_data.slide_index}"
+            # Mode 2 & 3: ALWAYS create SINGLE task with ALL slides combined
+            combined_html = "\n\n".join(
+                [
+                    f"<!-- Slide {s.slide_index} -->\n{s.current_html}"
+                    for s in slides_to_process
+                ]
+            )
 
-                task = SlideFormatTask(
-                    task_id=task_id,
-                    job_id=task_id,  # Each slide has its own sub-job
-                    user_id=user_id,
-                    slide_index=slide_data.slide_index,
-                    current_html=slide_data.current_html,
-                    elements=slide_data.elements or [],
-                    background=(
-                        slide_data.background.dict() if slide_data.background else {}
-                    ),
-                    user_instruction=request.user_instruction,
-                    format_type=request.format_type,
-                    is_batch=True,
-                    batch_job_id=batch_job_id,
-                    total_slides=num_slides,
-                    slide_position=i,
+            task = SlideFormatTask(
+                task_id=batch_job_id,  # Single task ID = batch job ID
+                job_id=batch_job_id,
+                user_id=user_id,
+                slide_index=0,  # Not used for batch
+                current_html=combined_html,
+                elements=[],  # Not used for batch
+                background={},
+                user_instruction=request.user_instruction,
+                format_type=request.format_type,
+                is_batch=True,
+                batch_job_id=batch_job_id,
+                total_slides=num_slides,
+                slide_position=0,
+                process_entire_document=process_entire_document,
+            )
+
+            success = await queue.enqueue_generic_task(task)
+            if not success:
+                logger.error(f"❌ Failed to enqueue batch task {batch_job_id}")
+            else:
+                logger.info(
+                    f"✅ Enqueued SINGLE task for {num_slides} slides (1 AI call)"
                 )
-
-                success = await queue.enqueue_generic_task(task)
-                if not success:
-                    logger.error(f"❌ Failed to enqueue task {task_id}")
-
-            logger.info(f"✅ Batch job {batch_job_id}: Enqueued {num_slides} tasks")
 
             return CreateSlideFormatJobResponse(
                 job_id=batch_job_id,
                 status=SlideFormatJobStatus.PENDING,
                 message=f"Batch job queued: {num_slides} slide(s). Poll /api/slides/jobs/{{{batch_job_id}}} for status.",
-                estimated_time=f"{num_slides * 30}-{num_slides * 120} seconds",
+                estimated_time=f"30-120 seconds (single AI call for {num_slides} slides)",
             )
 
         else:

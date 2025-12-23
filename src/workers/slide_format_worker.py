@@ -85,8 +85,12 @@ class SlideFormatWorker:
 
             if task.is_batch:
                 logger.info(
-                    f"   📦 Batch job: {task.batch_job_id} ({task.slide_position + 1}/{task.total_slides})"
+                    f"   📦 Batch processing: {task.total_slides} slides (1 AI call)"
                 )
+                if task.process_entire_document:
+                    logger.info(f"   📋 Mode 3: Entire document")
+                else:
+                    logger.info(f"   📋 Mode 2: Selected slides")
 
             # Update job status to "processing" in Redis
             await set_job_status(
@@ -116,56 +120,92 @@ class SlideFormatWorker:
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
 
-            # Update individual job status to completed
-            await set_job_status(
-                redis_client=self.queue_manager.redis_client,
-                job_id=job_id,
-                status="completed",
-                user_id=task.user_id,
-                formatted_html=result["formatted_html"],
-                suggested_elements=result.get("suggested_elements", []),
-                suggested_background=result.get("suggested_background"),
-                ai_explanation=result["ai_explanation"],
-                completed_at=end_time.isoformat(),
-                processing_time_seconds=processing_time,
-            )
+            # Handle result based on mode
+            if task.is_batch:
+                # Mode 2 & 3: Split combined HTML back to individual slides
+                formatted_html = result["formatted_html"]
 
-            # If part of batch, update parent batch job
-            if task.is_batch and task.batch_job_id:
-                await self._update_batch_job(
-                    batch_job_id=task.batch_job_id,
-                    slide_index=task.slide_index,
-                    result=result,
-                    error=None,
+                # Parse slides (assuming AI returns with same markers)
+                import re
+
+                slide_htmls = re.split(r"<!-- Slide \d+ -->\s*", formatted_html)
+                slide_htmls = [html.strip() for html in slide_htmls if html.strip()]
+
+                # Update batch job with all results at once
+                slides_results = []
+                for i, html in enumerate(slide_htmls):
+                    slides_results.append(
+                        {
+                            "slide_index": i,
+                            "formatted_html": html,
+                            "suggested_elements": result.get("suggested_elements", []),
+                            "suggested_background": result.get("suggested_background"),
+                            "ai_explanation": result.get("ai_explanation", ""),
+                            "error": None,
+                        }
+                    )
+
+                # Update batch job status to completed
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=task.batch_job_id,
+                    status="completed",
+                    user_id=task.user_id,
+                    completed_slides=len(slides_results),
+                    failed_slides=0,
+                    slides_results=slides_results,
+                    completed_at=end_time.isoformat(),
+                    processing_time_seconds=processing_time,
                 )
 
-            logger.info(
-                f"✅ Job {job_id} completed in {processing_time:.1f}s "
-                f"(slide {task.slide_index})"
-            )
+                logger.info(
+                    f"✅ Batch completed: {len(slides_results)} slides in {processing_time:.1f}s (1 AI call)"
+                )
+            else:
+                # Mode 1: Single slide processing
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=job_id,
+                    status="completed",
+                    user_id=task.user_id,
+                    formatted_html=result["formatted_html"],
+                    suggested_elements=result.get("suggested_elements", []),
+                    suggested_background=result.get("suggested_background"),
+                    ai_explanation=result["ai_explanation"],
+                    completed_at=end_time.isoformat(),
+                    processing_time_seconds=processing_time,
+                )
+
+                logger.info(
+                    f"✅ Job {job_id} completed in {processing_time:.1f}s (slide {task.slide_index})"
+                )
 
             return True
 
         except Exception as e:
             logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
 
-            # Update status to failed in Redis
-            await set_job_status(
-                redis_client=self.queue_manager.redis_client,
-                job_id=job_id,
-                status="failed",
-                user_id=task.user_id,
-                error=str(e),
-                completed_at=datetime.utcnow().isoformat(),
-            )
-
-            # If part of batch, update parent batch job with error
-            if task.is_batch and task.batch_job_id:
-                await self._update_batch_job(
-                    batch_job_id=task.batch_job_id,
-                    slide_index=task.slide_index,
-                    result=None,
+            # Update status to failed
+            if task.is_batch:
+                # Mode 2 & 3: Fail entire batch job
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=task.batch_job_id,
+                    status="failed",
+                    user_id=task.user_id,
                     error=str(e),
+                    completed_at=datetime.utcnow().isoformat(),
+                    failed_slides=task.total_slides,
+                )
+            else:
+                # Mode 1: Fail individual job
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=job_id,
+                    status="failed",
+                    user_id=task.user_id,
+                    error=str(e),
+                    completed_at=datetime.utcnow().isoformat(),
                 )
 
             return False

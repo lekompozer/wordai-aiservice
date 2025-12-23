@@ -90,6 +90,9 @@ class SlideFormatTask(BaseModel):
     slide_position: Optional[int] = Field(
         None, description="Position in batch (0-based)"
     )
+    process_entire_document: bool = Field(
+        default=False, description="True if Mode 3 (entire document in single task)"
+    )
 
     # Task metadata
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
