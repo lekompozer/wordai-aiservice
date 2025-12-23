@@ -22,7 +22,7 @@ env_var = os.getenv("ENVIRONMENT", os.getenv("ENV", "production"))
 env_file = "development.env" if env_var == "development" else ".env"
 load_dotenv(env_file)
 
-from src.queue.queue_manager import QueueManager
+from src.queue.queue_manager import QueueManager, set_job_status
 from src.models.ai_queue_tasks import SlideGenerationTask
 from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.document_manager import DocumentManager
@@ -119,15 +119,15 @@ class SlideGenerationWorker:
             user_query = gen_data.get("user_query")
             points_needed = gen_data.get("points_needed", 2)
 
-            # Update status to processing
-            self.mongo.db["documents"].update_one(
-                {"document_id": document_id},
-                {
-                    "$set": {
-                        "ai_generation_status": "processing",
-                        "updated_at": datetime.now(),
-                    }
-                },
+            # Update Redis status to processing (MongoDB no longer tracks status)
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=document_id,
+                status="processing",
+                user_id=task.user_id,
+                document_id=document_id,
+                started_at=start_time.isoformat(),
+                total_slides=len(analysis["slides_outline"]),
             )
 
             # Get slides from analysis
@@ -165,16 +165,16 @@ class SlideGenerationWorker:
 
                 all_slides_html.extend(batch_html)
 
-                # Update progress
+                # Update Redis progress (MongoDB no longer tracks progress)
                 progress = int((i + 1) / total_batches * 100)
-                self.mongo.db["documents"].update_one(
-                    {"document_id": document_id},
-                    {
-                        "$set": {
-                            "ai_progress_percent": progress,
-                            "updated_at": datetime.now(),
-                        }
-                    },
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=document_id,
+                    status="processing",
+                    user_id=task.user_id,
+                    progress_percent=progress,
+                    batches_completed=i + 1,
+                    total_batches=total_batches,
                 )
 
                 logger.info(f"✅ Batch {i+1}/{total_batches} completed ({progress}%)")
@@ -193,7 +193,7 @@ class SlideGenerationWorker:
 
             logger.info(f"✅ All slides generated. Total: {num_slides}")
 
-            # Save final HTML to document
+            # Save final HTML to document (MongoDB only stores content, not status)
             self.doc_manager.update_document(
                 document_id=document_id,
                 user_id=task.user_id,
@@ -201,18 +201,6 @@ class SlideGenerationWorker:
                 content_html=final_html,
                 content_text=analysis.get("presentation_summary", ""),
                 slide_backgrounds=slide_backgrounds,
-            )
-
-            # Update AI generation status
-            self.mongo.db["documents"].update_one(
-                {"document_id": document_id},
-                {
-                    "$set": {
-                        "ai_generation_status": "completed",
-                        "ai_progress_percent": 100,
-                        "updated_at": datetime.now(),
-                    }
-                },
             )
 
             # Deduct points (only after successful completion)
@@ -228,6 +216,19 @@ class SlideGenerationWorker:
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
 
+            # Update Redis status to completed
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=document_id,
+                status="completed",
+                user_id=task.user_id,
+                document_id=document_id,
+                completed_at=end_time.isoformat(),
+                processing_time_seconds=processing_time,
+                slides_generated=num_slides,
+                batches_processed=total_batches,
+            )
+
             logger.info(
                 f"✅ Slide generation completed: {document_id} in {processing_time:.1f}s, "
                 f"deducted {points_needed} points"
@@ -240,16 +241,15 @@ class SlideGenerationWorker:
                 f"❌ Slide generation failed: {document_id}, error: {e}", exc_info=True
             )
 
-            # Mark as failed
-            self.mongo.db["documents"].update_one(
-                {"document_id": document_id},
-                {
-                    "$set": {
-                        "ai_generation_status": "failed",
-                        "ai_error_message": str(e),
-                        "updated_at": datetime.now(),
-                    }
-                },
+            # Update Redis status to failed (MongoDB no longer tracks status)
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=document_id,
+                status="failed",
+                user_id=task.user_id,
+                document_id=document_id,
+                error=str(e),
+                completed_at=datetime.utcnow().isoformat(),
             )
 
             return False

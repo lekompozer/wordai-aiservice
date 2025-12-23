@@ -28,6 +28,8 @@ from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.points_service import get_points_service
 from src.services.online_test_utils import get_mongodb_service
 from src.services.document_manager import DocumentManager
+from src.queue.queue_manager import get_job_status
+from src.queue.queue_dependencies import get_slide_generation_queue
 from src.queue.queue_dependencies import get_slide_generation_queue
 from src.models.ai_queue_tasks import SlideGenerationTask
 
@@ -47,74 +49,72 @@ async def get_slide_generation_status(
     """
     **Poll AI slide generation status**
 
-    Returns current status of AI slide generation:
+    Returns current status of AI slide generation FROM REDIS:
     - status: 'pending' | 'processing' | 'completed' | 'failed'
     - progress_percent: 0-100
     - error_message: If failed
 
     Frontend should poll this endpoint every 2-3 seconds until status is 'completed' or 'failed'.
+
+    **IMPORTANT:** Status is tracked in Redis, not MongoDB. MongoDB only stores final content.
     """
     try:
-        mongo_service = get_mongodb_service()
-        doc_manager = DocumentManager(mongo_service.db)
+        # Get Redis queue
+        queue = await get_slide_generation_queue()
 
-        # Get document (validates user owns it)
-        document = doc_manager.get_document(document_id, user_info["uid"])
+        # Query Redis for job status (NOT MongoDB)
+        job = await get_job_status(queue.redis_client, document_id)
 
-        if not document:
-            raise HTTPException(status_code=404, detail="Document not found")
-
-        # Check if this is an AI-generated slide
-        if document.get("document_type") != "slide":
-            raise HTTPException(status_code=400, detail="Not a slide document")
-
-        if "ai_analysis_id" not in document:
+        if not job:
+            # Job not found in Redis - might be very old or never created
             raise HTTPException(
-                status_code=400,
-                detail="Not an AI-generated slide. This endpoint is only for AI slide generation status.",
+                status_code=404,
+                detail="Job status not found in Redis. It may have expired (24h TTL) or was never created.",
             )
 
-        # Build status message
-        status = document.get("ai_generation_status", "pending")
-        progress = document.get("ai_progress_percent", 0)
-        num_slides = document.get("ai_num_slides")
+        # Validate user owns this job
+        if job.get("user_id") != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Not authorized to view this job"
+            )
 
+        # Extract status from Redis
+        status = job.get("status", "pending")
+        progress = job.get("progress_percent", 0)
+        num_slides = job.get("total_slides") or job.get("slides_generated")
+        error_msg = job.get("error")
+
+        # Build status message
         if status == "pending":
             message = "Slide generation is starting..."
         elif status == "processing":
-            message = f"Generating slides... ({progress}% complete)"
+            batches_done = job.get("batches_completed", 0)
+            total_batches = job.get("total_batches", 1)
+            message = f"Generating slides... ({progress}% complete, batch {batches_done}/{total_batches})"
         elif status == "completed":
             message = f"Successfully generated {num_slides} slides!"
         elif status == "failed":
-            message = "Slide generation failed. No points were deducted."
+            message = f"Slide generation failed: {error_msg or 'Unknown error'}"
         else:
             message = "Unknown status"
 
-        # Return status
+        # Return status from Redis
         return SlideGenerationStatus(
             document_id=document_id,
             status=status,
-            progress_percent=progress,
-            error_message=document.get("ai_error_message"),
+            progress_percent=int(progress) if progress else 0,
+            error_message=error_msg,
             num_slides=num_slides,
-            title=document.get("title"),
-            created_at=(
-                document.get("created_at", datetime.now()).isoformat()
-                if isinstance(document.get("created_at"), datetime)
-                else document.get("created_at", datetime.now().isoformat())
-            ),
-            updated_at=(
-                document.get("updated_at", datetime.now()).isoformat()
-                if isinstance(document.get("updated_at"), datetime)
-                else document.get("updated_at", datetime.now().isoformat())
-            ),
+            title=job.get("title"),  # May not be in Redis
+            created_at=job.get("created_at", datetime.utcnow().isoformat()),
+            updated_at=job.get("updated_at", datetime.utcnow().isoformat()),
             message=message,
         )
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to get slide status: {e}")
+        logger.error(f"❌ Failed to get slide status from Redis: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
