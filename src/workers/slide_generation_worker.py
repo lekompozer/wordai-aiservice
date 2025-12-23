@@ -263,17 +263,22 @@ class SlideGenerationWorker:
                 actual_slides_count, analysis["slide_type"]
             )
 
-            # Check if we got all expected slides
-            is_complete = actual_slides_count == num_slides
+            # Complete = All batches ran successfully (no errors), regardless of slide count
+            # Partial = Had errors during batch processing (some batches didn't complete)
+            is_complete = (generation_error is None)
 
-            if not is_complete:
-                logger.warning(
-                    f"⚠️ Partial generation: {actual_slides_count}/{num_slides} slides. "
-                    f"Saving anyway - user can retry for remaining slides."
-                )
+            if actual_slides_count != num_slides:
+                if actual_slides_count < num_slides:
+                    logger.warning(
+                        f"⚠️ Generated {actual_slides_count}/{num_slides} slides (missing {num_slides - actual_slides_count})"
+                    )
+                else:
+                    logger.info(
+                        f"✨ Generated {actual_slides_count}/{num_slides} slides (bonus: +{actual_slides_count - num_slides})"
+                    )
 
             logger.info(
-                f"✅ Slides generated: {actual_slides_count}/{num_slides} "
+                f"✅ All batches completed: {actual_slides_count} slides generated "
                 f"({'complete' if is_complete else 'partial'})"
             )
 
@@ -288,7 +293,7 @@ class SlideGenerationWorker:
                 slides_outline=slides_outline,  # Save outline for retry capability
             )
 
-            # Deduct points (only if complete generation)
+            # Deduct points (only if all batches completed successfully)
             if is_complete:
                 points_service = get_points_service()
                 await points_service.deduct_points(
@@ -296,12 +301,12 @@ class SlideGenerationWorker:
                     amount=points_needed,
                     service="slide_ai_generation",
                     resource_id=document_id,
-                    description=f"AI Slide Generation: {num_slides} slides ({total_batches} batches)",
+                    description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} batches)",
                 )
-                logger.info(f"💰 Deducted {points_needed} points (complete generation)")
+                logger.info(f"💰 Deducted {points_needed} points (all batches completed)")
             else:
                 logger.info(
-                    f"💰 No points deducted (partial: {actual_slides_count}/{num_slides} slides)"
+                    f"💰 No points deducted (partial: had errors during batch processing)"
                 )
 
             end_time = datetime.utcnow()
@@ -321,13 +326,13 @@ class SlideGenerationWorker:
                 slides_expected=num_slides,
                 batches_processed=total_batches,
                 title=analysis.get("title", "Untitled Presentation"),
-                can_retry=not is_complete,  # Show retry button if partial
+                can_retry=not is_complete,  # Show retry button if had errors
             )
 
             if is_complete:
                 logger.info(
                     f"✅ Slide generation COMPLETED: {document_id} in {processing_time:.1f}s, "
-                    f"{actual_slides_count} slides, deducted {points_needed} points"
+                    f"{actual_slides_count} slides, {points_needed} points deducted"
                 )
             else:
                 logger.warning(
