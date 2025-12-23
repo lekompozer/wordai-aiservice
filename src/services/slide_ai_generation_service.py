@@ -493,6 +493,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
                 model=self.claude_model,
                 max_tokens=65536,  # 64K tokens maximum output for Claude
                 temperature=0.8,  # More creative for HTML content
+                timeout=1800.0,  # 30 minutes timeout (default is 600s/10min)
                 messages=[
                     {
                         "role": "user",
