@@ -99,9 +99,11 @@ class SlideAIService:
             raise ValueError("Claude client not initialized")
 
         prompt = self._build_format_prompt(request)
-        
+
         # Log prompt size for debugging
-        logger.info(f"📊 Prompt size: {len(prompt)} chars, HTML size: {len(request.current_html)} chars")
+        logger.info(
+            f"📊 Prompt size: {len(prompt)} chars, HTML size: {len(request.current_html)} chars"
+        )
 
         response = self.claude_client.messages.create(
             model=self.claude_model,
@@ -117,14 +119,14 @@ class SlideAIService:
 
         # Parse Claude response
         response_text = response.content[0].text
-        
+
         # Debug: Log response for troubleshooting
         logger.debug(f"Claude response length: {len(response_text)} chars")
         if not response_text or not response_text.strip():
             logger.error("❌ Claude returned empty response")
             logger.error(f"Full response object: {response}")
             raise ValueError("Claude API returned empty response")
-        
+
         # Try to parse JSON with better error handling
         try:
             result = json.loads(response_text)
@@ -133,7 +135,10 @@ class SlideAIService:
             logger.error(f"Response text (first 500 chars): {response_text[:500]}")
             # Try to extract JSON from markdown code blocks if present
             import re
-            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+
+            json_match = re.search(
+                r"```json\s*(\{.*?\})\s*```", response_text, re.DOTALL
+            )
             if json_match:
                 logger.info("Found JSON in markdown code block, extracting...")
                 result = json.loads(json_match.group(1))
@@ -167,6 +172,12 @@ class SlideAIService:
     def _build_format_prompt(self, request: SlideAIFormatRequest) -> str:
         """Build prompt for Format mode (Claude 3.5 Sonnet)"""
 
+        # Check if this is a batch with multiple slides
+        import re
+
+        slide_markers = re.findall(r"<!-- Slide (\d+) -->", request.current_html)
+        is_batch = len(slide_markers) > 1
+
         # Build context
         elements_info = ""
         if request.elements:
@@ -192,7 +203,42 @@ class SlideAIService:
 
         instruction = request.user_instruction or "Improve the slide design"
 
-        prompt = f"""You are an expert presentation designer. Your task is to improve the layout, typography, and visual hierarchy of this slide WITHOUT changing the content.
+        # Different prompt for batch vs single slide
+        if is_batch:
+            prompt = f"""You are an expert presentation designer. Your task is to improve the layout, typography, and visual hierarchy of MULTIPLE SLIDES WITHOUT changing the content.
+
+I'm providing {len(slide_markers)} slides separated by markers like "<!-- Slide 0 -->", "<!-- Slide 1 -->", etc.
+
+Current Slides HTML:
+```html
+{request.current_html}
+```
+{elements_info}{background_info}
+
+User Instruction: {instruction}
+
+Design Principles to Apply:
+1. **Visual Hierarchy**: Use proper heading sizes (h1 > h2 > h3 > p), font weights, and spacing
+2. **White Space**: Add appropriate margins, padding, and line-height for readability
+3. **Consistency**: Maintain consistent spacing, alignment, and styling throughout
+4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
+5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
+
+Your Response (JSON format):
+{{
+  "formatted_html": "Improved HTML with ALL {len(slide_markers)} slides. MUST keep the <!-- Slide X --> markers to separate each slide!",
+  "ai_explanation": "Summary of layout improvements made across all slides"
+}}
+
+CRITICAL REQUIREMENTS:
+- Process ALL {len(slide_markers)} slides in the input
+- Keep ALL original text content unchanged
+- PRESERVE the "<!-- Slide X -->" markers to separate slides
+- Output format: <!-- Slide 0 -->\\n<formatted html for slide 0>\\n\\n<!-- Slide 1 -->\\n<formatted html for slide 1>\\n...
+- Only improve HTML structure, spacing, typography
+- Use semantic HTML and inline styles for better presentation"""
+        else:
+            prompt = f"""You are an expert presentation designer. Your task is to improve the layout, typography, and visual hierarchy of this slide WITHOUT changing the content.
 
 Current Slide HTML:
 ```html
