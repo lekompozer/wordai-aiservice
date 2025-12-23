@@ -40,10 +40,10 @@ class SlideNarrationService:
     def _extract_slide_content(self, html: str) -> Dict[str, Any]:
         """
         Extract clean text and structure from slide HTML
-        
+
         Args:
             html: Raw HTML of slide
-            
+
         Returns:
             Dict with:
             - title: Slide title (if any)
@@ -58,69 +58,72 @@ class SlideNarrationService:
                 "text_content": "",
                 "headings": [],
                 "lists": [],
-                "visual_elements": []
+                "visual_elements": [],
             }
-        
-        soup = BeautifulSoup(html, 'html.parser')
-        
+
+        soup = BeautifulSoup(html, "html.parser")
+
         # Extract title (largest heading or first h1-h3)
         title = ""
-        for tag in ['h1', 'h2', 'h3']:
+        for tag in ["h1", "h2", "h3"]:
             heading = soup.find(tag)
             if heading:
                 title = heading.get_text(strip=True)
                 break
-        
+
         # Extract all headings with hierarchy
         headings = []
-        for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-            headings.append({
-                "level": int(tag.name[1]),
-                "text": tag.get_text(strip=True)
-            })
-        
+        for tag in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
+            headings.append(
+                {"level": int(tag.name[1]), "text": tag.get_text(strip=True)}
+            )
+
         # Extract lists (ul/ol)
         lists = []
-        for list_tag in soup.find_all(['ul', 'ol']):
-            list_items = [li.get_text(strip=True) for li in list_tag.find_all('li')]
+        for list_tag in soup.find_all(["ul", "ol"]):
+            list_items = [li.get_text(strip=True) for li in list_tag.find_all("li")]
             if list_items:
-                lists.append({
-                    "type": "bullet" if list_tag.name == 'ul' else "numbered",
-                    "items": list_items
-                })
-        
+                lists.append(
+                    {
+                        "type": "bullet" if list_tag.name == "ul" else "numbered",
+                        "items": list_items,
+                    }
+                )
+
         # Extract visual elements (icons, emojis, symbols)
         visual_elements = []
-        
+
         # Find icons/symbols (common patterns: single char with large font-size)
         for elem in soup.find_all(style=True):
-            style = elem.get('style', '')
+            style = elem.get("style", "")
             text = elem.get_text(strip=True)
-            
+
             # Detect large single characters (likely icons/emojis)
-            if 'font-size' in style and len(text) <= 3 and text:
-                font_size_match = re.search(r'font-size:\s*(\d+)', style)
+            if "font-size" in style and len(text) <= 3 and text:
+                font_size_match = re.search(r"font-size:\s*(\d+)", style)
                 if font_size_match and int(font_size_match.group(1)) > 40:
-                    visual_elements.append({
-                        "type": "icon/symbol",
-                        "content": text,
-                        "description": f"Large visual element: {text}"
-                    })
-        
+                    visual_elements.append(
+                        {
+                            "type": "icon/symbol",
+                            "content": text,
+                            "description": f"Large visual element: {text}",
+                        }
+                    )
+
         # Extract all clean text (remove scripts, styles)
-        for script in soup(['script', 'style']):
+        for script in soup(["script", "style"]):
             script.decompose()
-        
-        text_content = soup.get_text(separator=' ', strip=True)
+
+        text_content = soup.get_text(separator=" ", strip=True)
         # Clean up multiple spaces
-        text_content = re.sub(r'\s+', ' ', text_content)
-        
+        text_content = re.sub(r"\s+", " ", text_content)
+
         return {
             "title": title,
             "text_content": text_content[:1000],  # Limit to 1000 chars
             "headings": headings[:10],  # Max 10 headings
             "lists": lists[:5],  # Max 5 lists
-            "visual_elements": visual_elements[:10]  # Max 10 visual elements
+            "visual_elements": visual_elements[:10],  # Max 10 visual elements
         }
 
     async def generate_subtitles(
@@ -216,14 +219,18 @@ class SlideNarrationService:
             # Parse HTML to extract structured content
             slide_html = slide.get("html", "")
             parsed_content = self._extract_slide_content(slide_html)
-            
+
             overview = {
                 "slide_number": idx,
                 "title": parsed_content["title"],
                 "text_content": parsed_content["text_content"],
                 "headings": parsed_content["headings"],
-                "bullet_points": [lst for lst in parsed_content["lists"] if lst["type"] == "bullet"],
-                "numbered_lists": [lst for lst in parsed_content["lists"] if lst["type"] == "numbered"],
+                "bullet_points": [
+                    lst for lst in parsed_content["lists"] if lst["type"] == "bullet"
+                ],
+                "numbered_lists": [
+                    lst for lst in parsed_content["lists"] if lst["type"] == "numbered"
+                ],
                 "visual_elements": parsed_content["visual_elements"],
                 "background_type": (
                     slide.get("background", {}).get("type")

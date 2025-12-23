@@ -44,6 +44,8 @@ class SubtitleGenerateRequest(BaseModel):
     mode: str = Field(..., description="Narration mode: 'presentation' or 'academy'")
     language: str = Field(..., description="Language code: 'vi', 'en', 'zh'")
     user_query: str = Field("", description="User instructions for narration style")
+    scope: str = Field("all", description="Generation scope: 'current' (single slide) or 'all' (all slides)")
+    current_slide_index: Optional[int] = Field(None, description="Slide index if scope='current'")
 
     class Config:
         json_schema_extra = {
@@ -52,6 +54,8 @@ class SubtitleGenerateRequest(BaseModel):
                 "mode": "presentation",
                 "language": "vi",
                 "user_query": "Focus on key benefits, keep it concise",
+                "scope": "all",
+                "current_slide_index": None,
             }
         }
 

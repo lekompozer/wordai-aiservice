@@ -265,7 +265,7 @@ class SlideGenerationWorker:
 
             # Complete = All batches ran successfully (no errors), regardless of slide count
             # Partial = Had errors during batch processing (some batches didn't complete)
-            is_complete = (generation_error is None)
+            is_complete = generation_error is None
 
             if actual_slides_count != num_slides:
                 if actual_slides_count < num_slides:
@@ -303,7 +303,9 @@ class SlideGenerationWorker:
                     resource_id=document_id,
                     description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} batches)",
                 )
-                logger.info(f"💰 Deducted {points_needed} points (all batches completed)")
+                logger.info(
+                    f"💰 Deducted {points_needed} points (all batches completed)"
+                )
             else:
                 logger.info(
                     f"💰 No points deducted (partial: had errors during batch processing)"

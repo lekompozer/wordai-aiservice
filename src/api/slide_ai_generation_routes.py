@@ -234,24 +234,24 @@ async def update_slide_outline(
         db_service = get_mongodb_service()
         doc_manager = DocumentManager(db_service.db)
 
-        doc = doc_manager.documents.find_one({
-            "document_id": document_id,
-            "user_id": user_info["uid"],
-            "is_deleted": False
-        })
+        doc = doc_manager.documents.find_one(
+            {
+                "document_id": document_id,
+                "user_id": user_info["uid"],
+                "is_deleted": False,
+            }
+        )
 
         if not doc:
             raise HTTPException(
-                status_code=404,
-                detail="Document not found or you don't have access"
+                status_code=404, detail="Document not found or you don't have access"
             )
 
         # Check if outline exists
         current_outline = doc.get("slides_outline")
         if not current_outline:
             raise HTTPException(
-                status_code=404,
-                detail="No outline found for this document"
+                status_code=404, detail="No outline found for this document"
             )
 
         # Check if generation is in progress
@@ -261,7 +261,7 @@ async def update_slide_outline(
         if job and job.get("status") == "processing":
             raise HTTPException(
                 status_code=400,
-                detail="Cannot edit outline while generation is in progress. Please wait for completion or cancellation."
+                detail="Cannot edit outline while generation is in progress. Please wait for completion or cancellation.",
             )
 
         # Validate slide count matches
@@ -270,7 +270,7 @@ async def update_slide_outline(
         if len(new_outline) != len(current_outline):
             raise HTTPException(
                 status_code=400,
-                detail=f"Slide count mismatch. Current: {len(current_outline)}, New: {len(new_outline)}. Cannot add or remove slides."
+                detail=f"Slide count mismatch. Current: {len(current_outline)}, New: {len(new_outline)}. Cannot add or remove slides.",
             )
 
         # Update outline in MongoDB
@@ -281,16 +281,13 @@ async def update_slide_outline(
                 "$set": {
                     "slides_outline": new_outline,
                     "outline_updated_at": now,
-                    "last_saved_at": now
+                    "last_saved_at": now,
                 }
-            }
+            },
         )
 
         if result.modified_count == 0:
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to update outline"
-            )
+            raise HTTPException(status_code=500, detail="Failed to update outline")
 
         logger.info(
             f"✅ Outline updated: document={document_id}, "
@@ -302,7 +299,7 @@ async def update_slide_outline(
             document_id=document_id,
             slides_count=len(new_outline),
             updated_at=now.isoformat(),
-            message=f"Outline updated successfully ({len(new_outline)} slides)"
+            message=f"Outline updated successfully ({len(new_outline)} slides)",
         )
 
     except HTTPException:

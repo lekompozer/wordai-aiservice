@@ -122,7 +122,7 @@ async def generate_subtitles(
         document = db.documents.find_one(
             {"document_id": presentation_id, "document_type": "slide"}
         )
-        
+
         if not document:
             raise HTTPException(404, "Slide document not found")
 
@@ -138,30 +138,58 @@ async def generate_subtitles(
         # Extract slides from HTML (split by slide divs)
         import re
         from html.parser import HTMLParser
-        
+
         # Split slides by <div class="slide">
         slide_pattern = r'<div[^>]*class="slide"[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>(?=\s*(?:<div[^>]*class="slide"|$))'
-        slide_matches = re.findall(slide_pattern, content_html, re.DOTALL | re.IGNORECASE)
-        
+        slide_matches = re.findall(
+            slide_pattern, content_html, re.DOTALL | re.IGNORECASE
+        )
+
         if not slide_matches:
             # Fallback: split by any div with data-slide-index
             slide_pattern_simple = r'<div[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>'
-            slide_matches = re.findall(slide_pattern_simple, content_html, re.DOTALL | re.IGNORECASE)
-        
+            slide_matches = re.findall(
+                slide_pattern_simple, content_html, re.DOTALL | re.IGNORECASE
+            )
+
         if not slide_matches:
-            raise HTTPException(400, f"No slides found in document. Content length: {len(content_html)}")
-        
+            raise HTTPException(
+                400, f"No slides found in document. Content length: {len(content_html)}"
+            )
+
         # Build slides array with html content
         slides = []
         for idx, (slide_index, slide_html) in enumerate(slide_matches):
-            slides.append({
-                "index": int(slide_index),
-                "html": f'<div class="slide" data-slide-index="{slide_index}">{slide_html}</div>',
-                "elements": [],  # Will be populated by service if needed
-                "background": document.get("slide_backgrounds", [])[int(slide_index)] if int(slide_index) < len(document.get("slide_backgrounds", [])) else None,
-            })
-        
-        logger.info(f"📄 Extracted {len(slides)} slides from document {presentation_id}")
+            slides.append(
+                {
+                    "index": int(slide_index),
+                    "html": f'<div class="slide" data-slide-index="{slide_index}">{slide_html}</div>',
+                    "elements": [],  # Will be populated by service if needed
+                    "background": (
+                        document.get("slide_backgrounds", [])[int(slide_index)]
+                        if int(slide_index) < len(document.get("slide_backgrounds", []))
+                        else None
+                    ),
+                }
+            )
+
+        logger.info(
+            f"📄 Extracted {len(slides)} slides from document {presentation_id}"
+        )
+
+        # Filter slides based on scope
+        if request.scope == "current":
+            if request.current_slide_index is None:
+                raise HTTPException(400, "current_slide_index required when scope='current'")
+            
+            if request.current_slide_index < 0 or request.current_slide_index >= len(slides):
+                raise HTTPException(400, f"Invalid slide index: {request.current_slide_index} (total: {len(slides)})")
+            
+            # Generate for single slide only
+            slides = [slides[request.current_slide_index]]
+            logger.info(f"🎯 Generating subtitles for slide {request.current_slide_index} only")
+        else:
+            logger.info(f"📊 Generating subtitles for all {len(slides)} slides")
 
         # Get narration service
         narration_service = get_slide_narration_service()
