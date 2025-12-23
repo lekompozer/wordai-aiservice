@@ -25,7 +25,7 @@ logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api/slides", tags=["Slide AI"])
 
 # Points cost
-POINTS_COST_FORMAT = 2  # Layout optimization with Claude Sonnet 4.5
+POINTS_COST_FORMAT = 5  # Layout optimization with Claude Sonnet 4.5
 POINTS_COST_EDIT = 2  # Content rewriting with Gemini 3 Pro
 MAX_SLIDES_PER_CHUNK = 12  # Maximum slides per AI call to avoid token limit
 
@@ -85,9 +85,12 @@ async def ai_format_slide(
     **Authentication:** Required
 
     **Cost:**
-    - Format (improve layout/design): 2 points **per slide**
-    - Edit (rewrite content): 2 points **per slide**
-    - Batch: Total cost = number of slides × 2 points
+    - **Mode 1** (single slide): 2 points
+    - **Mode 2/3** (batch): 5 points per chunk for format (max 12 slides/chunk), 2 points per slide for edit
+    - Examples:
+      * 1 slide (Mode 1): 2 points
+      * 15 slides format (Mode 2/3): 2 chunks × 5 = 10 points
+      * 22 slides format (Mode 2/3): 2 chunks × 5 = 10 points
 
     **Processing time**:
     - Single slide: 30-120 seconds
@@ -140,17 +143,21 @@ async def ai_format_slide(
 
         # Calculate points cost
         num_slides = len(slides_to_process)
-        points_per_slide = (
-            POINTS_COST_FORMAT if request.format_type == "format" else POINTS_COST_EDIT
-        )
 
         # Calculate number of chunks needed (max 12 slides per chunk)
         if is_batch:
             num_chunks = (num_slides + MAX_SLIDES_PER_CHUNK - 1) // MAX_SLIDES_PER_CHUNK
-            total_points_cost = num_chunks * points_per_slide  # 2 points per AI call
+            # Batch mode (Mode 2/3): 5 points per chunk for format, 2 for edit
+            points_per_chunk = (
+                POINTS_COST_FORMAT
+                if request.format_type == "format"
+                else POINTS_COST_EDIT
+            )
+            total_points_cost = num_chunks * points_per_chunk
         else:
+            # Mode 1 (single slide): Always 2 points regardless of format type
             num_chunks = 1
-            total_points_cost = points_per_slide  # Single slide = 1 AI call
+            total_points_cost = 2  # Single slide = 2 points
 
         # Check points
         points_service = get_points_service()
@@ -179,10 +186,12 @@ async def ai_format_slide(
                 f"   Chunks: {num_chunks} (max {MAX_SLIDES_PER_CHUNK} slides/chunk)"
             )
             logger.info(
-                f"   Total points cost: {total_points_cost} ({num_chunks} AI call(s) × {points_per_slide} points)"
+                f"   Total points cost: {total_points_cost} ({num_chunks} AI call(s) × {points_per_chunk} points)"
             )
         else:
-            logger.info(f"   Total points cost: {total_points_cost} (1 slide)")
+            logger.info(
+                f"   Total points cost: {total_points_cost} (Mode 1: single slide)"
+            )
 
         # Deduct points BEFORE queueing
         await points_service.deduct_points(

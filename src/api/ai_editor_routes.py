@@ -296,9 +296,12 @@ async def edit_by_ai(request: AIEditRequest, user_info: dict = Depends(require_a
         # Validate IDs
         request.validate_ids()
 
-        # === CHECK POINTS (AI OPERATION: 2 points) ===
+        # === CHECK POINTS (AI OPERATION: 5 points for Claude/slides, 2 for others) ===
         points_service = get_points_service()
-        points_needed = 2
+        # Note: We charge 5 points upfront, but actual cost depends on content type
+        # Slides use Claude (5 points), documents use Gemini (2 points)
+        # For now, charge maximum to avoid insufficient points errors
+        points_needed = 5
 
         check_result = await points_service.check_sufficient_points(
             user_id=user_id, points_needed=points_needed, service="ai_edit"
@@ -515,7 +518,7 @@ async def format_document(
 
     **Returns job_id immediately**, poll /api/ai/editor/jobs/{job_id} for status
 
-    **Cost: 2 points** (deducted immediately)
+    **Cost: 5 points** (deducted immediately for Claude/slides, 2 points for Gemini/docs)
 
     **Processing Time**: 2-10 minutes depending on content size
 
@@ -543,9 +546,11 @@ async def format_document(
         # Validate IDs
         request.validate_ids()
 
-        # === CHECK POINTS (AI OPERATION: 2 points) ===
+        # === CHECK POINTS (AI OPERATION: 5 points for Claude/slides, 2 for Gemini/docs) ===
         points_service = get_points_service()
-        points_needed = 2
+        # Note: We charge 5 points upfront for maximum cost (Claude for slides)
+        # Documents use Gemini (2 points), but we charge max to avoid issues
+        points_needed = 5
 
         check_result = await points_service.check_sufficient_points(
             user_id=user_id, points_needed=points_needed, service="ai_format"
