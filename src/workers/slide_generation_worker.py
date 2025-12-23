@@ -144,6 +144,7 @@ class SlideGenerationWorker:
             # Generate HTML in batches
             all_slides_html = []
             generation_error = None  # Track if any batch fails
+            first_slide_sample = None  # Save first slide for style consistency
 
             for i in range(total_batches):
                 start_idx = i * BATCH_SIZE
@@ -166,9 +167,19 @@ class SlideGenerationWorker:
                         user_query=user_query,
                         batch_number=i + 1,
                         total_batches=total_batches,
+                        first_slide_sample=first_slide_sample,  # Pass style reference from batch 1
                     )
 
                     all_slides_html.extend(batch_html)
+
+                    # Save first content slide (slide 1, not title slide 0) for style reference
+                    if i == 0 and len(batch_html) >= 2:
+                        first_slide_sample = batch_html[
+                            1
+                        ]  # Use slide 1 (Table of Contents)
+                        logger.info(
+                            "📌 Saved slide 1 as style reference for subsequent batches"
+                        )
 
                     # Update Redis progress (MongoDB no longer tracks progress)
                     progress = int((i + 1) / total_batches * 100)
