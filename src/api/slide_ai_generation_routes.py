@@ -23,6 +23,9 @@ from src.models.slide_ai_generation_models import (
     SlideImageAttachment,
     CreateBasicSlideRequest,
     CreateBasicSlideResponse,
+    UpdateOutlineRequest,
+    UpdateOutlineResponse,
+)
 )
 from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.points_service import get_points_service
@@ -83,6 +86,8 @@ async def get_slide_generation_status(
         progress = job.get("progress_percent", 0)
         num_slides = job.get("total_slides") or job.get("slides_generated")
         error_msg = job.get("error")
+        slides_generated = job.get("slides_generated")
+        slides_expected = job.get("slides_expected")
 
         # Build status message
         if status == "pending":
@@ -93,6 +98,8 @@ async def get_slide_generation_status(
             message = f"Generating slides... ({progress}% complete, batch {batches_done}/{total_batches})"
         elif status == "completed":
             message = f"Successfully generated {num_slides} slides!"
+        elif status == "partial":
+            message = f"Generated {slides_generated}/{slides_expected} slides. You can use what's available or retry for complete presentation."
         elif status == "failed":
             message = f"Slide generation failed: {error_msg or 'Unknown error'}"
         else:
@@ -193,6 +200,116 @@ async def get_slide_outline(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to get outline: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/documents/{document_id}/outline", response_model=UpdateOutlineResponse)
+async def update_slide_outline(
+    document_id: str,
+    request: UpdateOutlineRequest,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **Update slide outline (for editing before retry)**
+
+    Allows user to edit the saved outline before regenerating slides.
+
+    **Validations:**
+    - User must own the document
+    - Cannot edit if generation is currently in progress
+    - Must maintain same slide count (can't add/remove slides)
+    - Slide numbers must be sequential (1, 2, 3, ...)
+
+    **Use Cases:**
+    1. Fix outline after partial generation failure
+    2. Improve content before retry
+    3. Adjust slide structure
+
+    **Returns:**
+    - success: true/false
+    - slides_count: Number of slides in updated outline
+    - updated_at: Timestamp
+    """
+    try:
+        # Get document from MongoDB
+        db_service = get_mongodb_service()
+        doc_manager = DocumentManager(db_service.db)
+
+        doc = doc_manager.documents.find_one({
+            "document_id": document_id,
+            "user_id": user_info["uid"],
+            "is_deleted": False
+        })
+
+        if not doc:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found or you don't have access"
+            )
+
+        # Check if outline exists
+        current_outline = doc.get("slides_outline")
+        if not current_outline:
+            raise HTTPException(
+                status_code=404,
+                detail="No outline found for this document"
+            )
+
+        # Check if generation is in progress
+        queue = await get_slide_generation_queue()
+        job = await get_job_status(queue.redis_client, document_id)
+
+        if job and job.get("status") == "processing":
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot edit outline while generation is in progress. Please wait for completion or cancellation."
+            )
+
+        # Validate slide count matches
+        new_outline = [slide.dict() for slide in request.slides_outline]
+
+        if len(new_outline) != len(current_outline):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Slide count mismatch. Current: {len(current_outline)}, New: {len(new_outline)}. Cannot add or remove slides."
+            )
+
+        # Update outline in MongoDB
+        now = datetime.utcnow()
+        result = doc_manager.documents.update_one(
+            {"document_id": document_id, "user_id": user_info["uid"]},
+            {
+                "$set": {
+                    "slides_outline": new_outline,
+                    "outline_updated_at": now,
+                    "last_saved_at": now
+                }
+            }
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to update outline"
+            )
+
+        logger.info(
+            f"✅ Outline updated: document={document_id}, "
+            f"user={user_info['uid']}, slides={len(new_outline)}"
+        )
+
+        return UpdateOutlineResponse(
+            success=True,
+            document_id=document_id,
+            slides_count=len(new_outline),
+            updated_at=now.isoformat(),
+            message=f"Outline updated successfully ({len(new_outline)} slides)"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update outline: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 

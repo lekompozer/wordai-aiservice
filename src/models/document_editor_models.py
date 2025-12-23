@@ -75,6 +75,11 @@ class DocumentResponse(BaseModel):
     slide_backgrounds: Optional[list] = (
         None  # ✅ Background settings for slides (JSON array)
     )
+    slides_outline: Optional[list] = (
+        None  # ✅ Slide outline for retry/editing (slide documents only)
+    )
+    outline_id: Optional[str] = None  # ✅ Reference to original analysis (optional)
+    has_outline: bool = False  # ✅ Quick check if outline exists (for frontend button)
 
 
 class DocumentListItem(BaseModel):

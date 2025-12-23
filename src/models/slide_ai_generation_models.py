@@ -242,3 +242,40 @@ class CreateBasicSlideResponse(BaseModel):
     num_slides: int = Field(..., description="Number of slides")
     created_at: str = Field(..., description="ISO timestamp")
     message: str = Field(..., description="Success message")
+
+
+# ============ OUTLINE MANAGEMENT ============
+
+
+class UpdateOutlineRequest(BaseModel):
+    """Request to update slide outline"""
+
+    slides_outline: List[SlideOutlineItem] = Field(
+        ..., description="Updated slide outline (must maintain same slide count)"
+    )
+
+    @validator("slides_outline")
+    def validate_slide_numbers(cls, v):
+        """Ensure slide numbers are sequential"""
+        if not v:
+            raise ValueError("slides_outline cannot be empty")
+
+        expected_numbers = list(range(1, len(v) + 1))
+        actual_numbers = [slide.slide_number for slide in v]
+
+        if actual_numbers != expected_numbers:
+            raise ValueError(
+                f"Slide numbers must be sequential 1-{len(v)}, got {actual_numbers}"
+            )
+
+        return v
+
+
+class UpdateOutlineResponse(BaseModel):
+    """Response for outline update"""
+
+    success: bool = Field(default=True)
+    document_id: str = Field(..., description="Document ID")
+    slides_count: int = Field(..., description="Number of slides in outline")
+    updated_at: str = Field(..., description="ISO timestamp")
+    message: str = Field(..., description="Success message")

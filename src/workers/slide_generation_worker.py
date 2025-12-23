@@ -256,15 +256,28 @@ class SlideGenerationWorker:
 
             # Combine all slides into final HTML
             final_html = "\n\n".join(all_slides_html)
+            actual_slides_count = len(all_slides_html)
 
-            # Create default backgrounds
+            # Create default backgrounds (use actual count, not expected)
             slide_backgrounds = self._create_default_backgrounds(
-                num_slides, analysis["slide_type"]
+                actual_slides_count, analysis["slide_type"]
             )
 
-            logger.info(f"✅ All slides generated. Total: {num_slides}")
+            # Check if we got all expected slides
+            is_complete = actual_slides_count == num_slides
 
-            # Save final HTML to document (MongoDB only stores content, not status)
+            if not is_complete:
+                logger.warning(
+                    f"⚠️ Partial generation: {actual_slides_count}/{num_slides} slides. "
+                    f"Saving anyway - user can retry for remaining slides."
+                )
+
+            logger.info(
+                f"✅ Slides generated: {actual_slides_count}/{num_slides} "
+                f"({'complete' if is_complete else 'partial'})"
+            )
+
+            # Save HTML to document (MongoDB only stores content, not status)
             self.doc_manager.update_document(
                 document_id=document_id,
                 user_id=task.user_id,
@@ -275,37 +288,52 @@ class SlideGenerationWorker:
                 slides_outline=slides_outline,  # Save outline for retry capability
             )
 
-            # Deduct points (only after successful completion)
-            points_service = get_points_service()
-            await points_service.deduct_points(
-                user_id=task.user_id,
-                amount=points_needed,
-                service="slide_ai_generation",
-                resource_id=document_id,
-                description=f"AI Slide Generation: {num_slides} slides ({total_batches} batches)",
-            )
+            # Deduct points (only if complete generation)
+            if is_complete:
+                points_service = get_points_service()
+                await points_service.deduct_points(
+                    user_id=task.user_id,
+                    amount=points_needed,
+                    service="slide_ai_generation",
+                    resource_id=document_id,
+                    description=f"AI Slide Generation: {num_slides} slides ({total_batches} batches)",
+                )
+                logger.info(f"💰 Deducted {points_needed} points (complete generation)")
+            else:
+                logger.info(
+                    f"💰 No points deducted (partial: {actual_slides_count}/{num_slides} slides)"
+                )
 
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
 
-            # Update Redis status to completed
+            # Update Redis status (completed or partial)
+            status = "completed" if is_complete else "partial"
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=document_id,
-                status="completed",
+                status=status,
                 user_id=task.user_id,
                 document_id=document_id,
                 completed_at=end_time.isoformat(),
                 processing_time_seconds=processing_time,
-                slides_generated=num_slides,
+                slides_generated=actual_slides_count,
+                slides_expected=num_slides,
                 batches_processed=total_batches,
                 title=analysis.get("title", "Untitled Presentation"),
+                can_retry=not is_complete,  # Show retry button if partial
             )
 
-            logger.info(
-                f"✅ Slide generation completed: {document_id} in {processing_time:.1f}s, "
-                f"deducted {points_needed} points"
-            )
+            if is_complete:
+                logger.info(
+                    f"✅ Slide generation COMPLETED: {document_id} in {processing_time:.1f}s, "
+                    f"{actual_slides_count} slides, deducted {points_needed} points"
+                )
+            else:
+                logger.warning(
+                    f"⚠️ Slide generation PARTIAL: {document_id} in {processing_time:.1f}s, "
+                    f"{actual_slides_count}/{num_slides} slides, NO points deducted"
+                )
 
             return True
 

@@ -568,26 +568,25 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
 
             logger.info(f"✅ Parsed {len(slide_htmls)} slides from batch")
 
-            # CRITICAL: Validate slide count
+            # Log slide count (don't fail if mismatch - let user decide)
             expected_count = len(slides_outline)
             actual_count = len(slide_htmls)
 
             if actual_count != expected_count:
-                logger.error(
-                    f"❌ SLIDE COUNT MISMATCH! Expected {expected_count} slides, but Claude generated {actual_count} slides"
+                logger.warning(
+                    f"⚠️ SLIDE COUNT MISMATCH! Expected {expected_count} slides, but Claude generated {actual_count} slides"
                 )
-                logger.error(f"   This is a CRITICAL ERROR - slides will be missing!")
-                logger.error(
-                    f"   Batch {batch_number}/{total_batches}: slides {batch_start_index} to {batch_start_index + expected_count - 1}"
+                logger.warning(
+                    f"   Batch {batch_number}/{total_batches}: Expected slides {batch_start_index} to {batch_start_index + expected_count - 1}"
                 )
-                logger.error(f"   Claude output length: {len(html_output)} chars")
-                # Log first 500 chars of output for debugging
-                logger.error(f"   Output preview: {html_output[:500]}...")
-
-                raise ValueError(
-                    f"Claude generated {actual_count}/{expected_count} slides. "
-                    f"This indicates the prompt is not working correctly. "
-                    f"Please check Claude's response and adjust max_tokens or prompt."
+                logger.warning(f"   Claude output length: {len(html_output)} chars")
+                logger.warning(f"   Output preview: {html_output[:500]}...")
+                logger.warning(
+                    f"   ⚠️ Continuing with {actual_count} slides - user can retry if needed"
+                )
+            else:
+                logger.info(
+                    f"✅ Slide count match: {actual_count}/{expected_count} slides"
                 )
 
             return slide_htmls
