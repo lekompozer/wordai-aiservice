@@ -239,9 +239,19 @@ Design Principles to Apply:
 4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
 5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
 
+REQUIRED OUTPUT STRUCTURE for each slide:
+```html
+<!-- Slide X -->
+<div class="slide-page">
+  <div class="slide-wrapper">
+    <!-- Your improved content here -->
+  </div>
+</div>
+```
+
 Your Response (JSON format):
 {{
-  "formatted_html": "Improved HTML with ALL {len(slide_markers)} slides. MUST keep the <!-- Slide X --> markers to separate each slide!",
+  "formatted_html": "Improved HTML with ALL {len(slide_markers)} slides wrapped in proper containers",
   "ai_explanation": "Summary of layout improvements made across all slides"
 }}
 
@@ -249,8 +259,9 @@ CRITICAL REQUIREMENTS:
 - Process ALL {len(slide_markers)} slides in the input
 - Keep ALL original text content unchanged
 - PRESERVE the "<!-- Slide X -->" markers to separate slides
-- Output format: <!-- Slide 0 -->\\n<formatted html for slide 0>\\n\\n<!-- Slide 1 -->\\n<formatted html for slide 1>\\n...
-- Only improve HTML structure, spacing, typography
+- WRAP each slide's content in: <div class="slide-page"><div class="slide-wrapper">...content...</div></div>
+- Output format: <!-- Slide 0 -->\\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\\n\\n<!-- Slide 1 -->\\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\\n...
+- Only improve HTML structure, spacing, typography inside the slide-wrapper
 - Use semantic HTML and inline styles for better presentation"""
         else:
             prompt = f"""You are an expert presentation designer. Your task is to improve the layout, typography, and visual hierarchy of this slide WITHOUT changing the content.
@@ -270,9 +281,18 @@ Design Principles to Apply:
 4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
 5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
 
+REQUIRED OUTPUT STRUCTURE:
+```html
+<div class="slide-page">
+  <div class="slide-wrapper">
+    <!-- Your improved content here -->
+  </div>
+</div>
+```
+
 Your Response (JSON format):
 {{
-  "formatted_html": "Improved HTML with better structure, classes, and inline styles",
+  "formatted_html": "Improved HTML wrapped in <div class='slide-page'><div class='slide-wrapper'>...improved content...</div></div>",
   "suggested_elements": [
     {{
       "type": "shape|image|icon|text",
@@ -293,11 +313,13 @@ Your Response (JSON format):
 
 IMPORTANT:
 - Keep ALL original text content unchanged
-- Only improve HTML structure, spacing, typography
+- MUST wrap output in: <div class="slide-page"><div class="slide-wrapper">...content...</div></div>
+- Only improve HTML structure, spacing, typography INSIDE the slide-wrapper
 - suggested_elements and suggested_background are OPTIONAL (omit if no suggestions)
 - Use semantic HTML (header, section, div with meaningful classes)
-- Add inline styles or suggest CSS classes for better presentation
-- Focus on visual hierarchy and readability"""
+- Add inline styles for better presentation (colors, spacing, typography)
+- Focus on visual hierarchy and readability
+- Make the slide look professional and modern"""
 
         return prompt
 
