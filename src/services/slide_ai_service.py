@@ -136,13 +136,28 @@ class SlideAIService:
             # Try to extract JSON from markdown code blocks if present
             import re
 
+            # Try different patterns
+            # Pattern 1: ```json ... ```
             json_match = re.search(
-                r"```json\s*(\{.*?\})\s*```", response_text, re.DOTALL
+                r"```json\s*(\{.+\})\s*```", response_text, re.DOTALL
             )
+            if not json_match:
+                # Pattern 2: ``` ... ``` (without json keyword)
+                json_match = re.search(
+                    r"```\s*(\{.+\})\s*```", response_text, re.DOTALL
+                )
+
             if json_match:
-                logger.info("Found JSON in markdown code block, extracting...")
-                result = json.loads(json_match.group(1))
+                logger.info("✅ Found JSON in markdown code block, extracting...")
+                extracted_json = json_match.group(1).strip()
+                logger.debug(f"Extracted JSON length: {len(extracted_json)} chars")
+                try:
+                    result = json.loads(extracted_json)
+                except json.JSONDecodeError as e2:
+                    logger.error(f"❌ Failed to parse extracted JSON: {e2}")
+                    raise
             else:
+                logger.error("❌ No JSON found in markdown code blocks either")
                 raise
 
         return result
