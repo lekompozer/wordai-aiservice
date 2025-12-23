@@ -33,9 +33,10 @@ from src.services.slide_narration_service import get_slide_narration_service
 from src.services.points_service import get_points_service
 from src.middleware.firebase_auth import get_current_user
 from src.database.db_manager import DBManager
+from src.services.document_manager import DocumentManager
 
 logger = logging.getLogger("chatbot")
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 # Initialize DB connection
 db_manager = DBManager()
@@ -116,21 +117,51 @@ async def generate_subtitles(
                 },
             )
 
-        # Fetch presentation from database
-        presentation = await db.presentations.find_one(
-            {"_id": ObjectId(presentation_id)}
+        # Fetch document from documents collection (where slides are stored)
+        doc_manager = DocumentManager(db)
+        document = db.documents.find_one(
+            {"document_id": presentation_id, "document_type": "slide"}
         )
-        if not presentation:
-            raise HTTPException(404, "Presentation not found")
+        
+        if not document:
+            raise HTTPException(404, "Slide document not found")
 
         # Check ownership
-        if str(presentation.get("user_id")) != user_id:
+        if document.get("user_id") != user_id:
             raise HTTPException(403, "Not authorized to narrate this presentation")
 
-        # Get slides data
-        slides = presentation.get("slides", [])
-        if not slides:
-            raise HTTPException(400, "Presentation has no slides")
+        # Parse HTML content to extract slides
+        content_html = document.get("content_html", "")
+        if not content_html:
+            raise HTTPException(400, "Document has no content")
+
+        # Extract slides from HTML (split by slide divs)
+        import re
+        from html.parser import HTMLParser
+        
+        # Split slides by <div class="slide">
+        slide_pattern = r'<div[^>]*class="slide"[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>(?=\s*(?:<div[^>]*class="slide"|$))'
+        slide_matches = re.findall(slide_pattern, content_html, re.DOTALL | re.IGNORECASE)
+        
+        if not slide_matches:
+            # Fallback: split by any div with data-slide-index
+            slide_pattern_simple = r'<div[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>'
+            slide_matches = re.findall(slide_pattern_simple, content_html, re.DOTALL | re.IGNORECASE)
+        
+        if not slide_matches:
+            raise HTTPException(400, f"No slides found in document. Content length: {len(content_html)}")
+        
+        # Build slides array with html content
+        slides = []
+        for idx, (slide_index, slide_html) in enumerate(slide_matches):
+            slides.append({
+                "index": int(slide_index),
+                "html": f'<div class="slide" data-slide-index="{slide_index}">{slide_html}</div>',
+                "elements": [],  # Will be populated by service if needed
+                "background": document.get("slide_backgrounds", [])[int(slide_index)] if int(slide_index) < len(document.get("slide_backgrounds", [])) else None,
+            })
+        
+        logger.info(f"📄 Extracted {len(slides)} slides from document {presentation_id}")
 
         # Get narration service
         narration_service = get_slide_narration_service()
@@ -142,8 +173,8 @@ async def generate_subtitles(
             mode=request.mode,
             language=request.language,
             user_query=request.user_query,
-            title=presentation.get("title", "Untitled"),
-            topic=presentation.get("topic", ""),
+            title=document.get("title", "Untitled"),
+            topic=document.get("metadata", {}).get("topic", ""),
             user_id=user_id,
         )
 

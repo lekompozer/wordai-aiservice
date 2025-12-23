@@ -8,9 +8,12 @@ import os
 import logging
 import json
 import time
+import re
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from bson import ObjectId
+from html import unescape
+from bs4 import BeautifulSoup
 
 from google import genai
 from google.genai import types as genai_types
@@ -33,6 +36,92 @@ class SlideNarrationService:
         """Initialize service"""
         self.gemini_client = gemini_client
         self.gemini_model = "gemini-3-pro-preview"
+
+    def _extract_slide_content(self, html: str) -> Dict[str, Any]:
+        """
+        Extract clean text and structure from slide HTML
+        
+        Args:
+            html: Raw HTML of slide
+            
+        Returns:
+            Dict with:
+            - title: Slide title (if any)
+            - text_content: Clean text content
+            - headings: List of headings (h1-h6)
+            - lists: Bullet points / numbered lists
+            - visual_elements: Icons, images, shapes descriptions
+        """
+        if not html:
+            return {
+                "title": "",
+                "text_content": "",
+                "headings": [],
+                "lists": [],
+                "visual_elements": []
+            }
+        
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        # Extract title (largest heading or first h1-h3)
+        title = ""
+        for tag in ['h1', 'h2', 'h3']:
+            heading = soup.find(tag)
+            if heading:
+                title = heading.get_text(strip=True)
+                break
+        
+        # Extract all headings with hierarchy
+        headings = []
+        for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
+            headings.append({
+                "level": int(tag.name[1]),
+                "text": tag.get_text(strip=True)
+            })
+        
+        # Extract lists (ul/ol)
+        lists = []
+        for list_tag in soup.find_all(['ul', 'ol']):
+            list_items = [li.get_text(strip=True) for li in list_tag.find_all('li')]
+            if list_items:
+                lists.append({
+                    "type": "bullet" if list_tag.name == 'ul' else "numbered",
+                    "items": list_items
+                })
+        
+        # Extract visual elements (icons, emojis, symbols)
+        visual_elements = []
+        
+        # Find icons/symbols (common patterns: single char with large font-size)
+        for elem in soup.find_all(style=True):
+            style = elem.get('style', '')
+            text = elem.get_text(strip=True)
+            
+            # Detect large single characters (likely icons/emojis)
+            if 'font-size' in style and len(text) <= 3 and text:
+                font_size_match = re.search(r'font-size:\s*(\d+)', style)
+                if font_size_match and int(font_size_match.group(1)) > 40:
+                    visual_elements.append({
+                        "type": "icon/symbol",
+                        "content": text,
+                        "description": f"Large visual element: {text}"
+                    })
+        
+        # Extract all clean text (remove scripts, styles)
+        for script in soup(['script', 'style']):
+            script.decompose()
+        
+        text_content = soup.get_text(separator=' ', strip=True)
+        # Clean up multiple spaces
+        text_content = re.sub(r'\s+', ' ', text_content)
+        
+        return {
+            "title": title,
+            "text_content": text_content[:1000],  # Limit to 1000 chars
+            "headings": headings[:10],  # Max 10 headings
+            "lists": lists[:5],  # Max 5 lists
+            "visual_elements": visual_elements[:10]  # Max 10 visual elements
+        }
 
     async def generate_subtitles(
         self,
@@ -121,24 +210,21 @@ class SlideNarrationService:
     ) -> str:
         """Build Gemini prompt for subtitle generation"""
 
-        # Extract slide overview WITH element details
+        # Extract clean slide content (no raw HTML)
         slide_overview = []
         for idx, slide in enumerate(slides):
-            # Include element types and positions for context
-            element_details = []
-            for elem in slide.get("elements", []):
-                element_details.append(
-                    {
-                        "id": elem.get("id", f"elem_{idx}"),
-                        "type": elem.get("type", "unknown"),
-                        "position": elem.get("position", {}),
-                    }
-                )
-
+            # Parse HTML to extract structured content
+            slide_html = slide.get("html", "")
+            parsed_content = self._extract_slide_content(slide_html)
+            
             overview = {
-                "index": idx,
-                "html": slide.get("html", ""),
-                "elements": element_details,
+                "slide_number": idx,
+                "title": parsed_content["title"],
+                "text_content": parsed_content["text_content"],
+                "headings": parsed_content["headings"],
+                "bullet_points": [lst for lst in parsed_content["lists"] if lst["type"] == "bullet"],
+                "numbered_lists": [lst for lst in parsed_content["lists"] if lst["type"] == "numbered"],
+                "visual_elements": parsed_content["visual_elements"],
                 "background_type": (
                     slide.get("background", {}).get("type")
                     if slide.get("background")
