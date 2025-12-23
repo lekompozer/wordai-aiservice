@@ -252,36 +252,45 @@ Language: {language}
 
 3. **Inline CSS:** All styling must be inline (no external stylesheets)
 
-4. **Color & Contrast (CRITICAL):**
-   - ALWAYS choose either DARK theme or LIGHT theme for each slide
-   - **DARK theme**: Background must be dark (#1a202c, #2d3748, or dark gradient), Text MUST be white/light (#ffffff, #f7fafc)
-   - **LIGHT theme**: Background must be light (#ffffff, #f7fafc, or light gradient), Text MUST be dark (#1a202c, #2d3748)
-   - **NEVER use mid-tone colors** (gray backgrounds with gray text, colored backgrounds without proper contrast)
-   - Test: Can you read the text easily? If not, increase contrast!
+4. **Color & Background (CRITICAL - Consistency):**
+   - **CHOOSE ONE THEME** for ALL slides: Either DARK or LIGHT (don't mix)
+   - **DARK theme**: Background #0f172a or #1a202c (solid dark), Text white (#ffffff, #f7fafc)
+   - **LIGHT theme**: Background #ffffff or #f7fafc (solid light), Text dark (#1a202c, #2d3748)
+   - ❌ **FORBIDDEN**: Purple/blue gradients (#667eea, #764ba2), mid-tone colors, multiple different backgrounds
+   - ✅ **ALLOWED**: Use same background for ALL content slides, optionally different for title slide & thank you slide only
+   - Example: Dark (#0f172a) for all slides, or Light (#ffffff) for content + gradient for title/thank-you
+   - Test: Can you read the text easily? Ensure high contrast!
 
-5. **Layout & Spacing:**
+5. **Slide Numbers (REQUIRED):**
+   - Add slide number to top-right or bottom-right corner of EVERY slide
+   - **SKIP slide number on**: Title slide (slide 0) only
+   - Format: `<div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.6;">02</div>`
+   - Or bottom-right: `<div style="position: absolute; bottom: 40px; right: 60px; font-size: 24px; opacity: 0.6;">02</div>`
+   - Use 2-digit format: 01, 02, 03, etc.
+
+6. **Layout & Spacing:**
    - Use flexbox/grid for centering: `display: flex; justify-content: center; align-items: center; height: 100%;`
    - Add generous padding: `padding: 4rem;`
    - Leave white space - don't cram content
 
-6. **Typography:**
+7. **Typography:**
    - Font Family: Use 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif (prefer Inter for modern look)
    - Headings: Large, bold, eye-catching (h1: 56-64px, h2: 40-48px)
    - Body text: Readable (28-32px for paragraphs)
    - Line height: 1.6-1.8 for readability
    - Keep content concise - avoid overly long text blocks (max 4-5 bullet points per slide)
 
-7. **Images (if provided):**
+8. **Images (if provided):**
    - If `provided_image_url` exists, integrate it beautifully
    - Position: side-by-side with text OR full-width header
    - Style: `border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);`
    - Size: Proportional to content (max-width: 50% for side-by-side, 100% for full-width)
 
-8. **Logo:** {f"Include at top-right of EACH slide: <img src='{logo_url}' style='position: absolute; top: 20px; right: 20px; width: 100px; height: auto; z-index: 10;' alt='Logo' />" if logo_url else "No logo to include"}
+9. **Logo:** {f"Include at top-LEFT of EACH slide: <img src='{logo_url}' style='position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;' alt='Logo' />" if logo_url else "No logo to include"}
 
-9. **Language:** All content MUST be in {language}
+10. **Language:** All content MUST be in {language}
 
-10. **CONTENT DEVELOPMENT (CRITICAL - Creative Expansion):**
+11. **CONTENT DEVELOPMENT (CRITICAL - Creative Expansion):**
    - **You have CREATIVE FREEDOM** - expand outline into detailed, engaging content
    - DO NOT copy outline word-for-word - INTERPRET the intent and create compelling content
    - Keep the MEANING and PURPOSE of each outline point, but write it better for slides
@@ -292,52 +301,84 @@ Language: {language}
    - You can adjust wording, add examples, use better phrasing - just maintain outline's core message
 
    **SPECIAL SLIDES:**
-   - **First Slide (Title Slide)**: Prominent title + subtitle/description + author name if provided
-     - Large centered title (64px+)
+   - **Slide 0 (Title Slide)**: Prominent title + subtitle/description + author name if provided
+     - Large centered title (72px+)
      - Subtitle explaining the presentation purpose
-     - Visual impact: gradient background, decorative elements
+     - NO slide number on this slide
+     - Optional: Different background from content slides (gradient allowed here)
 
-   - **Content Slides**: Each slide should have 3-5 specific points with examples
+   - **Slide 1 (Table of Contents - REQUIRED)**: Overview of all main topics
+     - Title: "Agenda" or "Table of Contents" or "Overview" in {language}
+     - List ALL main sections/topics from the outline (3-7 items)
+     - Each item with icon and brief description
+     - Include slide number "01" in corner
+     - Use numbered list or icon bullets
+
+   - **Content Slides (Slide 2+)**: Each slide should have 3-5 specific points with examples
      - Use concrete data, statistics, or real-world examples
      - Add visual hierarchy: main point → supporting details
      - Include icons or visual markers for each point
+     - Include slide number (02, 03, 04...)
 
    - **Last Slide (Thank You)**: Engaging closing with visual elements
      - "Thank You" message in large text
      - Optional: Contact info, call-to-action, or summary
-     - Decorative visual: gradient, shapes, or celebratory icons (🎉 ✨)
+     - Include slide number
+     - Optional: Different background from content slides (gradient allowed here)
+     - Decorative visual: shapes or celebratory icons (🎉 ✨)
 
 **OUTPUT FORMAT:**
 
 Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just the HTML.
 
-**EXAMPLE OUTPUT (for 3 slides):**
+**EXAMPLE OUTPUT (for 4 slides showing all special slide types):**
 
-<div class="slide" data-slide-index="0" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #667eea, #764ba2); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
-  {f'<img src="{logo_url}" style="position: absolute; top: 20px; right: 20px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif;">Presentation Title Here</h1>
-  <p style="font-size: 36px; text-align: center; max-width: 900px; line-height: 1.5; margin-bottom: 3rem;">Compelling subtitle explaining the presentation purpose and value</p>
-  <p style="font-size: 28px; opacity: 0.9;">By Author Name | December 2025</p>
+<!-- Slide 0: Title (NO slide number) -->
+<div class="slide" data-slide-index="0" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  <h1 style="font-size: 80px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif;">Presentation Title Here</h1>
+  <p style="font-size: 36px; text-align: center; max-width: 900px; line-height: 1.5; margin-bottom: 3rem; opacity: 0.9;">Compelling subtitle explaining the presentation purpose and value</p>
+  <p style="font-size: 28px; opacity: 0.7;">By Author Name | December 2025</p>
 </div>
 
-<div class="slide" data-slide-index="1" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #ffffff; color: #1a202c; display: flex; justify-content: center; align-items: center; padding: 4rem; position: relative;">
-  {f'<img src="{logo_url}" style="position: absolute; top: 20px; right: 20px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+<!-- Slide 1: Table of Contents (WITH slide number 01) -->
+<div class="slide" data-slide-index="1" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">01</div>
   <div style="max-width: 1000px;">
-    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 3rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #667eea; padding-left: 1.5rem;">Main Topic with Specific Details</h1>
-    <ul style="font-size: 28px; line-height: 1.8; list-style: none; padding: 0;">
-      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem; color: #667eea;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data (e.g., "Increased efficiency by 40% using automated workflows")</span></li>
-      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem; color: #667eea;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
-      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem; color: #667eea;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
+    <h1 style="font-size: 64px; font-weight: bold; margin-bottom: 4rem; font-family: 'Inter', 'SF Pro Display', sans-serif;">Agenda</h1>
+    <ul style="font-size: 32px; line-height: 2.2; list-style: none; padding: 0;">
+      <li style="margin-bottom: 2rem;">📊 <strong>1.</strong> Introduction to the Topic</li>
+      <li style="margin-bottom: 2rem;">💡 <strong>2.</strong> Key Concepts and Framework</li>
+      <li style="margin-bottom: 2rem;">🎯 <strong>3.</strong> Practical Applications</li>
+      <li style="margin-bottom: 2rem;">📈 <strong>4.</strong> Results and Impact</li>
+      <li style="margin-bottom: 2rem;">🚀 <strong>5.</strong> Next Steps</li>
     </ul>
   </div>
 </div>
 
-<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #667eea, #764ba2); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
-  {f'<img src="{logo_url}" style="position: absolute; top: 20px; right: 20px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+<!-- Slide 2: Content slide (WITH slide number 02) -->
+<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">02</div>
+  <div style="max-width: 1000px;">
+    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 3rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #3b82f6; padding-left: 1.5rem;">Main Topic with Specific Details</h1>
+    <ul style="font-size: 28px; line-height: 1.8; list-style: none; padding: 0;">
+      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data (e.g., "Increased efficiency by 40% using automated workflows")</span></li>
+      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
+      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
+    </ul>
+  </div>
+</div>
+
+<!-- Last Slide: Thank You (WITH slide number, gradient allowed) -->
+<div class="slide" data-slide-index="3" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e3a8a); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">03</div>
   <div style="font-size: 80px; margin-bottom: 2rem;">🎉</div>
   <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif;">Thank You!</h1>
-  <p style="font-size: 32px; text-align: center; max-width: 800px; line-height: 1.6; opacity: 0.95;">Questions? Let's discuss!</p>
-  <div style="margin-top: 3rem; font-size: 24px; opacity: 0.9;">contact@example.com | @yourhandle</div>
+  <p style="font-size: 32px; text-align: center; max-width: 800px; line-height: 1.6; opacity: 0.9;">Questions? Let's discuss!</p>
+  <div style="margin-top: 3rem; font-size: 24px; opacity: 0.8;">contact@example.com | @yourhandle</div>
 </div>
 
 **NOW GENERATE {len(slides_outline)} BEAUTIFUL, WELL-CONTRASTED, SEPARATE SLIDES:**"""

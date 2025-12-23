@@ -250,10 +250,13 @@ Design Principles to Apply:
 3. **Consistency**: Maintain consistent spacing, alignment, and styling throughout
 4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
 5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
-6. **DIMENSIONS (Full HD 16:9)**: Each slide-wrapper MUST be exactly 1920px × 1080px
+6. **Background (Consistency)**: Keep existing background theme consistent across all slides
+   - ❌ FORBIDDEN: Purple gradients (#667eea, #764ba2), multiple different backgrounds per slide
+   - ✅ PRESERVE: Use same background for all content slides (dark or light)
+7. **DIMENSIONS (Full HD 16:9)**: Each slide-wrapper MUST be exactly 1920px × 1080px
    - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative;`
    - All content must fit within this 1920×1080 canvas
-7. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
+8. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
 
 REQUIRED OUTPUT STRUCTURE for each slide:
 ```html
@@ -305,10 +308,13 @@ Design Principles to Apply:
 3. **Consistency**: Maintain consistent spacing, alignment, and styling throughout
 4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
 5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
-6. **DIMENSIONS (Full HD 16:9)**: Ensure slide-wrapper is exactly 1920px × 1080px
+6. **Background (Consistency)**: Keep existing background theme (dark/light), avoid changing to purple/blue gradients
+   - ❌ FORBIDDEN: Purple gradients (#667eea, #764ba2), changing dark to light or vice versa
+   - ✅ PRESERVE: Existing background color scheme
+7. **DIMENSIONS (Full HD 16:9)**: Ensure slide-wrapper is exactly 1920px × 1080px
    - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative;`
    - All content must fit within this 1920×1080 canvas
-7. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
+8. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
 
 REQUIRED OUTPUT STRUCTURE:
 ```html
