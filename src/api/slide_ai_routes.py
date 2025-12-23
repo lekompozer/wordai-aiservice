@@ -144,13 +144,13 @@ async def ai_format_slide(
             POINTS_COST_FORMAT if request.format_type == "format" else POINTS_COST_EDIT
         )
 
-        # Points cost logic:
-        # - Mode 1 (single slide): 2 points (1 AI call)
-        # - Mode 2 & 3 (batch): 2 points (1 AI call for all slides)
+        # Calculate number of chunks needed (max 12 slides per chunk)
         if is_batch:
-            total_points_cost = points_per_slide  # Only 1 AI call
+            num_chunks = (num_slides + MAX_SLIDES_PER_CHUNK - 1) // MAX_SLIDES_PER_CHUNK
+            total_points_cost = num_chunks * points_per_slide  # 2 points per AI call
         else:
-            total_points_cost = points_per_slide  # Single slide
+            num_chunks = 1
+            total_points_cost = points_per_slide  # Single slide = 1 AI call
 
         # Check points
         points_service = get_points_service()
@@ -176,7 +176,10 @@ async def ai_format_slide(
         logger.info(f"   Format type: {request.format_type}")
         if is_batch:
             logger.info(
-                f"   Total points cost: {total_points_cost} (1 AI call for {num_slides} slides)"
+                f"   Chunks: {num_chunks} (max {MAX_SLIDES_PER_CHUNK} slides/chunk)"
+            )
+            logger.info(
+                f"   Total points cost: {total_points_cost} ({num_chunks} AI call(s) × {points_per_slide} points)"
             )
         else:
             logger.info(f"   Total points cost: {total_points_cost} (1 slide)")
@@ -191,11 +194,11 @@ async def ai_format_slide(
                 if is_batch
                 else f"slide_{slides_to_process[0].slide_index}"
             ),
-            description=f"AI {request.format_type}: {num_slides} slide(s) - {request.user_instruction or 'Auto format'}",
+            description=f"AI {request.format_type}: {num_slides} slide(s) in {num_chunks} chunk(s) - {request.user_instruction or 'Auto format'}",
         )
 
         logger.info(
-            f"💸 Deducted {total_points_cost} points ({num_slides} slide(s), 1 AI call)"
+            f"💸 Deducted {total_points_cost} points ({num_slides} slide(s), {num_chunks} AI call(s))"
         )
 
         # Create batch job or single job
