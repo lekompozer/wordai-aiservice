@@ -128,60 +128,120 @@ class SlideGenerationWorker:
                 document_id=document_id,
                 started_at=start_time.isoformat(),
                 total_slides=len(analysis["slides_outline"]),
+                title=analysis.get("title", "Untitled Presentation"),
             )
 
             # Get slides from analysis
             slides_outline = analysis["slides_outline"]
             num_slides = len(slides_outline)
-            total_batches = (num_slides + 14) // 15  # Max 15 slides per batch
+            BATCH_SIZE = 10  # Reduced from 15 to 10 to avoid Claude token limits
+            total_batches = (num_slides + BATCH_SIZE - 1) // BATCH_SIZE
 
             logger.info(
-                f"📊 Generating {num_slides} slides in {total_batches} batch(es)"
+                f"📊 Generating {num_slides} slides in {total_batches} batch(es) ({BATCH_SIZE} slides/batch)"
             )
 
             # Generate HTML in batches
             all_slides_html = []
+            generation_error = None  # Track if any batch fails
+
             for i in range(total_batches):
-                start_idx = i * 15
-                end_idx = min((i + 1) * 15, num_slides)
+                start_idx = i * BATCH_SIZE
+                end_idx = min((i + 1) * BATCH_SIZE, num_slides)
                 batch_slides = slides_outline[start_idx:end_idx]
 
                 logger.info(
                     f"🔄 Batch {i+1}/{total_batches}: slides {start_idx+1}-{end_idx}"
                 )
 
-                # Call AI to generate HTML for this batch
-                batch_html = await self.ai_service.generate_slide_html_batch(
-                    title=analysis["title"],
-                    slide_type=analysis["slide_type"],
-                    language=analysis["language"],
-                    slides_outline=batch_slides,
-                    slide_images=slide_images,
-                    logo_url=logo_url,
-                    user_query=user_query,
-                    batch_number=i + 1,
-                    total_batches=total_batches,
-                )
+                try:
+                    # Call AI to generate HTML for this batch
+                    batch_html = await self.ai_service.generate_slide_html_batch(
+                        title=analysis["title"],
+                        slide_type=analysis["slide_type"],
+                        language=analysis["language"],
+                        slides_outline=batch_slides,
+                        slide_images=slide_images,
+                        logo_url=logo_url,
+                        user_query=user_query,
+                        batch_number=i + 1,
+                        total_batches=total_batches,
+                    )
 
-                all_slides_html.extend(batch_html)
+                    all_slides_html.extend(batch_html)
 
-                # Update Redis progress (MongoDB no longer tracks progress)
-                progress = int((i + 1) / total_batches * 100)
+                    # Update Redis progress (MongoDB no longer tracks progress)
+                    progress = int((i + 1) / total_batches * 100)
+                    await set_job_status(
+                        redis_client=self.queue_manager.redis_client,
+                        job_id=document_id,
+                        status="processing",
+                        user_id=task.user_id,
+                        progress_percent=progress,
+                        batches_completed=i + 1,
+                        total_batches=total_batches,
+                        title=analysis.get("title", "Untitled Presentation"),
+                    )
+
+                    logger.info(
+                        f"✅ Batch {i+1}/{total_batches} completed ({progress}%)"
+                    )
+
+                    # Small delay between batches
+                    if i < total_batches - 1:
+                        await asyncio.sleep(0.5)
+
+                except Exception as batch_error:
+                    logger.error(
+                        f"❌ Batch {i+1}/{total_batches} failed: {batch_error}. "
+                        f"Saving {len(all_slides_html)} partial slides..."
+                    )
+                    generation_error = batch_error
+                    break  # Stop processing remaining batches
+
+            # Check if generation completed successfully
+            if generation_error:
+                # Save partial slides with outline for retry
+                if all_slides_html:
+                    partial_html = "\n\n".join(all_slides_html)
+                    slide_backgrounds = self._create_default_backgrounds(
+                        len(all_slides_html), analysis["slide_type"]
+                    )
+
+                    logger.warning(
+                        f"⚠️ Saving {len(all_slides_html)}/{num_slides} partial slides to database"
+                    )
+
+                    self.doc_manager.update_document(
+                        document_id=document_id,
+                        user_id=task.user_id,
+                        title=analysis["title"],
+                        content_html=partial_html,
+                        content_text=analysis.get("presentation_summary", ""),
+                        slide_backgrounds=slide_backgrounds,
+                        slides_outline=slides_outline,  # Save full outline for retry
+                    )
+
+                # Update Redis status to failed with retry info
                 await set_job_status(
                     redis_client=self.queue_manager.redis_client,
                     job_id=document_id,
-                    status="processing",
+                    status="failed",
                     user_id=task.user_id,
-                    progress_percent=progress,
-                    batches_completed=i + 1,
-                    total_batches=total_batches,
+                    document_id=document_id,
+                    error=f"Generated {len(all_slides_html)}/{num_slides} slides. {str(generation_error)}",
+                    completed_at=datetime.utcnow().isoformat(),
+                    title=analysis.get("title", "Untitled Presentation"),
+                    slides_generated=len(all_slides_html),
+                    slides_expected=num_slides,
+                    can_retry=True,  # Flag for frontend to show retry button
                 )
 
-                logger.info(f"✅ Batch {i+1}/{total_batches} completed ({progress}%)")
-
-                # Small delay between batches
-                if i < total_batches - 1:
-                    await asyncio.sleep(0.5)
+                logger.error(
+                    f"❌ Generation incomplete: {len(all_slides_html)}/{num_slides} slides saved. "
+                    f"User can retry with saved outline."
+                )
+                return False
 
             # Combine all slides into final HTML
             final_html = "\n\n".join(all_slides_html)
@@ -201,6 +261,7 @@ class SlideGenerationWorker:
                 content_html=final_html,
                 content_text=analysis.get("presentation_summary", ""),
                 slide_backgrounds=slide_backgrounds,
+                slides_outline=slides_outline,  # Save outline for retry capability
             )
 
             # Deduct points (only after successful completion)
@@ -227,6 +288,7 @@ class SlideGenerationWorker:
                 processing_time_seconds=processing_time,
                 slides_generated=num_slides,
                 batches_processed=total_batches,
+                title=analysis.get("title", "Untitled Presentation"),
             )
 
             logger.info(
@@ -250,6 +312,11 @@ class SlideGenerationWorker:
                 document_id=document_id,
                 error=str(e),
                 completed_at=datetime.utcnow().isoformat(),
+                title=(
+                    analysis.get("title", "Untitled Presentation")
+                    if analysis
+                    else "Untitled Presentation"
+                ),
             )
 
             return False

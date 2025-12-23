@@ -212,8 +212,9 @@ class DocumentManager:
         is_auto_save: bool = False,
         slide_elements: Optional[list] = None,
         slide_backgrounds: Optional[list] = None,
+        slides_outline: Optional[list] = None,  # NEW: Save outline for retry
     ) -> bool:
-        """Cập nhật nội dung document (bao gồm title, slide_elements, và slide_backgrounds cho slide documents)"""
+        """Cập nhật nội dung document (bao gồm title, slide_elements, slide_backgrounds, và slides_outline cho slide documents)"""
         now = datetime.utcnow()
 
         update_data = {
@@ -258,6 +259,14 @@ class DocumentManager:
             logger.info(
                 f"📄 [SLIDE_BACKGROUNDS_SAVE] No backgrounds to save: document_id={document_id}, "
                 f"user_id={user_id}"
+            )
+
+        # ✅ NEW: Save slides_outline for retry capability
+        if slides_outline is not None:
+            update_data["slides_outline"] = slides_outline
+            logger.info(
+                f"📝 [SLIDES_OUTLINE_SAVE] Preparing to save: document_id={document_id}, "
+                f"user_id={user_id}, outline_count={len(slides_outline)}"
             )
 
         if is_auto_save:

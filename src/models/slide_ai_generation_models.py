@@ -171,6 +171,11 @@ class CreateSlideResponse(BaseModel):
     message: str = Field(..., description="Status message")
     poll_url: str = Field(..., description="URL to poll generation status")
 
+    # Document metadata for frontend sidebar
+    document_type: str = Field(default="slide", description="Document type")
+    updated_at: str = Field(..., description="Last update timestamp (ISO format)")
+    creator_name: Optional[str] = Field(None, description="Creator name if provided")
+
 
 # ============ STATUS POLLING MODELS ============
 

@@ -118,6 +118,84 @@ async def get_slide_generation_status(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ============ RETRY: GET OUTLINE ============
+
+
+@router.get("/documents/{document_id}/outline")
+async def get_slide_outline(
+    document_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **Get saved slide outline for retry**
+
+    When slide generation fails partially, the outline is saved in MongoDB.
+    Frontend can use this endpoint to:
+    1. Check if outline exists for retry
+    2. Display partial progress (e.g., "13/23 slides generated")
+    3. Provide retry button to regenerate from saved outline
+
+    **Returns:**
+    - slides_outline: Array of slide outline objects
+    - slides_generated: Number of slides currently saved
+    - slides_expected: Total slides expected from outline
+    - can_retry: Boolean flag
+    """
+    try:
+        # Get document from MongoDB
+        db_service = get_mongodb_service()
+        doc_manager = DocumentManager(db_service.db)
+
+        doc = doc_manager.documents.find_one(
+            {
+                "document_id": document_id,
+                "user_id": user_info["uid"],
+                "is_deleted": False,
+            }
+        )
+
+        if not doc:
+            raise HTTPException(
+                status_code=404, detail="Document not found or you don't have access"
+            )
+
+        # Check if outline exists
+        slides_outline = doc.get("slides_outline")
+        if not slides_outline:
+            raise HTTPException(
+                status_code=404,
+                detail="No outline found for this document. It may have been created before outline saving was implemented.",
+            )
+
+        # Count current slides in content_html
+        content_html = doc.get("content_html", "")
+        import re
+
+        slide_matches = re.findall(r'<div class="slide"', content_html)
+        slides_generated = len(slide_matches)
+        slides_expected = len(slides_outline)
+
+        logger.info(
+            f"📋 Outline retrieved: document={document_id}, "
+            f"slides={slides_generated}/{slides_expected}"
+        )
+
+        return {
+            "document_id": document_id,
+            "slides_outline": slides_outline,
+            "slides_generated": slides_generated,
+            "slides_expected": slides_expected,
+            "can_retry": slides_generated < slides_expected,
+            "title": doc.get("title", "Untitled Presentation"),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get outline: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ============ STEP 1: ANALYSIS ============
 
 
@@ -737,7 +815,7 @@ async def create_slides_from_analysis(
 
         logger.info(f"🚀 Slide generation task enqueued to Redis: {document_id}")
 
-        # 8. Return immediately
+        # 8. Return immediately with full document metadata for frontend
         return CreateSlideResponse(
             success=True,
             document_id=document_id,
@@ -747,8 +825,11 @@ async def create_slides_from_analysis(
             batches_needed=batches_needed,
             points_needed=points_needed,
             created_at=datetime.now().isoformat(),
+            updated_at=datetime.now().isoformat(),
             message=f"Slide creation started. AI is generating HTML for {num_slides} slides in {batches_needed} batch(es)...",
             poll_url=f"/api/slides/ai-generate/status/{document_id}",
+            document_type="slide",
+            creator_name=request.creator_name,
         )
 
     except HTTPException:
