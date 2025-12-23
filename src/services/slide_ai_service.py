@@ -160,6 +160,18 @@ class SlideAIService:
                 logger.error("❌ No JSON found in markdown code blocks either")
                 raise
 
+        # Post-process: Ensure formatted_html has proper wrapper structure
+        if "formatted_html" in result:
+            html = result["formatted_html"]
+            # Check if HTML already has slide-page wrapper
+            if not html.strip().startswith('<div class="slide-page">'):
+                logger.warning("⚠️ Claude response missing wrapper, adding manually...")
+                # Wrap the HTML in proper structure
+                result["formatted_html"] = (
+                    f'<div class="slide-page">\n  <div class="slide-wrapper">\n{html}\n  </div>\n</div>'
+                )
+                logger.info("✅ Added slide-page wrapper to formatted HTML")
+
         return result
 
     async def _edit_with_gemini(self, request: SlideAIFormatRequest) -> Dict[str, Any]:
