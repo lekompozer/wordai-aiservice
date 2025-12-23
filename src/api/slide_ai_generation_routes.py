@@ -26,7 +26,6 @@ from src.models.slide_ai_generation_models import (
     UpdateOutlineRequest,
     UpdateOutlineResponse,
 )
-)
 from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.points_service import get_points_service
 from src.services.online_test_utils import get_mongodb_service
