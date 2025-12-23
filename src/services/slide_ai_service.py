@@ -250,12 +250,16 @@ Design Principles to Apply:
 3. **Consistency**: Maintain consistent spacing, alignment, and styling throughout
 4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
 5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
+6. **DIMENSIONS (Full HD 16:9)**: Each slide-wrapper MUST be exactly 1920px × 1080px
+   - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative;`
+   - All content must fit within this 1920×1080 canvas
+7. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
 
 REQUIRED OUTPUT STRUCTURE for each slide:
 ```html
 <!-- Slide X -->
 <div class="slide-page">
-  <div class="slide-wrapper">
+  <div class="slide-wrapper" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative; font-family: 'Inter', 'SF Pro Display', sans-serif;">
     <!-- Your improved content here -->
   </div>
 </div>
@@ -267,14 +271,15 @@ Your Response (JSON format):
   "ai_explanation": "Summary of layout improvements made across all slides"
 }}
 
-CRITICAL REQUIREMENTS:
+CRITICAL REQUIREMENTS - FORMAT MODE (PRESERVE CONTENT):
 - Process ALL {len(slide_markers)} slides in the input
-- Keep ALL original text content unchanged
+- ⚠️ **CRITICAL**: Keep ALL original text content UNCHANGED - only improve layout and styling
+- DO NOT rewrite, add, or remove any text content from the slides
 - PRESERVE the "<!-- Slide X -->" markers to separate slides
-- WRAP each slide's content in: <div class="slide-page"><div class="slide-wrapper">...content...</div></div>
-- Output format: <!-- Slide 0 -->\\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\\n\\n<!-- Slide 1 -->\\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\\n...
+- WRAP each slide's content in: <div class="slide-page"><div class="slide-wrapper" style="font-family: 'Inter', 'SF Pro Display', sans-serif;">...content...</div></div>
+- Output format: <!-- Slide 0 -->\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\n\n<!-- Slide 1 -->\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\n...
 - Only improve HTML structure, spacing, typography inside the slide-wrapper
-- Use semantic HTML and inline styles for better presentation
+- Use semantic HTML, Inter font family, and inline styles for better presentation
 
 FORBIDDEN ELEMENTS (DO NOT USE):
 - ❌ NO <svg> tags or SVG elements (use CSS shapes with div/borders instead)
@@ -300,11 +305,15 @@ Design Principles to Apply:
 3. **Consistency**: Maintain consistent spacing, alignment, and styling throughout
 4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
 5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
+6. **DIMENSIONS (Full HD 16:9)**: Ensure slide-wrapper is exactly 1920px × 1080px
+   - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative;`
+   - All content must fit within this 1920×1080 canvas
+7. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
 
 REQUIRED OUTPUT STRUCTURE:
 ```html
 <div class="slide-page">
-  <div class="slide-wrapper">
+  <div class="slide-wrapper" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative; font-family: 'Inter', 'SF Pro Display', sans-serif;">
     <!-- Your improved content here -->
   </div>
 </div>
@@ -331,15 +340,16 @@ Your Response (JSON format):
   "ai_explanation": "Detailed explanation of layout improvements made"
 }}
 
-IMPORTANT:
-- Keep ALL original text content unchanged
-- MUST wrap output in: <div class="slide-page"><div class="slide-wrapper">...content...</div></div>
+IMPORTANT - FORMAT MODE (PRESERVE CONTENT):
+- ⚠️ **CRITICAL**: Keep ALL original text content UNCHANGED - only improve layout, spacing, and styling
+- DO NOT rewrite, add, or remove any text content
+- MUST wrap output in: <div class="slide-page"><div class="slide-wrapper" style="font-family: 'Inter', 'SF Pro Display', sans-serif;">...content...</div></div>
 - Only improve HTML structure, spacing, typography INSIDE the slide-wrapper
 - suggested_elements and suggested_background are OPTIONAL (omit if no suggestions)
 - Use semantic HTML (header, section, div with meaningful classes)
 - Add inline styles for better presentation (colors, spacing, typography)
 - Focus on visual hierarchy and readability
-- Make the slide look professional and modern
+- Make the slide look professional and modern with Inter font family
 
 FORBIDDEN ELEMENTS (DO NOT USE):
 - ❌ NO <svg> tags or any SVG elements (causes parsing errors)

@@ -7,9 +7,11 @@ import logging
 import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import os
 
 from google import genai
 from google.genai import types
+import anthropic
 import config.config as config
 
 logger = logging.getLogger("chatbot")
@@ -19,13 +21,20 @@ class SlideAIGenerationService:
     """Service for AI-powered slide generation"""
 
     def __init__(self):
-        """Initialize with Gemini client"""
+        """Initialize with Gemini (Step 1) and Claude (Step 2) clients"""
+        # Gemini for outline generation (Step 1)
         self.gemini_api_key = config.GEMINI_API_KEY
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY not configured")
+        self.gemini_client = genai.Client(api_key=self.gemini_api_key)
+        self.gemini_model = "gemini-3-pro-preview"  # Gemini Pro 3 Preview
 
-        self.client = genai.Client(api_key=self.gemini_api_key)
-        self.model_name = "gemini-3-pro-preview"  # Gemini Pro 3 Preview
+        # Claude for HTML generation (Step 2)
+        self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not self.claude_api_key:
+            raise ValueError("ANTHROPIC_API_KEY not configured")
+        self.claude_client = anthropic.Anthropic(api_key=self.claude_api_key)
+        self.claude_model = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5
 
     def build_analysis_prompt(
         self,
@@ -230,7 +239,9 @@ Language: {language}
    - You MUST create EXACTLY {len(slides_outline)} individual `<div class="slide">` elements
    - Each slide is a COMPLETE, STANDALONE HTML block
    - Do NOT merge slides together
-   - Each slide should fill the entire viewport (use min-height: 100vh or height: 100%)
+   - **DIMENSIONS (FULL HD 16:9)**: Each slide MUST be exactly 1920px width × 1080px height
+   - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden;`
+   - All content must fit within this 1920×1080 canvas - use absolute positioning for precise layout
 
 2. **Structure for EACH slide:**
    ```html
@@ -254,9 +265,11 @@ Language: {language}
    - Leave white space - don't cram content
 
 6. **Typography:**
+   - Font Family: Use 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif (prefer Inter for modern look)
    - Headings: Large, bold, eye-catching (h1: 56-64px, h2: 40-48px)
    - Body text: Readable (28-32px for paragraphs)
    - Line height: 1.6-1.8 for readability
+   - Keep content concise - avoid overly long text blocks (max 4-5 bullet points per slide)
 
 7. **Images (if provided):**
    - If `provided_image_url` exists, integrate it beautifully
@@ -268,37 +281,63 @@ Language: {language}
 
 9. **Language:** All content MUST be in {language}
 
+10. **CONTENT DEVELOPMENT (CRITICAL - Creative Expansion):**
+   - **You have CREATIVE FREEDOM** - expand outline into detailed, engaging content
+   - DO NOT copy outline word-for-word - INTERPRET the intent and create compelling content
+   - Keep the MEANING and PURPOSE of each outline point, but write it better for slides
+   - Write content that aligns with the user's target goal: {user_query or title}
+   - Include relevant icons/emojis to illustrate points (e.g., ✓ ✗ → ★ 💡 🎯 📊 💰 🚀)
+   - Add visual elements: decorative divs, colored accents, icons positioned with CSS
+   - Make content ACTIONABLE and CLEAR - avoid vague, generic statements
+   - You can adjust wording, add examples, use better phrasing - just maintain outline's core message
+
+   **SPECIAL SLIDES:**
+   - **First Slide (Title Slide)**: Prominent title + subtitle/description + author name if provided
+     - Large centered title (64px+)
+     - Subtitle explaining the presentation purpose
+     - Visual impact: gradient background, decorative elements
+
+   - **Content Slides**: Each slide should have 3-5 specific points with examples
+     - Use concrete data, statistics, or real-world examples
+     - Add visual hierarchy: main point → supporting details
+     - Include icons or visual markers for each point
+
+   - **Last Slide (Thank You)**: Engaging closing with visual elements
+     - "Thank You" message in large text
+     - Optional: Contact info, call-to-action, or summary
+     - Decorative visual: gradient, shapes, or celebratory icons (🎉 ✨)
+
 **OUTPUT FORMAT:**
 
 Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just the HTML.
 
 **EXAMPLE OUTPUT (for 3 slides):**
 
-<div class="slide" data-slide-index="0" style="background: linear-gradient(135deg, #667eea, #764ba2); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; padding: 4rem; position: relative;">
+<div class="slide" data-slide-index="0" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #667eea, #764ba2); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
   {f'<img src="{logo_url}" style="position: absolute; top: 20px; right: 20px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <h1 style="font-size: 64px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: Arial, sans-serif;">First Slide Title</h1>
-  <p style="font-size: 32px; text-align: center; max-width: 800px; line-height: 1.6;">Slide description or key message</p>
+  <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif;">Presentation Title Here</h1>
+  <p style="font-size: 36px; text-align: center; max-width: 900px; line-height: 1.5; margin-bottom: 3rem;">Compelling subtitle explaining the presentation purpose and value</p>
+  <p style="font-size: 28px; opacity: 0.9;">By Author Name | December 2025</p>
 </div>
 
-<div class="slide" data-slide-index="1" style="background: #ffffff; color: #1a202c; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 4rem; position: relative;">
+<div class="slide" data-slide-index="1" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #ffffff; color: #1a202c; display: flex; justify-content: center; align-items: center; padding: 4rem; position: relative;">
   {f'<img src="{logo_url}" style="position: absolute; top: 20px; right: 20px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <div style="max-width: 900px;">
-    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 2rem; font-family: Arial, sans-serif;">Second Slide Title</h1>
+  <div style="max-width: 1000px;">
+    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 3rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #667eea; padding-left: 1.5rem;">Main Topic with Specific Details</h1>
     <ul style="font-size: 28px; line-height: 1.8; list-style: none; padding: 0;">
-      <li style="margin-bottom: 1.5rem;">✓ First key point</li>
-      <li style="margin-bottom: 1.5rem;">✓ Second key point</li>
-      <li style="margin-bottom: 1.5rem;">✓ Third key point</li>
+      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem; color: #667eea;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data (e.g., "Increased efficiency by 40% using automated workflows")</span></li>
+      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem; color: #667eea;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
+      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem; color: #667eea;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
     </ul>
   </div>
 </div>
 
-<div class="slide" data-slide-index="2" style="background: #0f172a; color: #ffffff; display: flex; justify-content: space-between; align-items: center; min-height: 100vh; padding: 4rem; position: relative;">
+<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #667eea, #764ba2); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
   {f'<img src="{logo_url}" style="position: absolute; top: 20px; right: 20px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <div style="flex: 1; padding-right: 2rem;">
-    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 2rem; font-family: Arial, sans-serif;">Third Slide Title</h1>
-    <p style="font-size: 28px; line-height: 1.6;">Content description here</p>
-  </div>
-  <img src="IMAGE_URL_HERE" style="flex: 1; max-width: 45%; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);" alt="Visual" />
+  <div style="font-size: 80px; margin-bottom: 2rem;">🎉</div>
+  <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif;">Thank You!</h1>
+  <p style="font-size: 32px; text-align: center; max-width: 800px; line-height: 1.6; opacity: 0.95;">Questions? Let's discuss!</p>
+  <div style="margin-top: 3rem; font-size: 24px; opacity: 0.9;">contact@example.com | @yourhandle</div>
 </div>
 
 **NOW GENERATE {len(slides_outline)} BEAUTIFUL, WELL-CONTRASTED, SEPARATE SLIDES:**"""
@@ -327,15 +366,15 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
             user_query=user_query,
         )
 
-        logger.info(f"🤖 Calling Gemini for slide analysis...")
-        logger.info(f"   Model: {self.model_name}")
+        logger.info(f"🤖 Calling Gemini for slide analysis (Step 1)...")
+        logger.info(f"   Model: {self.gemini_model}")
         logger.info(
             f"   Slides range: {num_slides_range['min']}-{num_slides_range['max']}"
         )
 
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
+            response = self.gemini_client.models.generate_content(
+                model=self.gemini_model,
                 contents=prompt,
                 config=types.GenerateContentConfig(
                     temperature=0.7,
@@ -405,23 +444,24 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
         )
 
         logger.info(
-            f"🎨 Generating HTML batch {batch_number}/{total_batches} ({len(slides_outline)} slides)"
+            f"🎨 Generating HTML batch {batch_number}/{total_batches} ({len(slides_outline)} slides) with Claude (Step 2)..."
         )
 
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    temperature=0.8,  # More creative for HTML
-                    top_p=0.95,
-                    top_k=40,
-                    max_output_tokens=8192,
-                ),
+            response = self.claude_client.messages.create(
+                model=self.claude_model,
+                max_tokens=8192,
+                temperature=0.8,  # More creative for HTML content
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
             )
 
-            html_output = response.text.strip()
-            logger.info(f"✅ HTML generated: {len(html_output)} chars")
+            html_output = response.content[0].text.strip()
+            logger.info(f"✅ HTML generated by Claude: {len(html_output)} chars")
 
             # Parse HTML into individual slides
             from bs4 import BeautifulSoup
