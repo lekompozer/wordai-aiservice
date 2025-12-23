@@ -99,6 +99,9 @@ class SlideAIService:
             raise ValueError("Claude client not initialized")
 
         prompt = self._build_format_prompt(request)
+        
+        # Log prompt size for debugging
+        logger.info(f"📊 Prompt size: {len(prompt)} chars, HTML size: {len(request.current_html)} chars")
 
         response = self.claude_client.messages.create(
             model=self.claude_model,
@@ -114,9 +117,28 @@ class SlideAIService:
 
         # Parse Claude response
         response_text = response.content[0].text
-
-        # Claude returns JSON
-        result = json.loads(response_text)
+        
+        # Debug: Log response for troubleshooting
+        logger.debug(f"Claude response length: {len(response_text)} chars")
+        if not response_text or not response_text.strip():
+            logger.error("❌ Claude returned empty response")
+            logger.error(f"Full response object: {response}")
+            raise ValueError("Claude API returned empty response")
+        
+        # Try to parse JSON with better error handling
+        try:
+            result = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse Claude response as JSON: {e}")
+            logger.error(f"Response text (first 500 chars): {response_text[:500]}")
+            # Try to extract JSON from markdown code blocks if present
+            import re
+            json_match = re.search(r'```json\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            if json_match:
+                logger.info("Found JSON in markdown code block, extracting...")
+                result = json.loads(json_match.group(1))
+            else:
+                raise
 
         return result
 
