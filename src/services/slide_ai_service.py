@@ -262,7 +262,15 @@ CRITICAL REQUIREMENTS:
 - WRAP each slide's content in: <div class="slide-page"><div class="slide-wrapper">...content...</div></div>
 - Output format: <!-- Slide 0 -->\\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\\n\\n<!-- Slide 1 -->\\n<div class="slide-page"><div class="slide-wrapper">...improved html...</div></div>\\n...
 - Only improve HTML structure, spacing, typography inside the slide-wrapper
-- Use semantic HTML and inline styles for better presentation"""
+- Use semantic HTML and inline styles for better presentation
+
+FORBIDDEN ELEMENTS (DO NOT USE):
+- ❌ NO <svg> tags or SVG elements (use CSS shapes with div/borders instead)
+- ❌ NO <polygon>, <path>, <circle> in SVG (causes parsing errors)
+- ❌ NO percentage values in SVG attributes (e.g., points="80%,10%")
+- ❌ NO complex decorative SVG graphics
+- ✅ USE: Simple <div> with border, border-radius, transform for shapes
+- ✅ USE: CSS gradients, box-shadow for visual effects"""
         else:
             prompt = f"""You are an expert presentation designer. Your task is to improve the layout, typography, and visual hierarchy of this slide WITHOUT changing the content.
 
@@ -319,7 +327,17 @@ IMPORTANT:
 - Use semantic HTML (header, section, div with meaningful classes)
 - Add inline styles for better presentation (colors, spacing, typography)
 - Focus on visual hierarchy and readability
-- Make the slide look professional and modern"""
+- Make the slide look professional and modern
+
+FORBIDDEN ELEMENTS (DO NOT USE):
+- ❌ NO <svg> tags or any SVG elements (causes parsing errors)
+- ❌ NO <polygon>, <path>, <circle>, or any SVG shapes
+- ❌ NO percentage values in any attributes (e.g., points="80%,10%")
+- ❌ NO complex decorative SVG graphics or inline event handlers
+- ✅ USE: Simple <div> elements with CSS styling (border, border-radius, transform)
+- ✅ USE: CSS for shapes (e.g., border + transform: rotate() for triangles)
+- ✅ USE: background gradients, box-shadow, and other CSS effects
+- ✅ EXAMPLE: <div style="width: 100px; height: 100px; border: 2px solid #ccc; transform: rotate(45deg);"></div>"""
 
         return prompt
 
