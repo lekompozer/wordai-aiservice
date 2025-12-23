@@ -27,6 +27,51 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 
+def _serialize_redis_value(value: Any) -> Union[str, int, float, bytes]:
+    """Convert Python types to Redis-compatible types"""
+    if isinstance(value, bool):
+        return 1 if value else 0
+    elif isinstance(value, (dict, list)):
+        return json.dumps(value)
+    elif value is None:
+        return ""
+    elif isinstance(value, (str, int, float, bytes)):
+        return value
+    else:
+        return str(value)
+
+
+def _serialize_redis_mapping(data: Dict[str, Any]) -> Dict[str, Union[str, int, float, bytes]]:
+    """Serialize a dictionary for Redis hset mapping"""
+    return {k: _serialize_redis_value(v) for k, v in data.items()}
+
+
+def _deserialize_redis_value(value: str, field_name: str = "") -> Any:
+    """Convert Redis string values back to Python types"""
+    # Handle empty strings
+    if value == "":
+        return None
+
+    # Known boolean fields
+    bool_fields = {"is_batch", "process_all_slides", "has_background"}
+    if field_name in bool_fields:
+        return value == "1" or value.lower() == "true"
+
+    # Try to parse as int
+    if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+        return int(value)
+
+    # Try to parse as JSON (dict/list)
+    if value.startswith("{") or value.startswith("["):
+        try:
+            return json.loads(value)
+        except:
+            pass
+
+    # Return as string
+    return value
+
+
 @dataclass
 class IngestionTask:
     """Legacy document ingestion task - kept for backward compatibility"""
@@ -994,8 +1039,11 @@ async def set_job_status(
         # Add all additional fields
         job_data.update(additional_fields)
 
+        # Serialize all values for Redis (bool → int, dict → json, etc.)
+        serialized_data = _serialize_redis_mapping(job_data)
+
         # Store in Redis with 24h TTL
-        await redis_client.hset(job_key, mapping=job_data)
+        await redis_client.hset(job_key, mapping=serialized_data)
         await redis_client.expire(job_key, 86400)  # 24 hours
 
         logger.info(f"✅ Job {job_id} status set to '{status}' in Redis")
@@ -1030,13 +1078,13 @@ async def get_job_status(redis_client, job_id: str) -> dict:
             logger.warning(f"⚠️ Job {job_id} not found in Redis")
             return None
 
-        # Convert bytes to strings
-        job_dict = {
-            k.decode() if isinstance(k, bytes) else k: (
-                v.decode() if isinstance(v, bytes) else v
-            )
-            for k, v in job_data.items()
-        }
+        # Convert bytes to strings and deserialize values
+        job_dict = {}
+        for k, v in job_data.items():
+            key = k.decode() if isinstance(k, bytes) else k
+            value = v.decode() if isinstance(v, bytes) else v
+            # Deserialize known types
+            job_dict[key] = _deserialize_redis_value(value, key)
 
         return job_dict
 
@@ -1066,8 +1114,11 @@ async def update_job_field(
     try:
         job_key = f"job:{job_id}"
 
+        # Serialize value for Redis
+        serialized_value = _serialize_redis_value(value)
+
         # Update field
-        await redis_client.hset(job_key, field, str(value))
+        await redis_client.hset(job_key, field, serialized_value)
 
         # Update timestamp
         from datetime import datetime
