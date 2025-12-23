@@ -129,25 +129,34 @@ class SlideFormatWorker:
                 # Mode 2 & 3: Split combined HTML back to individual slides
                 formatted_html = result["formatted_html"]
 
-                # Parse slides (assuming AI returns with same markers)
+                # Parse slides with their markers to extract actual slide_index
                 import re
 
-                slide_htmls = re.split(r"<!-- Slide \d+ -->\s*", formatted_html)
-                slide_htmls = [html.strip() for html in slide_htmls if html.strip()]
+                # Find all slide sections with their markers
+                slide_pattern = r"<!-- Slide (\d+) -->\s*(.*?)(?=<!-- Slide \d+ --|$)"
+                matches = re.findall(slide_pattern, formatted_html, re.DOTALL)
 
                 # Prepare results for this chunk
                 chunk_results = []
-                for i, html in enumerate(slide_htmls):
+                for slide_index_str, html in matches:
+                    slide_index = int(slide_index_str)
                     chunk_results.append(
                         {
-                            "slide_index": i,
-                            "formatted_html": html,
+                            "slide_index": slide_index,  # Use actual slide_index from marker
+                            "formatted_html": html.strip(),
                             "suggested_elements": result.get("suggested_elements", []),
                             "suggested_background": result.get("suggested_background"),
                             "ai_explanation": result.get("ai_explanation", ""),
                             "error": None,
                         }
                     )
+
+                logger.info(
+                    f"   📊 Extracted {len(chunk_results)} slides from AI response"
+                )
+                if chunk_results:
+                    indices = [r["slide_index"] for r in chunk_results]
+                    logger.info(f"   📌 Slide indices: {indices}")
 
                 # Update batch job with chunk results
                 await self._merge_chunk_results(
