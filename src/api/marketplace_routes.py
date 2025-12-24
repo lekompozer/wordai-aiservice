@@ -31,28 +31,15 @@ from ..middleware.auth import verify_firebase_token as require_auth
 from ..services.test_cover_image_service import TestCoverImageService
 from ..services.test_version_service import TestVersionService
 from ..services.marketplace_cache_service import MarketplaceCacheService
-from pymongo import MongoClient
-import config.config as config
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/marketplace", tags=["Marketplace"])
 
-
-# MongoDB connection helper
-_mongo_client = None
-
-
-def get_database():
-    """Get MongoDB database instance"""
-    global _mongo_client
-    if _mongo_client is None:
-        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-            config, "MONGODB_URI", "mongodb://localhost:27017"
-        )
-        _mongo_client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-    return _mongo_client[db_name]
+# Initialize database connection
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ============================================================================
@@ -214,7 +201,7 @@ async def publish_test_to_marketplace(
     Revenue: 80% creator, 20% platform on all purchases
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         cover_service = TestCoverImageService()
         version_service = TestVersionService()
 
@@ -328,7 +315,7 @@ async def update_marketplace_config(
     Does NOT create new version - only updates metadata
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Validate test exists and user is owner
         test = db.online_tests.find_one(
@@ -386,7 +373,7 @@ async def unpublish_test(test_id: str, user_info: dict = Depends(require_auth)):
     Does NOT delete versions or purchase history
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Validate ownership
         result = db.online_tests.update_one(
@@ -438,7 +425,7 @@ async def upload_cover_image(
     Returns new cover_url and thumbnail_url
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         cover_service = TestCoverImageService()
 
         # 1. Validate test exists and user is owner
@@ -542,7 +529,7 @@ async def browse_marketplace(
     - price_high: Most expensive first
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Build query
         query = {"marketplace_config.is_public": True}
@@ -717,7 +704,7 @@ async def get_marketplace_test_by_slug(
     - Purchase status
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Get test by slug
         test = db.online_tests.find_one(
@@ -837,7 +824,7 @@ async def get_marketplace_test_detail(
     Includes sample questions (first 3) if not purchased
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Get test
         test = db.online_tests.find_one(
@@ -966,7 +953,7 @@ async def get_top_completed_tests(
     Supports category and language filtering
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Calculate date threshold
         date_threshold = None
@@ -1109,7 +1096,7 @@ async def get_top_active_users(
     Only shows users who completed at least 5 tests
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Calculate date threshold
         date_threshold = None
@@ -1276,7 +1263,7 @@ async def get_popular_tags(
     Supports pagination via limit parameter (10, 20, 30, etc.)
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Aggregate tags from all public marketplace tests
         pipeline = [

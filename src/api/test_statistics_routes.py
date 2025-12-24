@@ -7,35 +7,17 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime, timedelta
 from pydantic import BaseModel, Field
-from pymongo import MongoClient
 from bson import ObjectId
 import logging
-import config.config as config
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/tests/statistics", tags=["Test Statistics"])
 
-# MongoDB connection helper
-_mongo_client = None
-
-
-def get_mongodb_service():
-    """Get MongoDB database instance"""
-    global _mongo_client
-    if _mongo_client is None:
-        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-            config, "MONGODB_URI", "mongodb://localhost:27017"
-        )
-        _mongo_client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-
-    # Return object with .db attribute for compatibility
-    class MongoService:
-        def __init__(self, client, db_name):
-            self.db = client[db_name]
-
-    return MongoService(_mongo_client, db_name)
+# Initialize database connection
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ========== Response Models ==========
@@ -186,9 +168,9 @@ async def get_popular_tests(
     - Includes test metadata (title, category, creator)
     """
     try:
-        mongo_service = get_mongodb_service()
-        submissions_collection = mongo_service.db["test_submissions"]
-        tests_collection = mongo_service.db["online_tests"]
+        # db already initialized at module level
+        submissions_collection = db["test_submissions"]
+        tests_collection = db["online_tests"]
 
         # Build match filter
         match_filter = {}
@@ -310,8 +292,8 @@ async def get_active_users(
     - Includes average score, pass/fail counts
     """
     try:
-        mongo_service = get_mongodb_service()
-        submissions_collection = mongo_service.db["test_submissions"]
+        # db already initialized at module level
+        submissions_collection = db["test_submissions"]
 
         # Build match filter
         match_filter = {}

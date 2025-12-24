@@ -14,28 +14,15 @@ import logging
 import uuid
 
 from ..middleware.auth import verify_firebase_token as require_auth
-from pymongo import MongoClient
-import config.config as config
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/marketplace", tags=["Marketplace Transactions"])
 
-
-# MongoDB connection helper
-_mongo_client = None
-
-
-def get_database():
-    """Get MongoDB database instance"""
-    global _mongo_client
-    if _mongo_client is None:
-        mongo_uri = getattr(config, "MONGODB_URI_AUTH", None) or getattr(
-            config, "MONGODB_URI", "mongodb://localhost:27017"
-        )
-        _mongo_client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
-    return _mongo_client[db_name]
+# Initialize database connection
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ============================================================================
@@ -88,7 +75,7 @@ async def purchase_test(test_id: str, user_info: dict = Depends(require_auth)):
     - Updates test stats
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
 
         # 1. Get test
@@ -308,7 +295,7 @@ async def rate_test(
     Updates test's avg_rating and rating_count
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
 
         # 1. Validate test exists and is published
@@ -456,7 +443,7 @@ async def get_test_ratings(
     Get ratings for a test with pagination
     """
     try:
-        db = get_database()
+        # db already initialized at module level
 
         # Validate test exists
         test = db.online_tests.find_one(
@@ -558,7 +545,7 @@ async def get_my_earnings(user_info: dict = Depends(require_auth)):
     Shows earnings still in marketplace (not yet transferred to wallet)
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
 
         # Get all tests owned by user
@@ -617,7 +604,7 @@ async def transfer_earnings_to_wallet(
     5. Records transaction for audit trail
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
         amount = request.amount_points
 
@@ -758,7 +745,7 @@ async def get_my_public_tests(
     - total_revenue: Total earnings from sales
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
 
         # Build filter
@@ -878,7 +865,7 @@ async def get_my_purchase_history(
     - Test info (title, creator, category)
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
 
         # Get all purchases
@@ -1034,7 +1021,7 @@ async def get_purchase_history_summary(user_info: dict = Depends(require_auth)):
     - Total time spent
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
 
         # Get all purchases
@@ -1131,7 +1118,7 @@ async def get_test_rank_percentile(
     Returns percentile (e.g., 85.5 means user is in top 14.5%)
     """
     try:
-        db = get_database()
+        # db already initialized at module level
         user_id = user_info["uid"]
 
         # Check if user purchased this test
