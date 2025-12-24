@@ -1674,7 +1674,6 @@ async def download_document(
         from src.services.document_export_service import DocumentExportService
         from src.storage.r2_client import R2Client
         from src.core.config import APP_CONFIG
-        from config.config import get_mongodb
 
         # Initialize services
         r2_client = R2Client(
@@ -1684,8 +1683,7 @@ async def download_document(
             bucket_name=APP_CONFIG["r2_bucket_name"],
         )
 
-        db = get_mongodb()
-        export_service = DocumentExportService(r2_client=r2_client, db=db)
+        export_service = DocumentExportService(r2_client=r2_client, db=doc_manager.db)
 
         # Reconstruct HTML with overlay elements for slides
         if detected_document_type == "slide" and slide_elements:
