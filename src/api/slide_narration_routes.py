@@ -474,15 +474,12 @@ async def list_narrations(
             raise HTTPException(403, "Not authorized to view this presentation")
 
         # Fetch all narrations (presentation_id and user_id are strings)
-        cursor = (
-            db.slide_narrations.find(
-                {
-                    "presentation_id": presentation_id,
-                    "user_id": user_id,
-                }
-            )
-            .sort("created_at", -1)
-        )
+        cursor = db.slide_narrations.find(
+            {
+                "presentation_id": presentation_id,
+                "user_id": user_id,
+            }
+        ).sort("created_at", -1)
 
         narrations = []
         for doc in cursor:  # PyMongo sync cursor - use regular for, not async for
@@ -1141,9 +1138,8 @@ async def list_subtitles_v2(
             query["language"] = language
 
         # Get subtitles
-        cursor = (
-            db.presentation_subtitles.find(query)
-            .sort([("language", 1), ("version", -1)])
+        cursor = db.presentation_subtitles.find(query).sort(
+            [("language", 1), ("version", -1)]
         )
 
         subtitles = []
@@ -1425,9 +1421,8 @@ async def list_audio_v2(
             query["version"] = version
 
         # Get audio files
-        cursor = (
-            db.presentation_audio.find(query)
-            .sort([("language", 1), ("version", -1), ("slide_index", 1)])
+        cursor = db.presentation_audio.find(query).sort(
+            [("language", 1), ("version", -1), ("slide_index", 1)]
         )
 
         audio_files = []
@@ -1635,15 +1630,12 @@ async def get_public_presentation(public_token: str):
         # Get audio files if enabled
         audio_files = []
         if sharing_settings.get("include_audio", True) and subtitles:
-            cursor = (
-                db.presentation_audio.find(
-                    {
-                        "presentation_id": presentation_id,
-                        "subtitle_id": str(subtitles.id),
-                    }
-                )
-                .sort("slide_index", 1)
-            )
+            cursor = db.presentation_audio.find(
+                {
+                    "presentation_id": presentation_id,
+                    "subtitle_id": str(subtitles.id),
+                }
+            ).sort("slide_index", 1)
 
             for doc in cursor:
                 doc["_id"] = str(doc["_id"])
@@ -1760,15 +1752,12 @@ async def get_public_audio(
             raise HTTPException(404, "Subtitles not found for audio")
 
         # Get audio files
-        cursor = (
-            db.presentation_audio.find(
-                {
-                    "presentation_id": presentation_id,
-                    "subtitle_id": str(subtitle["_id"]),
-                }
-            )
-            .sort("slide_index", 1)
-        )
+        cursor = db.presentation_audio.find(
+            {
+                "presentation_id": presentation_id,
+                "subtitle_id": str(subtitle["_id"]),
+            }
+        ).sort("slide_index", 1)
 
         audio_files = []
         for doc in cursor:
