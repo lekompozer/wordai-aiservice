@@ -180,14 +180,23 @@ async def generate_subtitles(
         # Filter slides based on scope
         if request.scope == "current":
             if request.current_slide_index is None:
-                raise HTTPException(400, "current_slide_index required when scope='current'")
-            
-            if request.current_slide_index < 0 or request.current_slide_index >= len(slides):
-                raise HTTPException(400, f"Invalid slide index: {request.current_slide_index} (total: {len(slides)})")
-            
+                raise HTTPException(
+                    400, "current_slide_index required when scope='current'"
+                )
+
+            if request.current_slide_index < 0 or request.current_slide_index >= len(
+                slides
+            ):
+                raise HTTPException(
+                    400,
+                    f"Invalid slide index: {request.current_slide_index} (total: {len(slides)})",
+                )
+
             # Generate for single slide only
             slides = [slides[request.current_slide_index]]
-            logger.info(f"🎯 Generating subtitles for slide {request.current_slide_index} only")
+            logger.info(
+                f"🎯 Generating subtitles for slide {request.current_slide_index} only"
+            )
         else:
             logger.info(f"📊 Generating subtitles for all {len(slides)} slides")
 
