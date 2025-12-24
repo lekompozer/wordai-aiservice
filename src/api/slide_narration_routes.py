@@ -937,7 +937,7 @@ async def assign_library_audio(
                 raise HTTPException(404, f"Audio not found: {library_audio_id}")
 
             # Verify ownership
-            if str(audio_doc.get("user_id")) != str(current_user.id):
+            if str(audio_doc.get("user_id")) != user_id:
                 raise HTTPException(
                     403, f"Not authorized to use audio: {library_audio_id}"
                 )
