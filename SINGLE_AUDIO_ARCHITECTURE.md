@@ -40,7 +40,7 @@ for marker in slide_markers:
     char_ratio = marker["text_length"] / len(combined_text)
     slide_duration = total_duration × char_ratio
     start_time = Σ(previous_durations)
-    
+
     slide_timestamps.append({
         "slide_index": marker["slide_index"],
         "start_time": start_time,
@@ -172,7 +172,7 @@ end_time = start_time + slide_duration
 
 ### src/services/slide_narration_service.py (Lines 678-820):
 - **OLD**: Loop through slides, generate per slide
-- **NEW**: 
+- **NEW**:
   1. Combine all slides into single text (lines 678-710)
   2. ONE TTS call for entire presentation (lines 725-729)
   3. Upload single file to R2 (lines 732-740)

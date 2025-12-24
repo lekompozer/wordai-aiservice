@@ -680,7 +680,7 @@ Generate the complete narration now:"""
         combined_text = ""
         slide_markers = []  # Track slide boundaries for timestamps
         current_char_count = 0
-        
+
         for slide in slides:
             slide_index = slide["slide_index"]
             subtitles = slide.get("subtitles", [])
@@ -693,7 +693,7 @@ Generate the complete narration now:"""
 
             # Add slide marker for timestamp tracking
             slide_start_char = current_char_count
-            
+
             # Convert script dict to plain text for TTS
             slide_text = f"Slide {slide_index + 1}. "  # Add slide number
             for line in script["lines"]:
@@ -701,16 +701,18 @@ Generate the complete narration now:"""
                 speaker_role = script["speaker_roles"][speaker_idx]
                 text = line["text"]
                 slide_text += f"{speaker_role}: {text}. "
-            
+
             slide_text += "\n\n"  # Pause between slides
-            
-            slide_markers.append({
-                "slide_index": slide_index,
-                "start_char": slide_start_char,
-                "end_char": current_char_count + len(slide_text),
-                "text_length": len(slide_text)
-            })
-            
+
+            slide_markers.append(
+                {
+                    "slide_index": slide_index,
+                    "start_char": slide_start_char,
+                    "end_char": current_char_count + len(slide_text),
+                    "text_length": len(slide_text),
+                }
+            )
+
             combined_text += slide_text
             current_char_count += len(slide_text)
 
@@ -740,23 +742,27 @@ Generate the complete narration now:"""
         audio_url = upload_result["public_url"]
 
         total_duration = metadata.get("duration", 0)
-        
+
         # Estimate timestamps based on character count proportions
         slide_timestamps = []
         for marker in slide_markers:
             # Proportional duration based on text length
-            char_ratio = marker["text_length"] / len(combined_text) if combined_text else 0
+            char_ratio = (
+                marker["text_length"] / len(combined_text) if combined_text else 0
+            )
             slide_duration = total_duration * char_ratio
-            
+
             # Start time is sum of previous durations
             start_time = sum(ts["duration"] for ts in slide_timestamps)
-            
-            slide_timestamps.append({
-                "slide_index": marker["slide_index"],
-                "start_time": start_time,
-                "duration": slide_duration,
-                "end_time": start_time + slide_duration
-            })
+
+            slide_timestamps.append(
+                {
+                    "slide_index": marker["slide_index"],
+                    "start_time": start_time,
+                    "duration": slide_duration,
+                    "end_time": start_time + slide_duration,
+                }
+            )
 
         library_audio = library_manager.save_library_file(
             user_id=user_id,
