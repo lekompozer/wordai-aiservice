@@ -240,8 +240,8 @@ async def generate_subtitles(
 
         # Save to database
         narration_doc = {
-            "presentation_id": ObjectId(presentation_id),
-            "user_id": ObjectId(user_id),
+            "presentation_id": presentation_id,  # String document_id, NOT ObjectId
+            "user_id": user_id,  # String Firebase UID, NOT ObjectId
             "version": await _get_next_version(presentation_id),
             "status": "subtitles_only",
             "mode": request.mode,
@@ -445,21 +445,21 @@ async def list_narrations(
     try:
         user_id = current_user["uid"]
 
-        # Check presentation exists and user owns it
-        presentation = await db.presentations.find_one(
-            {"_id": ObjectId(presentation_id)}
+        # Check document exists (using document_id string, not ObjectId)
+        document = await db.documents.find_one(
+            {"document_id": presentation_id, "document_type": "slide"}
         )
-        if not presentation:
+        if not document:
             raise HTTPException(404, "Presentation not found")
 
-        if str(presentation.get("user_id")) != user_id:
+        if document.get("user_id") != user_id:
             raise HTTPException(403, "Not authorized to view this presentation")
 
-        # Fetch all narrations
+        # Fetch all narrations (presentation_id and user_id are strings)
         cursor = db.slide_narrations.find(
             {
-                "presentation_id": ObjectId(presentation_id),
-                "user_id": ObjectId(user_id),
+                "presentation_id": presentation_id,
+                "user_id": user_id,
             }
         ).sort("created_at", -1)
 
@@ -497,7 +497,7 @@ async def list_narrations(
 async def _get_next_version(presentation_id: str) -> int:
     """Get next version number for narration"""
     latest = await db.slide_narrations.find_one(
-        {"presentation_id": ObjectId(presentation_id)}, sort=[("version", -1)]
+        {"presentation_id": presentation_id}, sort=[("version", -1)]
     )
     return (latest.get("version", 0) + 1) if latest else 1
 
@@ -797,7 +797,7 @@ async def list_library_audio(
         user_id = current_user["uid"]
 
         # Build query filter
-        query = {"user_id": ObjectId(user_id)}
+        query = {"user_id": user_id}
 
         if request.source_type:
             query["source_type"] = request.source_type
