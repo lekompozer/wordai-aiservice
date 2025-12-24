@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from src.middleware.auth import verify_firebase_token as require_auth
-from src.services.online_test_utils import get_mongodb_service
+from src.database.db_manager import DBManager
 from src.services.listening_test_generator_service import (
     get_listening_test_generator,
 )
@@ -20,6 +20,10 @@ from src.services.listening_test_generator_service import (
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Listening Audio Management"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ========== Request Models ==========
@@ -93,8 +97,8 @@ async def update_test_transcript(
         logger.info(f"   Section: {request.section_number}")
 
         # Get test from DB
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         test = collection.find_one({"_id": ObjectId(test_id)})
         if not test:
@@ -232,8 +236,8 @@ async def generate_audio_from_transcript(
         logger.info(f"💰 User has sufficient points for audio generation")
 
         # Get test from DB
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         test = collection.find_one({"_id": ObjectId(test_id)})
         if not test:
@@ -413,8 +417,8 @@ async def apply_audio_to_test(
         logger.info(f"   Library File: {request.library_file_id}")
 
         # Get test from DB
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         test = collection.find_one({"_id": ObjectId(test_id)})
         if not test:
@@ -434,7 +438,7 @@ async def apply_audio_to_test(
             )
 
         # Get library file
-        library_collection = mongo_service.db["library_files"]
+        library_collection = db["library_files"]
         library_file = library_collection.find_one(
             {
                 "$or": [

@@ -28,8 +28,8 @@ from src.models.slide_ai_generation_models import (
 )
 from src.services.slide_ai_generation_service import get_slide_ai_service
 from src.services.points_service import get_points_service
-from src.services.online_test_utils import get_mongodb_service
 from src.services.document_manager import DocumentManager
+from src.database.db_manager import DBManager
 from src.queue.queue_manager import get_job_status
 from src.queue.queue_dependencies import get_slide_generation_queue
 from src.queue.queue_dependencies import get_slide_generation_queue
@@ -38,6 +38,10 @@ from src.models.ai_queue_tasks import SlideGenerationTask
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/slides/ai-generate", tags=["Slide AI Generation"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ============ STATUS POLLING ============
@@ -149,8 +153,8 @@ async def get_slide_outline(
     """
     try:
         # Get document from MongoDB
-        db_service = get_mongodb_service()
-        doc_manager = DocumentManager(db_service.db)
+        # db already initialized
+        doc_manager = DocumentManager(db)
 
         doc = doc_manager.documents.find_one(
             {
@@ -231,8 +235,8 @@ async def update_slide_outline(
     """
     try:
         # Get document from MongoDB
-        db_service = get_mongodb_service()
-        doc_manager = DocumentManager(db_service.db)
+        # db already initialized
+        doc_manager = DocumentManager(db)
 
         doc = doc_manager.documents.find_one(
             {
@@ -383,8 +387,8 @@ async def analyze_slide_requirements(
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
 
         # 3. Save analysis to database
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["slide_analyses"]
+        # db already initialized
+        collection = db["slide_analyses"]
 
         # Convert slides to SlideOutlineItem models
         slides_outline = []
@@ -517,8 +521,8 @@ async def analyze_slide_from_pdf(
             )
 
         # 2. Get file from database
-        mongo_service = get_mongodb_service()
-        files_collection = mongo_service.db["files"]
+        # db already initialized
+        files_collection = db["files"]
 
         file_doc = files_collection.find_one(
             {"file_id": request.file_id, "user_id": user_info["uid"]}
@@ -677,7 +681,7 @@ async def analyze_slide_from_pdf(
         processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
 
         # 6. Save analysis to database (same as regular)
-        collection = mongo_service.db["slide_analyses"]
+        collection = db["slide_analyses"]
 
         slides_outline = []
         for slide_data in analysis_result["slides"]:
@@ -798,8 +802,8 @@ async def create_slides_from_analysis(
         logger.info(f"   Slide images: {len(request.slide_images or [])} provided")
 
         # 1. Get analysis from database
-        mongo_service = get_mongodb_service()
-        analysis = mongo_service.db["slide_analyses"].find_one(
+        # db already initialized
+        analysis = db["slide_analyses"].find_one(
             {"_id": ObjectId(request.analysis_id), "user_id": user_info["uid"]}
         )
 
@@ -845,7 +849,7 @@ async def create_slides_from_analysis(
             validate_creator_name(request.creator_name, user_email, user_info["uid"])
 
         # 5. Create slide document using DocumentManager (compatible with existing system)
-        doc_manager = DocumentManager(mongo_service.db)
+        doc_manager = DocumentManager(db)
         document_id = doc_manager.create_document(
             user_id=user_info["uid"],
             title=analysis["title"],
@@ -856,7 +860,7 @@ async def create_slides_from_analysis(
         )
 
         # 6. Add AI generation metadata to document (stored in separate fields)
-        mongo_service.db["documents"].update_one(
+        db["documents"].update_one(
             {"document_id": document_id},
             {
                 "$set": {
@@ -903,7 +907,7 @@ async def create_slides_from_analysis(
         )
 
         # Store additional data in document for worker to use
-        mongo_service.db["documents"].update_one(
+        db["documents"].update_one(
             {"document_id": document_id},
             {
                 "$set": {
@@ -921,7 +925,7 @@ async def create_slides_from_analysis(
 
         if not success:
             # Rollback: Delete document
-            mongo_service.db["documents"].delete_one({"document_id": document_id})
+            db["documents"].delete_one({"document_id": document_id})
             raise HTTPException(
                 status_code=500, detail="Failed to enqueue slide generation task"
             )
@@ -972,15 +976,15 @@ async def generate_slide_html_background(
     - Updates ai_progress_percent (0-100%)
     - Deducts points only after successful completion
     """
-    mongo_service = get_mongodb_service()
+    # db already initialized
     ai_service = get_slide_ai_service()
-    doc_manager = DocumentManager(mongo_service.db)
+    doc_manager = DocumentManager(db)
 
     try:
         logger.info(f"🎨 [BG] Starting slide HTML generation: {document_id}")
 
         # Update status to processing
-        mongo_service.db["documents"].update_one(
+        db["documents"].update_one(
             {"document_id": document_id},
             {
                 "$set": {
@@ -1027,7 +1031,7 @@ async def generate_slide_html_background(
 
             # Update progress
             progress = int((i + 1) / total_batches * 100)
-            mongo_service.db["documents"].update_one(
+            db["documents"].update_one(
                 {"document_id": document_id},
                 {
                     "$set": {
@@ -1064,7 +1068,7 @@ async def generate_slide_html_background(
         )
 
         # Update AI generation status
-        mongo_service.db["documents"].update_one(
+        db["documents"].update_one(
             {"document_id": document_id},
             {
                 "$set": {
@@ -1093,7 +1097,7 @@ async def generate_slide_html_background(
         logger.error(f"❌ [BG] Slide generation failed: {document_id}, error: {e}")
 
         # Mark as failed
-        mongo_service.db["documents"].update_one(
+        db["documents"].update_one(
             {"document_id": document_id},
             {
                 "$set": {
@@ -1210,10 +1214,10 @@ async def create_basic_slide_from_analysis(
     try:
         logger.info(f"📄 Basic slide creation from analysis {request.analysis_id}")
 
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # 1. Get analysis from database
-        analysis = mongo_service.db["slide_analyses"].find_one(
+        analysis = db["slide_analyses"].find_one(
             {"_id": ObjectId(request.analysis_id), "user_id": user_info["uid"]}
         )
 
@@ -1261,7 +1265,7 @@ async def create_basic_slide_from_analysis(
         )
 
         # 5. Create slide document
-        doc_manager = DocumentManager(mongo_service.db)
+        doc_manager = DocumentManager(db)
         document_id = doc_manager.create_document(
             user_id=user_info["uid"],
             title=analysis["title"],
@@ -1272,7 +1276,7 @@ async def create_basic_slide_from_analysis(
         )
 
         # 6. Add metadata
-        mongo_service.db["documents"].update_one(
+        db["documents"].update_one(
             {"document_id": document_id},
             {
                 "$set": {

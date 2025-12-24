@@ -47,10 +47,14 @@ from src.services.slide_narration_service import get_slide_narration_service
 from src.services.points_service import get_points_service
 from src.middleware.firebase_auth import get_current_user
 from src.services.document_manager import DocumentManager
-from src.services.online_test_utils import get_mongodb_service
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api")
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 logger.info("=" * 80)
 logger.info("🎤 SLIDE NARRATION ROUTER INITIALIZED")
@@ -149,8 +153,8 @@ async def generate_subtitles(
             )
 
         # Fetch document from documents collection (where slides are stored)
-        doc_manager = DocumentManager(get_mongodb_service().db)
-        document = get_mongodb_service().db.documents.find_one(
+        doc_manager = DocumentManager(db)
+        document = db.documents.find_one(
             {"document_id": presentation_id, "document_type": "slide"}
         )
 
@@ -265,7 +269,7 @@ async def generate_subtitles(
             "updated_at": datetime.now(),
         }
 
-        insert_result = get_mongodb_service().db.slide_narrations.insert_one(
+        insert_result = db.slide_narrations.insert_one(
             narration_doc
         )
         narration_id = str(insert_result.inserted_id)
@@ -372,7 +376,7 @@ async def generate_audio(
             )
 
         # Fetch narration from database
-        narration = get_mongodb_service().db.slide_narrations.find_one(
+        narration = db.slide_narrations.find_one(
             {"_id": ObjectId(narration_id)}
         )
         if not narration:
@@ -401,7 +405,7 @@ async def generate_audio(
         )
 
         # Update database with audio files
-        get_mongodb_service().db.slide_narrations.update_one(
+        db.slide_narrations.update_one(
             {"_id": ObjectId(narration_id)},
             {
                 "$set": {
@@ -464,7 +468,7 @@ async def list_narrations(
         user_id = current_user["uid"]
 
         # Check document exists (using document_id string, not ObjectId)
-        document = get_mongodb_service().db.documents.find_one(
+        document = db.documents.find_one(
             {"document_id": presentation_id, "document_type": "slide"}
         )
         if not document:
@@ -518,7 +522,7 @@ async def list_narrations(
 
 def _get_next_version(presentation_id: str) -> int:
     """Get next version number for narration"""
-    latest = get_mongodb_service().db.slide_narrations.find_one(
+    latest = db.slide_narrations.find_one(
         {"presentation_id": presentation_id}, sort=[("version", -1)]
     )
     return (latest.get("version", 0) + 1) if latest else 1
@@ -555,7 +559,7 @@ async def delete_narration(
         user_id = current_user["uid"]
 
         # Fetch narration
-        narration = get_mongodb_service().db.slide_narrations.find_one(
+        narration = db.slide_narrations.find_one(
             {"_id": ObjectId(narration_id)}
         )
         if not narration:
@@ -632,7 +636,7 @@ async def update_subtitles(
         logger.info(f"📝 Updating subtitles for narration {narration_id}")
 
         # Fetch narration
-        narration = get_mongodb_service().db.slide_narrations.find_one(
+        narration = db.slide_narrations.find_one(
             {"_id": ObjectId(narration_id)}
         )
         if not narration:
@@ -672,7 +676,7 @@ async def update_subtitles(
 
         # Update in database
         updated_at = datetime.now()
-        get_mongodb_service().db.slide_narrations.update_one(
+        db.slide_narrations.update_one(
             {"_id": ObjectId(narration_id)},
             {
                 "$set": {
@@ -735,7 +739,7 @@ async def delete_narration(
         logger.info(f"🗑️ Deleting narration {narration_id}")
 
         # Fetch narration
-        narration = get_mongodb_service().db.slide_narrations.find_one(
+        narration = db.slide_narrations.find_one(
             {"_id": ObjectId(narration_id)}
         )
         if not narration:
@@ -768,7 +772,7 @@ async def delete_narration(
                         )
 
         # Delete narration record
-        get_mongodb_service().db.slide_narrations.delete_one(
+        db.slide_narrations.delete_one(
             {"_id": ObjectId(narration_id)}
         )
 
@@ -836,7 +840,7 @@ async def list_library_audio(
             query["file_name"] = {"$regex": request.search_query, "$options": "i"}
 
         # Get total count
-        total_count = get_mongodb_service().db.library_audio.count_documents(query)
+        total_count = db.library_audio.count_documents(query)
 
         # Fetch audio files with pagination
         cursor = (
@@ -920,7 +924,7 @@ async def assign_library_audio(
         logger.info(f"🎵 Assigning library audio to narration {narration_id}")
 
         # Fetch narration
-        narration = get_mongodb_service().db.slide_narrations.find_one(
+        narration = db.slide_narrations.find_one(
             {"_id": ObjectId(narration_id)}
         )
         if not narration:
@@ -942,7 +946,7 @@ async def assign_library_audio(
             library_audio_id = assignment.get("library_audio_id")
 
             # Fetch audio from library
-            audio_doc = get_mongodb_service().db.library_audio.find_one(
+            audio_doc = db.library_audio.find_one(
                 {"_id": ObjectId(library_audio_id)}
             )
 
@@ -971,7 +975,7 @@ async def assign_library_audio(
             )
 
         # Update narration with assigned audio
-        get_mongodb_service().db.slide_narrations.update_one(
+        db.slide_narrations.update_one(
             {"_id": ObjectId(narration_id)},
             {
                 "$set": {
@@ -1029,7 +1033,7 @@ async def remove_slide_audio(
         )
 
         # Fetch narration
-        narration = get_mongodb_service().db.slide_narrations.find_one(
+        narration = db.slide_narrations.find_one(
             {"_id": ObjectId(narration_id)}
         )
         if not narration:
@@ -1053,7 +1057,7 @@ async def remove_slide_audio(
         new_status = "completed" if updated_audio_files else "subtitles_only"
 
         # Update narration
-        get_mongodb_service().db.slide_narrations.update_one(
+        db.slide_narrations.update_one(
             {"_id": ObjectId(narration_id)},
             {
                 "$set": {
@@ -1190,7 +1194,7 @@ async def get_subtitle_v2(
         user_id = current_user["uid"]
 
         # Get subtitle
-        subtitle = get_mongodb_service().db.presentation_subtitles.find_one(
+        subtitle = db.presentation_subtitles.find_one(
             {"_id": ObjectId(subtitle_id), "user_id": user_id}
         )
 
@@ -1221,7 +1225,7 @@ async def delete_subtitle_v2(
         logger.info(f"Deleting subtitle V2: {subtitle_id}")
 
         # Get subtitle to verify ownership
-        subtitle = get_mongodb_service().db.presentation_subtitles.find_one(
+        subtitle = db.presentation_subtitles.find_one(
             {"_id": ObjectId(subtitle_id), "user_id": user_id}
         )
 
@@ -1229,12 +1233,12 @@ async def delete_subtitle_v2(
             raise HTTPException(404, "Subtitle not found")
 
         # Delete associated audio files
-        get_mongodb_service().db.presentation_audio.delete_many(
+        db.presentation_audio.delete_many(
             {"subtitle_id": subtitle_id}
         )
 
         # Delete subtitle
-        get_mongodb_service().db.presentation_subtitles.delete_one(
+        db.presentation_subtitles.delete_one(
             {"_id": ObjectId(subtitle_id)}
         )
 
@@ -1394,7 +1398,7 @@ async def delete_audio_v2(
         user_id = current_user["uid"]
 
         # Get audio to verify ownership
-        audio = get_mongodb_service().db.presentation_audio.find_one(
+        audio = db.presentation_audio.find_one(
             {"_id": ObjectId(audio_id), "user_id": user_id}
         )
 
@@ -1402,7 +1406,7 @@ async def delete_audio_v2(
             raise HTTPException(404, "Audio not found")
 
         # Delete audio document
-        get_mongodb_service().db.presentation_audio.delete_one(
+        db.presentation_audio.delete_one(
             {"_id": ObjectId(audio_id)}
         )
 
@@ -1538,7 +1542,7 @@ async def get_public_presentation(public_token: str):
         default_language = sharing_settings.get("default_language", "vi")
 
         # Get presentation document
-        presentation = get_mongodb_service().db.documents.find_one(
+        presentation = db.documents.find_one(
             {"_id": ObjectId(presentation_id)}
         )
 
@@ -1563,7 +1567,7 @@ async def get_public_presentation(public_token: str):
         # Get latest subtitle for default language if enabled
         subtitles = None
         if sharing_settings.get("include_subtitles", True):
-            subtitle_doc = get_mongodb_service().db.presentation_subtitles.find_one(
+            subtitle_doc = db.presentation_subtitles.find_one(
                 {"presentation_id": presentation_id, "language": default_language},
                 sort=[("version", -1)],
             )
@@ -1639,12 +1643,12 @@ async def get_public_subtitles(
         query = {"presentation_id": presentation_id, "language": language}
 
         if version == "latest":
-            subtitle_doc = get_mongodb_service().db.presentation_subtitles.find_one(
+            subtitle_doc = db.presentation_subtitles.find_one(
                 query, sort=[("version", -1)]
             )
         else:
             query["version"] = int(version)
-            subtitle_doc = get_mongodb_service().db.presentation_subtitles.find_one(
+            subtitle_doc = db.presentation_subtitles.find_one(
                 query
             )
 
@@ -1693,12 +1697,12 @@ async def get_public_audio(
         query = {"presentation_id": presentation_id, "language": language}
 
         if version == "latest":
-            subtitle = get_mongodb_service().db.presentation_subtitles.find_one(
+            subtitle = db.presentation_subtitles.find_one(
                 query, sort=[("version", -1)]
             )
         else:
             query["version"] = int(version)
-            subtitle = get_mongodb_service().db.presentation_subtitles.find_one(query)
+            subtitle = db.presentation_subtitles.find_one(query)
 
         if not subtitle:
             raise HTTPException(404, "Subtitles not found for audio")
