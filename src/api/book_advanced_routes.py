@@ -21,7 +21,6 @@ from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.ai_chat_service import ai_chat_service, AIProvider
 from src.services.points_service import get_points_service
 from src.services.r2_storage_service import get_r2_service
-from src.services.online_test_utils import get_mongodb_service
 from src.queue.queue_dependencies import get_chapter_translation_queue
 from src.queue.queue_manager import set_job_status, get_job_status
 

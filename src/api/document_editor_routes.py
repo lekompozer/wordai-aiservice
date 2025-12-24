@@ -26,7 +26,6 @@ from src.services.document_manager import DocumentManager
 from src.services.file_download_service import FileDownloadService
 from src.services.user_manager import UserManager
 from src.services.subscription_service import get_subscription_service
-from src.services.online_test_utils import get_mongodb_service
 from src.middleware.auth import verify_firebase_token
 from src.database.db_manager import DBManager
 
@@ -1108,7 +1107,7 @@ async def get_document(
         if document.get("document_type") == "slide":
             try:
                 narration_count = (
-                    get_mongodb_service().db.slide_narrations.count_documents(
+                    db.slide_narrations.count_documents(
                         {"presentation_id": document_id, "user_id": user_id}
                     )
                 )
