@@ -1137,7 +1137,7 @@ async def get_document(
                 f"has_narration={has_narration}, narration_count={narration_count}"
             )
 
-        return DocumentResponse(
+        response = DocumentResponse(
             document_id=document["document_id"],
             title=document.get("title", "Untitled"),
             content_html=document.get("content_html", ""),
@@ -1169,6 +1169,15 @@ async def get_document(
             has_narration=has_narration,  # ✅ Quick check if narrations exist
             narration_count=narration_count,  # ✅ Number of narration versions
         )
+
+        # Log response payload for debugging
+        logger.info(
+            f"📤 [RESPONSE] document_id={document_id}, "
+            f"has_narration={response.has_narration}, narration_count={response.narration_count}, "
+            f"has_outline={response.has_outline}"
+        )
+
+        return response
 
     except HTTPException:
         raise
