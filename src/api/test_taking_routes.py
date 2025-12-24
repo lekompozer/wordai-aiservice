@@ -26,10 +26,15 @@ from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
 from src.services.online_test_utils import *
 from src.services.ielts_scoring import score_question
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Test Taking"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 @router.post("/submissions/answer-media/presigned-url", tags=["Essay Answers"])
@@ -176,8 +181,8 @@ async def get_test(
         logger.info(f"📖 Get test request: {test_id} from user {user_info['uid']}")
 
         # Get test
-        mongo_service = get_mongodb_service()
-        test = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        # db already initialized
+        test = db["online_tests"].find_one({"_id": ObjectId(test_id)})
 
         if not test:
             raise HTTPException(status_code=404, detail="Test not found")
@@ -191,7 +196,7 @@ async def get_test(
             logger.info(f"   🔑 Owner view: returning full data")
 
             # Get statistics
-            submissions_collection = mongo_service.db["test_submissions"]
+            submissions_collection = db["test_submissions"]
             total_submissions = submissions_collection.count_documents(
                 {"test_id": test_id}
             )
@@ -260,7 +265,7 @@ async def get_test(
             marketplace_config = test.get("marketplace_config", {})
 
             # Get user's participation history
-            submissions_collection = mongo_service.db["test_submissions"]
+            submissions_collection = db["test_submissions"]
             user_submissions = list(
                 submissions_collection.find(
                     {"test_id": test_id, "user_id": user_info["uid"]}
@@ -391,9 +396,9 @@ async def start_test(
         logger.info(f"🚀 Start test: {test_id} for user {user_info['uid']}")
 
         # Check if user has already exceeded max attempts
-        mongo_service = get_mongodb_service()
-        test_collection = mongo_service.db["online_tests"]
-        submissions_collection = mongo_service.db["test_submissions"]
+        # db already initialized
+        test_collection = db["online_tests"]
+        submissions_collection = db["test_submissions"]
 
         test_doc = test_collection.find_one({"_id": ObjectId(test_id)})
         if not test_doc:
@@ -421,7 +426,7 @@ async def start_test(
 
         if should_deduct_points:
             # Get user's current points
-            users_collection = mongo_service.db["users"]
+            users_collection = db["users"]
             # Query by firebase_uid (unified schema)
             user_doc = users_collection.find_one({"firebase_uid": user_info["uid"]})
 
@@ -485,7 +490,7 @@ async def start_test(
                 )
 
             # Count how many times user has started this test (for logging)
-            progress_collection = mongo_service.db["test_progress"]
+            progress_collection = db["test_progress"]
             previous_attempts = progress_collection.count_documents(
                 {"test_id": test_id, "user_id": user_info["uid"]}
             )
@@ -512,7 +517,7 @@ async def start_test(
             )
 
             # ✅ BIDIRECTIONAL SYNC: Also update subscription.points_remaining
-            subscriptions_collection = mongo_service.db["user_subscriptions"]
+            subscriptions_collection = db["user_subscriptions"]
             subscription_doc = subscriptions_collection.find_one(
                 {"user_id": user_info["uid"]}
             )
@@ -590,7 +595,7 @@ async def start_test(
 
         # Count user's attempts from BOTH submissions AND active sessions
         # This prevents users from starting multiple sessions to bypass retry limit
-        progress_collection = mongo_service.db["test_progress"]
+        progress_collection = db["test_progress"]
 
         # Count completed submissions
         completed_submissions = submissions_collection.count_documents(
@@ -736,8 +741,8 @@ async def submit_test(
                 logger.info(f"      {idx}. Q{q_id} ({q_type})")
 
         # Get test with correct answers
-        mongo_service = get_mongodb_service()
-        test_collection = mongo_service.db["online_tests"]
+        # db already initialized
+        test_collection = db["online_tests"]
 
         test_doc = test_collection.find_one({"_id": ObjectId(test_id)})
         if not test_doc:
@@ -1013,7 +1018,7 @@ async def submit_test(
         # ========== NEW: Handle diagnostic test - deduct 1 point for AI evaluation ==========
         has_sufficient_points_for_ai = True
         if is_diagnostic and not is_owner:
-            users_collection = mongo_service.db["users"]
+            users_collection = db["users"]
             user_doc = users_collection.find_one({"firebase_uid": user_info["uid"]})
 
             if not user_doc:
@@ -1066,7 +1071,7 @@ async def submit_test(
 
         # ========== Validate time limit ==========
         # Get session to check started_at time
-        progress_collection = mongo_service.db["test_progress"]
+        progress_collection = db["test_progress"]
         session = progress_collection.find_one(
             {"test_id": test_id, "user_id": user_info["uid"], "is_completed": False},
             sort=[("started_at", -1)],  # Get most recent session
@@ -1088,7 +1093,7 @@ async def submit_test(
                 )
 
                 # Get latest submission if exists
-                submissions_collection = mongo_service.db["test_submissions"]
+                submissions_collection = db["test_submissions"]
                 latest_submission = submissions_collection.find_one(
                     {
                         "test_id": test_id,
@@ -1135,7 +1140,7 @@ async def submit_test(
         logger.info(f"   ⏱️ Time taken: {time_taken_seconds}s")
 
         # Count attempt number
-        submissions_collection = mongo_service.db["test_submissions"]
+        submissions_collection = db["test_submissions"]
         attempt_number = (
             submissions_collection.count_documents(
                 {
@@ -1147,7 +1152,7 @@ async def submit_test(
         )
 
         # Get user info for statistics
-        users_collection = mongo_service.db["users"]
+        users_collection = db["users"]
         user_doc = users_collection.find_one({"firebase_uid": user_info["uid"]})
         user_name = None
         if user_doc:
@@ -1211,10 +1216,10 @@ async def submit_test(
 
         # ========== NEW: Add to grading queue if has essay questions ==========
         if has_essay:
-            grading_queue = mongo_service.db["grading_queue"]
+            grading_queue = db["grading_queue"]
 
             # Get student name
-            user_doc = mongo_service.db.users.find_one(
+            user_doc = db.users.find_one(
                 {"firebase_uid": user_info["uid"]}
             )
             student_name = (
@@ -1249,7 +1254,7 @@ async def submit_test(
 
                     # Get owner info
                     owner_id = test_doc.get("creator_id")
-                    owner = mongo_service.db.users.find_one({"firebase_uid": owner_id})
+                    owner = db.users.find_one({"firebase_uid": owner_id})
 
                     if owner and owner.get("email"):
                         brevo = get_brevo_service()
@@ -1292,10 +1297,10 @@ async def submit_test(
 
                     # Get owner info
                     owner_id = test_doc.get("creator_id")
-                    owner = mongo_service.db.users.find_one({"firebase_uid": owner_id})
+                    owner = db.users.find_one({"firebase_uid": owner_id})
 
                     # Get user info
-                    user = mongo_service.db.users.find_one(
+                    user = db.users.find_one(
                         {"firebase_uid": user_info["uid"]}
                     )
 
@@ -1478,8 +1483,8 @@ async def sync_answers(
         )
 
         # Get session and verify ownership
-        mongo_service = get_mongodb_service()
-        progress_collection = mongo_service.db["test_progress"]
+        # db already initialized
+        progress_collection = db["test_progress"]
 
         session = progress_collection.find_one({"session_id": session_id})
 
@@ -1497,7 +1502,7 @@ async def sync_answers(
             raise HTTPException(status_code=410, detail="Session already completed")
 
         # Check if time has expired
-        test_collection = mongo_service.db["online_tests"]
+        test_collection = db["online_tests"]
         test = test_collection.find_one({"_id": ObjectId(test_id)})
 
         if not test:
@@ -1586,9 +1591,9 @@ async def get_my_submissions(
     try:
         logger.info(f"📊 Get my submissions for user {user_info['uid']}")
 
-        mongo_service = get_mongodb_service()
-        submissions_collection = mongo_service.db["test_submissions"]
-        test_collection = mongo_service.db["online_tests"]
+        # db already initialized
+        submissions_collection = db["test_submissions"]
+        test_collection = db["online_tests"]
 
         # Get user's submissions
         submissions = list(
@@ -1688,8 +1693,8 @@ async def get_submission_detail(
     try:
         logger.info(f"🔍 Get submission detail: {submission_id}")
 
-        mongo_service = get_mongodb_service()
-        submissions_collection = mongo_service.db["test_submissions"]
+        # db already initialized
+        submissions_collection = db["test_submissions"]
 
         submission = submissions_collection.find_one({"_id": ObjectId(submission_id)})
 
@@ -1700,7 +1705,7 @@ async def get_submission_detail(
             raise HTTPException(status_code=403, detail="Access denied")
 
         # Get test for question details
-        test_collection = mongo_service.db["online_tests"]
+        test_collection = db["online_tests"]
         test_doc = test_collection.find_one({"_id": ObjectId(submission["test_id"])})
 
         if not test_doc:
@@ -2112,15 +2117,15 @@ async def save_test_progress(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Verify session exists and belongs to user
-        session = mongo_service.db["test_progress"].find_one(
+        session = db["test_progress"].find_one(
             {"session_id": request.session_id}
         )
 
@@ -2149,7 +2154,7 @@ async def save_test_progress(
         if request.time_remaining_seconds is not None:
             update_data["time_remaining_seconds"] = request.time_remaining_seconds
 
-        result = mongo_service.db["test_progress"].update_one(
+        result = db["test_progress"].update_one(
             {"session_id": request.session_id}, {"$set": update_data}
         )
 
@@ -2189,15 +2194,15 @@ async def get_test_progress(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Get session progress
-        session = mongo_service.db["test_progress"].find_one({"session_id": session_id})
+        session = db["test_progress"].find_one({"session_id": session_id})
 
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
@@ -2241,15 +2246,15 @@ async def resume_test_session(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Find most recent incomplete session for this user and test
-        session = mongo_service.db["test_progress"].find_one(
+        session = db["test_progress"].find_one(
             {"user_id": user_id, "test_id": ObjectId(test_id), "is_completed": False},
             sort=[("started_at", -1)],
         )
@@ -2269,7 +2274,7 @@ async def resume_test_session(
 
         # If time ran out, mark session as completed and return error
         if time_remaining == 0:
-            mongo_service.db["test_progress"].update_one(
+            db["test_progress"].update_one(
                 {"_id": session["_id"]}, {"$set": {"is_completed": True}}
             )
             raise HTTPException(
@@ -2278,7 +2283,7 @@ async def resume_test_session(
             )
 
         # Update time remaining in database
-        mongo_service.db["test_progress"].update_one(
+        db["test_progress"].update_one(
             {"_id": session["_id"]},
             {"$set": {"time_remaining_seconds": time_remaining}},
         )
@@ -2357,10 +2362,10 @@ async def get_test_participants(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2371,9 +2376,9 @@ async def get_test_participants(
             )
 
         # Get all unique participants who have started the test at least once
-        progress_collection = mongo_service.db["test_progress"]
-        submissions_collection = mongo_service.db["test_submissions"]
-        users_collection = mongo_service.db["users"]
+        progress_collection = db["test_progress"]
+        submissions_collection = db["test_submissions"]
+        users_collection = db["users"]
 
         # Get unique user IDs from test_progress (anyone who started)
         participant_ids = progress_collection.distinct("user_id", {"test_id": test_id})

@@ -28,10 +28,15 @@ from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
 from src.services.online_test_utils import *
 from src.services.marketplace_cache_service import MarketplaceCacheService
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Test Creation"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 @router.post("/generate")
@@ -281,8 +286,8 @@ async def generate_test(
             )
 
         # ========== NEW: Create test record immediately with status='pending' ==========
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         # Validate creator_name if provided
         if request.creator_name:
@@ -656,8 +661,8 @@ async def generate_test_from_general_knowledge(
         logger.info(f"   Distribution Mode: {effective_mode} ({mode_source})")
 
         # Create test record
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         # Validate creator_name if provided
         if request.creator_name:
@@ -942,8 +947,8 @@ async def create_manual_test(
                     )
 
         # Create test record
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         # Validate creator_name if provided
         if request.creator_name:
@@ -1108,8 +1113,8 @@ async def duplicate_test(
         )
 
         # Get original test
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         original_test = collection.find_one({"_id": ObjectId(test_id)})
 
@@ -1248,8 +1253,8 @@ async def get_test_status(
             f"🔍🔍🔍 [STATUS CHECK] GET /tests/{test_id}/status - User: {user_info['uid']} - Timestamp: {datetime.now().isoformat()}"
         )
 
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         test = collection.find_one({"_id": ObjectId(test_id)})
 
@@ -1352,9 +1357,9 @@ async def get_my_tests(
         if offset < 0:
             offset = 0
 
-        mongo_service = get_mongodb_service()
-        test_collection = mongo_service.db["online_tests"]
-        submissions_collection = mongo_service.db["test_submissions"]
+        # db already initialized
+        test_collection = db["online_tests"]
+        submissions_collection = db["test_submissions"]
 
         # Query filter: only active tests (not soft-deleted)
         query_filter = {
@@ -1450,10 +1455,10 @@ async def update_test_config(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists and user is creator
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -1508,7 +1513,7 @@ async def update_test_config(
                 )
 
         # Update in database
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)}, {"$set": update_data}
         )
 
@@ -1546,10 +1551,10 @@ async def update_test_questions(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists and user is creator
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -1571,7 +1576,7 @@ async def update_test_questions(
                 f"ℹ️  Questions unchanged for test {test_id}, skipping validation"
             )
             # Still update timestamp
-            mongo_service.db["online_tests"].update_one(
+            db["online_tests"].update_one(
                 {"_id": ObjectId(test_id)}, {"$set": {"updated_at": datetime.utcnow()}}
             )
             return {
@@ -1954,7 +1959,7 @@ async def update_test_questions(
                 q["question_id"] = str(ObjectId())
 
         # Update questions in database
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {"$set": {"questions": request.questions, "updated_at": datetime.utcnow()}},
         )
@@ -2006,8 +2011,8 @@ async def get_test_attachments(
         )
 
         # Get test
-        mongo_service = get_mongodb_service()
-        test_collection = mongo_service.db["online_tests"]
+        # db already initialized
+        test_collection = db["online_tests"]
 
         test_doc = test_collection.find_one({"_id": ObjectId(test_id)})
 
@@ -2096,10 +2101,10 @@ async def add_test_attachment(
         from src.models.subscription import SubscriptionUsageUpdate
 
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists and user is creator
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2121,7 +2126,7 @@ async def add_test_attachment(
         }
 
         # Add to test's attachments array
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {
                 "$push": {"attachments": new_attachment},
@@ -2181,10 +2186,10 @@ async def update_test_attachment(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists and user is creator
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2210,7 +2215,7 @@ async def update_test_attachment(
             raise HTTPException(status_code=404, detail="Attachment not found")
 
         # Update entire attachments array
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {"$set": {"attachments": attachments, "updated_at": datetime.now()}},
         )
@@ -2254,10 +2259,10 @@ async def delete_test_attachment(
         from src.models.subscription import SubscriptionUsageUpdate
 
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists and user is creator
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2280,7 +2285,7 @@ async def delete_test_attachment(
         file_size_mb = attachment_to_delete.get("file_size_mb", 0)
 
         # Remove attachment from array
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {
                 "$pull": {"attachments": {"attachment_id": attachment_id}},
@@ -2354,13 +2359,13 @@ async def full_edit_test(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"✏️ Full edit test {test_id}")
         logger.info(f"   User: {user_id}")
 
         # ========== Step 1: Verify test exists and user is creator ==========
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2776,7 +2781,7 @@ async def full_edit_test(
         all_updates["updated_at"] = datetime.utcnow()
 
         # ========== Step 5: Update in database ==========
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)}, {"$set": all_updates}
         )
 
@@ -2784,7 +2789,7 @@ async def full_edit_test(
             logger.warning(f"⚠️ No changes made to test {test_id}")
 
         # ========== Step 6: Get updated test document ==========
-        updated_test = mongo_service.db["online_tests"].find_one(
+        updated_test = db["online_tests"].find_one(
             {"_id": ObjectId(test_id)}
         )
 
@@ -2840,10 +2845,10 @@ async def delete_test(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists and user is creator
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2853,7 +2858,7 @@ async def delete_test(
             )
 
         # Soft delete by setting is_active=false
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {"$set": {"is_active": False, "updated_at": datetime.utcnow()}},
         )
@@ -2903,10 +2908,10 @@ async def get_test_attempts(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -2915,7 +2920,7 @@ async def get_test_attempts(
 
         # Get all submissions for this user and test (sorted newest first)
         submissions = list(
-            mongo_service.db["test_submissions"]
+            db["test_submissions"]
             .find({"test_id": test_id, "user_id": user_id})
             .sort("submitted_at", -1)
         )
@@ -3002,14 +3007,14 @@ async def upload_question_media(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(
             f"📤 Uploading {media_type} for question {question_id} in test {test_id}"
         )
 
         # ========== Step 1: Verify test and permissions ==========
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -3089,7 +3094,7 @@ async def upload_question_media(
 
         # ========== Step 6: Update question in database ==========
         update_path = f"questions.{question_index}"
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {
                 "$set": {
@@ -3138,12 +3143,12 @@ async def delete_question_media(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"🗑️  Deleting media for question {question_id} in test {test_id}")
 
         # Verify test and permissions
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -3183,7 +3188,7 @@ async def delete_question_media(
 
         # Remove media fields from question
         update_path = f"questions.{question_index}"
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {
                 "$unset": {
@@ -3559,8 +3564,8 @@ async def generate_listening_test(
         logger.info(f"💰 User has sufficient points for listening test generation")
 
         # Create test record
-        mongo_service = get_mongodb_service()
-        db = mongo_service.db
+        # db already initialized
+        db = db
         collection = db["online_tests"]
 
         test_doc = {
@@ -3645,8 +3650,8 @@ async def generate_listening_test_background_job(
     from src.services.points_service import PointsService
 
     # Use the same MongoDB connection as other endpoints (not a new client!)
-    mongo_service = get_mongodb_service()
-    collection = mongo_service.db["online_tests"]
+    # db already initialized
+    collection = db["online_tests"]
 
     try:
         # Update status
@@ -3784,8 +3789,8 @@ async def preview_questions(
             f"📋 Preview questions request from user {user_info['uid']}: {len(request.test_ids)} tests"
         )
 
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         result = {}
 
@@ -4065,8 +4070,8 @@ async def merge_tests(
             f"📝 Merge tests request from user {user_info['uid']}: {len(request.source_test_ids)} tests"
         )
 
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         # ========== 1. Validate all source tests exist and user has access ==========
         source_test_docs = []

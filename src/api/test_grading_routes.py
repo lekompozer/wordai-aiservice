@@ -25,10 +25,15 @@ from fastapi import (
 from src.middleware.auth import verify_firebase_token as require_auth
 from src.models.online_test_models import *
 from src.services.online_test_utils import *
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Test Grading"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 @router.get("/{test_id}/grading-queue", tags=["Phase 4 - Grading"])
@@ -50,10 +55,10 @@ async def get_grading_queue(
     - Sorted by submission time (oldest first)
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Verify test exists and user is owner
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -63,7 +68,7 @@ async def get_grading_queue(
             )
 
         # Query grading queue
-        grading_queue = mongo_service.db["grading_queue"]
+        grading_queue = db["grading_queue"]
 
         query = {"test_id": test_id}
         if status:
@@ -129,17 +134,17 @@ async def get_submission_for_grading(
     - MCQ results (for context)
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Get submission
-        submission = mongo_service.db["test_submissions"].find_one(
+        submission = db["test_submissions"].find_one(
             {"_id": ObjectId(submission_id)}
         )
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = mongo_service.db["online_tests"].find_one(
+        test_doc = db["online_tests"].find_one(
             {"_id": ObjectId(submission["test_id"])}
         )
         if not test_doc:
@@ -151,7 +156,7 @@ async def get_submission_for_grading(
             )
 
         # Get student info
-        student = mongo_service.db.users.find_one(
+        student = db.users.find_one(
             {"firebase_uid": submission["user_id"]}
         )
         student_name = (
@@ -250,17 +255,17 @@ async def grade_single_essay(
     - Updates grading queue
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Get submission
-        submission = mongo_service.db["test_submissions"].find_one(
+        submission = db["test_submissions"].find_one(
             {"_id": ObjectId(submission_id)}
         )
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = mongo_service.db["online_tests"].find_one(
+        test_doc = db["online_tests"].find_one(
             {"_id": ObjectId(submission["test_id"])}
         )
         if not test_doc:
@@ -348,12 +353,12 @@ async def grade_single_essay(
             update_data["is_passed"] = final_score["is_passed"]
             update_data["essay_score"] = final_score["essay_score"]  # NEW
 
-        mongo_service.db["test_submissions"].update_one(
+        db["test_submissions"].update_one(
             {"_id": ObjectId(submission_id)}, {"$set": update_data}
         )
 
         # Update grading queue
-        mongo_service.db["grading_queue"].update_one(
+        db["grading_queue"].update_one(
             {"submission_id": submission_id},
             {
                 "$set": {
@@ -456,17 +461,17 @@ async def grade_all_essays(
     - Sends notification email to student
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Get submission
-        submission = mongo_service.db["test_submissions"].find_one(
+        submission = db["test_submissions"].find_one(
             {"_id": ObjectId(submission_id)}
         )
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = mongo_service.db["online_tests"].find_one(
+        test_doc = db["online_tests"].find_one(
             {"_id": ObjectId(submission["test_id"])}
         )
         if not test_doc:
@@ -516,7 +521,7 @@ async def grade_all_essays(
         final_score = calculate_final_score(submission, test_doc, essay_grades)
 
         # Update submission
-        mongo_service.db["test_submissions"].update_one(
+        db["test_submissions"].update_one(
             {"_id": ObjectId(submission_id)},
             {
                 "$set": {
@@ -531,7 +536,7 @@ async def grade_all_essays(
         )
 
         # Update grading queue
-        mongo_service.db["grading_queue"].update_one(
+        db["grading_queue"].update_one(
             {"submission_id": submission_id},
             {
                 "$set": {
@@ -547,7 +552,7 @@ async def grade_all_essays(
                 from src.services.brevo_email_service import get_brevo_service
                 from src.services.notification_manager import NotificationManager
 
-                student = mongo_service.db.users.find_one(
+                student = db.users.find_one(
                     {"firebase_uid": submission["user_id"]}
                 )
                 if student:
@@ -569,7 +574,7 @@ async def grade_all_essays(
                         )
 
                     # Create InApp notification
-                    notification_manager = NotificationManager(db=mongo_service.db)
+                    notification_manager = NotificationManager(db=db)
                     notification_manager.create_test_grading_notification(
                         student_id=submission["user_id"],
                         test_id=submission["test_id"],
@@ -621,17 +626,17 @@ async def get_grading_dashboard(
     - Recently graded submissions
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Get all tests owned by user
         owned_tests = list(
-            mongo_service.db["online_tests"].find({"creator_id": user_info["uid"]})
+            db["online_tests"].find({"creator_id": user_info["uid"]})
         )
 
         test_ids = [str(test["_id"]) for test in owned_tests]
 
         # Get grading queue for all owned tests
-        grading_queue = mongo_service.db["grading_queue"]
+        grading_queue = db["grading_queue"]
 
         pending_items = list(
             grading_queue.find(
@@ -722,17 +727,17 @@ async def update_essay_grade(
     - Sends update notification email to student
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Get submission
-        submission = mongo_service.db["test_submissions"].find_one(
+        submission = db["test_submissions"].find_one(
             {"_id": ObjectId(submission_id)}
         )
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = mongo_service.db["online_tests"].find_one(
+        test_doc = db["online_tests"].find_one(
             {"_id": ObjectId(submission["test_id"])}
         )
         if not test_doc:
@@ -789,7 +794,7 @@ async def update_essay_grade(
         final_score = calculate_final_score(submission, test_doc, essay_grades)
 
         # Update submission
-        mongo_service.db["test_submissions"].update_one(
+        db["test_submissions"].update_one(
             {"_id": ObjectId(submission_id)},
             {
                 "$set": {
@@ -806,7 +811,7 @@ async def update_essay_grade(
             try:
                 from src.services.brevo_email_service import get_brevo_service
 
-                student = mongo_service.db.users.find_one(
+                student = db.users.find_one(
                     {"firebase_uid": submission["user_id"]}
                 )
                 if student and student.get("email"):

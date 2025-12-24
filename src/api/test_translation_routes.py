@@ -13,11 +13,15 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 
 from src.middleware.auth import verify_firebase_token as require_auth
-from src.services.online_test_utils import get_mongodb_service
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Test Translation"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ========== Request/Response Models ==========
@@ -67,8 +71,8 @@ async def translate_test_background(
     # Use shared MongoDB connection (not a new client!)
     from src.services.online_test_utils import get_mongodb_service
 
-    mongo_service = get_mongodb_service()
-    collection = mongo_service.db["online_tests"]
+    # db already initialized
+    collection = db["online_tests"]
 
     try:
         # Update status to translating
@@ -482,8 +486,8 @@ async def translate_test(
         )
 
         # Get original test
-        mongo_service = get_mongodb_service()
-        collection = mongo_service.db["online_tests"]
+        # db already initialized
+        collection = db["online_tests"]
 
         original_test = collection.find_one({"_id": ObjectId(test_id)})
 

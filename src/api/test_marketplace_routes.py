@@ -27,10 +27,15 @@ from src.models.payment_models import PaymentInfoRequest, WithdrawEarningsReques
 from src.services.online_test_utils import *
 from src.services.creator_name_validator import validate_creator_name
 from src.utils.slug_generator import generate_unique_slug, generate_meta_description
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Test Marketplace"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 @router.post(
@@ -73,7 +78,7 @@ async def publish_test_to_marketplace(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"📢 Publishing test {test_id} to marketplace")
         logger.info(f"   User: {user_id}")
@@ -83,7 +88,7 @@ async def publish_test_to_marketplace(
         logger.info(f"   Language: {language}")
 
         # ========== Step 1: Validate test exists and user is creator ==========
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -217,7 +222,7 @@ async def publish_test_to_marketplace(
             query = {"slug": slug}
             if exclude_id:
                 query["_id"] = {"$ne": ObjectId(exclude_id)}
-            return mongo_service.db["online_tests"].count_documents(query) > 0
+            return db["online_tests"].count_documents(query) > 0
 
         # Generate unique slug from title
         slug = generate_unique_slug(
@@ -321,7 +326,7 @@ async def publish_test_to_marketplace(
             update_data["creator_name"] = creator_name
             logger.info(f"   Saving creator_name: {creator_name}")
 
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {"$set": update_data},
         )
@@ -368,13 +373,13 @@ async def unpublish_test_from_marketplace(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"🚫 Unpublishing test {test_id} from marketplace")
         logger.info(f"   User: {user_id}")
 
         # Check test exists
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -393,7 +398,7 @@ async def unpublish_test_from_marketplace(
             )
 
         # Update
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)},
             {
                 "$set": {
@@ -468,13 +473,13 @@ async def update_marketplace_config(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"🔄 Updating marketplace config for test {test_id}")
         logger.info(f"   User: {user_id}")
 
         # ========== Step 1: Validate test exists and user is creator ==========
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -496,7 +501,7 @@ async def update_marketplace_config(
         if not marketplace_config.get("category"):
             fallback_category = "general"
             initial_update = {"marketplace_config.category": fallback_category}
-            mongo_service.db["online_tests"].update_one(
+            db["online_tests"].update_one(
                 {"_id": ObjectId(test_id)}, {"$set": initial_update}
             )
             marketplace_config["category"] = fallback_category
@@ -541,7 +546,7 @@ async def update_marketplace_config(
                 query = {"slug": slug}
                 if exclude_id:
                     query["_id"] = {"$ne": ObjectId(exclude_id)}
-                return mongo_service.db["online_tests"].count_documents(query) > 0
+                return db["online_tests"].count_documents(query) > 0
 
             # Generate new unique slug
             new_slug = generate_unique_slug(
@@ -700,7 +705,7 @@ async def update_marketplace_config(
         update_data["updated_at"] = datetime.utcnow()
 
         # ========== Step 6: Update in database ==========
-        result = mongo_service.db["online_tests"].update_one(
+        result = db["online_tests"].update_one(
             {"_id": ObjectId(test_id)}, {"$set": update_data}
         )
 
@@ -708,7 +713,7 @@ async def update_marketplace_config(
             logger.warning(f"⚠️ No changes made to test {test_id} (data might be same)")
 
         # ========== Step 7: Get updated config ==========
-        updated_test = mongo_service.db["online_tests"].find_one(
+        updated_test = db["online_tests"].find_one(
             {"_id": ObjectId(test_id)}
         )
         updated_marketplace_config = updated_test.get("marketplace_config", {})
@@ -758,7 +763,7 @@ async def get_public_test_details(
     - To start the test, use POST /{test_id}/start (authentication required, points deducted)
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
         user_id = user_info.get("uid") if user_info else None
 
         logger.info(
@@ -766,7 +771,7 @@ async def get_public_test_details(
         )
 
         # ========== Step 1: Get test document ==========
-        test_doc = mongo_service.db["online_tests"].find_one({"_id": ObjectId(test_id)})
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})
 
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
@@ -790,7 +795,7 @@ async def get_public_test_details(
             is_creator = test_doc.get("creator_id") == user_id
 
             # Get user's participation history
-            submissions_collection = mongo_service.db["test_submissions"]
+            submissions_collection = db["test_submissions"]
             user_submissions = list(
                 submissions_collection.find(
                     {"test_id": test_id, "user_id": user_id}
@@ -909,14 +914,14 @@ async def set_payment_info(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"💳 Setting payment info for user: {user_id}")
         logger.info(f"   Bank: {request.bank_name}")
         logger.info(f"   Account: {request.account_number}")
 
         # Get user document
-        users_collection = mongo_service.db["users"]
+        users_collection = db["users"]
         user_doc = users_collection.find_one({"firebase_uid": user_id})
 
         if not user_doc:
@@ -973,10 +978,10 @@ async def get_payment_info(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Get user document
-        users_collection = mongo_service.db["users"]
+        users_collection = db["users"]
         user_doc = users_collection.find_one({"firebase_uid": user_id})
 
         if not user_doc:
@@ -1039,12 +1044,12 @@ async def get_my_earnings(
     """
     try:
         user_id = user_info["uid"]
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"💰 Get earnings for user: {user_id}")
 
         # Get user document (use firebase_uid)
-        users_collection = mongo_service.db["users"]
+        users_collection = db["users"]
         user_doc = users_collection.find_one({"firebase_uid": user_id})
 
         if not user_doc:
@@ -1134,12 +1139,12 @@ async def withdraw_earnings(
     try:
         user_id = user_info["uid"]
         amount = request.amount
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         logger.info(f"💸 Withdrawal request: {amount} points from user {user_id}")
 
         # Get user document (use firebase_uid)
-        users_collection = mongo_service.db["users"]
+        users_collection = db["users"]
         user_doc = users_collection.find_one({"firebase_uid": user_id})
 
         if not user_doc:
@@ -1182,7 +1187,7 @@ async def withdraw_earnings(
         )
 
         # Create withdrawal request for admin review
-        withdrawals_collection = mongo_service.db["withdrawal_requests"]
+        withdrawals_collection = db["withdrawal_requests"]
         withdrawal_doc = {
             "user_id": user_id,
             "amount": amount,
@@ -1301,7 +1306,7 @@ async def check_slug_availability(
     - title: Title of test using this slug (if taken)
     """
     try:
-        mongo_service = get_mongodb_service()
+        # db already initialized
 
         # Build query
         query = {"slug": slug, "marketplace_config.is_public": True}
@@ -1312,7 +1317,7 @@ async def check_slug_availability(
                 pass  # Invalid ObjectId, ignore
 
         # Check if slug exists
-        existing_test = mongo_service.db["online_tests"].find_one(
+        existing_test = db["online_tests"].find_one(
             query, {"_id": 1, "title": 1}
         )
 
@@ -1323,7 +1328,7 @@ async def check_slug_availability(
             suggestions = []
             for i in range(2, 6):  # Generate 4 alternatives
                 alt_slug = f"{slug}-{i}"
-                if not mongo_service.db["online_tests"].find_one(
+                if not db["online_tests"].find_one(
                     {"slug": alt_slug, "marketplace_config.is_public": True}
                 ):
                     suggestions.append(alt_slug)
