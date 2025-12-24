@@ -473,7 +473,7 @@ async def list_narrations(
         )
 
         narrations = []
-        async for doc in cursor:
+        for doc in cursor:  # PyMongo sync cursor - use regular for, not async for
             narrations.append(
                 NarrationVersion(
                     narration_id=str(doc["_id"]),
@@ -835,7 +835,7 @@ async def list_library_audio(
         )
 
         audio_files = []
-        async for doc in cursor:
+        for doc in cursor:  # PyMongo sync cursor - use regular for, not async for
             audio_files.append(
                 LibraryAudioItem(
                     audio_id=str(doc["_id"]),
