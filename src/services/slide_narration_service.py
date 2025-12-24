@@ -37,6 +37,13 @@ class SlideNarrationService:
         self.gemini_client = gemini_client
         self.gemini_model = "gemini-3-pro-preview"
 
+        # Initialize R2 and library services (same as listening test)
+        from src.services.r2_storage_service import get_r2_service
+        from src.services.library_manager import get_library_manager
+
+        self.r2_service = get_r2_service()
+        self.library_manager = get_library_manager()
+
     def _extract_slide_content(self, html: str) -> Dict[str, Any]:
         """
         Extract clean text and structure from slide HTML
@@ -414,10 +421,8 @@ Generate the complete narration now:"""
 
             # Import TTS service
             from src.services.google_tts_service import GoogleTTSService
-            from src.services.library_audio_service import LibraryAudioService
 
             tts_service = GoogleTTSService()
-            audio_service = LibraryAudioService()
 
             audio_files = []
 
@@ -448,16 +453,29 @@ Generate the complete narration now:"""
                     use_pro_model=use_pro_model,
                 )
 
-                # Upload to library_audio (same collection as Listening Test)
+                # Upload to R2 and library_audio (same pattern as listening test)
                 file_name = f"narr_{narration_id}_slide_{slide_index}.mp3"
+                r2_key = f"narration/{user_id}/{narration_id}/slide_{slide_index}.mp3"
 
-                audio_record = await audio_service.upload_audio(
+                # Upload to R2
+                upload_result = await self.r2_service.upload_file(
+                    file_content=audio_bytes, r2_key=r2_key, content_type="audio/mpeg"
+                )
+                audio_url = upload_result["public_url"]
+
+                # Save to library
+                audio_record = self.library_manager.save_library_file(
                     user_id=user_id,
-                    audio_bytes=audio_bytes,
-                    file_name=file_name,
-                    source_type="slide_narration",  # NEW source type
-                    source_id=narration_id,
+                    filename=file_name,
+                    file_type="audio",
+                    category="audio",
+                    r2_url=audio_url,
+                    r2_key=r2_key,
+                    file_size=len(audio_bytes),
+                    mime_type="audio/mpeg",
                     metadata={
+                        "source_type": "slide_narration",
+                        "source_id": narration_id,
                         "voice_provider": voice_config.get("provider", "google"),
                         "voice_name": voice_name,
                         "language": language,
@@ -466,11 +484,15 @@ Generate the complete narration now:"""
                     },
                 )
 
+                library_file_id = audio_record.get(
+                    "library_id", audio_record.get("file_id")
+                )
+
                 audio_files.append(
                     {
                         "slide_index": slide_index,
-                        "audio_url": audio_record["r2_url"],
-                        "library_audio_id": str(audio_record["_id"]),
+                        "audio_url": audio_url,
+                        "library_audio_id": library_file_id,
                         "file_size": len(audio_bytes),
                         "format": "mp3",
                         "duration": metadata.get("duration_seconds", 0),
@@ -618,12 +640,14 @@ Generate the complete narration now:"""
             List of audio documents created
         """
         from src.database.db_manager import DBManager
-        from src.services.library_audio_service import LibraryAudioService
         from src.services.tts.google_tts_service import GoogleTTSService
+        from src.services.r2_storage_service import get_r2_service
+        from src.services.library_manager import get_library_manager
 
         db_manager = DBManager()
         db = db_manager.db
-        library_audio_service = LibraryAudioService()
+        r2_service = get_r2_service()
+        library_manager = get_library_manager()
         tts_service = GoogleTTSService()
 
         # Get subtitle document
@@ -659,19 +683,34 @@ Generate the complete narration now:"""
                 script=script, voice_config=voice_config
             )
 
-            # Upload to library_audio (existing behavior)
-            library_audio = await library_audio_service.upload_audio(
+            # Upload to R2 and library_audio
+            file_name = f"narration_{presentation_id}_slide_{slide_index}_{language}_v{version}.mp3"
+            r2_key = f"narration/{user_id}/{presentation_id}/slide_{slide_index}_{language}_v{version}.mp3"
+
+            upload_result = await r2_service.upload_file(
+                file_content=audio_data["audio_bytes"],
+                r2_key=r2_key,
+                content_type="audio/mpeg",
+            )
+            audio_url = upload_result["public_url"]
+
+            library_audio = library_manager.save_library_file(
                 user_id=user_id,
-                file_name=f"narration_{presentation_id}_slide_{slide_index}_{language}_v{version}.mp3",
-                audio_data=audio_data["audio_bytes"],
-                duration=audio_data["duration"],
-                source_type="slide_narration",
+                filename=file_name,
+                file_type="audio",
+                category="audio",
+                r2_url=audio_url,
+                r2_key=r2_key,
+                file_size=len(audio_data["audio_bytes"]),
+                mime_type="audio/mpeg",
                 metadata={
+                    "source_type": "slide_narration",
                     "presentation_id": presentation_id,
                     "subtitle_id": subtitle_id,
                     "language": language,
                     "version": version,
                     "slide_index": slide_index,
+                    "duration_seconds": audio_data["duration"],
                 },
             )
 
@@ -683,7 +722,7 @@ Generate the complete narration now:"""
                 "language": language,
                 "version": version,
                 "slide_index": slide_index,
-                "audio_url": library_audio["r2_url"],
+                "audio_url": audio_url,
                 "audio_metadata": {
                     "duration_seconds": audio_data["duration"],
                     "file_size_bytes": len(audio_data["audio_bytes"]),
@@ -725,11 +764,13 @@ Generate the complete narration now:"""
             Audio document created
         """
         from src.database.db_manager import DBManager
-        from src.services.library_audio_service import LibraryAudioService
+        from src.services.r2_storage_service import get_r2_service
+        from src.services.library_manager import get_library_manager
 
         db_manager = DBManager()
         db = db_manager.db
-        library_audio_service = LibraryAudioService()
+        r2_service = get_r2_service()
+        library_manager = get_library_manager()
 
         # Get subtitle document
         subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(subtitle_id)})
@@ -745,20 +786,35 @@ Generate the complete narration now:"""
         language = subtitle["language"]
         version = subtitle["version"]
 
-        # Upload to library_audio
+        # Upload to R2 and library_audio
         file_format = audio_metadata.get("format", "mp3")
-        library_audio = await library_audio_service.upload_audio(
+        file_name = f"uploaded_{presentation_id}_slide_{slide_index}_{language}_v{version}.{file_format}"
+        r2_key = f"narration/{user_id}/{presentation_id}/uploaded_slide_{slide_index}_{language}_v{version}.{file_format}"
+
+        upload_result = await r2_service.upload_file(
+            file_content=audio_file_data,
+            r2_key=r2_key,
+            content_type=f"audio/{file_format}",
+        )
+        audio_url = upload_result["public_url"]
+
+        library_audio = library_manager.save_library_file(
             user_id=user_id,
-            file_name=f"uploaded_{presentation_id}_slide_{slide_index}_{language}_v{version}.{file_format}",
-            audio_data=audio_file_data,
-            duration=audio_metadata["duration_seconds"],
-            source_type="slide_narration",
+            filename=file_name,
+            file_type="audio",
+            category="audio",
+            r2_url=audio_url,
+            r2_key=r2_key,
+            file_size=len(audio_file_data),
+            mime_type=f"audio/{file_format}",
             metadata={
+                "source_type": "slide_narration",
                 "presentation_id": presentation_id,
                 "subtitle_id": subtitle_id,
                 "language": language,
                 "version": version,
                 "slide_index": slide_index,
+                "duration_seconds": audio_metadata["duration_seconds"],
                 "uploaded": True,
             },
         )
@@ -771,7 +827,7 @@ Generate the complete narration now:"""
             "language": language,
             "version": version,
             "slide_index": slide_index,
-            "audio_url": library_audio["r2_url"],
+            "audio_url": audio_url,
             "audio_metadata": audio_metadata,
             "generation_method": "user_uploaded",
             "voice_config": None,

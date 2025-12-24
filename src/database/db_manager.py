@@ -25,7 +25,7 @@ class DBManager:
 
             mongo_user = os.getenv("MONGODB_APP_USERNAME")
             mongo_pass = os.getenv("MONGODB_APP_PASSWORD")
-            db_name = os.getenv("MONGODB_NAME", "ai_service_db")
+            db_name = os.getenv("MONGODB_NAME", "wordai_db")  # ✅ Unified: wordai_db
 
             # Determine host based on environment
             if environment == "production":
@@ -42,7 +42,7 @@ class DBManager:
         else:
             logger.info(f"✅ Using MONGODB_URI from environment")
 
-        db_name = os.getenv("MONGODB_NAME", "ai_service_db")
+        db_name = os.getenv("MONGODB_NAME", "wordai_db")  # ✅ Unified: wordai_db
 
         try:
             self.client = pymongo.MongoClient(mongo_uri, serverSelectionTimeoutMS=10000)

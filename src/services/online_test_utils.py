@@ -30,7 +30,7 @@ def get_mongodb_service():
             config, "MONGODB_URI", "mongodb://localhost:27017"
         )
         _mongo_client = MongoClient(mongo_uri)
-    db_name = getattr(config, "MONGODB_NAME", "wordai_db")
+    db_name = getattr(config, "MONGODB_NAME", "ai_service_db")
     db = _mongo_client[db_name]
 
     # Return a simple object that mimics the service interface

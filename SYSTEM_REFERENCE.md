@@ -50,7 +50,7 @@ docker exec ai-chatbot-rag ls -lh /tmp/
 
 ### Connection Information
 
-**Database Name:** `ai_service_db`
+**Database Name:** `wordai_db` ✅ (UNIFIED - All code must use this)
 
 **Connection String Format:**
 ```
@@ -59,11 +59,11 @@ mongodb://<username>:<password>@mongodb:27017/?authSource=admin
 
 **Alternative Connection (from inside Docker network):**
 ```
-mongodb://<username>:<password>@mongodb:27017/ai_service_db?authSource=admin
+mongodb://<username>:<password>@mongodb:27017/wordai_db?authSource=admin
 ```
 
 **Environment Variables:**
-- `MONGODB_NAME`: Database name (default: `ai_service_db`)
+- `MONGODB_NAME`: Database name (default: `wordai_db` - MUST USE THIS)
 - `MONGODB_URI_AUTH`: Full connection string with authentication (PRODUCTION - REQUIRED on server)
 - `MONGODB_URI`: Full connection string without auth (LOCAL DEVELOPMENT ONLY)
 - `MONGO_INITDB_ROOT_USERNAME`: Admin username
@@ -73,6 +73,403 @@ mongodb://<username>:<password>@mongodb:27017/ai_service_db?authSource=admin
 - Production server MUST use `MONGODB_URI_AUTH`
 - Local development uses `MONGODB_URI`
 - Backend code checks `MONGODB_URI_AUTH` first, falls back to `MONGODB_URI`
+
+### ⚙️ Database Connection Pattern (CRITICAL - MANDATORY FOR ALL CODE)
+
+**ALL new code MUST follow this pattern. Do NOT use any other method.**
+
+#### ✅ CORRECT: DBManager Pattern (USE THIS)
+
+```python
+from src.database.db_manager import DBManager
+
+# In API routes (module-level initialization)
+db_manager = DBManager()
+db = db_manager.db
+
+# Usage in endpoints
+@router.get("/api/example")
+async def example_endpoint():
+    result = db.collection_name.find_one({"_id": ObjectId(id)})
+    return result
+
+# In Service classes (lazy initialization)
+class MyService:
+    def __init__(self):
+        db_manager = DBManager()
+        self.db = db_manager.db
+        self.collection = self.db.collection_name
+
+    def my_method(self):
+        return self.collection.find_one({"field": "value"})
+
+# In standalone functions (local initialization)
+def process_data():
+    from src.database.db_manager import DBManager
+
+    db_manager = DBManager()
+    db = db_manager.db
+
+    # Use db here
+    result = db.collection.find(...)
+    return result
+```
+
+**Why DBManager?**
+- ✅ Singleton pattern - efficient connection pooling
+- ✅ Auto-handles authentication (MONGODB_URI_AUTH → MONGODB_URI)
+- ✅ Environment-aware (production vs development)
+- ✅ Built-in connection testing and error handling
+- ✅ Consistent across entire codebase
+
+#### ❌ INCORRECT: Legacy Patterns (DO NOT USE)
+
+```python
+# ❌ WRONG - Direct MongoClient
+from pymongo import MongoClient
+client = MongoClient(uri)
+db = client[db_name]
+
+# ❌ WRONG - get_mongodb_service (deprecated utility)
+from src.services.online_test_utils import get_mongodb_service
+db = get_mongodb_service()
+
+# ❌ WRONG - Non-existent imports
+from src.database.mongodb_service import get_mongodb_service  # Does not exist!
+
+# ❌ WRONG - config.get_mongodb (legacy)
+from config.config import get_mongodb
+db = get_mongodb()
+```
+
+#### 📋 Migration Checklist
+
+When updating existing code:
+- [ ] Replace `get_mongodb_service()` with `DBManager()`
+- [ ] Update import: `from src.database.db_manager import DBManager`
+- [ ] Change `db = get_mongodb_service()` to `db_manager = DBManager(); db = db_manager.db`
+- [ ] Remove `.db` suffix if using old pattern: `get_mongodb_service().db` → `db_manager.db`
+- [ ] Test database operations still work
+- [ ] Commit with message: `fix: Use DBManager pattern for MongoDB connection`
+
+#### 🔍 Examples from Production Code
+
+**API Routes** (see `src/api/book_routes.py`, `src/api/document_editor_routes.py`):
+```python
+from src.database.db_manager import DBManager
+
+db_manager = DBManager()
+db = db_manager.db
+
+# Initialize services with db
+book_manager = UserBookManager(db)
+document_manager = DocumentManager(db)
+```
+
+**Services** (see `src/services/sharing_service.py`):
+```python
+from src.database.db_manager import DBManager
+
+class SharingService:
+    def __init__(self):
+        db_manager = DBManager()
+        self.db = db_manager.db
+        self.sharing_configs = self.db.presentation_sharing_config
+```
+
+**Standalone Functions** (see `src/services/slide_narration_service.py`):
+```python
+async def generate_subtitles_v2(self, presentation_id, language, mode, user_id):
+    from src.database.db_manager import DBManager
+
+    db_manager = DBManager()
+    db = db_manager.db
+
+    # Use db for operations
+    presentation = db.documents.find_one({"_id": ObjectId(presentation_id)})
+```
+
+#### ⚠️ Legacy Pattern (Test System Only - NOT RECOMMENDED for new code)
+
+**`get_mongodb_service()` from `src.services.online_test_utils`:**
+
+```python
+from src.services.online_test_utils import get_mongodb_service
+
+# Usage
+mongo_service = get_mongodb_service()
+db = mongo_service.db
+
+# Access collections
+tests = db.online_tests.find(...)
+```
+
+**Why still exists:**
+- Used extensively in test system (test_creation, test_sharing, test_evaluation, etc.)
+- Migration to DBManager requires updating 100+ endpoints
+- **Differences from DBManager**:
+  - ✅ Uses `MONGODB_URI_AUTH` → `MONGODB_URI` (same priority as DBManager)
+  - ✅ Default db_name: `ai_service_db` (FIXED - was `wordai_db`)
+  - ❌ No connection testing (`ping`)
+  - ❌ No index creation
+  - ❌ Minimal error handling
+
+**When to use:**
+- ✅ Only when maintaining existing test system code
+- ❌ NOT for new code (use DBManager instead)
+- ❌ NOT for slides, documents, or books (use DBManager)
+
+---
+
+### 📚 Library Management Patterns
+
+#### Audio Library (`library_audio` collection)
+
+**Add Audio to Library** (after AI generation or user upload):
+
+```python
+from src.database.db_manager import DBManager
+from datetime import datetime
+
+db_manager = DBManager()
+db = db_manager.db
+
+audio_doc = {
+    "_id": ObjectId(),  # Generate new ID
+    "user_id": user_id,
+    "file_name": "narration_slide_0.mp3",
+    "r2_url": "https://cdn.r2.wordai.vn/audio/abc123.mp3",
+    "duration": 15.5,  # seconds
+    "file_size": 245678,  # bytes
+    "format": "mp3",
+    "source_type": "narration",  # or "test_audio", "user_upload"
+    "created_at": datetime.utcnow(),
+    "metadata": {
+        "presentation_id": "doc_123",
+        "slide_index": 0,
+        "voice": "Kore",
+        "language": "vi-VN"
+    }
+}
+
+result = db.library_audio.insert_one(audio_doc)
+audio_id = str(result.inserted_id)
+```
+
+**Query Audio Library**:
+```python
+# List user's audio files
+audio_files = db.library_audio.find(
+    {"user_id": user_id}
+).sort("created_at", -1).limit(20)
+
+# Search by name
+audio_files = db.library_audio.find({
+    "user_id": user_id,
+    "file_name": {"$regex": "search_term", "$options": "i"}
+})
+
+# Filter by source type
+test_audio = db.library_audio.find({
+    "user_id": user_id,
+    "source_type": "test_audio"
+})
+```
+
+#### Image Library (`library_images` collection)
+
+**Add Image to Library**:
+
+```python
+image_doc = {
+    "_id": ObjectId(),
+    "user_id": user_id,
+    "file_name": "diagram.png",
+    "r2_url": "https://cdn.r2.wordai.vn/images/xyz789.png",
+    "width": 1920,
+    "height": 1080,
+    "file_size": 524288,
+    "format": "png",
+    "source_type": "ai_generated",  # or "user_upload", "stock"
+    "created_at": datetime.utcnow(),
+    "metadata": {
+        "prompt": "modern tech diagram",
+        "style": "minimalist"
+    }
+}
+
+result = db.library_images.insert_one(image_doc)
+image_id = str(result.inserted_id)
+```
+
+#### Video Library (`library_videos` collection)
+
+**Add Video to Library**:
+
+```python
+video_doc = {
+    "_id": ObjectId(),
+    "user_id": user_id,
+    "file_name": "presentation.mp4",
+    "r2_url": "https://cdn.r2.wordai.vn/videos/def456.mp4",
+    "duration": 120.0,  # seconds
+    "width": 1920,
+    "height": 1080,
+    "file_size": 15728640,  # bytes
+    "format": "mp4",
+    "source_type": "screen_recording",  # or "ai_generated", "user_upload"
+    "created_at": datetime.utcnow(),
+    "metadata": {
+        "fps": 30,
+        "codec": "h264",
+        "bitrate": "1M"
+    }
+}
+
+result = db.library_videos.insert_one(video_doc)
+video_id = str(result.inserted_id)
+```
+
+**Common Library Patterns**:
+- Always include `user_id` for access control
+- Use `r2_url` for CDN storage (Cloudflare R2)
+- Include `created_at` for sorting
+- Use `source_type` to track origin
+- Store additional context in `metadata` field
+
+---
+
+### 💰 Points Management Pattern (MANDATORY)
+
+**All AI operations MUST check and deduct points before execution.**
+
+#### Standard Points Flow
+
+```python
+from src.services.points_service import get_points_service
+from fastapi import HTTPException
+
+# 1. Get points service
+points_service = get_points_service()
+
+# 2. Define operation cost
+POINTS_COST = 2  # See SERVICE_POINTS_COST in points_service.py
+
+# 3. Check balance BEFORE operation
+try:
+    has_points = points_service.check_points(user_id, POINTS_COST)
+    if not has_points:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Insufficient points. Need {POINTS_COST}, have 0"
+        )
+except Exception as e:
+    raise HTTPException(status_code=500, detail=f"Failed to check points: {e}")
+
+# 4. Perform AI operation
+result = await ai_operation(...)  # Your AI logic here
+
+# 5. Deduct points AFTER successful operation
+try:
+    points_service.deduct_points(
+        user_id=user_id,
+        points=POINTS_COST,
+        service_type="ai_operation_name",  # e.g., "slide_generation", "ai_chat_gemini"
+        description="Generate presentation narration",
+        metadata={
+            "presentation_id": presentation_id,
+            "operation": "generate_narration"
+        }
+    )
+except Exception as e:
+    logger.error(f"Failed to deduct points: {e}")
+    # Continue - operation already completed
+
+# 6. Return result with points info
+return {
+    "success": True,
+    "result": result,
+    "points_deducted": POINTS_COST
+}
+```
+
+#### Points Service Costs (from `SERVICE_POINTS_COST`)
+
+**Chat Operations:**
+- DeepSeek: 1 point (`ai_chat_deepseek`, `ai_document_chat_deepseek`)
+- Claude/ChatGPT/Gemini/Cerebras: 2 points each
+- Default: 2 points
+
+**Document AI:**
+- Edit/Translate/Format: 2 points each
+- Document generation: 2 points
+
+**Slides & Files:**
+- Slide generation: 2 points
+- File conversions: 2 points
+- File analysis: 2 points
+
+**Other:**
+- Quote generation: 2 points
+- Test generation: 2 points
+- **Narration generation**: 2 points (subtitle + audio each)
+
+#### Points Service API
+
+```python
+from src.services.points_service import get_points_service
+
+points_service = get_points_service()
+
+# Check balance
+has_points = points_service.check_points(user_id, required_points)
+
+# Deduct points
+points_service.deduct_points(
+    user_id=user_id,
+    points=amount,
+    service_type="operation_name",  # Must match SERVICE_POINTS_COST keys
+    description="Human readable description",
+    metadata={}  # Optional context
+)
+
+# Get balance
+balance = points_service.get_balance(user_id)
+
+# Get transaction history
+transactions = points_service.get_transactions(user_id, limit=50)
+```
+
+#### Error Handling
+
+```python
+from src.exceptions import InsufficientPointsError
+
+try:
+    has_points = points_service.check_points(user_id, POINTS_COST)
+    if not has_points:
+        raise InsufficientPointsError(
+            user_id=user_id,
+            required=POINTS_COST,
+            available=points_service.get_balance(user_id)
+        )
+except InsufficientPointsError as e:
+    raise HTTPException(
+        status_code=403,
+        detail=f"Insufficient points. Need {e.required}, have {e.available}"
+    )
+```
+
+**CRITICAL Rules:**
+- ✅ **ALWAYS** check points BEFORE AI operation
+- ✅ **ALWAYS** deduct points AFTER successful operation
+- ✅ Use correct `service_type` from `SERVICE_POINTS_COST`
+- ✅ Include descriptive `description` for user transaction history
+- ✅ Return `points_deducted` in response
+- ❌ **NEVER** deduct points if operation fails
+- ❌ **NEVER** skip points check for AI operations
+
+---
 
 ### Collections Structure
 
