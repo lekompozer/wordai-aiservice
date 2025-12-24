@@ -1106,7 +1106,7 @@ async def get_document(
         narration_count = 0
         if document.get("document_type") == "slide":
             try:
-                narration_count = db.slide_narrations.count_documents(
+                narration_count = doc_manager.db.slide_narrations.count_documents(
                     {"presentation_id": document_id, "user_id": user_id}
                 )
                 has_narration = narration_count > 0
