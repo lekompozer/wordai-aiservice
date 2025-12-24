@@ -1282,7 +1282,10 @@ async def generate_audio_v2(
         )
 
         queue = await get_slide_narration_audio_queue()
-        await queue.enqueue(job_id, task.dict())
+        success = await queue.enqueue_generic_task(task)
+
+        if not success:
+            raise HTTPException(500, "Failed to queue audio generation task")
 
         logger.info(f"✅ Audio job queued: {job_id}")
 
