@@ -141,6 +141,8 @@ class FirebaseAuth:
         Raises:
             HTTPException: If no token or invalid token
         """
+        logger.info(f"🔐 AUTH CHECK: {request.method} {request.url.path}")
+
         # 🔄 PRIORITY 1: Check session cookie first (24h, highest priority)
         session_cookie = request.cookies.get("session")
         if session_cookie:

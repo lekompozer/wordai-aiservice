@@ -38,6 +38,12 @@ from src.services.document_manager import DocumentManager
 logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api")
 
+logger.info("=" * 80)
+logger.info("🎤 SLIDE NARRATION ROUTER INITIALIZED")
+logger.info(f"   Prefix: /api")
+logger.info(f"   Routes will be: /api/presentations/{{id}}/narration/*")
+logger.info("=" * 80)
+
 # Initialize DB connection
 db_manager = DBManager()
 db = db_manager.db
@@ -84,13 +90,27 @@ async def generate_subtitles(
         user_id = current_user["uid"]
         user_email = current_user.get("email", "unknown")
 
-        logger.info(f"🎙️ Subtitle generation request: {presentation_id}")
+        logger.info("=" * 80)
+        logger.info(f"🎙️ SUBTITLE GENERATION REQUEST RECEIVED")
         logger.info(
-            f"   User: {user_email}, Mode: {request.mode}, Language: {request.language}"
+            f"📍 Endpoint: POST /api/presentations/{presentation_id}/narration/generate-subtitles"
         )
+        logger.info(f"👤 User: {user_email} ({user_id})")
+        logger.info(
+            f"🎛️ Mode: {request.mode}, Language: {request.language}, Scope: {request.scope}"
+        )
+        if request.scope == "current":
+            logger.info(f"🎯 Current slide index: {request.current_slide_index}")
+        logger.info(
+            f"💬 User query: {request.user_query[:100] if request.user_query else '(none)'}"
+        )
+        logger.info("=" * 80)
 
         # Validate presentation_id in request matches URL
         if request.presentation_id != presentation_id:
+            logger.error(
+                f"❌ Presentation ID mismatch: URL={presentation_id}, Body={request.presentation_id}"
+            )
             raise HTTPException(400, "Presentation ID mismatch")
 
         # Get points service
