@@ -273,6 +273,38 @@ services:
     deploy:
       resources:
         limits:
+
+
+  slide-narration-audio-worker:
+    container_name: slide-narration-audio-worker
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    command: python -m src.workers.slide_narration_audio_worker
+    volumes:
+      - ./logs:/app/logs
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - REDIS_URL=redis://redis-server:6379
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      - redis-server
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
+    deploy:
+      resources:
+        limits:
           memory: 2G
           cpus: "1"
 
