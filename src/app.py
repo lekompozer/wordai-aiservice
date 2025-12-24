@@ -320,6 +320,29 @@ async def lifespan(app: FastAPI):
         # ✅ Start background workers
         await start_background_workers()
 
+        # ✅ Log registered routes for debugging
+        logger = logging.getLogger("chatbot")
+        logger.info("=" * 80)
+        logger.info("🛣️  REGISTERED ROUTES")
+        logger.info("=" * 80)
+
+        narration_routes = []
+        for route in app.routes:
+            if hasattr(route, "path") and hasattr(route, "methods"):
+                if "narration" in route.path:
+                    methods = list(route.methods) if route.methods else []
+                    if methods:
+                        narration_routes.append(f"{methods[0]:6} {route.path}")
+
+        if narration_routes:
+            logger.info("📢 NARRATION ROUTES:")
+            for route_str in narration_routes:
+                logger.info(f"   {route_str}")
+        else:
+            logger.warning("⚠️  NO NARRATION ROUTES FOUND!")
+
+        logger.info("=" * 80)
+
         print("✅ Application startup completed")
     except Exception as e:
         print(f"❌ Startup error: {e}")
@@ -1274,27 +1297,3 @@ else:
 
 # Global variable for document storage (will be moved to proper service later)
 documents = {}
-
-
-@app.on_event("startup")
-async def log_routes():
-    """Log all registered routes for debugging"""
-    logger = logging.getLogger("chatbot")
-    logger.info("=" * 80)
-    logger.info("🛣️  REGISTERED ROUTES")
-    logger.info("=" * 80)
-
-    narration_routes = []
-    for route in app.routes:
-        if hasattr(route, "path") and hasattr(route, "methods"):
-            if "narration" in route.path:
-                narration_routes.append(f"{list(route.methods)[0]:6} {route.path}")
-
-    if narration_routes:
-        logger.info("📢 NARRATION ROUTES:")
-        for route_str in narration_routes:
-            logger.info(f"   {route_str}")
-    else:
-        logger.warning("⚠️  NO NARRATION ROUTES FOUND!")
-
-    logger.info("=" * 80)
