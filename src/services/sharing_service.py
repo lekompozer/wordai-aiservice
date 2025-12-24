@@ -8,7 +8,7 @@ from typing import Dict, Any, Optional, List
 from datetime import datetime
 from bson import ObjectId
 
-from src.database.mongodb_service import get_mongodb_service
+from src.database.db_manager import DBManager
 from src.models.slide_narration_models import (
     PresentationSharingConfig,
     SharingSettings,
@@ -20,7 +20,8 @@ class SharingService:
     """Service for managing presentation sharing"""
 
     def __init__(self):
-        self.db = get_mongodb_service().db
+        db_manager = DBManager()
+        self.db = db_manager.db
         self.sharing_configs = self.db.presentation_sharing_config
 
     def generate_public_token(self) -> str:

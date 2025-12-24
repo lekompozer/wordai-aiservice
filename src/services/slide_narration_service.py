@@ -537,9 +537,10 @@ Generate the complete narration now:"""
         Returns:
             Dict with subtitle_id, version, slides, etc.
         """
-        from src.database.mongodb_service import get_mongodb_service
+        from src.database.db_manager import DBManager
 
-        db = get_mongodb_service().db
+        db_manager = DBManager()
+        db = db_manager.db
 
         # Get presentation document
         presentation = db.documents.find_one({"_id": ObjectId(presentation_id)})
@@ -616,11 +617,12 @@ Generate the complete narration now:"""
         Returns:
             List of audio documents created
         """
-        from src.database.mongodb_service import get_mongodb_service
+        from src.database.db_manager import DBManager
         from src.services.library_audio_service import LibraryAudioService
         from src.services.tts.google_tts_service import GoogleTTSService
 
-        db = get_mongodb_service().db
+        db_manager = DBManager()
+        db = db_manager.db
         library_audio_service = LibraryAudioService()
         tts_service = GoogleTTSService()
 
@@ -722,10 +724,11 @@ Generate the complete narration now:"""
         Returns:
             Audio document created
         """
-        from src.database.mongodb_service import get_mongodb_service
+        from src.database.db_manager import DBManager
         from src.services.library_audio_service import LibraryAudioService
 
-        db = get_mongodb_service().db
+        db_manager = DBManager()
+        db = db_manager.db
         library_audio_service = LibraryAudioService()
 
         # Get subtitle document
