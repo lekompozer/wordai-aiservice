@@ -19,6 +19,7 @@ _slide_generation_queue: Optional[QueueManager] = None
 _translation_queue: Optional[QueueManager] = None
 _slide_format_queue: Optional[QueueManager] = None
 _chapter_translation_queue: Optional[QueueManager] = None
+_slide_narration_audio_queue: Optional[QueueManager] = None
 
 
 async def get_extraction_queue() -> QueueManager:
@@ -149,11 +150,27 @@ async def get_chapter_translation_queue() -> QueueManager:
     return _chapter_translation_queue
 
 
+async def get_slide_narration_audio_queue() -> QueueManager:
+    """Get Redis queue manager for slide narration audio generation"""
+    global _slide_narration_audio_queue
+    if _slide_narration_audio_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
+        _slide_narration_audio_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="slide_narration_audio",
+            status_expiry_hours=24,
+            max_queue_size=1000,
+        )
+        await _slide_narration_audio_queue.connect()
+        logger.info("✅ Slide Narration Audio queue manager connected")
+    return _slide_narration_audio_queue
+
+
 async def cleanup_queues():
     """Cleanup queue connections on shutdown"""
     global _extraction_queue, _document_queue, _storage_queue
     global _ai_editor_queue, _slide_generation_queue, _translation_queue
-    global _slide_format_queue, _chapter_translation_queue
+    global _slide_format_queue, _chapter_translation_queue, _slide_narration_audio_queue
 
     if _extraction_queue:
         await _extraction_queue.disconnect()
@@ -194,3 +211,8 @@ async def cleanup_queues():
         await _chapter_translation_queue.disconnect()
         _chapter_translation_queue = None
         logger.info("🧹 Chapter Translation queue disconnected")
+
+    if _slide_narration_audio_queue:
+        await _slide_narration_audio_queue.disconnect()
+        _slide_narration_audio_queue = None
+        logger.info("🧹 Slide Narration Audio queue disconnected")

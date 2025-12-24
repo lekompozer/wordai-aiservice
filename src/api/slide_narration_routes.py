@@ -269,9 +269,7 @@ async def generate_subtitles(
             "updated_at": datetime.now(),
         }
 
-        insert_result = db.slide_narrations.insert_one(
-            narration_doc
-        )
+        insert_result = db.slide_narrations.insert_one(narration_doc)
         narration_id = str(insert_result.inserted_id)
 
         # Deduct points AFTER successful generation
@@ -376,9 +374,7 @@ async def generate_audio(
             )
 
         # Fetch narration from database
-        narration = db.slide_narrations.find_one(
-            {"_id": ObjectId(narration_id)}
-        )
+        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -559,9 +555,7 @@ async def delete_narration(
         user_id = current_user["uid"]
 
         # Fetch narration
-        narration = db.slide_narrations.find_one(
-            {"_id": ObjectId(narration_id)}
-        )
+        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -636,9 +630,7 @@ async def update_subtitles(
         logger.info(f"📝 Updating subtitles for narration {narration_id}")
 
         # Fetch narration
-        narration = db.slide_narrations.find_one(
-            {"_id": ObjectId(narration_id)}
-        )
+        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -739,9 +731,7 @@ async def delete_narration(
         logger.info(f"🗑️ Deleting narration {narration_id}")
 
         # Fetch narration
-        narration = db.slide_narrations.find_one(
-            {"_id": ObjectId(narration_id)}
-        )
+        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -772,9 +762,7 @@ async def delete_narration(
                         )
 
         # Delete narration record
-        db.slide_narrations.delete_one(
-            {"_id": ObjectId(narration_id)}
-        )
+        db.slide_narrations.delete_one({"_id": ObjectId(narration_id)})
 
         logger.info(
             f"✅ Deleted narration {narration_id} with {len(audio_files)} audio files"
@@ -924,9 +912,7 @@ async def assign_library_audio(
         logger.info(f"🎵 Assigning library audio to narration {narration_id}")
 
         # Fetch narration
-        narration = db.slide_narrations.find_one(
-            {"_id": ObjectId(narration_id)}
-        )
+        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -946,9 +932,7 @@ async def assign_library_audio(
             library_audio_id = assignment.get("library_audio_id")
 
             # Fetch audio from library
-            audio_doc = db.library_audio.find_one(
-                {"_id": ObjectId(library_audio_id)}
-            )
+            audio_doc = db.library_audio.find_one({"_id": ObjectId(library_audio_id)})
 
             if not audio_doc:
                 raise HTTPException(404, f"Audio not found: {library_audio_id}")
@@ -1033,9 +1017,7 @@ async def remove_slide_audio(
         )
 
         # Fetch narration
-        narration = db.slide_narrations.find_one(
-            {"_id": ObjectId(narration_id)}
-        )
+        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -1233,14 +1215,10 @@ async def delete_subtitle_v2(
             raise HTTPException(404, "Subtitle not found")
 
         # Delete associated audio files
-        db.presentation_audio.delete_many(
-            {"subtitle_id": subtitle_id}
-        )
+        db.presentation_audio.delete_many({"subtitle_id": subtitle_id})
 
         # Delete subtitle
-        db.presentation_subtitles.delete_one(
-            {"_id": ObjectId(subtitle_id)}
-        )
+        db.presentation_subtitles.delete_one({"_id": ObjectId(subtitle_id)})
 
         logger.info(f"✅ Deleted subtitle {subtitle_id}")
 
@@ -1261,43 +1239,127 @@ async def generate_audio_v2(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Generate audio for subtitle document
-    Deducts 2 points from user
+    **Queue audio generation job for subtitle document**
+    
+    Returns job_id immediately for polling.
+    Deducts 2 points from user.
+    
+    **Processing time:** ~30-60 seconds per slide (runs in background)
     """
     try:
         user_id = current_user["uid"]
-        logger.info(f"Generating audio V2: subtitle={subtitle_id}")
+        logger.info(f"📋 Queueing audio generation: subtitle={subtitle_id}")
 
-        # Deduct points
+        # Deduct points upfront
         points_service = get_points_service()
         await points_service.deduct_points(
             user_id=user_id,
             amount=2,
             service="slide_narration",
             resource_id=subtitle_id,
-            description="Generate audio",
+            description="Generate audio (queued)",
         )
 
-        # Generate audio
-        narration_service = get_slide_narration_service()
-        audio_docs = await narration_service.generate_audio_v2(
+        # Create job in MongoDB
+        import uuid
+        from src.queue.queue_dependencies import get_slide_narration_audio_queue
+        from src.models.ai_queue_tasks import SlideNarrationAudioTask
+        
+        job_id = str(uuid.uuid4())
+        job_doc = {
+            "_id": job_id,
+            "user_id": user_id,
+            "presentation_id": presentation_id,
+            "subtitle_id": subtitle_id,
+            "voice_config": request.voice_config.dict(),
+            "status": "queued",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+        db.narration_audio_jobs.insert_one(job_doc)
+
+        # Queue task
+        task = SlideNarrationAudioTask(
+            task_id=job_id,
+            job_id=job_id,
+            user_id=user_id,
+            presentation_id=presentation_id,
             subtitle_id=subtitle_id,
             voice_config=request.voice_config.dict(),
-            user_id=user_id,
         )
+        
+        queue = await get_slide_narration_audio_queue()
+        await queue.enqueue(job_id, task.dict())
+        
+        logger.info(f"✅ Audio job queued: {job_id}")
 
-        # Convert to response models
-        audio_files = [PresentationAudio(**doc) for doc in audio_docs]
-
-        return GenerateAudioResponseV2(
-            success=True, audio_files=audio_files, points_deducted=2
-        )
+        return {
+            "success": True,
+            "job_id": job_id,
+            "status": "queued",
+            "message": "Audio generation queued. Use job_id to poll status.",
+        }
 
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to generate audio V2: {e}", exc_info=True)
-        raise HTTPException(500, f"Failed to generate audio: {str(e)}")
+        logger.error(f"❌ Failed to queue audio generation: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to queue audio: {str(e)}")
+
+
+@router.get("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}/audio/status/{job_id}")
+async def get_audio_generation_status(
+    presentation_id: str,
+    subtitle_id: str,
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Poll audio generation job status**
+    
+    Returns current status + audio files when completed.
+    """
+    try:
+        user_id = current_user["uid"]
+        
+        # Get job from MongoDB
+        job = db.narration_audio_jobs.find_one({"_id": job_id})
+        if not job:
+            raise HTTPException(404, "Job not found")
+        
+        # Verify ownership
+        if job["user_id"] != user_id:
+            raise HTTPException(403, "Unauthorized")
+        
+        status = job.get("status", "unknown")
+        
+        response = {
+            "job_id": job_id,
+            "status": status,
+            "created_at": job.get("created_at"),
+            "updated_at": job.get("updated_at"),
+        }
+        
+        # If completed, include audio files
+        if status == "completed":
+            audio_docs = list(db.presentation_audio.find({
+                "subtitle_id": subtitle_id,
+                "user_id": user_id
+            }).sort("slide_index", 1))
+            
+            response["audio_files"] = [PresentationAudio(**doc) for doc in audio_docs]
+        
+        # If failed, include error
+        elif status == "failed":
+            response["error"] = job.get("error", "Unknown error")
+        
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get status: {str(e)}")
 
 
 @router.post("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}/audio/upload")
@@ -1406,9 +1468,7 @@ async def delete_audio_v2(
             raise HTTPException(404, "Audio not found")
 
         # Delete audio document
-        db.presentation_audio.delete_one(
-            {"_id": ObjectId(audio_id)}
-        )
+        db.presentation_audio.delete_one({"_id": ObjectId(audio_id)})
 
         logger.info(f"✅ Deleted audio {audio_id}")
 
@@ -1542,9 +1602,7 @@ async def get_public_presentation(public_token: str):
         default_language = sharing_settings.get("default_language", "vi")
 
         # Get presentation document
-        presentation = db.documents.find_one(
-            {"_id": ObjectId(presentation_id)}
-        )
+        presentation = db.documents.find_one({"_id": ObjectId(presentation_id)})
 
         if not presentation:
             raise HTTPException(404, "Presentation not found")
@@ -1648,9 +1706,7 @@ async def get_public_subtitles(
             )
         else:
             query["version"] = int(version)
-            subtitle_doc = db.presentation_subtitles.find_one(
-                query
-            )
+            subtitle_doc = db.presentation_subtitles.find_one(query)
 
         if not subtitle_doc:
             raise HTTPException(404, "Subtitles not found")
@@ -1697,9 +1753,7 @@ async def get_public_audio(
         query = {"presentation_id": presentation_id, "language": language}
 
         if version == "latest":
-            subtitle = db.presentation_subtitles.find_one(
-                query, sort=[("version", -1)]
-            )
+            subtitle = db.presentation_subtitles.find_one(query, sort=[("version", -1)])
         else:
             query["version"] = int(version)
             subtitle = db.presentation_subtitles.find_one(query)

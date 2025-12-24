@@ -147,3 +147,20 @@ class TranslationTask(BaseModel):
     priority: int = Field(default=1)
     max_retries: int = Field(default=2, description="Lower retries for translation")
     retry_count: int = Field(default=0)
+
+
+class SlideNarrationAudioTask(BaseModel):
+    """Task for Slide Narration Audio Generation queue"""
+
+    task_id: str = Field(..., description="Unique task ID (same as job_id)")
+    job_id: str = Field(..., description="Job ID for status tracking")
+    user_id: str = Field(..., description="User ID")
+    presentation_id: str = Field(..., description="Presentation document ID")
+    subtitle_id: str = Field(..., description="Subtitle document ID")
+    voice_config: dict = Field(..., description="Voice configuration dict")
+
+    # Task metadata
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    priority: int = Field(default=1)
+    max_retries: int = Field(default=2, description="TTS retries")
+    retry_count: int = Field(default=0)
