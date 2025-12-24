@@ -191,23 +191,25 @@ class SlideNarrationAudioWorker:
         while self.running:
             try:
                 # Dequeue task
-                task_data = await self.queue_manager.dequeue()
+                task_data = await self.queue_manager.dequeue_task(
+                    worker_id=self.worker_id, timeout=5
+                )
 
-                if task_data:
-                    consecutive_errors = 0  # Reset error count on successful dequeue
-
-                    # Parse task
-                    task = SlideNarrationAudioTask(**task_data)
-
-                    # Process task
-                    success = await self.process_task(task)
-
-                    if not success:
-                        logger.warning(f"⚠️  Task {task.task_id} processing failed")
-
-                else:
-                    # No tasks in queue, wait before checking again
+                if not task_data:
+                    # No task available, wait before retry
                     await asyncio.sleep(2)
+                    continue
+
+                consecutive_errors = 0  # Reset error count on successful dequeue
+
+                # Parse task
+                task = SlideNarrationAudioTask(**task_data)
+
+                # Process task
+                success = await self.process_task(task)
+
+                if not success:
+                    logger.warning(f"⚠️  Task {task.task_id} processing failed")
 
             except KeyboardInterrupt:
                 logger.info(f"⚠️  Worker {self.worker_id}: Keyboard interrupt received")
