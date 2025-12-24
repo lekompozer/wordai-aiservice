@@ -273,7 +273,8 @@ services:
     deploy:
       resources:
         limits:
-
+          memory: 2G
+          cpus: "1"
 
   slide-narration-audio-worker:
     container_name: slide-narration-audio-worker
