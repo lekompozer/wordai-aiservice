@@ -475,8 +475,7 @@ async def list_narrations(
 
         # Fetch all narrations (presentation_id and user_id are strings)
         cursor = (
-            get_mongodb_service()
-            .db.slide_narrations.find(
+            db.slide_narrations.find(
                 {
                     "presentation_id": presentation_id,
                     "user_id": user_id,
@@ -832,8 +831,7 @@ async def list_library_audio(
 
         # Fetch audio files with pagination
         cursor = (
-            get_mongodb_service()
-            .db.library_audio.find(query)
+            db.library_audio.find(query)
             .sort("created_at", -1)
             .skip(request.offset)
             .limit(request.limit)
@@ -1144,8 +1142,7 @@ async def list_subtitles_v2(
 
         # Get subtitles
         cursor = (
-            get_mongodb_service()
-            .db.presentation_subtitles.find(query)
+            db.presentation_subtitles.find(query)
             .sort([("language", 1), ("version", -1)])
         )
 
@@ -1429,8 +1426,7 @@ async def list_audio_v2(
 
         # Get audio files
         cursor = (
-            get_mongodb_service()
-            .db.presentation_audio.find(query)
+            db.presentation_audio.find(query)
             .sort([("language", 1), ("version", -1), ("slide_index", 1)])
         )
 
@@ -1640,8 +1636,7 @@ async def get_public_presentation(public_token: str):
         audio_files = []
         if sharing_settings.get("include_audio", True) and subtitles:
             cursor = (
-                get_mongodb_service()
-                .db.presentation_audio.find(
+                db.presentation_audio.find(
                     {
                         "presentation_id": presentation_id,
                         "subtitle_id": str(subtitles.id),
@@ -1766,8 +1761,7 @@ async def get_public_audio(
 
         # Get audio files
         cursor = (
-            get_mongodb_service()
-            .db.presentation_audio.find(
+            db.presentation_audio.find(
                 {
                     "presentation_id": presentation_id,
                     "subtitle_id": str(subtitle["_id"]),
