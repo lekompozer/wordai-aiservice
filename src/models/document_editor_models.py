@@ -80,6 +80,8 @@ class DocumentResponse(BaseModel):
     )
     outline_id: Optional[str] = None  # ✅ Reference to original analysis (optional)
     has_outline: bool = False  # ✅ Quick check if outline exists (for frontend button)
+    has_narration: bool = False  # ✅ Quick check if narrations exist (for frontend UI)
+    narration_count: int = 0  # ✅ Number of narration versions available
 
 
 class DocumentListItem(BaseModel):

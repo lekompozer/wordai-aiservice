@@ -26,6 +26,7 @@ from src.services.document_manager import DocumentManager
 from src.services.file_download_service import FileDownloadService
 from src.services.user_manager import UserManager
 from src.services.subscription_service import get_subscription_service
+from src.services.online_test_utils import get_mongodb_service
 from src.middleware.auth import verify_firebase_token
 from src.database.db_manager import DBManager
 
@@ -1101,6 +1102,20 @@ async def get_document(
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
 
+        # Check if slide narrations exist (for slides only)
+        has_narration = False
+        narration_count = 0
+        if document.get("document_type") == "slide":
+            try:
+                narration_count = (
+                    get_mongodb_service().db.slide_narrations.count_documents(
+                        {"presentation_id": document_id, "user_id": user_id}
+                    )
+                )
+                has_narration = narration_count > 0
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to check narrations: {e}")
+
         # Log slide_elements info when returning document
         slide_elements = document.get("slide_elements", [])
         slide_backgrounds = document.get("slide_backgrounds", [])
@@ -1112,12 +1127,14 @@ async def get_document(
                 f"🎨 [SLIDE_ELEMENTS_API_LOAD] document_id={document_id}, user_id={user_id}, "
                 f"slides={len(slide_elements)}, total_overlay_elements={total_elements}, "
                 f"slide_backgrounds={len(slide_backgrounds)}, "
-                f"document_type={document.get('document_type')}"
+                f"document_type={document.get('document_type')}, "
+                f"has_narration={has_narration}, narration_count={narration_count}"
             )
         else:
             logger.info(
                 f"📄 [SLIDE_ELEMENTS_API_LOAD] document_id={document_id}, user_id={user_id}, "
-                f"slide_elements=[] (empty), document_type={document.get('document_type')}"
+                f"slide_elements=[] (empty), document_type={document.get('document_type')}, "
+                f"has_narration={has_narration}, narration_count={narration_count}"
             )
 
         return DocumentResponse(
@@ -1149,6 +1166,8 @@ async def get_document(
             has_outline=bool(
                 document.get("slides_outline")
             ),  # ✅ Quick check for frontend
+            has_narration=has_narration,  # ✅ Quick check if narrations exist
+            narration_count=narration_count,  # ✅ Number of narration versions
         )
 
     except HTTPException:
