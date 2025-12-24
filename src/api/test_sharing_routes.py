@@ -16,11 +16,15 @@ from src.middleware.auth import verify_firebase_token as require_auth
 from src.services.test_sharing_service import get_test_sharing_service
 from src.services.brevo_email_service import get_brevo_service
 from src.services.notification_manager import NotificationManager
-from config.config import get_mongodb  # ✅ Use standard config function
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/tests", tags=["Online Tests - Phase 4: Sharing"])
+
+# Initialize database
+db_manager = DBManager()
+db = db_manager.db
 
 
 # ========== Request/Response Models ==========
@@ -150,7 +154,7 @@ async def share_test(
         # Send email invitations
         if request.send_email:
             brevo = get_brevo_service()
-            db = get_mongodb()  # ✅ Use standard config function
+            # db already initialized
 
             # Get test info - ✅ Fixed: Use _id with ObjectId
             test = db.online_tests.find_one({"_id": ObjectId(test_id)})
