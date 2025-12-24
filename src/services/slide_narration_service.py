@@ -669,6 +669,11 @@ Generate the complete narration now:"""
         version = subtitle["version"]
         slides = subtitle.get("slides", [])
 
+        # Parse voice config
+        use_pro_model = voice_config.get("use_pro_model", True)
+        voices = voice_config.get("voices", [])
+        voice_name = voices[0].get("voice_name", "Kore") if voices else "Kore"
+
         audio_documents = []
 
         # Generate audio for each slide
@@ -683,8 +688,11 @@ Generate the complete narration now:"""
             script = self._convert_subtitles_to_script(subtitles)
 
             # Generate audio using TTS
-            audio_data = await tts_service.generate_audio(
-                script=script, voice_config=voice_config
+            audio_data, metadata = await tts_service.generate_audio(
+                text=script,
+                language=language,
+                voice_name=voice_name,
+                use_pro_model=use_pro_model,
             )
 
             # Upload to R2 and library_audio
@@ -692,7 +700,7 @@ Generate the complete narration now:"""
             r2_key = f"narration/{user_id}/{presentation_id}/slide_{slide_index}_{language}_v{version}.mp3"
 
             upload_result = await r2_service.upload_file(
-                file_content=audio_data["audio_bytes"],
+                file_content=audio_data,
                 r2_key=r2_key,
                 content_type="audio/mpeg",
             )
@@ -705,7 +713,7 @@ Generate the complete narration now:"""
                 category="audio",
                 r2_url=audio_url,
                 r2_key=r2_key,
-                file_size=len(audio_data["audio_bytes"]),
+                file_size=len(audio_data),
                 mime_type="audio/mpeg",
                 metadata={
                     "source_type": "slide_narration",
@@ -714,7 +722,7 @@ Generate the complete narration now:"""
                     "language": language,
                     "version": version,
                     "slide_index": slide_index,
-                    "duration_seconds": audio_data["duration"],
+                    "duration_seconds": metadata.get("duration", 0),
                 },
             )
 
@@ -728,10 +736,12 @@ Generate the complete narration now:"""
                 "slide_index": slide_index,
                 "audio_url": audio_url,
                 "audio_metadata": {
-                    "duration_seconds": audio_data["duration"],
-                    "file_size_bytes": len(audio_data["audio_bytes"]),
-                    "format": "mp3",
-                    "sample_rate": 44100,
+                    "duration_seconds": metadata.get("duration", 0),
+                    "file_size_bytes": len(audio_data),
+                    "format": "wav",
+                    "sample_rate": metadata.get("sample_rate", 24000),
+                    "voice_name": metadata.get("voice_name", voice_name),
+                    "model": metadata.get("model", "gemini-2.5-flash-preview-tts"),
                 },
                 "generation_method": "ai_generated",
                 "voice_config": voice_config,

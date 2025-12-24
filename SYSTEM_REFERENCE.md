@@ -290,24 +290,53 @@ class SlideNarrationService:
         self.r2_service = get_r2_service()
         db_manager = DBManager()
         self.library_manager = LibraryManager(
-            db=db_manager.db, 
+            db=db_manager.db,
             s3_client=self.r2_service.s3_client
         )
-    
-    async def generate_audio(self, text: str):
+
+    async def generate_audio(self, text: str, language: str, voice_name: str):
         from src.services.google_tts_service import GoogleTTSService
-        
+
         tts = GoogleTTSService()
-        audio_bytes = tts.synthesize_speech(text, "vi-VN", "vi-VN-Standard-A")
-        
+
+        # ✅ CORRECT: generate_audio returns (bytes, dict)
+        audio_bytes, metadata = await tts.generate_audio(
+            text=text,
+            language=language,
+            voice_name=voice_name,
+            use_pro_model=True
+        )
+
+        # metadata contains: format, sample_rate, duration, voice_name, etc.
+        duration = metadata.get("duration", 0)
+
         # Upload to R2
-        r2_url = self.r2_service.upload_audio(audio_bytes, "narration.mp3")
-        
+        upload_result = await self.r2_service.upload_file(
+            file_content=audio_bytes,
+            r2_key="narration/user123/audio.wav",
+            content_type="audio/wav"
+        )
+        r2_url = upload_result["public_url"]
+
         # Save to library
         library_id = self.library_manager.save_library_file(
-            user_id=user_id,
-            file_name="narration.mp3",
+            user_id="user123",
+            filename="narration.wav",
             r2_url=r2_url,
+            file_type="audio",
+            file_size=len(audio_bytes),
+            metadata={"duration": duration, "voice": voice_name}
+        )
+        return library_id
+```
+
+**❌ WRONG TTS Usage:**
+```python
+# Don't use these parameter names:
+audio_data = await tts.generate_audio(script=text, voice_config=config)  # ❌ TypeError
+
+# Don't expect dict return:
+audio_bytes = tts.generate_audio(text)["audio_bytes"]  # ❌ Can't subscript bytes
             file_type="audio/mpeg",
             file_size=len(audio_bytes),
             category="audio"
