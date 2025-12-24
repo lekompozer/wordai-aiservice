@@ -281,7 +281,7 @@ IMPORTANT - Element References:
 - AVOID mentioning decorative icons/emojis (🎯, 🚀, ⚙️, etc.) - focus on meaningful diagrams/images
 - element_references should be SIMPLE STRINGS (element IDs), NOT objects
 - Example CORRECT: "element_references": ["elem_0", "elem_1"]
-- Example WRONG: "element_references": [{"type": "icon", "content": "🚀"}]
+- Example WRONG: "element_references": [{{"type": "icon", "content": "🚀"}}]
 - Keep element_references minimal - only include when you explicitly reference that element in narration text
 
 TIMING GUIDELINES:
