@@ -44,7 +44,9 @@ class SlideNarrationService:
 
         self.r2_service = get_r2_service()
         db_manager = DBManager()
-        self.library_manager = LibraryManager(db=db_manager.db, s3_client=self.r2_service.s3_client)
+        self.library_manager = LibraryManager(
+            db=db_manager.db, s3_client=self.r2_service.s3_client
+        )
 
     def _extract_slide_content(self, html: str) -> Dict[str, Any]:
         """
@@ -642,7 +644,7 @@ Generate the complete narration now:"""
             List of audio documents created
         """
         from src.database.db_manager import DBManager
-        from src.services.tts.google_tts_service import GoogleTTSService
+        from src.services.google_tts_service import GoogleTTSService
         from src.services.r2_storage_service import get_r2_service
         from src.services.library_manager import LibraryManager
 

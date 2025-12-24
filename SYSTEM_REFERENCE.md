@@ -221,7 +221,103 @@ tests = db.online_tests.find(...)
 
 ---
 
-### 📚 Library Management Patterns
+### 🎵 Audio/TTS Service Patterns
+
+#### Google TTS Service (Text-to-Speech)
+
+**CORRECT Import Path:**
+```python
+from src.services.google_tts_service import GoogleTTSService
+
+# Initialize
+tts_service = GoogleTTSService()
+
+# Generate audio
+audio_bytes = tts_service.synthesize_speech(
+    text="Hello world",
+    language_code="en-US",
+    voice_name="en-US-Standard-A",
+    speaking_rate=1.0
+)
+```
+
+**❌ WRONG Import (DO NOT USE):**
+```python
+# This path does NOT exist:
+from src.services.tts.google_tts_service import GoogleTTSService  # ❌ NO 'tts' subfolder
+```
+
+#### Library Manager (R2 + MongoDB Integration)
+
+**CORRECT Pattern - No Singleton Function:**
+```python
+from src.database.db_manager import DBManager
+from src.services.library_manager import LibraryManager
+from src.services.r2_storage_service import get_r2_service
+
+# Initialize with db + s3_client
+db_manager = DBManager()
+r2_service = get_r2_service()
+library_manager = LibraryManager(db=db_manager.db, s3_client=r2_service.s3_client)
+
+# Save file to library
+library_id = library_manager.save_library_file(
+    user_id="user123",
+    file_name="audio.mp3",
+    r2_url="https://cdn.r2.wordai.vn/audio/abc.mp3",
+    file_type="audio/mpeg",
+    file_size=123456,
+    category="audio",  # auto-detected from file_type
+    metadata={"duration": 15.5, "voice": "Kore"}
+)
+```
+
+**❌ WRONG Pattern (Function doesn't exist):**
+```python
+# This function does NOT exist in library_manager.py:
+from src.services.library_manager import get_library_manager  # ❌ NO SUCH FUNCTION
+library_manager = get_library_manager()  # ❌ ImportError
+```
+
+**Complete Example (Slide Narration Service):**
+```python
+class SlideNarrationService:
+    def __init__(self):
+        from src.services.r2_storage_service import get_r2_service
+        from src.services.library_manager import LibraryManager
+        from src.database.db_manager import DBManager
+
+        self.r2_service = get_r2_service()
+        db_manager = DBManager()
+        self.library_manager = LibraryManager(
+            db=db_manager.db, 
+            s3_client=self.r2_service.s3_client
+        )
+    
+    async def generate_audio(self, text: str):
+        from src.services.google_tts_service import GoogleTTSService
+        
+        tts = GoogleTTSService()
+        audio_bytes = tts.synthesize_speech(text, "vi-VN", "vi-VN-Standard-A")
+        
+        # Upload to R2
+        r2_url = self.r2_service.upload_audio(audio_bytes, "narration.mp3")
+        
+        # Save to library
+        library_id = self.library_manager.save_library_file(
+            user_id=user_id,
+            file_name="narration.mp3",
+            r2_url=r2_url,
+            file_type="audio/mpeg",
+            file_size=len(audio_bytes),
+            category="audio"
+        )
+        return library_id
+```
+
+---
+
+### 📚 Library Collections Reference
 
 #### Audio Library (`library_audio` collection)
 
