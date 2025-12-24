@@ -190,8 +190,8 @@ class SlideNarrationAudioWorker:
 
         while self.running:
             try:
-                # Dequeue task
-                task_data = await self.queue_manager.dequeue_task(
+                # Dequeue task (returns raw dict, not parsed model)
+                task_data = await self.queue_manager.dequeue_generic_task(
                     worker_id=self.worker_id, timeout=5
                 )
 
