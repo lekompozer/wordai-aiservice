@@ -2789,9 +2789,7 @@ async def full_edit_test(
             logger.warning(f"⚠️ No changes made to test {test_id}")
 
         # ========== Step 6: Get updated test document ==========
-        updated_test = db["online_tests"].find_one(
-            {"_id": ObjectId(test_id)}
-        )
+        updated_test = db["online_tests"].find_one({"_id": ObjectId(test_id)})
 
         logger.info(f"✅ Test {test_id} fully updated")
 

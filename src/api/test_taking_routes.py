@@ -1219,9 +1219,7 @@ async def submit_test(
             grading_queue = db["grading_queue"]
 
             # Get student name
-            user_doc = db.users.find_one(
-                {"firebase_uid": user_info["uid"]}
-            )
+            user_doc = db.users.find_one({"firebase_uid": user_info["uid"]})
             student_name = (
                 user_doc.get("name") or user_doc.get("display_name")
                 if user_doc
@@ -1300,9 +1298,7 @@ async def submit_test(
                     owner = db.users.find_one({"firebase_uid": owner_id})
 
                     # Get user info
-                    user = db.users.find_one(
-                        {"firebase_uid": user_info["uid"]}
-                    )
+                    user = db.users.find_one({"firebase_uid": user_info["uid"]})
 
                     if owner and user:
                         owner_email = owner.get("email")
@@ -2125,9 +2121,7 @@ async def save_test_progress(
             raise HTTPException(status_code=404, detail="Test not found")
 
         # Verify session exists and belongs to user
-        session = db["test_progress"].find_one(
-            {"session_id": request.session_id}
-        )
+        session = db["test_progress"].find_one({"session_id": request.session_id})
 
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")

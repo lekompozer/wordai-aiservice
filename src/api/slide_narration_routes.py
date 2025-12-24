@@ -1240,10 +1240,10 @@ async def generate_audio_v2(
 ):
     """
     **Queue audio generation job for subtitle document**
-    
+
     Returns job_id immediately for polling.
     Deducts 2 points from user.
-    
+
     **Processing time:** ~30-60 seconds per slide (runs in background)
     """
     try:
@@ -1264,7 +1264,7 @@ async def generate_audio_v2(
         import uuid
         from src.queue.queue_dependencies import get_slide_narration_audio_queue
         from src.models.ai_queue_tasks import SlideNarrationAudioTask
-        
+
         job_id = str(uuid.uuid4())
         job_doc = {
             "_id": job_id,
@@ -1287,10 +1287,10 @@ async def generate_audio_v2(
             subtitle_id=subtitle_id,
             voice_config=request.voice_config.dict(),
         )
-        
+
         queue = await get_slide_narration_audio_queue()
         await queue.enqueue(job_id, task.dict())
-        
+
         logger.info(f"✅ Audio job queued: {job_id}")
 
         return {
@@ -1307,7 +1307,9 @@ async def generate_audio_v2(
         raise HTTPException(500, f"Failed to queue audio: {str(e)}")
 
 
-@router.get("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}/audio/status/{job_id}")
+@router.get(
+    "/presentations/{presentation_id}/subtitles/v2/{subtitle_id}/audio/status/{job_id}"
+)
 async def get_audio_generation_status(
     presentation_id: str,
     subtitle_id: str,
@@ -1316,43 +1318,44 @@ async def get_audio_generation_status(
 ):
     """
     **Poll audio generation job status**
-    
+
     Returns current status + audio files when completed.
     """
     try:
         user_id = current_user["uid"]
-        
+
         # Get job from MongoDB
         job = db.narration_audio_jobs.find_one({"_id": job_id})
         if not job:
             raise HTTPException(404, "Job not found")
-        
+
         # Verify ownership
         if job["user_id"] != user_id:
             raise HTTPException(403, "Unauthorized")
-        
+
         status = job.get("status", "unknown")
-        
+
         response = {
             "job_id": job_id,
             "status": status,
             "created_at": job.get("created_at"),
             "updated_at": job.get("updated_at"),
         }
-        
+
         # If completed, include audio files
         if status == "completed":
-            audio_docs = list(db.presentation_audio.find({
-                "subtitle_id": subtitle_id,
-                "user_id": user_id
-            }).sort("slide_index", 1))
-            
+            audio_docs = list(
+                db.presentation_audio.find(
+                    {"subtitle_id": subtitle_id, "user_id": user_id}
+                ).sort("slide_index", 1)
+            )
+
             response["audio_files"] = [PresentationAudio(**doc) for doc in audio_docs]
-        
+
         # If failed, include error
         elif status == "failed":
             response["error"] = job.get("error", "Unknown error")
-        
+
         return response
 
     except HTTPException:

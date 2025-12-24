@@ -137,16 +137,12 @@ async def get_submission_for_grading(
         # db already initialized
 
         # Get submission
-        submission = db["test_submissions"].find_one(
-            {"_id": ObjectId(submission_id)}
-        )
+        submission = db["test_submissions"].find_one({"_id": ObjectId(submission_id)})
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = db["online_tests"].find_one(
-            {"_id": ObjectId(submission["test_id"])}
-        )
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(submission["test_id"])})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -156,9 +152,7 @@ async def get_submission_for_grading(
             )
 
         # Get student info
-        student = db.users.find_one(
-            {"firebase_uid": submission["user_id"]}
-        )
+        student = db.users.find_one({"firebase_uid": submission["user_id"]})
         student_name = (
             student.get("name") or student.get("display_name") if student else "Unknown"
         )
@@ -258,16 +252,12 @@ async def grade_single_essay(
         # db already initialized
 
         # Get submission
-        submission = db["test_submissions"].find_one(
-            {"_id": ObjectId(submission_id)}
-        )
+        submission = db["test_submissions"].find_one({"_id": ObjectId(submission_id)})
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = db["online_tests"].find_one(
-            {"_id": ObjectId(submission["test_id"])}
-        )
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(submission["test_id"])})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -464,16 +454,12 @@ async def grade_all_essays(
         # db already initialized
 
         # Get submission
-        submission = db["test_submissions"].find_one(
-            {"_id": ObjectId(submission_id)}
-        )
+        submission = db["test_submissions"].find_one({"_id": ObjectId(submission_id)})
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = db["online_tests"].find_one(
-            {"_id": ObjectId(submission["test_id"])}
-        )
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(submission["test_id"])})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -552,9 +538,7 @@ async def grade_all_essays(
                 from src.services.brevo_email_service import get_brevo_service
                 from src.services.notification_manager import NotificationManager
 
-                student = db.users.find_one(
-                    {"firebase_uid": submission["user_id"]}
-                )
+                student = db.users.find_one({"firebase_uid": submission["user_id"]})
                 if student:
                     # Send email notification
                     if student.get("email"):
@@ -629,9 +613,7 @@ async def get_grading_dashboard(
         # db already initialized
 
         # Get all tests owned by user
-        owned_tests = list(
-            db["online_tests"].find({"creator_id": user_info["uid"]})
-        )
+        owned_tests = list(db["online_tests"].find({"creator_id": user_info["uid"]}))
 
         test_ids = [str(test["_id"]) for test in owned_tests]
 
@@ -730,16 +712,12 @@ async def update_essay_grade(
         # db already initialized
 
         # Get submission
-        submission = db["test_submissions"].find_one(
-            {"_id": ObjectId(submission_id)}
-        )
+        submission = db["test_submissions"].find_one({"_id": ObjectId(submission_id)})
         if not submission:
             raise HTTPException(status_code=404, detail="Submission not found")
 
         # Get test and verify owner
-        test_doc = db["online_tests"].find_one(
-            {"_id": ObjectId(submission["test_id"])}
-        )
+        test_doc = db["online_tests"].find_one({"_id": ObjectId(submission["test_id"])})
         if not test_doc:
             raise HTTPException(status_code=404, detail="Test not found")
 
@@ -811,9 +789,7 @@ async def update_essay_grade(
             try:
                 from src.services.brevo_email_service import get_brevo_service
 
-                student = db.users.find_one(
-                    {"firebase_uid": submission["user_id"]}
-                )
+                student = db.users.find_one({"firebase_uid": submission["user_id"]})
                 if student and student.get("email"):
                     brevo = get_brevo_service()
                     await asyncio.to_thread(

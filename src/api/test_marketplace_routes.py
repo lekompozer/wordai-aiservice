@@ -713,9 +713,7 @@ async def update_marketplace_config(
             logger.warning(f"⚠️ No changes made to test {test_id} (data might be same)")
 
         # ========== Step 7: Get updated config ==========
-        updated_test = db["online_tests"].find_one(
-            {"_id": ObjectId(test_id)}
-        )
+        updated_test = db["online_tests"].find_one({"_id": ObjectId(test_id)})
         updated_marketplace_config = updated_test.get("marketplace_config", {})
 
         logger.info(f"✅ Marketplace config updated for test {test_id}")
@@ -1317,9 +1315,7 @@ async def check_slug_availability(
                 pass  # Invalid ObjectId, ignore
 
         # Check if slug exists
-        existing_test = db["online_tests"].find_one(
-            query, {"_id": 1, "title": 1}
-        )
+        existing_test = db["online_tests"].find_one(query, {"_id": 1, "title": 1})
 
         if existing_test:
             # Slug is taken, generate suggestions
