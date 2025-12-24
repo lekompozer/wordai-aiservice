@@ -48,6 +48,7 @@ logger.info("=" * 80)
 db_manager = DBManager()
 db = db_manager.db
 
+
 # Points cost for each step
 POINTS_COST_SUBTITLE = 2
 POINTS_COST_AUDIO = 2
@@ -357,7 +358,9 @@ async def generate_audio(
             )
 
         # Fetch narration from database
-        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        narration = await db.slide_narrations.find_one(
+            {"_id": ObjectId(narration_id)}
+        )
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -456,12 +459,16 @@ async def list_narrations(
             raise HTTPException(403, "Not authorized to view this presentation")
 
         # Fetch all narrations (presentation_id and user_id are strings)
-        cursor = db.slide_narrations.find(
-            {
-                "presentation_id": presentation_id,
-                "user_id": user_id,
-            }
-        ).sort("created_at", -1)
+        cursor = (
+            db
+            .slide_narrations.find(
+                {
+                    "presentation_id": presentation_id,
+                    "user_id": user_id,
+                }
+            )
+            .sort("created_at", -1)
+        )
 
         narrations = []
         async for doc in cursor:
@@ -533,7 +540,9 @@ async def delete_narration(
         user_id = current_user["uid"]
 
         # Fetch narration
-        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        narration = await db.slide_narrations.find_one(
+            {"_id": ObjectId(narration_id)}
+        )
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -608,7 +617,9 @@ async def update_subtitles(
         logger.info(f"📝 Updating subtitles for narration {narration_id}")
 
         # Fetch narration
-        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        narration = await db.slide_narrations.find_one(
+            {"_id": ObjectId(narration_id)}
+        )
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -709,7 +720,9 @@ async def delete_narration(
         logger.info(f"🗑️ Deleting narration {narration_id}")
 
         # Fetch narration
-        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        narration = await db.slide_narrations.find_one(
+            {"_id": ObjectId(narration_id)}
+        )
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -810,7 +823,8 @@ async def list_library_audio(
 
         # Fetch audio files with pagination
         cursor = (
-            db.library_audio.find(query)
+            db
+            .library_audio.find(query)
             .sort("created_at", -1)
             .skip(request.offset)
             .limit(request.limit)
@@ -889,7 +903,9 @@ async def assign_library_audio(
         logger.info(f"🎵 Assigning library audio to narration {narration_id}")
 
         # Fetch narration
-        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        narration = await db.slide_narrations.find_one(
+            {"_id": ObjectId(narration_id)}
+        )
         if not narration:
             raise HTTPException(404, "Narration not found")
 
@@ -996,7 +1012,9 @@ async def remove_slide_audio(
         )
 
         # Fetch narration
-        narration = await db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        narration = await db.slide_narrations.find_one(
+            {"_id": ObjectId(narration_id)}
+        )
         if not narration:
             raise HTTPException(404, "Narration not found")
 
