@@ -1171,11 +1171,13 @@ async def get_document(
         )
 
         # Log response payload for debugging
+        response_dict = response.model_dump()
         logger.info(
             f"📤 [RESPONSE] document_id={document_id}, "
             f"has_narration={response.has_narration}, narration_count={response.narration_count}, "
             f"has_outline={response.has_outline}"
         )
+        logger.info(f"📦 [RAW_RESPONSE_JSON] {response_dict}")
 
         return response
 

@@ -28,6 +28,20 @@ from src.models.slide_narration_models import (
     AssignAudioResponse,
     LibraryAudioListRequest,
     LibraryAudioListResponse,
+    # Multi-language models
+    GenerateSubtitlesRequestV2,
+    GenerateSubtitlesResponseV2,
+    GenerateAudioRequestV2,
+    GenerateAudioResponseV2,
+    UploadAudioRequest,
+    UploadAudioResponse,
+    ListSubtitlesResponse,
+    PresentationSubtitle,
+    PresentationAudio,
+    UpdateSharingConfigRequest,
+    UpdateSharingConfigResponse,
+    PresentationSharingConfig,
+    PublicPresentationResponse,
 )
 from src.services.slide_narration_service import get_slide_narration_service
 from src.services.points_service import get_points_service
@@ -381,9 +395,8 @@ async def generate_audio(
         # Generate audio
         result = await narration_service.generate_audio(
             narration_id=narration_id,
-            slides=narration["slides"],
-            language=narration["language"],
-            voice_config=request.voice_config,
+            slides_with_subtitles=narration["slides"],
+            voice_config=request.voice_config.dict(),
             user_id=user_id,
         )
 
@@ -1066,3 +1079,651 @@ async def remove_slide_audio(
     except Exception as e:
         logger.error(f"❌ Failed to remove audio: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to remove audio: {str(e)}")
+
+
+# ============================================================
+# MULTI-LANGUAGE NARRATION SYSTEM (V2)
+# ============================================================
+
+
+@router.post("/presentations/{presentation_id}/subtitles/v2")
+async def generate_subtitles_v2(
+    presentation_id: str,
+    request: GenerateSubtitlesRequestV2,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate subtitles for specific language (multi-language system)
+    Deducts 2 points from user
+    """
+    try:
+        user_id = current_user["uid"]
+        logger.info(
+            f"Generating subtitles V2: presentation={presentation_id}, language={request.language}"
+        )
+
+        # Deduct points
+        points_service = get_points_service()
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=2,
+            service="slide_narration",
+            resource_id=presentation_id,
+            description=f"Generate subtitles ({request.language})",
+        )
+
+        # Generate subtitles
+        narration_service = get_slide_narration_service()
+        subtitle_doc = await narration_service.generate_subtitles_v2(
+            presentation_id=presentation_id,
+            language=request.language,
+            mode=request.mode,
+            user_id=user_id,
+            user_query=request.user_query or "",
+        )
+
+        return GenerateSubtitlesResponseV2(
+            success=True,
+            subtitle=PresentationSubtitle(**subtitle_doc),
+            points_deducted=2,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to generate subtitles V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to generate subtitles: {str(e)}")
+
+
+@router.get("/presentations/{presentation_id}/subtitles/v2")
+async def list_subtitles_v2(
+    presentation_id: str,
+    language: str = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    List all subtitle versions for presentation
+    Optional filter by language
+    """
+    try:
+        user_id = current_user["uid"]
+        logger.info(
+            f"Listing subtitles V2: presentation={presentation_id}, language={language}"
+        )
+
+        # Build query
+        query = {"presentation_id": presentation_id, "user_id": user_id}
+        if language:
+            query["language"] = language
+
+        # Get subtitles
+        cursor = (
+            get_mongodb_service()
+            .db.presentation_subtitles.find(query)
+            .sort([("language", 1), ("version", -1)])
+        )
+
+        subtitles = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            subtitles.append(PresentationSubtitle(**doc))
+
+        return ListSubtitlesResponse(
+            success=True, subtitles=subtitles, total_count=len(subtitles)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to list subtitles V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to list subtitles: {str(e)}")
+
+
+@router.get("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}")
+async def get_subtitle_v2(
+    presentation_id: str,
+    subtitle_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get specific subtitle document"""
+    try:
+        user_id = current_user["uid"]
+
+        # Get subtitle
+        subtitle = get_mongodb_service().db.presentation_subtitles.find_one(
+            {"_id": ObjectId(subtitle_id), "user_id": user_id}
+        )
+
+        if not subtitle:
+            raise HTTPException(404, "Subtitle not found")
+
+        subtitle["_id"] = str(subtitle["_id"])
+        return {"success": True, "subtitle": PresentationSubtitle(**subtitle)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get subtitle V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get subtitle: {str(e)}")
+
+
+@router.delete("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}")
+async def delete_subtitle_v2(
+    presentation_id: str,
+    subtitle_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Delete subtitle document and associated audio files
+    """
+    try:
+        user_id = current_user["uid"]
+        logger.info(f"Deleting subtitle V2: {subtitle_id}")
+
+        # Get subtitle to verify ownership
+        subtitle = get_mongodb_service().db.presentation_subtitles.find_one(
+            {"_id": ObjectId(subtitle_id), "user_id": user_id}
+        )
+
+        if not subtitle:
+            raise HTTPException(404, "Subtitle not found")
+
+        # Delete associated audio files
+        get_mongodb_service().db.presentation_audio.delete_many(
+            {"subtitle_id": subtitle_id}
+        )
+
+        # Delete subtitle
+        get_mongodb_service().db.presentation_subtitles.delete_one(
+            {"_id": ObjectId(subtitle_id)}
+        )
+
+        logger.info(f"✅ Deleted subtitle {subtitle_id}")
+
+        return {"success": True, "message": "Subtitle and audio deleted"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete subtitle V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to delete subtitle: {str(e)}")
+
+
+@router.post("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}/audio")
+async def generate_audio_v2(
+    presentation_id: str,
+    subtitle_id: str,
+    request: GenerateAudioRequestV2,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generate audio for subtitle document
+    Deducts 2 points from user
+    """
+    try:
+        user_id = current_user["uid"]
+        logger.info(f"Generating audio V2: subtitle={subtitle_id}")
+
+        # Deduct points
+        points_service = get_points_service()
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=2,
+            service="slide_narration",
+            resource_id=subtitle_id,
+            description="Generate audio",
+        )
+
+        # Generate audio
+        narration_service = get_slide_narration_service()
+        audio_docs = await narration_service.generate_audio_v2(
+            subtitle_id=subtitle_id,
+            voice_config=request.voice_config.dict(),
+            user_id=user_id,
+        )
+
+        # Convert to response models
+        audio_files = [PresentationAudio(**doc) for doc in audio_docs]
+
+        return GenerateAudioResponseV2(
+            success=True, audio_files=audio_files, points_deducted=2
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to generate audio V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to generate audio: {str(e)}")
+
+
+@router.post("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}/audio/upload")
+async def upload_audio_v2(
+    presentation_id: str,
+    subtitle_id: str,
+    request: UploadAudioRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Upload user-provided audio file for slide
+    No points deduction
+    """
+    try:
+        user_id = current_user["uid"]
+        logger.info(
+            f"Uploading audio V2: subtitle={subtitle_id}, slide={request.slide_index}"
+        )
+
+        # Decode base64 audio file
+        import base64
+
+        audio_data = base64.b64decode(request.audio_file)
+
+        # Upload audio
+        narration_service = get_slide_narration_service()
+        audio_doc = await narration_service.upload_audio(
+            subtitle_id=subtitle_id,
+            slide_index=request.slide_index,
+            audio_file_data=audio_data,
+            audio_metadata=request.audio_metadata.dict(),
+            user_id=user_id,
+        )
+
+        return UploadAudioResponse(success=True, audio=PresentationAudio(**audio_doc))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to upload audio V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to upload audio: {str(e)}")
+
+
+@router.get("/presentations/{presentation_id}/audio/v2")
+async def list_audio_v2(
+    presentation_id: str,
+    language: str = None,
+    version: int = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    List audio files for presentation
+    Optional filter by language and version
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Build query
+        query = {"presentation_id": presentation_id, "user_id": user_id}
+        if language:
+            query["language"] = language
+        if version:
+            query["version"] = version
+
+        # Get audio files
+        cursor = (
+            get_mongodb_service()
+            .db.presentation_audio.find(query)
+            .sort([("language", 1), ("version", -1), ("slide_index", 1)])
+        )
+
+        audio_files = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            audio_files.append(PresentationAudio(**doc))
+
+        return {
+            "success": True,
+            "audio_files": audio_files,
+            "total_count": len(audio_files),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to list audio V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to list audio: {str(e)}")
+
+
+@router.delete("/presentations/{presentation_id}/audio/v2/{audio_id}")
+async def delete_audio_v2(
+    presentation_id: str,
+    audio_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete audio file"""
+    try:
+        user_id = current_user["uid"]
+
+        # Get audio to verify ownership
+        audio = get_mongodb_service().db.presentation_audio.find_one(
+            {"_id": ObjectId(audio_id), "user_id": user_id}
+        )
+
+        if not audio:
+            raise HTTPException(404, "Audio not found")
+
+        # Delete audio document
+        get_mongodb_service().db.presentation_audio.delete_one(
+            {"_id": ObjectId(audio_id)}
+        )
+
+        logger.info(f"✅ Deleted audio {audio_id}")
+
+        return {"success": True, "message": "Audio deleted"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete audio V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to delete audio: {str(e)}")
+
+
+# ============================================================
+# SHARING CONFIGURATION
+# ============================================================
+
+
+@router.get("/presentations/{presentation_id}/sharing")
+async def get_sharing_config(
+    presentation_id: str, current_user: dict = Depends(get_current_user)
+):
+    """Get sharing configuration for presentation"""
+    try:
+        user_id = current_user["uid"]
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+        config = await sharing_service.get_or_create_config(
+            presentation_id=presentation_id, user_id=user_id
+        )
+
+        return {"success": True, "config": PresentationSharingConfig(**config)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get sharing config: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get sharing config: {str(e)}")
+
+
+@router.put("/presentations/{presentation_id}/sharing")
+async def update_sharing_config(
+    presentation_id: str,
+    request: UpdateSharingConfigRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update sharing configuration"""
+    try:
+        user_id = current_user["uid"]
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+
+        # Prepare sharing_settings dict
+        sharing_settings = None
+        if request.sharing_settings:
+            sharing_settings = request.sharing_settings.dict()
+
+        config = await sharing_service.update_config(
+            presentation_id=presentation_id,
+            user_id=user_id,
+            is_public=request.is_public,
+            sharing_settings=sharing_settings,
+        )
+
+        return UpdateSharingConfigResponse(
+            success=True, config=PresentationSharingConfig(**config)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update sharing config: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to update sharing config: {str(e)}")
+
+
+@router.post("/presentations/{presentation_id}/sharing/users")
+async def share_with_user(
+    presentation_id: str,
+    target_user_id: str,
+    permission: str = "view",
+    current_user: dict = Depends(get_current_user),
+):
+    """Share presentation with specific user"""
+    try:
+        user_id = current_user["uid"]
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+        config = await sharing_service.share_with_user(
+            presentation_id=presentation_id,
+            owner_user_id=user_id,
+            target_user_id=target_user_id,
+            permission=permission,
+        )
+
+        return {"success": True, "message": "User added to sharing list"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to share with user: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to share with user: {str(e)}")
+
+
+# ============================================================
+# PUBLIC VIEW (NO AUTHENTICATION)
+# ============================================================
+
+
+@router.get("/public/presentations/{public_token}")
+async def get_public_presentation(public_token: str):
+    """
+    Get public presentation (no authentication required)
+    Returns presentation content, latest subtitles, and audio based on sharing settings
+    """
+    try:
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+        logger.info(f"Public access: token={public_token}")
+
+        # Get sharing config by token
+        config = await sharing_service.get_public_presentation(public_token)
+
+        if not config:
+            raise HTTPException(404, "Presentation not found or not public")
+
+        presentation_id = config["presentation_id"]
+        sharing_settings = config["sharing_settings"]
+        default_language = sharing_settings.get("default_language", "vi")
+
+        # Get presentation document
+        presentation = get_mongodb_service().db.documents.find_one(
+            {"_id": ObjectId(presentation_id)}
+        )
+
+        if not presentation:
+            raise HTTPException(404, "Presentation not found")
+
+        # Prepare presentation data based on sharing settings
+        presentation_data = {
+            "id": str(presentation["_id"]),
+            "title": presentation.get("title", ""),
+            "document_type": presentation.get("document_type", "slide"),
+        }
+
+        # Include content if enabled
+        if sharing_settings.get("include_content", True):
+            presentation_data["content_html"] = presentation.get("content_html", "")
+            presentation_data["slide_elements"] = presentation.get("slide_elements")
+            presentation_data["slide_backgrounds"] = presentation.get(
+                "slide_backgrounds"
+            )
+
+        # Get latest subtitle for default language if enabled
+        subtitles = None
+        if sharing_settings.get("include_subtitles", True):
+            subtitle_doc = get_mongodb_service().db.presentation_subtitles.find_one(
+                {"presentation_id": presentation_id, "language": default_language},
+                sort=[("version", -1)],
+            )
+            if subtitle_doc:
+                subtitle_doc["_id"] = str(subtitle_doc["_id"])
+                subtitles = PresentationSubtitle(**subtitle_doc)
+
+        # Get audio files if enabled
+        audio_files = []
+        if sharing_settings.get("include_audio", True) and subtitles:
+            cursor = (
+                get_mongodb_service()
+                .db.presentation_audio.find(
+                    {
+                        "presentation_id": presentation_id,
+                        "subtitle_id": str(subtitles.id),
+                    }
+                )
+                .sort("slide_index", 1)
+            )
+
+            for doc in cursor:
+                doc["_id"] = str(doc["_id"])
+                audio_files.append(PresentationAudio(**doc))
+
+        # Increment access stats
+        await sharing_service.increment_access_stats(config["_id"], unique_visitor=True)
+
+        return PublicPresentationResponse(
+            success=True,
+            presentation=presentation_data,
+            subtitles=subtitles,
+            audio_files=audio_files,
+            sharing_settings=sharing_settings,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get public presentation: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get public presentation: {str(e)}")
+
+
+@router.get("/public/presentations/{public_token}/subtitles")
+async def get_public_subtitles(
+    public_token: str, language: str = None, version: str = "latest"
+):
+    """Get public subtitles (no authentication required)"""
+    try:
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+
+        # Get sharing config
+        config = await sharing_service.get_public_presentation(public_token)
+
+        if not config:
+            raise HTTPException(404, "Presentation not found or not public")
+
+        if not config["sharing_settings"].get("include_subtitles", True):
+            raise HTTPException(403, "Subtitles not shared")
+
+        presentation_id = config["presentation_id"]
+        default_language = config["sharing_settings"].get("default_language", "vi")
+        language = language or default_language
+
+        # Check allowed languages
+        allowed_languages = config["sharing_settings"].get("allowed_languages", [])
+        if allowed_languages and language not in allowed_languages:
+            raise HTTPException(403, f"Language {language} not allowed")
+
+        # Get subtitle
+        query = {"presentation_id": presentation_id, "language": language}
+
+        if version == "latest":
+            subtitle_doc = get_mongodb_service().db.presentation_subtitles.find_one(
+                query, sort=[("version", -1)]
+            )
+        else:
+            query["version"] = int(version)
+            subtitle_doc = get_mongodb_service().db.presentation_subtitles.find_one(
+                query
+            )
+
+        if not subtitle_doc:
+            raise HTTPException(404, "Subtitles not found")
+
+        subtitle_doc["_id"] = str(subtitle_doc["_id"])
+        return {"success": True, "subtitle": PresentationSubtitle(**subtitle_doc)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get public subtitles: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get public subtitles: {str(e)}")
+
+
+@router.get("/public/presentations/{public_token}/audio")
+async def get_public_audio(
+    public_token: str, language: str = None, version: str = "latest"
+):
+    """Get public audio files (no authentication required)"""
+    try:
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+
+        # Get sharing config
+        config = await sharing_service.get_public_presentation(public_token)
+
+        if not config:
+            raise HTTPException(404, "Presentation not found or not public")
+
+        if not config["sharing_settings"].get("include_audio", True):
+            raise HTTPException(403, "Audio not shared")
+
+        presentation_id = config["presentation_id"]
+        default_language = config["sharing_settings"].get("default_language", "vi")
+        language = language or default_language
+
+        # Check allowed languages
+        allowed_languages = config["sharing_settings"].get("allowed_languages", [])
+        if allowed_languages and language not in allowed_languages:
+            raise HTTPException(403, f"Language {language} not allowed")
+
+        # Get subtitle to find version
+        query = {"presentation_id": presentation_id, "language": language}
+
+        if version == "latest":
+            subtitle = get_mongodb_service().db.presentation_subtitles.find_one(
+                query, sort=[("version", -1)]
+            )
+        else:
+            query["version"] = int(version)
+            subtitle = get_mongodb_service().db.presentation_subtitles.find_one(query)
+
+        if not subtitle:
+            raise HTTPException(404, "Subtitles not found for audio")
+
+        # Get audio files
+        cursor = (
+            get_mongodb_service()
+            .db.presentation_audio.find(
+                {
+                    "presentation_id": presentation_id,
+                    "subtitle_id": str(subtitle["_id"]),
+                }
+            )
+            .sort("slide_index", 1)
+        )
+
+        audio_files = []
+        for doc in cursor:
+            doc["_id"] = str(doc["_id"])
+            audio_files.append(PresentationAudio(**doc))
+
+        return {"success": True, "audio_files": audio_files}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get public audio: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get public audio: {str(e)}")

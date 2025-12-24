@@ -421,3 +421,239 @@ class LibraryAudioListResponse(BaseModel):
     audio_files: List[LibraryAudioItem] = Field(..., description="List of audio files")
     total_count: int = Field(..., description="Total number of files")
     has_more: bool = Field(..., description="More results available")
+
+
+# ============================================================
+# MULTI-LANGUAGE NARRATION SYSTEM (Option 1)
+# ============================================================
+
+
+class SubtitleEntryV2(BaseModel):
+    """Single subtitle entry for multi-language system"""
+
+    text: str = Field(..., description="Subtitle text")
+    element_references: Union[str, Dict, List[Union[str, Dict]]] = Field(
+        default="", description="Element IDs referenced"
+    )
+    timestamp: Optional[float] = Field(None, description="Timestamp in seconds")
+
+    @field_validator("element_references", mode="before")
+    @classmethod
+    def normalize_element_references_v2(cls, v):
+        """Normalize element_references to string or list"""
+        if not v:
+            return ""
+        if isinstance(v, str):
+            return v
+        if isinstance(v, dict):
+            return v.get("content", v.get("id", str(v)))
+        if isinstance(v, list):
+            normalized = []
+            for item in v:
+                if isinstance(item, str):
+                    normalized.append(item)
+                elif isinstance(item, dict):
+                    normalized.append(item.get("content", item.get("id", str(item))))
+                else:
+                    normalized.append(str(item))
+            return normalized
+        return str(v)
+
+
+class SlideSubtitlesV2(BaseModel):
+    """Subtitles for one slide in multi-language system"""
+
+    slide_index: int = Field(..., description="Slide index")
+    subtitles: List[SubtitleEntryV2] = Field(..., description="Subtitle entries")
+
+
+class PresentationSubtitle(BaseModel):
+    """Complete subtitle document for one language + version"""
+
+    id: str = Field(..., alias="_id", description="Subtitle document ID")
+    presentation_id: str = Field(..., description="Presentation document ID")
+    user_id: str = Field(..., description="Owner user ID")
+    language: str = Field(..., description="Language code (vi, en, zh)")
+    version: int = Field(..., description="Version number for this language")
+    mode: str = Field("presentation", description="presentation | academy")
+    slides: List[SlideSubtitlesV2] = Field(..., description="Slides with subtitles")
+    status: str = Field("completed", description="completed | processing | failed")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+    class Config:
+        populate_by_name = True
+
+
+class AudioMetadata(BaseModel):
+    """Audio file metadata"""
+
+    duration_seconds: float = Field(..., description="Duration in seconds")
+    file_size_bytes: int = Field(..., description="File size in bytes")
+    format: str = Field("mp3", description="Audio format (mp3, wav)")
+    sample_rate: int = Field(44100, description="Sample rate in Hz")
+
+
+class PresentationAudio(BaseModel):
+    """Audio file for one slide in multi-language system"""
+
+    id: str = Field(..., alias="_id", description="Audio document ID")
+    presentation_id: str = Field(..., description="Presentation document ID")
+    subtitle_id: str = Field(..., description="Reference to presentation_subtitles._id")
+    user_id: str = Field(..., description="Owner user ID")
+    language: str = Field(..., description="Language code (matches subtitle)")
+    version: int = Field(..., description="Version number (matches subtitle)")
+    slide_index: int = Field(..., description="Slide index")
+    audio_url: str = Field(..., description="Storage path / CDN URL")
+    audio_metadata: AudioMetadata = Field(..., description="Audio file metadata")
+    generation_method: str = Field(
+        "ai_generated", description="ai_generated | user_uploaded"
+    )
+    voice_config: Optional[VoiceConfig] = Field(
+        None, description="Voice config if AI generated"
+    )
+    status: str = Field("ready", description="ready | processing | failed")
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+
+    class Config:
+        populate_by_name = True
+
+
+class SharingSettings(BaseModel):
+    """Sharing configuration settings"""
+
+    include_content: bool = Field(True, description="Show slide HTML content")
+    include_subtitles: bool = Field(True, description="Show subtitles")
+    include_audio: bool = Field(True, description="Provide audio playback")
+    allowed_languages: List[str] = Field(
+        default_factory=list, description="Empty = all languages"
+    )
+    default_language: str = Field("vi", description="Default language for public view")
+    require_attribution: bool = Field(True, description="Show 'Created by...'")
+
+
+class SharedWithUser(BaseModel):
+    """User with private access to presentation"""
+
+    user_id: str = Field(..., description="User ID")
+    permission: str = Field("view", description="view | comment | edit")
+    granted_at: datetime = Field(..., description="Access granted timestamp")
+
+
+class PresentationSharingConfig(BaseModel):
+    """Sharing configuration for presentation"""
+
+    id: str = Field(..., alias="_id", description="Sharing config ID")
+    presentation_id: str = Field(..., description="Presentation document ID (unique)")
+    user_id: str = Field(..., description="Owner user ID")
+    is_public: bool = Field(False, description="Public access enabled")
+    public_token: Optional[str] = Field(None, description="Unique token for public URL")
+    sharing_settings: SharingSettings = Field(..., description="Sharing settings")
+    shared_with_users: List[SharedWithUser] = Field(
+        default_factory=list, description="Private sharing"
+    )
+    access_stats: Dict[str, Any] = Field(
+        default_factory=dict, description="Access statistics"
+    )
+    created_at: datetime = Field(..., description="Creation timestamp")
+    updated_at: datetime = Field(..., description="Last update timestamp")
+    expires_at: Optional[datetime] = Field(
+        None, description="Auto-disable public access"
+    )
+
+    class Config:
+        populate_by_name = True
+
+
+# Request/Response Models for Multi-Language System
+
+
+class GenerateSubtitlesRequestV2(BaseModel):
+    """Request to generate subtitles for specific language"""
+
+    language: str = Field(..., description="Language code (vi, en, zh)")
+    mode: str = Field("presentation", description="presentation | academy")
+    user_query: Optional[str] = Field("", description="User instructions")
+
+
+class GenerateSubtitlesResponseV2(BaseModel):
+    """Response after generating subtitles"""
+
+    success: bool = Field(True, description="Success status")
+    subtitle: PresentationSubtitle = Field(
+        ..., description="Generated subtitle document"
+    )
+    points_deducted: int = Field(2, description="Points deducted")
+
+
+class ListSubtitlesResponse(BaseModel):
+    """List of subtitle versions"""
+
+    success: bool = Field(True, description="Success status")
+    subtitles: List[PresentationSubtitle] = Field(..., description="Subtitle documents")
+    total_count: int = Field(..., description="Total count")
+
+
+class GenerateAudioRequestV2(BaseModel):
+    """Request to generate audio for subtitle"""
+
+    voice_config: VoiceConfig = Field(..., description="Voice configuration")
+
+
+class GenerateAudioResponseV2(BaseModel):
+    """Response after generating audio"""
+
+    success: bool = Field(True, description="Success status")
+    audio_files: List[PresentationAudio] = Field(
+        ..., description="Generated audio files"
+    )
+    points_deducted: int = Field(2, description="Points deducted")
+
+
+class UploadAudioRequest(BaseModel):
+    """Request to upload audio file"""
+
+    slide_index: int = Field(..., description="Slide index")
+    audio_file: str = Field(..., description="Base64 encoded audio or file path")
+    audio_metadata: AudioMetadata = Field(..., description="Audio metadata")
+
+
+class UploadAudioResponse(BaseModel):
+    """Response after uploading audio"""
+
+    success: bool = Field(True, description="Success status")
+    audio: PresentationAudio = Field(..., description="Created audio document")
+
+
+class UpdateSharingConfigRequest(BaseModel):
+    """Request to update sharing configuration"""
+
+    is_public: Optional[bool] = Field(None, description="Enable/disable public access")
+    sharing_settings: Optional[SharingSettings] = Field(
+        None, description="Sharing settings"
+    )
+
+
+class UpdateSharingConfigResponse(BaseModel):
+    """Response after updating sharing config"""
+
+    success: bool = Field(True, description="Success status")
+    config: PresentationSharingConfig = Field(..., description="Updated config")
+
+
+class PublicPresentationResponse(BaseModel):
+    """Response for public presentation view (no auth)"""
+
+    success: bool = Field(True, description="Success status")
+    presentation: Dict[str, Any] = Field(
+        ..., description="Presentation metadata + content"
+    )
+    subtitles: Optional[PresentationSubtitle] = Field(
+        None, description="Latest subtitle version"
+    )
+    audio_files: List[PresentationAudio] = Field(
+        default_factory=list, description="Audio files"
+    )
+    sharing_settings: SharingSettings = Field(..., description="Sharing settings")

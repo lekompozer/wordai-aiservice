@@ -512,6 +512,276 @@ Generate the complete narration now:"""
 
         return script
 
+    # ============================================================
+    # MULTI-LANGUAGE NARRATION SYSTEM
+    # ============================================================
+
+    async def generate_subtitles_v2(
+        self,
+        presentation_id: str,
+        language: str,
+        mode: str,
+        user_id: str,
+        user_query: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Generate subtitles for specific language (multi-language system)
+
+        Args:
+            presentation_id: Presentation document ID
+            language: Language code (vi, en, zh)
+            mode: presentation | academy
+            user_id: User ID
+            user_query: Optional user instructions
+
+        Returns:
+            Dict with subtitle_id, version, slides, etc.
+        """
+        from src.database.mongodb_service import get_mongodb_service
+
+        db = get_mongodb_service().db
+
+        # Get presentation document
+        presentation = db.documents.find_one({"_id": ObjectId(presentation_id)})
+        if not presentation:
+            raise ValueError("Presentation not found")
+
+        # Verify document type
+        if presentation.get("document_type") != "slide":
+            raise ValueError("Document is not a slide presentation")
+
+        # Get next version for this language
+        existing_subtitles = list(
+            db.presentation_subtitles.find(
+                {"presentation_id": presentation_id, "language": language}
+            ).sort("version", -1)
+        )
+        next_version = existing_subtitles[0]["version"] + 1 if existing_subtitles else 1
+
+        # Parse slides from content_html
+        content_html = presentation.get("content_html", "")
+        slides = self._parse_slides_from_html(content_html)
+
+        if not slides:
+            raise ValueError("No slides found in presentation")
+
+        # Generate subtitles using Gemini
+        slides_with_subtitles = await self.generate_subtitles(
+            slides=slides,
+            mode=mode,
+            language=language,
+            user_query=user_query,
+        )
+
+        # Create subtitle document
+        subtitle_doc = {
+            "presentation_id": presentation_id,
+            "user_id": user_id,
+            "language": language,
+            "version": next_version,
+            "mode": mode,
+            "slides": slides_with_subtitles,
+            "status": "completed",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+            "metadata": {
+                "total_slides": len(slides_with_subtitles),
+                "word_count": sum(
+                    len(sub["text"].split())
+                    for slide in slides_with_subtitles
+                    for sub in slide.get("subtitles", [])
+                ),
+            },
+        }
+
+        result = db.presentation_subtitles.insert_one(subtitle_doc)
+        subtitle_doc["_id"] = str(result.inserted_id)
+
+        return subtitle_doc
+
+    async def generate_audio_v2(
+        self,
+        subtitle_id: str,
+        voice_config: Dict,
+        user_id: str,
+    ) -> List[Dict[str, Any]]:
+        """
+        Generate audio for subtitle document (multi-language system)
+
+        Args:
+            subtitle_id: Subtitle document ID
+            voice_config: Voice configuration dict
+            user_id: User ID
+
+        Returns:
+            List of audio documents created
+        """
+        from src.database.mongodb_service import get_mongodb_service
+        from src.services.library_audio_service import LibraryAudioService
+        from src.services.tts.google_tts_service import GoogleTTSService
+
+        db = get_mongodb_service().db
+        library_audio_service = LibraryAudioService()
+        tts_service = GoogleTTSService()
+
+        # Get subtitle document
+        subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(subtitle_id)})
+        if not subtitle:
+            raise ValueError("Subtitle document not found")
+
+        # Verify ownership
+        if subtitle["user_id"] != user_id:
+            raise ValueError("Unauthorized access to subtitle document")
+
+        # Extract data
+        presentation_id = subtitle["presentation_id"]
+        language = subtitle["language"]
+        version = subtitle["version"]
+        slides = subtitle.get("slides", [])
+
+        audio_documents = []
+
+        # Generate audio for each slide
+        for slide in slides:
+            slide_index = slide["slide_index"]
+            subtitles = slide.get("subtitles", [])
+
+            if not subtitles:
+                continue
+
+            # Convert to TTS script
+            script = self._convert_subtitles_to_script(subtitles)
+
+            # Generate audio using TTS
+            audio_data = await tts_service.generate_audio(
+                script=script, voice_config=voice_config
+            )
+
+            # Upload to library_audio (existing behavior)
+            library_audio = await library_audio_service.upload_audio(
+                user_id=user_id,
+                file_name=f"narration_{presentation_id}_slide_{slide_index}_{language}_v{version}.mp3",
+                audio_data=audio_data["audio_bytes"],
+                duration=audio_data["duration"],
+                source_type="slide_narration",
+                metadata={
+                    "presentation_id": presentation_id,
+                    "subtitle_id": subtitle_id,
+                    "language": language,
+                    "version": version,
+                    "slide_index": slide_index,
+                },
+            )
+
+            # Create presentation_audio document
+            audio_doc = {
+                "presentation_id": presentation_id,
+                "subtitle_id": subtitle_id,
+                "user_id": user_id,
+                "language": language,
+                "version": version,
+                "slide_index": slide_index,
+                "audio_url": library_audio["r2_url"],
+                "audio_metadata": {
+                    "duration_seconds": audio_data["duration"],
+                    "file_size_bytes": len(audio_data["audio_bytes"]),
+                    "format": "mp3",
+                    "sample_rate": 44100,
+                },
+                "generation_method": "ai_generated",
+                "voice_config": voice_config,
+                "status": "ready",
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+
+            result = db.presentation_audio.insert_one(audio_doc)
+            audio_doc["_id"] = str(result.inserted_id)
+            audio_documents.append(audio_doc)
+
+        return audio_documents
+
+    async def upload_audio(
+        self,
+        subtitle_id: str,
+        slide_index: int,
+        audio_file_data: bytes,
+        audio_metadata: Dict,
+        user_id: str,
+    ) -> Dict[str, Any]:
+        """
+        Upload user-provided audio file
+
+        Args:
+            subtitle_id: Subtitle document ID
+            slide_index: Slide index
+            audio_file_data: Audio file bytes
+            audio_metadata: Audio metadata (duration, format, etc.)
+            user_id: User ID
+
+        Returns:
+            Audio document created
+        """
+        from src.database.mongodb_service import get_mongodb_service
+        from src.services.library_audio_service import LibraryAudioService
+
+        db = get_mongodb_service().db
+        library_audio_service = LibraryAudioService()
+
+        # Get subtitle document
+        subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(subtitle_id)})
+        if not subtitle:
+            raise ValueError("Subtitle document not found")
+
+        # Verify ownership
+        if subtitle["user_id"] != user_id:
+            raise ValueError("Unauthorized access to subtitle document")
+
+        # Extract data
+        presentation_id = subtitle["presentation_id"]
+        language = subtitle["language"]
+        version = subtitle["version"]
+
+        # Upload to library_audio
+        file_format = audio_metadata.get("format", "mp3")
+        library_audio = await library_audio_service.upload_audio(
+            user_id=user_id,
+            file_name=f"uploaded_{presentation_id}_slide_{slide_index}_{language}_v{version}.{file_format}",
+            audio_data=audio_file_data,
+            duration=audio_metadata["duration_seconds"],
+            source_type="slide_narration",
+            metadata={
+                "presentation_id": presentation_id,
+                "subtitle_id": subtitle_id,
+                "language": language,
+                "version": version,
+                "slide_index": slide_index,
+                "uploaded": True,
+            },
+        )
+
+        # Create presentation_audio document
+        audio_doc = {
+            "presentation_id": presentation_id,
+            "subtitle_id": subtitle_id,
+            "user_id": user_id,
+            "language": language,
+            "version": version,
+            "slide_index": slide_index,
+            "audio_url": library_audio["r2_url"],
+            "audio_metadata": audio_metadata,
+            "generation_method": "user_uploaded",
+            "voice_config": None,
+            "status": "ready",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+
+        result = db.presentation_audio.insert_one(audio_doc)
+        audio_doc["_id"] = str(result.inserted_id)
+
+        return audio_doc
+
 
 # Singleton instance
 _slide_narration_service = None

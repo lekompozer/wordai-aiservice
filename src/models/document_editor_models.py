@@ -5,8 +5,23 @@ Supports both file-based documents and created-from-scratch documents
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List, Dict
 from datetime import datetime
+
+
+class NarrationInfo(BaseModel):
+    """Multi-language narration info for DocumentResponse"""
+
+    total_languages: int = Field(0, description="Number of languages with narrations")
+    languages: List[str] = Field(
+        default_factory=list, description="Language codes (vi, en, zh)"
+    )
+    latest_versions: Dict[str, int] = Field(
+        default_factory=dict, description="Latest version per language"
+    )
+    has_audio: Dict[str, bool] = Field(
+        default_factory=dict, description="Audio availability per language"
+    )
 
 
 class DocumentCreate(BaseModel):
@@ -80,8 +95,13 @@ class DocumentResponse(BaseModel):
     )
     outline_id: Optional[str] = None  # ✅ Reference to original analysis (optional)
     has_outline: bool = False  # ✅ Quick check if outline exists (for frontend button)
-    has_narration: bool = False  # ✅ Quick check if narrations exist (for frontend UI)
-    narration_count: int = 0  # ✅ Number of narration versions available
+
+    # Multi-language narration support
+    narration_info: Optional[NarrationInfo] = None  # ✅ Multi-language narration info
+
+    # Deprecated fields (backward compatibility)
+    has_narration: bool = False  # ⚠️ Deprecated: use narration_info instead
+    narration_count: int = 0  # ⚠️ Deprecated: use narration_info.total_languages instead
 
 
 class DocumentListItem(BaseModel):
