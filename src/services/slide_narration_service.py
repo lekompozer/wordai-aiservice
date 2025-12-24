@@ -684,12 +684,20 @@ Generate the complete narration now:"""
             if not subtitles:
                 continue
 
-            # Convert to TTS script
+            # Convert to TTS script dict
             script = self._convert_subtitles_to_script(subtitles)
+
+            # Convert script dict to plain text for TTS
+            full_text = ""
+            for line in script["lines"]:
+                speaker_idx = line["speaker"]
+                speaker_role = script["speaker_roles"][speaker_idx]
+                text = line["text"]
+                full_text += f"{speaker_role}: {text}\n\n"
 
             # Generate audio using TTS
             audio_data, metadata = await tts_service.generate_audio(
-                text=script,
+                text=full_text,
                 language=language,
                 voice_name=voice_name,
                 use_pro_model=use_pro_model,
