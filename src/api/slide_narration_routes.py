@@ -259,8 +259,10 @@ async def generate_subtitles(
         # Deduct points AFTER successful generation
         await points_service.deduct_points(
             user_id=user_id,
-            points=POINTS_COST_SUBTITLE,
-            reason=f"slide_narration_subtitles:{narration_id}",
+            amount=POINTS_COST_SUBTITLE,
+            service="slide_narration",
+            resource_id=narration_id,
+            description=f"Subtitle generation for presentation {presentation_id}",
         )
 
         logger.info(
@@ -401,8 +403,10 @@ async def generate_audio(
         # Deduct points AFTER successful generation
         await points_service.deduct_points(
             user_id=user_id,
-            points=POINTS_COST_AUDIO,
-            reason=f"slide_narration_audio:{narration_id}",
+            amount=POINTS_COST_AUDIO,
+            service="slide_narration_audio",
+            resource_id=narration_id,
+            description=f"Audio generation for narration {narration_id}",
         )
 
         logger.info(
