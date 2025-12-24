@@ -39,10 +39,12 @@ class SlideNarrationService:
 
         # Initialize R2 and library services (same as listening test)
         from src.services.r2_storage_service import get_r2_service
-        from src.services.library_manager import get_library_manager
+        from src.services.library_manager import LibraryManager
+        from src.database.db_manager import DBManager
 
         self.r2_service = get_r2_service()
-        self.library_manager = get_library_manager()
+        db_manager = DBManager()
+        self.library_manager = LibraryManager(db=db_manager.db, s3_client=self.r2_service.s3_client)
 
     def _extract_slide_content(self, html: str) -> Dict[str, Any]:
         """
@@ -642,12 +644,12 @@ Generate the complete narration now:"""
         from src.database.db_manager import DBManager
         from src.services.tts.google_tts_service import GoogleTTSService
         from src.services.r2_storage_service import get_r2_service
-        from src.services.library_manager import get_library_manager
+        from src.services.library_manager import LibraryManager
 
         db_manager = DBManager()
         db = db_manager.db
         r2_service = get_r2_service()
-        library_manager = get_library_manager()
+        library_manager = LibraryManager(db=db, s3_client=r2_service.s3_client)
         tts_service = GoogleTTSService()
 
         # Get subtitle document
@@ -765,12 +767,12 @@ Generate the complete narration now:"""
         """
         from src.database.db_manager import DBManager
         from src.services.r2_storage_service import get_r2_service
-        from src.services.library_manager import get_library_manager
+        from src.services.library_manager import LibraryManager
 
         db_manager = DBManager()
         db = db_manager.db
         r2_service = get_r2_service()
-        library_manager = get_library_manager()
+        library_manager = LibraryManager(db=db, s3_client=r2_service.s3_client)
 
         # Get subtitle document
         subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(subtitle_id)})
