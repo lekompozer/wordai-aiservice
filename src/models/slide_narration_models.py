@@ -3,8 +3,8 @@ Pydantic models for Slide Narration API
 2-step flow: Subtitles (2 points) → Audio (2 points)
 """
 
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 
 
@@ -22,9 +22,27 @@ class SubtitleEntry(BaseModel):
     duration: float = Field(..., description="Duration in seconds")
     text: str = Field(..., description="Subtitle text")
     speaker_index: int = Field(0, description="Speaker index (for multi-voice)")
-    element_references: List[str] = Field(
+    element_references: List[Union[str, Dict[str, Any]]] = Field(
         default_factory=list, description="Element IDs referenced in this subtitle"
     )
+
+    @field_validator("element_references", mode="before")
+    @classmethod
+    def normalize_element_references(cls, v):
+        """Normalize element_references to list of strings"""
+        if not v:
+            return []
+
+        normalized = []
+        for item in v:
+            if isinstance(item, str):
+                normalized.append(item)
+            elif isinstance(item, dict):
+                # Extract 'content' field from dict (handle Gemini's format)
+                normalized.append(item.get("content", item.get("id", str(item))))
+            else:
+                normalized.append(str(item))
+        return normalized
 
 
 class SlideSubtitleData(BaseModel):

@@ -277,10 +277,12 @@ SLIDES CONTENT (Including Visual Elements):
 {style_instructions}
 
 IMPORTANT - Element References:
-- When narrating, REFERENCE visual elements when appropriate
-- Example: "As you can see in the diagram on the left..." (for shape/image)
-- Example: "Notice the three icons representing..." (for icons)
-- Include element_references array in subtitle JSON for animation sync
+- When narrating, reference visual elements ONLY when truly important to understanding
+- AVOID mentioning decorative icons/emojis (🎯, 🚀, ⚙️, etc.) - focus on meaningful diagrams/images
+- element_references should be SIMPLE STRINGS (element IDs), NOT objects
+- Example CORRECT: "element_references": ["elem_0", "elem_1"]
+- Example WRONG: "element_references": [{"type": "icon", "content": "🚀"}]
+- Keep element_references minimal - only include when you explicitly reference that element in narration text
 
 TIMING GUIDELINES:
 - Speaking rate: ~150 words per minute (presentation) or ~130 wpm (academy)
@@ -311,6 +313,15 @@ OUTPUT FORMAT (JSON):
           "text": "As shown in this diagram, the process has three main stages.",
           "speaker_index": 0,
           "element_references": ["elem_0"]
+        }},
+        {{
+          "subtitle_index": 2,
+          "start_time": 8.5,
+          "end_time": 11.0,
+          "duration": 2.5,
+          "text": "Let's explore each stage in detail.",
+          "speaker_index": 0,
+          "element_references": []
         }}
       ]
     }}
@@ -324,8 +335,9 @@ REQUIREMENTS:
 4. Ensure timestamps don't overlap within each slide
 5. Match narration style to mode (presentation vs academy)
 6. Make content engaging and easy to follow
-7. Reference visual elements when appropriate
-8. Include element_references array when mentioning visual elements
+7. Reference visual elements SPARINGLY - only meaningful diagrams/images, not decorative icons
+8. element_references MUST be simple string array like ["elem_0"], NOT objects
+9. Leave element_references EMPTY ([]) for most subtitles - only populate when explicitly referencing an element in the narration text
 
 Generate the complete narration now:"""
 
