@@ -142,6 +142,8 @@ class FirebaseAuth:
             HTTPException: If no token or invalid token
         """
         logger.info(f"🔐 AUTH CHECK: {request.method} {request.url.path}")
+        logger.info(f"🍪 Cookies: {list(request.cookies.keys())}")
+        logger.info(f"📋 Headers Authorization: {request.headers.get('authorization', 'NOT FOUND')[:50] if request.headers.get('authorization') else 'NOT FOUND'}")
 
         # 🔄 PRIORITY 1: Check session cookie first (24h, highest priority)
         session_cookie = request.cookies.get("session")
