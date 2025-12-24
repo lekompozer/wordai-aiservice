@@ -149,8 +149,49 @@ When updating existing code:
 - [ ] Update import: `from src.database.db_manager import DBManager`
 - [ ] Change `db = get_mongodb_service()` to `db_manager = DBManager(); db = db_manager.db`
 - [ ] Remove `.db` suffix if using old pattern: `get_mongodb_service().db` → `db_manager.db`
+- [ ] If using `get_mongodb()` from config.config: Use `DBManager()` instead
+- [ ] If undefined `db` variable: Use `doc_manager.db` or create `DBManager()`
 - [ ] Test database operations still work
 - [ ] Commit with message: `fix: Use DBManager pattern for MongoDB connection`
+
+#### 🐛 Common Migration Errors & Fixes
+
+**Error: `name 'get_mongodb_service' is not defined`**
+```python
+# ❌ WRONG - Missing import or using in wrong context
+cursor = get_mongodb_service().db.slide_narrations.find(...)
+
+# ✅ CORRECT - Use existing db variable (already initialized globally)
+# In most API files: db = DBManager().db at top
+cursor = db.slide_narrations.find(...)
+
+# ✅ ALTERNATIVE - If no global db, create DBManager
+db_manager = DBManager()
+cursor = db_manager.db.slide_narrations.find(...)
+```
+
+**Error: `name 'db' is not defined`**
+```python
+# ❌ WRONG - Using undefined db variable
+narration_count = db.slide_narrations.count_documents(...)
+
+# ✅ CORRECT - Use manager's db instance
+# If you have doc_manager already:
+narration_count = doc_manager.db.slide_narrations.count_documents(...)
+
+# If you have db_manager already:
+narration_count = db_manager.db.slide_narrations.count_documents(...)
+```
+
+**Error: `ModuleNotFoundError: No module named 'src.database.mongodb_service'`**
+```python
+# ❌ WRONG - Non-existent module
+from src.database.mongodb_service import get_mongodb_service
+
+# ✅ CORRECT - Use DBManager
+from src.database.db_manager import DBManager
+db_manager = DBManager()
+```
 
 #### 🔍 Examples from Production Code
 
@@ -277,6 +318,39 @@ library_id = library_manager.save_library_file(
 # This function does NOT exist in library_manager.py:
 from src.services.library_manager import get_library_manager  # ❌ NO SUCH FUNCTION
 library_manager = get_library_manager()  # ❌ ImportError
+```
+
+**🐛 Common LibraryManager Errors:**
+
+**Error: `ImportError: cannot import name 'get_library_manager'`**
+```python
+# ❌ WRONG - No singleton function exists
+from src.services.library_manager import get_library_manager
+library_manager = get_library_manager()
+
+# ✅ CORRECT - Create instance with dependencies
+from src.services.library_manager import LibraryManager
+from src.database.db_manager import DBManager
+from src.services.r2_storage_service import get_r2_service
+
+db_manager = DBManager()
+r2_service = get_r2_service()
+library_manager = LibraryManager(
+    db=db_manager.db,
+    s3_client=r2_service.s3_client
+)
+```
+
+**Error: `TypeError: __init__() missing required positional argument: 's3_client'`**
+```python
+# ❌ WRONG - Missing s3_client parameter
+library_manager = LibraryManager(db=db)
+
+# ✅ CORRECT - Both db and s3_client required
+library_manager = LibraryManager(
+    db=db_manager.db,
+    s3_client=r2_service.s3_client
+)
 ```
 
 **Complete Example (Slide Narration Service):**
@@ -1198,7 +1272,250 @@ fully_graded (all graded)
 
 ---
 
-## 📚 Related Documentation
+## � Queue Manager Patterns
+
+### ✅ CORRECT: Queue-Based Background Processing
+
+**Redis Queue System** (for long-running tasks like AI generation, audio processing):
+
+```python
+from src.queue.queue_dependencies import (
+    get_slide_narration_audio_queue,
+    get_slide_generation_queue,
+    get_chapter_translation_queue,
+    get_ai_editor_queue
+)
+from src.models.ai_queue_tasks import SlideNarrationAudioTask, SlideGenerationTask
+
+# In API route - Queue a background task
+async def generate_audio_endpoint(request: AudioRequest):
+    # 1. Create job in MongoDB
+    job_id = str(uuid.uuid4())
+    db.narration_audio_jobs.insert_one({
+        "_id": job_id,
+        "status": "queued",
+        "user_id": user_id,
+        "created_at": datetime.utcnow()
+    })
+
+    # 2. Create task model
+    task = SlideNarrationAudioTask(
+        task_id=job_id,
+        job_id=job_id,
+        user_id=user_id,
+        presentation_id=presentation_id,
+        subtitle_id=subtitle_id,
+        voice_config=request.voice_config.dict()
+    )
+
+    # 3. Enqueue task - ✅ CORRECT method
+    queue = await get_slide_narration_audio_queue()
+    success = await queue.enqueue_generic_task(task)
+
+    if not success:
+        raise HTTPException(500, "Failed to queue task")
+
+    # 4. Return job_id for polling
+    return {"job_id": job_id, "status": "queued"}
+```
+
+### ❌ INCORRECT: Queue Patterns
+
+```python
+# ❌ WRONG - enqueue() does not exist
+await queue.enqueue(job_id, task.dict())
+# Error: 'QueueManager' object has no attribute 'enqueue'
+
+# ❌ WRONG - enqueue_task() is for IngestionTask only
+await queue.enqueue_task(task)
+# Use enqueue_generic_task() for BaseModel tasks
+
+# ❌ WRONG - Not checking success
+await queue.enqueue_generic_task(task)
+# Always check: success = await queue.enqueue_generic_task(task)
+```
+
+### 📋 Queue Method Reference
+
+| Method | Use Case | Parameter Type |
+|--------|----------|----------------|
+| `enqueue_generic_task(task)` | ✅ Most tasks (AI, audio, slides) | `BaseModel` |
+| `enqueue_task(task)` | Document ingestion only | `IngestionTask` |
+| `dequeue_task(batch_size)` | Worker processing | Returns `List[Task]` |
+
+### 🔄 Queue-Based Flow Pattern
+
+**1. API Endpoint (Immediate Return)**
+```python
+@router.post("/generate")
+async def start_generation(request: Request):
+    # Create job + enqueue
+    job_id = create_job()
+    task = GenerationTask(...)
+    await queue.enqueue_generic_task(task)
+    return {"job_id": job_id, "status": "queued"}
+```
+
+**2. Polling Endpoint (Check Status)**
+```python
+@router.get("/status/{job_id}")
+async def check_status(job_id: str):
+    job = db.jobs.find_one({"_id": job_id})
+    if job["status"] == "completed":
+        return {"status": "completed", "result": job["result"]}
+    return {"status": job["status"]}
+```
+
+**3. Worker (Background Processing with Redis Status)**
+```python
+from src.queue.queue_manager import set_job_status
+
+async def run():
+    while True:
+        task_data = await queue.dequeue_generic_task(worker_id=worker_id, timeout=5)
+
+        if not task_data:
+            await asyncio.sleep(2)
+            continue
+
+        job_id = task_data["job_id"]
+
+        # ✅ CRITICAL: Update Redis status for realtime polling
+        await set_job_status(
+            redis_client=self.queue_manager.redis_client,  # ← MUST be first param
+            job_id=job_id,
+            status="processing",
+            user_id=task_data["user_id"],
+            started_at=datetime.utcnow().isoformat(),
+        )
+
+        # Also update MongoDB for persistence
+        db.jobs.update_one(
+            {"_id": job_id},
+            {"$set": {"status": "processing"}}
+        )
+
+        try:
+            # Process task
+            result = await process_task(task_data)
+
+            # ✅ Update Redis: completed
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="completed",
+                user_id=task_data["user_id"],
+                result=result,
+            )
+
+            # Update MongoDB
+            db.jobs.update_one(
+                {"_id": job_id},
+                {"$set": {"status": "completed", "result": result}}
+            )
+
+        except Exception as e:
+            # ✅ Update Redis: failed
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="failed",
+                user_id=task_data["user_id"],
+                error=str(e),
+            )
+
+            db.jobs.update_one(
+                {"_id": job_id},
+                {"$set": {"status": "failed", "error": str(e)}}
+            )
+```
+
+**⚠️ CRITICAL: Redis Status Updates**
+
+**Why Update Redis:**
+- Frontend polls Redis every 2s for realtime status
+- MongoDB too slow for realtime updates
+- Redis has TTL (auto-cleanup old jobs)
+
+**❌ WRONG: Only MongoDB**
+```python
+# Frontend won't see updates!
+db.jobs.update_one({"_id": job_id}, {"$set": {"status": "processing"}})
+```
+
+**✅ CORRECT: Both Redis (realtime) + MongoDB (persistence)**
+```python
+await set_job_status(redis_client=self.queue_manager.redis_client, ...)
+db.jobs.update_one(...)
+```
+
+### 🎯 Common Queue Issues & Fixes
+
+**Issue 1: AttributeError: 'QueueManager' object has no attribute 'enqueue'**
+```python
+# ❌ WRONG
+await queue.enqueue(job_id, task.dict())
+
+# ✅ CORRECT
+success = await queue.enqueue_generic_task(task)
+```
+
+**Issue 2: Task not processing in worker**
+```python
+# Check queue name matches
+# API: get_slide_narration_audio_queue() → queue: slide_narration_audio
+# Worker: QueueManager("slide_narration_audio") → same queue name
+
+# Verify worker is running
+docker ps | grep narration-audio-worker
+```
+
+**Issue 3: Job stuck in "queued" status**
+```python
+# Check worker logs
+docker logs slide-narration-audio-worker -f
+
+# Verify Redis connection
+docker exec redis-server redis-cli KEYS "slide_narration_audio*"
+```
+
+**Issue 4: AttributeError: 'QueueManager' object has no attribute 'redis'**
+```python
+# ❌ WRONG - Attribute name is redis_client
+await set_job_status(
+    redis_client=self.queue_manager.redis,  # ❌ NO 'redis' attribute
+    ...
+)
+
+# ✅ CORRECT - Use redis_client
+await set_job_status(
+    redis_client=self.queue_manager.redis_client,  # ✅ Correct attribute
+    job_id=job_id,
+    status="processing",
+    user_id=user_id,
+)
+```
+
+**Issue 5: TypeError: set_job_status() got multiple values for argument 'redis_client'**
+```python
+# ❌ WRONG - redis_client must be FIRST positional argument
+await set_job_status(
+    job_id=job_id,
+    status="processing",
+    redis_client=self.queue_manager.redis_client,  # ❌ Wrong order
+)
+
+# ✅ CORRECT - redis_client FIRST
+await set_job_status(
+    redis_client=self.queue_manager.redis_client,  # ✅ First param
+    job_id=job_id,
+    status="processing",
+    user_id=user_id,
+)
+
+---
+
+## �📚 Related Documentation
 
 - **Question Types:** See `QUESTION_TYPES_JSON_SCHEMA.md`
 - **API Docs:** Available at `/docs` endpoint

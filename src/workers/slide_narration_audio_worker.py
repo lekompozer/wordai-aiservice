@@ -98,12 +98,15 @@ class SlideNarrationAudioWorker:
             logger.info(f"🎵 Processing audio job {job_id}")
             logger.info(f"   Subtitle: {task.subtitle_id}")
 
-            # Update status to processing
+            # Update status to processing (Redis for realtime polling)
             await set_job_status(
+                redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
                 status="processing",
-                redis_client=self.queue_manager.redis,
-                progress={"stage": "generating_audio", "completed_slides": 0},
+                user_id=task.user_id,
+                presentation_id=task.presentation_id,
+                subtitle_id=task.subtitle_id,
+                started_at=start_time.isoformat(),
             )
 
             self.mongo.db.narration_audio_jobs.update_one(
@@ -124,15 +127,14 @@ class SlideNarrationAudioWorker:
                 user_id=task.user_id,
             )
 
-            # Mark as completed
+            # Mark as completed (Redis for realtime polling)
             await set_job_status(
+                redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
                 status="completed",
-                redis_client=self.queue_manager.redis,
-                result={
-                    "audio_count": len(audio_docs),
-                    "audio_ids": [str(doc["_id"]) for doc in audio_docs],
-                },
+                user_id=task.user_id,
+                audio_count=len(audio_docs),
+                audio_ids=[str(doc["_id"]) for doc in audio_docs],
             )
 
             self.mongo.db.narration_audio_jobs.update_one(
@@ -156,11 +158,12 @@ class SlideNarrationAudioWorker:
         except Exception as e:
             logger.error(f"❌ Audio job {job_id} failed: {e}", exc_info=True)
 
-            # Update status to failed
+            # Update status to failed (Redis for realtime polling)
             await set_job_status(
+                redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
                 status="failed",
-                redis_client=self.queue_manager.redis,
+                user_id=task.user_id,
                 error=str(e),
             )
 
