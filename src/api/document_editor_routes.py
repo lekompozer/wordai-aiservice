@@ -1177,7 +1177,6 @@ async def get_document(
             f"has_narration={response.has_narration}, narration_count={response.narration_count}, "
             f"has_outline={response.has_outline}"
         )
-        logger.info(f"📦 [RAW_RESPONSE_JSON] {response_dict}")
 
         return response
 
