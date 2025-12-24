@@ -676,7 +676,11 @@ Generate the complete narration now:"""
 
         audio_documents = []
 
-        # Generate audio for each slide
+        # Combine all slides into one text for single TTS call
+        combined_text = ""
+        slide_markers = []  # Track slide boundaries for timestamps
+        current_char_count = 0
+        
         for slide in slides:
             slide_index = slide["slide_index"]
             subtitles = slide.get("subtitles", [])
@@ -687,80 +691,129 @@ Generate the complete narration now:"""
             # Convert to TTS script dict
             script = self._convert_subtitles_to_script(subtitles)
 
+            # Add slide marker for timestamp tracking
+            slide_start_char = current_char_count
+            
             # Convert script dict to plain text for TTS
-            full_text = ""
+            slide_text = f"Slide {slide_index + 1}. "  # Add slide number
             for line in script["lines"]:
                 speaker_idx = line["speaker"]
                 speaker_role = script["speaker_roles"][speaker_idx]
                 text = line["text"]
-                full_text += f"{speaker_role}: {text}\n\n"
+                slide_text += f"{speaker_role}: {text}. "
+            
+            slide_text += "\n\n"  # Pause between slides
+            
+            slide_markers.append({
+                "slide_index": slide_index,
+                "start_char": slide_start_char,
+                "end_char": current_char_count + len(slide_text),
+                "text_length": len(slide_text)
+            })
+            
+            combined_text += slide_text
+            current_char_count += len(slide_text)
 
-            # Generate audio using TTS
-            audio_data, metadata = await tts_service.generate_audio(
-                text=full_text,
-                language=language,
-                voice_name=voice_name,
-                use_pro_model=use_pro_model,
-            )
+        if not combined_text.strip():
+            raise ValueError("No subtitle content to generate audio")
 
-            # Upload to R2 and library_audio
-            file_name = f"narration_{presentation_id}_slide_{slide_index}_{language}_v{version}.mp3"
-            r2_key = f"narration/{user_id}/{presentation_id}/slide_{slide_index}_{language}_v{version}.mp3"
+        logger.info(f"🎤 Generating single audio file for {len(slide_markers)} slides")
+        logger.info(f"   Total text length: {len(combined_text)} characters")
 
-            upload_result = await r2_service.upload_file(
-                file_content=audio_data,
-                r2_key=r2_key,
-                content_type="audio/mpeg",
-            )
-            audio_url = upload_result["public_url"]
+        # Generate audio using TTS - ONE CALL for entire presentation
+        audio_data, metadata = await tts_service.generate_audio(
+            text=combined_text,
+            language=language,
+            voice_name=voice_name,
+            use_pro_model=use_pro_model,
+        )
 
-            library_audio = library_manager.save_library_file(
-                user_id=user_id,
-                filename=file_name,
-                file_type="audio",
-                category="audio",
-                r2_url=audio_url,
-                r2_key=r2_key,
-                file_size=len(audio_data),
-                mime_type="audio/mpeg",
-                metadata={
-                    "source_type": "slide_narration",
-                    "presentation_id": presentation_id,
-                    "subtitle_id": subtitle_id,
-                    "language": language,
-                    "version": version,
-                    "slide_index": slide_index,
-                    "duration_seconds": metadata.get("duration", 0),
-                },
-            )
+        # Upload single audio file to R2 and library_audio
+        file_name = f"narration_{presentation_id}_{language}_v{version}_full.mp3"
+        r2_key = f"narration/{user_id}/{presentation_id}/{language}_v{version}_full.mp3"
 
-            # Create presentation_audio document
-            audio_doc = {
+        upload_result = await r2_service.upload_file(
+            file_content=audio_data,
+            r2_key=r2_key,
+            content_type="audio/mpeg",
+        )
+        audio_url = upload_result["public_url"]
+
+        total_duration = metadata.get("duration", 0)
+        
+        # Estimate timestamps based on character count proportions
+        slide_timestamps = []
+        for marker in slide_markers:
+            # Proportional duration based on text length
+            char_ratio = marker["text_length"] / len(combined_text) if combined_text else 0
+            slide_duration = total_duration * char_ratio
+            
+            # Start time is sum of previous durations
+            start_time = sum(ts["duration"] for ts in slide_timestamps)
+            
+            slide_timestamps.append({
+                "slide_index": marker["slide_index"],
+                "start_time": start_time,
+                "duration": slide_duration,
+                "end_time": start_time + slide_duration
+            })
+
+        library_audio = library_manager.save_library_file(
+            user_id=user_id,
+            filename=file_name,
+            file_type="audio",
+            category="audio",
+            r2_url=audio_url,
+            r2_key=r2_key,
+            file_size=len(audio_data),
+            mime_type="audio/mpeg",
+            metadata={
+                "source_type": "slide_narration",
                 "presentation_id": presentation_id,
                 "subtitle_id": subtitle_id,
-                "user_id": user_id,
                 "language": language,
                 "version": version,
-                "slide_index": slide_index,
-                "audio_url": audio_url,
-                "audio_metadata": {
-                    "duration_seconds": metadata.get("duration", 0),
-                    "file_size_bytes": len(audio_data),
-                    "format": "wav",
-                    "sample_rate": metadata.get("sample_rate", 24000),
-                    "voice_name": metadata.get("voice_name", voice_name),
-                    "model": metadata.get("model", "gemini-2.5-flash-preview-tts"),
-                },
-                "generation_method": "ai_generated",
-                "voice_config": voice_config,
-                "status": "ready",
-                "created_at": datetime.utcnow(),
-                "updated_at": datetime.utcnow(),
-            }
+                "total_slides": len(slide_markers),
+                "total_duration_seconds": total_duration,
+                "slide_timestamps": slide_timestamps,  # For frontend to slice audio
+            },
+        )
 
-            result = db.presentation_audio.insert_one(audio_doc)
-            audio_doc["_id"] = str(result.inserted_id)
-            audio_documents.append(audio_doc)
+        # Create ONE presentation_audio document with timestamps for all slides
+        audio_doc = {
+            "presentation_id": presentation_id,
+            "subtitle_id": subtitle_id,
+            "user_id": user_id,
+            "language": language,
+            "version": version,
+            "audio_url": audio_url,
+            "audio_type": "full_presentation",  # Marker for full audio
+            "slide_count": len(slide_markers),
+            "slide_timestamps": slide_timestamps,  # Timestamps for each slide
+            "audio_metadata": {
+                "duration_seconds": total_duration,
+                "file_size_bytes": len(audio_data),
+                "format": "mp3",
+                "sample_rate": metadata.get("sample_rate", 24000),
+                "voice_name": metadata.get("voice_name", voice_name),
+                "model": metadata.get("model", "gemini-2.5-flash-preview-tts"),
+            },
+            "library_audio_id": str(library_audio),
+            "generation_method": "ai_generated",
+            "voice_config": voice_config,
+            "status": "ready",
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+
+        result = db.presentation_audio.insert_one(audio_doc)
+        audio_doc["_id"] = str(result.inserted_id)
+        audio_documents.append(audio_doc)
+
+        logger.info(
+            f"✅ Generated single audio file for presentation {presentation_id}: "
+            f"{len(audio_data)} bytes, {total_duration}s, {len(slide_markers)} slides"
+        )
 
         return audio_documents
 
