@@ -26,15 +26,17 @@ services:
       - ./logs:/app/logs
       - ./chat_history.db:/app/chat_history.db
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      - ./wordai-6779e-ed6189c466f1.json:/app/gcp-service-account.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-credentials.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
 
       # AI API Keys
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEY2=${GEMINI_API_KEY2}
       - VERTEX_API_KEY=${VERTEX_API_KEY}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - CHATGPT_API_KEY=${CHATGPT_API_KEY}

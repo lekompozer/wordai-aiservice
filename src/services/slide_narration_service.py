@@ -23,12 +23,27 @@ logger = logging.getLogger("chatbot")
 
 # Initialize Gemini client
 try:
-    # Use GEMINI_API_KEY2 to avoid rate limiting
-    api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY")
-    gemini_client = genai.Client(api_key=api_key)
-    logger.info(
-        "✅ Gemini client initialized for slide narration (using GEMINI_API_KEY2)"
-    )
+    # Try Vertex AI with service account first (uses GOOGLE_APPLICATION_CREDENTIALS)
+    if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        try:
+            gemini_client = genai.Client(
+                vertexai=True, project="wordai-6779e", location="us-central1"
+            )
+            logger.info(
+                "✅ Gemini client initialized for slide narration (Vertex AI - service account)"
+            )
+        except Exception as e:
+            logger.warning(f"⚠️  Vertex AI init failed: {e}, using API key")
+            api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY")
+            gemini_client = genai.Client(api_key=api_key)
+            logger.info(
+                "✅ Gemini client initialized for slide narration (API key fallback)"
+            )
+    else:
+        # No service account, use API key
+        api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY")
+        gemini_client = genai.Client(api_key=api_key)
+        logger.info("✅ Gemini client initialized for slide narration (API key)")
 except Exception as e:
     logger.error(f"❌ Failed to initialize Gemini client: {e}")
     gemini_client = None

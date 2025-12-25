@@ -70,27 +70,38 @@ class GeminiImageEditService:
 
     def __init__(self):
         """Initialize Gemini AI Studio client and database"""
-        # Initialize Gemini AI Studio client for image editing
-        # Use GEMINI_API_KEY2 to avoid rate limiting on primary key
-        gemini_api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY")
-        if not gemini_api_key:
-            raise ValueError(
-                "GEMINI_API_KEY2 or GEMINI_API_KEY environment variable not set"
-            )
-
-        # Initialize Gemini AI Studio client
-        # Using AI Studio API (not Vertex AI) for better model availability
-        try:
-            # Using AI Studio (without vertexai=True) for global model access
-            self.client = genai.Client(
-                api_key=gemini_api_key,
-            )
-            logger.info(
-                "✅ Gemini AI Studio client initialized (using GEMINI_API_KEY2)"
-            )
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize Gemini client: {e}")
-            raise
+        # Try Vertex AI with service account first (uses GOOGLE_APPLICATION_CREDENTIALS)
+        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            try:
+                self.client = genai.Client(
+                    vertexai=True, project="wordai-6779e", location="us-central1"
+                )
+                logger.info(
+                    "✅ Gemini Image Edit initialized with Vertex AI (service account)"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"⚠️  Vertex AI init failed: {e}, falling back to API key"
+                )
+                # Fallback to API key
+                gemini_api_key = os.getenv("GEMINI_API_KEY2") or os.getenv(
+                    "GEMINI_API_KEY"
+                )
+                if not gemini_api_key:
+                    raise ValueError(
+                        "GOOGLE_APPLICATION_CREDENTIALS or GEMINI_API_KEY not set"
+                    )
+                self.client = genai.Client(api_key=gemini_api_key)
+                logger.info("✅ Gemini Image Edit initialized with API key (fallback)")
+        else:
+            # No service account, use API key
+            gemini_api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY")
+            if not gemini_api_key:
+                raise ValueError(
+                    "GOOGLE_APPLICATION_CREDENTIALS or GEMINI_API_KEY not set"
+                )
+            self.client = genai.Client(api_key=gemini_api_key)
+            logger.info("✅ Gemini Image Edit initialized with API key")
 
         # Initialize database
         db_manager = DBManager()
