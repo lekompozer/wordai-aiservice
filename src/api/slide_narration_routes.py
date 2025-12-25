@@ -470,19 +470,25 @@ async def get_latest_audio_job_status(
     try:
         user_id = current_user["uid"]
 
-        # Check if narration exists and user owns it
-        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
-        if not narration:
-            raise HTTPException(404, "Narration not found")
+        # Support both v1 (slide_narrations) and v2 (presentation_subtitles)
+        # Try v2 first (current system)
+        subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(narration_id)})
 
-        if str(narration.get("user_id")) != user_id:
-            raise HTTPException(403, "Not authorized to access this narration")
+        if not subtitle:
+            # Fallback to v1
+            subtitle = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
 
-        # Find latest job for this narration
+        if not subtitle:
+            raise HTTPException(404, "Subtitle/Narration not found")
+
+        if str(subtitle.get("user_id")) != user_id:
+            raise HTTPException(403, "Not authorized to access this subtitle")
+
+        # Find latest job for this subtitle/narration
         latest_job = db.narration_audio_jobs.find_one(
             {
                 "presentation_id": presentation_id,
-                "subtitle_id": narration_id,  # narration_id maps to subtitle_id in v2
+                "subtitle_id": narration_id,
                 "user_id": user_id,
             },
             sort=[("created_at", -1)],  # Get most recent
