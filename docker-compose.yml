@@ -16,6 +16,8 @@ services:
   ai-chatbot-rag:
     container_name: ai-chatbot-rag
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    env_file:
+      - .env
     build:
       context: .
       dockerfile: Dockerfile
