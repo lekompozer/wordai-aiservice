@@ -325,8 +325,8 @@ class GoogleTTSService:
                 },
             }
 
-            # Call REST API
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # Call REST API (TTS generation takes time, use 300s timeout)
+            async with httpx.AsyncClient(timeout=300.0) as client:
                 api_response = await client.post(
                     api_url, headers=headers, params=params, json=request_body
                 )
