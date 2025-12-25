@@ -789,15 +789,17 @@ Generate the complete narration now:"""
             chunk_bytes = chunk["bytes"]
 
             # Check if chunk already exists (from previous partial run)
-            existing_chunk = db.presentation_audio.find_one({
-                "presentation_id": presentation_id,
-                "subtitle_id": subtitle_id,
-                "user_id": user_id,
-                "language": language,
-                "version": version,
-                "chunk_index": chunk_index,
-                "status": "ready"
-            })
+            existing_chunk = db.presentation_audio.find_one(
+                {
+                    "presentation_id": presentation_id,
+                    "subtitle_id": subtitle_id,
+                    "user_id": user_id,
+                    "language": language,
+                    "version": version,
+                    "chunk_index": chunk_index,
+                    "status": "ready",
+                }
+            )
 
             if existing_chunk:
                 logger.info(
@@ -845,16 +847,22 @@ Generate the complete narration now:"""
                         logger.error(
                             f"❌ Chunk {chunk_index + 1} failed after {attempt + 1} attempts: {error_msg}"
                         )
-                        failed_chunks.append({
-                            "chunk_index": chunk_index,
-                            "error": error_msg,
-                            "slides": [s["slide_index"] for s in chunk_slides]
-                        })
+                        failed_chunks.append(
+                            {
+                                "chunk_index": chunk_index,
+                                "error": error_msg,
+                                "slides": [s["slide_index"] for s in chunk_slides],
+                            }
+                        )
                         # Continue to next chunk instead of raising
                         break
 
             # Skip rest of chunk processing if generation failed
-            if attempt == max_retries - 1 and failed_chunks and failed_chunks[-1]["chunk_index"] == chunk_index:
+            if (
+                attempt == max_retries - 1
+                and failed_chunks
+                and failed_chunks[-1]["chunk_index"] == chunk_index
+            ):
                 continue
 
             # Upload audio file
@@ -957,8 +965,22 @@ Generate the complete narration now:"""
         logger.info(
             f"✅ Generated {len(audio_documents)} audio file(s) for presentation {presentation_id}"
         )
+        # Handle partial success/failure FIRST
+        if failed_chunks:
+            success_count = len(audio_documents)
+            total_count = len(slide_chunks)
+            logger.warning(
+                f"⚠️  Partial success: {success_count}/{total_count} chunks generated. "
+                f"Failed chunks: {[f['chunk_index'] + 1 for f in failed_chunks]}"
+            )
+            # Raise with partial result info
+            raise Exception(
+                f"Partial failure: {success_count}/{total_count} chunks completed. "
+                f"Retry this job to generate remaining chunks: {[f['chunk_index'] + 1 for f in failed_chunks]}. "
+                f"Failed slides: {sum([f['slides'] for f in failed_chunks], [])}"
+            )
 
-        # 🔥 NEW: Merge chunks into single file if multiple chunks
+        # 🔥 Merge chunks into single file if ALL chunks succeeded
         if len(audio_documents) > 1:
             logger.info(
                 f"🎵 Merging {len(audio_documents)} audio chunks into 1 file..."
@@ -974,21 +996,6 @@ Generate the complete narration now:"""
             )
             # Return only the merged audio document
             return [merged_audio_doc]
-
-        # Handle partial success/failure
-        if failed_chunks:
-            success_count = len(audio_documents)
-            total_count = len(slide_chunks)
-            logger.warning(
-                f"⚠️  Partial success: {success_count}/{total_count} chunks generated. "
-                f"Failed chunks: {[f['chunk_index'] + 1 for f in failed_chunks]}"
-            )
-            # Raise with partial result info
-            raise Exception(
-                f"Partial failure: {success_count}/{total_count} chunks completed. "
-                f"Retry this job to generate remaining chunks: {[f['chunk_index'] + 1 for f in failed_chunks]}. "
-                f"Failed slides: {sum([f['slides'] for f in failed_chunks], [])}"
-            )
 
         return audio_documents
 

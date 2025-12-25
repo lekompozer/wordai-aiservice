@@ -156,6 +156,39 @@ class SlideNarrationAudioWorker:
             return True
 
         except Exception as e:
+            error_msg = str(e)
+
+            # Check if this is a partial failure (some chunks succeeded)
+            is_partial_failure = "Partial failure:" in error_msg
+
+            if is_partial_failure:
+                logger.warning(f"⚠️  Audio job {job_id} partially succeeded: {e}")
+
+                # Update status to partial_success (Redis for realtime polling)
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=job_id,
+                    status="partial_success",
+                    user_id=task.user_id,
+                    error=error_msg,
+                    retry_message="Retry this job to generate remaining chunks",
+                )
+
+                self.mongo.db.narration_audio_jobs.update_one(
+                    {"_id": job_id},
+                    {
+                        "$set": {
+                            "status": "partial_success",
+                            "updated_at": datetime.utcnow(),
+                            "error": error_msg,
+                            "retry_message": "Retry to generate remaining chunks. Previously completed chunks will be reused.",
+                        }
+                    },
+                )
+
+                return True  # Consider partial success as successful task
+
+            # Full failure
             logger.error(f"❌ Audio job {job_id} failed: {e}", exc_info=True)
 
             # Update status to failed (Redis for realtime polling)
@@ -164,7 +197,7 @@ class SlideNarrationAudioWorker:
                 job_id=job_id,
                 status="failed",
                 user_id=task.user_id,
-                error=str(e),
+                error=error_msg,
             )
 
             self.mongo.db.narration_audio_jobs.update_one(
