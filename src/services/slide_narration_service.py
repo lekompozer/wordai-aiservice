@@ -865,41 +865,14 @@ Generate the complete narration now:"""
             ):
                 continue
 
-            # Convert WAV to MP3 (TTS returns WAV format)
-            logger.info(f"   🔄 Converting WAV to MP3 (chunk {chunk_index + 1})...")
-            try:
-                from pydub import AudioSegment
-                import io
-
-                # Load WAV data
-                audio_format = metadata.get("format", "wav")
-                if audio_format == "wav":
-                    wav_audio = AudioSegment.from_wav(io.BytesIO(audio_data))
-                else:
-                    # Already in correct format
-                    wav_audio = AudioSegment.from_file(
-                        io.BytesIO(audio_data), format=audio_format
-                    )
-
-                # Export as MP3
-                mp3_buffer = io.BytesIO()
-                wav_audio.export(mp3_buffer, format="mp3", bitrate="192k")
-                audio_data = mp3_buffer.getvalue()
-
-                logger.info(f"   ✅ Converted to MP3: {len(audio_data)} bytes")
-
-            except Exception as e:
-                logger.error(f"   ❌ WAV to MP3 conversion failed: {e}")
-                # Continue with original data (might be MP3 already)
-
-            # Upload audio file
-            file_name = f"narration_{presentation_id}_{language}_v{version}_chunk_{chunk_index}.mp3"
-            r2_key = f"narration/{user_id}/{presentation_id}/{language}_v{version}_chunk_{chunk_index}.mp3"
+            # Upload audio file as WAV (no conversion needed)
+            file_name = f"narration_{presentation_id}_{language}_v{version}_chunk_{chunk_index}.wav"
+            r2_key = f"narration/{user_id}/{presentation_id}/{language}_v{version}_chunk_{chunk_index}.wav"
 
             upload_result = await r2_service.upload_file(
                 file_content=audio_data,
                 r2_key=r2_key,
-                content_type="audio/mpeg",
+                content_type="audio/wav",
             )
             audio_url = upload_result["public_url"]
 
@@ -1091,18 +1064,8 @@ Generate the complete narration now:"""
                         f"Chunk {chunk_idx} has invalid audio data (size: {len(audio_data)} bytes)"
                     )
 
-                # Check if it's valid MP3 (starts with ID3 or 0xFF 0xFB)
-                if not (
-                    audio_data[:3] == b"ID3"
-                    or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)
-                ):
-                    logger.error(
-                        f"Chunk {chunk_idx} is not valid MP3. First bytes: {audio_data[:20].hex()}"
-                    )
-                    raise ValueError(f"Chunk {chunk_idx} is not a valid MP3 file")
-
-                # Load audio segment
-                audio_segment = AudioSegment.from_mp3(io.BytesIO(audio_data))
+                # Load audio segment (WAV format)
+                audio_segment = AudioSegment.from_wav(io.BytesIO(audio_data))
 
                 # Add chunk timestamps with offset
                 chunk_timestamps = chunk_doc.get("slide_timestamps", [])
@@ -1126,17 +1089,17 @@ Generate the complete narration now:"""
             # Export merged audio
             logger.info("   💾 Exporting merged audio...")
             output_buffer = io.BytesIO()
-            combined_audio.export(output_buffer, format="mp3", bitrate="192k")
+            combined_audio.export(output_buffer, format="wav")
             merged_audio_data = output_buffer.getvalue()
 
             # Upload to R2 and library
-            file_name = f"narration_{presentation_id}_{language}_v{version}_merged.mp3"
+            file_name = f"narration_{presentation_id}_{language}_v{version}_merged.wav"
             r2_key = f"narration/{user_id}/{presentation_id}/{file_name}"
 
             upload_result = await self.r2_service.upload_file(
                 file_content=merged_audio_data,
                 r2_key=r2_key,
-                content_type="audio/mpeg",
+                content_type="audio/wav",
             )
 
             # Upload to library_audio
