@@ -290,7 +290,6 @@ services:
     command: python -m src.workers.slide_narration_audio_worker
     volumes:
       - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
