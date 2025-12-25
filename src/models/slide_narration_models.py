@@ -148,8 +148,11 @@ class VoiceConfig(BaseModel):
     provider: str = Field(
         "google", description="TTS provider: 'google', 'openai', 'elevenlabs'"
     )
-    voices: List[Dict[str, Any]] = Field(
-        ..., description="List of voice configurations"
+    voices: Optional[List[Dict[str, Any]]] = Field(
+        None, description="List of voice configurations (optional if gender is provided)"
+    )
+    gender: Optional[str] = Field(
+        None, description="Voice gender: 'male' or 'female' (maps to Enceladus/Sulafat)"
     )
     use_pro_model: bool = Field(True, description="Use premium voice model")
 
