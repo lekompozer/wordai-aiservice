@@ -283,6 +283,8 @@ services:
   slide-narration-audio-worker:
     container_name: slide-narration-audio-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    env_file:
+      - .env
     command: python -m src.workers.slide_narration_audio_worker
     volumes:
       - ./logs:/app/logs
