@@ -443,6 +443,182 @@ async def generate_audio(
 
 
 @router.get(
+    "/presentations/{presentation_id}/narration/{narration_id}/audio-job-status",
+    summary="Get Latest Audio Job Status",
+    description="""
+    **Get the latest audio generation job status for a narration**
+
+    Use this endpoint when:
+    - Opening a document to check if audio exists or is being generated
+    - Opening the audio creation dialog to show appropriate UI
+    - Checking if there's a pending/failed job that needs retry
+
+    Returns:
+    - has_job: false → No audio generation attempted yet (show "Generate" button)
+    - status: completed → Audio ready to play
+    - status: processing → Job in progress (start polling)
+    - status: partial_success → Some chunks failed (show retry button)
+    - status: failed → Complete failure (show retry button)
+    """,
+)
+async def get_latest_audio_job_status(
+    presentation_id: str,
+    narration_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Get latest audio job status for dialog/retry"""
+    try:
+        user_id = current_user["uid"]
+
+        # Check if narration exists and user owns it
+        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
+        if not narration:
+            raise HTTPException(404, "Narration not found")
+
+        if str(narration.get("user_id")) != user_id:
+            raise HTTPException(403, "Not authorized to access this narration")
+
+        # Find latest job for this narration
+        latest_job = db.narration_audio_jobs.find_one(
+            {
+                "presentation_id": presentation_id,
+                "subtitle_id": narration_id,  # narration_id maps to subtitle_id in v2
+                "user_id": user_id,
+            },
+            sort=[("created_at", -1)],  # Get most recent
+        )
+
+        if not latest_job:
+            # No job exists yet
+            return {
+                "success": True,
+                "has_job": False,
+                "audio_ready": False,
+                "message": "No audio generation job found. Click Generate to create.",
+            }
+
+        # Job exists - extract status info
+        job_id = str(latest_job["_id"])
+        status = latest_job.get("status", "unknown")
+
+        response = {
+            "success": True,
+            "has_job": True,
+            "job_id": job_id,
+            "status": status,
+            "audio_ready": status == "completed",
+            "created_at": latest_job.get("created_at"),
+            "updated_at": latest_job.get("updated_at"),
+        }
+
+        # Add status-specific fields
+        if status == "completed":
+            # Get audio file info
+            audio_docs = list(
+                db.presentation_audio.find(
+                    {
+                        "presentation_id": presentation_id,
+                        "subtitle_id": narration_id,
+                        "user_id": user_id,
+                        "status": "ready",
+                        "audio_type": "merged_presentation",  # Get final merged audio
+                    }
+                )
+                .sort("created_at", -1)
+                .limit(1)
+            )
+
+            if audio_docs:
+                audio = audio_docs[0]
+                response["audio_url"] = audio.get("audio_url")
+                response["slide_timestamps"] = audio.get("slide_timestamps", [])
+
+            # Count chunks for progress info
+            all_chunks = list(
+                db.presentation_audio.find(
+                    {
+                        "presentation_id": presentation_id,
+                        "subtitle_id": narration_id,
+                        "user_id": user_id,
+                        "audio_type": "chunked",
+                    }
+                )
+            )
+            response["chunks_completed"] = len(all_chunks)
+            response["chunks_total"] = len(all_chunks)
+
+        elif status == "partial_success":
+            response["error"] = latest_job.get("error", "Partial failure")
+            response["retry_message"] = latest_job.get(
+                "retry_message", "Retry to continue"
+            )
+
+            # Count completed chunks
+            completed_chunks = list(
+                db.presentation_audio.find(
+                    {
+                        "presentation_id": presentation_id,
+                        "subtitle_id": narration_id,
+                        "user_id": user_id,
+                        "status": "ready",
+                        "audio_type": "chunked",
+                    }
+                )
+            )
+
+            response["chunks_completed"] = len(completed_chunks)
+
+            # Parse total chunks from error message (e.g., "2/6 chunks")
+            error_msg = latest_job.get("error", "")
+            import re
+
+            match = re.search(r"(\d+)/(\d+) chunks", error_msg)
+            if match:
+                response["chunks_total"] = int(match.group(2))
+
+                # Calculate failed chunks
+                total = int(match.group(2))
+                completed = len(completed_chunks)
+                response["failed_chunks"] = list(range(completed, total))
+
+        elif status == "processing" or status == "queued":
+            response["message"] = "Audio generation in progress..."
+
+            # Count completed chunks so far
+            completed_chunks = list(
+                db.presentation_audio.find(
+                    {
+                        "presentation_id": presentation_id,
+                        "subtitle_id": narration_id,
+                        "user_id": user_id,
+                        "status": "ready",
+                        "audio_type": "chunked",
+                    }
+                )
+            )
+
+            response["chunks_completed"] = len(completed_chunks)
+
+            # Estimate total from job metadata if available
+            if latest_job.get("total_chunks"):
+                response["chunks_total"] = latest_job.get("total_chunks")
+
+        elif status == "failed":
+            response["error"] = latest_job.get("error", "Unknown error")
+            response["retry_message"] = latest_job.get(
+                "retry_message", "Please try again"
+            )
+
+        return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get audio job status: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get job status: {str(e)}")
+
+
+@router.get(
     "/presentations/{presentation_id}/narrations",
     response_model=NarrationListResponse,
     summary="List Narration Versions",
