@@ -34,7 +34,7 @@ services:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-service-account.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-credentials.json
 
       # AI API Keys
       - GEMINI_API_KEY=${GEMINI_API_KEY}
