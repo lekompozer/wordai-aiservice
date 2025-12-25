@@ -9,6 +9,7 @@ import logging
 import json
 import time
 import re
+import asyncio
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 from bson import ObjectId
@@ -784,13 +785,34 @@ Generate the complete narration now:"""
                 f"{len(chunk_slides)} slides, {chunk_bytes} bytes"
             )
 
-            # Generate audio for this chunk
-            audio_data, metadata = await tts_service.generate_audio(
-                text=chunk_text,
-                language=language,
-                voice_name=voice_name,
-                use_pro_model=use_pro_model,
-            )
+            # Generate audio with retry logic (Gemini API can have intermittent 500 errors)
+            max_retries = 5  # Increased retries to avoid breaking entire task
+            retry_delay = 15  # Wait 15s between retries to avoid rate limits
+            
+            for attempt in range(max_retries):
+                try:
+                    audio_data, metadata = await tts_service.generate_audio(
+                        text=chunk_text,
+                        language=language,
+                        voice_name=voice_name,
+                        use_pro_model=use_pro_model,
+                    )
+                    break  # Success, exit retry loop
+                    
+                except Exception as e:
+                    error_msg = str(e)
+                    is_retryable = "500" in error_msg or "INTERNAL" in error_msg or "429" in error_msg
+                    
+                    if attempt < max_retries - 1 and is_retryable:
+                        logger.warning(
+                            f"⚠️  Chunk {chunk_index + 1} failed (attempt {attempt + 1}/{max_retries}): {error_msg}"
+                        )
+                        logger.info(f"   ⏳ Waiting {retry_delay}s before retry...")
+                        await asyncio.sleep(retry_delay)
+                    else:
+                        # Final failure or non-retryable error
+                        logger.error(f"❌ Chunk {chunk_index + 1} failed after {attempt + 1} attempts")
+                        raise
 
             # Upload audio file
             file_name = f"narration_{presentation_id}_{language}_v{version}_chunk_{chunk_index}.mp3"
