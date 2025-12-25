@@ -302,21 +302,41 @@ class GoogleTTSService:
                 else "gemini-2.5-flash-preview-tts"
             )
 
-            # Generate audio (run in thread pool to avoid blocking event loop)
+            # Generate audio using REST API (AI Studio doesn't support SDK method for TTS)
             import asyncio
+            import httpx
 
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,
-                model=model,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],  # Required for TTS models
-                    speech_config=speech_config,
-                ),
-            )
+            # Build REST API request
+            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+            headers = {"Content-Type": "application/json"}
+            params = {"key": self.api_key}
+
+            request_body = {
+                "contents": contents,
+                "generationConfig": {
+                    "response_modalities": ["AUDIO"],
+                    "speech_config": {
+                        "voice_config": {
+                            "prebuilt_voice_config": {
+                                "voice_name": speech_config.voice_config.prebuilt_voice_config.voice_name
+                            }
+                        }
+                    },
+                },
+            }
+
+            # Call REST API
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                api_response = await client.post(
+                    api_url, headers=headers, params=params, json=request_body
+                )
+                api_response.raise_for_status()
+                response_data = api_response.json()
 
             # Extract audio data (raw PCM format from Gemini)
-            audio_data = response.candidates[0].content.parts[0].inline_data.data
+            audio_data = response_data["candidates"][0]["content"]["parts"][0][
+                "inlineData"
+            ]["data"]
 
             # Check if audio_data is base64 string or bytes
             if isinstance(audio_data, str):
