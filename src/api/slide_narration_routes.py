@@ -1310,26 +1310,23 @@ async def get_audio_generation_status(
     presentation_id: str,
     subtitle_id: str,
     job_id: str,
-    current_user: dict = Depends(get_current_user),
 ):
     """
     **Poll audio generation job status**
 
     Returns current status + audio files when completed.
+
+    ⚠️ No authentication required - job_id acts as secure token (UUID random).
+    This allows long-running jobs without Firebase token expiration issues.
     """
     try:
-        user_id = current_user["uid"]
-
-        # Get job from MongoDB
+        # Get job from MongoDB (no auth required - job_id is secure UUID)
         job = db.narration_audio_jobs.find_one({"_id": job_id})
         if not job:
             raise HTTPException(404, "Job not found")
 
-        # Verify ownership
-        if job["user_id"] != user_id:
-            raise HTTPException(403, "Unauthorized")
-
         status = job.get("status", "unknown")
+        user_id = job.get("user_id")  # Get from job, not from auth
 
         response = {
             "job_id": job_id,

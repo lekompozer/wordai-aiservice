@@ -16,6 +16,7 @@ boto3>=1.35.0  # S3/R2 file storage
 # Google Cloud services
 google-genai>=0.3.0  # Gemini TTS for audio generation
 beautifulsoup4>=4.12.0  # HTML parsing for text extraction
+pydub>=0.25.1  # Audio manipulation and merging
 
 # Database connections
 pymongo==4.6.1

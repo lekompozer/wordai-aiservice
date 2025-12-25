@@ -893,7 +893,177 @@ Generate the complete narration now:"""
             f"✅ Generated {len(audio_documents)} audio file(s) for presentation {presentation_id}"
         )
 
+        # 🔥 NEW: Merge chunks into single file if multiple chunks
+        if len(audio_documents) > 1:
+            logger.info(
+                f"🎵 Merging {len(audio_documents)} audio chunks into 1 file..."
+            )
+            merged_audio_doc = await self._merge_audio_chunks(
+                audio_documents=audio_documents,
+                presentation_id=presentation_id,
+                subtitle_id=subtitle_id,
+                language=language,
+                version=version,
+                user_id=user_id,
+                voice_config=voice_config,
+            )
+            # Return only the merged audio document
+            return [merged_audio_doc]
+
         return audio_documents
+
+    async def _merge_audio_chunks(
+        self,
+        audio_documents: List[Dict],
+        presentation_id: str,
+        subtitle_id: str,
+        language: str,
+        version: int,
+        user_id: str,
+        voice_config: Dict,
+    ) -> Dict[str, Any]:
+        """
+        Merge multiple audio chunks into single file with global timestamps
+
+        Args:
+            audio_documents: List of chunk audio documents
+            presentation_id: Presentation ID
+            subtitle_id: Subtitle document ID
+            language: Language code
+            version: Subtitle version
+            user_id: User ID
+            voice_config: Voice configuration
+
+        Returns:
+            Merged audio document
+        """
+        import io
+        import httpx
+        from pydub import AudioSegment
+        from src.database.db_manager import DBManager
+
+        db_manager = DBManager()
+        db = db_manager.db
+
+        try:
+            # Download all chunks and merge
+            combined_audio = AudioSegment.empty()
+            global_timestamps = []
+            current_time = 0.0
+
+            logger.info(f"   📥 Downloading {len(audio_documents)} chunks...")
+
+            for chunk_idx, chunk_doc in enumerate(audio_documents):
+                # Download chunk from R2
+                audio_url = chunk_doc["audio_url"]
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(audio_url)
+                    response.raise_for_status()
+                    audio_data = response.content
+
+                # Load audio segment
+                audio_segment = AudioSegment.from_mp3(io.BytesIO(audio_data))
+
+                # Add chunk timestamps with offset
+                chunk_timestamps = chunk_doc.get("slide_timestamps", [])
+                for ts in chunk_timestamps:
+                    global_timestamps.append(
+                        {
+                            "slide_index": ts["slide_index"],
+                            "start_time": current_time + ts["start_time"],
+                            "end_time": current_time + ts["end_time"],
+                        }
+                    )
+
+                # Append to combined audio
+                combined_audio += audio_segment
+                current_time += len(audio_segment) / 1000.0  # pydub uses milliseconds
+
+                logger.info(
+                    f"   ✅ Merged chunk {chunk_idx + 1}/{len(audio_documents)}"
+                )
+
+            # Export merged audio
+            logger.info("   💾 Exporting merged audio...")
+            output_buffer = io.BytesIO()
+            combined_audio.export(output_buffer, format="mp3", bitrate="192k")
+            merged_audio_data = output_buffer.getvalue()
+
+            # Upload to R2 and library
+            file_name = f"narration_{presentation_id}_{language}_v{version}_merged.mp3"
+            r2_key = f"narration/{user_id}/{presentation_id}/{file_name}"
+
+            upload_result = await self.r2_service.upload_file(
+                file_content=merged_audio_data,
+                r2_key=r2_key,
+                content_type="audio/mpeg",
+            )
+
+            # Upload to library_audio
+            library_audio = self.library_manager.upload_audio(
+                user_id=user_id,
+                audio_data=merged_audio_data,
+                file_name=file_name,
+                content_type="audio/mpeg",
+            )
+
+            # Create merged audio document
+            merged_doc = {
+                "user_id": user_id,
+                "presentation_id": presentation_id,
+                "subtitle_id": subtitle_id,
+                "language": language,
+                "version": version,
+                "slide_index": -1,  # -1 indicates merged/full presentation audio
+                "audio_url": upload_result["url"],
+                "audio_type": "merged_presentation",
+                "chunk_index": 0,
+                "total_chunks": 1,
+                "slide_count": len(global_timestamps),
+                "slide_timestamps": global_timestamps,
+                "audio_metadata": {
+                    "duration_seconds": len(combined_audio) / 1000.0,
+                    "file_size_bytes": len(merged_audio_data),
+                    "format": "mp3",
+                    "sample_rate": combined_audio.frame_rate,
+                    "voice_name": audio_documents[0]["audio_metadata"]["voice_name"],
+                    "model": audio_documents[0]["audio_metadata"]["model"],
+                    "merged_from_chunks": len(audio_documents),
+                },
+                "library_audio_id": str(library_audio),
+                "generation_method": "ai_generated",
+                "voice_config": voice_config,
+                "status": "ready",
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+
+            result = db.presentation_audio.insert_one(merged_doc)
+            merged_doc["_id"] = str(result.inserted_id)
+
+            # Mark chunk documents as obsolete (keep for debugging but don't return to client)
+            db.presentation_audio.update_many(
+                {"_id": {"$in": [ObjectId(doc["_id"]) for doc in audio_documents]}},
+                {
+                    "$set": {
+                        "status": "obsolete_chunk",
+                        "replaced_by": str(result.inserted_id),
+                    }
+                },
+            )
+
+            logger.info(
+                f"✅ Merged audio: {len(merged_audio_data)} bytes, "
+                f"{len(combined_audio) / 1000.0:.1f}s, {len(global_timestamps)} slides"
+            )
+
+            return merged_doc
+
+        except Exception as e:
+            logger.error(f"❌ Failed to merge audio chunks: {e}", exc_info=True)
+            # Fallback: return original chunks
+            logger.warning("⚠️ Falling back to returning individual chunks")
+            return audio_documents
 
     async def upload_audio(
         self,
