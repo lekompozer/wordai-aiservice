@@ -779,11 +779,32 @@ Generate the complete narration now:"""
             f"🎤 Generating {len(slide_chunks)} audio file(s) for {sum(len(c['slides']) for c in slide_chunks)} slides"
         )
 
+        # Track failed chunks for partial success handling
+        failed_chunks = []
+
         # Generate audio for each chunk
         for chunk_index, chunk in enumerate(slide_chunks):
             chunk_text = chunk["text"]
             chunk_slides = chunk["slides"]
             chunk_bytes = chunk["bytes"]
+
+            # Check if chunk already exists (from previous partial run)
+            existing_chunk = db.presentation_audio.find_one({
+                "presentation_id": presentation_id,
+                "subtitle_id": subtitle_id,
+                "user_id": user_id,
+                "language": language,
+                "version": version,
+                "chunk_index": chunk_index,
+                "status": "ready"
+            })
+
+            if existing_chunk:
+                logger.info(
+                    f"✅ Chunk {chunk_index + 1}/{len(slide_chunks)}: Already exists (skipping)"
+                )
+                audio_documents.append(existing_chunk)
+                continue
 
             logger.info(
                 f"🔊 Chunk {chunk_index + 1}/{len(slide_chunks)}: "
@@ -810,6 +831,7 @@ Generate the complete narration now:"""
                         "500" in error_msg
                         or "INTERNAL" in error_msg
                         or "429" in error_msg
+                        or "ReadTimeout" in error_msg
                     )
 
                     if attempt < max_retries - 1 and is_retryable:
@@ -819,11 +841,21 @@ Generate the complete narration now:"""
                         logger.info(f"   ⏳ Waiting {retry_delay}s before retry...")
                         await asyncio.sleep(retry_delay)
                     else:
-                        # Final failure or non-retryable error
+                        # Final failure - track but don't raise (allow partial success)
                         logger.error(
-                            f"❌ Chunk {chunk_index + 1} failed after {attempt + 1} attempts"
+                            f"❌ Chunk {chunk_index + 1} failed after {attempt + 1} attempts: {error_msg}"
                         )
-                        raise
+                        failed_chunks.append({
+                            "chunk_index": chunk_index,
+                            "error": error_msg,
+                            "slides": [s["slide_index"] for s in chunk_slides]
+                        })
+                        # Continue to next chunk instead of raising
+                        break
+
+            # Skip rest of chunk processing if generation failed
+            if attempt == max_retries - 1 and failed_chunks and failed_chunks[-1]["chunk_index"] == chunk_index:
+                continue
 
             # Upload audio file
             file_name = f"narration_{presentation_id}_{language}_v{version}_chunk_{chunk_index}.mp3"
@@ -942,6 +974,21 @@ Generate the complete narration now:"""
             )
             # Return only the merged audio document
             return [merged_audio_doc]
+
+        # Handle partial success/failure
+        if failed_chunks:
+            success_count = len(audio_documents)
+            total_count = len(slide_chunks)
+            logger.warning(
+                f"⚠️  Partial success: {success_count}/{total_count} chunks generated. "
+                f"Failed chunks: {[f['chunk_index'] + 1 for f in failed_chunks]}"
+            )
+            # Raise with partial result info
+            raise Exception(
+                f"Partial failure: {success_count}/{total_count} chunks completed. "
+                f"Retry this job to generate remaining chunks: {[f['chunk_index'] + 1 for f in failed_chunks]}. "
+                f"Failed slides: {sum([f['slides'] for f in failed_chunks], [])}"
+            )
 
         return audio_documents
 
