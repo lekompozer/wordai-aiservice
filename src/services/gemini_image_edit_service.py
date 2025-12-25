@@ -71,10 +71,10 @@ class GeminiImageEditService:
     def __init__(self):
         """Initialize Gemini AI Studio client and database"""
         # Initialize Gemini AI Studio client for image editing
-        # GEMINI_API_KEY is used for authentication (AI Studio, not Vertex AI)
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        # Use GEMINI_API_KEY2 to avoid rate limiting on primary key
+        gemini_api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY")
         if not gemini_api_key:
-            raise ValueError("GEMINI_API_KEY environment variable not set")
+            raise ValueError("GEMINI_API_KEY2 or GEMINI_API_KEY environment variable not set")
 
         # Initialize Gemini AI Studio client
         # Using AI Studio API (not Vertex AI) for better model availability
@@ -83,7 +83,7 @@ class GeminiImageEditService:
             self.client = genai.Client(
                 api_key=gemini_api_key,
             )
-            logger.info("✅ Gemini AI Studio client initialized successfully")
+            logger.info("✅ Gemini AI Studio client initialized (using GEMINI_API_KEY2)")
         except Exception as e:
             logger.error(f"❌ Failed to initialize Gemini client: {e}")
             raise

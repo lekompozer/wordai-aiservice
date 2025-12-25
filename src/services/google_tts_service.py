@@ -19,14 +19,15 @@ class GoogleTTSService:
 
     def __init__(self):
         """Initialize Gemini client with API key"""
-        self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("VERTEX_API_KEY")
+        # Use GEMINI_API_KEY2 to avoid rate limiting on primary key
+        self.api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY") or os.getenv("VERTEX_API_KEY")
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY or VERTEX_API_KEY not found")
+            raise ValueError("GEMINI_API_KEY2, GEMINI_API_KEY or VERTEX_API_KEY not found")
 
         # Initialize Gemini client with API key
         self.client = genai.Client(api_key=self.api_key)
 
-        logger.info("Gemini TTS initialized with API key")
+        logger.info(f"Gemini TTS initialized with API key (using GEMINI_API_KEY2)")
 
         # Supported languages (24 languages from Gemini TTS)
         self.supported_languages = {
