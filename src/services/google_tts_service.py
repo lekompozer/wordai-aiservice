@@ -312,13 +312,13 @@ class GoogleTTSService:
             params = {"key": self.api_key}
 
             request_body = {
-                "contents": contents,
+                "contents": [{"parts": [{"text": contents}]}],
                 "generationConfig": {
-                    "response_modalities": ["AUDIO"],
-                    "speech_config": {
-                        "voice_config": {
-                            "prebuilt_voice_config": {
-                                "voice_name": speech_config.voice_config.prebuilt_voice_config.voice_name
+                    "responseModalities": ["AUDIO"],
+                    "speechConfig": {
+                        "voiceConfig": {
+                            "prebuiltVoiceConfig": {
+                                "voiceName": voice_name or "Enceladus"
                             }
                         }
                     },
