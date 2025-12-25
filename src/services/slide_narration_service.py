@@ -1132,7 +1132,7 @@ Generate the complete narration now:"""
                 "language": language,
                 "version": version,
                 "slide_index": -1,  # -1 indicates merged/full presentation audio
-                "audio_url": upload_result["url"],
+                "audio_url": audio_url,
                 "audio_type": "merged_presentation",
                 "chunk_index": 0,
                 "total_chunks": 1,
@@ -1141,7 +1141,7 @@ Generate the complete narration now:"""
                 "audio_metadata": {
                     "duration_seconds": len(combined_audio) / 1000.0,
                     "file_size_bytes": len(merged_audio_data),
-                    "format": "mp3",
+                    "format": "wav",
                     "sample_rate": combined_audio.frame_rate,
                     "voice_name": audio_documents[0]["audio_metadata"]["voice_name"],
                     "model": audio_documents[0]["audio_metadata"]["model"],
