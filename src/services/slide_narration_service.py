@@ -1101,13 +1101,27 @@ Generate the complete narration now:"""
                 r2_key=r2_key,
                 content_type="audio/wav",
             )
+            audio_url = upload_result["public_url"]
 
-            # Upload to library_audio
-            library_audio = self.library_manager.upload_audio(
+            # Save to library
+            library_audio = self.library_manager.save_library_file(
                 user_id=user_id,
-                audio_data=merged_audio_data,
-                file_name=file_name,
-                content_type="audio/mpeg",
+                filename=file_name,
+                file_type="audio",
+                category="audio",
+                r2_url=audio_url,
+                r2_key=r2_key,
+                file_size=len(merged_audio_data),
+                mime_type="audio/wav",
+                metadata={
+                    "source_type": "slide_narration_merged",
+                    "presentation_id": presentation_id,
+                    "subtitle_id": subtitle_id,
+                    "language": language,
+                    "version": version,
+                    "total_slides": len(global_timestamps),
+                    "total_duration_seconds": current_time,
+                },
             )
 
             # Create merged audio document
