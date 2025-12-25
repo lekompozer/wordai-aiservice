@@ -637,6 +637,7 @@ Generate the complete narration now:"""
         subtitle_id: str,
         voice_config: Dict,
         user_id: str,
+        force_regenerate: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Generate audio for subtitle document (multi-language system)
@@ -645,6 +646,7 @@ Generate the complete narration now:"""
             subtitle_id: Subtitle document ID
             voice_config: Voice configuration dict
             user_id: User ID
+            force_regenerate: Force regenerate all chunks (delete existing)
 
         Returns:
             List of audio documents created
@@ -789,17 +791,20 @@ Generate the complete narration now:"""
             chunk_bytes = chunk["bytes"]
 
             # Check if chunk already exists (from previous partial run)
-            existing_chunk = db.presentation_audio.find_one(
-                {
-                    "presentation_id": presentation_id,
-                    "subtitle_id": subtitle_id,
-                    "user_id": user_id,
-                    "language": language,
-                    "version": version,
-                    "chunk_index": chunk_index,
-                    "status": "ready",
-                }
-            )
+            # Skip check if force_regenerate=True
+            existing_chunk = None
+            if not force_regenerate:
+                existing_chunk = db.presentation_audio.find_one(
+                    {
+                        "presentation_id": presentation_id,
+                        "subtitle_id": subtitle_id,
+                        "user_id": user_id,
+                        "language": language,
+                        "version": version,
+                        "chunk_index": chunk_index,
+                        "status": "ready",
+                    }
+                )
 
             if existing_chunk:
                 logger.info(
@@ -864,6 +869,60 @@ Generate the complete narration now:"""
                 and failed_chunks[-1]["chunk_index"] == chunk_index
             ):
                 continue
+
+            # Validate audio quality (detect silent/corrupt audio)
+            try:
+                from pydub import AudioSegment
+                import io
+
+                # Load audio to validate
+                audio_format = metadata.get("format", "wav")
+                if audio_format == "wav":
+                    audio_segment = AudioSegment.from_wav(io.BytesIO(audio_data))
+                else:
+                    audio_segment = AudioSegment.from_file(
+                        io.BytesIO(audio_data), format=audio_format
+                    )
+
+                # Check duration (too short = failed)
+                duration_seconds = len(audio_segment) / 1000.0
+                if duration_seconds < 0.5:
+                    error_msg = f"Audio too short: {duration_seconds:.2f}s"
+                    logger.error(
+                        f"❌ Chunk {chunk_index + 1}: {error_msg} (expected ~{metadata.get('duration', 0):.1f}s)"
+                    )
+                    failed_chunks.append(
+                        {
+                            "chunk_index": chunk_index,
+                            "error": error_msg,
+                            "slides": [s["slide_index"] for s in chunk_slides],
+                        }
+                    )
+                    continue
+
+                # Check audio level (too quiet = silent/corrupt)
+                rms = audio_segment.rms
+                if rms < 10:  # RMS threshold for silent audio
+                    error_msg = f"Audio silent/corrupt: RMS={rms} (too quiet)"
+                    logger.error(f"❌ Chunk {chunk_index + 1}: {error_msg}")
+                    failed_chunks.append(
+                        {
+                            "chunk_index": chunk_index,
+                            "error": error_msg,
+                            "slides": [s["slide_index"] for s in chunk_slides],
+                        }
+                    )
+                    continue
+
+                logger.info(
+                    f"   ✅ Audio quality OK: {duration_seconds:.1f}s, RMS={rms:.1f}"
+                )
+
+            except Exception as e:
+                logger.warning(
+                    f"   ⚠️  Audio validation failed (continuing anyway): {e}"
+                )
+                # Continue with audio upload even if validation fails
 
             # Upload audio file as WAV (no conversion needed)
             file_name = f"narration_{presentation_id}_{language}_v{version}_chunk_{chunk_index}.wav"

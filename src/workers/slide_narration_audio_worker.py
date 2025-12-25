@@ -125,6 +125,7 @@ class SlideNarrationAudioWorker:
                 subtitle_id=task.subtitle_id,
                 voice_config=task.voice_config,
                 user_id=task.user_id,
+                force_regenerate=task.force_regenerate,
             )
 
             # Mark as completed (Redis for realtime polling)

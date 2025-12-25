@@ -604,6 +604,10 @@ class GenerateAudioRequestV2(BaseModel):
     """Request to generate audio for subtitle"""
 
     voice_config: VoiceConfig = Field(..., description="Voice configuration")
+    force_regenerate: bool = Field(
+        False,
+        description="Force regenerate all chunks (delete existing and create new)",
+    )
 
 
 class GenerateAudioResponseV2(BaseModel):

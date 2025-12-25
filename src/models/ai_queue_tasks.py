@@ -158,6 +158,9 @@ class SlideNarrationAudioTask(BaseModel):
     presentation_id: str = Field(..., description="Presentation document ID")
     subtitle_id: str = Field(..., description="Subtitle document ID")
     voice_config: dict = Field(..., description="Voice configuration dict")
+    force_regenerate: bool = Field(
+        default=False, description="Force regenerate all chunks"
+    )
 
     # Task metadata
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())

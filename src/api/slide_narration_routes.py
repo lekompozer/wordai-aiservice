@@ -1440,6 +1440,15 @@ async def generate_audio_v2(
         from src.queue.queue_dependencies import get_slide_narration_audio_queue
         from src.models.ai_queue_tasks import SlideNarrationAudioTask
 
+        # Handle force regenerate: Delete existing chunks if requested
+        if request.force_regenerate:
+            deleted_count = db.presentation_audio.delete_many(
+                {"subtitle_id": subtitle_id, "user_id": user_id}
+            ).deleted_count
+            logger.info(
+                f"🔄 Force regenerate: Deleted {deleted_count} existing audio chunks"
+            )
+
         job_id = str(uuid.uuid4())
         job_doc = {
             "_id": job_id,
@@ -1447,6 +1456,7 @@ async def generate_audio_v2(
             "presentation_id": presentation_id,
             "subtitle_id": subtitle_id,
             "voice_config": request.voice_config.dict(),
+            "force_regenerate": request.force_regenerate,
             "status": "queued",
             "created_at": datetime.utcnow(),
             "updated_at": datetime.utcnow(),
@@ -1461,6 +1471,7 @@ async def generate_audio_v2(
             presentation_id=presentation_id,
             subtitle_id=subtitle_id,
             voice_config=request.voice_config.dict(),
+            force_regenerate=request.force_regenerate,
         )
 
         queue = await get_slide_narration_audio_queue()
