@@ -18,23 +18,8 @@ class GoogleTTSService:
     """Service for Google Cloud Text-to-Speech via Gemini API"""
 
     def __init__(self):
-        """Initialize Gemini client with Vertex AI or API key"""
-        # Try Vertex AI with service account first (uses GOOGLE_APPLICATION_CREDENTIALS)
-        if os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-            try:
-                self.client = genai.Client(
-                    vertexai=True, project="wordai-6779e", location="us-central1"
-                )
-                logger.info(
-                    "✅ Gemini TTS initialized with Vertex AI (service account)"
-                )
-                return
-            except Exception as e:
-                logger.warning(
-                    f"⚠️  Vertex AI init failed: {e}, falling back to API key"
-                )
-
-        # Fallback to API key authentication
+        """Initialize Gemini client with API key"""
+        # Use GEMINI_API_KEY2 to avoid rate limiting on primary key
         self.api_key = (
             os.getenv("GEMINI_API_KEY2")
             or os.getenv("GEMINI_API_KEY")
@@ -42,12 +27,12 @@ class GoogleTTSService:
         )
         if not self.api_key:
             raise ValueError(
-                "GOOGLE_APPLICATION_CREDENTIALS or GEMINI_API_KEY2/GEMINI_API_KEY not found"
+                "GEMINI_API_KEY2, GEMINI_API_KEY or VERTEX_API_KEY not found"
             )
 
-        # Initialize Gemini client with API key
+        # Initialize Gemini client with API key (AI Studio)
         self.client = genai.Client(api_key=self.api_key)
-        logger.info(f"✅ Gemini TTS initialized with API key (fallback)")
+        logger.info("✅ Gemini TTS initialized with API key (GEMINI_API_KEY2)")
 
         # Supported languages (24 languages from Gemini TTS)
         self.supported_languages = {
