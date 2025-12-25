@@ -1104,12 +1104,56 @@ async def get_document(
         # Check if slide narrations exist (for slides only)
         has_narration = False
         narration_count = 0
+        narration_info = None
+        
         if document.get("document_type") == "slide":
             try:
-                narration_count = doc_manager.db.slide_narrations.count_documents(
+                # Get subtitle info
+                subtitle_docs = list(doc_manager.db.presentation_subtitles.find(
                     {"presentation_id": document_id, "user_id": user_id}
-                )
+                ).sort("version", -1))
+                
+                narration_count = len(subtitle_docs)
                 has_narration = narration_count > 0
+                
+                # Build detailed narration info
+                if has_narration:
+                    from src.models.document_editor_models import NarrationInfo
+                    
+                    languages = []
+                    latest_versions = {}
+                    has_audio = {}
+                    
+                    # Group by language
+                    for subtitle in subtitle_docs:
+                        lang = subtitle.get("language", "vi")
+                        version = subtitle.get("version", 1)
+                        subtitle_id = str(subtitle.get("_id"))
+                        
+                        # Track language
+                        if lang not in languages:
+                            languages.append(lang)
+                        
+                        # Track latest version per language
+                        if lang not in latest_versions or version > latest_versions[lang]:
+                            latest_versions[lang] = version
+                        
+                        # Check if audio exists for this subtitle
+                        if lang not in has_audio:
+                            audio_exists = doc_manager.db.presentation_audio.count_documents({
+                                "subtitle_id": subtitle_id,
+                                "user_id": user_id,
+                                "status": {"$ne": "obsolete_chunk"}  # Exclude obsolete chunks
+                            }) > 0
+                            has_audio[lang] = audio_exists
+                    
+                    narration_info = NarrationInfo(
+                        total_languages=len(languages),
+                        languages=languages,
+                        latest_versions=latest_versions,
+                        has_audio=has_audio
+                    )
+                    
             except Exception as e:
                 logger.warning(f"⚠️ Failed to check narrations: {e}")
 
@@ -1163,8 +1207,9 @@ async def get_document(
             has_outline=bool(
                 document.get("slides_outline")
             ),  # ✅ Quick check for frontend
-            has_narration=has_narration,  # ✅ Quick check if narrations exist
-            narration_count=narration_count,  # ✅ Number of narration versions
+            narration_info=narration_info,  # ✅ NEW: Multi-language narration + audio info
+            has_narration=has_narration,  # ⚠️ Deprecated: use narration_info
+            narration_count=narration_count,  # ⚠️ Deprecated: use narration_info.total_languages
         )
 
         # Log response payload for debugging
@@ -1172,6 +1217,7 @@ async def get_document(
         logger.info(
             f"📤 [RESPONSE] document_id={document_id}, "
             f"has_narration={response.has_narration}, narration_count={response.narration_count}, "
+            f"narration_info={response.narration_info}, "
             f"has_outline={response.has_outline}"
         )
 
