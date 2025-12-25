@@ -672,12 +672,14 @@ Generate the complete narration now:"""
         # Parse voice config
         use_pro_model = voice_config.get("use_pro_model", True)
         voices = voice_config.get("voices", [])
-        voice_name = voices[0].get("voice_name", "Kore") if voices else "Kore"
+        # Default voice names: Enceladus (Male), Sulafat (Female)
+        voice_name = voices[0].get("voice_name", "Enceladus") if voices else "Enceladus"
 
         audio_documents = []
 
-        # Smart chunking: Group slides into chunks that fit 8000 byte limit
-        MAX_BYTES_PER_CHUNK = 6000  # Safe buffer (TTS limit is 8000)
+        # Smart chunking: Group slides into chunks that fit Gemini TTS limit
+        # Gemini limits: text <= 4000 bytes, text+prompt <= 8000 bytes, output <= 655s
+        MAX_BYTES_PER_CHUNK = 3500  # Safe buffer (text limit is 4000 bytes)
 
         slide_chunks = []  # List of slide groups
         current_chunk = []
@@ -697,14 +699,14 @@ Generate the complete narration now:"""
             script = self._convert_subtitles_to_script(subtitles)
 
             # Convert script dict to plain text for TTS
-            slide_text = f"Slide {slide_index + 1}. "
+            slide_text = f"Slide {slide_index + 1}. [short pause] "
             for line in script["lines"]:
                 speaker_idx = line["speaker"]
                 speaker_role = script["speaker_roles"][speaker_idx]
                 text = line["text"]
-                slide_text += f"{speaker_role}: {text}. "
+                slide_text += f"{speaker_role}: {text}. [short pause] "
 
-            slide_text += "\n\n"  # Pause between slides
+            slide_text += "[long pause] "  # Dramatic pause between slides (~1000ms)
 
             # Calculate bytes for this slide
             slide_bytes = len(slide_text.encode("utf-8"))
