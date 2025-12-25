@@ -98,3 +98,4 @@ migrations/
 # WordAI specific scripts
 setup-nginx-wordai.sh
 start_wordai.sh
+wordai-6779e-ed6189c466f1.json
