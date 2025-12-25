@@ -230,6 +230,7 @@ services:
       - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
       - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEY2=${GEMINI_API_KEY2}
     depends_on:
       - redis-server
       - mongodb
@@ -266,6 +267,7 @@ services:
       - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_PUBLIC_URL=${R2_PUBLIC_URL}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEY2=${GEMINI_API_KEY2}
       - CEREBRAS_API_KEY=${CEREBRAS_API_KEY}
       - CEREBRAS_MODEL=${CEREBRAS_MODEL}
     depends_on:
@@ -303,6 +305,8 @@ services:
       - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_PUBLIC_URL=${R2_PUBLIC_URL}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEY2=${GEMINI_API_KEY2}
+      - GOOGLE_APPLICATION_CREDENTIALS=
     depends_on:
       - redis-server
       - mongodb
