@@ -865,6 +865,31 @@ Generate the complete narration now:"""
             ):
                 continue
 
+            # Convert WAV to MP3 (TTS returns WAV format)
+            logger.info(f"   🔄 Converting WAV to MP3 (chunk {chunk_index + 1})...")
+            try:
+                from pydub import AudioSegment
+                import io
+                
+                # Load WAV data
+                audio_format = metadata.get("format", "wav")
+                if audio_format == "wav":
+                    wav_audio = AudioSegment.from_wav(io.BytesIO(audio_data))
+                else:
+                    # Already in correct format
+                    wav_audio = AudioSegment.from_file(io.BytesIO(audio_data), format=audio_format)
+                
+                # Export as MP3
+                mp3_buffer = io.BytesIO()
+                wav_audio.export(mp3_buffer, format="mp3", bitrate="192k")
+                audio_data = mp3_buffer.getvalue()
+                
+                logger.info(f"   ✅ Converted to MP3: {len(audio_data)} bytes")
+                
+            except Exception as e:
+                logger.error(f"   ❌ WAV to MP3 conversion failed: {e}")
+                # Continue with original data (might be MP3 already)
+
             # Upload audio file
             file_name = f"narration_{presentation_id}_{language}_v{version}_chunk_{chunk_index}.mp3"
             r2_key = f"narration/{user_id}/{presentation_id}/{language}_v{version}_chunk_{chunk_index}.mp3"
@@ -985,17 +1010,27 @@ Generate the complete narration now:"""
             logger.info(
                 f"🎵 Merging {len(audio_documents)} audio chunks into 1 file..."
             )
-            merged_audio_doc = await self._merge_audio_chunks(
-                audio_documents=audio_documents,
-                presentation_id=presentation_id,
-                subtitle_id=subtitle_id,
-                language=language,
-                version=version,
-                user_id=user_id,
-                voice_config=voice_config,
-            )
-            # Return only the merged audio document
-            return [merged_audio_doc]
+            try:
+                merged_audio_doc = await self._merge_audio_chunks(
+                    audio_documents=audio_documents,
+                    presentation_id=presentation_id,
+                    subtitle_id=subtitle_id,
+                    language=language,
+                    version=version,
+                    user_id=user_id,
+                    voice_config=voice_config,
+                )
+                # Return only the merged audio document if merge succeeded
+                if merged_audio_doc and isinstance(merged_audio_doc, dict):
+                    return [merged_audio_doc]
+                else:
+                    # Merge returned chunks (fallback case)
+                    logger.warning("⚠️ Merge returned chunks, using individual chunks")
+                    return audio_documents
+            except Exception as e:
+                logger.error(f"❌ Merge failed: {e}", exc_info=True)
+                logger.warning("⚠️ Falling back to individual chunks")
+                return audio_documents
 
         return audio_documents
 
@@ -1043,10 +1078,19 @@ Generate the complete narration now:"""
             for chunk_idx, chunk_doc in enumerate(audio_documents):
                 # Download chunk from R2
                 audio_url = chunk_doc["audio_url"]
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(timeout=60.0) as client:
                     response = await client.get(audio_url)
                     response.raise_for_status()
                     audio_data = response.content
+                
+                # Validate audio data
+                if not audio_data or len(audio_data) < 100:
+                    raise ValueError(f"Chunk {chunk_idx} has invalid audio data (size: {len(audio_data)} bytes)")
+                
+                # Check if it's valid MP3 (starts with ID3 or 0xFF 0xFB)
+                if not (audio_data[:3] == b'ID3' or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)):
+                    logger.error(f"Chunk {chunk_idx} is not valid MP3. First bytes: {audio_data[:20].hex()}")
+                    raise ValueError(f"Chunk {chunk_idx} is not a valid MP3 file")
 
                 # Load audio segment
                 audio_segment = AudioSegment.from_mp3(io.BytesIO(audio_data))
@@ -1148,9 +1192,8 @@ Generate the complete narration now:"""
 
         except Exception as e:
             logger.error(f"❌ Failed to merge audio chunks: {e}", exc_info=True)
-            # Fallback: return original chunks
-            logger.warning("⚠️ Falling back to returning individual chunks")
-            return audio_documents
+            # Don't return chunks here - raise to let caller handle fallback
+            raise Exception(f"Audio merge failed: {str(e)}")
 
     async def upload_audio(
         self,
