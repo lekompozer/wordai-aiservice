@@ -26,7 +26,9 @@ try:
     # Use GEMINI_API_KEY2 to avoid rate limiting
     api_key = os.getenv("GEMINI_API_KEY2") or os.getenv("GEMINI_API_KEY")
     gemini_client = genai.Client(api_key=api_key)
-    logger.info("✅ Gemini client initialized for slide narration (using GEMINI_API_KEY2)")
+    logger.info(
+        "✅ Gemini client initialized for slide narration (using GEMINI_API_KEY2)"
+    )
 except Exception as e:
     logger.error(f"❌ Failed to initialize Gemini client: {e}")
     gemini_client = None
