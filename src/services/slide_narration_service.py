@@ -870,22 +870,24 @@ Generate the complete narration now:"""
             try:
                 from pydub import AudioSegment
                 import io
-                
+
                 # Load WAV data
                 audio_format = metadata.get("format", "wav")
                 if audio_format == "wav":
                     wav_audio = AudioSegment.from_wav(io.BytesIO(audio_data))
                 else:
                     # Already in correct format
-                    wav_audio = AudioSegment.from_file(io.BytesIO(audio_data), format=audio_format)
-                
+                    wav_audio = AudioSegment.from_file(
+                        io.BytesIO(audio_data), format=audio_format
+                    )
+
                 # Export as MP3
                 mp3_buffer = io.BytesIO()
                 wav_audio.export(mp3_buffer, format="mp3", bitrate="192k")
                 audio_data = mp3_buffer.getvalue()
-                
+
                 logger.info(f"   ✅ Converted to MP3: {len(audio_data)} bytes")
-                
+
             except Exception as e:
                 logger.error(f"   ❌ WAV to MP3 conversion failed: {e}")
                 # Continue with original data (might be MP3 already)
@@ -1082,14 +1084,21 @@ Generate the complete narration now:"""
                     response = await client.get(audio_url)
                     response.raise_for_status()
                     audio_data = response.content
-                
+
                 # Validate audio data
                 if not audio_data or len(audio_data) < 100:
-                    raise ValueError(f"Chunk {chunk_idx} has invalid audio data (size: {len(audio_data)} bytes)")
-                
+                    raise ValueError(
+                        f"Chunk {chunk_idx} has invalid audio data (size: {len(audio_data)} bytes)"
+                    )
+
                 # Check if it's valid MP3 (starts with ID3 or 0xFF 0xFB)
-                if not (audio_data[:3] == b'ID3' or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)):
-                    logger.error(f"Chunk {chunk_idx} is not valid MP3. First bytes: {audio_data[:20].hex()}")
+                if not (
+                    audio_data[:3] == b"ID3"
+                    or (audio_data[0] == 0xFF and (audio_data[1] & 0xE0) == 0xE0)
+                ):
+                    logger.error(
+                        f"Chunk {chunk_idx} is not valid MP3. First bytes: {audio_data[:20].hex()}"
+                    )
                     raise ValueError(f"Chunk {chunk_idx} is not a valid MP3 file")
 
                 # Load audio segment
