@@ -672,8 +672,20 @@ Generate the complete narration now:"""
         # Parse voice config
         use_pro_model = voice_config.get("use_pro_model", True)
         voices = voice_config.get("voices", [])
-        # Default voice names: Enceladus (Male), Sulafat (Female)
-        voice_name = voices[0].get("voice_name", "Enceladus") if voices else "Enceladus"
+
+        # Get voice preference from UI
+        # If user explicitly provides voice_name, use it
+        # Otherwise, use gender preference to select default voice
+        if voices and voices[0].get("voice_name"):
+            voice_name = voices[0].get("voice_name")
+        else:
+            # Map gender to default Gemini voices
+            gender = voice_config.get("gender", "male")  # Default to male
+            voice_name = "Enceladus" if gender.lower() == "male" else "Sulafat"
+
+        logger.info(
+            f"🎙️ Selected voice: {voice_name} (gender: {voice_config.get('gender', 'male')})"
+        )
 
         audio_documents = []
 
