@@ -9,6 +9,7 @@ import os
 import logging
 import time
 import json
+import asyncio
 from typing import Dict, Any
 import anthropic
 
@@ -106,22 +107,29 @@ class SlideAIService:
         )
 
         # ✅ Use STREAMING for large responses (> 10 min requires streaming)
+        # Run in thread to avoid blocking Redis connection
         logger.info("🌊 Starting Claude streaming for slide formatting...")
 
-        response_text = ""
-        with self.claude_client.messages.stream(
-            model=self.claude_model,
-            max_tokens=52000,  # Claude Sonnet 4.5 supports up to 64K, using 52K for safety
-            temperature=0.7,
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-        ) as stream:
-            for text in stream.text_stream:
-                response_text += text
+        def _stream_claude_sync():
+            """Synchronous Claude streaming (runs in thread)"""
+            response_text = ""
+            with self.claude_client.messages.stream(
+                model=self.claude_model,
+                max_tokens=52000,  # Claude Sonnet 4.5 supports up to 64K, using 52K for safety
+                temperature=0.7,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    }
+                ],
+            ) as stream:
+                for text in stream.text_stream:
+                    response_text += text
+            return response_text
+
+        # Run streaming in thread pool to not block event loop
+        response_text = await asyncio.to_thread(_stream_claude_sync)
 
         logger.info(
             f"✅ Claude streaming complete, response length: {len(response_text)} chars"
@@ -132,7 +140,6 @@ class SlideAIService:
         logger.debug(f"Claude response length: {len(response_text)} chars")
         if not response_text or not response_text.strip():
             logger.error("❌ Claude returned empty response")
-            logger.error(f"Full response object: {response}")
             raise ValueError("Claude API returned empty response")
 
         # Try to parse JSON with better error handling
