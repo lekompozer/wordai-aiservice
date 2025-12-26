@@ -1,7 +1,7 @@
 """
 Slide AI Service
 AI-powered slide formatting and editing using:
-- Claude 3.5 Sonnet for Format mode (layout optimization)
+- Claude Sonnet 4.5 on Vertex AI for Format mode (layout optimization)
 - Gemini 2.0 Pro 3 Preview for Edit mode (content rewriting)
 """
 
@@ -11,7 +11,7 @@ import time
 import json
 import asyncio
 from typing import Dict, Any
-import anthropic
+from anthropic import AnthropicVertex, RateLimitError
 
 from src.models.slide_ai_models import SlideAIFormatRequest
 
@@ -29,11 +29,34 @@ except Exception as e:
     gemini_client = None
 
 try:
-    claude_client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    logger.info("✅ Claude client initialized for Format mode")
-except Exception as e:
-    logger.error(f"❌ Failed to initialize Claude client: {e}")
-    claude_client = None
+    # Try Claude on Vertex AI first (global endpoint for maximum availability)
+    project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
+    region = "global"  # Global endpoint (recommended for pay-as-you-go)
+
+    claude_client = AnthropicVertex(project_id=project_id, region=region)
+    claude_provider = "vertex"
+    logger.info(
+        f"✅ Claude Vertex AI client initialized (project={project_id}, region={region})"
+    )
+except Exception as vertex_error:
+    logger.warning(f"⚠️ Failed to initialize Claude Vertex AI: {vertex_error}")
+    logger.info("🔄 Falling back to Claude API with API key...")
+
+    try:
+        # Fallback to standard Anthropic API
+        from anthropic import Anthropic
+
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY not found in environment")
+
+        claude_client = Anthropic(api_key=api_key)
+        claude_provider = "api"
+        logger.info("✅ Claude API client initialized (fallback mode)")
+    except Exception as api_error:
+        logger.error(f"❌ Failed to initialize Claude API client: {api_error}")
+        claude_client = None
+        claude_provider = None
 
 
 class SlideAIService:
@@ -43,8 +66,19 @@ class SlideAIService:
         """Initialize AI clients"""
         self.gemini_client = gemini_client
         self.claude_client = claude_client
+        self.claude_provider = claude_provider  # "vertex" or "api"
         self.gemini_model = "gemini-3-pro-preview"  # Gemini Pro 3 Preview
-        self.claude_model = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5
+
+        # Model name depends on provider
+        if self.claude_provider == "vertex":
+            self.claude_model = "claude-sonnet-4-5@20250929"  # Vertex AI format
+        else:
+            self.claude_model = "claude-sonnet-4-5-20250929"  # Standard API format
+
+        if self.claude_client:
+            logger.info(
+                f"📝 Using Claude model: {self.claude_model} (provider: {self.claude_provider})"
+            )
 
     async def format_slide(
         self, request: SlideAIFormatRequest, user_id: str
@@ -145,7 +179,7 @@ class SlideAIService:
                 # Success - break retry loop
                 break
 
-            except anthropic.RateLimitError as e:
+            except RateLimitError as e:
                 if attempt < max_retries - 1:
                     wait_time = retry_delay * (attempt + 1)
                     logger.warning(

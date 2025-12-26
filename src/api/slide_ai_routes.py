@@ -25,7 +25,7 @@ logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api/slides", tags=["Slide AI"])
 
 # Points cost
-POINTS_COST_FORMAT = 5  # Layout optimization with Claude Sonnet 4.5
+POINTS_COST_FORMAT = 10  # Layout optimization with Claude Sonnet 4.5 on Vertex AI (increased for chunk processing)
 POINTS_COST_EDIT = 2  # Content rewriting with Gemini 3 Pro
 MAX_SLIDES_PER_CHUNK = 12  # Maximum slides per AI call to avoid token limit
 
