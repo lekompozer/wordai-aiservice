@@ -1084,19 +1084,69 @@ async def get_documents_by_folders(
     "/{document_id}/", response_model=DocumentResponse
 )  # Support trailing slash
 async def get_document(
-    document_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
+    document_id: str,
+    version: Optional[int] = None,
+    user_data: Dict[str, Any] = Depends(verify_firebase_token)
 ):
     """
     Lấy document theo document_id
     Sử dụng khi đã có document_id (ví dụ từ danh sách documents)
+    
+    Parameters:
+    - version: Optional version number. If not provided, returns latest version.
     """
     user_id = user_data.get("uid")
     doc_manager = get_document_manager()
 
     try:
-        document = await asyncio.to_thread(
-            doc_manager.get_document, document_id, user_id
-        )
+        # If version is specified, restore from version_history
+        if version is not None:
+            # Get document to access version_history
+            base_doc = await asyncio.to_thread(
+                doc_manager.get_document, document_id, user_id
+            )
+            if not base_doc:
+                raise HTTPException(status_code=404, detail="Document not found")
+            
+            # Find the requested version in version_history
+            version_history = base_doc.get("version_history", [])
+            target_version = next(
+                (v for v in version_history if v.get("version") == version),
+                None
+            )
+            
+            if not target_version:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Version {version} not found"
+                )
+            
+            # Create document from version snapshot
+            document = {
+                "_id": base_doc["_id"],
+                "document_id": base_doc["document_id"],
+                "user_id": base_doc["user_id"],
+                "title": base_doc["title"],
+                "document_type": base_doc["document_type"],
+                "version": target_version["version"],
+                "content_html": target_version["content_html"],
+                "slides_outline": target_version.get("slides_outline", []),
+                "slide_backgrounds": target_version.get("slide_backgrounds", []),
+                "slide_elements": target_version.get("slide_elements", []),
+                "slide_count": target_version.get("slide_count", 0),
+                "created_at": base_doc["created_at"],
+                "updated_at": base_doc["updated_at"],
+                "last_saved_at": target_version["created_at"],
+                "folder_id": base_doc.get("folder_id"),
+                "is_deleted": base_doc.get("is_deleted", False),
+                "is_version_snapshot": True,  # Flag to indicate this is historical
+                "version_description": target_version.get("description", "")
+            }
+        else:
+            # Get latest version (current document state)
+            document = await asyncio.to_thread(
+                doc_manager.get_document, document_id, user_id
+            )
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")

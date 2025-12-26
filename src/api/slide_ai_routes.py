@@ -4,7 +4,7 @@ API endpoints for AI-powered slide formatting and editing
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 import uuid
 
@@ -37,6 +37,7 @@ MAX_SLIDES_PER_CHUNK = 12  # Maximum slides per AI call to avoid token limit
 )
 async def ai_format_slide(
     request: SlideAIFormatRequest,
+    version: Optional[int] = None,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """

@@ -139,12 +139,22 @@ class SlideAIService:
             # Try different patterns
             # Pattern 1: ```json ... ```
             json_match = re.search(
-                r"```json\s*(\{.+\})\s*```", response_text, re.DOTALL
+                r"```json\s*(\{.+?\})\s*```", response_text, re.DOTALL
             )
             if not json_match:
                 # Pattern 2: ``` ... ``` (without json keyword)
                 json_match = re.search(
-                    r"```\s*(\{.+\})\s*```", response_text, re.DOTALL
+                    r"```\s*(\{.+?\})\s*```", response_text, re.DOTALL
+                )
+            if not json_match:
+                # Pattern 3: Look for content between ```json and ``` without requiring { }
+                json_match = re.search(
+                    r"```json\s*(.+?)\s*```", response_text, re.DOTALL
+                )
+            if not json_match:
+                # Pattern 4: Any content between ``` markers
+                json_match = re.search(
+                    r"```\s*(.+?)\s*```", response_text, re.DOTALL
                 )
 
             if json_match:
