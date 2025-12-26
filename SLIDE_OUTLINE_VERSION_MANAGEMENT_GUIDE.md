@@ -104,24 +104,33 @@ Hệ thống quản lý **outline** và **version** cho slide documents, cho ph�
 }
 ```
 
-### Outline Item Schema
+### Outline Item Schema (Database Reality)
 
+**⚠️ ACTUAL SCHEMA IN DATABASE:**
 ```javascript
 {
-  "slide_index": 2,          // Thứ tự slide (0-based)
-  "slide_type": "content",   // "title" | "agenda" | "content" | "thankyou"
-  "title": "Slide Title",    // Tiêu đề chính
-  "subtitle": "Optional",    // Phụ đề (chỉ cho title slide)
-  "bullets": [               // Nội dung chính (array of strings)
+  "slide_number": 1,           // Thứ tự slide (1-based, NOT 0-based)
+  "title": "Slide Title",      // Tiêu đề chính
+  "content_points": [           // Nội dung chính (array of strings)
     "First point with details",
     "Second point with examples",
     "Third point with statistics"
   ],
-  "notes": "Speaker notes or additional context",  // Notes cho speaker
-  "image_url": "https://...", // Optional - URL ảnh nếu có
-  "keywords": ["AI", "tech"]  // Optional - Keywords for search
+  "suggested_visuals": [        // Gợi ý visual elements
+    "icon-list",
+    "timeline",
+    "graph"
+  ],
+  "image_suggestion": "Hình ảnh minh họa về AI và công nghệ",  // Mô tả ảnh gợi ý
+  "estimated_duration": 120,    // Thời lượng ước tính (seconds)
+  "image_url": null             // URL ảnh thực tế (nếu có)
 }
 ```
+
+**📝 Note:** Schema này được tạo bởi AI generation system và khác với schema ban đầu thiết kế. Frontend cần sử dụng đúng field names:
+- `slide_number` (1-based) thay vì `slide_index` (0-based)
+- `content_points` thay vì `bullets`
+- Không có `slide_type`, `subtitle`, `notes`, `keywords` trong DB hiện tại
 
 ---
 
@@ -142,15 +151,25 @@ GET /api/slides/outline?document_id=doc_abc123&user_id=17Beaeik...
   "slide_count": 30,
   "slides_outline": [
     {
-      "slide_index": 0,
-      "slide_type": "title",
-      "title": "Giới thiệu về AI"
+      "slide_number": 1,
+      "title": "Giới thiệu về AI",
+      "content_points": [],
+      "suggested_visuals": [],
+      "image_suggestion": "",
+      "estimated_duration": 60,
+      "image_url": null
     },
     {
-      "slide_index": 1,
-      "slide_type": "content",
+      "slide_number": 2,
       "title": "Khái niệm AI",
-      "bullets": ["Point 1", "Point 2"]
+      "content_points": [
+        "AI là khả năng máy móc mô phỏng trí tuệ con người",
+        "Bao gồm: Machine Learning, Deep Learning, NLP"
+      ],
+      "suggested_visuals": ["icon-brain", "flowchart"],
+      "image_suggestion": "Hình minh họa cấu trúc AI",
+      "estimated_duration": 120,
+      "image_url": null
     }
   ]
 }
@@ -166,22 +185,28 @@ Content-Type: application/json
 
 {
   "document_id": "doc_abc123def456",
-  "user_id": "17Beaeik...",
   "slides_outline": [
     {
-      "slide_index": 0,
-      "slide_type": "title",
-      "title": "NEW TITLE - Giới thiệu về GenAI"
+      "slide_number": 1,
+      "title": "NEW TITLE - Giới thiệu về GenAI",
+      "content_points": [],
+      "suggested_visuals": [],
+      "image_suggestion": "",
+      "estimated_duration": 60,
+      "image_url": null
     },
     {
-      "slide_index": 1,
-      "slide_type": "content",
+      "slide_number": 2,
       "title": "EDITED - Khái niệm GenAI",
-      "bullets": [
+      "content_points": [
         "EDITED - GenAI là gì?",
         "NEW BULLET - Phân biệt AI vs GenAI",
         "Ứng dụng thực tế"
-      ]
+      ],
+      "suggested_visuals": ["comparison-chart", "examples"],
+      "image_suggestion": "So sánh AI truyền thống và GenAI",
+      "estimated_duration": 150,
+      "image_url": null
     }
   ],
   "change_description": "Updated title and added GenAI distinction"
@@ -209,17 +234,19 @@ Content-Type: application/json
 
 {
   "document_id": "doc_abc123def456",
-  "user_id": "17Beaeik...",
-  "insert_after_index": 5,  // Thêm sau slide 5
+  "insert_after_index": 5,
   "new_slide": {
-    "slide_type": "content",
+    "slide_number": 6,
     "title": "Tương lai của AI",
-    "bullets": [
+    "content_points": [
       "AGI (Artificial General Intelligence)",
       "Ethical considerations",
       "Impact on jobs and society"
     ],
-    "notes": "Important emerging trends"
+    "suggested_visuals": ["future-timeline", "ethics-diagram"],
+    "image_suggestion": "Tầm nhìn tương lai AI và xã hội",
+    "estimated_duration": 180,
+    "image_url": null
   }
 }
 ```
@@ -244,7 +271,6 @@ Content-Type: application/json
 
 {
   "document_id": "doc_abc123def456",
-  "user_id": "17Beaeik...",
   "slide_index": 8,
   "reason": "Duplicate content with slide 3"
 }
@@ -269,7 +295,6 @@ Content-Type: application/json
 
 {
   "document_id": "doc_abc123def456",
-  "user_id": "17Beaeik...",
   "regenerate_options": {
     "regenerate_all": false,  // true = tất cả, false = chỉ slides đã thay đổi
     "slide_indices": [1, 2, 5],  // Nếu regenerate_all=false, specify slides nào
@@ -544,129 +569,7 @@ User workflow:
 
 ---
 
-## 📊 Frontend Integration
 
-### Display Outline Editor
-
-```jsx
-// Component: SlideOutlineEditor.jsx
-function SlideOutlineEditor({ documentId }) {
-  const [outline, setOutline] = useState([]);
-  const [hasChanges, setHasChanges] = useState(false);
-
-  // Load outline
-  useEffect(() => {
-    fetch(`/api/slides/outline?document_id=${documentId}`)
-      .then(res => res.json())
-      .then(data => setOutline(data.slides_outline));
-  }, [documentId]);
-
-  // Edit slide title
-  const updateSlideTitle = (slideIndex, newTitle) => {
-    const updated = [...outline];
-    updated[slideIndex].title = newTitle;
-    setOutline(updated);
-    setHasChanges(true);
-  };
-
-  // Save outline
-  const saveOutline = async () => {
-    await fetch('/api/slides/outline', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        document_id: documentId,
-        user_id: userId,
-        slides_outline: outline,
-        change_description: "Manual outline edit"
-      })
-    });
-    setHasChanges(false);
-  };
-
-  // Regenerate slides
-  const regenerateSlides = async (slideIndices) => {
-    const res = await fetch('/api/slides/regenerate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        document_id: documentId,
-        user_id: userId,
-        regenerate_options: {
-          regenerate_all: false,
-          slide_indices: slideIndices
-        }
-      })
-    });
-    const data = await res.json();
-    // Poll job status...
-  };
-
-  return (
-    <div className="outline-editor">
-      {outline.map((slide, idx) => (
-        <OutlineItem
-          key={idx}
-          slide={slide}
-          onUpdate={(field, value) => updateSlide(idx, field, value)}
-        />
-      ))}
-      {hasChanges && (
-        <button onClick={saveOutline}>Save Outline</button>
-      )}
-      <button onClick={() => regenerateSlides([1,2,3])}>
-        Regenerate Changed Slides (5 points)
-      </button>
-    </div>
-  );
-}
-```
-
-### Version Switcher
-
-```jsx
-// Component: VersionSwitcher.jsx
-function VersionSwitcher({ documentId, currentVersion }) {
-  const [versions, setVersions] = useState([]);
-
-  useEffect(() => {
-    fetch(`/api/slides/versions?document_id=${documentId}`)
-      .then(res => res.json())
-      .then(data => setVersions(data.versions));
-  }, [documentId]);
-
-  const switchVersion = async (targetVersion) => {
-    await fetch('/api/slides/versions/switch', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        document_id: documentId,
-        user_id: userId,
-        target_version: targetVersion
-      })
-    });
-    window.location.reload(); // Reload to show new version
-  };
-
-  return (
-    <div className="version-switcher">
-      <h3>Version History</h3>
-      {versions.map(v => (
-        <div key={v.version} className={v.is_current ? 'current' : ''}>
-          <span>v{v.version}</span>
-          <span>{v.description}</span>
-          <span>{v.slide_count} slides</span>
-          {!v.is_current && (
-            <button onClick={() => switchVersion(v.version)}>
-              Restore
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-```
 
 ---
 

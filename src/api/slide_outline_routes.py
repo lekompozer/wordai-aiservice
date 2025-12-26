@@ -22,7 +22,26 @@ router = APIRouter()
 
 
 class OutlineSlideItem(BaseModel):
-    """Single slide outline item"""
+    """Single slide outline item - matches actual database schema"""
+
+    slide_number: int = Field(..., description="Slide position (1-based numbering)")
+    title: str
+    content_points: List[str] = Field(
+        default_factory=list, description="Main content bullets"
+    )
+    suggested_visuals: List[str] = Field(
+        default_factory=list, description="Visual element suggestions"
+    )
+    image_suggestion: str = Field(default="", description="Image description/prompt")
+    estimated_duration: int = Field(
+        default=60, description="Estimated duration in seconds"
+    )
+    image_url: Optional[str] = Field(default=None, description="Actual image URL")
+
+
+# Legacy schema model (for reference/future migration)
+class OutlineSlideItemLegacy(BaseModel):
+    """Original planned schema - NOT currently used in database"""
 
     slide_index: int
     slide_type: str = Field(..., description="title|agenda|content|thankyou")

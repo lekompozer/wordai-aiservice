@@ -136,24 +136,19 @@ class SlideAIService:
             # Try to extract JSON from markdown code blocks if present
             import re
 
-            # Try different patterns
-            # Pattern 1: ```json ... ```
+            # Try different patterns to extract JSON from markdown code blocks
+            # Pattern 1: ```json\n{...}\n``` (most common)
             json_match = re.search(
-                r"```json\s*(\{.+?\})\s*```", response_text, re.DOTALL
+                r"```json\s*([\s\S]*?)\s*```", response_text, re.MULTILINE
             )
             if not json_match:
-                # Pattern 2: ``` ... ``` (without json keyword)
+                # Pattern 2: ```\n{...}\n``` (without json keyword)
                 json_match = re.search(
-                    r"```\s*(\{.+?\})\s*```", response_text, re.DOTALL
+                    r"```\s*([\s\S]*?)\s*```", response_text, re.MULTILINE
                 )
             if not json_match:
-                # Pattern 3: Look for content between ```json and ``` without requiring { }
-                json_match = re.search(
-                    r"```json\s*(.+?)\s*```", response_text, re.DOTALL
-                )
-            if not json_match:
-                # Pattern 4: Any content between ``` markers
-                json_match = re.search(r"```\s*(.+?)\s*```", response_text, re.DOTALL)
+                # Pattern 3: Just look for {...} spanning multiple lines
+                json_match = re.search(r"(\{[\s\S]*\})", response_text)
 
             if json_match:
                 logger.info("✅ Found JSON in markdown code block, extracting...")
@@ -276,11 +271,13 @@ REQUIRED OUTPUT STRUCTURE for each slide:
 </div>
 ```
 
-Your Response (JSON format):
+Your Response (JSON format ONLY - NO MARKDOWN):
 {{
   "formatted_html": "Improved HTML with ALL {len(slide_markers)} slides wrapped in proper containers",
   "ai_explanation": "Summary of layout improvements made across all slides"
 }}
+
+⚠️ CRITICAL: Return ONLY the JSON object above. DO NOT wrap it in ```json ``` markdown code blocks. Just output the raw JSON starting with {{ and ending with }}.
 
 CRITICAL REQUIREMENTS - FORMAT MODE (PRESERVE CONTENT):
 - Process ALL {len(slide_markers)} slides in the input
@@ -333,7 +330,7 @@ REQUIRED OUTPUT STRUCTURE:
 </div>
 ```
 
-Your Response (JSON format):
+Your Response (JSON format ONLY - NO MARKDOWN):
 {{
   "formatted_html": "Improved HTML wrapped in <div class='slide-page'><div class='slide-wrapper'>...improved content...</div></div>",
   "suggested_elements": [
@@ -348,6 +345,14 @@ Your Response (JSON format):
     "gradient": {{
       "type": "linear",
       "colors": ["#667eea", "#764ba2", "#f093fb"]
+    }},
+    "overlayColor": "#000000",
+    "overlayOpacity": 0.3
+  }},
+  "ai_explanation": "Brief explanation of layout improvements made (1-2 sentences)"
+}}
+
+⚠️ CRITICAL: Return ONLY the JSON object above. DO NOT wrap it in ```json ``` markdown code blocks. Just output the raw JSON starting with {{ and ending with }}.
     }},
     "overlayOpacity": 0.15
   }},
