@@ -115,22 +115,39 @@ class SlideGenerationWorker:
             if not analysis:
                 raise Exception(f"Analysis {task.analysis_id} not found")
 
-            # ✅ SAVE VERSION SNAPSHOT before generating new slides
-            # Each AI generation = new version
+            # ✅ Check if this is first AI generation or regeneration
+            # IMPORTANT: Only AI-generated slides have version tracking (they have slides_outline)
+            # Manual slides don't have outline → no version tracking
+
+            # First AI generation = version 1 (no snapshot needed)
+            # Regeneration = new version (snapshot old version first)
             current_version = doc.get("version", 1)
-            try:
-                new_version = await asyncio.to_thread(
-                    self.doc_manager.save_version_snapshot,
-                    document_id=document_id,
-                    user_id=task.user_id,
-                    description=f"Before AI slide generation (v{current_version} → v{current_version + 1})",
-                )
+            existing_outline = doc.get("slides_outline", [])
+
+            # Check if document already has AI-generated slides
+            # Detect by: has slides_outline (AI slides always have outline)
+            has_ai_generated_slides = len(existing_outline) > 0
+
+            if has_ai_generated_slides:
+                # This is regeneration (2nd+ AI generation) - create new version
+                try:
+                    new_version = await asyncio.to_thread(
+                        self.doc_manager.save_version_snapshot,
+                        document_id=document_id,
+                        user_id=task.user_id,
+                        description=f"Before AI slide regeneration (v{current_version} → v{current_version + 1})",
+                    )
+                    logger.info(
+                        f"📸 Regeneration: Saved version {current_version} snapshot, creating version {new_version}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"⚠️ Failed to save version snapshot: {e}. Continuing with generation..."
+                    )
+            else:
+                # This is first AI generation - stay at version 1
                 logger.info(
-                    f"📸 Saved version {current_version} snapshot, creating version {new_version}"
-                )
-            except Exception as e:
-                logger.warning(
-                    f"⚠️ Failed to save version snapshot: {e}. Continuing with generation..."
+                    f"🆕 First AI generation: Staying at version {current_version} (no snapshot needed)"
                 )
 
             # Get generation data from document
@@ -317,32 +334,63 @@ class SlideGenerationWorker:
                 slides_outline=slides_outline,  # Save outline for retry capability
             )
 
-            # ✅ Update version_history with new slides content
+            # ✅ Add/Update version in version_history
             current_doc = await asyncio.to_thread(
                 self.mongo.db["documents"].find_one, {"document_id": document_id}
             )
             current_version = current_doc.get("version", 1)
+            version_history = current_doc.get("version_history", [])
 
-            await asyncio.to_thread(
-                self.mongo.db["documents"].update_one,
-                {
-                    "document_id": document_id,
-                    "user_id": task.user_id,
-                    "version_history.version": current_version,
-                },
-                {
-                    "$set": {
-                        "version_history.$.content_html": final_html,
-                        "version_history.$.slides_outline": slides_outline,
-                        "version_history.$.slide_backgrounds": slide_backgrounds,
-                        "version_history.$.slide_count": len(slides_outline),
-                    }
-                },
+            # Check if current version exists in history
+            version_exists = any(
+                v.get("version") == current_version for v in version_history
             )
 
-            logger.info(
-                f"📸 Updated version {current_version} in history with generated slides"
-            )
+            if version_exists:
+                # Update existing version in history (regeneration)
+                await asyncio.to_thread(
+                    self.mongo.db["documents"].update_one,
+                    {
+                        "document_id": document_id,
+                        "user_id": task.user_id,
+                        "version_history.version": current_version,
+                    },
+                    {
+                        "$set": {
+                            "version_history.$.content_html": final_html,
+                            "version_history.$.slides_outline": slides_outline,
+                            "version_history.$.slide_backgrounds": slide_backgrounds,
+                            "version_history.$.slide_count": len(slides_outline),
+                        }
+                    },
+                )
+                logger.info(
+                    f"📸 Updated version {current_version} in history with generated slides"
+                )
+            else:
+                # First generation - add version 1 to history
+                version_snapshot = {
+                    "version": current_version,
+                    "created_at": datetime.utcnow(),
+                    "description": f"AI generated slides (first generation)",
+                    "content_html": final_html,
+                    "slides_outline": slides_outline,
+                    "slide_backgrounds": slide_backgrounds,
+                    "slide_elements": [],
+                    "slide_count": len(slides_outline),
+                }
+
+                await asyncio.to_thread(
+                    self.mongo.db["documents"].update_one,
+                    {
+                        "document_id": document_id,
+                        "user_id": task.user_id,
+                    },
+                    {"$push": {"version_history": version_snapshot}},
+                )
+                logger.info(
+                    f"📸 Created version {current_version} in history (first generation)"
+                )
 
             # Deduct points (only if all batches completed successfully)
             if is_complete:

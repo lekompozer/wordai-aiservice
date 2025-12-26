@@ -127,17 +127,9 @@ class DocumentManager:
         document_id = f"doc_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
 
-        # Create initial version snapshot for version 1
-        initial_version_snapshot = {
-            "version": 1,
-            "created_at": now,
-            "description": "Initial version",
-            "content_html": content_html,
-            "slides_outline": [],  # Empty for new documents
-            "slide_backgrounds": [],
-            "slide_elements": [],
-            "slide_count": 0,
-        }
+        # ✅ Do NOT create version snapshot for brand new documents
+        # Version 1 will be created when first AI generation completes
+        # Only regeneration (2nd+ generation) creates new versions
 
         document = {
             "document_id": document_id,
@@ -146,7 +138,7 @@ class DocumentManager:
             "content_html": content_html,
             "content_text": content_text,
             "version": 1,
-            "version_history": [initial_version_snapshot],  # ✅ Save version 1
+            "version_history": [],  # ✅ Empty until first generation completes
             "auto_save_count": 0,
             "manual_save_count": 1,  # Lần tạo = manual save
             # Source tracking
