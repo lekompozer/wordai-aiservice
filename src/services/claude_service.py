@@ -474,6 +474,23 @@ FORMATTING RULES FOR SLIDES:
 - Remove unnecessary words (slides should be scannable)
 - Use parallel structure in bullet points
 
+ANIMATION & TIMING REQUIREMENTS (CRITICAL):
+- BACKGROUND/CONTAINER: Always visible immediately (NO animation)
+  * Slide container (.slide div): opacity: 1, no animation
+  * Background colors/gradients: visible from start
+  * Logo & slide numbers: visible immediately (no animation)
+- CONTENT ELEMENTS: Animate with stagger delays
+  * Text: h1, h2, h3, p, li (animated with opacity: 0 initially)
+  * Visuals: images, icons, decorative divs (animated)
+- ALL content MUST be fully visible within 2-3 seconds (OPTIMAL: 2.5s)
+- Use FAST animations only: fade-in (0.3-0.5s), slide-in (0.4-0.6s)
+- Stagger text reveals with 0.2s delay between elements
+- AVOID slow animations (>1s per element)
+- Total animation sequence: MAXIMUM 2.5 seconds
+- CSS animation syntax: animation: fadeIn 0.5s ease-out forwards; animation-delay: 0.2s;
+- Include @keyframes fadeIn definition in <style> tag within slide
+- Set initial opacity: 0 ONLY on animated content elements (NOT on container)
+
 CRITICAL STYLING RULES (TipTap Compatibility):
 - Apply styles ONLY on BLOCK elements: <p>, <h1>, <h2>, <h3>, <h4>, <h5>, <h6>, <ul>, <ol>, <li>, <blockquote>, <div>
 - NEVER add style attributes to text marks: <strong>, <em>, <u>, <s>, <code>, <a>, <span>

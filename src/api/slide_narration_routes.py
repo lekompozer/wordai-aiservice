@@ -65,7 +65,7 @@ logger.info("=" * 80)
 
 # Points cost for each step
 POINTS_COST_SUBTITLE = 2
-POINTS_COST_AUDIO = 2
+POINTS_COST_AUDIO = 3
 
 
 @router.post(
@@ -1417,12 +1417,7 @@ async def generate_audio_v2(
     **Queue audio generation job for subtitle document**
 
     Returns job_id immediately for polling.
-    Deducts points based on chunks to generate (3 points per chunk).
-
-    **Pricing:**
-    - 3 points per chunk (typical: 6 chunks for 23-slide presentation = 18 points)
-    - Force regenerate: charges for all chunks
-    - Normal retry: only charges for missing chunks
+    Deducts 2 points from user.
 
     **Processing time:** ~30-60 seconds per slide (runs in background)
     """
@@ -1430,24 +1425,22 @@ async def generate_audio_v2(
         user_id = current_user["uid"]
         logger.info(f"📋 Queueing audio generation: subtitle={subtitle_id}")
 
-        # Get subtitle to calculate chunks and points
-        subtitle_doc = db.presentation_subtitles.find_one(
-            {"_id": ObjectId(subtitle_id)}
+        # Deduct points upfront
+        points_service = get_points_service()
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=2,
+            service="slide_narration",
+            resource_id=subtitle_id,
+            description="Generate audio (queued)",
         )
-        if not subtitle_doc:
-            raise HTTPException(404, "Subtitle not found")
 
-        # Calculate total slides
-        total_slides = len(subtitle_doc.get("slides", []))
-        if total_slides == 0:
-            raise HTTPException(400, "Subtitle has no slides")
-
-        # Estimate chunks (3500 bytes per chunk, avg 150 bytes/slide)
-        # Max 6 chunks for typical 23-slide presentation
-        estimated_chunks = max(1, min(6, (total_slides + 3) // 4))
+        # Create job in MongoDB
+        import uuid
+        from src.queue.queue_dependencies import get_slide_narration_audio_queue
+        from src.models.ai_queue_tasks import SlideNarrationAudioTask
 
         # Handle force regenerate: Delete existing chunks if requested
-        existing_chunks_count = 0
         if request.force_regenerate:
             deleted_count = db.presentation_audio.delete_many(
                 {"subtitle_id": subtitle_id, "user_id": user_id}
@@ -1455,42 +1448,6 @@ async def generate_audio_v2(
             logger.info(
                 f"🔄 Force regenerate: Deleted {deleted_count} existing audio chunks"
             )
-            # Force regenerate = charge for all chunks
-            chunks_to_generate = estimated_chunks
-        else:
-            # Count existing chunks to determine how many need generation
-            existing_chunks_count = db.presentation_audio.count_documents(
-                {
-                    "subtitle_id": subtitle_id,
-                    "user_id": user_id,
-                    "status": "ready",
-                    "audio_type": "chunked",
-                }
-            )
-            chunks_to_generate = max(1, estimated_chunks - existing_chunks_count)
-
-        # Deduct points based on chunks to generate (3 points per chunk)
-        points_per_chunk = 3
-        points_needed = chunks_to_generate * points_per_chunk
-
-        logger.info(
-            f"💰 Points calculation: {total_slides} slides → {estimated_chunks} chunks, "
-            f"{existing_chunks_count} exist → generate {chunks_to_generate} chunks × {points_per_chunk} = {points_needed} points"
-        )
-
-        points_service = get_points_service()
-        await points_service.deduct_points(
-            user_id=user_id,
-            amount=points_needed,
-            service="slide_narration_audio",
-            resource_id=subtitle_id,
-            description=f"Generate audio ({chunks_to_generate} chunks)",
-        )
-
-        # Create job in MongoDB
-        import uuid
-        from src.queue.queue_dependencies import get_slide_narration_audio_queue
-        from src.models.ai_queue_tasks import SlideNarrationAudioTask
 
         job_id = str(uuid.uuid4())
         job_doc = {

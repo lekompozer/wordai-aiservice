@@ -293,17 +293,31 @@ Language: {language}
    - Or bottom-right: `<div style="position: absolute; bottom: 40px; right: 60px; font-size: 24px; opacity: 0.6;">02</div>`
    - Use 2-digit format: 01, 02, 03, etc.
 
-6. **Layout & Spacing:**
+6. **Layout & Spacing (CRITICAL - Content Must Fit Within Slide):**
+   - **CONTENT CONTAINMENT**: ALL text and visuals MUST fit within 1920x1080 canvas - NO overflow
+   - **Horizontal margins**:
+     * Standard content: 80-120px left/right margin
+     * Wide horizontal content: Use 180px left margin for better balance
+   - **Vertical spacing**: Ensure content doesn't extend beyond slide bottom
+   - **Overflow prevention**: Use `overflow: hidden;` on slide container
    - Use flexbox/grid for centering: `display: flex; justify-content: center; align-items: center; height: 100%;`
-   - Add generous padding: `padding: 4rem;`
+   - Add generous padding: `padding: 4rem;` (but ensure content fits)
    - Leave white space - don't cram content
+   - **ADAPTIVE SIZING**: If content is too long, reduce text size to fit:
+     * Long slides (6+ bullets): Reduce h1 to 48-52px, body to 24-26px
+     * Very long slides (8+ bullets): Reduce h1 to 42-48px, body to 22-24px
+     * Prioritize readability while ensuring everything is visible
 
 7. **Typography:**
    - Font Family: Use 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif (prefer Inter for modern look)
    - Headings: Large, bold, eye-catching (h1: 56-64px, h2: 40-48px)
-   - Body text: Readable (28-32px for paragraphs)
-   - Line height: 1.6-1.8 for readability
+   - **ADAPTIVE sizing for long content**:
+     * Standard slides (3-5 bullets): h1: 56-64px, body: 28-32px
+     * Long slides (6-7 bullets): h1: 48-52px, body: 24-26px
+     * Very long slides (8+ bullets): h1: 42-48px, body: 22-24px
+   - Line height: 1.4-1.6 for readability (tighter for long content)
    - Keep content concise - avoid overly long text blocks (max 4-5 bullet points per slide)
+   - **Text alignment**: Left-aligned for readability (centered only for titles)
 
 8. **Images (if provided):**
    - If `provided_image_url` exists, integrate it beautifully
@@ -313,9 +327,49 @@ Language: {language}
 
 9. **Logo:** {f"Include at top-LEFT of EACH slide: <img src='{logo_url}' style='position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;' alt='Logo' />" if logo_url else "No logo to include"}
 
-10. **Language:** All content MUST be in {language}
+10. **ANIMATION & TIMING REQUIREMENTS** (CRITICAL):
+   - **BACKGROUND/CONTAINER**: Always visible immediately (NO animation)
+     * Slide container (.slide div): opacity: 1, no animation
+     * Background colors/gradients: visible from start
+   - **CONTENT ELEMENTS**: Animate with stagger delays
+     * Text: h1, h2, h3, p, li (animated)
+     * Visuals: images, icons, decorative divs (animated)
+     * Logo & slide numbers: visible immediately (no animation)
+   - ALL content MUST be fully visible within 2-3 seconds (OPTIMAL: 2.5s)
+   - Use FAST animations only:
+     * fade-in: 0.3-0.5s
+     * slide-in: 0.4-0.6s
+   - Stagger text reveals with 0.2s delay between elements
+   - AVOID slow animations (>1s per element)
+   - Total animation sequence: MAXIMUM 2.5 seconds
+   - Example timing breakdown:
+     * Background: visible at 0s (no animation)
+     * Title appears at 0s (first animated element)
+     * First bullet at 0.2s
+     * Second bullet at 0.4s
+     * Third bullet at 0.6s
+     * Image/visual at 0.8s
+     * Total: 1.3s (well under limit)
+   - CSS animation syntax:
+     ```css
+     /* Container - NO animation */
+     <div class="slide" style="opacity: 1; ...">
 
-11. **CONTENT DEVELOPMENT (CRITICAL - Creative Expansion):**
+     /* Content - WITH animation */
+     <h1 style="opacity: 0; animation: fadeIn 0.5s ease-out forwards;">Title</h1>
+     <p style="opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;">Text</p>
+     ```
+   - Define keyframes in inline `<style>` tag within slide:
+     ```css
+     @keyframes fadeIn {{
+       from {{ opacity: 0; transform: translateY(20px); }}
+       to {{ opacity: 1; transform: translateY(0); }}
+     }}
+     ```
+
+11. **Language:** All content MUST be in {language}
+
+12. **CONTENT DEVELOPMENT (CRITICAL - Creative Expansion):**
    - **You have CREATIVE FREEDOM** - expand outline into detailed, engaging content
    - DO NOT copy outline word-for-word - INTERPRET the intent and create compelling content
    - Keep the MEANING and PURPOSE of each outline point, but write it better for slides
@@ -356,14 +410,26 @@ Language: {language}
 
 Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just the HTML.
 
-**EXAMPLE OUTPUT (for 4 slides showing all special slide types):**
+**REMINDER - ANIMATION TIMING:**
+- ALL animations MUST complete within 2.5 seconds MAX
+- Use staggered delays: 0s, 0.2s, 0.4s, 0.6s, 0.8s
+- Fast durations: 0.3-0.5s per element
+- Include `<style>` tag with @keyframes fadeIn in each slide
+
+**EXAMPLE OUTPUT (for 4 slides showing all special slide types with animation timing):**
 
 <!-- Slide 0: Title (NO slide number) -->
 <div class="slide" data-slide-index="0" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+  <style>
+    @keyframes fadeIn {{
+      from {{ opacity: 0; transform: translateY(20px); }}
+      to {{ opacity: 1; transform: translateY(0); }}
+    }}
+  </style>
   {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <h1 style="font-size: 80px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif;">Presentation Title Here</h1>
-  <p style="font-size: 36px; text-align: center; max-width: 900px; line-height: 1.5; margin-bottom: 3rem; opacity: 0.9;">Compelling subtitle explaining the presentation purpose and value</p>
-  <p style="font-size: 28px; opacity: 0.7;">By Author Name | December 2025</p>
+  <h1 style="font-size: 80px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif; opacity: 0; animation: fadeIn 0.5s ease-out forwards;">Presentation Title Here</h1>
+  <p style="font-size: 36px; text-align: center; max-width: 900px; line-height: 1.5; margin-bottom: 3rem; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;">Compelling subtitle explaining the presentation purpose and value</p>
+  <p style="font-size: 28px; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;">By Author Name | December 2025</p>
 </div>
 
 <!-- Slide 1: Table of Contents (WITH slide number 01) -->
@@ -382,26 +448,38 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
   </div>
 </div>
 
-<!-- Slide 2: Content slide (WITH slide number 02) -->
-<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+<!-- Slide 2: Content slide (WITH slide number 02, animation, proper margins) -->
+<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 80px 120px; position: relative;">
+  <style>
+    @keyframes fadeIn {{
+      from {{ opacity: 0; transform: translateY(20px); }}
+      to {{ opacity: 1; transform: translateY(0); }}
+    }}
+  </style>
   {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
   <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">02</div>
-  <div style="max-width: 1000px;">
-    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 3rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #3b82f6; padding-left: 1.5rem;">Main Topic with Specific Details</h1>
-    <ul style="font-size: 28px; line-height: 1.8; list-style: none; padding: 0;">
-      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data (e.g., "Increased efficiency by 40% using automated workflows")</span></li>
-      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
-      <li style="margin-bottom: 2rem; display: flex; align-items: flex-start;"><span style="font-size: 36px; margin-right: 1rem;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
+  <div style="max-width: 1600px; margin-left: 180px;">
+    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 2.5rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #3b82f6; padding-left: 1.5rem; opacity: 0; animation: fadeIn 0.5s ease-out forwards; text-align: left;">Main Topic with Specific Details</h1>
+    <ul style="font-size: 26px; line-height: 1.6; list-style: none; padding: 0;">
+      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;"><span style="font-size: 32px; margin-right: 1rem;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data</span></li>
+      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;"><span style="font-size: 32px; margin-right: 1rem;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
+      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.6s forwards;"><span style="font-size: 32px; margin-right: 1rem;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
     </ul>
   </div>
 </div>
 
-<!-- Last Slide: Thank You (WITH slide number, gradient allowed) -->
+<!-- Last Slide: Thank You (WITH slide number, gradient allowed, with animation) -->
 <div class="slide" data-slide-index="3" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e3a8a); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+  <style>
+    @keyframes fadeIn {{
+      from {{ opacity: 0; transform: translateY(20px); }}
+      to {{ opacity: 1; transform: translateY(0); }}
+    }}
+  </style>
   {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
   <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">03</div>
-  <div style="font-size: 80px; margin-bottom: 2rem;">🎉</div>
-  <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif;">Thank You!</h1>
+  <div style="font-size: 80px; margin-bottom: 2rem; opacity: 0; animation: fadeIn 0.5s ease-out forwards;">🎉</div>
+  <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;">Thank You!</h1>
   <p style="font-size: 32px; text-align: center; max-width: 800px; line-height: 1.6; opacity: 0.9;">Questions? Let's discuss!</p>
   <div style="margin-top: 3rem; font-size: 24px; opacity: 0.8;">contact@example.com | @yourhandle</div>
 </div>
