@@ -67,5 +67,14 @@ class SlideFormatJobStatusResponse(BaseModel):
         description="Array of results for batch job. Each: {slide_index, formatted_html, suggested_elements, suggested_background, ai_explanation, error}",
     )
 
+    # Version creation (Mode 3 only)
+    new_version: Optional[int] = Field(
+        None,
+        description="New version number created (Mode 3: entire document only)",
+    )
+    previous_version: Optional[int] = Field(
+        None, description="Previous version number before formatting (Mode 3 only)"
+    )
+
     # Error (when failed)
     error: Optional[str] = Field(None, description="Error message if failed")

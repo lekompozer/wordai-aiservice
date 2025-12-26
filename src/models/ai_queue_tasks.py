@@ -76,6 +76,9 @@ class SlideFormatTask(BaseModel):
     task_id: str = Field(..., description="Unique task ID (same as job_id)")
     job_id: str = Field(..., description="Job ID for status tracking")
     user_id: str = Field(..., description="User ID")
+    document_id: Optional[str] = Field(
+        None, description="Document ID for version creation (Mode 3)"
+    )
     slide_index: int = Field(..., description="Slide index")
     current_html: str = Field(..., description="Current slide HTML")
     elements: list = Field(..., description="Current slide elements")

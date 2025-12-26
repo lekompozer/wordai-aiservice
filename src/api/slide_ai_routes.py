@@ -115,8 +115,16 @@ async def ai_format_slide(
 
             if request.process_all_slides:
                 process_entire_document = True  # Mode 3: Entire document
+
+                # Mode 3 requires document_id for version creation
+                if not request.document_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="document_id is required for Mode 3 (process_all_slides=true) to enable version creation",
+                    )
+
                 logger.info(
-                    f"📋 Mode 3: Processing ALL {len(slides_to_process)} slides (1 AI call)"
+                    f"📋 Mode 3: Processing ALL {len(slides_to_process)} slides (1 AI call) - document: {request.document_id}"
                 )
             else:
                 logger.info(
@@ -222,6 +230,7 @@ async def ai_format_slide(
                 job_id=batch_job_id,
                 status="pending",
                 user_id=user_id,
+                document_id=request.document_id,  # Pass document_id for version creation
                 is_batch=True,
                 total_slides=num_slides,
                 completed_slides=0,
@@ -257,6 +266,7 @@ async def ai_format_slide(
                     task_id=chunk_task_id,
                     job_id=chunk_task_id,
                     user_id=user_id,
+                    document_id=request.document_id,  # Pass for version creation
                     slide_index=0,  # Not used for batch
                     current_html=combined_html,
                     elements=[],

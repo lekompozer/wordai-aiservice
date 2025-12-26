@@ -19,6 +19,8 @@ from src.queue.queue_manager import (
 )
 from src.models.ai_queue_tasks import SlideFormatTask
 from src.services.slide_ai_service import get_slide_ai_service
+from src.services.document_manager import DocumentManager
+from src.services.online_test_utils import get_mongodb_service
 
 logger = logging.getLogger("chatbot")
 
@@ -352,17 +354,72 @@ class SlideFormatWorker:
                         chunk_slides = json.loads(chunk_data)
                         all_slides_results.extend(chunk_slides)
 
+                # Prepare update data
+                update_data = {
+                    "status": "completed",
+                    "user_id": batch_job.get("user_id"),
+                    "completed_slides": len(all_slides_results),
+                    "failed_slides": 0,
+                    "slides_results": all_slides_results,
+                    "completed_at": datetime.utcnow().isoformat(),
+                    "processing_time_seconds": processing_time,
+                }
+
+                # Mode 3: Create new version in database
+                if batch_job.get("process_entire_document"):
+                    document_id = batch_job.get("document_id")
+                    user_id = batch_job.get("user_id")
+
+                    if document_id and user_id:
+                        try:
+                            logger.info(
+                                f"📋 Mode 3: Creating new version for document {document_id}"
+                            )
+
+                            # Get DocumentManager
+                            mongo = get_mongodb_service()
+                            doc_manager = DocumentManager(mongo.db)
+
+                            # Get current version before creating snapshot
+                            doc = doc_manager.get_document(document_id, user_id)
+                            if doc:
+                                previous_version = doc.get("version", 1)
+
+                                # Save version snapshot (increments version)
+                                new_version = doc_manager.save_version_snapshot(
+                                    document_id=document_id,
+                                    user_id=user_id,
+                                    description="AI formatted entire document",
+                                )
+
+                                update_data["new_version"] = new_version
+                                update_data["previous_version"] = previous_version
+
+                                logger.info(
+                                    f"✅ Created new version: {previous_version} → {new_version} for document {document_id}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"⚠️ Document {document_id} not found, cannot create version"
+                                )
+
+                        except Exception as e:
+                            logger.error(
+                                f"❌ Failed to create version for document {document_id}: {e}",
+                                exc_info=True,
+                            )
+                            # Don't fail the entire job if version creation fails
+                            # User can still see formatted slides
+                    else:
+                        logger.warning(
+                            "⚠️ Mode 3 but missing document_id or user_id, cannot create version"
+                        )
+
                 # Update batch job status to completed
                 await set_job_status(
                     redis_client=self.queue_manager.redis_client,
                     job_id=batch_job_id,
-                    status="completed",
-                    user_id=batch_job.get("user_id"),
-                    completed_slides=len(all_slides_results),
-                    failed_slides=0,
-                    slides_results=all_slides_results,
-                    completed_at=datetime.utcnow().isoformat(),
-                    processing_time_seconds=processing_time,
+                    **update_data,
                 )
 
                 # Cleanup chunk results

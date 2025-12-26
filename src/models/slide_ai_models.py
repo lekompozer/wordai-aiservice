@@ -47,6 +47,12 @@ class SlideData(BaseModel):
 class SlideAIFormatRequest(BaseModel):
     """Request to format slide(s) with AI - supports 3 modes"""
 
+    # Document ID (required for Mode 3 version creation)
+    document_id: Optional[str] = Field(
+        None,
+        description="Document ID - REQUIRED for Mode 3 (entire document) to enable version creation",
+    )
+
     # Mode 1: Single slide (backward compatible)
     slide_index: Optional[int] = Field(None, description="Single slide index to format")
     current_html: Optional[str] = Field(None, description="Single slide HTML content")
