@@ -323,45 +323,65 @@ Language: {language}
 
 9. **Logo:** {f"Include at top-right or top-left of EACH slide: <img src='{logo_url}' style='position: absolute; top: 30px; right: 60px; width: 100px; height: auto; z-index: 10;' alt='Logo' />" if logo_url else "No logo to include"}
 
-10. **ANIMATION & TIMING REQUIREMENTS** (CRITICAL):
+10. **ANIMATION & TIMING REQUIREMENTS** (CREATIVE FREEDOM):
    - **BACKGROUND/CONTAINER**: Always visible immediately (NO animation)
      * Slide container (.slide div): opacity: 1, no animation
      * Background colors/gradients: visible from start
-   - **CONTENT ELEMENTS**: Animate with stagger delays
+   - **CONTENT ELEMENTS**: Animate creatively - you have freedom!
      * Text: h1, h2, h3, p, li (animated)
      * Visuals: images, icons, decorative divs (animated)
      * Logo & slide numbers: visible immediately (no animation)
-   - ALL content MUST be fully visible within 2-3 seconds (OPTIMAL: 2.5s)
-   - Use FAST animations only:
-     * fade-in: 0.3-0.5s
-     * slide-in: 0.4-0.6s
-   - Stagger text reveals with 0.2s delay between elements
-   - AVOID slow animations (>1s per element)
-   - Total animation sequence: MAXIMUM 2.5 seconds
-   - Example timing breakdown:
-     * Background: visible at 0s (no animation)
-     * Title appears at 0s (first animated element)
-     * First bullet at 0.2s
-     * Second bullet at 0.4s
-     * Third bullet at 0.6s
-     * Image/visual at 0.8s
-     * Total: 1.3s (well under limit)
-   - CSS animation syntax:
+   - **TIMING GOAL**: ALL content should be fully visible within 2-3 seconds (OPTIMAL: 2.5s)
+   - **ANIMATION VARIETY** - Be creative with different styles:
+     * fadeIn, slideInUp, slideInLeft, slideInRight, scaleIn, bounceIn
+     * Combine effects: opacity + transform for richer animations
+     * Different animations for different slides - keep it interesting!
+   - **GUIDELINES** (not strict rules):
+     * Individual animation duration: 0.3-0.8s recommended
+     * Stagger delays: 0.1-0.3s between elements
+     * Total sequence should be under 3 seconds
+     * Use easing functions: ease-out, ease-in-out, cubic-bezier for smoothness
+   - **CREATIVE EXAMPLES**:
      ```css
-     /* Container - NO animation */
-     <div class="slide" style="opacity: 1; ...">
-
-     /* Content - WITH animation */
-     <h1 style="opacity: 0; animation: fadeIn 0.5s ease-out forwards;">Title</h1>
-     <p style="opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;">Text</p>
-     ```
-   - Define keyframes in inline `<style>` tag within slide:
-     ```css
-     @keyframes fadeIn {{
-       from {{ opacity: 0; transform: translateY(20px); }}
+     /* Fade + slide up */
+     @keyframes fadeInUp {{
+       from {{ opacity: 0; transform: translateY(30px); }}
        to {{ opacity: 1; transform: translateY(0); }}
      }}
+
+     /* Slide from left */
+     @keyframes slideInLeft {{
+       from {{ opacity: 0; transform: translateX(-50px); }}
+       to {{ opacity: 1; transform: translateX(0); }}
+     }}
+
+     /* Scale in */
+     @keyframes scaleIn {{
+       from {{ opacity: 0; transform: scale(0.8); }}
+       to {{ opacity: 1; transform: scale(1); }}
+     }}
+
+     /* Bounce in */
+     @keyframes bounceIn {{
+       0% {{ opacity: 0; transform: scale(0.3); }}
+       50% {{ opacity: 1; transform: scale(1.05); }}
+       70% {{ transform: scale(0.95); }}
+       100% {{ transform: scale(1); }}
+     }}
      ```
+   - **USAGE EXAMPLES**:
+     ```html
+     <!-- Title with bounce -->
+     <h1 style="opacity: 0; animation: bounceIn 0.6s ease-out forwards;">Title</h1>
+
+     <!-- Bullets sliding from left with stagger -->
+     <li style="opacity: 0; animation: slideInLeft 0.5s ease-out 0.2s forwards;">Point 1</li>
+     <li style="opacity: 0; animation: slideInLeft 0.5s ease-out 0.4s forwards;">Point 2</li>
+
+     <!-- Image scaling in -->
+     <img style="opacity: 0; animation: scaleIn 0.6s ease-out 0.6s forwards;" src="..." />
+     ```
+   - **IMPORTANT**: Vary animations across slides for visual interest, but keep timing under 3s total
 
 11. **Language:** All content MUST be in {language}
 
