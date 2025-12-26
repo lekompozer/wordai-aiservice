@@ -325,7 +325,7 @@ Language: {language}
    - Style: `border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);`
    - Size: Proportional to content (max-width: 50% for side-by-side, 100% for full-width)
 
-9. **Logo:** {f"Include at top-LEFT of EACH slide: <img src='{logo_url}' style='position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;' alt='Logo' />" if logo_url else "No logo to include"}
+9. **Logo:** {f"Include at top-right or top-left of EACH slide: <img src='{logo_url}' style='position: absolute; top: 30px; right: 60px; width: 100px; height: auto; z-index: 10;' alt='Logo' />" if logo_url else "No logo to include"}
 
 10. **ANIMATION & TIMING REQUIREMENTS** (CRITICAL):
    - **BACKGROUND/CONTAINER**: Always visible immediately (NO animation)
