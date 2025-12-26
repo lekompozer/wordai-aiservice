@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime
 import logging
 from bson import ObjectId
-from typing import List, Dict, Any, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from src.models.slide_narration_models import (
     SubtitleGenerateRequest,
@@ -1253,11 +1253,15 @@ async def remove_slide_audio(
 async def generate_subtitles_v2(
     presentation_id: str,
     request: GenerateSubtitlesRequestV2,
+    version: Optional[int] = None,
     current_user: dict = Depends(get_current_user),
 ):
     """
     Generate subtitles for specific language (multi-language system)
     Deducts 2 points from user
+
+    Parameters:
+    - version: Optional version number. If not provided, uses latest version.
     """
     try:
         user_id = current_user["uid"]

@@ -153,9 +153,7 @@ class SlideAIService:
                 )
             if not json_match:
                 # Pattern 4: Any content between ``` markers
-                json_match = re.search(
-                    r"```\s*(.+?)\s*```", response_text, re.DOTALL
-                )
+                json_match = re.search(r"```\s*(.+?)\s*```", response_text, re.DOTALL)
 
             if json_match:
                 logger.info("✅ Found JSON in markdown code block, extracting...")

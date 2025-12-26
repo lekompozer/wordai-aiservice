@@ -1086,12 +1086,12 @@ async def get_documents_by_folders(
 async def get_document(
     document_id: str,
     version: Optional[int] = None,
-    user_data: Dict[str, Any] = Depends(verify_firebase_token)
+    user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
     """
     Lấy document theo document_id
     Sử dụng khi đã có document_id (ví dụ từ danh sách documents)
-    
+
     Parameters:
     - version: Optional version number. If not provided, returns latest version.
     """
@@ -1107,20 +1107,18 @@ async def get_document(
             )
             if not base_doc:
                 raise HTTPException(status_code=404, detail="Document not found")
-            
+
             # Find the requested version in version_history
             version_history = base_doc.get("version_history", [])
             target_version = next(
-                (v for v in version_history if v.get("version") == version),
-                None
+                (v for v in version_history if v.get("version") == version), None
             )
-            
+
             if not target_version:
                 raise HTTPException(
-                    status_code=404,
-                    detail=f"Version {version} not found"
+                    status_code=404, detail=f"Version {version} not found"
                 )
-            
+
             # Create document from version snapshot
             document = {
                 "_id": base_doc["_id"],
@@ -1140,7 +1138,7 @@ async def get_document(
                 "folder_id": base_doc.get("folder_id"),
                 "is_deleted": base_doc.get("is_deleted", False),
                 "is_version_snapshot": True,  # Flag to indicate this is historical
-                "version_description": target_version.get("description", "")
+                "version_description": target_version.get("description", ""),
             }
         else:
             # Get latest version (current document state)
@@ -1695,6 +1693,7 @@ async def empty_trash(
 async def download_document(
     document_id: str,
     format: str,
+    version: Optional[int] = None,  # Version parameter
     document_type: Optional[str] = None,  # Query parameter for page sizing
     user_data: Dict[str, Any] = Depends(verify_firebase_token),
 ):
@@ -1702,10 +1701,13 @@ async def download_document(
     Download document in specified format (PDF, DOCX, TXT, HTML)
 
     **Single endpoint để frontend gọi - Backend tự động:**
-    1. Lấy latest HTML content từ MongoDB
+    1. Lấy HTML content từ MongoDB (specific version or latest)
     2. Convert sang format yêu cầu (PDF/DOCX/TXT/HTML)
     3. Upload file lên R2
     4. Trả về presigned download URL (1 hour expiry)
+
+    **Parameters:**
+    - version: Optional version number. If not provided, downloads latest version.
 
     **Supported formats:**
     - `pdf` - Convert HTML → PDF (weasyprint)
@@ -1753,10 +1755,37 @@ async def download_document(
         )
 
     try:
-        # Step 1: Get document from MongoDB
-        document = await asyncio.to_thread(
-            doc_manager.get_document, document_id, user_id
-        )
+        # Step 1: Get document from MongoDB (with version support)
+        if version is not None:
+            # Get specific version from version_history
+            base_doc = await asyncio.to_thread(
+                doc_manager.get_document, document_id, user_id
+            )
+            if not base_doc:
+                raise HTTPException(status_code=404, detail="Document not found")
+
+            version_history = base_doc.get("version_history", [])
+            target_version = next(
+                (v for v in version_history if v.get("version") == version), None
+            )
+
+            if not target_version:
+                raise HTTPException(
+                    status_code=404, detail=f"Version {version} not found"
+                )
+
+            # Build document from version snapshot
+            document = {
+                "content_html": target_version["content_html"],
+                "title": base_doc["title"],
+                "slide_elements": target_version.get("slide_elements", []),
+                "document_type": base_doc["document_type"],
+            }
+        else:
+            # Get latest version
+            document = await asyncio.to_thread(
+                doc_manager.get_document, document_id, user_id
+            )
 
         if not document:
             raise HTTPException(status_code=404, detail="Document not found")
