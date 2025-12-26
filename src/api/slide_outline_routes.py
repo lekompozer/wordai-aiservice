@@ -15,7 +15,7 @@ from src.middleware.firebase_auth import get_current_user
 
 logger = logging.getLogger("chatbot")
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 
 # ============ REQUEST/RESPONSE MODELS ============
