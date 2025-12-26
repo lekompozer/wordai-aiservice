@@ -105,7 +105,11 @@ class SlideAIService:
             f"📊 Prompt size: {len(prompt)} chars, HTML size: {len(request.current_html)} chars"
         )
 
-        response = self.claude_client.messages.create(
+        # ✅ Use STREAMING for large responses (> 10 min requires streaming)
+        logger.info("🌊 Starting Claude streaming for slide formatting...")
+
+        response_text = ""
+        with self.claude_client.messages.stream(
             model=self.claude_model,
             max_tokens=52000,  # Claude Sonnet 4.5 supports up to 64K, using 52K for safety
             temperature=0.7,
@@ -115,11 +119,15 @@ class SlideAIService:
                     "content": prompt,
                 }
             ],
+        ) as stream:
+            for text in stream.text_stream:
+                response_text += text
+
+        logger.info(
+            f"✅ Claude streaming complete, response length: {len(response_text)} chars"
         )
 
         # Parse Claude response
-        response_text = response.content[0].text
-
         # Debug: Log response for troubleshooting
         logger.debug(f"Claude response length: {len(response_text)} chars")
         if not response_text or not response_text.strip():
