@@ -310,6 +310,125 @@ class DocumentManager:
         logger.warning(f"⚠️ Document {document_id} not found or not modified")
         return False
 
+    def save_version_snapshot(
+        self, document_id: str, user_id: str, description: str = "Version snapshot"
+    ) -> int:
+        """
+        Save current document state as a version in history.
+        Creates a snapshot of content_html, slides_outline, slide_backgrounds, slide_elements.
+
+        Returns: new version number
+        """
+        # Get current document
+        doc = self.documents.find_one(
+            {"document_id": document_id, "user_id": user_id, "is_deleted": False}
+        )
+
+        if not doc:
+            raise ValueError(f"Document {document_id} not found")
+
+        # Create version snapshot
+        version_snapshot = {
+            "version": doc.get("version", 1),
+            "created_at": datetime.utcnow(),
+            "description": description,
+            "content_html": doc.get("content_html", ""),
+            "slides_outline": doc.get("slides_outline", []),
+            "slide_backgrounds": doc.get("slide_backgrounds", []),
+            "slide_elements": doc.get("slide_elements", []),
+            "slide_count": len(doc.get("slides_outline", [])),
+        }
+
+        # Increment version and save snapshot
+        new_version = doc.get("version", 1) + 1
+
+        self.documents.update_one(
+            {"document_id": document_id},
+            {
+                "$set": {"version": new_version},
+                "$push": {"version_history": version_snapshot},
+            },
+        )
+
+        logger.info(
+            f"📸 Saved version {version_snapshot['version']} snapshot "
+            f"for {document_id} (new version: {new_version})"
+        )
+
+        return new_version
+
+    def restore_version(
+        self, document_id: str, user_id: str, target_version: int
+    ) -> bool:
+        """
+        Restore document to a specific version from history.
+        Updates current content_html, slides_outline, slide_backgrounds, slide_elements.
+
+        Returns: True if successful
+        """
+        doc = self.documents.find_one(
+            {"document_id": document_id, "user_id": user_id, "is_deleted": False}
+        )
+
+        if not doc:
+            raise ValueError(f"Document {document_id} not found")
+
+        # Find target version in history
+        target_snapshot = None
+        for v in doc.get("version_history", []):
+            if v["version"] == target_version:
+                target_snapshot = v
+                break
+
+        if not target_snapshot:
+            raise ValueError(f"Version {target_version} not found in history")
+
+        # Restore to current
+        self.documents.update_one(
+            {"document_id": document_id},
+            {
+                "$set": {
+                    "version": target_snapshot["version"],
+                    "content_html": target_snapshot["content_html"],
+                    "slides_outline": target_snapshot["slides_outline"],
+                    "slide_backgrounds": target_snapshot["slide_backgrounds"],
+                    "slide_elements": target_snapshot["slide_elements"],
+                    "last_saved_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        logger.info(
+            f"⏮️ Restored {document_id} to version {target_version} "
+            f"({target_snapshot['slide_count']} slides)"
+        )
+
+        return True
+
+    def get_version_history(self, document_id: str, user_id: str) -> list:
+        """
+        Get all version history for a document.
+        Returns list of version snapshots with is_current flag.
+        """
+        doc = self.documents.find_one(
+            {"document_id": document_id, "user_id": user_id, "is_deleted": False}
+        )
+
+        if not doc:
+            return []
+
+        current_version = doc.get("version", 1)
+        history = doc.get("version_history", [])
+
+        # Mark current version
+        for v in history:
+            v["is_current"] = v["version"] == current_version
+
+        # Sort by version descending (newest first)
+        history.sort(key=lambda x: x["version"], reverse=True)
+
+        return history
+
     def list_user_documents(
         self,
         user_id: str,

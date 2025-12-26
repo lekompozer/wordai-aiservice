@@ -253,6 +253,9 @@ from src.api.slide_narration_routes import router as slide_narration_router
 # ✅ ADDED: Slide AI Generation API - AI-powered slide creation from scratch
 from src.api.slide_ai_generation_routes import router as slide_ai_generation_router
 
+# ✅ ADDED: Slide Outline & Version Management API - Outline CRUD and version control
+from src.api.slide_outline_routes import router as slide_outline_router
+
 # ✅ ADDED: Author API - Community books author management
 from src.api.author_routes import router as author_router
 
@@ -1163,6 +1166,12 @@ def create_app() -> FastAPI:
     app.include_router(
         slide_ai_generation_router,
         tags=["Slide AI Generation", "AI"],
+    )
+
+    # ✅ NEW: Slide Outline & Version Management API - Outline CRUD and version control
+    app.include_router(
+        slide_outline_router,
+        tags=["Slide Outline", "Version Management"],
     )
 
     # ✅ NEW: Author API - Community books author management
