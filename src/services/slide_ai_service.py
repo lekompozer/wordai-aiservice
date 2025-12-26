@@ -107,7 +107,7 @@ class SlideAIService:
 
         response = self.claude_client.messages.create(
             model=self.claude_model,
-            max_tokens=4096,
+            max_tokens=52000,  # Claude Sonnet 4.5 supports up to 64K, using 52K for safety
             temperature=0.7,
             messages=[
                 {
