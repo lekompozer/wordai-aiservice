@@ -101,13 +101,16 @@ class SlideGenerationWorker:
         try:
             logger.info(f"🎨 Processing slide generation for document {document_id}")
 
-            # Get document and analysis
-            doc = self.mongo.db["documents"].find_one({"document_id": document_id})
+            # Get document and analysis (use asyncio.to_thread for sync MongoDB calls)
+            doc = await asyncio.to_thread(
+                self.mongo.db["documents"].find_one, {"document_id": document_id}
+            )
             if not doc:
                 raise Exception(f"Document {document_id} not found")
 
-            analysis = self.mongo.db["slide_analyses"].find_one(
-                {"_id": ObjectId(task.analysis_id), "user_id": task.user_id}
+            analysis = await asyncio.to_thread(
+                self.mongo.db["slide_analyses"].find_one,
+                {"_id": ObjectId(task.analysis_id), "user_id": task.user_id},
             )
             if not analysis:
                 raise Exception(f"Analysis {task.analysis_id} not found")
@@ -223,7 +226,9 @@ class SlideGenerationWorker:
                         f"⚠️ Saving {len(all_slides_html)}/{num_slides} partial slides to database"
                     )
 
-                    self.doc_manager.update_document(
+                    # Use asyncio.to_thread for blocking MongoDB update
+                    await asyncio.to_thread(
+                        self.doc_manager.update_document,
                         document_id=document_id,
                         user_id=task.user_id,
                         title=analysis["title"],
@@ -282,8 +287,9 @@ class SlideGenerationWorker:
                 f"({'complete' if is_complete else 'partial'})"
             )
 
-            # Save HTML to document (MongoDB only stores content, not status)
-            self.doc_manager.update_document(
+            # Save HTML to document (use asyncio.to_thread for blocking MongoDB update)
+            await asyncio.to_thread(
+                self.doc_manager.update_document,
                 document_id=document_id,
                 user_id=task.user_id,
                 title=analysis["title"],
@@ -301,10 +307,10 @@ class SlideGenerationWorker:
                     amount=points_needed,
                     service="slide_ai_generation",
                     resource_id=document_id,
-                    description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} batches)",
+                    description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} chunks × 5 points)",
                 )
                 logger.info(
-                    f"💰 Deducted {points_needed} points (all batches completed)"
+                    f"💰 Deducted {points_needed} points ({total_batches} chunks × 5 points/chunk)"
                 )
             else:
                 logger.info(

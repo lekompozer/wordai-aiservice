@@ -1632,7 +1632,11 @@ async def list_audio_v2(
         user_id = current_user["uid"]
 
         # Build query
-        query = {"presentation_id": presentation_id, "user_id": user_id}
+        query = {
+            "presentation_id": presentation_id,
+            "user_id": user_id,
+            "status": {"$ne": "obsolete_chunk"},  # Exclude obsolete chunks
+        }
         if language:
             query["language"] = language
         if version:

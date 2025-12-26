@@ -526,8 +526,21 @@ class PresentationAudio(BaseModel):
     user_id: str = Field(..., description="Owner user ID")
     language: str = Field(..., description="Language code (matches subtitle)")
     version: int = Field(..., description="Version number (matches subtitle)")
-    slide_index: int = Field(..., description="Slide index")
+    slide_index: Optional[int] = Field(
+        None, description="Slide index (None or -1 for merged/full presentation audio)"
+    )
     audio_url: str = Field(..., description="Storage path / CDN URL")
+    audio_type: Optional[str] = Field(
+        None, description="chunked | merged_presentation | full_presentation"
+    )
+    chunk_index: Optional[int] = Field(None, description="Chunk index if chunked")
+    total_chunks: Optional[int] = Field(None, description="Total chunks if chunked")
+    slide_count: Optional[int] = Field(
+        None, description="Number of slides in this audio"
+    )
+    slide_timestamps: Optional[List[Dict]] = Field(
+        None, description="Timestamp info for each slide"
+    )
     audio_metadata: AudioMetadata = Field(..., description="Audio file metadata")
     generation_method: str = Field(
         "ai_generated", description="ai_generated | user_uploaded"
@@ -535,7 +548,15 @@ class PresentationAudio(BaseModel):
     voice_config: Optional[VoiceConfig] = Field(
         None, description="Voice config if AI generated"
     )
-    status: str = Field("ready", description="ready | processing | failed")
+    library_audio_id: Optional[str] = Field(
+        None, description="Reference to library_audio document"
+    )
+    status: str = Field(
+        "ready", description="ready | processing | failed | obsolete_chunk"
+    )
+    replaced_by: Optional[str] = Field(
+        None, description="ID of merged audio if this is obsolete chunk"
+    )
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
 

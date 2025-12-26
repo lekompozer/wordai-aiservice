@@ -1215,7 +1215,8 @@ async def get_document(
                 if document.get("document_type") == "slide"
                 else None
             ),  # ✅ Return outline for slides
-            outline_id=document.get("outline_id"),  # ✅ Reference to analysis
+            outline_id=document.get("outline_id")
+            or document.get("ai_analysis_id"),  # ✅ Support both field names
             has_outline=bool(
                 document.get("slides_outline")
             ),  # ✅ Quick check for frontend

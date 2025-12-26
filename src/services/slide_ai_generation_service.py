@@ -295,29 +295,25 @@ Language: {language}
 
 6. **Layout & Spacing (CRITICAL - Content Must Fit Within Slide):**
    - **CONTENT CONTAINMENT**: ALL text and visuals MUST fit within 1920x1080 canvas - NO overflow
-   - **Horizontal margins**:
-     * Standard content: 80-120px left/right margin
-     * Wide horizontal content: Use 180px left margin for better balance
+   - **Horizontal spacing**: Total padding + margin should be approximately 180px (combined left + right)
+     * Example: padding: 80px 100px; (180px total horizontal spacing)
+     * Or: margin-left: 100px; padding: 60px 80px; (also ~180px total)
+     * Avoid excessive left spacing that cuts off right side content
    - **Vertical spacing**: Ensure content doesn't extend beyond slide bottom
    - **Overflow prevention**: Use `overflow: hidden;` on slide container
    - Use flexbox/grid for centering: `display: flex; justify-content: center; align-items: center; height: 100%;`
-   - Add generous padding: `padding: 4rem;` (but ensure content fits)
-   - Leave white space - don't cram content
-   - **ADAPTIVE SIZING**: If content is too long, reduce text size to fit:
-     * Long slides (6+ bullets): Reduce h1 to 48-52px, body to 24-26px
-     * Very long slides (8+ bullets): Reduce h1 to 42-48px, body to 22-24px
-     * Prioritize readability while ensuring everything is visible
+   - Leave white space - don't cram content, but ensure all text is visible
+   - **ADAPTIVE SIZING**: Automatically adjust font sizes for long content to ensure everything fits
 
-7. **Typography:**
+7. **Typography & Visual Balance:**
    - Font Family: Use 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif (prefer Inter for modern look)
-   - Headings: Large, bold, eye-catching (h1: 56-64px, h2: 40-48px)
-   - **ADAPTIVE sizing for long content**:
-     * Standard slides (3-5 bullets): h1: 56-64px, body: 28-32px
-     * Long slides (6-7 bullets): h1: 48-52px, body: 24-26px
-     * Very long slides (8+ bullets): h1: 42-48px, body: 22-24px
-   - Line height: 1.4-1.6 for readability (tighter for long content)
-   - Keep content concise - avoid overly long text blocks (max 4-5 bullet points per slide)
+   - **Headings & Body Text**: Choose appropriate sizes based on content length
+   - Line height: 1.4-1.6 for readability (adjust for content density)
    - **Text alignment**: Left-aligned for readability (centered only for titles)
+   - **IMPORTANT - VISUAL ELEMENTS**: Include icons, emojis, colored divs, shapes to make slides engaging
+   - **Balance text with visuals**: Don't make slides all text - add visual interest
+   - Use decorative elements: colored accent bars, icon bullets, background shapes
+   - Keep content concise - avoid overly long text blocks (max 4-5 bullet points per slide)
 
 8. **Images (if provided):**
    - If `provided_image_url` exists, integrate it beautifully
@@ -369,13 +365,16 @@ Language: {language}
 
 11. **Language:** All content MUST be in {language}
 
-12. **CONTENT DEVELOPMENT (CRITICAL - Creative Expansion):**
+12. **CONTENT DEVELOPMENT (CRITICAL - Creative Expansion & Visual Elements):**
    - **You have CREATIVE FREEDOM** - expand outline into detailed, engaging content
    - DO NOT copy outline word-for-word - INTERPRET the intent and create compelling content
    - Keep the MEANING and PURPOSE of each outline point, but write it better for slides
    - Write content that aligns with the user's target goal: {user_query or title}
-   - Include relevant icons/emojis to illustrate points (e.g., ✓ ✗ → ★ 💡 🎯 📊 💰 🚀)
-   - Add visual elements: decorative divs, colored accents, icons positioned with CSS
+   - **VISUAL ELEMENTS ARE ESSENTIAL** - Don't make slides all text!
+   - Include relevant icons/emojis to illustrate points (e.g., ✓ ✗ → ★ 💡 🎯 📊 💰 🚀 🎨 ⚡ 🔥)
+   - Add visual elements: decorative divs, colored accent bars, background shapes, icon bullets
+   - Use CSS to position visual elements: colored boxes, circles, dividers, accent bars
+   - Balance text with visuals: charts, diagrams, illustrations, decorative elements
    - Make content ACTIONABLE and CLEAR - avoid vague, generic statements
    - You can adjust wording, add examples, use better phrasing - just maintain outline's core message
 
@@ -448,8 +447,8 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
   </div>
 </div>
 
-<!-- Slide 2: Content slide (WITH slide number 02, animation, proper margins) -->
-<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 80px 120px; position: relative;">
+<!-- Slide 2: Content slide (WITH slide number 02, animation, balanced margins, visual elements) -->
+<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 80px 100px; position: relative;">
   <style>
     @keyframes fadeIn {{
       from {{ opacity: 0; transform: translateY(20px); }}
@@ -458,12 +457,13 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
   </style>
   {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
   <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">02</div>
-  <div style="max-width: 1600px; margin-left: 180px;">
-    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 2.5rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #3b82f6; padding-left: 1.5rem; opacity: 0; animation: fadeIn 0.5s ease-out forwards; text-align: left;">Main Topic with Specific Details</h1>
-    <ul style="font-size: 26px; line-height: 1.6; list-style: none; padding: 0;">
-      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;"><span style="font-size: 32px; margin-right: 1rem;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data</span></li>
-      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;"><span style="font-size: 32px; margin-right: 1rem;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
-      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.6s forwards;"><span style="font-size: 32px; margin-right: 1rem;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
+  <div style="max-width: 1600px;">
+    <h1 style="font-weight: bold; margin-bottom: 2.5rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #3b82f6; padding-left: 1.5rem; opacity: 0; animation: fadeIn 0.5s ease-out forwards; text-align: left;">Main Topic with Specific Details</h1>
+    <ul style="line-height: 1.6; list-style: none; padding: 0;">
+      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;"><span style="margin-right: 1rem;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data</span></li>
+      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;"><span style="margin-right: 1rem;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
+      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.6s forwards;"><span style="margin-right: 1rem;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
+      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.8s forwards;"><span style="margin-right: 1rem;">🚀</span><span><strong>Visual Element:</strong> Charts, diagrams, or decorative shapes to illustrate the point</span></li>
     </ul>
   </div>
 </div>
@@ -601,21 +601,31 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
                 f"🌊 Starting Claude streaming for batch {batch_number}/{total_batches}..."
             )
 
-            html_output = ""
-            with self.claude_client.messages.stream(
-                model=self.claude_model,
-                max_tokens=36864,  # 36K tokens (faster than 64K, sufficient for 8 slides)
-                temperature=0.8,  # More creative for HTML content
-                timeout=1800.0,  # 30 minutes timeout (default is 600s/10min)
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
-                ],
-            ) as stream:
-                for text in stream.text_stream:
-                    html_output += text
+            # ⚠️ CRITICAL FIX: Run blocking streaming in thread to avoid blocking event loop
+            # Claude's sync streaming blocks entire async event loop, causing all API requests to timeout
+            import asyncio
+
+            def _stream_claude_sync():
+                """Synchronous streaming function to run in thread"""
+                html_output = ""
+                with self.claude_client.messages.stream(
+                    model=self.claude_model,
+                    max_tokens=36864,  # 36K tokens (faster than 64K, sufficient for 8 slides)
+                    temperature=0.8,  # More creative for HTML content
+                    timeout=1800.0,  # 30 minutes timeout (default is 600s/10min)
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        }
+                    ],
+                ) as stream:
+                    for text in stream.text_stream:
+                        html_output += text
+                return html_output
+
+            # Run sync streaming in thread pool to prevent blocking
+            html_output = await asyncio.to_thread(_stream_claude_sync)
 
             logger.info(f"✅ HTML streaming completed: {len(html_output)} chars")
 
