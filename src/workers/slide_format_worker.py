@@ -380,23 +380,69 @@ class SlideFormatWorker:
                             mongo = get_mongodb_service()
                             doc_manager = DocumentManager(mongo.db)
 
-                            # Get current version before creating snapshot
+                            # Get current document and version before creating snapshot
                             doc = doc_manager.get_document(document_id, user_id)
                             if doc:
                                 previous_version = doc.get("version", 1)
 
-                                # Save version snapshot (increments version)
+                                # STEP 1: Create version snapshot FIRST (saves current state as old version)
                                 new_version = doc_manager.save_version_snapshot(
                                     document_id=document_id,
                                     user_id=user_id,
-                                    description="AI formatted entire document",
+                                    description=f"Version {previous_version} (before AI formatting)",
+                                )
+
+                                logger.info(
+                                    f"✅ Saved version snapshot: v{previous_version} → v{new_version}"
+                                )
+
+                                # STEP 2: Update current document with formatted slides
+                                # Build updated slides_outline with formatted HTML
+                                current_outline = doc.get("slides_outline", [])
+
+                                # Create mapping of slide_index -> formatted_html
+                                formatted_map = {}
+                                for slide_result in all_slides_results:
+                                    slide_idx = slide_result.get("slide_index")
+                                    formatted_html = slide_result.get("formatted_html")
+                                    if slide_idx is not None and formatted_html:
+                                        formatted_map[slide_idx] = formatted_html
+
+                                # Update slides_outline with formatted HTML
+                                updated_outline = []
+                                for i, slide in enumerate(current_outline):
+                                    if i in formatted_map:
+                                        # Create new slide dict with formatted HTML
+                                        updated_slide = (
+                                            slide.copy()
+                                            if isinstance(slide, dict)
+                                            else {}
+                                        )
+                                        updated_slide["content_html"] = formatted_map[i]
+                                        updated_outline.append(updated_slide)
+                                        logger.info(
+                                            f"   ✅ Updated slide {i} with formatted HTML ({len(formatted_map[i])} chars)"
+                                        )
+                                    else:
+                                        # Keep original slide
+                                        updated_outline.append(slide)
+
+                                # Save updated document with formatted slides
+                                doc_manager.update_document(
+                                    document_id=document_id,
+                                    user_id=user_id,
+                                    slides_outline=updated_outline,
+                                )
+
+                                logger.info(
+                                    f"✅ Updated document {document_id} with {len(formatted_map)} formatted slides"
                                 )
 
                                 update_data["new_version"] = new_version
                                 update_data["previous_version"] = previous_version
 
                                 logger.info(
-                                    f"✅ Created new version: {previous_version} → {new_version} for document {document_id}"
+                                    f"✅ Mode 3 complete: v{previous_version} (old) → v{new_version} (formatted)"
                                 )
                             else:
                                 logger.warning(
