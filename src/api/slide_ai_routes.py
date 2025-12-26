@@ -251,6 +251,7 @@ async def ai_format_slide(
             )
 
             # Create tasks for each chunk
+            # Note: Chunks enqueued immediately but worker will add delays between chunks
             for chunk_idx, chunk_slides in enumerate(chunks):
                 chunk_task_id = f"{batch_job_id}_chunk_{chunk_idx}"
 
@@ -283,6 +284,7 @@ async def ai_format_slide(
                 )
 
                 success = await queue.enqueue_generic_task(task)
+
                 if not success:
                     logger.error(f"❌ Failed to enqueue chunk task {chunk_task_id}")
                 else:
@@ -293,8 +295,8 @@ async def ai_format_slide(
             return CreateSlideFormatJobResponse(
                 job_id=batch_job_id,
                 status=SlideFormatJobStatus.PENDING,
-                message=f"Batch job queued: {num_slides} slide(s) in {num_chunks} chunk(s). Poll /api/slides/jobs/{{{batch_job_id}}} for status.",
-                estimated_time=f"{num_chunks * 30}-{num_chunks * 120} seconds ({num_chunks} AI call(s))",
+                message=f"Batch job queued: {num_slides} slide(s) in {num_chunks} chunk(s). Worker will add 90s delay between chunks to avoid API rate limits. Poll /api/slides/jobs/{{{batch_job_id}}} for status.",
+                estimated_time=f"{num_chunks * 120 + max(0, num_chunks - 1) * 90}-{num_chunks * 240 + max(0, num_chunks - 1) * 90} seconds (includes inter-chunk delays)",
             )
 
         else:

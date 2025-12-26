@@ -95,7 +95,7 @@ class SlideAIService:
     async def _format_with_claude(
         self, request: SlideAIFormatRequest
     ) -> Dict[str, Any]:
-        """Format slide using Claude 3.5 Sonnet (layout optimization)"""
+        """Format slide using Claude 3.5 Sonnet (layout optimization) with retry logic"""
         if not self.claude_client:
             raise ValueError("Claude client not initialized")
 
@@ -110,30 +110,53 @@ class SlideAIService:
         # Run in thread to avoid blocking Redis connection
         logger.info("🌊 Starting Claude streaming for slide formatting...")
 
-        def _stream_claude_sync():
-            """Synchronous Claude streaming (runs in thread)"""
-            response_text = ""
-            with self.claude_client.messages.stream(
-                model=self.claude_model,
-                max_tokens=52000,  # Claude Sonnet 4.5 supports up to 64K, using 52K for safety
-                temperature=0.7,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    }
-                ],
-            ) as stream:
-                for text in stream.text_stream:
-                    response_text += text
-            return response_text
+        # Retry logic for rate limits
+        max_retries = 3
+        retry_delay = 60  # Start with 60 seconds for rate limit
 
-        # Run streaming in thread pool to not block event loop
-        response_text = await asyncio.to_thread(_stream_claude_sync)
+        for attempt in range(max_retries):
+            try:
 
-        logger.info(
-            f"✅ Claude streaming complete, response length: {len(response_text)} chars"
-        )
+                def _stream_claude_sync():
+                    """Synchronous Claude streaming (runs in thread)"""
+                    response_text = ""
+                    with self.claude_client.messages.stream(
+                        model=self.claude_model,
+                        max_tokens=52000,  # Claude Sonnet 4.5 supports up to 64K, using 52K for safety
+                        temperature=0.7,
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": prompt,
+                            }
+                        ],
+                    ) as stream:
+                        for text in stream.text_stream:
+                            response_text += text
+                    return response_text
+
+                # Run streaming in thread pool to not block event loop
+                response_text = await asyncio.to_thread(_stream_claude_sync)
+
+                logger.info(
+                    f"✅ Claude streaming complete, response length: {len(response_text)} chars"
+                )
+
+                # Success - break retry loop
+                break
+
+            except anthropic.RateLimitError as e:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (attempt + 1)
+                    logger.warning(
+                        f"⚠️ Rate limit hit (attempt {attempt + 1}/{max_retries}), "
+                        f"waiting {wait_time}s before retry..."
+                    )
+                    logger.warning(f"   Error: {str(e)}")
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"❌ Rate limit exceeded after {max_retries} attempts")
+                    raise
 
         # Parse Claude response
         # Debug: Log response for troubleshooting

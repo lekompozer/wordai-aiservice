@@ -91,6 +91,19 @@ class SlideFormatWorker:
                     logger.info(
                         f"   📦 Chunk {task.chunk_index + 1}/{task.total_chunks}: {task.total_slides} slides"
                     )
+
+                    # Add delay between chunks to avoid Claude rate limits
+                    # First chunk (index 0) processes immediately
+                    # Subsequent chunks wait 90s * chunk_index to spread API calls
+                    if task.chunk_index and task.chunk_index > 0:
+                        delay_seconds = 90 * task.chunk_index
+                        logger.info(
+                            f"   ⏱️ Delaying chunk {task.chunk_index + 1} by {delay_seconds}s to avoid rate limits..."
+                        )
+                        await asyncio.sleep(delay_seconds)
+                        logger.info(
+                            f"   ✅ Delay complete, starting chunk {task.chunk_index + 1}"
+                        )
                 else:
                     logger.info(f"   📦 Batch processing: {task.total_slides} slides")
                 if task.process_entire_document:

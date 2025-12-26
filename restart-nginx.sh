@@ -12,11 +12,11 @@ docker exec nginx-gateway nginx -t
 
 if [ $? -eq 0 ]; then
     echo "✅ Nginx configuration is valid"
-    
+
     # Reload nginx (graceful reload without dropping connections)
     echo "🔄 Reloading nginx..."
     docker exec nginx-gateway nginx -s reload
-    
+
     echo "✅ Nginx reloaded successfully!"
 else
     echo "❌ Nginx configuration test failed!"

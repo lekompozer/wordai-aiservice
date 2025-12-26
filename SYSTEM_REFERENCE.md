@@ -11,10 +11,16 @@
 
 | Container Name | Service | Purpose |
 |---------------|---------|---------|
+| `nginx-gateway` | Reverse Proxy | Nginx 1.26 - HTTPS, rate limiting, security |
 | `ai-chatbot-rag` | Backend API | Main FastAPI application |
+| `payment-service` | Payment API | Node.js payment service |
 | `mongodb` | Database | MongoDB 7.0 database server |
-| `qdrant` | Vector DB | Qdrant vector search (if used) |
-| `redis` | Cache | Redis cache server (if used) |
+| `redis-server` | Cache/Queue | Redis 7 - job queue, caching |
+| `slide-format-worker` | Worker | Slide formatting background worker |
+| `slide-generation-worker` | Worker | Slide generation background worker |
+| `ai-editor-worker` | Worker | AI editor background worker |
+| `slide-narration-audio-worker` | Worker | Audio narration generation worker |
+| `chapter-translation-worker` | Worker | Chapter translation worker |
 
 ssh root@104.248.147.155 "docker ps"
 CONTAINER ID   IMAGE                                       COMMAND                  CREATED          STATUS                      PORTS                                                                          NAMES
@@ -42,6 +48,59 @@ docker exec -it ai-chatbot-rag /bin/bash
 
 # Check files inside container
 docker exec ai-chatbot-rag ls -lh /tmp/
+```
+
+### Nginx Configuration Updates
+
+**When to deploy:**
+- **Nginx config changes ONLY** → Use `./restart-nginx.sh` (5 seconds, no rebuild)
+- **Python code changes** → Use `./deploy-compose-with-rollback.sh` (2-3 minutes, full rebuild)
+
+**Update nginx config (fast path):**
+```bash
+# Local: Edit nginx/conf.d/ai-wordai.conf
+# Then run:
+ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./restart-nginx.sh'"
+
+# What it does:
+# 1. git pull (get latest config)
+# 2. nginx -t (test config syntax)
+# 3. nginx -s reload (graceful reload, no downtime)
+```
+
+**Manual nginx commands:**
+```bash
+# Test nginx config (ALWAYS do this before reload)
+docker exec nginx-gateway nginx -t
+
+# Reload nginx (graceful, no dropped connections)
+docker exec nginx-gateway nginx -s reload
+
+# View nginx logs
+docker logs nginx-gateway -f --tail 100
+
+# Check nginx status
+docker ps --filter name=nginx-gateway
+```
+
+**Nginx config locations:**
+- Main config: `nginx/nginx.conf`
+- Site config: `nginx/conf.d/ai-wordai.conf`
+- SSL certs: `/etc/letsencrypt/live/ai.wordai.pro/`
+
+**Common nginx operations:**
+```bash
+# Check which routes are configured
+docker exec nginx-gateway cat /etc/nginx/conf.d/ai-wordai.conf | grep "location"
+
+# Check rate limiting zones
+docker exec nginx-gateway cat /etc/nginx/conf.d/ai-wordai.conf | grep "limit_req_zone"
+
+# View real-time access logs
+docker exec nginx-gateway tail -f /var/log/nginx/access.log
+
+# Count 404 errors by IP
+docker logs nginx-gateway 2>&1 | grep "404" | awk '{print $1}' | sort | uniq -c | sort -rn
 ```
 
 ---
