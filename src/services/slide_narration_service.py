@@ -822,6 +822,9 @@ Generate the complete narration now:"""
             max_retries = 5  # Increased retries to avoid breaking entire task
             retry_delay = 15  # Wait 15s between retries to avoid rate limits
 
+            audio_data = None  # Initialize to None
+            metadata = None
+
             for attempt in range(max_retries):
                 try:
                     audio_data, metadata = await tts_service.generate_audio(
@@ -863,11 +866,10 @@ Generate the complete narration now:"""
                         break
 
             # Skip rest of chunk processing if generation failed
-            if (
-                attempt == max_retries - 1
-                and failed_chunks
-                and failed_chunks[-1]["chunk_index"] == chunk_index
-            ):
+            if audio_data is None:
+                logger.warning(
+                    f"⚠️  Skipping chunk {chunk_index + 1} processing (generation failed)"
+                )
                 continue
 
             # Validate audio quality (detect silent/corrupt audio)
