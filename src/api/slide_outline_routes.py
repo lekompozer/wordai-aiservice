@@ -11,7 +11,7 @@ import logging
 
 from src.services.document_manager import DocumentManager
 from src.services.online_test_utils import get_mongodb_service
-from src.utils.auth import get_current_user_id
+from src.middleware.firebase_auth import get_current_user
 
 logger = logging.getLogger("chatbot")
 
@@ -96,10 +96,11 @@ async def get_outline(document_id: str, user_id: str = Depends(get_current_user_
 
 @router.put("/slides/outline")
 async def update_outline(
-    request: UpdateOutlineRequest, user_id: str = Depends(get_current_user_id)
+    request: UpdateOutlineRequest, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Update outline for a slide document"""
 
+    user_id = current_user["uid"]
     mongo = get_mongodb_service()
     doc_manager = DocumentManager(mongo.db)
 
@@ -152,10 +153,11 @@ async def update_outline(
 
 @router.post("/slides/outline/add")
 async def add_slide_to_outline(
-    request: AddSlideRequest, user_id: str = Depends(get_current_user_id)
+    request: AddSlideRequest, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Add a new slide to outline"""
 
+    user_id = current_user["uid"]
     mongo = get_mongodb_service()
     doc_manager = DocumentManager(mongo.db)
 
@@ -215,10 +217,11 @@ async def add_slide_to_outline(
 
 @router.delete("/slides/outline/slide")
 async def delete_slide_from_outline(
-    request: DeleteSlideRequest, user_id: str = Depends(get_current_user_id)
+    request: DeleteSlideRequest, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Delete a slide from outline"""
 
+    user_id = current_user["uid"]
     mongo = get_mongodb_service()
     doc_manager = DocumentManager(mongo.db)
 
@@ -274,10 +277,11 @@ async def delete_slide_from_outline(
 
 @router.get("/slides/versions")
 async def get_version_history(
-    document_id: str, user_id: str = Depends(get_current_user_id)
+    document_id: str, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Get version history for a document"""
 
+    user_id = current_user["uid"]
     mongo = get_mongodb_service()
     doc_manager = DocumentManager(mongo.db)
 
@@ -306,10 +310,11 @@ async def get_version_history(
 
 @router.post("/slides/versions/switch")
 async def switch_version(
-    request: SwitchVersionRequest, user_id: str = Depends(get_current_user_id)
+    request: SwitchVersionRequest, current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     """Switch to a different version"""
 
+    user_id = current_user["uid"]
     mongo = get_mongodb_service()
     doc_manager = DocumentManager(mongo.db)
 
