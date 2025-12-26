@@ -121,7 +121,10 @@ async def update_outline(
     request: UpdateOutlineRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Update outline for a slide document"""
+    """
+    Update outline for current version (does NOT create new version)
+    Only AI generation creates new versions
+    """
 
     user_id = current_user["uid"]
     mongo = get_mongodb_service()
@@ -134,17 +137,9 @@ async def update_outline(
             status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
         )
 
-    # Save current version to history BEFORE updating
-    try:
-        new_version = doc_manager.save_version_snapshot(
-            document_id=request.document_id,
-            user_id=user_id,
-            description=f"Before outline edit: {request.change_description}",
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    current_version = doc.get("version", 1)
 
-    # Update outline (keep existing content_html)
+    # ✅ Update outline in CURRENT version (no version bump)
     success = doc_manager.update_document(
         document_id=request.document_id,
         user_id=user_id,
@@ -159,9 +154,26 @@ async def update_outline(
             detail="Failed to update outline",
         )
 
+    # ✅ Also update the current version in version_history
+    mongo.db.documents.update_one(
+        {
+            "document_id": request.document_id,
+            "user_id": user_id,
+            "version_history.version": current_version,
+        },
+        {
+            "$set": {
+                "version_history.$.slides_outline": [
+                    s.dict() for s in request.slides_outline
+                ],
+                "version_history.$.slide_count": len(request.slides_outline),
+            }
+        },
+    )
+
     logger.info(
-        f"✏️ Updated outline for {request.document_id}: "
-        f"{len(request.slides_outline)} slides (version {new_version})"
+        f"✏️ Updated outline for {request.document_id} v{current_version}: "
+        f"{len(request.slides_outline)} slides (no version bump)"
     )
 
     return {
@@ -169,7 +181,7 @@ async def update_outline(
         "message": "Outline updated successfully",
         "document_id": request.document_id,
         "updated_slides": len(request.slides_outline),
-        "new_version": new_version,
+        "current_version": current_version,  # ✅ Return current version, not new version
         "can_regenerate": True,
     }
 
@@ -209,12 +221,8 @@ async def add_slide_to_outline(
 
     updated_outline.insert(insert_position, new_slide_dict)
 
-    # Save version snapshot
-    doc_manager.save_version_snapshot(
-        document_id=request.document_id,
-        user_id=user_id,
-        description=f"Before adding slide at position {insert_position}",
-    )
+    # ✅ Update current version (no version bump)
+    current_version = doc.get("version", 1)
 
     # Update document (keep existing content_html)
     doc_manager.update_document(
@@ -225,9 +233,24 @@ async def add_slide_to_outline(
         is_auto_save=False,
     )
 
+    # ✅ Update current version in version_history
+    mongo.db.documents.update_one(
+        {
+            "document_id": request.document_id,
+            "user_id": user_id,
+            "version_history.version": current_version,
+        },
+        {
+            "$set": {
+                "version_history.$.slides_outline": updated_outline,
+                "version_history.$.slide_count": len(updated_outline),
+            }
+        },
+    )
+
     logger.info(
-        f"➕ Added slide at index {insert_position} to {request.document_id} "
-        f"(total: {len(updated_outline)})"
+        f"➕ Added slide at index {insert_position} to {request.document_id} v{current_version} "
+        f"(total: {len(updated_outline)}, no version bump)"
     )
 
     return {
@@ -268,12 +291,8 @@ async def delete_slide_from_outline(
             updated_outline.append(slide)
         # Skip slide_index == request.slide_index (delete it)
 
-    # Save version snapshot
-    doc_manager.save_version_snapshot(
-        document_id=request.document_id,
-        user_id=user_id,
-        description=f"Before deleting slide {request.slide_index}: {request.reason or 'No reason'}",
-    )
+    # ✅ Update current version (no version bump)
+    current_version = doc.get("version", 1)
 
     # Update document (keep existing content_html)
     doc_manager.update_document(
@@ -284,9 +303,24 @@ async def delete_slide_from_outline(
         is_auto_save=False,
     )
 
+    # ✅ Update current version in version_history
+    mongo.db.documents.update_one(
+        {
+            "document_id": request.document_id,
+            "user_id": user_id,
+            "version_history.version": current_version,
+        },
+        {
+            "$set": {
+                "version_history.$.slides_outline": updated_outline,
+                "version_history.$.slide_count": len(updated_outline),
+            }
+        },
+    )
+
     logger.info(
-        f"🗑️ Deleted slide {request.slide_index} from {request.document_id} "
-        f"(remaining: {len(updated_outline)})"
+        f"🗑️ Deleted slide {request.slide_index} from {request.document_id} v{current_version} "
+        f"(remaining: {len(updated_outline)}, no version bump)"
     )
 
     return {

@@ -115,6 +115,24 @@ class SlideGenerationWorker:
             if not analysis:
                 raise Exception(f"Analysis {task.analysis_id} not found")
 
+            # ✅ SAVE VERSION SNAPSHOT before generating new slides
+            # Each AI generation = new version
+            current_version = doc.get("version", 1)
+            try:
+                new_version = await asyncio.to_thread(
+                    self.doc_manager.save_version_snapshot,
+                    document_id=document_id,
+                    user_id=task.user_id,
+                    description=f"Before AI slide generation (v{current_version} → v{current_version + 1})",
+                )
+                logger.info(
+                    f"📸 Saved version {current_version} snapshot, creating version {new_version}"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"⚠️ Failed to save version snapshot: {e}. Continuing with generation..."
+                )
+
             # Get generation data from document
             gen_data = doc.get("slide_generation_data", {})
             logo_url = gen_data.get("logo_url")
@@ -297,6 +315,33 @@ class SlideGenerationWorker:
                 content_text=analysis.get("presentation_summary", ""),
                 slide_backgrounds=slide_backgrounds,
                 slides_outline=slides_outline,  # Save outline for retry capability
+            )
+
+            # ✅ Update version_history with new slides content
+            current_doc = await asyncio.to_thread(
+                self.mongo.db["documents"].find_one, {"document_id": document_id}
+            )
+            current_version = current_doc.get("version", 1)
+
+            await asyncio.to_thread(
+                self.mongo.db["documents"].update_one,
+                {
+                    "document_id": document_id,
+                    "user_id": task.user_id,
+                    "version_history.version": current_version,
+                },
+                {
+                    "$set": {
+                        "version_history.$.content_html": final_html,
+                        "version_history.$.slides_outline": slides_outline,
+                        "version_history.$.slide_backgrounds": slide_backgrounds,
+                        "version_history.$.slide_count": len(slides_outline),
+                    }
+                },
+            )
+
+            logger.info(
+                f"📸 Updated version {current_version} in history with generated slides"
             )
 
             # Deduct points (only if all batches completed successfully)
