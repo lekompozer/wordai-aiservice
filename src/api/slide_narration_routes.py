@@ -1346,7 +1346,7 @@ async def get_subtitle_v2(
     subtitle_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    """Get specific subtitle document"""
+    """Get specific subtitle document with audio information"""
     try:
         user_id = current_user["uid"]
 
@@ -1359,7 +1359,32 @@ async def get_subtitle_v2(
             raise HTTPException(404, "Subtitle not found")
 
         subtitle["_id"] = str(subtitle["_id"])
-        return {"success": True, "subtitle": PresentationSubtitle(**subtitle)}
+
+        # Include audio info if available
+        audio_info = None
+        if subtitle.get("merged_audio_id"):
+            audio_doc = db.presentation_audio.find_one(
+                {"_id": ObjectId(subtitle["merged_audio_id"])}
+            )
+            if audio_doc:
+                audio_info = {
+                    "audio_id": str(audio_doc["_id"]),
+                    "audio_url": audio_doc.get("audio_url"),
+                    "audio_type": audio_doc.get("audio_type"),
+                    "duration_seconds": audio_doc.get("audio_metadata", {}).get(
+                        "duration_seconds", 0
+                    ),
+                    "slide_count": audio_doc.get("slide_count", 0),
+                    "slide_timestamps": audio_doc.get("slide_timestamps", []),
+                    "status": audio_doc.get("status"),
+                    "created_at": audio_doc.get("created_at"),
+                }
+
+        return {
+            "success": True,
+            "subtitle": PresentationSubtitle(**subtitle),
+            "audio": audio_info,  # Include audio info
+        }
 
     except HTTPException:
         raise

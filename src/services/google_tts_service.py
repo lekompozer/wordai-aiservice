@@ -311,15 +311,18 @@ class GoogleTTSService:
             headers = {"Content-Type": "application/json"}
             params = {"key": self.api_key}
 
+            effective_voice = voice_name or "Enceladus"
+            logger.info(
+                f"🎙️ Gemini TTS request: model={model}, voice={effective_voice}, lang={language_code}, {len(text)} chars"
+            )
+
             request_body = {
                 "contents": [{"parts": [{"text": contents}]}],
                 "generationConfig": {
                     "responseModalities": ["AUDIO"],
                     "speechConfig": {
                         "voiceConfig": {
-                            "prebuiltVoiceConfig": {
-                                "voiceName": voice_name or "Enceladus"
-                            }
+                            "prebuiltVoiceConfig": {"voiceName": effective_voice}
                         }
                     },
                 },

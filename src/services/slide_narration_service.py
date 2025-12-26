@@ -815,7 +815,7 @@ Generate the complete narration now:"""
 
             logger.info(
                 f"🔊 Chunk {chunk_index + 1}/{len(slide_chunks)}: "
-                f"{len(chunk_slides)} slides, {chunk_bytes} bytes"
+                f"{len(chunk_slides)} slides, {chunk_bytes} bytes, voice={voice_name}"
             )
 
             # Generate audio with retry logic (Gemini API can have intermittent 500 errors)
@@ -848,7 +848,9 @@ Generate the complete narration now:"""
                         logger.warning(
                             f"⚠️  Chunk {chunk_index + 1} failed (attempt {attempt + 1}/{max_retries}): {error_msg}"
                         )
-                        logger.info(f"   ⏳ Waiting {retry_delay}s before retry...")
+                        logger.info(
+                            f"   ⏳ Waiting {retry_delay}s before retry (voice={voice_name})..."
+                        )
                         await asyncio.sleep(retry_delay)
                     else:
                         # Final failure - track but don't raise (allow partial success)

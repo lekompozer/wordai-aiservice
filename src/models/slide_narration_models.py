@@ -482,6 +482,24 @@ class PresentationSubtitle(BaseModel):
     mode: str = Field("presentation", description="presentation | academy")
     slides: List[SlideSubtitlesV2] = Field(..., description="Slides with subtitles")
     status: str = Field("completed", description="completed | processing | failed")
+
+    # Audio fields (populated when audio generation completes)
+    audio_status: Optional[str] = Field(
+        None, description="Audio generation status: ready | processing | failed | None"
+    )
+    merged_audio_id: Optional[str] = Field(
+        None, description="Reference to merged presentation_audio._id"
+    )
+    audio_generated_at: Optional[datetime] = Field(
+        None, description="When audio generation completed"
+    )
+    audio_count: Optional[int] = Field(
+        None, description="Number of audio files generated"
+    )
+    audio_metadata: Optional[Dict[str, Any]] = Field(
+        None, description="Audio metadata (duration, voice, etc)"
+    )
+
     created_at: datetime = Field(..., description="Creation timestamp")
     updated_at: datetime = Field(..., description="Last update timestamp")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")

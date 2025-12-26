@@ -128,6 +128,42 @@ class SlideNarrationAudioWorker:
                 force_regenerate=task.force_regenerate,
             )
 
+            # Update presentation_subtitles with audio status and IDs
+            merged_audio_id = str(audio_docs[0]["_id"]) if audio_docs else None
+            audio_update = {
+                "audio_status": "ready",
+                "audio_generated_at": datetime.utcnow(),
+                "merged_audio_id": merged_audio_id,
+                "audio_count": len(audio_docs),
+                "audio_metadata": {
+                    "audio_type": (
+                        audio_docs[0].get("audio_type", "merged_presentation")
+                        if audio_docs
+                        else None
+                    ),
+                    "duration_seconds": (
+                        audio_docs[0]
+                        .get("audio_metadata", {})
+                        .get("duration_seconds", 0)
+                        if audio_docs
+                        else 0
+                    ),
+                    "slide_count": (
+                        audio_docs[0].get("slide_count", 0) if audio_docs else 0
+                    ),
+                    "voice_name": task.voice_config.get("voice_name"),
+                    "model": task.voice_config.get(
+                        "model", "gemini-2.5-flash-preview-tts"
+                    ),
+                },
+            }
+
+            self.mongo.db.presentation_subtitles.update_one(
+                {"_id": ObjectId(task.subtitle_id)},
+                {"$set": audio_update},
+            )
+            logger.info(f"✅ Updated subtitle {task.subtitle_id} with audio status")
+
             # Mark as completed (Redis for realtime polling)
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
