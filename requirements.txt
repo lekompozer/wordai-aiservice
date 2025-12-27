@@ -41,8 +41,7 @@ firebase-admin==6.2.0
 
 # AI and ML libraries
 openai>=1.40.0,<2.0.0
-anthropic[vertex]>=0.71.0,<1.0.0  # Includes Vertex AI support + fallback to API
-google-cloud-aiplatform>=1.70.0  # Required for Vertex AI
+anthropic[vertex]>=0.71.0,<1.0.0  # Includes Vertex AI support + fallback to API (auto-installs google-cloud-aiplatform)
 google-generativeai>=0.8.0
 google-genai>=0.3.0
 typing-inspection==0.4.2
