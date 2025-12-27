@@ -434,20 +434,29 @@ async def get_slide_format_job_status(
             else:
                 batch_status = SlideFormatJobStatus.PENDING
 
-            return SlideFormatJobStatusResponse(
-                job_id=job["job_id"],
-                status=batch_status,
-                created_at=job.get("created_at"),
-                started_at=job.get("started_at"),
-                completed_at=job.get("completed_at"),
-                processing_time_seconds=job.get("processing_time_seconds"),
-                is_batch=True,
-                total_slides=total_slides,
-                completed_slides=completed_slides,
-                failed_slides=failed_slides,
-                slides_results=slides_results,
-                error=job.get("error"),
-            )
+            # Build response - only include version info for Mode 3
+            response_data = {
+                "job_id": job["job_id"],
+                "status": batch_status,
+                "created_at": job.get("created_at"),
+                "started_at": job.get("started_at"),
+                "completed_at": job.get("completed_at"),
+                "processing_time_seconds": job.get("processing_time_seconds"),
+                "is_batch": True,
+                "total_slides": total_slides,
+                "completed_slides": completed_slides,
+                "failed_slides": failed_slides,
+                "slide_numbers": job.get("slide_numbers"),
+                "slides_results": slides_results,
+                "error": job.get("error"),
+            }
+
+            # Mode 3 only: Add version info if entire document was processed
+            if job.get("process_entire_document"):
+                response_data["new_version"] = job.get("new_version")
+                response_data["previous_version"] = job.get("previous_version")
+
+            return SlideFormatJobStatusResponse(**response_data)
         else:
             # Single slide job
             return SlideFormatJobStatusResponse(
@@ -457,6 +466,7 @@ async def get_slide_format_job_status(
                 started_at=job.get("started_at"),
                 completed_at=job.get("completed_at"),
                 processing_time_seconds=job.get("processing_time_seconds"),
+                slide_number=job.get("slide_number"),  # Which slide was formatted
                 formatted_html=job.get("formatted_html"),
                 suggested_elements=job.get("suggested_elements"),
                 suggested_background=job.get("suggested_background"),
