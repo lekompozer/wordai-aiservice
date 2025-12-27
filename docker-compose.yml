@@ -28,13 +28,13 @@ services:
       - ./logs:/app/logs
       - ./chat_history.db:/app/chat_history.db
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      - ./wordai-6779e-ed6189c466f1.json:/app/gcp-service-account.json:ro
+      - ./wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/firebase-credentials.json
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
 
       # AI API Keys
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -163,12 +163,14 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      - ./wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - REDIS_URL=redis://redis-server:6379
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - CLAUDE_SONNET_MODEL=${CLAUDE_SONNET_MODEL}
     depends_on:
@@ -192,12 +194,14 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      - ./wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - REDIS_URL=redis://redis-server:6379
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - CLAUDE_SONNET_MODEL=${CLAUDE_SONNET_MODEL}
     depends_on:
@@ -253,12 +257,14 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      - ./wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - REDIS_URL=redis://redis-server:6379
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
       - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
       - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}

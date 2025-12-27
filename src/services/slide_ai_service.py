@@ -33,6 +33,15 @@ try:
     project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
     region = "global"  # Global endpoint (recommended for pay-as-you-go)
 
+    # Check for explicit credentials file first
+    credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    if not credentials_path:
+        # Try default location
+        credentials_path = "/app/wordai-6779e-ed6189c466f1.json"
+        if os.path.exists(credentials_path):
+            os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+            logger.info(f"📁 Using credentials file: {credentials_path}")
+
     claude_client = AnthropicVertex(project_id=project_id, region=region)
     claude_provider = "vertex"
     logger.info(
@@ -182,19 +191,21 @@ class SlideAIService:
             except PermissionDeniedError as e:
                 logger.error(f"❌ Vertex AI permission denied: {str(e)}")
                 logger.info("🔄 Attempting fallback to Claude API...")
-                
+
                 # Try to fallback to Claude API
                 try:
                     api_key = os.getenv("ANTHROPIC_API_KEY")
                     if not api_key:
                         raise ValueError("ANTHROPIC_API_KEY not found for fallback")
-                    
+
                     # Create fallback client
                     fallback_client = Anthropic(api_key=api_key)
                     fallback_model = "claude-sonnet-4-5-20250929"
-                    
-                    logger.info(f"🔄 Using fallback: Claude API (model: {fallback_model})")
-                    
+
+                    logger.info(
+                        f"🔄 Using fallback: Claude API (model: {fallback_model})"
+                    )
+
                     def _stream_claude_api_sync():
                         """Synchronous Claude API streaming (fallback)"""
                         response_text = ""
@@ -212,14 +223,18 @@ class SlideAIService:
                             for text in stream.text_stream:
                                 response_text += text
                         return response_text
-                    
+
                     # Run with fallback client
                     response_text = await asyncio.to_thread(_stream_claude_api_sync)
-                    logger.info(f"✅ Fallback successful, response length: {len(response_text)} chars")
+                    logger.info(
+                        f"✅ Fallback successful, response length: {len(response_text)} chars"
+                    )
                     break
-                    
+
                 except Exception as fallback_error:
-                    logger.error(f"❌ Fallback to Claude API also failed: {fallback_error}")
+                    logger.error(
+                        f"❌ Fallback to Claude API also failed: {fallback_error}"
+                    )
                     raise e  # Raise original PermissionDeniedError
 
             except RateLimitError as e:
