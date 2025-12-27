@@ -252,7 +252,8 @@ class SlideAIService:
 
                         # Create fallback client
                         fallback_client = Anthropic(api_key=api_key)
-                        fallback_model = "claude-3-5-sonnet-20241022"
+                        # IMPORTANT: Use Claude Sonnet 4.5 (same version as Vertex AI)
+                        fallback_model = "claude-sonnet-4-5-20250929"
 
                         logger.info(
                             f"🔄 Using fallback: Claude API (model: {fallback_model})"

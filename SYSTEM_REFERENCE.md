@@ -1,7 +1,46 @@
 # System Reference - Backend Infrastructure
 
-**Last Updated:** December 14, 2025
+**Last Updated:** December 27, 2025
 **Purpose:** Complete reference for AI agents and developers working with the backend system
+
+---
+
+## 🤖 AI Model Configuration
+
+### Claude Sonnet 4.5 - MANDATORY VERSION
+
+**⚠️ CRITICAL RULE:** The entire system MUST use Claude Sonnet 4.5 version `20250929` ONLY.
+
+**Model Names by Provider:**
+- **Vertex AI:** `claude-sonnet-4-5@20250929` (with `@` symbol)
+- **Claude API:** `claude-sonnet-4-5-20250929` (with dashes `-`)
+
+**Environment Variables:**
+```bash
+CLAUDE_MODEL=claude-sonnet-4-5-20250929
+CLAUDE_SONNET_MODEL=claude-sonnet-4-5-20250929
+```
+
+**DO NOT use:**
+- ❌ Claude 3.5 Sonnet (any version)
+- ❌ `claude-3-5-sonnet-20241022`
+- ❌ Any other Claude version
+
+**Configuration Files:**
+- `config/config.py` - Default model settings
+- `.env` - Production environment variables
+- `development.env.template` - Development template
+
+**Services using Claude:**
+- `slide_ai_service.py` - Slide formatting (Vertex AI primary, API fallback)
+- `slide_ai_generation_service.py` - Slide generation
+- `claude_service.py` - General Claude operations
+
+**Vertex AI Configuration:**
+- Project: `wordai-6779e`
+- Region: `asia-southeast1`
+- Credentials: `/app/wordai-6779e-ed6189c466f1.json`
+- Fallback: Anthropic API key on 429 quota errors
 
 ---
 
