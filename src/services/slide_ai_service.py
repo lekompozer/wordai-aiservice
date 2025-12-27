@@ -310,7 +310,9 @@ class SlideAIService:
             result = json.loads(response_text)
         except json.JSONDecodeError as e:
             logger.error(f"❌ Failed to parse Claude response as JSON: {e}")
+            logger.error(f"Response length: {len(response_text)} chars")
             logger.error(f"Response text (first 500 chars): {response_text[:500]}")
+            logger.error(f"Response text (last 200 chars): {response_text[-200:]}")
             # Try to extract JSON from markdown code blocks if present
             import re
 
@@ -332,10 +334,16 @@ class SlideAIService:
                 logger.info("✅ Found JSON in markdown code block, extracting...")
                 extracted_json = json_match.group(1).strip()
                 logger.debug(f"Extracted JSON length: {len(extracted_json)} chars")
+                logger.error(
+                    f"Extracted JSON (last 200 chars): {extracted_json[-200:]}"
+                )
                 try:
                     result = json.loads(extracted_json)
                 except json.JSONDecodeError as e2:
                     logger.error(f"❌ Failed to parse extracted JSON: {e2}")
+                    logger.error(
+                        f"JSON truncated? Check if response was cut off mid-sentence"
+                    )
                     raise
             else:
                 logger.error("❌ No JSON found in markdown code blocks either")
