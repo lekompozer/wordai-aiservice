@@ -47,6 +47,14 @@ class SlideFormatJobStatusResponse(BaseModel):
     completed_slides: Optional[int] = Field(None, description="Completed slides count")
     failed_slides: Optional[int] = Field(None, description="Failed slides count")
 
+    # Slide identification (which slide(s) were processed)
+    slide_number: Optional[int] = Field(
+        None, description="Slide number formatted (1-based, Mode 1 only)"
+    )
+    slide_numbers: Optional[List[int]] = Field(
+        None, description="Array of slide numbers formatted (1-based, Mode 2/3)"
+    )
+
     # Results (when completed) - single slide
     formatted_html: Optional[str] = Field(
         None, description="Formatted HTML result (single slide)"
