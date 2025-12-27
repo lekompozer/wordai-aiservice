@@ -348,7 +348,23 @@ class SlideAIService:
 
                         repaired_json_str = repair_json(extracted_json)
                         result = json.loads(repaired_json_str)
-                        logger.info("✅ JSON repaired successfully!")
+
+                        # json_repair sometimes returns a list instead of dict
+                        # If it's a list with one element, unwrap it
+                        if isinstance(result, list) and len(result) == 1:
+                            result = result[0]
+                            logger.info(
+                                "✅ JSON repaired successfully (unwrapped from list)!"
+                            )
+                        elif isinstance(result, list):
+                            logger.error(
+                                f"❌ JSON repair returned unexpected list with {len(result)} items"
+                            )
+                            raise ValueError(
+                                f"Unexpected list result from json_repair: {len(result)} items"
+                            )
+                        else:
+                            logger.info("✅ JSON repaired successfully!")
                     except Exception as repair_error:
                         logger.error(f"❌ JSON repair failed: {repair_error}")
                         logger.error(
