@@ -341,10 +341,20 @@ class SlideAIService:
                     result = json.loads(extracted_json)
                 except json.JSONDecodeError as e2:
                     logger.error(f"❌ Failed to parse extracted JSON: {e2}")
-                    logger.error(
-                        f"JSON truncated? Check if response was cut off mid-sentence"
-                    )
-                    raise
+                    logger.warning("🔧 Attempting to repair malformed JSON...")
+
+                    try:
+                        from json_repair import repair_json
+
+                        repaired_json_str = repair_json(extracted_json)
+                        result = json.loads(repaired_json_str)
+                        logger.info("✅ JSON repaired successfully!")
+                    except Exception as repair_error:
+                        logger.error(f"❌ JSON repair failed: {repair_error}")
+                        logger.error(
+                            f"JSON truncated? Check if response was cut off mid-sentence"
+                        )
+                        raise e2  # Raise original error
             else:
                 logger.error("❌ No JSON found in markdown code blocks either")
                 raise

@@ -111,6 +111,7 @@ passlib==1.7.4
 
 # JSON handling
 orjson==3.9.10
+json-repair==0.28.4  # Repair malformed JSON from LLM responses
 
 # Document processing and PDF conversion
 google-genai==1.47.0  # Gemini 3 Pro Image support
