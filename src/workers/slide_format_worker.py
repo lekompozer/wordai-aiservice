@@ -192,6 +192,7 @@ class SlideFormatWorker:
                     job_id=job_id,
                     status="completed",
                     user_id=task.user_id,
+                    slide_number=task.slide_index,  # User-facing slide number (1-based)
                     formatted_html=result["formatted_html"],
                     suggested_elements=result.get("suggested_elements", []),
                     suggested_background=result.get("suggested_background"),
@@ -368,9 +369,14 @@ class SlideFormatWorker:
                         all_slides_results.extend(chunk_slides)
 
                 # Prepare update data
+                slide_numbers = [
+                    r.get("slide_index") for r in all_slides_results
+                ]  # Extract all formatted slide numbers
+
                 update_data = {
                     "status": "completed",
                     "user_id": batch_job.get("user_id"),
+                    "slide_numbers": slide_numbers,  # Array of formatted slide numbers (1-based)
                     "completed_slides": len(all_slides_results),
                     "failed_slides": 0,
                     "slides_results": all_slides_results,
