@@ -15,24 +15,28 @@ logger = logging.getLogger(__name__)
 
 
 class GoogleTTSService:
-    """Service for Google Cloud Text-to-Speech via Gemini API"""
+    """Service for Google Cloud Text-to-Speech via Vertex AI (Gemini TTS)"""
 
     def __init__(self):
-        """Initialize Gemini client with API key"""
-        # Use GEMINI_API_KEY2 to avoid rate limiting on primary key
-        self.api_key = (
-            os.getenv("GEMINI_API_KEY2")
-            or os.getenv("GEMINI_API_KEY")
-            or os.getenv("VERTEX_API_KEY")
-        )
-        if not self.api_key:
-            raise ValueError(
-                "GEMINI_API_KEY2, GEMINI_API_KEY or VERTEX_API_KEY not found"
-            )
+        """Initialize Gemini client with Vertex AI"""
+        # Use Vertex AI instead of API key to avoid 50/day limit
+        project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
+        location = "us-central1"  # TTS models only available in us-central1
 
-        # Initialize Gemini client with API key (AI Studio)
-        self.client = genai.Client(api_key=self.api_key)
-        logger.info("✅ Gemini TTS initialized with API key (GEMINI_API_KEY2)")
+        # Check for credentials file
+        credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+        if not credentials_path:
+            credentials_path = "/app/wordai-6779e-ed6189c466f1.json"
+            if os.path.exists(credentials_path):
+                os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+                logger.info(f"📁 Using credentials file: {credentials_path}")
+
+        # Initialize Gemini client with Vertex AI
+        self.client = genai.Client(vertexai=True, project=project_id, location=location)
+        logger.info(
+            f"✅ Gemini TTS initialized with Vertex AI (project={project_id}, location={location})"
+        )
+        logger.info("   No 50/day limit - using project quota instead")
 
         # Supported languages (24 languages from Gemini TTS)
         self.supported_languages = {

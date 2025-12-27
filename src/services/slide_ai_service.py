@@ -29,16 +29,13 @@ except Exception as e:
     gemini_client = None
 
 try:
-    # Try Claude on Vertex AI first (asia-southeast1 for quota availability)
+    # Try Vertex AI first (primary)
     project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
-    region = os.getenv(
-        "VERTEX_AI_REGION", "asia-southeast1"
-    )  # Use asia-southeast1 for better quota
+    region = os.getenv("VERTEX_AI_REGION", "asia-southeast1")
 
-    # Check for explicit credentials file first
+    # Check for credentials file
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
     if not credentials_path:
-        # Try default location
         credentials_path = "/app/wordai-6779e-ed6189c466f1.json"
         if os.path.exists(credentials_path):
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
@@ -49,14 +46,13 @@ try:
     logger.info(
         f"✅ Claude Vertex AI client initialized (project={project_id}, region={region})"
     )
+
 except Exception as vertex_error:
     logger.warning(f"⚠️ Failed to initialize Claude Vertex AI: {vertex_error}")
     logger.info("🔄 Falling back to Claude API with API key...")
 
     try:
-        # Fallback to standard Anthropic API
-        from anthropic import Anthropic
-
+        # Fallback to Anthropic API
         api_key = os.getenv("ANTHROPIC_API_KEY")
         if not api_key:
             raise ValueError("ANTHROPIC_API_KEY not found in environment")
@@ -240,7 +236,56 @@ class SlideAIService:
                     raise e  # Raise original PermissionDeniedError
 
             except RateLimitError as e:
-                if attempt < max_retries - 1:
+                # Check if it's quota exhausted (429) - fallback immediately
+                if (
+                    "429" in str(e)
+                    or "quota" in str(e).lower()
+                    or "RESOURCE_EXHAUSTED" in str(e)
+                ):
+                    logger.error(f"❌ Vertex AI quota exhausted: {str(e)}")
+                    logger.info("🔄 Attempting immediate fallback to Claude API...")
+
+                    try:
+                        api_key = os.getenv("ANTHROPIC_API_KEY")
+                        if not api_key:
+                            raise ValueError("ANTHROPIC_API_KEY not found for fallback")
+
+                        # Create fallback client
+                        fallback_client = Anthropic(api_key=api_key)
+                        fallback_model = "claude-3-5-sonnet-20241022"
+
+                        logger.info(
+                            f"🔄 Using fallback: Claude API (model: {fallback_model})"
+                        )
+
+                        def _stream_claude_api_sync():
+                            """Synchronous Claude API streaming (fallback)"""
+                            response_text = ""
+                            with fallback_client.messages.stream(
+                                model=fallback_model,
+                                max_tokens=52000,
+                                temperature=0.7,
+                                messages=[{"role": "user", "content": prompt}],
+                            ) as stream:
+                                for text in stream.text_stream:
+                                    response_text += text
+                            return response_text
+
+                        # Run with fallback client
+                        response_text = await asyncio.to_thread(_stream_claude_api_sync)
+                        logger.info(
+                            f"✅ Fallback successful, response length: {len(response_text)} chars"
+                        )
+                        break
+
+                    except Exception as fallback_error:
+                        logger.error(
+                            f"❌ Fallback to Claude API also failed: {fallback_error}"
+                        )
+                        raise e  # Raise original RateLimitError
+
+                # Regular rate limit (non-quota) - retry with backoff
+                elif attempt < max_retries - 1:
                     wait_time = retry_delay * (attempt + 1)
                     logger.warning(
                         f"⚠️ Rate limit hit (attempt {attempt + 1}/{max_retries}), "
