@@ -78,7 +78,7 @@ class SlideAIFormatRequest(BaseModel):
     # Common fields
     user_instruction: Optional[str] = Field(
         None,
-        max_length=500,
+        max_length=2000,
         description="Optional user instruction (e.g., 'Make it more professional', 'Add emphasis to key points')",
     )
     format_type: Literal["format", "edit"] = Field(
@@ -109,7 +109,7 @@ class SlideAIEditRequest(BaseModel):
     edit_instruction: str = Field(
         ...,
         min_length=10,
-        max_length=500,
+        max_length=2000,
         description="Edit instruction (e.g., 'Make it shorter', 'Add bullet points', 'Emphasize key metrics')",
     )
     preserve_elements: bool = Field(
