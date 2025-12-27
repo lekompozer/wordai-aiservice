@@ -267,6 +267,12 @@ Language: {language}
    - **DIMENSIONS (FULL HD 16:9)**: Each slide MUST be exactly 1920px width × 1080px height
    - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden;`
    - All content must fit within this 1920×1080 canvas - use absolute positioning for precise layout
+   - **LAYOUT SYMMETRY & SPACING**:
+     * Total padding-left + margin-left MUST EQUAL total padding-right + margin-right
+     * Content must be centered horizontally within the 1920px width
+     * All content height must fit within 1080px with minimum 25px bottom clearance
+     * Bottom margin/padding: Ensure at least 25px space from content to bottom edge (y=1055px max)
+     * Example: If padding: 60px 80px, then left (80px) = right (80px) ✅
 
 2. **Structure for EACH slide:**
    ```html

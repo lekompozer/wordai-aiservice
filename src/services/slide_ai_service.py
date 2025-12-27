@@ -446,6 +446,12 @@ Design Principles to Apply:
    - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative;`
    - All content must fit within this 1920×1080 canvas
 8. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
+9. **LAYOUT SYMMETRY & SPACING**:
+   - Total padding-left + margin-left MUST EQUAL total padding-right + margin-right
+   - Content must be centered horizontally within the 1920px width
+   - All content height must fit within 1080px with minimum 25px bottom clearance
+   - Bottom margin/padding: Ensure at least 25px space from content to bottom edge (y=1055px max)
+   - Example: If padding: 60px 80px, then left (80px) = right (80px) ✅
 
 REQUIRED OUTPUT STRUCTURE for each slide:
 ```html
@@ -506,6 +512,12 @@ Design Principles to Apply:
    - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative;`
    - All content must fit within this 1920×1080 canvas
 8. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
+9. **LAYOUT SYMMETRY & SPACING**:
+   - Total padding-left + margin-left MUST EQUAL total padding-right + margin-right
+   - Content must be centered horizontally within the 1920px width
+   - All content height must fit within 1080px with minimum 25px bottom clearance
+   - Bottom margin/padding: Ensure at least 25px space from content to bottom edge (y=1055px max)
+   - Example: If padding: 60px 80px, then left (80px) = right (80px) ✅
 
 REQUIRED OUTPUT STRUCTURE:
 ```html
