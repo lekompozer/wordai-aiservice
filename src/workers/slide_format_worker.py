@@ -192,7 +192,8 @@ class SlideFormatWorker:
                     job_id=job_id,
                     status="completed",
                     user_id=task.user_id,
-                    slide_number=task.slide_index,  # User-facing slide number (1-based)
+                    slide_number=task.slide_index
+                    + 1,  # Convert 0-indexed to 1-indexed for frontend
                     formatted_html=result["formatted_html"],
                     suggested_elements=result.get("suggested_elements", []),
                     suggested_background=result.get("suggested_background"),
@@ -370,8 +371,8 @@ class SlideFormatWorker:
 
                 # Prepare update data
                 slide_numbers = [
-                    r.get("slide_index") for r in all_slides_results
-                ]  # Extract all formatted slide numbers
+                    r.get("slide_index") + 1 for r in all_slides_results
+                ]  # Convert 0-indexed to 1-indexed for frontend
 
                 update_data = {
                     "status": "completed",
