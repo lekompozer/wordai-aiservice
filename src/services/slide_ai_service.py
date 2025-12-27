@@ -29,9 +29,11 @@ except Exception as e:
     gemini_client = None
 
 try:
-    # Try Claude on Vertex AI first (global endpoint for maximum availability)
+    # Try Claude on Vertex AI first (asia-southeast1 for quota availability)
     project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
-    region = "global"  # Global endpoint (recommended for pay-as-you-go)
+    region = os.getenv(
+        "VERTEX_AI_REGION", "asia-southeast1"
+    )  # Use asia-southeast1 for better quota
 
     # Check for explicit credentials file first
     credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
