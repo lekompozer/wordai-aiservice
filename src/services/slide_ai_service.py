@@ -11,7 +11,7 @@ import time
 import json
 import asyncio
 from typing import Dict, Any
-from anthropic import AnthropicVertex, RateLimitError
+from anthropic import AnthropicVertex, Anthropic, RateLimitError, PermissionDeniedError
 
 from src.models.slide_ai_models import SlideAIFormatRequest
 
@@ -178,6 +178,49 @@ class SlideAIService:
 
                 # Success - break retry loop
                 break
+
+            except PermissionDeniedError as e:
+                logger.error(f"❌ Vertex AI permission denied: {str(e)}")
+                logger.info("🔄 Attempting fallback to Claude API...")
+                
+                # Try to fallback to Claude API
+                try:
+                    api_key = os.getenv("ANTHROPIC_API_KEY")
+                    if not api_key:
+                        raise ValueError("ANTHROPIC_API_KEY not found for fallback")
+                    
+                    # Create fallback client
+                    fallback_client = Anthropic(api_key=api_key)
+                    fallback_model = "claude-sonnet-4-5-20250929"
+                    
+                    logger.info(f"🔄 Using fallback: Claude API (model: {fallback_model})")
+                    
+                    def _stream_claude_api_sync():
+                        """Synchronous Claude API streaming (fallback)"""
+                        response_text = ""
+                        with fallback_client.messages.stream(
+                            model=fallback_model,
+                            max_tokens=52000,
+                            temperature=0.7,
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": prompt,
+                                }
+                            ],
+                        ) as stream:
+                            for text in stream.text_stream:
+                                response_text += text
+                        return response_text
+                    
+                    # Run with fallback client
+                    response_text = await asyncio.to_thread(_stream_claude_api_sync)
+                    logger.info(f"✅ Fallback successful, response length: {len(response_text)} chars")
+                    break
+                    
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback to Claude API also failed: {fallback_error}")
+                    raise e  # Raise original PermissionDeniedError
 
             except RateLimitError as e:
                 if attempt < max_retries - 1:
