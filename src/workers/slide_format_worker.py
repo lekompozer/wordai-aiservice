@@ -417,8 +417,8 @@ class SlideFormatWorker:
                                 )
 
                                 # STEP 2: Update current document with formatted slides
-                                # Build updated slides_outline with formatted HTML
-                                current_outline = doc.get("slides_outline", [])
+                                # Parse current content_html to extract individual slides
+                                current_content_html = doc.get("content_html", "")
 
                                 # Create mapping of slide_index -> formatted_html
                                 formatted_map = {}
@@ -427,31 +427,56 @@ class SlideFormatWorker:
                                     formatted_html = slide_result.get("formatted_html")
                                     if slide_idx is not None and formatted_html:
                                         formatted_map[slide_idx] = formatted_html
-
-                                # Update slides_outline with formatted HTML
-                                updated_outline = []
-                                for i, slide in enumerate(current_outline):
-                                    if i in formatted_map:
-                                        # Create new slide dict with formatted HTML
-                                        updated_slide = (
-                                            slide.copy()
-                                            if isinstance(slide, dict)
-                                            else {}
-                                        )
-                                        updated_slide["content_html"] = formatted_map[i]
-                                        updated_outline.append(updated_slide)
                                         logger.info(
-                                            f"   ✅ Updated slide {i} with formatted HTML ({len(formatted_map[i])} chars)"
+                                            f"   ✅ Formatted slide {slide_idx} ready ({len(formatted_html)} chars)"
+                                        )
+
+                                # Split content_html into individual slides
+                                # Slides are separated by <!-- Slide N --> comments
+                                import re
+
+                                slide_pattern = (
+                                    r"(<!-- Slide \d+ -->.*?(?=<!-- Slide \d+ -->|$))"
+                                )
+                                slides_html = re.findall(
+                                    slide_pattern, current_content_html, re.DOTALL
+                                )
+
+                                # If no slide markers found, treat entire content as slides concatenated
+                                if not slides_html:
+                                    # Try to split by slide-page div
+                                    slide_pattern = (
+                                        r'(<div class="slide-page">.*?</div>\s*</div>)'
+                                    )
+                                    slides_html = re.findall(
+                                        slide_pattern, current_content_html, re.DOTALL
+                                    )
+
+                                logger.info(
+                                    f"📄 Extracted {len(slides_html)} slides from content_html"
+                                )
+
+                                # Replace formatted slides
+                                updated_slides = []
+                                for i, slide_html in enumerate(slides_html):
+                                    if i in formatted_map:
+                                        # Use formatted HTML
+                                        updated_slides.append(formatted_map[i])
+                                        logger.info(
+                                            f"   🔄 Replaced slide {i} with formatted version"
                                         )
                                     else:
-                                        # Keep original slide
-                                        updated_outline.append(slide)
+                                        # Keep original
+                                        updated_slides.append(slide_html)
 
-                                # Save updated document with formatted slides (content_html is optional now)
+                                # Combine into new content_html
+                                new_content_html = "\n\n".join(updated_slides)
+
+                                # Save updated document with new content_html
                                 doc_manager.update_document(
                                     document_id=document_id,
                                     user_id=user_id,
-                                    slides_outline=updated_outline,
+                                    content_html=new_content_html,
                                 )
 
                                 logger.info(

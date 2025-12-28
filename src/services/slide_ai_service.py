@@ -459,6 +459,14 @@ Current Slides HTML:
 
 User Instruction: {instruction}
 
+**OVERLAY ELEMENTS REQUIREMENT**:
+- If elements are provided above (images, shapes, icons), you MUST include them in the formatted HTML
+- Render elements as absolute positioned divs with proper z-index layering
+- For images: Use <img src="URL" style="position: absolute; top: Ypx; left: Xpx; width: Wpx; height: Hpx; z-index: 10;" />
+- For shapes: Use <div> with appropriate styling (borders, border-radius, background)
+- Preserve all element URLs and positioning from the elements list
+- Layer content elements above background but below overlays
+
 Design Principles to Apply:
 1. **Visual Hierarchy**: Use proper heading sizes (h1 > h2 > h3 > p), font weights, and spacing
 2. **White Space**: Add appropriate margins, padding, and line-height for readability
@@ -524,6 +532,14 @@ Current Slide HTML:
 {elements_info}{background_info}
 
 User Instruction: {instruction}
+
+**OVERLAY ELEMENTS REQUIREMENT**:
+- If elements are provided above (images, shapes, icons), you MUST include them in the formatted HTML
+- Render elements as absolute positioned divs/imgs with proper z-index layering
+- For images: Use <img src="URL" style="position: absolute; top: Ypx; left: Xpx; width: Wpx; height: Hpx; z-index: 10;" />
+- For shapes: Use <div> with appropriate styling (borders, border-radius, background, position: absolute)
+- Preserve all element URLs and positioning from the elements list above
+- Layer content elements above background but below overlays
 
 Design Principles to Apply:
 1. **Visual Hierarchy**: Use proper heading sizes (h1 > h2 > h3 > p), font weights, and spacing
@@ -618,14 +634,36 @@ FORBIDDEN ELEMENTS (DO NOT USE):
         is_batch = len(slide_markers) > 1
 
         if is_batch:
+            # Build elements info
+            elements_info = ""
+            if request.elements:
+                elements_info = f"\n\nOverlay Elements ({len(request.elements)}):\n"
+                for i, elem in enumerate(request.elements):
+                    elements_info += f"  {i+1}. {elem.type} at ({elem.position['x']}, {elem.position['y']}) - {elem.position['width']}x{elem.position['height']}\n"
+                    if (
+                        elem.type == "image"
+                        and elem.properties
+                        and "src" in elem.properties
+                    ):
+                        elements_info += f"     Image URL: {elem.properties['src']}\n"
+                    if elem.properties:
+                        elements_info += f"     Properties: {elem.properties}\n"
+
             prompt = f"""You are a content editor. Your task is to modify the slide content STRICTLY based on the user's instruction.
 
 Current Slides HTML ({len(slide_markers)} slides):
 ```html
 {request.current_html}
 ```
+{elements_info}
 
 **User's Instruction**: {instruction}
+
+**OVERLAY ELEMENTS REQUIREMENT**:
+- If overlay elements are listed above (images, shapes), you MUST include them in the HTML output
+- Render as absolute positioned elements: <img src="URL" style="position: absolute; top: Ypx; left: Xpx; width: Wpx; height: Hpx; z-index: 10;" />
+- Preserve all element URLs and exact positioning from the list above
+- Do NOT modify element positions or properties unless user instruction explicitly asks
 
 **Your Task**:
 1. Read the user instruction carefully
@@ -649,14 +687,36 @@ Your Response (JSON format):
 
 IMPORTANT: Focus on user instruction. Be conservative. Change as little as possible while fulfilling the request."""
         else:
+            # Build elements info
+            elements_info = ""
+            if request.elements:
+                elements_info = f"\n\nOverlay Elements ({len(request.elements)}):\n"
+                for i, elem in enumerate(request.elements):
+                    elements_info += f"  {i+1}. {elem.type} at ({elem.position['x']}, {elem.position['y']}) - {elem.position['width']}x{elem.position['height']}\n"
+                    if (
+                        elem.type == "image"
+                        and elem.properties
+                        and "src" in elem.properties
+                    ):
+                        elements_info += f"     Image URL: {elem.properties['src']}\n"
+                    if elem.properties:
+                        elements_info += f"     Properties: {elem.properties}\n"
+
             prompt = f"""You are a content editor. Your task is to modify the slide content STRICTLY based on the user's instruction.
 
 Current Slide HTML:
 ```html
 {request.current_html}
 ```
+{elements_info}
 
 **User's Instruction**: {instruction}
+
+**OVERLAY ELEMENTS REQUIREMENT**:
+- If overlay elements are listed above (images, shapes), you MUST include them in the HTML output
+- Render as absolute positioned elements: <img src="URL" style="position: absolute; top: Ypx; left: Xpx; width: Wpx; height: Hpx; z-index: 10;" />
+- Preserve all element URLs and exact positioning from the list above
+- Do NOT modify element positions or properties unless user instruction explicitly asks
 
 **Your Task**:
 1. Read the user instruction carefully
