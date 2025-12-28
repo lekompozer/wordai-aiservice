@@ -28,7 +28,8 @@ services:
       - ./logs:/app/logs
       - ./chat_history.db:/app/chat_history.db
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      - ./wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
+      # Mount credentials file from production server directory (not from repo)
+      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
