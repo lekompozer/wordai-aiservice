@@ -400,7 +400,7 @@ class SlideAIService:
             model=self.gemini_model,
             contents=prompt,
             config=genai_types.GenerateContentConfig(
-                temperature=0.8,  # Higher for creative writing
+                temperature=0.3,  # LOW creativity - focus on user instruction
                 max_output_tokens=4096,
                 response_mime_type="application/json",
             ),
@@ -607,38 +607,83 @@ FORBIDDEN ELEMENTS (DO NOT USE):
         return prompt
 
     def _build_edit_prompt(self, request: SlideAIFormatRequest) -> str:
-        """Build prompt for Edit mode (Gemini Pro 3)"""
+        """Build prompt for Edit mode (Gemini Pro 3 - low creativity, user query focused)"""
 
         instruction = request.user_instruction or "Improve the slide content"
 
-        prompt = f"""You are an expert content writer and presentation specialist. Your task is to rewrite the slide content to make it more compelling, clear, and engaging.
+        # Check if batch or single slide
+        import re
+
+        slide_markers = re.findall(r"<!-- Slide (\d+) -->", request.current_html)
+        is_batch = len(slide_markers) > 1
+
+        if is_batch:
+            prompt = f"""You are a content editor. Your task is to modify the slide content STRICTLY based on the user's instruction.
+
+Current Slides HTML ({len(slide_markers)} slides):
+```html
+{request.current_html}
+```
+
+**User's Instruction**: {instruction}
+
+**Your Task**:
+1. Read the user instruction carefully
+2. Modify ONLY what the user asks for
+3. Keep everything else EXACTLY the same
+4. Preserve ALL HTML structure, styling, and layout
+5. Maintain the slide markers "<!-- Slide X -->"
+
+**Rules**:
+- ❌ DO NOT add creative content unless user asks
+- ❌ DO NOT change layout, styling, or structure
+- ✅ ONLY modify text content as specified in user instruction
+- ✅ Keep the same tone, length unless user asks to change
+- ✅ Preserve all slide-wrapper structure and dimensions
+
+Your Response (JSON format):
+{{
+  "formatted_html": "Modified HTML with {len(slide_markers)} slides - ONLY changes from user instruction",
+  "ai_explanation": "Brief summary of what was changed based on user instruction"
+}}
+
+IMPORTANT: Focus on user instruction. Be conservative. Change as little as possible while fulfilling the request."""
+        else:
+            prompt = f"""You are a content editor. Your task is to modify the slide content STRICTLY based on the user's instruction.
 
 Current Slide HTML:
 ```html
 {request.current_html}
 ```
 
-User Instruction: {instruction}
+**User's Instruction**: {instruction}
 
-Content Principles:
-1. **Clarity**: Make content clear and easy to understand
-2. **Engagement**: Use compelling language that captures attention
-3. **Structure**: Organize content logically with proper hierarchy
-4. **Brevity**: Keep content concise but informative
-5. **Impact**: Use power words, statistics, and specific examples
+**Your Task**:
+1. Read the user instruction carefully
+2. Modify ONLY what the user asks for
+3. Keep everything else EXACTLY the same
+4. Preserve ALL HTML structure, styling, and layout
+
+**Rules**:
+- ❌ DO NOT add creative content unless user asks
+- ❌ DO NOT change layout, styling, or structure
+- ✅ ONLY modify text content as specified in user instruction
+- ✅ Keep the same tone, length unless user asks to change
+- ✅ Preserve slide-wrapper structure (1920×1080px)
+
+**Examples of good edits**:
+- User: "Make it shorter" → Remove verbose parts, keep key points
+- User: "Add more details" → Expand with relevant specifics
+- User: "Simplify for beginners" → Replace jargon with simple terms
+- User: "Add statistics" → Insert relevant numbers/data
 
 Your Response (JSON format):
 {{
-  "formatted_html": "Rewritten HTML with improved content",
-  "ai_explanation": "Explanation of content changes made"
+  "formatted_html": "Modified HTML - ONLY changes from user instruction",
+  "ai_explanation": "Brief summary of what was changed based on user instruction"
 }}
 
-IMPORTANT:
-- Rewrite content based on user instruction
-- Maintain HTML structure (keep tags like h1, p, ul, li)
-- Make content more compelling and professional
-- You CAN and SHOULD change the text content
-- suggested_elements and suggested_background not needed for edit mode"""
+IMPORTANT: Focus on user instruction. Be conservative. Change as little as possible while fulfilling the request."""
 
         return prompt
 

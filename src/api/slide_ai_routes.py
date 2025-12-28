@@ -479,3 +479,293 @@ async def get_slide_format_job_status(
     except Exception as e:
         logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "/ai-edit",
+    response_model=CreateSlideFormatJobResponse,
+    summary="Edit slide content with AI (async job)",
+)
+async def ai_edit_slide(
+    request: SlideAIFormatRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Edit slide(s) content based on user instruction using Gemini 3 Pro
+
+    **⚠️ Returns job_id for async processing**
+
+    **3 Processing Modes:**
+
+    **Mode 1: Single Slide**
+    ```json
+    {
+      "slide_index": 2,
+      "current_html": "<h1>Title</h1>",
+      "elements": [...],
+      "background": {...},
+      "user_instruction": "Make it shorter and more concise",
+      "format_type": "edit"
+    }
+    ```
+
+    **Mode 2: Multiple Specific Slides**
+    ```json
+    {
+      "slides_data": [
+        {"slide_index": 0, "current_html": "...", "elements": [], "background": null},
+        {"slide_index": 2, "current_html": "...", "elements": [], "background": null}
+      ],
+      "user_instruction": "Add more emphasis to key points",
+      "format_type": "edit"
+    }
+    ```
+
+    **Mode 3: Entire Document** (all slides)
+    ```json
+    {
+      "process_all_slides": true,
+      "document_id": "doc_xxx",
+      "slides_data": [...all slides...],
+      "user_instruction": "Simplify technical terms for general audience",
+      "format_type": "edit"
+    }
+    ```
+
+    **AI Behavior:**
+    - Uses Gemini 3 Pro (fast, low creativity)
+    - Focuses strictly on user_instruction
+    - Preserves slide structure and layout
+    - Only modifies content (text)
+
+    **Authentication:** Required
+
+    **Cost:**
+    - **Mode 1** (single slide): 2 points
+    - **Mode 2/3** (batch): 2 points per slide
+    - Examples:
+      * 1 slide: 2 points
+      * 10 slides: 20 points
+      * 30 slides: 60 points
+
+    **Processing time:**
+    - Single slide: 10-30 seconds
+    - Multiple slides: 10-30 seconds per slide (parallel processing)
+
+    **Returns:** Job ID for polling status at GET /api/slides/jobs/{job_id}
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Validate request and determine mode
+        is_batch = False
+        process_entire_document = False
+        slides_to_process = []
+        MAX_SLIDES_PER_BATCH_EDIT = 50  # Max slides for edit
+
+        # Validate format_type
+        if request.format_type != "edit":
+            raise HTTPException(
+                status_code=400,
+                detail="This endpoint only accepts format_type='edit'. Use /api/slides/ai-format for format_type='format'",
+            )
+
+        # Require user_instruction for edit
+        if not request.user_instruction:
+            raise HTTPException(
+                status_code=400,
+                detail="user_instruction is required for editing. Provide clear instructions like 'Make it shorter', 'Add more details', etc.",
+            )
+
+        # Mode detection
+        if request.slides_data:
+            # Mode 2 or 3: Batch processing
+            is_batch = True
+            slides_to_process = request.slides_data
+
+            if request.process_all_slides:
+                process_entire_document = True
+
+                if not request.document_id:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="document_id is required for Mode 3 (process_all_slides=true)",
+                    )
+
+                logger.info(
+                    f"📋 Mode 3: Editing ALL {len(slides_to_process)} slides - document: {request.document_id}"
+                )
+            else:
+                logger.info(
+                    f"📋 Mode 2: Editing {len(slides_to_process)} specific slides"
+                )
+
+        elif request.slide_index is not None and request.current_html:
+            # Mode 1: Single slide
+            logger.info(f"📄 Mode 1: Editing single slide {request.slide_index}")
+            from src.models.slide_ai_models import SlideData
+
+            slides_to_process = [
+                SlideData(
+                    slide_index=request.slide_index,
+                    current_html=request.current_html,
+                    elements=request.elements or [],
+                    background=request.background,
+                )
+            ]
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid request. Provide either: (slide_index + current_html) OR slides_data array",
+            )
+
+        # Calculate points cost
+        num_slides = len(slides_to_process)
+
+        if num_slides > MAX_SLIDES_PER_BATCH_EDIT:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Too many slides. Maximum {MAX_SLIDES_PER_BATCH_EDIT} slides per edit request.",
+            )
+
+        # Edit mode: 2 points per slide
+        total_points_cost = num_slides * POINTS_COST_EDIT
+
+        # Check points
+        points_service = get_points_service()
+        check = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=total_points_cost,
+            service="slide_ai_editing",
+        )
+
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail={
+                    "error": "INSUFFICIENT_POINTS",
+                    "message": f"Không đủ điểm để edit {num_slides} slide(s). Cần: {total_points_cost}, Còn: {check['points_available']}",
+                    "points_needed": total_points_cost,
+                    "points_available": check["points_available"],
+                    "slides_count": num_slides,
+                },
+            )
+
+        logger.info(f"✏️ User {user_id} editing {num_slides} slide(s)")
+        logger.info(f"   Instruction: {request.user_instruction}")
+        logger.info(
+            f"   Total points cost: {total_points_cost} ({num_slides} slide(s) × {POINTS_COST_EDIT} points)"
+        )
+
+        # Deduct points BEFORE queueing
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=total_points_cost,
+            service="slide_ai_editing",
+            resource_id=(
+                f"slides_batch_{num_slides}"
+                if is_batch
+                else f"slide_{slides_to_process[0].slide_index}"
+            ),
+            description=f"AI Edit: {num_slides} slide(s) - {request.user_instruction[:50]}...",
+        )
+
+        logger.info(f"💸 Deducted {total_points_cost} points ({num_slides} slide(s))")
+
+        # Create job
+        batch_job_id = str(uuid.uuid4())
+        queue = await get_slide_format_queue()
+
+        if is_batch:
+            # Create parent batch job in Redis
+            await set_job_status(
+                redis_client=queue.redis_client,
+                job_id=batch_job_id,
+                status="pending",
+                user_id=user_id,
+                document_id=request.document_id,
+                is_batch=True,
+                total_slides=num_slides,
+                completed_slides=0,
+                failed_slides=0,
+                slides_results=[],
+                format_type="edit",
+                process_entire_document=process_entire_document,
+            )
+
+            # Enqueue each slide separately (parallel processing)
+            for slide_data in slides_to_process:
+                task = SlideFormatTask(
+                    task_id=str(uuid.uuid4()),
+                    job_id=batch_job_id,
+                    user_id=user_id,
+                    document_id=request.document_id,
+                    slide_index=slide_data.slide_index,
+                    current_html=slide_data.current_html,
+                    elements=slide_data.elements or [],
+                    background=(
+                        slide_data.background.dict() if slide_data.background else None
+                    ),
+                    user_instruction=request.user_instruction,
+                    format_type="edit",
+                    is_batch=True,
+                    batch_parent_job_id=batch_job_id,
+                )
+
+                success = await queue.enqueue_generic_task(task)
+                if not success:
+                    logger.error(
+                        f"❌ Failed to enqueue slide {slide_data.slide_index} for job {batch_job_id}"
+                    )
+
+            logger.info(
+                f"✅ Batch job {batch_job_id} created with {num_slides} sub-tasks"
+            )
+
+            return CreateSlideFormatJobResponse(
+                job_id=batch_job_id,
+                status=SlideFormatJobStatus.PENDING,
+                message=f"Edit job for {num_slides} slides queued. Poll /api/slides/jobs/{batch_job_id} for status.",
+                estimated_time=f"{num_slides * 15}-{num_slides * 30} seconds",
+            )
+
+        else:
+            # Single slide job
+            slide_data = slides_to_process[0]
+            task = SlideFormatTask(
+                task_id=batch_job_id,
+                job_id=batch_job_id,
+                user_id=user_id,
+                document_id=request.document_id,
+                slide_index=slide_data.slide_index,
+                current_html=slide_data.current_html,
+                elements=slide_data.elements or [],
+                background=(
+                    slide_data.background.dict() if slide_data.background else None
+                ),
+                user_instruction=request.user_instruction,
+                format_type="edit",
+                is_batch=False,
+            )
+
+            success = await queue.enqueue_generic_task(task)
+
+            if not success:
+                raise HTTPException(
+                    status_code=500, detail="Failed to enqueue task to Redis"
+                )
+
+            logger.info(f"✅ Single slide edit job {batch_job_id} created")
+
+            return CreateSlideFormatJobResponse(
+                job_id=batch_job_id,
+                status=SlideFormatJobStatus.PENDING,
+                message=f"Edit job for slide {slide_data.slide_index} queued. Poll /api/slides/jobs/{batch_job_id} for status.",
+                estimated_time="10-30 seconds",
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Edit slide failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
