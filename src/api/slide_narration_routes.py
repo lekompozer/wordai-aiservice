@@ -1822,7 +1822,7 @@ async def get_public_presentation(public_token: str):
         default_language = sharing_settings.get("default_language", "vi")
 
         # Get presentation document
-        presentation = db.documents.find_one({"_id": ObjectId(presentation_id)})
+        presentation = db.documents.find_one({"document_id": presentation_id})
 
         if not presentation:
             raise HTTPException(404, "Presentation not found")

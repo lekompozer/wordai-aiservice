@@ -325,7 +325,7 @@ async def generate_subtitles_v2(self, presentation_id, language, mode, user_id):
     db = db_manager.db
 
     # Use db for operations
-    presentation = db.documents.find_one({"_id": ObjectId(presentation_id)})
+    presentation = db.documents.find_one({"document_id": presentation_id})
 ```
 
 #### ⚠️ Legacy Pattern (Test System Only - NOT RECOMMENDED for new code)

@@ -575,7 +575,7 @@ Generate the complete narration now:"""
         db = db_manager.db
 
         # Get presentation document
-        presentation = db.documents.find_one({"_id": ObjectId(presentation_id)})
+        presentation = db.documents.find_one({"document_id": presentation_id})
         if not presentation:
             raise ValueError("Presentation not found")
 
