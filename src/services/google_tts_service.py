@@ -19,7 +19,7 @@ class GoogleTTSService:
 
     def __init__(self):
         """Initialize Gemini client with Vertex AI"""
-        # Use Vertex AI instead of API key to avoid 50/day limit
+        # Use Vertex AI with credentials file (no API key needed)
         project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
         location = "us-central1"  # TTS models only available in us-central1
 
@@ -36,7 +36,7 @@ class GoogleTTSService:
         logger.info(
             f"✅ Gemini TTS initialized with Vertex AI (project={project_id}, location={location})"
         )
-        logger.info("   No 50/day limit - using project quota instead")
+        logger.info("   No API key limit - using Vertex AI project quota")
 
         # Supported languages (24 languages from Gemini TTS)
         self.supported_languages = {
@@ -306,44 +306,50 @@ class GoogleTTSService:
                 else "gemini-2.5-flash-preview-tts"
             )
 
-            # Generate audio using REST API (AI Studio doesn't support SDK method for TTS)
-            import asyncio
-            import httpx
-
-            # Build REST API request
-            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
-            headers = {"Content-Type": "application/json"}
-            params = {"key": self.api_key}
-
             effective_voice = voice_name or "Enceladus"
             logger.info(
                 f"🎙️ Gemini TTS request: model={model}, voice={effective_voice}, lang={language_code}, {len(text)} chars"
             )
 
-            request_body = {
-                "contents": [{"parts": [{"text": contents}]}],
-                "generationConfig": {
-                    "responseModalities": ["AUDIO"],
-                    "speechConfig": {
-                        "voiceConfig": {
-                            "prebuiltVoiceConfig": {"voiceName": effective_voice}
-                        }
-                    },
-                },
-            }
-
-            # Call REST API (TTS generation takes time, use 300s timeout)
-            async with httpx.AsyncClient(timeout=300.0) as client:
-                api_response = await client.post(
-                    api_url, headers=headers, params=params, json=request_body
+            # Use Vertex AI SDK (not REST API)
+            if not self.client:
+                raise ValueError(
+                    "Gemini client not initialized. "
+                    "Ensure GOOGLE_APPLICATION_CREDENTIALS is set and points to valid JSON file."
                 )
-                api_response.raise_for_status()
-                response_data = api_response.json()
 
-            # Extract audio data (raw PCM format from Gemini)
-            audio_data = response_data["candidates"][0]["content"]["parts"][0][
-                "inlineData"
-            ]["data"]
+            # Generate audio using Vertex AI SDK
+            response = self.client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=types.SpeechConfig(
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                                voice_name=effective_voice
+                            )
+                        )
+                    ),
+                ),
+            )
+
+            # Extract audio data from response
+            if not hasattr(response, "candidates") or not response.candidates:
+                raise ValueError("No audio generated in response")
+
+            candidate = response.candidates[0]
+            if not hasattr(candidate, "content") or not candidate.content.parts:
+                raise ValueError("No content parts in response")
+
+            audio_data = None
+            for part in candidate.content.parts:
+                if hasattr(part, "inline_data") and part.inline_data:
+                    audio_data = part.inline_data.data
+                    break
+
+            if not audio_data:
+                raise ValueError("No inline audio data found in response")
 
             # Check if audio_data is base64 string or bytes
             if isinstance(audio_data, str):
