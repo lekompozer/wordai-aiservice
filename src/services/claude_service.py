@@ -490,6 +490,9 @@ ANIMATION & TIMING REQUIREMENTS (CRITICAL):
 - CSS animation syntax: animation: fadeIn 0.5s ease-out forwards; animation-delay: 0.2s;
 - Include @keyframes fadeIn definition in <style> tag within slide
 - Set initial opacity: 0 ONLY on animated content elements (NOT on container)
+- ⚠️ CRITICAL: ALWAYS use 'forwards' fill-mode so content STAYS VISIBLE after appearing
+- ⚠️ NEVER use infinite, alternate, or reverse animations - content must appear ONCE and STAY
+- ⚠️ Once content appears, it NEVER disappears or repeats animation (no blinking effect)
 
 CRITICAL STYLING RULES (TipTap Compatibility):
 - Apply styles ONLY on BLOCK elements: <p>, <h1>, <h2>, <h3>, <h4>, <h5>, <h6>, <ul>, <ol>, <li>, <blockquote>, <div>

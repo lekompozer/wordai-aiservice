@@ -371,7 +371,7 @@ Poll: `GET /api/slides/jobs/{job_id}`
 - Mode 2: 5 points per chunk (max 12 slides/chunk)
 - Mode 3: 5 points per chunk (max 12 slides/chunk)
 
-**Examples**:
+**Examples**:GET /api/slides/ai-generate/status/{document_id}
 - 1 slide = 2 points (Mode 1)
 - 5 slides = 5 points (Mode 2/3: 1 chunk)
 - 10 slides = 5 points (Mode 2/3: 1 chunk)

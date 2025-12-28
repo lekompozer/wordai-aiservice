@@ -338,6 +338,13 @@ Language: {language}
      * Visuals: images, icons, decorative divs (animated)
      * Logo & slide numbers: visible immediately (no animation)
    - **TIMING GOAL**: ALL content should be fully visible within 2-3 seconds (OPTIMAL: 2.5s)
+   - **⚠️ CRITICAL ANIMATION RULES** (MUST FOLLOW):
+     * **ALWAYS use 'forwards' fill-mode**: Content MUST STAY VISIBLE after animation completes
+     * **NO looping animations**: animation-iteration-count MUST be 1 (default, never use 'infinite')
+     * **NO reverse/alternate**: Never use animation-direction: alternate or reverse
+     * **Content persistence**: Once appeared, content NEVER disappears or repeats animation
+     * Example: `animation: fadeIn 0.5s ease-out forwards;` ✅ CORRECT
+     * Example: `animation: fadeIn 0.5s ease-out infinite;` ❌ WRONG - content will disappear!
    - **ANIMATION VARIETY** - Be creative with different styles:
      * fadeIn, slideInUp, slideInLeft, slideInRight, scaleIn, bounceIn
      * Combine effects: opacity + transform for richer animations
