@@ -21,6 +21,8 @@ env_var = os.getenv("ENVIRONMENT", os.getenv("ENV", "production"))
 env_file = "development.env" if env_var == "development" else ".env"
 load_dotenv(env_file)
 
+from bson import ObjectId
+
 from src.queue.queue_manager import QueueManager, set_job_status
 from src.models.ai_queue_tasks import SlideNarrationAudioTask
 from src.services.slide_narration_service import get_slide_narration_service
@@ -35,8 +37,8 @@ class SlideNarrationAudioWorker:
 
     def __init__(
         self,
-        worker_id: str = None,
-        redis_url: str = None,
+        worker_id: Optional[str] = None,
+        redis_url: Optional[str] = None,
         batch_size: int = 1,
         max_retries: int = 2,
     ):

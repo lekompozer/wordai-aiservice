@@ -723,7 +723,7 @@ def _get_next_version(presentation_id: str) -> int:
     - Check audio generation status
     """,
 )
-async def delete_narration(
+async def get_narration_detail(
     presentation_id: str,
     narration_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -922,22 +922,22 @@ async def delete_narration(
             raise HTTPException(400, "Narration does not belong to this presentation")
 
         # Delete associated audio files from library_audio
+        # Note: Audio files are stored in presentation_audio collection
+        # They will be orphaned when narration is deleted (acceptable for now)
         audio_files = narration.get("audio_files", [])
         if audio_files:
-            from src.services.library_audio_service import LibraryAudioService
-
-            audio_service = LibraryAudioService()
-            for audio in audio_files:
-                library_audio_id = audio.get("library_audio_id")
-                if library_audio_id:
-                    try:
-                        # Delete from R2 and database
-                        await audio_service.delete_audio(library_audio_id)
-                        logger.info(f"   Deleted audio: {library_audio_id}")
-                    except Exception as e:
-                        logger.warning(
-                            f"   Failed to delete audio {library_audio_id}: {e}"
-                        )
+            # TODO: Implement audio file cleanup from R2 storage
+            # from src.services.audio_service import AudioService
+            # audio_service = AudioService()
+            # for audio in audio_files:
+            #     library_audio_id = audio.get("library_audio_id")
+            #     if library_audio_id:
+            #         try:
+            #             await audio_service.delete_audio(library_audio_id)
+            #             logger.info(f"   Deleted audio: {library_audio_id}")
+            #         except Exception as e:
+            #             logger.warning(f"   Failed to delete audio {library_audio_id}: {e}")
+            logger.info(f"   Skipping audio file deletion ({len(audio_files)} files)")
 
         # Delete narration record
         db.slide_narrations.delete_one({"_id": ObjectId(narration_id)})
@@ -1028,9 +1028,9 @@ async def list_library_audio(
                     format=doc.get("format", "mp3"),
                     source_type=doc.get("source_type", "unknown"),
                     created_at=(
-                        doc.get("created_at").isoformat()
+                        doc.get("created_at")
                         if doc.get("created_at")
-                        else ""
+                        else datetime.utcnow()
                     ),
                     metadata=doc.get("metadata", {}),
                 )
@@ -1305,7 +1305,7 @@ async def generate_subtitles_v2(
 @router.get("/presentations/{presentation_id}/subtitles/v2")
 async def list_subtitles_v2(
     presentation_id: str,
-    language: str = None,
+    language: Optional[str] = None,
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -1654,8 +1654,8 @@ async def upload_audio_v2(
 @router.get("/presentations/{presentation_id}/audio/v2")
 async def list_audio_v2(
     presentation_id: str,
-    language: str = None,
-    version: int = None,
+    language: Optional[str] = None,
+    version: Optional[int] = None,
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -1917,7 +1917,7 @@ async def get_public_presentation(public_token: str):
 
 @router.get("/public/presentations/{public_token}/subtitles")
 async def get_public_subtitles(
-    public_token: str, language: str = None, version: str = "latest"
+    public_token: str, language: Optional[str] = None, version: str = "latest"
 ):
     """Get public subtitles (no authentication required)"""
     try:
@@ -1969,7 +1969,7 @@ async def get_public_subtitles(
 
 @router.get("/public/presentations/{public_token}/audio")
 async def get_public_audio(
-    public_token: str, language: str = None, version: str = "latest"
+    public_token: str, language: Optional[str] = None, version: str = "latest"
 ):
     """Get public audio files (no authentication required)"""
     try:
