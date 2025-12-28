@@ -1557,8 +1557,17 @@ async def get_audio_generation_status(
             "updated_at": job.get("updated_at"),
         }
 
+        # If processing, include progress info
+        if status == "processing":
+            response["progress"] = {
+                "total_slides": job.get("total_slides", 0),
+                "completed_chunks": job.get("completed_chunks", 0),
+                "failed_chunks": job.get("failed_chunks", []),
+                "current_chunk": job.get("current_chunk"),
+            }
+
         # If completed, include audio files
-        if status == "completed":
+        elif status == "completed":
             audio_docs = list(
                 db.presentation_audio.find(
                     {"subtitle_id": subtitle_id, "user_id": user_id}
@@ -1570,6 +1579,13 @@ async def get_audio_generation_status(
         # If failed, include error
         elif status == "failed":
             response["error"] = job.get("error", "Unknown error")
+            # Also include partial progress if any chunks succeeded
+            if job.get("completed_chunks", 0) > 0:
+                response["progress"] = {
+                    "total_slides": job.get("total_slides", 0),
+                    "completed_chunks": job.get("completed_chunks", 0),
+                    "failed_chunks": job.get("failed_chunks", []),
+                }
 
         return response
 
