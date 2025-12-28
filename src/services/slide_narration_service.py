@@ -591,20 +591,66 @@ Generate the complete narration now:"""
         )
         next_version = existing_subtitles[0]["version"] + 1 if existing_subtitles else 1
 
-        # Parse slides from content_html
+        # Parse slides from content_html (same as V1)
         content_html = presentation.get("content_html", "")
-        slides = self._parse_slides_from_html(content_html)
+        if not content_html:
+            raise ValueError("Document has no content")
 
-        if not slides:
-            raise ValueError("No slides found in presentation")
+        # Extract slides from HTML (split by slide divs) - copied from V1 routes
+        import re
 
-        # Generate subtitles using Gemini
-        slides_with_subtitles = await self.generate_subtitles(
+        # Split slides by <div class="slide">
+        slide_pattern = r'<div[^>]*class="slide"[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>(?=\s*(?:<div[^>]*class="slide"|$))'
+        slide_matches = re.findall(
+            slide_pattern, content_html, re.DOTALL | re.IGNORECASE
+        )
+
+        if not slide_matches:
+            # Fallback: split by any div with data-slide-index
+            slide_pattern_simple = r'<div[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>'
+            slide_matches = re.findall(
+                slide_pattern_simple, content_html, re.DOTALL | re.IGNORECASE
+            )
+
+        if not slide_matches:
+            raise ValueError(
+                f"No slides found in document. Content length: {len(content_html)}"
+            )
+
+        # Build slides array with html content
+        slides = []
+        for idx, (slide_index, slide_html) in enumerate(slide_matches):
+            slides.append(
+                {
+                    "index": int(slide_index),
+                    "html": f'<div class="slide" data-slide-index="{slide_index}">{slide_html}</div>',
+                    "elements": [],
+                    "background": (
+                        presentation.get("slide_backgrounds", [])[int(slide_index)]
+                        if int(slide_index)
+                        < len(presentation.get("slide_backgrounds", []))
+                        else None
+                    ),
+                }
+            )
+
+        logger.info(
+            f"📄 Extracted {len(slides)} slides from document {presentation_id}"
+        )
+
+        # Generate subtitles using Gemini (same signature as V1)
+        subtitle_result = await self.generate_subtitles(
+            presentation_id=presentation_id,
             slides=slides,
             mode=mode,
             language=language,
             user_query=user_query,
+            title=presentation.get("title", "Untitled"),
+            topic=presentation.get("metadata", {}).get("topic", ""),
+            user_id=user_id,
         )
+
+        slides_with_subtitles = subtitle_result["slides"]
 
         # Create subtitle document
         subtitle_doc = {
