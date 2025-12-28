@@ -1588,6 +1588,11 @@ async def get_audio_generation_status(
                 ).sort("slide_index", 1)
             )
 
+            # Convert ObjectId to string for Pydantic validation
+            for doc in audio_docs:
+                if "_id" in doc and hasattr(doc["_id"], "__str__"):
+                    doc["_id"] = str(doc["_id"])
+
             response["audio_files"] = [PresentationAudio(**doc) for doc in audio_docs]
 
         # If failed, include error
