@@ -1540,15 +1540,49 @@ async def get_audio_generation_status(
 
     ⚠️ No authentication required - job_id acts as secure token (UUID random).
     This allows long-running jobs without Firebase token expiration issues.
+
+    ✅ Checks Redis first (real-time worker updates), fallback to MongoDB (persistent storage)
     """
     try:
-        # Get job from MongoDB (no auth required - job_id is secure UUID)
-        job = db.narration_audio_jobs.find_one({"_id": job_id})
+        from src.queue.queue_dependencies import get_slide_narration_audio_queue
+        import json
+
+        # Get Redis queue manager
+        queue = await get_slide_narration_audio_queue()
+
+        # Try Redis first (real-time status from worker)
+        # Worker uses both key patterns:
+        # 1. status:slide_narration_audio:{job_id} (QueueManager pattern)
+        # 2. job:{job_id} (standalone set_job_status pattern)
+        redis_key = f"status:slide_narration_audio:{job_id}"
+        redis_data = await queue.redis_client.get(redis_key)
+
+        job = None
+        if redis_data:
+            # Parse Redis JSON data
+            job = json.loads(
+                redis_data.decode() if isinstance(redis_data, bytes) else redis_data
+            )
+        else:
+            # Fallback: Try new job:{job_id} pattern
+            job_key = f"job:{job_id}"
+            job_hash = await queue.redis_client.hgetall(job_key)
+            if job_hash:
+                # Convert bytes to dict
+                job = {}
+                for k, v in job_hash.items():
+                    key = k.decode() if isinstance(k, bytes) else k
+                    value = v.decode() if isinstance(v, bytes) else v
+                    job[key] = value
+            else:
+                # Fallback: Check MongoDB for persistent record
+                job = db.narration_audio_jobs.find_one({"_id": job_id})
+
         if not job:
             raise HTTPException(404, "Job not found")
 
         status = job.get("status", "unknown")
-        user_id = job.get("user_id")  # Get from job, not from auth
+        user_id = job.get("user_id")
 
         response = {
             "job_id": job_id,
