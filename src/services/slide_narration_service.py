@@ -866,7 +866,9 @@ Generate the complete narration now:"""
 
             # Generate audio with retry logic (Gemini API can have intermittent 500 errors)
             max_retries = 5  # Increased retries to avoid breaking entire task
-            retry_delay = 15  # Wait 15s between retries to avoid rate limits
+            retry_delay = (
+                30  # Wait 30s between retries to avoid rate limits and 499 CANCELLED
+            )
 
             audio_data = None  # Initialize to None
             metadata = None
@@ -887,6 +889,8 @@ Generate the complete narration now:"""
                         "500" in error_msg
                         or "INTERNAL" in error_msg
                         or "429" in error_msg
+                        or "499" in error_msg  # Vertex AI CANCELLED error
+                        or "CANCELLED" in error_msg  # Vertex AI concurrent limit
                         or "ReadTimeout" in error_msg
                     )
 
