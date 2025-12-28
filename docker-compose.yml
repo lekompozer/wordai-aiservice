@@ -301,11 +301,16 @@ services:
     command: python -m src.workers.slide_narration_audio_worker
     volumes:
       - ./logs:/app/logs
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      # Mount Vertex AI credentials for TTS generation
+      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
       - REDIS_URL=redis://redis-server:6379
       - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
       - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
