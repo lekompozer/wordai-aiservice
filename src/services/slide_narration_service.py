@@ -301,11 +301,34 @@ IMPORTANT - Element References:
 - Example WRONG: "element_references": [{{"type": "icon", "content": "🚀"}}]
 - Keep element_references minimal - only include when you explicitly reference that element in narration text
 
-TIMING GUIDELINES:
-- Speaking rate: ~150 words per minute (presentation) or ~130 wpm (academy)
-- Pause between sentences: 0.3-0.5 seconds
-- Pause between paragraphs: 0.8-1.0 seconds
-- Transition to next slide: 1.5-2.0 seconds
+CRITICAL TIMING REQUIREMENTS:
+**ACCURATE TIMESTAMP CALCULATION IS MANDATORY**
+
+Speaking Rates:
+- Presentation mode: ~150 words per minute (2.5 words/second)
+- Academy mode: ~130 words per minute (2.2 words/second)
+
+Formula to Calculate Duration:
+1. Count words in subtitle text
+2. duration_seconds = word_count / words_per_second
+3. Add natural pauses:
+   - Between sentences in same paragraph: +0.4s
+   - Between paragraphs: +1.0s
+   - Before transition to next slide: +1.5s
+
+Example Calculations (Presentation mode at 2.5 words/sec):
+- "Chào mừng các bạn." (3 words) → 3/2.5 = 1.2s + 0.4s pause = 1.6s total
+- "Hôm nay chúng ta sẽ cùng khám phá thế giới của Generative AI." (12 words) → 12/2.5 = 4.8s + 1.0s pause = 5.8s
+- Start at 0.0, end at 1.6 (first subtitle)
+- Start at 2.0 (1.6 + 0.4 gap), end at 7.8 (second subtitle)
+
+Real-World Slide Durations (Based on actual TTS output):
+- 2 subtitles per slide: 22-25 seconds total
+- 3 subtitles per slide: 30-40 seconds total
+- Average: ~29 seconds per slide
+
+NEVER use placeholder times like "00:00.0 → 00:05.0" for all subtitles!
+Each subtitle MUST have unique, calculated start_time and end_time.
 
 OUTPUT FORMAT (JSON):
 {{
@@ -316,29 +339,43 @@ OUTPUT FORMAT (JSON):
         {{
           "subtitle_index": 0,
           "start_time": 0.0,
-          "end_time": 3.5,
-          "duration": 3.5,
-          "text": "Welcome to this presentation.",
+          "end_time": 5.8,
+          "duration": 5.8,
+          "text": "Chào mừng các bạn. Hôm nay chúng ta sẽ cùng khám phá thế giới của Generative AI.",
           "speaker_index": 0,
           "element_references": []
         }},
         {{
           "subtitle_index": 1,
-          "start_time": 4.0,
-          "end_time": 8.2,
-          "duration": 4.2,
-          "text": "As shown in this diagram, the process has three main stages.",
-          "speaker_index": 0,
-          "element_references": ["elem_0"]
-        }},
-        {{
-          "subtitle_index": 2,
-          "start_time": 8.5,
-          "end_time": 11.0,
-          "duration": 2.5,
-          "text": "Let's explore each stage in detail.",
+          "start_time": 7.0,
+          "end_time": 18.5,
+          "duration": 11.5,
+          "text": "Chúng ta sẽ tìm hiểu công nghệ lõi tạo nên ChatGPT, DeepSeek và cách ứng dụng chúng vào sản phẩm thực tế như WordAI.",
           "speaker_index": 0,
           "element_references": []
+        }}
+      ]
+    }},
+    {{
+      "slide_index": 1,
+      "subtitles": [
+        {{
+          "subtitle_index": 0,
+          "start_time": 0.0,
+          "end_time": 11.0,
+          "duration": 11.0,
+          "text": "Nội dung bài giảng sẽ đi qua 10 điểm chính, từ những khái niệm cơ bản nhất.",
+          "speaker_index": 0,
+          "element_references": []
+        }},
+        {{
+          "subtitle_index": 1,
+          "start_time": 13.0,
+          "end_time": 30.0,
+          "duration": 17.0,
+          "text": "Chúng ta sẽ giải mã cách AI hiểu ngôn ngữ qua Transformer, Tokenization, cho đến kiến trúc tiên tiến Mixture of Experts của DeepSeek.",
+          "speaker_index": 0,
+          "element_references": ["elem_diagram"]
         }}
       ]
     }}
