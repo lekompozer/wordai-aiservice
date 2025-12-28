@@ -542,11 +542,12 @@ async def ai_edit_slide(
 
     **Cost:**
     - **Mode 1** (single slide): 2 points
-    - **Mode 2/3** (batch): 2 points per slide
+    - **Mode 2/3** (batch): 5 points per chunk (max 12 slides/chunk)
     - Examples:
-      * 1 slide: 2 points
-      * 10 slides: 20 points
-      * 30 slides: 60 points
+      * 1 slide (Mode 1): 2 points
+      * 10 slides (Mode 2/3): 1 chunk × 5 = 5 points
+      * 15 slides (Mode 2/3): 2 chunks × 5 = 10 points
+      * 30 slides (Mode 2/3): 3 chunks × 5 = 15 points
 
     **Processing time:**
     - Single slide: 10-30 seconds
@@ -628,8 +629,17 @@ async def ai_edit_slide(
                 detail=f"Too many slides. Maximum {MAX_SLIDES_PER_BATCH_EDIT} slides per edit request.",
             )
 
-        # Edit mode: 2 points per slide
-        total_points_cost = num_slides * POINTS_COST_EDIT
+        # Cost calculation based on mode
+        if is_batch:
+            # Calculate number of chunks needed (max 12 slides per chunk)
+            num_chunks = (num_slides + MAX_SLIDES_PER_CHUNK - 1) // MAX_SLIDES_PER_CHUNK
+            # Batch mode (Mode 2/3): 5 points per chunk for edit
+            points_per_chunk = 5  # Chunk-based pricing for edit
+            total_points_cost = num_chunks * points_per_chunk
+        else:
+            # Mode 1: Single slide - 2 points
+            num_chunks = 1
+            total_points_cost = POINTS_COST_EDIT
 
         # Check points
         points_service = get_points_service()
@@ -653,9 +663,15 @@ async def ai_edit_slide(
 
         logger.info(f"✏️ User {user_id} editing {num_slides} slide(s)")
         logger.info(f"   Instruction: {request.user_instruction}")
-        logger.info(
-            f"   Total points cost: {total_points_cost} ({num_slides} slide(s) × {POINTS_COST_EDIT} points)"
-        )
+        if is_batch:
+            logger.info(
+                f"   Chunks: {num_chunks} (max {MAX_SLIDES_PER_CHUNK} slides/chunk)"
+            )
+            logger.info(
+                f"   Total points cost: {total_points_cost} ({num_chunks} chunk(s) × {points_per_chunk} points)"
+            )
+        else:
+            logger.info(f"   Total points cost: {total_points_cost} (single slide)")
 
         # Deduct points BEFORE queueing
         await points_service.deduct_points(
