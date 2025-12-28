@@ -385,7 +385,7 @@ class SlideFormatWorker:
                     "processing_time_seconds": processing_time,
                 }
 
-                # Mode 3: Create new version in database
+                # Mode 3: Create new version in database (auto-save formatted slides)
                 if batch_job.get("process_entire_document"):
                     document_id = batch_job.get("document_id")
                     user_id = batch_job.get("user_id")
@@ -447,7 +447,7 @@ class SlideFormatWorker:
                                         # Keep original slide
                                         updated_outline.append(slide)
 
-                                # Save updated document with formatted slides
+                                # Save updated document with formatted slides (content_html is optional now)
                                 doc_manager.update_document(
                                     document_id=document_id,
                                     user_id=user_id,
@@ -475,7 +475,7 @@ class SlideFormatWorker:
                                 exc_info=True,
                             )
                             # Don't fail the entire job if version creation fails
-                            # User can still see formatted slides
+                            # User can still see formatted slides in job status
                     else:
                         logger.warning(
                             "⚠️ Mode 3 but missing document_id or user_id, cannot create version"
