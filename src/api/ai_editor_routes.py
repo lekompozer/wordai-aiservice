@@ -726,8 +726,8 @@ async def get_ai_editor_job_status(
         return AIEditorJobStatusResponse(
             job_id=job["job_id"],
             status=AIEditorJobStatus(job["status"]),
-            job_type=AIEditorJobType(job["job_type"]),
-            document_id=job["document_id"],
+            job_type=AIEditorJobType(job.get("job_type", "edit")),
+            document_id=job.get("document_id", ""),
             created_at=job["created_at"],
             started_at=job.get("started_at"),
             completed_at=job.get("completed_at"),
