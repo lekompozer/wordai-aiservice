@@ -1545,38 +1545,18 @@ async def get_audio_generation_status(
     """
     try:
         from src.queue.queue_dependencies import get_slide_narration_audio_queue
-        import json
+        from src.queue.queue_manager import get_job_status
 
         # Get Redis queue manager
         queue = await get_slide_narration_audio_queue()
 
-        # Try Redis first (real-time status from worker)
-        # Worker uses both key patterns:
-        # 1. status:slide_narration_audio:{job_id} (QueueManager pattern)
-        # 2. job:{job_id} (standalone set_job_status pattern)
-        redis_key = f"status:slide_narration_audio:{job_id}"
-        redis_data = await queue.redis_client.get(redis_key)
+        # Check Redis first (real-time status from worker)
+        # Worker uses set_job_status() → key pattern: job:{job_id}
+        job = await get_job_status(queue.redis_client, job_id)
 
-        job = None
-        if redis_data:
-            # Parse Redis JSON data
-            job = json.loads(
-                redis_data.decode() if isinstance(redis_data, bytes) else redis_data
-            )
-        else:
-            # Fallback: Try new job:{job_id} pattern
-            job_key = f"job:{job_id}"
-            job_hash = await queue.redis_client.hgetall(job_key)
-            if job_hash:
-                # Convert bytes to dict
-                job = {}
-                for k, v in job_hash.items():
-                    key = k.decode() if isinstance(k, bytes) else k
-                    value = v.decode() if isinstance(v, bytes) else v
-                    job[key] = value
-            else:
-                # Fallback: Check MongoDB for persistent record
-                job = db.narration_audio_jobs.find_one({"_id": job_id})
+        if not job:
+            # Fallback: Check MongoDB for persistent record (after Redis 24h TTL expires)
+            job = db.narration_audio_jobs.find_one({"_id": job_id})
 
         if not job:
             raise HTTPException(404, "Job not found")
