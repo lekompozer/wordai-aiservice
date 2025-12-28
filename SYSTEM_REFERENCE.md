@@ -144,7 +144,81 @@ docker logs nginx-gateway 2>&1 | grep "404" | awk '{print $1}' | sort | uniq -c 
 
 ---
 
-## 🗄️ MongoDB Database
+## � Production Server Access (SSH)
+
+### Server Information
+
+**Server IP:** `104.248.147.155`
+**SSH User:** `root` (login as root, then switch to `hoile`)
+**Working Directory:** `/home/hoile/wordai`
+**User for Operations:** `hoile`
+
+### SSH Connection Pattern
+
+**Standard SSH command template:**
+```bash
+ssh root@104.248.147.155 "su - hoile -c 'COMMAND_HERE'"
+```
+
+**Common Operations:**
+
+```bash
+# Deploy latest code
+ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull origin main && ./deploy-compose-with-rollback.sh'"
+
+# Quick restart nginx only (no rebuild)
+ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./restart-nginx.sh'"
+
+# Check Docker containers
+ssh root@104.248.147.155 "docker ps"
+
+# View logs
+ssh root@104.248.147.155 "docker logs ai-chatbot-rag -f --tail 100"
+
+# Execute command in container
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag COMMAND"
+
+# Access MongoDB
+ssh root@104.248.147.155 "su - hoile -c 'docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password --authenticationDatabase admin'"
+
+# Access Redis
+ssh root@104.248.147.155 "docker exec redis-server redis-cli"
+```
+
+**File Operations:**
+
+```bash
+# Check credentials file (production)
+ssh root@104.248.147.155 "su - hoile -c 'ls -lh /home/hoile/wordai/wordai-6779e-ed6189c466f1.json'"
+
+# View env file (production)
+ssh root@104.248.147.155 "su - hoile -c 'cat /home/hoile/wordai/.env | grep MONGODB'"
+
+# Check container file
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag ls -lh /app/wordai-6779e-ed6189c466f1.json"
+```
+
+### Deployment Scripts
+
+**Location:** `/home/hoile/wordai/`
+
+| Script | Purpose | Rebuild | Duration | When to Use |
+|--------|---------|---------|----------|-------------|
+| `deploy-compose-with-rollback.sh` | Full deployment | Yes | 2-3 min | Code changes, new features |
+| `restart-nginx.sh` | Nginx reload only | No | 5 sec | Nginx config changes only |
+| `deploy.sh` | Simple deploy | Yes | 2-3 min | Legacy, use deploy-compose instead |
+
+**deploy-compose-with-rollback.sh workflow:**
+1. Tags current image as backup
+2. Builds new image
+3. Stops old containers
+4. Starts new containers
+5. Waits 10s for health check
+6. Auto-rollback if health check fails
+
+---
+
+## �🗄️ MongoDB Database
 
 ### Connection Information
 
@@ -996,6 +1070,195 @@ AI-powered test evaluations (Gemini)
 
 ---
 
+### MongoDB Commands (Production)
+
+**Access MongoDB shell:**
+```bash
+# From SSH
+ssh root@104.248.147.155 "su - hoile -c 'docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password --authenticationDatabase admin'"
+
+# Or short version after SSH
+docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password --authenticationDatabase admin
+```
+
+**Credentials:**
+- Database: `ai_service_db`
+- Username: `ai_service_user`
+- Password: `ai_service_2025_secure_password`
+- Auth Database: `admin`
+
+**Common Queries:**
+
+```javascript
+// Count documents in collection
+db.narration_audio_jobs.countDocuments()
+
+// Find recent jobs
+db.narration_audio_jobs.find().sort({created_at: -1}).limit(5).pretty()
+
+// Find specific job
+db.narration_audio_jobs.find({_id: "job-id-here"}).pretty()
+
+// Find jobs by user
+db.narration_audio_jobs.find({user_id: "user-id-here"}).pretty()
+
+// Find jobs by status
+db.narration_audio_jobs.find({status: "processing"}).pretty()
+
+// Delete old jobs
+db.narration_audio_jobs.deleteMany({status: "queued", created_at: {$lt: new Date("2025-12-28")}})
+
+// Delete specific job
+db.narration_audio_jobs.deleteOne({_id: "job-id-here"})
+
+// Update job status
+db.narration_audio_jobs.updateOne(
+  {_id: "job-id-here"},
+  {$set: {status: "failed", error: "Manual intervention"}}
+)
+
+// List all collections
+db.getCollectionNames()
+
+// Count presentations
+db.documents.countDocuments()
+
+// Find presentation by ID
+db.documents.findOne({document_id: "doc_abc123"})
+
+// Find user's presentations
+db.documents.find({user_id: "user-id-here"}).sort({created_at: -1}).limit(10)
+
+// Check subtitle documents
+db.presentation_subtitles.find({presentation_id: "doc_abc123"}).pretty()
+
+// Check audio files
+db.presentation_audio.find({subtitle_id: "subtitle-id-here"}).pretty()
+
+// List indexes for collection
+db.narration_audio_jobs.getIndexes()
+
+// Explain query performance
+db.narration_audio_jobs.find({status: "processing"}).explain("executionStats")
+```
+
+**One-line Commands (from SSH):**
+
+```bash
+# Count jobs
+ssh root@104.248.147.155 "su - hoile -c 'docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password --authenticationDatabase admin --eval \"db.narration_audio_jobs.countDocuments()\"'"
+
+# Find jobs
+ssh root@104.248.147.155 "su - hoile -c 'docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password --authenticationDatabase admin --eval \"db.narration_audio_jobs.find().limit(5).pretty()\"'"
+
+# Delete specific job
+ssh root@104.248.147.155 "su - hoile -c 'docker exec mongodb mongosh ai_service_db -u ai_service_user -p ai_service_2025_secure_password --authenticationDatabase admin --eval \"db.narration_audio_jobs.deleteOne({_id: \\\"job-id-here\\\"})\"'"
+```
+
+---
+
+### Redis Commands (Production)
+
+**Access Redis CLI:**
+```bash
+# From SSH
+ssh root@104.248.147.155 "docker exec redis-server redis-cli"
+
+# Or after SSH to server
+docker exec redis-server redis-cli
+```
+
+**Job Status Pattern (Standard for Workers):**
+
+Redis uses key pattern: `job:{job_id}` (Hash data structure)
+
+**Common Redis Commands:**
+
+```bash
+# List all job keys
+KEYS "job:*"
+
+# Get specific job status
+HGETALL "job:abc-123-def-456"
+
+# Check job TTL (24 hours = 86400 seconds)
+TTL "job:abc-123-def-456"
+
+# Delete specific job
+DEL "job:abc-123-def-456"
+
+# Check if job exists
+EXISTS "job:abc-123-def-456"
+
+# Get specific field from job
+HGET "job:abc-123-def-456" "status"
+HGET "job:abc-123-def-456" "error"
+
+# List all keys (WARNING: slow on production)
+KEYS "*"
+
+# Count all keys
+DBSIZE
+
+# Get memory usage
+INFO memory
+
+# Check queue length
+LLEN "slide_narration_audio"
+LLEN "slide_format"
+LLEN "chapter_translation"
+LLEN "ai_editor"
+
+# View queue items (first 5)
+LRANGE "slide_narration_audio" 0 4
+
+# Clear specific queue (DANGER!)
+DEL "slide_narration_audio"
+
+# Find jobs by pattern
+KEYS "job:*abc*"
+
+# Delete all jobs (DANGER - production data loss!)
+# KEYS "job:*" | xargs redis-cli DEL  # DO NOT RUN without confirmation
+
+# Check Redis info
+INFO server
+INFO stats
+INFO keyspace
+```
+
+**One-line Commands (from SSH):**
+
+```bash
+# List all job keys
+ssh root@104.248.147.155 "docker exec redis-server redis-cli KEYS 'job:*'"
+
+# Get specific job
+ssh root@104.248.147.155 "docker exec redis-server redis-cli HGETALL 'job:abc-123'"
+
+# Delete job
+ssh root@104.248.147.155 "docker exec redis-server redis-cli DEL 'job:abc-123'"
+
+# Check queue length
+ssh root@104.248.147.155 "docker exec redis-server redis-cli LLEN 'slide_narration_audio'"
+
+# Get job status field
+ssh root@104.248.147.155 "docker exec redis-server redis-cli HGET 'job:abc-123' 'status'"
+```
+
+**Legacy Pattern (Deprecated):**
+
+Old workers might use: `status:{queue_name}:{task_id}` (String with JSON)
+- Example: `status:slide_narration_audio:abc-123`
+- Data type: String (JSON encoded)
+- Use: `GET "status:slide_narration_audio:abc-123"` to retrieve
+
+**Migration Note:**
+All workers should now use `job:{job_id}` pattern with `set_job_status()` / `get_job_status()` functions.
+See **Redis Worker Pattern** section below for details.
+
+---
+
 ## 📁 File System Structure
 
 ### Temporary Files (Inside Docker Container)
@@ -1610,6 +1873,217 @@ await set_job_status(
     status="processing",
     user_id=user_id,
 )
+
+---
+
+## 🔄 Redis Worker Pattern - System Standard
+
+**Last Updated:** December 28, 2025
+
+### Overview
+
+**ALL async jobs MUST use Redis for real-time status tracking**, except:
+- Slide generation (uses MongoDB `documents` collection)
+- Translation jobs (uses MongoDB `translation_jobs` collection - long-running)
+
+### ✅ Standard Pattern: `set_job_status()` / `get_job_status()`
+
+**Redis Key Pattern:** `job:{job_id}` (Hash data structure, 24h TTL)
+
+### Worker Implementation (Status Updates)
+
+**Import:**
+```python
+from src.queue.queue_manager import set_job_status
+```
+
+**Usage in Worker:**
+```python
+async def process_task(self, task):
+    job_id = task.job_id
+
+    # 1. Status: processing
+    await set_job_status(
+        redis_client=self.queue_manager.redis_client,  # ✅ MUST be first param
+        job_id=job_id,
+        status="processing",
+        user_id=task.user_id,
+        started_at=datetime.utcnow().isoformat(),
+        # Add any task-specific fields
+        presentation_id=task.presentation_id,
+        subtitle_id=task.subtitle_id,
+    )
+
+    try:
+        # Process task
+        result = await self.service.generate_something(...)
+
+        # 2. Status: completed
+        await set_job_status(
+            redis_client=self.queue_manager.redis_client,
+            job_id=job_id,
+            status="completed",
+            user_id=task.user_id,
+            # Add result fields
+            formatted_html=result["html"],
+            audio_count=len(result["files"]),
+            completed_at=datetime.utcnow().isoformat(),
+        )
+
+        return True
+
+    except Exception as e:
+        # 3. Status: failed
+        await set_job_status(
+            redis_client=self.queue_manager.redis_client,
+            job_id=job_id,
+            status="failed",
+            user_id=task.user_id,
+            error=str(e),
+            failed_at=datetime.utcnow().isoformat(),
+        )
+
+        return False
+```
+
+### API Endpoint Implementation (Status Polling)
+
+**Import:**
+```python
+from src.queue.queue_manager import get_job_status
+from src.queue.queue_dependencies import get_QUEUE_NAME_queue
+```
+
+**Usage in Endpoint:**
+```python
+@router.get("/jobs/{job_id}")
+async def get_job_status_endpoint(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Poll job status - check Redis first for real-time updates"""
+    try:
+        user_id = current_user["uid"]
+
+        # Get queue manager (provides redis_client)
+        queue = await get_slide_format_queue()  # or get_chapter_translation_queue(), etc.
+
+        # Get job from Redis (real-time status)
+        job = await get_job_status(queue.redis_client, job_id)
+
+        if not job:
+            # Job expired (24h TTL) or not found
+            # Optional: Check MongoDB backup
+            job = db.jobs.find_one({"_id": job_id})
+
+            if not job:
+                raise HTTPException(404, "Job not found")
+
+        # Verify ownership
+        if job.get("user_id") != user_id:
+            raise HTTPException(403, "Access denied")
+
+        # Return job data
+        return {
+            "job_id": job["job_id"],
+            "status": job["status"],  # pending/processing/completed/failed
+            "created_at": job.get("created_at"),
+            "started_at": job.get("started_at"),
+            "completed_at": job.get("completed_at"),
+            # Include result fields based on status
+            "result": job.get("formatted_html") if job["status"] == "completed" else None,
+            "error": job.get("error") if job["status"] == "failed" else None,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get job status: {e}")
+        raise HTTPException(500, str(e))
+```
+
+### System Workers Status
+
+| Worker | Queue Name | Status Endpoint | Pattern |
+|--------|-----------|----------------|---------|
+| `slide_format_worker.py` | `slide_format` | `/api/slides/jobs/{job_id}` | ✅ Redis |
+| `chapter_translation_worker.py` | `chapter_translation` | `/api/books/{book_id}/chapters/translation-jobs/{job_id}` | ✅ Redis |
+| `ai_editor_worker.py` | `ai_editor` | `/api/editor/jobs/{job_id}` | ✅ Redis |
+| `slide_narration_audio_worker.py` | `slide_narration_audio` | `/api/presentations/{id}/subtitles/v2/{sid}/audio/status/{jid}` | ✅ Redis |
+| `extraction_processing_worker.py` | `extraction` | `/api/extraction/status/{task_id}` | ✅ Redis (custom TaskStatusService) |
+
+### Exceptions (MongoDB-based)
+
+| Worker | Storage | Reason |
+|--------|---------|--------|
+| `slide_generation_worker.py` | MongoDB `documents` | Document-centric, long-term persistence |
+| `translation_worker.py` | MongoDB `translation_jobs` | Multi-chapter jobs, complex progress tracking |
+
+### Why Redis?
+
+1. **Real-time updates:** Workers update instantly, frontend sees immediately (2s polling)
+2. **No DB load:** No MongoDB queries during polling (Redis is in-memory)
+3. **Auto cleanup:** 24h TTL removes old jobs automatically
+4. **Atomic updates:** Hash operations are atomic
+5. **Fast reads:** Single Redis HGETALL vs MongoDB query + indexes
+
+### Implementation Checklist
+
+**Worker Side:**
+- [ ] Import `set_job_status` from `src.queue.queue_manager`
+- [ ] Call `set_job_status()` at each stage (processing/completed/failed)
+- [ ] Pass `redis_client=self.queue_manager.redis_client` as **first parameter**
+- [ ] Store result data in Redis job
+- [ ] Optional: Also update MongoDB for long-term persistence
+
+**API Endpoint Side:**
+- [ ] Import `get_job_status` from `src.queue.queue_manager`
+- [ ] Import queue getter from `src.queue.queue_dependencies`
+- [ ] Check Redis first: `job = await get_job_status(queue.redis_client, job_id)`
+- [ ] Handle `job is None` → check MongoDB fallback or return 404
+- [ ] Verify ownership: `job.get("user_id") == current_user["uid"]`
+- [ ] Return job data from Redis (no MongoDB queries unless expired)
+
+### Anti-Patterns (DO NOT USE)
+
+❌ **Checking MongoDB for job status:**
+```python
+# BAD - MongoDB is too slow for real-time polling
+job = db.jobs.find_one({"_id": job_id})
+```
+
+❌ **Using old task_status_key pattern:**
+```python
+# BAD - Deprecated pattern
+redis_key = f"status:{queue_name}:{task_id}"
+```
+
+❌ **Storing status in MongoDB and Redis separately:**
+```python
+# BAD - Duplicate data, sync issues
+await set_job_status(...)  # Redis
+db.jobs.update_one(...)    # MongoDB - unnecessary for status polling!
+```
+
+### Monitoring Redis Jobs
+
+```bash
+# List all jobs
+ssh root@104.248.147.155 "docker exec redis-server redis-cli KEYS 'job:*'"
+
+# Check specific job
+ssh root@104.248.147.155 "docker exec redis-server redis-cli HGETALL 'job:abc-123'"
+
+# Check job TTL (should be ~86400 seconds = 24h)
+ssh root@104.248.147.155 "docker exec redis-server redis-cli TTL 'job:abc-123'"
+
+# Delete stuck job
+ssh root@104.248.147.155 "docker exec redis-server redis-cli DEL 'job:abc-123'"
+```
+
+### Related Documentation
+
+See: **REDIS_STATUS_PATTERN.md** for detailed implementation guide, migration checklist, and examples.
 
 ---
 
