@@ -1852,6 +1852,35 @@ async def share_with_user(
         raise HTTPException(500, f"Failed to share with user: {str(e)}")
 
 
+@router.delete("/presentations/sharing/{presentation_id}/users/{target_user_id}")
+async def remove_user_share(
+    presentation_id: str,
+    target_user_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Remove user from presentation sharing list"""
+    try:
+        user_id = current_user["uid"]
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+
+        # Remove user from shared_with list
+        config = await sharing_service.remove_shared_user(
+            presentation_id=presentation_id,
+            owner_user_id=user_id,
+            target_user_id=target_user_id,
+        )
+
+        return {"success": True, "message": "User removed from sharing list"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to remove user share: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to remove user share: {str(e)}")
+
+
 # ============================================================
 # PUBLIC VIEW (NO AUTHENTICATION)
 # ============================================================
