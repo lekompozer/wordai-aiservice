@@ -1201,15 +1201,43 @@ Generate the complete narration now:"""
             logger.info(f"   📥 Downloading {len(audio_documents)} chunks...")
 
             for chunk_idx, chunk_doc in enumerate(audio_documents):
-                # Download chunk from R2
+                # Download chunk from R2 with retry logic
                 audio_url = chunk_doc["audio_url"]
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.get(audio_url)
-                    response.raise_for_status()
-                    audio_data = response.content
+                max_retries = 3
+                retry_delay = 2  # seconds
+                audio_data = None
+
+                for attempt in range(max_retries):
+                    try:
+                        async with httpx.AsyncClient(timeout=60.0) as client:
+                            response = await client.get(audio_url)
+                            response.raise_for_status()
+                            audio_data = response.content
+                        break  # Success, exit retry loop
+                    except httpx.HTTPStatusError as e:
+                        if e.response.status_code in [502, 503, 504]:  # Server errors
+                            if attempt < max_retries - 1:
+                                logger.warning(
+                                    f"⚠️ Server error {e.response.status_code} downloading chunk {chunk_idx}, "
+                                    f"retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})"
+                                )
+                                await asyncio.sleep(retry_delay)
+                                retry_delay *= 2  # Exponential backoff
+                            else:
+                                logger.error(
+                                    f"❌ Failed after {max_retries} retries: {e}"
+                                )
+                                raise
+                        else:
+                            raise  # Non-retryable error (4xx, etc.)
+
+                if not audio_data:
+                    raise ValueError(
+                        f"Failed to download chunk {chunk_idx} after {max_retries} attempts"
+                    )
 
                 # Validate audio data
-                if not audio_data or len(audio_data) < 100:
+                if len(audio_data) < 100:
                     raise ValueError(
                         f"Chunk {chunk_idx} has invalid audio data (size: {len(audio_data)} bytes)"
                     )
