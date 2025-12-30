@@ -125,8 +125,8 @@ async def generate_subtitles(
         )
         logger.info("=" * 80)
 
-        # Validate presentation_id in request matches URL
-        if request.presentation_id != presentation_id:
+        # Validate presentation_id if provided in body
+        if request.presentation_id and request.presentation_id != presentation_id:
             logger.error(
                 f"❌ Presentation ID mismatch: URL={presentation_id}, Body={request.presentation_id}"
             )
@@ -363,8 +363,8 @@ async def generate_subtitles_async(
         )
         logger.info("=" * 80)
 
-        # Validate presentation_id
-        if request.presentation_id != presentation_id:
+        # Validate presentation_id if provided in body
+        if request.presentation_id and request.presentation_id != presentation_id:
             raise HTTPException(400, "Presentation ID mismatch")
 
         # Fetch document
