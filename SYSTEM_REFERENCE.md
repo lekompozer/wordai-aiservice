@@ -58,6 +58,7 @@ CLAUDE_SONNET_MODEL=claude-sonnet-4-5-20250929
 | `slide-format-worker` | Worker | Slide formatting background worker |
 | `slide-generation-worker` | Worker | Slide generation background worker |
 | `ai-editor-worker` | Worker | AI editor background worker |
+| `slide-narration-subtitle-worker` | Worker | Subtitle generation background worker |
 | `slide-narration-audio-worker` | Worker | Audio narration generation worker |
 | `chapter-translation-worker` | Worker | Chapter translation worker |
 

@@ -42,6 +42,10 @@ from src.models.slide_narration_models import (
     UpdateSharingConfigResponse,
     PresentationSharingConfig,
     PublicPresentationResponse,
+    # Job queue models
+    CreateSubtitleJobResponse,
+    SubtitleJobStatusResponse,
+    SubtitleJobStatus,
 )
 from src.services.slide_narration_service import get_slide_narration_service
 from src.services.points_service import get_points_service
@@ -300,6 +304,263 @@ async def generate_subtitles(
     except Exception as e:
         logger.error(f"❌ Subtitle generation failed: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to generate subtitles: {str(e)}")
+
+
+@router.post(
+    "/presentations/{presentation_id}/subtitles/generate",
+    response_model=CreateSubtitleJobResponse,
+    summary="Generate Subtitles (Async Job Queue)",
+    description="""
+    **STEP 1 (ASYNC): Generate subtitles with timestamps via background job**
+
+    Enqueues subtitle generation job to Redis worker queue.
+    Returns job_id immediately for status polling.
+
+    **Cost:** 2 points (deducted after completion)
+
+    **Features:**
+    - Non-blocking API (returns immediately)
+    - Poll job status with GET /subtitle-jobs/{job_id}
+    - Mode-aware narration (presentation: concise, academy: detailed)
+    - Element reference tracking for animation sync
+    - Automatic timestamp calculation
+
+    **Flow:**
+    1. Validate presentation ownership
+    2. Extract slides from document
+    3. Create Redis job (status: pending)
+    4. Return job_id immediately
+    5. Worker processes in background
+    6. Poll /subtitle-jobs/{job_id} for results
+
+    **Job Status Values:**
+    - pending: Queued, waiting for worker
+    - processing: Worker is generating subtitles
+    - completed: Success, subtitle_id available
+    - failed: Error occurred
+
+    Next step: Wait for completion, then generate audio (Step 2)
+    """,
+)
+async def generate_subtitles_async(
+    presentation_id: str,
+    request: SubtitleGenerateRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Generate subtitles for presentation (async job queue)"""
+    try:
+        user_id = current_user["uid"]
+        user_email = current_user.get("email", "unknown")
+
+        logger.info("=" * 80)
+        logger.info(f"🎙️ ASYNC SUBTITLE GENERATION REQUEST")
+        logger.info(
+            f"📍 Endpoint: POST /api/presentations/{presentation_id}/subtitles/generate"
+        )
+        logger.info(f"👤 User: {user_email} ({user_id})")
+        logger.info(
+            f"🎛️ Mode: {request.mode}, Language: {request.language}, Scope: {request.scope}"
+        )
+        logger.info("=" * 80)
+
+        # Validate presentation_id
+        if request.presentation_id != presentation_id:
+            raise HTTPException(400, "Presentation ID mismatch")
+
+        # Fetch document
+        doc_manager = DocumentManager(db)
+        document = db.documents.find_one(
+            {"document_id": presentation_id, "document_type": "slide"}
+        )
+
+        if not document:
+            raise HTTPException(404, "Slide document not found")
+
+        # Check ownership
+        if document.get("user_id") != user_id:
+            raise HTTPException(403, "Not authorized to narrate this presentation")
+
+        # Extract slides from HTML
+        content_html = document.get("content_html", "")
+        if not content_html:
+            raise HTTPException(400, "Document has no content")
+
+        import re
+
+        slide_pattern = r'<div[^>]*class="slide"[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>(?=\s*(?:<div[^>]*class="slide"|$))'
+        slide_matches = re.findall(
+            slide_pattern, content_html, re.DOTALL | re.IGNORECASE
+        )
+
+        if not slide_matches:
+            slide_pattern_simple = r'<div[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>'
+            slide_matches = re.findall(
+                slide_pattern_simple, content_html, re.DOTALL | re.IGNORECASE
+            )
+
+        if not slide_matches:
+            raise HTTPException(
+                400, f"No slides found in document. Content length: {len(content_html)}"
+            )
+
+        # Build slides array
+        slides = []
+        for idx, (slide_index, slide_html) in enumerate(slide_matches):
+            slides.append(
+                {
+                    "index": int(slide_index),
+                    "html": f'<div class="slide" data-slide-index="{slide_index}">{slide_html}</div>',
+                    "elements": [],
+                    "background": (
+                        document.get("slide_backgrounds", [])[int(slide_index)]
+                        if int(slide_index) < len(document.get("slide_backgrounds", []))
+                        else None
+                    ),
+                }
+            )
+
+        logger.info(f"📄 Extracted {len(slides)} slides from document")
+
+        # Filter slides by scope
+        if request.scope == "current":
+            if request.current_slide_index is None:
+                raise HTTPException(
+                    400, "current_slide_index required when scope='current'"
+                )
+
+            if request.current_slide_index < 0 or request.current_slide_index >= len(
+                slides
+            ):
+                raise HTTPException(
+                    400,
+                    f"Invalid slide index: {request.current_slide_index} (total: {len(slides)})",
+                )
+
+            slides = [slides[request.current_slide_index]]
+            logger.info(
+                f"🎯 Generating subtitles for slide {request.current_slide_index}"
+            )
+        else:
+            logger.info(f"📊 Generating subtitles for all {len(slides)} slides")
+
+        # Generate job ID
+        import uuid
+
+        job_id = str(uuid.uuid4())
+
+        # Create task for queue
+        from src.models.ai_queue_tasks import SlideNarrationSubtitleTask
+
+        task = SlideNarrationSubtitleTask(
+            task_id=job_id,
+            job_id=job_id,
+            user_id=user_id,
+            presentation_id=presentation_id,
+            slides=slides,
+            mode=request.mode,
+            language=request.language,
+            user_query=request.user_query or "",
+            title=document.get("title", "Untitled"),
+            topic=document.get("metadata", {}).get("topic", ""),
+            scope=request.scope,
+            current_slide_index=request.current_slide_index,
+        )
+
+        # Get queue and enqueue
+        from src.queue.queue_dependencies import get_slide_narration_subtitle_queue
+
+        queue = await get_slide_narration_subtitle_queue()
+        await queue.enqueue_generic_task(task)
+
+        logger.info(f"✅ Subtitle job {job_id} enqueued")
+        logger.info(
+            f"   Slides: {len(slides)}, Mode: {request.mode}, Lang: {request.language}"
+        )
+
+        return CreateSubtitleJobResponse(
+            job_id=job_id,
+            status=SubtitleJobStatus.PENDING,
+            message=f"Subtitle generation job created. Poll /subtitle-jobs/{job_id} for status.",
+            estimated_time="30-90 seconds",
+            presentation_id=presentation_id,
+            slide_count=len(slides),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to create subtitle job: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to create subtitle job: {str(e)}")
+
+
+@router.get(
+    "/subtitle-jobs/{job_id}",
+    response_model=SubtitleJobStatusResponse,
+    summary="Get Subtitle Job Status",
+    description="""
+    Poll subtitle generation job status.
+
+    **Status Flow:**
+    - pending → processing → completed (success)
+    - pending → processing → failed (error)
+
+    **When Completed:**
+    - subtitle_id: Use this to generate audio
+    - version: Subtitle version number
+    - total_duration: Total duration in seconds
+
+    **Polling Recommendation:**
+    - Poll every 2-3 seconds during processing
+    - Stop polling when status is 'completed' or 'failed'
+    """,
+)
+async def get_subtitle_job_status(
+    job_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Get subtitle generation job status"""
+    try:
+        from src.queue.queue_dependencies import get_slide_narration_subtitle_queue
+        from src.queue.queue_manager import get_job_status
+
+        queue = await get_slide_narration_subtitle_queue()
+        job = await get_job_status(queue.redis_client, job_id)
+
+        if not job:
+            raise HTTPException(404, f"Job {job_id} not found")
+
+        # Check authorization (job must belong to current user)
+        if job.get("user_id") != current_user["uid"]:
+            raise HTTPException(403, "Not authorized to view this job")
+
+        # Calculate processing time if started
+        processing_time = None
+        if job.get("started_at") and job.get("status") in ["completed", "failed"]:
+            from datetime import datetime
+
+            started = datetime.fromisoformat(job["started_at"])
+            ended = datetime.utcnow()
+            processing_time = (ended - started).total_seconds()
+
+        return SubtitleJobStatusResponse(
+            job_id=job_id,
+            status=job.get("status", "pending"),
+            created_at=job.get("created_at"),
+            started_at=job.get("started_at"),
+            processing_time_seconds=processing_time,
+            presentation_id=job.get("presentation_id"),
+            slide_count=job.get("slide_count"),
+            subtitle_id=job.get("subtitle_id"),
+            version=job.get("version"),
+            total_duration=job.get("total_duration"),
+            error=job.get("error"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get job status: {str(e)}")
 
 
 @router.post(

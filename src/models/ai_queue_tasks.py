@@ -152,6 +152,33 @@ class TranslationTask(BaseModel):
     retry_count: int = Field(default=0)
 
 
+class SlideNarrationSubtitleTask(BaseModel):
+    """Task for Slide Narration Subtitle Generation queue"""
+
+    task_id: str = Field(..., description="Unique task ID (same as job_id)")
+    job_id: str = Field(..., description="Job ID for status tracking")
+    user_id: str = Field(..., description="User ID")
+    presentation_id: str = Field(..., description="Presentation document ID")
+    slides: list = Field(..., description="Slides data with html, index, background")
+    mode: str = Field(..., description="Narration mode: 'presentation' or 'academy'")
+    language: str = Field(..., description="Language code: 'vi', 'en', etc.")
+    user_query: Optional[str] = Field(None, description="User instruction/context")
+    title: str = Field(..., description="Presentation title")
+    topic: Optional[str] = Field(None, description="Presentation topic")
+    scope: str = Field(
+        default="all", description="Scope: 'all' or 'current' (single slide)"
+    )
+    current_slide_index: Optional[int] = Field(
+        None, description="Slide index if scope='current'"
+    )
+
+    # Task metadata
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    priority: int = Field(default=1)
+    max_retries: int = Field(default=2, description="LLM retries")
+    retry_count: int = Field(default=0)
+
+
 class SlideNarrationAudioTask(BaseModel):
     """Task for Slide Narration Audio Generation queue"""
 

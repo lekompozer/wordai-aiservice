@@ -293,6 +293,47 @@ services:
           memory: 2G
           cpus: "1"
 
+  # ============================================================================
+  # Slide Narration Subtitle Worker - AI subtitle generation
+  # ============================================================================
+  slide-narration-subtitle-worker:
+    container_name: slide-narration-subtitle-worker
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    env_file:
+      - .env
+    command: python -m src.workers.slide_narration_subtitle_worker
+    volumes:
+      - ./logs:/app/logs
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      # Mount Vertex AI credentials for Gemini subtitle generation
+      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
+      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+      - REDIS_URL=redis://redis-server:6379
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEY2=${GEMINI_API_KEY2}
+    depends_on:
+      - redis-server
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1"
+
+  # ============================================================================
+  # Slide Narration Audio Worker - TTS audio generation
+  # ============================================================================
   slide-narration-audio-worker:
     container_name: slide-narration-audio-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}

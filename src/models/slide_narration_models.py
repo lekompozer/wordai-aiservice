@@ -6,6 +6,62 @@ Pydantic models for Slide Narration API
 from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
+from enum import Enum
+
+
+# ============================================================
+# JOB QUEUE MODELS (for async processing)
+# ============================================================
+
+
+class SubtitleJobStatus(str, Enum):
+    """Subtitle generation job status"""
+
+    PENDING = "pending"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
+class CreateSubtitleJobResponse(BaseModel):
+    """Response after creating subtitle generation job"""
+
+    job_id: str = Field(..., description="Job ID for polling status")
+    status: SubtitleJobStatus = Field(..., description="Initial status (pending)")
+    message: str = Field(..., description="Human-readable message")
+    estimated_time: str = Field(
+        default="30-90 seconds", description="Estimated processing time"
+    )
+    presentation_id: str = Field(..., description="Presentation ID")
+    slide_count: int = Field(..., description="Number of slides to process")
+
+
+class SubtitleJobStatusResponse(BaseModel):
+    """Response for subtitle job status polling"""
+
+    job_id: str = Field(..., description="Job ID")
+    status: SubtitleJobStatus = Field(..., description="Current job status")
+    created_at: Optional[str] = Field(None, description="Job creation timestamp")
+    started_at: Optional[str] = Field(None, description="Processing start timestamp")
+    processing_time_seconds: Optional[float] = Field(
+        None, description="Total processing time"
+    )
+
+    # Progress info
+    presentation_id: Optional[str] = Field(None, description="Presentation ID")
+    slide_count: Optional[int] = Field(None, description="Total slides")
+
+    # Results (when completed)
+    subtitle_id: Optional[str] = Field(
+        None, description="Generated subtitle document ID"
+    )
+    version: Optional[int] = Field(None, description="Subtitle version number")
+    total_duration: Optional[float] = Field(
+        None, description="Total duration in seconds"
+    )
+
+    # Error info (when failed)
+    error: Optional[str] = Field(None, description="Error message if failed")
 
 
 # ============================================================
