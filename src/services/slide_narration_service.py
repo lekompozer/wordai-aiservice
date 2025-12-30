@@ -230,6 +230,66 @@ class SlideNarrationService:
     ) -> str:
         """Build Gemini prompt for subtitle generation"""
 
+        # Map language code to full name (Gemini TTS supported languages)
+        # BCP-47 codes: https://cloud.google.com/text-to-speech/docs/voices
+        language_map = {
+            "ar": "Arabic (العربية)",
+            "bn": "Bangla (বাংলা)",
+            "nl": "Dutch (Nederlands)",
+            "en": "English",
+            "fr": "French (Français)",
+            "de": "German (Deutsch)",
+            "hi": "Hindi (हिन्दी)",
+            "id": "Indonesian (Bahasa Indonesia)",
+            "it": "Italian (Italiano)",
+            "ja": "Japanese (日本語)",
+            "ko": "Korean (한국어)",
+            "mr": "Marathi (मराठी)",
+            "pl": "Polish (Polski)",
+            "pt": "Portuguese (Português)",
+            "ro": "Romanian (Română)",
+            "ru": "Russian (Русский)",
+            "es": "Spanish (Español)",
+            "ta": "Tamil (தமிழ்)",
+            "te": "Telugu (తెలుగు)",
+            "th": "Thai (ภาษาไทย)",
+            "tr": "Turkish (Türkçe)",
+            "uk": "Ukrainian (Українська)",
+            "vi": "Vietnamese (Tiếng Việt)",
+            "zh": "Chinese (中文)",
+        }
+
+        # Map to BCP-47 codes for TTS
+        bcp47_map = {
+            "ar": "ar-EG",
+            "bn": "bn-BD",
+            "nl": "nl-NL",
+            "en": "en-US",
+            "fr": "fr-FR",
+            "de": "de-DE",
+            "hi": "hi-IN",
+            "id": "id-ID",
+            "it": "it-IT",
+            "ja": "ja-JP",
+            "ko": "ko-KR",
+            "mr": "mr-IN",
+            "pl": "pl-PL",
+            "pt": "pt-BR",
+            "ro": "ro-RO",
+            "ru": "ru-RU",
+            "es": "es-ES",
+            "ta": "ta-IN",
+            "te": "te-IN",
+            "th": "th-TH",
+            "tr": "tr-TR",
+            "uk": "uk-UA",
+            "vi": "vi-VN",
+            "zh": "zh-CN",
+        }
+
+        language_name = language_map.get(language, language)
+        bcp47_code = bcp47_map.get(language, language)
+
         # Extract clean slide content (no raw HTML)
         slide_overview = []
         for idx, slide in enumerate(slides):
@@ -279,13 +339,55 @@ ACADEMY MODE:
 - Speaking rate: ~130 words per minute (slower for clarity)
 """
 
-        prompt = f"""You are an expert presentation narrator. Generate natural, engaging narration with accurate timestamps for this presentation.
+        # Language-specific examples (24 languages supported by Gemini TTS)
+        example_texts = {
+            "ar": '"مرحبا بكم جميعا. اليوم سوف نستكشف عالم الذكاء الاصطناعي التوليدي."',
+            "bn": '"সবাইকে স্বাগতম। আজ আমরা জেনারেটিভ এআই এর জগৎ অন্বেষণ করব।"',
+            "de": '"Willkommen allerseits. Heute werden wir die Welt der generativen KI erkunden."',
+            "en": '"Welcome everyone. Today we will explore the world of Generative AI together."',
+            "es": '"Bienvenidos a todos. Hoy exploraremos el mundo de la IA generativa."',
+            "fr": "\"Bienvenue à tous. Aujourd'hui, nous allons explorer le monde de l'IA générative.\"",
+            "hi": '"सभी का स्वागत है। आज हम जेनरेटिव एआई की दुनिया का पता लगाएंगे।"',
+            "id": '"Selamat datang semuanya. Hari ini kita akan menjelajahi dunia AI generatif."',
+            "it": '"Benvenuti a tutti. Oggi esploreremo il mondo dell\'IA generativa."',
+            "ja": '"皆さん、ようこそ。今日は生成AIの世界を探求します。"',
+            "ko": '"여러분 환영합니다. 오늘은 생성형 AI의 세계를 탐험하겠습니다."',
+            "nl": '"Welkom allemaal. Vandaag gaan we de wereld van generatieve AI verkennen."',
+            "pl": '"Witajcie wszystkich. Dziś będziemy odkrywać świat generatywnej sztucznej inteligencji."',
+            "pt": '"Bem-vindos a todos. Hoje vamos explorar o mundo da IA generativa."',
+            "ro": '"Bun venit tuturor. Astăzi vom explora lumea inteligenței artificiale generative."',
+            "ru": '"Добро пожаловать всем. Сегодня мы исследуем мир генеративного ИИ."',
+            "ta": '"அனைவருக்கும் வரவேற்பு. இன்று நாம் ஜெனரேட்டிவ் AI உலகை ஆராய்வோம்."',
+            "te": '"అందరికీ స్వాగతం. ఈ రోజు మనం జెనరేటివ్ AI ప్రపంచాన్ని అన్వేషిస్తాము."',
+            "th": '"ยินดีต้อนรับทุกคน วันนี้เราจะสำรวจโลกของ AI แบบสร้างสรรค์"',
+            "tr": '"Herkese hoş geldiniz. Bugün üretken yapay zeka dünyasını keşfedeceğiz."',
+            "uk": '"Ласкаво просимо всіх. Сьогодні ми досліджуватимемо світ генеративного ШІ."',
+            "vi": '"Chào mừng các bạn. Hôm nay chúng ta sẽ cùng khám phá thế giới của Generative AI."',
+            "zh": '"欢迎大家。今天我们将一起探索生成式AI的世界。"',
+        }
+        example_text = example_texts.get(
+            language, f'"[Narration text in {language_name}]"'
+        )
+
+        prompt = f"""You are an expert presentation narrator. Generate natural, engaging narration for this presentation.
+
+🌍 CRITICAL LANGUAGE REQUIREMENT:
+**ALL subtitle text MUST be written in {language_name} (BCP-47: {bcp47_code})**
+- Analyze slide content and generate subtitles in {language_name}
+- Do NOT translate - narrate naturally in {language_name}
+- Use proper grammar, idioms, and speaking style for {language_name}
+- If slide content is in different language, translate it to {language_name} narration
+
+SUPPORTED LANGUAGES (24 languages via Gemini TTS):
+Arabic, Bangla, Dutch, English, French, German, Hindi, Indonesian, Italian,
+Japanese, Korean, Marathi, Polish, Portuguese, Romanian, Russian, Spanish,
+Tamil, Telugu, Thai, Turkish, Ukrainian, Vietnamese, Chinese
 
 PRESENTATION OVERVIEW:
 Title: {title}
 Topic: {topic}
 Total Slides: {len(slides)}
-Language: {language}
+Target Language: {language_name} ({bcp47_code})
 User Requirements: {user_query}
 
 SLIDES CONTENT (Including Visual Elements):
@@ -301,34 +403,31 @@ IMPORTANT - Element References:
 - Example WRONG: "element_references": [{{"type": "icon", "content": "🚀"}}]
 - Keep element_references minimal - only include when you explicitly reference that element in narration text
 
-CRITICAL TIMING REQUIREMENTS:
-**ACCURATE TIMESTAMP CALCULATION IS MANDATORY**
+⚠️ CRITICAL 2-STEP PROCESS:
+**STEP 1: Generate subtitle TEXT first**
+- Write natural, engaging narration for each slide
+- Each subtitle = 1-2 complete sentences in {language_name}
+- Focus on content quality and flow
 
-Speaking Rates:
-- Presentation mode: ~150 words per minute (2.5 words/second)
-- Academy mode: ~130 words per minute (2.2 words/second)
+**STEP 2: Calculate TIMING for each subtitle**
+After writing text, calculate timing based on:
+- Speaking rate: {mode} mode (~150 words/min for presentation, ~130 words/min for academy)
+- Word count in subtitle text
+- Natural pauses between sentences
 
-Formula to Calculate Duration:
-1. Count words in subtitle text
-2. duration_seconds = word_count / words_per_second
-3. Add natural pauses:
-   - Between sentences in same paragraph: +0.4s
-   - Between paragraphs: +1.0s
-   - Before transition to next slide: +1.5s
+Formula:
+1. Count words in subtitle text you just wrote
+2. duration = word_count / (speaking_rate / 60)
+3. Add pauses: +0.3s between subtitles, +0.5s between slides
+4. start_time = previous subtitle's end_time + pause
+5. end_time = start_time + duration
 
-Example Calculations (Presentation mode at 2.5 words/sec):
-- "Chào mừng các bạn." (3 words) → 3/2.5 = 1.2s + 0.4s pause = 1.6s total
-- "Hôm nay chúng ta sẽ cùng khám phá thế giới của Generative AI." (12 words) → 12/2.5 = 4.8s + 1.0s pause = 5.8s
-- Start at 0.0, end at 1.6 (first subtitle)
-- Start at 2.0 (1.6 + 0.4 gap), end at 7.8 (second subtitle)
-
-Real-World Slide Durations (Based on actual TTS output):
-- 2 subtitles per slide: 22-25 seconds total
-- 3 subtitles per slide: 30-40 seconds total
-- Average: ~29 seconds per slide
-
-NEVER use placeholder times like "00:00.0 → 00:05.0" for all subtitles!
-Each subtitle MUST have unique, calculated start_time and end_time.
+Example calculation:
+- Text: "Chào mừng các bạn. Hôm nay chúng ta sẽ cùng khám phá AI." (12 words)
+- Speaking rate: 150 words/min = 2.5 words/sec
+- Duration: 12 / 2.5 = 4.8s
+- With pause: 4.8 + 0.3 = 5.1s
+- If first subtitle: start=0, end=5.1, duration=5.1
 
 OUTPUT FORMAT (JSON):
 {{
@@ -341,16 +440,16 @@ OUTPUT FORMAT (JSON):
           "start_time": 0.0,
           "end_time": 5.8,
           "duration": 5.8,
-          "text": "Chào mừng các bạn. Hôm nay chúng ta sẽ cùng khám phá thế giới của Generative AI.",
+          "text": {example_text},
           "speaker_index": 0,
           "element_references": []
         }},
         {{
           "subtitle_index": 1,
-          "start_time": 7.0,
+          "start_time": 6.3,
           "end_time": 18.5,
-          "duration": 11.5,
-          "text": "Chúng ta sẽ tìm hiểu công nghệ lõi tạo nên ChatGPT, DeepSeek và cách ứng dụng chúng vào sản phẩm thực tế như WordAI.",
+          "duration": 12.2,
+          "text": "[Second subtitle in {language_name}]",
           "speaker_index": 0,
           "element_references": []
         }}
@@ -364,18 +463,9 @@ OUTPUT FORMAT (JSON):
           "start_time": 0.0,
           "end_time": 11.0,
           "duration": 11.0,
-          "text": "Nội dung bài giảng sẽ đi qua 10 điểm chính, từ những khái niệm cơ bản nhất.",
+          "text": "[First subtitle for slide 2 in {language_name}]",
           "speaker_index": 0,
           "element_references": []
-        }},
-        {{
-          "subtitle_index": 1,
-          "start_time": 13.0,
-          "end_time": 30.0,
-          "duration": 17.0,
-          "text": "Chúng ta sẽ giải mã cách AI hiểu ngôn ngữ qua Transformer, Tokenization, cho đến kiến trúc tiên tiến Mixture of Experts của DeepSeek.",
-          "speaker_index": 0,
-          "element_references": ["elem_diagram"]
         }}
       ]
     }}
@@ -383,17 +473,18 @@ OUTPUT FORMAT (JSON):
 }}
 
 REQUIREMENTS:
-1. Create coherent narration that flows naturally across all slides
-2. Calculate accurate start_time and end_time based on text length and speaking rate
-3. Add natural pauses between sentences and slides
-4. Ensure timestamps don't overlap within each slide
-5. Match narration style to mode (presentation vs academy)
-6. Make content engaging and easy to follow
-7. Reference visual elements SPARINGLY - only meaningful diagrams/images, not decorative icons
-8. element_references MUST be simple string array like ["elem_0"], NOT objects
-9. Leave element_references EMPTY ([]) for most subtitles - only populate when explicitly referencing an element in the narration text
+1. Write ALL subtitle text in {language_name} - this is MANDATORY
+2. Generate text FIRST, then calculate timing based on word count
+3. Use speaking rate formula: duration = words / (rate/60) + pauses
+4. Each subtitle = 1-2 complete sentences in {language_name}
+5. Timestamps must be realistic and based on actual text length
+6. Match narration style to mode (presentation vs academy)
+7. Make content engaging and easy to follow in {language_name}
+8. Reference visual elements SPARINGLY - only meaningful diagrams/images
+9. element_references MUST be simple string array like ["elem_0"], NOT objects
+10. Leave element_references EMPTY ([]) for most subtitles
 
-Generate the complete narration now:"""
+Generate the complete narration in {language_name} now:"""
 
         return prompt
 
@@ -798,18 +889,21 @@ Generate the complete narration now:"""
                 logger.info(f"   Slide {slide_index}: No subtitles, skipping")
                 continue
 
-            # Convert to TTS script dict
-            script = self._convert_subtitles_to_script(subtitles)
+            # Convert subtitles to clean text for TTS (NO markers, NO prefixes)
+            # Gemini TTS only accepts plain text - no SSML, no pause markers
+            slide_text_parts = []
+            for subtitle in subtitles:
+                text = subtitle["text"].strip()
+                if text:
+                    slide_text_parts.append(text)
 
-            # Convert script dict to plain text for TTS
-            slide_text = f"Slide {slide_index + 1}. [short pause] "
-            for line in script["lines"]:
-                speaker_idx = line["speaker"]
-                speaker_role = script["speaker_roles"][speaker_idx]
-                text = line["text"]
-                slide_text += f"{speaker_role}: {text}. [short pause] "
+            # Join with natural pauses (periods create natural pauses)
+            slide_text = ". ".join(slide_text_parts)
+            if slide_text and not slide_text.endswith("."):
+                slide_text += "."
 
-            slide_text += "[long pause] "  # Dramatic pause between slides (~1000ms)
+            # Add silence between slides using empty space (Gemini handles naturally)
+            slide_text += " "  # Natural pause between slides
 
             # Calculate bytes for this slide
             slide_bytes = len(slide_text.encode("utf-8"))
@@ -1028,15 +1122,36 @@ Generate the complete narration now:"""
 
             total_duration = metadata.get("duration", 0)
 
-            # Calculate timestamps for slides in this chunk
+            # Calculate timestamps using WORD COUNT ratio (more accurate than Gemini timestamps)
+            # Example: Slide 1 has 40 words, total chunk has 200 words, total audio is 220s
+            # → Slide 1 duration = (40/200) * 220s = 44s
+
             slide_timestamps = []
             current_position = 0
 
+            # Count total words in chunk
+            total_words = 0
             for slide_info in chunk_slides:
-                slide_text_len = len(slide_info["text"])
-                # Proportional duration based on text length
-                char_ratio = slide_text_len / len(chunk_text) if chunk_text else 0
-                slide_duration = total_duration * char_ratio
+                slide_subtitles = slide_info["subtitles"]
+                slide_words = sum(len(sub["text"].split()) for sub in slide_subtitles)
+                slide_info["word_count"] = slide_words
+                total_words += slide_words
+
+            logger.info(
+                f"   📊 Total words in chunk: {total_words}, Audio duration: {total_duration:.1f}s"
+            )
+
+            # Calculate duration for each slide based on word ratio
+            for slide_info in chunk_slides:
+                slide_word_count = slide_info.get("word_count", 0)
+
+                if total_words > 0 and slide_word_count > 0:
+                    # Word-based duration calculation
+                    word_ratio = slide_word_count / total_words
+                    slide_duration = total_duration * word_ratio
+                else:
+                    # Fallback: equal distribution
+                    slide_duration = total_duration / len(chunk_slides)
 
                 slide_timestamps.append(
                     {
@@ -1044,8 +1159,15 @@ Generate the complete narration now:"""
                         "start_time": current_position,
                         "duration": slide_duration,
                         "end_time": current_position + slide_duration,
+                        "word_count": slide_word_count,
                     }
                 )
+
+                logger.info(
+                    f"      Slide {slide_info['slide_index']}: {slide_word_count} words "
+                    f"= {slide_duration:.1f}s ({current_position:.1f}s → {current_position + slide_duration:.1f}s)"
+                )
+
                 current_position += slide_duration
 
             # Save to library
