@@ -33,11 +33,18 @@ class CreateShareRequest(BaseModel):
     share_type: str = Field(
         "presentation", description="Share type: 'presentation' or 'view'"
     )
+    permission: str = Field("view", description="Permission level: 'view' or 'edit'")
     password: Optional[str] = Field(None, description="Optional password protection")
     expires_in_days: int = Field(
         7, ge=1, le=90, description="Expiration in days (1-90)"
     )
     allow_download: bool = Field(False, description="Allow PDF download from share")
+    include_audio: bool = Field(True, description="Include audio files if available")
+    include_subtitles: bool = Field(True, description="Include subtitle data")
+    subtitle_language: Optional[str] = Field(
+        None,
+        description="Specific subtitle language (default: latest version of any language)",
+    )
 
 
 class CreateShareResponse(BaseModel):
@@ -47,9 +54,13 @@ class CreateShareResponse(BaseModel):
     share_id: str
     share_url: str
     share_type: str
+    permission: str
     password_protected: bool
     expires_at: str
     created_at: str
+    includes: Dict[str, bool] = Field(
+        ..., description="What content is included: {audio, subtitles, backgrounds}"
+    )
 
 
 class VerifyPasswordRequest(BaseModel):
@@ -74,6 +85,7 @@ class ShareInfoResponse(BaseModel):
 
     share_id: str
     share_type: str
+    permission: str
     password_protected: bool
     expired: bool
     expires_at: str
@@ -81,6 +93,9 @@ class ShareInfoResponse(BaseModel):
     total_slides: int
     owner_name: Optional[str] = None
     allow_download: bool
+    includes: Dict[str, bool] = Field(
+        ..., description="What content is included: {audio, subtitles, backgrounds}"
+    )
 
 
 class SlideContentResponse(BaseModel):
@@ -88,8 +103,23 @@ class SlideContentResponse(BaseModel):
 
     success: bool
     slides: List[Dict[str, Any]]
+    slide_backgrounds: Optional[List[Dict[str, Any]]] = None
     title: str
     total_slides: int
+    permission: str
+
+
+class SlideContentWithMediaResponse(BaseModel):
+    """Complete slide content with media"""
+
+    success: bool
+    slides: List[Dict[str, Any]]
+    slide_backgrounds: Optional[List[Dict[str, Any]]] = None
+    subtitles: Optional[Dict[str, Any]] = None
+    audio_files: Optional[List[Dict[str, Any]]] = None
+    title: str
+    total_slides: int
+    permission: str
 
 
 class TrackViewRequest(BaseModel):
@@ -189,11 +219,17 @@ async def create_share_link(
             f"📤 Creating share link for document {request.document_id} by user {user_id}"
         )
 
-        # Validate share type
+        # Validate share type and permission
         if request.share_type not in ["presentation", "view"]:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid share_type. Must be 'presentation' or 'view'",
+            )
+
+        if request.permission not in ["view", "edit"]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid permission. Must be 'view' or 'edit'",
             )
 
         # Get document from database
@@ -228,9 +264,13 @@ async def create_share_link(
             "document_id": request.document_id,
             "owner_id": user_id,
             "share_type": request.share_type,
+            "permission": request.permission,
             "password_hash": password_hash,
             "password_protected": bool(request.password),
             "allow_download": request.allow_download,
+            "include_audio": request.include_audio,
+            "include_subtitles": request.include_subtitles,
+            "subtitle_language": request.subtitle_language,
             "created_at": created_at,
             "expires_at": expires_at,
             "is_active": True,
@@ -264,9 +304,15 @@ async def create_share_link(
             share_id=share_id,
             share_url=share_url,
             share_type=request.share_type,
+            permission=request.permission,
             password_protected=bool(request.password),
             expires_at=expires_at.isoformat(),
             created_at=created_at.isoformat(),
+            includes={
+                "audio": request.include_audio,
+                "subtitles": request.include_subtitles,
+                "backgrounds": True,  # Always included
+            },
         )
 
     except HTTPException:
@@ -330,6 +376,7 @@ async def get_share_info(share_id: str):
         return ShareInfoResponse(
             share_id=share_id,
             share_type=share["share_type"],
+            permission=share.get("permission", "view"),
             password_protected=share["password_protected"],
             expired=expired,
             expires_at=share["expires_at"].isoformat(),
@@ -337,6 +384,11 @@ async def get_share_info(share_id: str):
             total_slides=total_slides,
             owner_name=None,  # Don't expose owner info publicly
             allow_download=share.get("allow_download", False),
+            includes={
+                "audio": share.get("include_audio", False),
+                "subtitles": share.get("include_subtitles", False),
+                "backgrounds": True,
+            },
         )
 
     except HTTPException:
@@ -402,16 +454,17 @@ async def verify_share_password(share_id: str, request: VerifyPasswordRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{share_id}/content", response_model=SlideContentResponse)
+@router.get("/{share_id}/content", response_model=SlideContentWithMediaResponse)
 async def get_share_content(share_id: str, access_token: Optional[str] = None):
     """
-    Get slide content for public viewing
+    Get complete slide content with media (audio, subtitles, backgrounds)
 
     Requires access_token if password-protected
     """
     try:
         from src.database.db_manager import DBManager
         from bs4 import BeautifulSoup
+        from bson import ObjectId
 
         db_manager = DBManager()
 
@@ -445,6 +498,7 @@ async def get_share_content(share_id: str, access_token: Optional[str] = None):
         # Get content_html and slide_elements
         html_content = document.get("content_html", "")
         slide_elements = document.get("slide_elements", [])
+        slide_backgrounds = document.get("slide_backgrounds", [])
 
         # ✅ Merge overlay elements if present (for slide documents)
         if slide_elements:
@@ -470,13 +524,57 @@ async def get_share_content(share_id: str, access_token: Optional[str] = None):
                 {"slide_number": idx, "html_content": str(slide_div), "notes": None}
             )
 
-        logger.info(f"📤 Served {len(slides)} slides for share {share_id}")
+        # Get subtitles if enabled
+        subtitles_data = None
+        if share.get("include_subtitles", False):
+            subtitle_query = {
+                "presentation_id": share["document_id"],
+                "user_id": share["owner_id"],
+            }
 
-        return SlideContentResponse(
+            # Filter by language if specified
+            if share.get("subtitle_language"):
+                subtitle_query["language"] = share["subtitle_language"]
+
+            # Get latest version
+            subtitle_doc = db_manager.db.presentation_subtitles.find_one(
+                subtitle_query, sort=[("version", -1)]
+            )
+
+            if subtitle_doc:
+                subtitle_doc["_id"] = str(subtitle_doc["_id"])
+                subtitles_data = subtitle_doc
+
+        # Get audio files if enabled
+        audio_files = None
+        if share.get("include_audio", False) and subtitles_data:
+            cursor = db_manager.db.presentation_audio.find(
+                {
+                    "presentation_id": share["document_id"],
+                    "subtitle_id": subtitles_data["_id"],
+                    "status": "ready",
+                }
+            ).sort("slide_index", 1)
+
+            audio_files = []
+            for doc in cursor:
+                doc["_id"] = str(doc["_id"])
+                audio_files.append(doc)
+
+        logger.info(
+            f"📤 Served {len(slides)} slides for share {share_id} "
+            f"(audio: {bool(audio_files)}, subtitles: {bool(subtitles_data)})"
+        )
+
+        return SlideContentWithMediaResponse(
             success=True,
             slides=slides,
+            slide_backgrounds=slide_backgrounds if slide_backgrounds else None,
+            subtitles=subtitles_data,
+            audio_files=audio_files,
             title=document.get("title", "Untitled Presentation"),
             total_slides=len(slides),
+            permission=share.get("permission", "view"),
         )
 
     except HTTPException:
@@ -701,8 +799,14 @@ async def list_user_shares(user_info: dict = Depends(require_auth)):
                     "document_id": share["document_id"],
                     "document_title": title,
                     "share_type": share["share_type"],
+                    "permission": share.get("permission", "view"),
                     "password_protected": share["password_protected"],
                     "allow_download": share.get("allow_download", False),
+                    "includes": {
+                        "audio": share.get("include_audio", False),
+                        "subtitles": share.get("include_subtitles", False),
+                        "backgrounds": True,
+                    },
                     "total_views": share.get("view_count", 0),
                     "unique_viewers": len(share.get("unique_viewers", [])),
                     "created_at": share["created_at"].isoformat(),
