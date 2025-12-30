@@ -497,7 +497,14 @@ class SubtitleEntryV2(BaseModel):
     element_references: Union[str, Dict, List[Union[str, Dict]]] = Field(
         default="", description="Element IDs referenced"
     )
-    timestamp: Optional[float] = Field(None, description="Timestamp in seconds")
+
+    # Timing fields (calculated by Gemini)
+    start_time: Optional[float] = Field(None, description="Start time in seconds")
+    end_time: Optional[float] = Field(None, description="End time in seconds")
+    duration: Optional[float] = Field(None, description="Duration in seconds")
+
+    # Legacy field for backward compatibility
+    timestamp: Optional[float] = Field(None, description="Deprecated - use start_time")
 
     @field_validator("element_references", mode="before")
     @classmethod

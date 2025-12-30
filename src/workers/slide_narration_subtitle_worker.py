@@ -112,8 +112,10 @@ class SlideNarrationSubtitleWorker:
 
             # Normalize language code: convert BCP-47 to short code
             # Examples: "en-US" → "en", "vi-VN" → "vi", "zh-CN" → "zh"
-            language = task.language.split("-")[0] if "-" in task.language else task.language
-            
+            language = (
+                task.language.split("-")[0] if "-" in task.language else task.language
+            )
+
             logger.info(f"   Language normalized: {task.language} → {language}")
 
             # Update status to processing (Redis for realtime polling)
