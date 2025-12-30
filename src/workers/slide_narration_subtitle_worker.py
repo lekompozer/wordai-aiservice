@@ -82,10 +82,11 @@ class SlideNarrationSubtitleWorker:
 
         logger.info(f"✅ Worker {self.worker_id}: Shutdown complete")
 
-    def _get_next_version(self, presentation_id: str) -> int:
-        """Get next version number for presentation subtitles"""
+    def _get_next_version(self, presentation_id: str, language: str) -> int:
+        """Get next version number for presentation subtitles in specific language"""
         latest = self.db.presentation_subtitles.find_one(
-            {"presentation_id": presentation_id}, sort=[("version", -1)]
+            {"presentation_id": presentation_id, "language": language},
+            sort=[("version", -1)],
         )
         return (latest.get("version", 0) + 1) if latest else 1
 
@@ -109,6 +110,12 @@ class SlideNarrationSubtitleWorker:
                 f"   Slides: {len(task.slides)}, Mode: {task.mode}, Language: {task.language}"
             )
 
+            # Normalize language code: convert BCP-47 to short code
+            # Examples: "en-US" → "en", "vi-VN" → "vi", "zh-CN" → "zh"
+            language = task.language.split("-")[0] if "-" in task.language else task.language
+            
+            logger.info(f"   Language normalized: {task.language} → {language}")
+
             # Update status to processing (Redis for realtime polling)
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
@@ -125,7 +132,7 @@ class SlideNarrationSubtitleWorker:
                 presentation_id=task.presentation_id,
                 slides=task.slides,
                 mode=task.mode,
-                language=task.language,
+                language=language,  # Use normalized language code
                 user_query=task.user_query,
                 title=task.title,
                 topic=task.topic,
@@ -135,15 +142,15 @@ class SlideNarrationSubtitleWorker:
             # Calculate total duration
             total_duration = sum(slide["slide_duration"] for slide in result["slides"])
 
-            # Get next version number
-            version = self._get_next_version(task.presentation_id)
+            # Get next version number (for this language)
+            version = self._get_next_version(task.presentation_id, language)
 
             # Save to presentation_subtitles collection (NEW v2 schema)
             subtitle_doc = {
                 "presentation_id": task.presentation_id,
                 "user_id": task.user_id,
                 "version": version,
-                "language": task.language,
+                "language": language,  # Use normalized short code (en, vi, zh)
                 "mode": task.mode,
                 "user_query": task.user_query,
                 "slides": result["slides"],
