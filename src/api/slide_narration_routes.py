@@ -1330,7 +1330,26 @@ async def list_subtitles_v2(
 
         subtitles = []
         for doc in cursor:
+            # Convert ObjectId to string for Pydantic
             doc["_id"] = str(doc["_id"])
+
+            # Populate audio_url from merged_audio_id if exists
+            if doc.get("merged_audio_id"):
+                try:
+                    audio_doc = db.presentation_audio.find_one(
+                        {"_id": ObjectId(doc["merged_audio_id"])}
+                    )
+                    if audio_doc and audio_doc.get("audio_url"):
+                        # Add audio_url to subtitle document
+                        doc["audio_url"] = audio_doc["audio_url"]
+                        logger.info(
+                            f"   ✅ Populated audio_url for subtitle {doc['_id']}: {audio_doc.get('audio_url')}"
+                        )
+                except Exception as e:
+                    logger.warning(
+                        f"   ⚠️ Failed to populate audio_url for subtitle {doc['_id']}: {e}"
+                    )
+
             subtitles.append(PresentationSubtitle(**doc))
 
         return ListSubtitlesResponse(
@@ -1364,13 +1383,17 @@ async def get_subtitle_v2(
 
         subtitle["_id"] = str(subtitle["_id"])
 
-        # Include audio info if available
+        # Include audio info if available and populate audio_url in subtitle
         audio_info = None
         if subtitle.get("merged_audio_id"):
             audio_doc = db.presentation_audio.find_one(
                 {"_id": ObjectId(subtitle["merged_audio_id"])}
             )
             if audio_doc:
+                # Add audio_url directly to subtitle document for frontend
+                if audio_doc.get("audio_url"):
+                    subtitle["audio_url"] = audio_doc["audio_url"]
+
                 audio_info = {
                     "audio_id": str(audio_doc["_id"]),
                     "audio_url": audio_doc.get("audio_url"),

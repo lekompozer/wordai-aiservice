@@ -490,6 +490,10 @@ class PresentationSubtitle(BaseModel):
     merged_audio_id: Optional[str] = Field(
         None, description="Reference to merged presentation_audio._id"
     )
+    audio_url: Optional[str] = Field(
+        None,
+        description="Direct audio file URL (populated from presentation_audio.file_url)",
+    )
     audio_generated_at: Optional[datetime] = Field(
         None, description="When audio generation completed"
     )
