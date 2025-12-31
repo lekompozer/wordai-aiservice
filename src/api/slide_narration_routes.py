@@ -2828,15 +2828,15 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
             preferences_doc.get("preferences", {}) if preferences_doc else {}
         )
 
-        # Get all available languages for this presentation
-        pipeline = [
-            {"$match": {"presentation_id": presentation_id, "user_id": user_id}},
-            {"$group": {"_id": "$language"}},
-        ]
-        languages_cursor = db.presentation_subtitles.aggregate(pipeline)
-        available_languages = [doc["_id"] for doc in languages_cursor]
+        # Get all subtitles and normalize language codes
+        # This handles old data with "en-US" and new data with "en"
+        all_subtitles = list(
+            db.presentation_subtitles.find(
+                {"presentation_id": presentation_id, "user_id": user_id}
+            ).sort("version", -1)
+        )
 
-        if not available_languages:
+        if not all_subtitles:
             return GetPlayerDataResponse(
                 presentation_id=presentation_id,
                 languages=[],
@@ -2844,13 +2844,39 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
                 total_versions=0,
             )
 
-        # For each language, get the appropriate version
+        # Normalize language codes and group by normalized language
+        # "en-US" → "en", "vi-VN" → "vi", etc.
+        language_groups = {}
+        for subtitle in all_subtitles:
+            lang = subtitle["language"]
+            normalized_lang = lang.split("-")[0] if "-" in lang else lang
+            
+            if normalized_lang not in language_groups:
+                language_groups[normalized_lang] = []
+            language_groups[normalized_lang].append(subtitle)
+
+        available_languages = sorted(language_groups.keys())
+        logger.info(f"   Found {len(available_languages)} normalized languages: {available_languages}")
+
+        # For each normalized language, get the appropriate version
         language_data_list = []
         total_versions = 0
 
-        for language in available_languages:
-            # Check if user has preference for this language
-            lang_pref = user_preferences.get(language)
+        for normalized_lang in available_languages:
+            subtitles_for_lang = language_groups[normalized_lang]
+            
+            # Sort by version descending to get latest
+            subtitles_for_lang.sort(key=lambda x: x["version"], reverse=True)
+            latest_subtitle = subtitles_for_lang[0]
+            
+            # Check if user has preference for this language (try both normalized and original)
+            lang_pref = user_preferences.get(normalized_lang)
+            if not lang_pref:
+                # Try checking preferences with BCP-47 variants
+                for variant in [f"{normalized_lang}-US", f"{normalized_lang}-{normalized_lang.upper()}"]:
+                    lang_pref = user_preferences.get(variant)
+                    if lang_pref:
+                        break
 
             if lang_pref and lang_pref.get("subtitle_id"):
                 # User has set default version - use that
@@ -2858,43 +2884,32 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
                 subtitle = db.presentation_subtitles.find_one(
                     {"_id": ObjectId(subtitle_id)}
                 )
-                is_default = True
-                logger.info(
-                    f"   Using user default for {language}: version {subtitle.get('version') if subtitle else '?'}"
-                )
+                if subtitle:
+                    is_default = True
+                    logger.info(
+                        f"   Using user default for {normalized_lang}: version {subtitle.get('version')}"
+                    )
+                else:
+                    # Preference invalid, fallback to latest
+                    subtitle = latest_subtitle
+                    is_default = False
+                    logger.info(
+                        f"   Preference invalid for {normalized_lang}, using latest: version {subtitle.get('version')}"
+                    )
             else:
                 # No preference - use latest version
-                subtitle = db.presentation_subtitles.find_one(
-                    {
-                        "presentation_id": presentation_id,
-                        "user_id": user_id,
-                        "language": language,
-                    },
-                    sort=[("version", -1)],
-                )
+                subtitle = latest_subtitle
                 is_default = False
                 logger.info(
-                    f"   Using latest for {language}: version {subtitle.get('version') if subtitle else '?'}"
+                    f"   Using latest for {normalized_lang}: version {subtitle.get('version')}"
                 )
 
             if not subtitle:
-                logger.warning(f"   ⚠️ No subtitle found for {language}")
+                logger.warning(f"   ⚠️ No subtitle found for {normalized_lang}")
                 continue
 
-            # Check if this is the latest version
-            latest_subtitle = db.presentation_subtitles.find_one(
-                {
-                    "presentation_id": presentation_id,
-                    "user_id": user_id,
-                    "language": language,
-                },
-                sort=[("version", -1)],
-            )
-            is_latest = (
-                str(subtitle["_id"]) == str(latest_subtitle["_id"])
-                if latest_subtitle
-                else False
-            )
+            # Check if this is the latest version (already sorted, so first is latest)
+            is_latest = str(subtitle["_id"]) == str(latest_subtitle["_id"])
 
             # Get audio info if available
             audio_url = None
@@ -2909,9 +2924,9 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
                     audio_url = audio_doc.get("audio_url")
                     audio_id = str(audio_doc["_id"])
 
-            # Build language data
+            # Build language data (use normalized language code)
             lang_data = LanguagePlayerData(
-                language=language,
+                language=normalized_lang,  # Use normalized code (en, vi, zh)
                 subtitle_id=str(subtitle["_id"]),
                 version=subtitle["version"],
                 is_default=is_default,
