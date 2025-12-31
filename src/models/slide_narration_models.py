@@ -767,10 +767,15 @@ class PublicPresentationResponse(BaseModel):
         ..., description="Presentation metadata + content"
     )
     subtitles: Optional[PresentationSubtitle] = Field(
-        None, description="Latest subtitle version"
+        None, description="Default language subtitle (backward compatibility)"
     )
     audio_files: List[PresentationAudio] = Field(
-        default_factory=list, description="Audio files"
+        default_factory=list,
+        description="Default language audio files (backward compatibility)",
+    )
+    languages: List[Dict[str, Any]] = Field(
+        default_factory=list,
+        description="All allowed languages with subtitles and audio",
     )
     sharing_settings: SharingSettings = Field(..., description="Sharing settings")
 

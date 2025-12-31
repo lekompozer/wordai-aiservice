@@ -2285,71 +2285,126 @@ async def get_public_presentation(public_token: str):
                 "slide_backgrounds"
             )
 
-        # Get latest subtitle for default language if enabled
-        subtitles = None
+        # Get subtitles for all allowed languages if enabled
+        language_data_list = []
+        allowed_languages = sharing_settings.get(
+            "allowed_languages", [default_language]
+        )
+
         if sharing_settings.get("include_subtitles", True):
-            subtitle_doc = db.presentation_subtitles.find_one(
-                {"presentation_id": presentation_id, "language": default_language},
-                sort=[("version", -1)],
-            )
-            if subtitle_doc:
+            logger.info(f"   Loading subtitles for languages: {allowed_languages}")
+
+            for lang in allowed_languages:
+                # Get latest subtitle for this language
+                subtitle_doc = db.presentation_subtitles.find_one(
+                    {"presentation_id": presentation_id, "language": lang},
+                    sort=[("version", -1)],
+                )
+
+                if not subtitle_doc:
+                    logger.info(f"   ⚠️ No subtitle found for {lang}")
+                    continue
+
                 subtitle_doc["_id"] = str(subtitle_doc["_id"])
-                subtitles = PresentationSubtitle(**subtitle_doc)
+                subtitle = PresentationSubtitle(**subtitle_doc)
 
-        # Get audio files if enabled - with fallback to older versions
-        audio_files = []
-        if sharing_settings.get("include_audio", True) and subtitles:
-            # Try to get audio from latest subtitle first
-            audio_subtitle_id = None
-            if subtitles.merged_audio_id:
-                audio_doc = db.presentation_audio.find_one(
-                    {"_id": ObjectId(subtitles.merged_audio_id)}
-                )
-                if audio_doc and audio_doc.get("audio_url"):
-                    audio_subtitle_id = str(subtitles.id)
-                    logger.info(f"   Audio found in latest version {subtitles.version}")
+                # Get audio files if enabled - with fallback to older versions
+                audio_files = []
+                audio_url = None
+                audio_id = None
+                audio_status = subtitle_doc.get("audio_status")
 
-            # If no audio in latest version, fallback to older versions
-            if not audio_subtitle_id:
-                logger.info(
-                    f"   No audio in latest version {subtitles.version}, checking older versions..."
-                )
-                fallback_subtitles = db.presentation_subtitles.find(
-                    {"presentation_id": presentation_id, "language": default_language}
-                ).sort("version", -1)
-
-                for fallback_doc in fallback_subtitles:
-                    # Skip if same as latest
-                    if str(fallback_doc["_id"]) == str(subtitles.id):
-                        continue
-
-                    if fallback_doc.get("merged_audio_id"):
+                if sharing_settings.get("include_audio", True):
+                    # Try to get audio from latest subtitle first
+                    audio_subtitle_id = None
+                    if subtitle_doc.get("merged_audio_id"):
                         audio_doc = db.presentation_audio.find_one(
-                            {"_id": ObjectId(fallback_doc["merged_audio_id"])}
+                            {"_id": ObjectId(subtitle_doc["merged_audio_id"])}
                         )
                         if audio_doc and audio_doc.get("audio_url"):
-                            audio_subtitle_id = str(fallback_doc["_id"])
+                            audio_subtitle_id = str(subtitle_doc["_id"])
+                            audio_url = audio_doc.get("audio_url")
+                            audio_id = str(audio_doc["_id"])
                             logger.info(
-                                f"   ✅ Fallback: Using audio from version {fallback_doc['version']}"
+                                f"      Audio found in {lang} version {subtitle_doc['version']}"
                             )
-                            break
 
-            # Load audio files if found subtitle with audio
-            if audio_subtitle_id:
-                cursor = db.presentation_audio.find(
-                    {
-                        "presentation_id": presentation_id,
-                        "subtitle_id": audio_subtitle_id,
-                    }
-                ).sort("slide_index", 1)
+                    # If no audio in latest version, fallback to older versions
+                    if not audio_subtitle_id:
+                        logger.info(
+                            f"      No audio in {lang} version {subtitle_doc['version']}, checking older versions..."
+                        )
+                        fallback_subtitles = db.presentation_subtitles.find(
+                            {"presentation_id": presentation_id, "language": lang}
+                        ).sort("version", -1)
 
-                for doc in cursor:
-                    doc["_id"] = str(doc["_id"])
-                    audio_files.append(PresentationAudio(**doc))
-            else:
-                logger.info(
-                    f"   ⚠️ No audio found in any version for {default_language}"
+                        for fallback_doc in fallback_subtitles:
+                            # Skip if same as latest
+                            if str(fallback_doc["_id"]) == str(subtitle_doc["_id"]):
+                                continue
+
+                            if fallback_doc.get("merged_audio_id"):
+                                audio_doc = db.presentation_audio.find_one(
+                                    {"_id": ObjectId(fallback_doc["merged_audio_id"])}
+                                )
+                                if audio_doc and audio_doc.get("audio_url"):
+                                    audio_subtitle_id = str(fallback_doc["_id"])
+                                    audio_url = audio_doc.get("audio_url")
+                                    audio_id = str(audio_doc["_id"])
+                                    audio_status = fallback_doc.get("audio_status")
+                                    logger.info(
+                                        f"      ✅ Fallback: Using {lang} audio from version {fallback_doc['version']}"
+                                    )
+                                    break
+
+                    # Load audio files if found subtitle with audio
+                    if audio_subtitle_id:
+                        cursor = db.presentation_audio.find(
+                            {
+                                "presentation_id": presentation_id,
+                                "subtitle_id": audio_subtitle_id,
+                            }
+                        ).sort("slide_index", 1)
+
+                        for doc in cursor:
+                            doc["_id"] = str(doc["_id"])
+                            audio_files.append(PresentationAudio(**doc))
+                    else:
+                        logger.info(f"      ⚠️ No audio found in any version for {lang}")
+
+                # Build language data
+                lang_data = {
+                    "language": lang,
+                    "subtitle_id": str(subtitle.id),
+                    "version": subtitle.version,
+                    "is_default": (lang == default_language),
+                    "slides": subtitle.slides,
+                    "total_duration": subtitle.total_duration or 0,
+                    "audio_url": audio_url,
+                    "audio_id": audio_id,
+                    "audio_status": audio_status,
+                    "audio_files": audio_files,
+                }
+                language_data_list.append(lang_data)
+
+            logger.info(f"   ✅ Loaded {len(language_data_list)} languages")
+
+        # For backward compatibility, set subtitles to default language
+        subtitles = None
+        audio_files = []
+        for lang_data in language_data_list:
+            if lang_data["is_default"]:
+                subtitles = PresentationSubtitle(
+                    id=lang_data["subtitle_id"],
+                    presentation_id=presentation_id,
+                    language=lang_data["language"],
+                    version=lang_data["version"],
+                    slides=lang_data["slides"],
+                    total_duration=lang_data["total_duration"],
+                    audio_status=lang_data["audio_status"],
                 )
+                audio_files = lang_data["audio_files"]
+                break
 
         # Increment access stats
         await sharing_service.increment_access_stats(config["_id"], unique_visitor=True)
@@ -2359,6 +2414,7 @@ async def get_public_presentation(public_token: str):
             presentation=presentation_data,
             subtitles=subtitles,
             audio_files=audio_files,
+            languages=language_data_list,
             sharing_settings=sharing_settings,
         )
 
