@@ -2296,19 +2296,62 @@ async def get_public_presentation(public_token: str):
                 subtitle_doc["_id"] = str(subtitle_doc["_id"])
                 subtitles = PresentationSubtitle(**subtitle_doc)
 
-        # Get audio files if enabled
+        # Get audio files if enabled - with fallback to older versions
         audio_files = []
         if sharing_settings.get("include_audio", True) and subtitles:
-            cursor = db.presentation_audio.find(
-                {
-                    "presentation_id": presentation_id,
-                    "subtitle_id": str(subtitles.id),
-                }
-            ).sort("slide_index", 1)
+            # Try to get audio from latest subtitle first
+            audio_subtitle_id = None
+            if subtitles.merged_audio_id:
+                audio_doc = db.presentation_audio.find_one(
+                    {"_id": ObjectId(subtitles.merged_audio_id)}
+                )
+                if audio_doc and audio_doc.get("audio_url"):
+                    audio_subtitle_id = str(subtitles.id)
+                    logger.info(
+                        f"   Audio found in latest version {subtitles.version}"
+                    )
 
-            for doc in cursor:
-                doc["_id"] = str(doc["_id"])
-                audio_files.append(PresentationAudio(**doc))
+            # If no audio in latest version, fallback to older versions
+            if not audio_subtitle_id:
+                logger.info(
+                    f"   No audio in latest version {subtitles.version}, checking older versions..."
+                )
+                fallback_subtitles = db.presentation_subtitles.find(
+                    {"presentation_id": presentation_id, "language": default_language}
+                ).sort("version", -1)
+
+                for fallback_doc in fallback_subtitles:
+                    # Skip if same as latest
+                    if str(fallback_doc["_id"]) == str(subtitles.id):
+                        continue
+
+                    if fallback_doc.get("merged_audio_id"):
+                        audio_doc = db.presentation_audio.find_one(
+                            {"_id": ObjectId(fallback_doc["merged_audio_id"])}
+                        )
+                        if audio_doc and audio_doc.get("audio_url"):
+                            audio_subtitle_id = str(fallback_doc["_id"])
+                            logger.info(
+                                f"   ✅ Fallback: Using audio from version {fallback_doc['version']}"
+                            )
+                            break
+
+            # Load audio files if found subtitle with audio
+            if audio_subtitle_id:
+                cursor = db.presentation_audio.find(
+                    {
+                        "presentation_id": presentation_id,
+                        "subtitle_id": audio_subtitle_id,
+                    }
+                ).sort("slide_index", 1)
+
+                for doc in cursor:
+                    doc["_id"] = str(doc["_id"])
+                    audio_files.append(PresentationAudio(**doc))
+            else:
+                logger.info(
+                    f"   ⚠️ No audio found in any version for {default_language}"
+                )
 
         # Increment access stats
         await sharing_service.increment_access_stats(config["_id"], unique_visitor=True)
