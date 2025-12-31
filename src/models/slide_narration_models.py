@@ -909,5 +909,3 @@ class GetPlayerDataResponse(BaseModel):
     total_versions: int = Field(
         ..., description="Total subtitle versions across all languages"
     )
-
-

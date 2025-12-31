@@ -878,7 +878,9 @@ Generate the complete narration in {language_name} now:"""
             "vi": "vi-VN",
             "zh": "zh-CN",
         }
-        tts_language = bcp47_map.get(language, f"{language}-US")  # Convert "en" → "en-US"
+        tts_language = bcp47_map.get(
+            language, f"{language}-US"
+        )  # Convert "en" → "en-US"
         logger.info(f"🌍 Language: {language} → {tts_language} (TTS API)")
 
         # Parse voice config

@@ -2369,20 +2369,20 @@ async def get_public_audio(
     summary="List All Audio Chunks for Debugging",
     description="""
     **List all audio chunks with detailed information for debugging**
-    
+
     Returns all audio chunks for a subtitle document, including:
     - Chunk index and audio URL
     - Slides included in each chunk
     - Duration and file size
     - RMS level (audio quality indicator)
     - Creation timestamp
-    
+
     Use this to:
     - Debug which chunks failed generation
     - Identify silent/corrupt audio chunks
     - Verify chunk splitting logic
     - Find chunks that need regeneration
-    
+
     **Example use case:**
     If chunk 2 has RMS < 1000 while others have RMS > 2000, it likely failed.
     """,
@@ -2457,20 +2457,20 @@ async def list_audio_chunks(
     summary="Regenerate Specific Audio Chunk",
     description="""
     **Regenerate a specific failed audio chunk without redoing entire job**
-    
+
     Use this when:
     - One or more chunks have silent/corrupt audio
     - You want to retry TTS generation for specific slides
     - Testing different voice configurations
-    
+
     **Process:**
     1. Fetch chunk's slide data from subtitle document
     2. Generate new audio with TTS API
     3. Upload to R2 storage
     4. Update MongoDB with new audio URL and metadata
-    
+
     **Note:** Does NOT automatically merge chunks. Use merge endpoint after.
-    
+
     **Example workflow:**
     1. List chunks to find failed ones (RMS < 1000)
     2. Regenerate failed chunks one by one
@@ -2510,7 +2510,7 @@ async def regenerate_audio_chunk(
         # For now, return info that regeneration needs to be implemented
         raise HTTPException(
             501,
-            "Chunk regeneration not yet implemented. Please regenerate entire audio job."
+            "Chunk regeneration not yet implemented. Please regenerate entire audio job.",
         )
 
     except HTTPException:
@@ -2526,12 +2526,12 @@ async def regenerate_audio_chunk(
     summary="Merge Audio Chunks into Single File",
     description="""
     **Merge all audio chunks into one complete audio file**
-    
+
     Use this after:
     - Regenerating failed chunks
     - Verifying all chunks have valid audio
     - Ready to create final merged audio
-    
+
     **Process:**
     1. Fetch all chunks in order (by chunk_index)
     2. Download audio files from R2
@@ -2539,9 +2539,9 @@ async def regenerate_audio_chunk(
     4. Upload merged file to R2
     5. Save as new audio document with slide_index=-1 (indicates merged file)
     6. Update subtitle document's audio_status
-    
+
     **Note:** Creates NEW audio document. Original chunks remain unchanged.
-    
+
     **Example:**
     After fixing chunk 2, call this to create final audio file for playback.
     """,
@@ -2570,7 +2570,7 @@ async def merge_audio_chunks(
         # For now, return info that merge needs to be implemented
         raise HTTPException(
             501,
-            "Manual chunk merging not yet implemented. Chunks are auto-merged during generation."
+            "Manual chunk merging not yet implemented. Chunks are auto-merged during generation.",
         )
 
     except HTTPException:
@@ -2591,25 +2591,25 @@ async def merge_audio_chunks(
     summary="Set Default Subtitle+Audio Version for Language",
     description="""
     **Set user's preferred default version for a language in presentation mode**
-    
+
     When user has multiple subtitle versions for same language (e.g., version 1, 2, 3),
     they can choose which version to show by default in presentation mode.
-    
+
     **Use cases:**
     - User generates version 2 but prefers version 1 narration style
     - Testing different subtitle iterations
     - Reverting to previous version after update
-    
+
     **Storage:**
     - Saves to `presentation_preferences` collection
     - One document per presentation per user
     - Structure: {presentation_id, user_id, preferences: {vi: {subtitle_id, version}, en: {...}}}
-    
+
     **Effect:**
     - GET /player-data will return this version instead of latest
     - Only affects this user's presentation mode view
     - Does not affect other users or public sharing
-    
+
     **Validation:**
     - Subtitle must exist and belong to user
     - Subtitle must match the language parameter
@@ -2697,17 +2697,17 @@ async def set_default_version(
     summary="Get Complete Presentation Mode Data (All Languages)",
     description="""
     **Get subtitle + audio data for all languages in presentation mode**
-    
+
     Returns complete data needed for presentation playback, including:
     - All available languages
     - For each language: subtitle slides + audio URL
     - Respects user's default version preferences
     - Falls back to latest version if no preference set
-    
+
     **Version Selection Logic:**
     1. Check if user has set default version for this language → use that
     2. Otherwise → use latest version (highest version number)
-    
+
     **Response includes:**
     - `languages`: Array of LanguagePlayerData (one per language)
       - `language`: Language code
@@ -2718,21 +2718,19 @@ async def set_default_version(
       - `slides`: Subtitle content
       - `audio_url`: Merged audio file URL (if available)
       - `audio_status`: ready | processing | failed
-    
+
     **Use cases:**
     - Load presentation player with all language options
     - Switch between languages in real-time
     - Show "Latest" or "Default" badge in UI
-    
+
     **Performance:**
     - Single query per language
     - Populates audio URLs from presentation_audio
     - Returns only essential fields for playback
     """,
 )
-async def get_player_data(
-    presentation_id: str, user: dict = Depends(get_current_user)
-):
+async def get_player_data(presentation_id: str, user: dict = Depends(get_current_user)):
     """Get complete presentation mode data for all languages"""
     try:
         user_id = user["uid"]
@@ -2742,7 +2740,9 @@ async def get_player_data(
         preferences_doc = db.presentation_preferences.find_one(
             {"presentation_id": presentation_id, "user_id": user_id}
         )
-        user_preferences = preferences_doc.get("preferences", {}) if preferences_doc else {}
+        user_preferences = (
+            preferences_doc.get("preferences", {}) if preferences_doc else {}
+        )
 
         # Get all available languages for this presentation
         pipeline = [
@@ -2775,7 +2775,9 @@ async def get_player_data(
                     {"_id": ObjectId(subtitle_id)}
                 )
                 is_default = True
-                logger.info(f"   Using user default for {language}: version {subtitle.get('version') if subtitle else '?'}")
+                logger.info(
+                    f"   Using user default for {language}: version {subtitle.get('version') if subtitle else '?'}"
+                )
             else:
                 # No preference - use latest version
                 subtitle = db.presentation_subtitles.find_one(
@@ -2787,7 +2789,9 @@ async def get_player_data(
                     sort=[("version", -1)],
                 )
                 is_default = False
-                logger.info(f"   Using latest for {language}: version {subtitle.get('version') if subtitle else '?'}")
+                logger.info(
+                    f"   Using latest for {language}: version {subtitle.get('version') if subtitle else '?'}"
+                )
 
             if not subtitle:
                 logger.warning(f"   ⚠️ No subtitle found for {language}")
