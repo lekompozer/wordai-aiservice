@@ -863,12 +863,12 @@ class SetDefaultVersionRequest(BaseModel):
 class SetDefaultVersionResponse(BaseModel):
     """Response after setting default version"""
 
-    success: bool = Field(True, description="Success status")
     message: str = Field(..., description="Human-readable message")
     presentation_id: str = Field(..., description="Presentation ID")
     language: str = Field(..., description="Language code")
     subtitle_id: str = Field(..., description="Default subtitle ID")
     version: int = Field(..., description="Default version number")
+    success: bool = Field(default=True, description="Success status")
 
 
 class LanguagePlayerData(BaseModel):
@@ -898,7 +898,6 @@ class LanguagePlayerData(BaseModel):
 class GetPlayerDataResponse(BaseModel):
     """Complete presentation mode data for all languages"""
 
-    success: bool = Field(True, description="Success status")
     presentation_id: str = Field(..., description="Presentation ID")
     languages: List[LanguagePlayerData] = Field(
         ..., description="Data for each available language"
@@ -909,3 +908,4 @@ class GetPlayerDataResponse(BaseModel):
     total_versions: int = Field(
         ..., description="Total subtitle versions across all languages"
     )
+    success: bool = Field(default=True, description="Success status")

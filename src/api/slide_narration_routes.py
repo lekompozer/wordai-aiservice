@@ -2095,6 +2095,90 @@ async def update_sharing_config(
         raise HTTPException(500, f"Failed to update sharing config: {str(e)}")
 
 
+# ============================================================
+# SHARING ENDPOINTS (alternative route for frontend compatibility)
+# ============================================================
+
+
+@router.get(
+    "/presentations/sharing/{presentation_id}",
+    response_model=UpdateSharingConfigResponse,
+    summary="Get Sharing Config (Alternative Route)",
+    description="""
+    **Alternative route for frontend compatibility**
+
+    Same as GET /presentations/{presentation_id}/sharing
+    Returns sharing configuration for a presentation.
+    """,
+)
+async def get_sharing_config_alt(
+    presentation_id: str, current_user: dict = Depends(get_current_user)
+):
+    """Get sharing configuration (alternative route pattern)"""
+    try:
+        user_id = current_user["uid"]
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+        config = await sharing_service.get_or_create_config(
+            presentation_id=presentation_id, user_id=user_id
+        )
+
+        return {"success": True, "config": PresentationSharingConfig(**config)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get sharing config: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get sharing config: {str(e)}")
+
+
+@router.put(
+    "/presentations/sharing/{presentation_id}",
+    response_model=UpdateSharingConfigResponse,
+    summary="Update Sharing Config (Alternative Route)",
+    description="""
+    **Alternative route for frontend compatibility**
+
+    Same as PUT /presentations/{presentation_id}/sharing
+    Updates sharing configuration for a presentation.
+    """,
+)
+async def update_sharing_config_alt(
+    presentation_id: str,
+    request: UpdateSharingConfigRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update sharing configuration (alternative route pattern)"""
+    try:
+        user_id = current_user["uid"]
+        from src.services.sharing_service import get_sharing_service
+
+        sharing_service = get_sharing_service()
+
+        # Prepare sharing_settings dict
+        sharing_settings = None
+        if request.sharing_settings:
+            sharing_settings = request.sharing_settings.dict()
+
+        config = await sharing_service.update_config(
+            presentation_id=presentation_id,
+            user_id=user_id,
+            is_public=request.is_public,
+            sharing_settings=sharing_settings,
+        )
+
+        return UpdateSharingConfigResponse(
+            success=True, config=PresentationSharingConfig(**config)
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update sharing config: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to update sharing config: {str(e)}")
+
+
 @router.post("/presentations/{presentation_id}/sharing/users")
 async def share_with_user(
     presentation_id: str,
