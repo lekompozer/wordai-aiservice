@@ -2408,6 +2408,36 @@ async def get_public_presentation(public_token: str):
                 audio_files = lang_data["audio_files"]
                 break
 
+        # Clean up language_data_list for JSON serialization
+        # Remove subtitle object (already serialized), keep only flat fields
+        cleaned_languages = []
+        for lang_data in language_data_list:
+            cleaned_lang = {
+                "language": lang_data["language"],
+                "subtitle_id": lang_data["subtitle_id"],
+                "version": lang_data["version"],
+                "is_default": lang_data["is_default"],
+                "slides": lang_data["slides"],
+                "total_duration": lang_data["total_duration"],
+                "audio_url": lang_data["audio_url"],
+                "audio_id": lang_data["audio_id"],
+                "audio_status": lang_data["audio_status"],
+                "audio_files": [
+                    {
+                        "_id": str(audio.id),
+                        "slide_index": audio.slide_index,
+                        "audio_url": audio.audio_url,
+                        "duration": audio.duration,
+                        "slide_timestamps": audio.slide_timestamps,  # For auto-advance slides
+                        "audio_type": audio.audio_type,
+                        "chunk_index": audio.chunk_index,
+                        "total_chunks": audio.total_chunks,
+                    }
+                    for audio in lang_data["audio_files"]
+                ],
+            }
+            cleaned_languages.append(cleaned_lang)
+
         # Increment access stats
         await sharing_service.increment_access_stats(config["_id"], unique_visitor=True)
 
@@ -2416,7 +2446,7 @@ async def get_public_presentation(public_token: str):
             presentation=presentation_data,
             subtitles=subtitles,
             audio_files=audio_files,
-            languages=language_data_list,
+            languages=cleaned_languages,
             sharing_settings=sharing_settings,
         )
 
