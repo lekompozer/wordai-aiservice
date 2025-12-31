@@ -52,6 +52,11 @@ from src.models.slide_narration_models import (
     RegenerateChunkRequest,
     RegenerateChunkResponse,
     MergeChunksResponse,
+    # Presentation mode preference models
+    SetDefaultVersionRequest,
+    SetDefaultVersionResponse,
+    LanguagePlayerData,
+    GetPlayerDataResponse,
 )
 from src.services.slide_narration_service import get_slide_narration_service
 from src.services.points_service import get_points_service
@@ -2573,3 +2578,280 @@ async def merge_audio_chunks(
     except Exception as e:
         logger.error(f"❌ Failed to merge chunks: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to merge chunks: {str(e)}")
+
+
+# ============================================================
+# PRESENTATION MODE ENDPOINTS (default version preferences)
+# ============================================================
+
+
+@router.put(
+    "/presentations/{presentation_id}/preferences/{language}/default",
+    response_model=SetDefaultVersionResponse,
+    summary="Set Default Subtitle+Audio Version for Language",
+    description="""
+    **Set user's preferred default version for a language in presentation mode**
+    
+    When user has multiple subtitle versions for same language (e.g., version 1, 2, 3),
+    they can choose which version to show by default in presentation mode.
+    
+    **Use cases:**
+    - User generates version 2 but prefers version 1 narration style
+    - Testing different subtitle iterations
+    - Reverting to previous version after update
+    
+    **Storage:**
+    - Saves to `presentation_preferences` collection
+    - One document per presentation per user
+    - Structure: {presentation_id, user_id, preferences: {vi: {subtitle_id, version}, en: {...}}}
+    
+    **Effect:**
+    - GET /player-data will return this version instead of latest
+    - Only affects this user's presentation mode view
+    - Does not affect other users or public sharing
+    
+    **Validation:**
+    - Subtitle must exist and belong to user
+    - Subtitle must match the language parameter
+    - Subtitle must belong to this presentation
+    """,
+)
+async def set_default_version(
+    presentation_id: str,
+    language: str,
+    request: SetDefaultVersionRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Set default subtitle+audio version for a language"""
+    try:
+        user_id = user["uid"]
+        logger.info(
+            f"Setting default version: presentation={presentation_id}, language={language}, subtitle={request.subtitle_id}"
+        )
+
+        # Verify subtitle exists and belongs to user
+        subtitle = db.presentation_subtitles.find_one(
+            {"_id": ObjectId(request.subtitle_id), "user_id": user_id}
+        )
+        if not subtitle:
+            raise HTTPException(404, "Subtitle not found or not owned by you")
+
+        # Verify subtitle belongs to this presentation
+        if subtitle["presentation_id"] != presentation_id:
+            raise HTTPException(400, "Subtitle does not belong to this presentation")
+
+        # Verify language matches
+        if subtitle["language"] != language:
+            raise HTTPException(
+                400,
+                f"Subtitle language '{subtitle['language']}' does not match '{language}'",
+            )
+
+        version = subtitle["version"]
+
+        # Upsert preference document
+        preference_doc = {
+            "presentation_id": presentation_id,
+            "user_id": user_id,
+            "updated_at": datetime.utcnow(),
+        }
+
+        # Build update: set preference for this language
+        update = {
+            "$set": {
+                f"preferences.{language}.subtitle_id": request.subtitle_id,
+                f"preferences.{language}.version": version,
+                f"preferences.{language}.updated_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+        }
+
+        db.presentation_preferences.update_one(
+            {"presentation_id": presentation_id, "user_id": user_id},
+            update,
+            upsert=True,
+        )
+
+        logger.info(
+            f"✅ Set default: {language} → version {version} (subtitle {request.subtitle_id})"
+        )
+
+        return SetDefaultVersionResponse(
+            message=f"Default version set for {language}",
+            presentation_id=presentation_id,
+            language=language,
+            subtitle_id=request.subtitle_id,
+            version=version,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to set default version: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to set default version: {str(e)}")
+
+
+@router.get(
+    "/presentations/{presentation_id}/player-data",
+    response_model=GetPlayerDataResponse,
+    summary="Get Complete Presentation Mode Data (All Languages)",
+    description="""
+    **Get subtitle + audio data for all languages in presentation mode**
+    
+    Returns complete data needed for presentation playback, including:
+    - All available languages
+    - For each language: subtitle slides + audio URL
+    - Respects user's default version preferences
+    - Falls back to latest version if no preference set
+    
+    **Version Selection Logic:**
+    1. Check if user has set default version for this language → use that
+    2. Otherwise → use latest version (highest version number)
+    
+    **Response includes:**
+    - `languages`: Array of LanguagePlayerData (one per language)
+      - `language`: Language code
+      - `subtitle_id`: Which subtitle document
+      - `version`: Which version
+      - `is_default`: True if user explicitly set this as default
+      - `is_latest`: True if this is latest version
+      - `slides`: Subtitle content
+      - `audio_url`: Merged audio file URL (if available)
+      - `audio_status`: ready | processing | failed
+    
+    **Use cases:**
+    - Load presentation player with all language options
+    - Switch between languages in real-time
+    - Show "Latest" or "Default" badge in UI
+    
+    **Performance:**
+    - Single query per language
+    - Populates audio URLs from presentation_audio
+    - Returns only essential fields for playback
+    """,
+)
+async def get_player_data(
+    presentation_id: str, user: dict = Depends(get_current_user)
+):
+    """Get complete presentation mode data for all languages"""
+    try:
+        user_id = user["uid"]
+        logger.info(f"Getting player data: presentation={presentation_id}")
+
+        # Get user preferences for this presentation
+        preferences_doc = db.presentation_preferences.find_one(
+            {"presentation_id": presentation_id, "user_id": user_id}
+        )
+        user_preferences = preferences_doc.get("preferences", {}) if preferences_doc else {}
+
+        # Get all available languages for this presentation
+        pipeline = [
+            {"$match": {"presentation_id": presentation_id, "user_id": user_id}},
+            {"$group": {"_id": "$language"}},
+        ]
+        languages_cursor = db.presentation_subtitles.aggregate(pipeline)
+        available_languages = [doc["_id"] for doc in languages_cursor]
+
+        if not available_languages:
+            return GetPlayerDataResponse(
+                presentation_id=presentation_id,
+                languages=[],
+                available_languages=[],
+                total_versions=0,
+            )
+
+        # For each language, get the appropriate version
+        language_data_list = []
+        total_versions = 0
+
+        for language in available_languages:
+            # Check if user has preference for this language
+            lang_pref = user_preferences.get(language)
+
+            if lang_pref and lang_pref.get("subtitle_id"):
+                # User has set default version - use that
+                subtitle_id = lang_pref["subtitle_id"]
+                subtitle = db.presentation_subtitles.find_one(
+                    {"_id": ObjectId(subtitle_id)}
+                )
+                is_default = True
+                logger.info(f"   Using user default for {language}: version {subtitle.get('version') if subtitle else '?'}")
+            else:
+                # No preference - use latest version
+                subtitle = db.presentation_subtitles.find_one(
+                    {
+                        "presentation_id": presentation_id,
+                        "user_id": user_id,
+                        "language": language,
+                    },
+                    sort=[("version", -1)],
+                )
+                is_default = False
+                logger.info(f"   Using latest for {language}: version {subtitle.get('version') if subtitle else '?'}")
+
+            if not subtitle:
+                logger.warning(f"   ⚠️ No subtitle found for {language}")
+                continue
+
+            # Check if this is the latest version
+            latest_subtitle = db.presentation_subtitles.find_one(
+                {
+                    "presentation_id": presentation_id,
+                    "user_id": user_id,
+                    "language": language,
+                },
+                sort=[("version", -1)],
+            )
+            is_latest = (
+                str(subtitle["_id"]) == str(latest_subtitle["_id"])
+                if latest_subtitle
+                else False
+            )
+
+            # Get audio info if available
+            audio_url = None
+            audio_id = None
+            audio_status = subtitle.get("audio_status")
+
+            if subtitle.get("merged_audio_id"):
+                audio_doc = db.presentation_audio.find_one(
+                    {"_id": ObjectId(subtitle["merged_audio_id"])}
+                )
+                if audio_doc:
+                    audio_url = audio_doc.get("audio_url")
+                    audio_id = str(audio_doc["_id"])
+
+            # Build language data
+            lang_data = LanguagePlayerData(
+                language=language,
+                subtitle_id=str(subtitle["_id"]),
+                version=subtitle["version"],
+                is_default=is_default,
+                is_latest=is_latest,
+                slides=subtitle.get("slides", []),
+                total_duration=subtitle.get("total_duration", 0),
+                audio_url=audio_url,
+                audio_id=audio_id,
+                audio_status=audio_status,
+                created_at=subtitle.get("created_at", datetime.utcnow()),
+                updated_at=subtitle.get("updated_at", datetime.utcnow()),
+            )
+            language_data_list.append(lang_data)
+            total_versions += 1
+
+        logger.info(
+            f"✅ Player data: {len(language_data_list)} languages, {total_versions} total versions"
+        )
+
+        return GetPlayerDataResponse(
+            presentation_id=presentation_id,
+            languages=language_data_list,
+            available_languages=available_languages,
+            total_versions=total_versions,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get player data: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get player data: {str(e)}")

@@ -836,3 +836,78 @@ class MergeChunksResponse(BaseModel):
     slide_count: int = Field(..., description="Total slides covered")
     chunk_count: int = Field(..., description="Number of chunks merged")
 
+
+# ============================================================
+# PRESENTATION MODE PREFERENCES (default version selection)
+# ============================================================
+
+
+class LanguageVersionPreference(BaseModel):
+    """User preference for default subtitle+audio version for a language"""
+
+    subtitle_id: str = Field(..., description="Preferred subtitle document ID")
+    version: int = Field(..., description="Subtitle version number")
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow, description="Last updated timestamp"
+    )
+
+
+class SetDefaultVersionRequest(BaseModel):
+    """Request to set default subtitle+audio version for a language"""
+
+    subtitle_id: str = Field(
+        ..., description="Subtitle ID to set as default for this language"
+    )
+
+
+class SetDefaultVersionResponse(BaseModel):
+    """Response after setting default version"""
+
+    success: bool = Field(True, description="Success status")
+    message: str = Field(..., description="Human-readable message")
+    presentation_id: str = Field(..., description="Presentation ID")
+    language: str = Field(..., description="Language code")
+    subtitle_id: str = Field(..., description="Default subtitle ID")
+    version: int = Field(..., description="Default version number")
+
+
+class LanguagePlayerData(BaseModel):
+    """Subtitle + audio data for one language in presentation mode"""
+
+    language: str = Field(..., description="Language code (vi, en, zh)")
+    subtitle_id: str = Field(..., description="Subtitle document ID")
+    version: int = Field(..., description="Version number")
+    is_default: bool = Field(
+        False, description="True if user explicitly set this as default"
+    )
+    is_latest: bool = Field(False, description="True if this is latest version")
+
+    # Subtitle data
+    slides: List[Dict[str, Any]] = Field(..., description="Slides with subtitles")
+    total_duration: float = Field(..., description="Total duration in seconds")
+
+    # Audio data
+    audio_url: Optional[str] = Field(None, description="Merged audio URL")
+    audio_id: Optional[str] = Field(None, description="Merged audio document ID")
+    audio_status: Optional[str] = Field(None, description="Audio status")
+
+    created_at: datetime = Field(..., description="Subtitle creation timestamp")
+    updated_at: datetime = Field(..., description="Subtitle update timestamp")
+
+
+class GetPlayerDataResponse(BaseModel):
+    """Complete presentation mode data for all languages"""
+
+    success: bool = Field(True, description="Success status")
+    presentation_id: str = Field(..., description="Presentation ID")
+    languages: List[LanguagePlayerData] = Field(
+        ..., description="Data for each available language"
+    )
+    available_languages: List[str] = Field(
+        ..., description="List of all available language codes"
+    )
+    total_versions: int = Field(
+        ..., description="Total subtitle versions across all languages"
+    )
+
+
