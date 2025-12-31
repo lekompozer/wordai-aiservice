@@ -299,16 +299,16 @@ class SharingService:
             config_id: Sharing config ID
             unique_visitor: Whether this is a unique visitor
         """
-        update_fields = {
-            "access_stats.total_views": 1,
-            "access_stats.last_accessed": datetime.utcnow(),
-        }
-
+        # Increment counters
+        inc_fields = {"access_stats.total_views": 1}
         if unique_visitor:
-            update_fields["access_stats.unique_visitors"] = 1
+            inc_fields["access_stats.unique_visitors"] = 1
+
+        # Set timestamp (not increment)
+        set_fields = {"access_stats.last_accessed": datetime.utcnow()}
 
         self.sharing_configs.update_one(
-            {"_id": ObjectId(config_id)}, {"$inc": update_fields}
+            {"_id": ObjectId(config_id)}, {"$inc": inc_fields, "$set": set_fields}
         )
 
     async def check_user_access(
