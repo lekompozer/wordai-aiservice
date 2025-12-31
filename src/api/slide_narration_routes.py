@@ -2372,14 +2372,24 @@ async def get_public_presentation(public_token: str):
                     else:
                         logger.info(f"      ⚠️ No audio found in any version for {lang}")
 
+                # Calculate total duration from slides or audio_metadata
+                total_duration = 0
+                if subtitle_doc.get("audio_metadata") and isinstance(
+                    subtitle_doc["audio_metadata"], dict
+                ):
+                    total_duration = subtitle_doc["audio_metadata"].get(
+                        "duration_seconds", 0
+                    )
+
                 # Build language data
                 lang_data = {
                     "language": lang,
+                    "subtitle": subtitle,  # Store full object for backward compatibility
                     "subtitle_id": str(subtitle.id),
                     "version": subtitle.version,
                     "is_default": (lang == default_language),
                     "slides": subtitle.slides,
-                    "total_duration": subtitle.total_duration or 0,
+                    "total_duration": total_duration,
                     "audio_url": audio_url,
                     "audio_id": audio_id,
                     "audio_status": audio_status,
@@ -2394,15 +2404,7 @@ async def get_public_presentation(public_token: str):
         audio_files = []
         for lang_data in language_data_list:
             if lang_data["is_default"]:
-                subtitles = PresentationSubtitle(
-                    id=lang_data["subtitle_id"],
-                    presentation_id=presentation_id,
-                    language=lang_data["language"],
-                    version=lang_data["version"],
-                    slides=lang_data["slides"],
-                    total_duration=lang_data["total_duration"],
-                    audio_status=lang_data["audio_status"],
-                )
+                subtitles = lang_data["subtitle"]  # Use full parsed object
                 audio_files = lang_data["audio_files"]
                 break
 
