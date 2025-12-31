@@ -2427,7 +2427,11 @@ async def get_public_presentation(public_token: str):
                         "_id": str(audio.id),
                         "slide_index": audio.slide_index,
                         "audio_url": audio.audio_url,
-                        "duration": audio.duration,
+                        "duration": (
+                            audio.audio_metadata.duration_seconds
+                            if audio.audio_metadata
+                            else 0
+                        ),
                         "slide_timestamps": audio.slide_timestamps,  # For auto-advance slides
                         "audio_type": audio.audio_type,
                         "chunk_index": audio.chunk_index,
