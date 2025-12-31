@@ -2850,13 +2850,15 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
         for subtitle in all_subtitles:
             lang = subtitle["language"]
             normalized_lang = lang.split("-")[0] if "-" in lang else lang
-            
+
             if normalized_lang not in language_groups:
                 language_groups[normalized_lang] = []
             language_groups[normalized_lang].append(subtitle)
 
         available_languages = sorted(language_groups.keys())
-        logger.info(f"   Found {len(available_languages)} normalized languages: {available_languages}")
+        logger.info(
+            f"   Found {len(available_languages)} normalized languages: {available_languages}"
+        )
 
         # For each normalized language, get the appropriate version
         language_data_list = []
@@ -2864,16 +2866,19 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
 
         for normalized_lang in available_languages:
             subtitles_for_lang = language_groups[normalized_lang]
-            
+
             # Sort by version descending to get latest
             subtitles_for_lang.sort(key=lambda x: x["version"], reverse=True)
             latest_subtitle = subtitles_for_lang[0]
-            
+
             # Check if user has preference for this language (try both normalized and original)
             lang_pref = user_preferences.get(normalized_lang)
             if not lang_pref:
                 # Try checking preferences with BCP-47 variants
-                for variant in [f"{normalized_lang}-US", f"{normalized_lang}-{normalized_lang.upper()}"]:
+                for variant in [
+                    f"{normalized_lang}-US",
+                    f"{normalized_lang}-{normalized_lang.upper()}",
+                ]:
                     lang_pref = user_preferences.get(variant)
                     if lang_pref:
                         break
@@ -2911,18 +2916,48 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
             # Check if this is the latest version (already sorted, so first is latest)
             is_latest = str(subtitle["_id"]) == str(latest_subtitle["_id"])
 
-            # Get audio info if available
+            # Get audio info - fallback to older versions if latest has no audio
             audio_url = None
             audio_id = None
             audio_status = subtitle.get("audio_status")
 
+            # Try to get audio from selected subtitle first
             if subtitle.get("merged_audio_id"):
                 audio_doc = db.presentation_audio.find_one(
                     {"_id": ObjectId(subtitle["merged_audio_id"])}
                 )
-                if audio_doc:
+                if audio_doc and audio_doc.get("audio_url"):
                     audio_url = audio_doc.get("audio_url")
                     audio_id = str(audio_doc["_id"])
+                    logger.info(f"      Audio found in version {subtitle['version']}")
+
+            # If no audio in selected version, fallback to older versions
+            if not audio_url:
+                logger.info(
+                    f"      No audio in version {subtitle['version']}, checking older versions..."
+                )
+                for fallback_subtitle in subtitles_for_lang:
+                    # Skip if same as already checked
+                    if str(fallback_subtitle["_id"]) == str(subtitle["_id"]):
+                        continue
+
+                    if fallback_subtitle.get("merged_audio_id"):
+                        audio_doc = db.presentation_audio.find_one(
+                            {"_id": ObjectId(fallback_subtitle["merged_audio_id"])}
+                        )
+                        if audio_doc and audio_doc.get("audio_url"):
+                            audio_url = audio_doc.get("audio_url")
+                            audio_id = str(audio_doc["_id"])
+                            audio_status = fallback_subtitle.get("audio_status")
+                            logger.info(
+                                f"      ✅ Fallback: Using audio from version {fallback_subtitle['version']}"
+                            )
+                            break
+
+                if not audio_url:
+                    logger.info(
+                        f"      ⚠️ No audio found in any version for {normalized_lang}"
+                    )
 
             # Build language data (use normalized language code)
             lang_data = LanguagePlayerData(
