@@ -2307,9 +2307,7 @@ async def get_public_presentation(public_token: str):
                 )
                 if audio_doc and audio_doc.get("audio_url"):
                     audio_subtitle_id = str(subtitles.id)
-                    logger.info(
-                        f"   Audio found in latest version {subtitles.version}"
-                    )
+                    logger.info(f"   Audio found in latest version {subtitles.version}")
 
             # If no audio in latest version, fallback to older versions
             if not audio_subtitle_id:
