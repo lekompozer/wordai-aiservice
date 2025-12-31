@@ -391,6 +391,123 @@ View mode:         https://wordai.pro/s/{share_id}
 
 ---
 
+### 9. Enable/Disable Public Access (Presentation Mode)
+
+**⚠️ IMPORTANT:** This is different from "Share Links" above. This endpoint controls **PUBLIC ACCESS** via `/public/presentations/{public_token}` (no password, no expiration).
+
+**Endpoint:** `PUT /api/presentations/{presentation_id}/sharing`
+
+**Alternative Route:** `PUT /api/presentations/sharing/{presentation_id}`
+
+**Auth:** Required (owner only)
+
+**Purpose:** Convert presentation to **PUBLIC** (anyone can view) or **PRIVATE** (owner only)
+
+**Request:**
+```json
+{
+  "is_public": true,  // true = public, false = private
+  "sharing_settings": {
+    "include_content": true,         // Show slide HTML content
+    "include_subtitles": true,       // Show subtitles
+    "include_audio": true,           // Provide audio playback
+    "default_language": "vi",        // Default narration language
+    "allowed_languages": ["vi", "en"], // Available languages (empty = all)
+    "require_attribution": true      // Show 'Created by...'
+  }
+}
+```
+
+**Minimal Request (enable public with defaults):**
+```json
+{
+  "is_public": true
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "config": {
+    "presentation_id": "doc_c49e8af18c03",
+    "user_id": "user_123",
+    "is_public": true,
+    "public_token": "aB3xY9zK",  // ✅ 8-char token for public URL
+    "sharing_settings": {
+      "include_content": true,
+      "include_subtitles": true,
+      "include_audio": true,
+      "default_language": "vi",
+      "allowed_languages": ["vi", "en"],
+      "require_attribution": true
+    },
+    "shared_with_users": [],        // Private sharing (future)
+    "access_stats": {},             // Access statistics
+    "created_at": "2025-12-31T10:00:00Z",
+    "updated_at": "2025-12-31T10:30:00Z",
+    "expires_at": null              // Optional expiration
+  }
+}
+```
+
+**Public URL Format:**
+```
+https://wordai.pro/public/presentations/{public_token}
+```
+
+**Note:** Token is 8 characters (alphanumeric: a-z, A-Z, 0-9)
+
+**Usage Flow:**
+1. Owner calls `PUT /presentations/{id}/sharing` with `is_public: true`
+2. Backend returns `public_token` (e.g., `aB3xY9zK` - 8 chars)
+3. Frontend shows public URL: `https://wordai.pro/public/presentations/aB3xY9zK`
+4. Anyone can access (no auth required)
+5. Viewer selects language → Shows narration + subtitles
+
+**To Make Private Again:**
+```json
+{
+  "is_public": false
+}
+```
+
+---
+
+### 10. Get Public Presentation Config
+
+**Endpoint:** `GET /api/presentations/{presentation_id}/sharing`
+
+**Alternative Route:** `GET /api/presentations/sharing/{presentation_id}`
+
+**Auth:** Required (owner only)
+
+**Response:**
+```json
+{
+  "success": true,
+  "config": {
+    "presentation_id": "doc_c49e8af18c03",
+    "is_public": true,
+    "public_token": "pub_d4f8e2a1b9c7",
+    "sharing_settings": {
+      "include_content": true,
+      "include_subtitles": true,
+      "include_audio": true,
+      "default_language": "vi",
+      "allowed_languages": ["vi", "en"],
+      "require_attribution": true
+    },
+    "shared_with_users": [],
+    "access_stats": {},
+    "created_at": "2025-12-31T10:00:00Z",
+    "updated_at": "2025-12-31T10:30:00Z"
+  }
+}
+```
+
+---
+
 ## Presentation Sharing System (Alternative)
 
 **Endpoint:** `GET /api/presentations/public/presentations/{public_token}`
@@ -405,8 +522,10 @@ View mode:         https://wordai.pro/s/{share_id}
 
 **URL Format:**
 ```
-https://wordai.pro/present/{public_token}
+https://wordai.pro/public/presentations/{public_token}
 ```
+
+**Example:** `https://wordai.pro/public/presentations/aB3xY9zK`
 
 ---
 
@@ -429,8 +548,10 @@ https://wordai.pro/present/{share_id}        // Explicit (dài hơn)
 
 **Public Token (Multi-language):**
 ```
-https://wordai.pro/present/{public_token}    // Có language selector
+https://wordai.pro/public/presentations/{public_token}    // Có language selector
 ```
+
+**Example:** `https://wordai.pro/public/presentations/aB3xY9zK`
 
 ### URL Parameters
 
@@ -516,16 +637,23 @@ Lock:    WebSocket real-time collaboration (future)
 ```json
 {
   "_id": ObjectId,
-  "public_token": "pub_token_xyz",
+  "public_token": "aB3xY9zK",  // 8-char alphanumeric token
   "presentation_id": "slide_doc_abc",
   "user_id": "firebase_uid",
   "is_public": true,
   "sharing_settings": {
-    "include_audio": true,
+    "include_content": true,
     "include_subtitles": true,
+    "include_audio": true,
     "allowed_languages": ["vi", "en"],
-    "default_language": "vi"
-  }
+    "default_language": "vi",
+    "require_attribution": true
+  },
+  "shared_with_users": [],
+  "access_stats": {},
+  "created_at": ISODate,
+  "updated_at": ISODate,
+  "expires_at": null
 }
 ```
 

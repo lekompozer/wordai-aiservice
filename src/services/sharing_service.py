@@ -25,10 +25,13 @@ class SharingService:
         self.sharing_configs = self.db.presentation_sharing_config
 
     def generate_public_token(self) -> str:
-        """Generate unique public token for sharing URL"""
+        """Generate unique public token for sharing URL (8 characters)"""
+        import string
+
         while True:
-            # Generate 32-character URL-safe token
-            token = secrets.token_urlsafe(24)
+            # Generate 8-character alphanumeric token (uppercase + lowercase + digits)
+            chars = string.ascii_letters + string.digits
+            token = "".join(secrets.choice(chars) for _ in range(8))
             # Check uniqueness
             existing = self.sharing_configs.find_one({"public_token": token})
             if not existing:
