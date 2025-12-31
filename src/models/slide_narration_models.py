@@ -773,3 +773,66 @@ class PublicPresentationResponse(BaseModel):
         default_factory=list, description="Audio files"
     )
     sharing_settings: SharingSettings = Field(..., description="Sharing settings")
+
+
+# ============================================================
+# CHUNK MANAGEMENT MODELS (for debugging & regeneration)
+# ============================================================
+
+
+class AudioChunkInfo(BaseModel):
+    """Information about a single audio chunk"""
+
+    chunk_index: int = Field(..., description="Chunk index (0-based)")
+    audio_id: str = Field(..., description="MongoDB _id of audio document")
+    audio_url: str = Field(..., description="R2 URL of audio file")
+    slides: List[Dict[str, Any]] = Field(
+        ..., description="Slides in this chunk with subtitles"
+    )
+    slide_indices: List[int] = Field(..., description="Slide indices in this chunk")
+    duration: float = Field(..., description="Audio duration in seconds")
+    file_size: int = Field(..., description="File size in bytes")
+    rms: Optional[float] = Field(None, description="Audio RMS level (quality check)")
+    status: str = Field(default="ready", description="Chunk status (ready/failed)")
+    created_at: datetime = Field(..., description="Creation timestamp")
+
+
+class ListAudioChunksResponse(BaseModel):
+    """Response for listing all audio chunks"""
+
+    success: bool = Field(True, description="Success status")
+    subtitle_id: str = Field(..., description="Subtitle document ID")
+    presentation_id: str = Field(..., description="Presentation ID")
+    language: str = Field(..., description="Language code")
+    version: int = Field(..., description="Subtitle version")
+    total_chunks: int = Field(..., description="Total number of chunks")
+    chunks: List[AudioChunkInfo] = Field(..., description="Chunk details")
+
+
+class RegenerateChunkRequest(BaseModel):
+    """Request to regenerate a specific chunk"""
+
+    voice_config: Optional[VoiceConfig] = Field(
+        None, description="Optional voice configuration override"
+    )
+
+
+class RegenerateChunkResponse(BaseModel):
+    """Response after regenerating a chunk"""
+
+    success: bool = Field(True, description="Success status")
+    message: str = Field(..., description="Human-readable message")
+    chunk: AudioChunkInfo = Field(..., description="Regenerated chunk info")
+
+
+class MergeChunksResponse(BaseModel):
+    """Response after merging chunks into new audio file"""
+
+    success: bool = Field(True, description="Success status")
+    message: str = Field(..., description="Human-readable message")
+    merged_audio_id: str = Field(..., description="MongoDB _id of merged audio")
+    audio_url: str = Field(..., description="R2 URL of merged audio")
+    duration: float = Field(..., description="Total duration in seconds")
+    slide_count: int = Field(..., description="Total slides covered")
+    chunk_count: int = Field(..., description="Number of chunks merged")
+

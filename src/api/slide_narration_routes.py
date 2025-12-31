@@ -46,6 +46,12 @@ from src.models.slide_narration_models import (
     CreateSubtitleJobResponse,
     SubtitleJobStatusResponse,
     SubtitleJobStatus,
+    # Chunk management models
+    AudioChunkInfo,
+    ListAudioChunksResponse,
+    RegenerateChunkRequest,
+    RegenerateChunkResponse,
+    MergeChunksResponse,
 )
 from src.services.slide_narration_service import get_slide_narration_service
 from src.services.points_service import get_points_service
@@ -2345,3 +2351,225 @@ async def get_public_audio(
     except Exception as e:
         logger.error(f"❌ Failed to get public audio: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to get public audio: {str(e)}")
+
+
+# ============================================================
+# CHUNK MANAGEMENT ENDPOINTS (debugging & regeneration)
+# ============================================================
+
+
+@router.get(
+    "/presentations/{presentation_id}/audio/{subtitle_id}/chunks",
+    response_model=ListAudioChunksResponse,
+    summary="List All Audio Chunks for Debugging",
+    description="""
+    **List all audio chunks with detailed information for debugging**
+    
+    Returns all audio chunks for a subtitle document, including:
+    - Chunk index and audio URL
+    - Slides included in each chunk
+    - Duration and file size
+    - RMS level (audio quality indicator)
+    - Creation timestamp
+    
+    Use this to:
+    - Debug which chunks failed generation
+    - Identify silent/corrupt audio chunks
+    - Verify chunk splitting logic
+    - Find chunks that need regeneration
+    
+    **Example use case:**
+    If chunk 2 has RMS < 1000 while others have RMS > 2000, it likely failed.
+    """,
+)
+async def list_audio_chunks(
+    presentation_id: str,
+    subtitle_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """List all audio chunks with detailed debug information"""
+    try:
+        # Verify user owns presentation
+        doc_manager = DocumentManager(db)
+        presentation = doc_manager.get_document(presentation_id, user["uid"])
+        if not presentation:
+            raise HTTPException(404, "Presentation not found")
+        if presentation["userId"] != user["uid"]:
+            raise HTTPException(403, "Not your presentation")
+
+        # Get subtitle document
+        subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(subtitle_id)})
+        if not subtitle:
+            raise HTTPException(404, "Subtitle not found")
+        if subtitle["presentation_id"] != presentation_id:
+            raise HTTPException(400, "Subtitle not for this presentation")
+
+        # Get all audio chunks
+        cursor = db.presentation_audio.find(
+            {"subtitle_id": subtitle_id, "chunk_index": {"$exists": True}}
+        ).sort("chunk_index", 1)
+
+        chunks = []
+        for doc in cursor:
+            # Extract slide info
+            slides = doc.get("slides", [])
+            slide_indices = [s["slide_index"] for s in slides]
+
+            chunk_info = AudioChunkInfo(
+                chunk_index=doc["chunk_index"],
+                audio_id=str(doc["_id"]),
+                audio_url=doc["audio_url"],
+                slides=slides,
+                slide_indices=slide_indices,
+                duration=doc.get("duration", 0),
+                file_size=doc.get("file_size", 0),
+                rms=doc.get("rms"),
+                status="ready" if doc.get("rms", 0) > 100 else "failed",
+                created_at=doc.get("created_at", datetime.utcnow()),
+            )
+            chunks.append(chunk_info)
+
+        return ListAudioChunksResponse(
+            success=True,
+            subtitle_id=subtitle_id,
+            presentation_id=presentation_id,
+            language=subtitle["language"],
+            version=subtitle["version"],
+            total_chunks=len(chunks),
+            chunks=chunks,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to list chunks: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to list chunks: {str(e)}")
+
+
+@router.post(
+    "/presentations/{presentation_id}/audio/{subtitle_id}/chunks/{chunk_index}/regenerate",
+    response_model=RegenerateChunkResponse,
+    summary="Regenerate Specific Audio Chunk",
+    description="""
+    **Regenerate a specific failed audio chunk without redoing entire job**
+    
+    Use this when:
+    - One or more chunks have silent/corrupt audio
+    - You want to retry TTS generation for specific slides
+    - Testing different voice configurations
+    
+    **Process:**
+    1. Fetch chunk's slide data from subtitle document
+    2. Generate new audio with TTS API
+    3. Upload to R2 storage
+    4. Update MongoDB with new audio URL and metadata
+    
+    **Note:** Does NOT automatically merge chunks. Use merge endpoint after.
+    
+    **Example workflow:**
+    1. List chunks to find failed ones (RMS < 1000)
+    2. Regenerate failed chunks one by one
+    3. Merge all chunks into new audio file
+    """,
+)
+async def regenerate_audio_chunk(
+    presentation_id: str,
+    subtitle_id: str,
+    chunk_index: int,
+    request: RegenerateChunkRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Regenerate a specific audio chunk"""
+    try:
+        # Verify user owns presentation
+        doc_manager = DocumentManager(db)
+        presentation = doc_manager.get_document(presentation_id, user["uid"])
+        if not presentation:
+            raise HTTPException(404, "Presentation not found")
+        if presentation["userId"] != user["uid"]:
+            raise HTTPException(403, "Not your presentation")
+
+        # Get subtitle document
+        subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(subtitle_id)})
+        if not subtitle:
+            raise HTTPException(404, "Subtitle not found")
+
+        # Get chunk document
+        chunk_doc = db.presentation_audio.find_one(
+            {"subtitle_id": subtitle_id, "chunk_index": chunk_index}
+        )
+        if not chunk_doc:
+            raise HTTPException(404, f"Chunk {chunk_index} not found")
+
+        # TODO: Implement chunk regeneration in service
+        # For now, return info that regeneration needs to be implemented
+        raise HTTPException(
+            501,
+            "Chunk regeneration not yet implemented. Please regenerate entire audio job."
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to regenerate chunk: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to regenerate chunk: {str(e)}")
+
+
+@router.post(
+    "/presentations/{presentation_id}/audio/{subtitle_id}/merge",
+    response_model=MergeChunksResponse,
+    summary="Merge Audio Chunks into Single File",
+    description="""
+    **Merge all audio chunks into one complete audio file**
+    
+    Use this after:
+    - Regenerating failed chunks
+    - Verifying all chunks have valid audio
+    - Ready to create final merged audio
+    
+    **Process:**
+    1. Fetch all chunks in order (by chunk_index)
+    2. Download audio files from R2
+    3. Concatenate using pydub
+    4. Upload merged file to R2
+    5. Save as new audio document with slide_index=-1 (indicates merged file)
+    6. Update subtitle document's audio_status
+    
+    **Note:** Creates NEW audio document. Original chunks remain unchanged.
+    
+    **Example:**
+    After fixing chunk 2, call this to create final audio file for playback.
+    """,
+)
+async def merge_audio_chunks(
+    presentation_id: str,
+    subtitle_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Merge all audio chunks into single file"""
+    try:
+        # Verify user owns presentation
+        doc_manager = DocumentManager(db)
+        presentation = doc_manager.get_document(presentation_id, user["uid"])
+        if not presentation:
+            raise HTTPException(404, "Presentation not found")
+        if presentation["userId"] != user["uid"]:
+            raise HTTPException(403, "Not your presentation")
+
+        # Get subtitle document
+        subtitle = db.presentation_subtitles.find_one({"_id": ObjectId(subtitle_id)})
+        if not subtitle:
+            raise HTTPException(404, "Subtitle not found")
+
+        # TODO: Implement manual merge in service
+        # For now, return info that merge needs to be implemented
+        raise HTTPException(
+            501,
+            "Manual chunk merging not yet implemented. Chunks are auto-merged during generation."
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to merge chunks: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to merge chunks: {str(e)}")

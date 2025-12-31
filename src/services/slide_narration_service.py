@@ -851,6 +851,36 @@ Generate the complete narration in {language_name} now:"""
         version = subtitle["version"]
         slides = subtitle.get("slides", [])
 
+        # Convert language to BCP-47 for TTS API (MongoDB stores short codes)
+        bcp47_map = {
+            "ar": "ar-EG",
+            "bn": "bn-BD",
+            "nl": "nl-NL",
+            "en": "en-US",
+            "fr": "fr-FR",
+            "de": "de-DE",
+            "hi": "hi-IN",
+            "id": "id-ID",
+            "it": "it-IT",
+            "ja": "ja-JP",
+            "ko": "ko-KR",
+            "mr": "mr-IN",
+            "pl": "pl-PL",
+            "pt": "pt-BR",
+            "ro": "ro-RO",
+            "ru": "ru-RU",
+            "es": "es-ES",
+            "ta": "ta-IN",
+            "te": "te-IN",
+            "th": "th-TH",
+            "tr": "tr-TR",
+            "uk": "uk-UA",
+            "vi": "vi-VN",
+            "zh": "zh-CN",
+        }
+        tts_language = bcp47_map.get(language, f"{language}-US")  # Convert "en" → "en-US"
+        logger.info(f"🌍 Language: {language} → {tts_language} (TTS API)")
+
         # Parse voice config
         use_pro_model = voice_config.get("use_pro_model", True)
         voices = voice_config.get("voices", [])
@@ -1008,7 +1038,7 @@ Generate the complete narration in {language_name} now:"""
                 try:
                     audio_data, metadata = await tts_service.generate_audio(
                         text=chunk_text,
-                        language=language,
+                        language=tts_language,  # Use BCP-47 code (e.g., "en-US")
                         voice_name=voice_name,
                         use_pro_model=use_pro_model,
                     )
