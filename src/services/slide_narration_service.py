@@ -321,22 +321,26 @@ class SlideNarrationService:
         if mode == "presentation":
             style_instructions = """
 PRESENTATION MODE:
-- Concise and engaging narration (30-60 seconds per slide)
-- Focus on key points only
-- Professional presentation tone
+- Professional narration (40-60 seconds per slide)
+- Generate 3-4 complete sentences per slide (increased from 2-3 for better pacing)
+- Focus on key points with clear explanations
+- Professional presentation tone with natural flow
 - Clear transitions between slides
 - Assume audience is viewing slides simultaneously
 - Speaking rate: ~150 words per minute
+- Target: 15-20 minutes total for 30 slides (30-40 seconds per slide average)
 """
         else:  # academy
             style_instructions = """
 ACADEMY MODE:
-- Detailed explanatory narration (60-180 seconds per slide)
-- Explain concepts thoroughly
-- Teaching/instructional tone
-- Provide examples and context
+- Detailed teaching narration (60-120 seconds per slide)
+- Generate 5-6 complete sentences per slide (increased from 3-4 for thorough coverage)
+- Explain concepts thoroughly with examples
+- Teaching/instructional tone with context
+- Provide real-world applications and explanations
 - Assume audience is learning new material
 - Speaking rate: ~130 words per minute (slower for clarity)
+- Target: 20-30 minutes total for 30 slides (40-60 seconds per slide average)
 """
 
         # Language-specific examples (24 languages supported by Gemini TTS)
@@ -406,28 +410,49 @@ IMPORTANT - Element References:
 ⚠️ CRITICAL 2-STEP PROCESS:
 **STEP 1: Generate subtitle TEXT first**
 - Write natural, engaging narration for each slide
-- Each subtitle = 1-2 complete sentences in {language_name}
-- Focus on content quality and flow
+- Presentation mode: 3-4 complete sentences per slide
+- Academy mode: 5-6 complete sentences per slide
+- Focus on content quality and natural flow
 
 **STEP 2: Calculate TIMING for each subtitle**
-After writing text, calculate timing based on:
-- Speaking rate: {mode} mode (~150 words/min for presentation, ~130 words/min for academy)
-- Word count in subtitle text
-- Natural pauses between sentences
+CRITICAL: Timestamps must match actual audio generation timing.
 
-Formula:
+Timing Formula (EXACT - no artificial pauses):
 1. Count words in subtitle text you just wrote
-2. duration = word_count / (speaking_rate / 60)
-3. Add pauses: +0.3s between subtitles, +0.5s between slides
-4. start_time = previous subtitle's end_time + pause
-5. end_time = start_time + duration
+2. base_duration = word_count / (speaking_rate / 60)
+   - Presentation mode: 150 words/min = 2.5 words/sec
+   - Academy mode: 130 words/min = 2.17 words/sec
 
-Example calculation:
-- Text: "Chào mừng các bạn. Hôm nay chúng ta sẽ cùng khám phá AI." (12 words)
-- Speaking rate: 150 words/min = 2.5 words/sec
-- Duration: 12 / 2.5 = 4.8s
-- With pause: 4.8 + 0.3 = 5.1s
-- If first subtitle: start=0, end=5.1, duration=5.1
+3. Calculate timestamps with ONLY natural speaking pauses:
+   - If first subtitle of entire presentation: start_time = 0
+   - Otherwise: start_time = previous_subtitle.end_time + 0.3
+   - end_time = start_time + base_duration
+   - duration = base_duration
+
+⚠️ IMPORTANT: DO NOT add 1.5s or 2s pause between slides!
+- Audio generation creates continuous audio without slide gaps
+- Only 0.3s pause between subtitles for natural breathing
+- Slides transition smoothly without artificial silence
+- This ensures timestamps perfectly match actual audio duration
+
+Example calculation (Presentation mode, 150 wpm):
+Slide 0, Subtitle 0: "Chào mừng các bạn đến với khóa học AI." (9 words)
+  base_duration = 9 / 2.5 = 3.6s
+  start_time = 0.0
+  end_time = 0.0 + 3.6 = 3.6
+  duration = 3.6
+
+Slide 0, Subtitle 1: "Hôm nay chúng ta sẽ học về Machine Learning." (10 words)
+  base_duration = 10 / 2.5 = 4.0s
+  start_time = 3.6 + 0.3 = 3.9  (0.3s breathing pause)
+  end_time = 3.9 + 4.0 = 7.9
+  duration = 4.0
+
+Slide 1, Subtitle 0: "Machine Learning là một nhánh của AI." (8 words)
+  base_duration = 8 / 2.5 = 3.2s
+  start_time = 7.9 + 0.3 = 8.2  (same 0.3s pause, NO slide gap!)
+  end_time = 8.2 + 3.2 = 11.4
+  duration = 3.2
 
 OUTPUT FORMAT (JSON):
 {{
@@ -438,17 +463,17 @@ OUTPUT FORMAT (JSON):
         {{
           "subtitle_index": 0,
           "start_time": 0.0,
-          "end_time": 5.8,
-          "duration": 5.8,
+          "end_time": 3.6,
+          "duration": 3.6,
           "text": {example_text},
           "speaker_index": 0,
           "element_references": []
         }},
         {{
           "subtitle_index": 1,
-          "start_time": 6.3,
-          "end_time": 18.5,
-          "duration": 12.2,
+          "start_time": 3.9,
+          "end_time": 7.9,
+          "duration": 4.0,
           "text": "[Second subtitle in {language_name}]",
           "speaker_index": 0,
           "element_references": []
@@ -460,9 +485,9 @@ OUTPUT FORMAT (JSON):
       "subtitles": [
         {{
           "subtitle_index": 0,
-          "start_time": 0.0,
-          "end_time": 11.0,
-          "duration": 11.0,
+          "start_time": 8.2,
+          "end_time": 11.4,
+          "duration": 3.2,
           "text": "[First subtitle for slide 2 in {language_name}]",
           "speaker_index": 0,
           "element_references": []
@@ -475,11 +500,11 @@ OUTPUT FORMAT (JSON):
 REQUIREMENTS:
 1. Write ALL subtitle text in {language_name} - this is MANDATORY
 2. Generate text FIRST, then calculate timing based on word count
-3. Use speaking rate formula: duration = words / (rate/60) + pauses
-4. Each subtitle = 1-2 complete sentences in {language_name}
-5. Timestamps must be realistic and based on actual text length
-6. Match narration style to mode (presentation vs academy)
-7. Make content engaging and easy to follow in {language_name}
+3. Use EXACT formula: duration = words / (rate/60), then add 0.3s gaps
+4. Presentation: 3-4 sentences/slide, Academy: 5-6 sentences/slide
+5. Timestamps MUST be continuous across slides (no slide pauses in audio!)
+6. Match narration style to mode (professional vs teaching)
+7. Make content engaging and thorough in {language_name}
 8. Reference visual elements SPARINGLY - only meaningful diagrams/images
 9. element_references MUST be simple string array like ["elem_0"], NOT objects
 10. Leave element_references EMPTY ([]) for most subtitles
