@@ -1,6 +1,6 @@
 # Video Export Implementation Plan - WordAI Presentation to MP4
 
-**Status:** 🚧 Planning Phase
+**Status:** 🚧 Phase 1 Implementation
 **Last Updated:** January 1, 2026
 **Target:** Q1 2026
 
@@ -9,12 +9,10 @@
 ## 🎯 Overview
 
 Export WordAI presentations to MP4 video with:
-- ✅ Full HTML/CSS/Animation rendering
+- ✅ Static slideshow with fade transitions (1 screenshot per slide)
 - ✅ Multi-language audio support
-- ✅ Slide auto-advance sync with audio timestamps
-- ✅ Professional quality (1920x1080, 30 FPS, H.264)
-
----
+- ✅ Slide durations from audio timestamps
+- ✅ Optimized file size: 50-100 MB for 15-20 min video (H.264, CRF 28)
 
 ## 📊 Current State Analysis
 
@@ -33,19 +31,22 @@ MediaRecorder(canvas.captureStream(30), {
 - ❌ User phải giữ tab mở
 - ❌ Không hỗ trợ H.264 codec tốt
 - ❌ RAM/CPU client cao
+- ❌ File size quá lớn (280-560 MB cho 15-20 phút)
 
-### Backend Approach (Recommended)
+### Backend Approach (Implemented) ✅
 **Tech Stack:**
-- **Puppeteer** - Headless Chrome render HTML/CSS/Animations
-- **FFmpeg** - Video/Audio processing
-- **Bull Queue** - Job queue system
-- **Redis** - Queue storage
+- **Puppeteer** - Headless Chrome capture screenshots (1 per slide)
+- **FFmpeg** - Slideshow video + audio merge
+- **Redis Queue** - Job queue (using existing QueueManager)
+- **MongoDB** - Job status (using DBManager pattern)
 - **S3/R2** - Video storage
 
 **Benefits:**
-- ✅ 100% accurate HTML/CSS rendering
+- ✅ Accurate HTML/CSS screenshot per slide
 - ✅ Background processing
-- ✅ Professional codecs (H.264, AAC)
+- ✅ Optimized file size: 50-100 MB (vs 280-560 MB)
+- ✅ Faster rendering (30 screenshots vs 27,000 frames @ 30 FPS)
+- ✅ Lower bandwidth costs (73% reduction)
 - ✅ Queue multiple exports
 - ✅ Scalable workers
 
@@ -87,23 +88,27 @@ MediaRecorder(canvas.captureStream(30), {
 │    - Load subtitles + audio for language                     │
 │    - Parse slide_timestamps                                  │
 │                                                              │
-│  Phase 2: Puppeteer Render (30-60s)                         │
+│  Phase 2: Puppeteer Screenshots (10-15s)                    │
 │    - Launch headless Chrome                                  │
 │    - Set viewport 1920x1080                                  │
 │    - Load presentation page                                  │
 │    - For each slide:                                         │
-│       * Navigate to slide                                    │
-│       * Wait for animations                                  │
-│       * Screenshot @ 30 FPS for duration                     │
-│       * Save frames to temp folder                           │
+│       * Navigate to slide index                              │
+│       * Wait 500ms for CSS/animations to settle             │
+│       * Take 1 screenshot (PNG)                              │
+│       * Save to temp folder                                  │
+│    - Extract slide durations from slide_timestamps          │
 │                                                              │
-│  Phase 3: FFmpeg Processing (20-40s)                         │
-│    - Concat frames → video track                             │
-│    - Download audio files (chunk_0.wav, chunk_1.wav...)     │
-│    - Concat audio chunks → audio track                       │
-│    - Merge video + audio                                     │
-│    - Encode H.264 + AAC                                      │
-│    - Output: presentation_{id}_{lang}.mp4                    │
+│  Phase 3: FFmpeg Slideshow (15-25s)                         │
+│    - Create concat file with slide durations                 │
+│    - Generate video from static images:                      │
+│       * FFmpeg concat demuxer                                │
+│       * 24 FPS, H.264 CRF 28                                 │
+│       * 0.5s fade transitions between slides                 │
+│    - Download audio chunks from R2                           │
+│    - Concat audio chunks → single WAV                        │
+│    - Merge video + audio → final MP4                         │
+│    - File size: 50-100 MB (optimized)                        │
 │                                                              │
 │  Phase 4: Upload & Cleanup (10-20s)                         │
 │    - Upload MP4 to S3/R2                                     │

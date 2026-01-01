@@ -21,6 +21,7 @@ _slide_format_queue: Optional[QueueManager] = None
 _chapter_translation_queue: Optional[QueueManager] = None
 _slide_narration_subtitle_queue: Optional[QueueManager] = None
 _slide_narration_audio_queue: Optional[QueueManager] = None
+_video_export_queue: Optional[QueueManager] = None
 
 
 async def get_extraction_queue() -> QueueManager:
@@ -183,12 +184,29 @@ async def get_slide_narration_audio_queue() -> QueueManager:
     return _slide_narration_audio_queue
 
 
+async def get_video_export_queue() -> QueueManager:
+    """Get Redis queue manager for video export tasks"""
+    global _video_export_queue
+    if _video_export_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
+        _video_export_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="video_export",
+            status_expiry_hours=24,  # Keep job status for 24h
+            max_queue_size=500,  # Limit concurrent exports
+        )
+        await _video_export_queue.connect()
+        logger.info("✅ Video Export queue manager connected")
+    return _video_export_queue
+
+
 async def cleanup_queues():
     """Cleanup queue connections on shutdown"""
     global _extraction_queue, _document_queue, _storage_queue
     global _ai_editor_queue, _slide_generation_queue, _translation_queue
     global _slide_format_queue, _chapter_translation_queue
     global _slide_narration_subtitle_queue, _slide_narration_audio_queue
+    global _video_export_queue  # Add video_export to cleanup list
 
     if _extraction_queue:
         await _extraction_queue.disconnect()
@@ -239,3 +257,8 @@ async def cleanup_queues():
         await _slide_narration_audio_queue.disconnect()
         _slide_narration_audio_queue = None
         logger.info("🧹 Slide Narration Audio queue disconnected")
+
+    if _video_export_queue:
+        await _video_export_queue.disconnect()
+        _video_export_queue = None
+        logger.info("🧹 Video Export queue disconnected")

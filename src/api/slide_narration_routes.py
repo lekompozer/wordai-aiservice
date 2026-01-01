@@ -3126,3 +3126,262 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
     except Exception as e:
         logger.error(f"❌ Failed to get player data: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to get player data: {str(e)}")
+
+
+# ============================================================================
+# VIDEO EXPORT ENDPOINTS (Phase 1)
+# ============================================================================
+
+
+@router.post(
+    "/presentations/{presentation_id}/export/video",
+    summary="Export Presentation to MP4 Video",
+    description="""
+    **Export presentation to MP4 video file**
+
+    Creates a background job to generate video from presentation slides with narration audio.
+    Video is created as static slideshow with fade transitions (optimized file size: 50-100 MB).
+
+    **Process:**
+    1. Captures 1 screenshot per slide (Puppeteer)
+    2. Creates slideshow with slide durations from audio timestamps (FFmpeg)
+    3. Merges with audio narration
+    4. Uploads to S3/R2 storage
+
+    **File Size:** ~76 MB for 15 min (medium quality)
+    **Format:** MP4 (H.264 video + AAC audio)
+    **Resolution:** 1080p default (configurable)
+
+    Returns job_id for status polling.
+    """,
+)
+async def export_presentation_video(
+    presentation_id: str,
+    request: "VideoExportRequest",
+    current_user: dict = Depends(get_current_user),
+):
+    """Create video export job"""
+    try:
+        from src.models.video_export_models import (
+            VideoExportRequest,
+            VideoExportSettings,
+            VideoExportCreateResponse,
+            ExportStatus,
+        )
+        from src.models.ai_queue_tasks import VideoExportTask
+        from src.queue.queue_manager import set_job_status
+        from src.queue.queue_dependencies import get_video_export_queue
+        import secrets
+
+        user_id = current_user["uid"]
+
+        logger.info(f"🎬 Creating video export job for presentation {presentation_id}")
+        logger.info(f"   User: {user_id}")
+        logger.info(f"   Language: {request.language}")
+        logger.info(f"   Quality: {request.quality}")
+        logger.info(f"   Resolution: {request.resolution}")
+
+        # 1. Verify presentation exists
+        presentation = db.documents.find_one({"document_id": presentation_id})
+        if not presentation:
+            raise HTTPException(404, "Presentation not found")
+
+        # Verify ownership
+        if presentation.get("user_id") != user_id:
+            raise HTTPException(403, "Access denied")
+
+        # Verify document type
+        if presentation.get("document_type") != "slide":
+            raise HTTPException(400, "Document is not a slide presentation")
+
+        # 2. Check if narration exists for language
+        subtitle = db.presentation_subtitles.find_one(
+            {"presentation_id": presentation_id, "language": request.language},
+            sort=[("version", -1)],  # Latest version
+        )
+
+        if not subtitle:
+            raise HTTPException(
+                404,
+                f"No narration found for language '{request.language}'. Generate subtitles first.",
+            )
+
+        # Check if audio exists
+        if not subtitle.get("merged_audio_id"):
+            raise HTTPException(
+                400,
+                f"No audio found for language '{request.language}'. Generate audio first.",
+            )
+
+        # Verify audio URL exists
+        audio = db.presentation_audio.find_one(
+            {"_id": ObjectId(subtitle["merged_audio_id"])}
+        )
+        if not audio or not audio.get("audio_url"):
+            raise HTTPException(400, "Audio file not found. Please regenerate audio.")
+
+        # 3. Create export settings
+        settings = VideoExportSettings.from_request(request)
+
+        # 4. Create job ID
+        job_id = f"export_{secrets.token_urlsafe(12)}"
+
+        # 5. Create job in MongoDB
+        job_doc = {
+            "_id": job_id,
+            "job_id": job_id,
+            "presentation_id": presentation_id,
+            "user_id": user_id,
+            "language": request.language,
+            "settings": settings.model_dump(),
+            "status": "pending",
+            "progress": 0,
+            "current_phase": None,
+            "output_url": None,
+            "file_size": None,
+            "duration": None,
+            "error_message": None,
+            "retry_count": 0,
+            "created_at": datetime.utcnow(),
+            "started_at": None,
+            "completed_at": None,
+            "expires_at": None,  # Will be set when completed (7 days)
+        }
+
+        db.video_export_jobs.insert_one(job_doc)
+        logger.info(f"✅ Created MongoDB job: {job_id}")
+
+        # 6. Create job in Redis (for real-time polling)
+        queue = await get_video_export_queue()
+
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=job_id,
+            status="pending",
+            user_id=user_id,
+            presentation_id=presentation_id,
+            language=request.language,
+            created_at=datetime.utcnow().isoformat(),
+        )
+
+        # 7. Enqueue task
+        task = VideoExportTask(
+            job_id=job_id,
+            presentation_id=presentation_id,
+            user_id=user_id,
+            language=request.language,
+            subtitle_id=str(subtitle["_id"]),
+            audio_id=subtitle["merged_audio_id"],
+            settings=settings.model_dump(),
+        )
+
+        await queue.enqueue_generic_task(task)
+        logger.info(f"✅ Enqueued video export job: {job_id}")
+
+        return VideoExportCreateResponse(
+            job_id=job_id,
+            status=ExportStatus.PENDING,
+            message="Export job created successfully. Poll /api/export-jobs/{job_id} for status.",
+            polling_url=f"/api/export-jobs/{job_id}",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to create export job: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to create export job: {str(e)}")
+
+
+@router.get(
+    "/export-jobs/{job_id}",
+    summary="Get Video Export Job Status",
+    description="""
+    **Poll for video export job status**
+
+    Returns real-time status from Redis (24h TTL) or MongoDB backup.
+
+    **Status Values:**
+    - `pending`: Waiting in queue
+    - `processing`: Video generation in progress
+    - `completed`: Video ready for download
+    - `failed`: Export failed (see error field)
+
+    **When completed:** Response includes `download_url` (24h expiration)
+    """,
+)
+async def get_export_job_status(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get video export job status"""
+    try:
+        from src.models.video_export_models import VideoExportJobResponse, ExportStatus
+        from src.queue.queue_manager import get_job_status
+        from src.queue.queue_dependencies import get_video_export_queue
+
+        user_id = current_user["uid"]
+
+        # 1. Check Redis first (real-time status)
+        queue = await get_video_export_queue()
+        job = await get_job_status(queue.redis_client, job_id)
+
+        if not job:
+            # Fallback to MongoDB
+            job_doc = db.video_export_jobs.find_one({"_id": job_id})
+
+            if not job_doc:
+                raise HTTPException(404, "Export job not found")
+
+            # Convert MongoDB doc to dict
+            job = {
+                "job_id": job_doc["job_id"],
+                "status": job_doc["status"],
+                "progress": job_doc.get("progress", 0),
+                "current_phase": job_doc.get("current_phase"),
+                "user_id": job_doc["user_id"],
+                "presentation_id": job_doc["presentation_id"],
+                "language": job_doc["language"],
+                "output_url": job_doc.get("output_url"),
+                "file_size": job_doc.get("file_size"),
+                "duration": job_doc.get("duration"),
+                "error": job_doc.get("error_message"),
+                "created_at": job_doc["created_at"],
+            }
+
+        # 2. Verify ownership
+        if job.get("user_id") != user_id:
+            raise HTTPException(403, "Access denied")
+
+        # 3. Calculate estimated time remaining
+        estimated_time = None
+        if job["status"] == "processing":
+            progress = job.get("progress", 0)
+            if progress > 0:
+                # Rough estimate: 60 seconds total processing
+                total_time = 60
+                elapsed_ratio = progress / 100
+                elapsed = total_time * elapsed_ratio
+                remaining = total_time - elapsed
+                estimated_time = int(remaining)
+
+        # 4. Return response
+        return VideoExportJobResponse(
+            job_id=job["job_id"],
+            status=job["status"],
+            progress=job.get("progress", 0),
+            current_phase=job.get("current_phase"),
+            download_url=job.get("output_url"),
+            file_size=job.get("file_size"),
+            duration=job.get("duration"),
+            error=job.get("error"),
+            presentation_id=job["presentation_id"],
+            language=job["language"],
+            created_at=job["created_at"],
+            estimated_time_remaining=estimated_time,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get job status: {str(e)}")

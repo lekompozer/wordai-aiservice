@@ -197,3 +197,24 @@ class SlideNarrationAudioTask(BaseModel):
     priority: int = Field(default=1)
     max_retries: int = Field(default=2, description="TTS retries")
     retry_count: int = Field(default=0)
+
+
+class VideoExportTask(BaseModel):
+    """Task for Video Export queue"""
+
+    task_id: str = Field(..., description="Unique task ID (same as job_id)")
+    job_id: str = Field(..., description="Job ID for status tracking")
+    user_id: str = Field(..., description="User ID")
+    presentation_id: str = Field(..., description="Presentation ID")
+    language: str = Field(..., description="Language code (vi/en/etc)")
+    subtitle_id: str = Field(..., description="Subtitle ID for narration")
+    audio_id: str = Field(..., description="Merged audio ID")
+    settings: dict = Field(
+        ..., description="Export settings (resolution, quality, etc)"
+    )
+
+    # Task metadata
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    priority: int = Field(default=1, description="1=normal, 2=high, 3=urgent")
+    max_retries: int = Field(default=2, description="Max retries before failure")
+    retry_count: int = Field(default=0)
