@@ -60,10 +60,12 @@ class VideoExportWorker:
         self.db_manager = DBManager()
         self.db = self.db_manager.db
 
+        # Storage services (lazy init)
+        self.r2_service = None
+        self.library_manager = None
+
         # Frontend URL for loading presentations
-        self.frontend_url = os.getenv(
-            "FRONTEND_URL", "https://wordai.pro"
-        )
+        self.frontend_url = os.getenv("FRONTEND_URL", "https://wordai.pro")
 
         logger.info(f"🔧 Video Export Worker {self.worker_id} initialized")
         logger.info(f"   📡 Redis: {self.redis_url}")
@@ -80,6 +82,7 @@ class VideoExportWorker:
             # Check if Playwright is installed
             try:
                 from playwright.async_api import async_playwright
+
                 logger.info("✅ Playwright available")
             except ImportError:
                 logger.error(
@@ -110,13 +113,13 @@ class VideoExportWorker:
     ) -> List[Path]:
         """
         Capture 1 screenshot per slide at 6s mark (after animations)
-        
+
         Args:
             public_token: Public presentation token
             slide_count: Total number of slides
             output_dir: Directory to save screenshots
             job_id: Job ID for progress updates
-            
+
         Returns:
             List of screenshot paths
         """
@@ -135,7 +138,7 @@ class VideoExportWorker:
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
-                ]
+                ],
             )
 
             page = await browser.new_page(
@@ -153,7 +156,7 @@ class VideoExportWorker:
                 try:
                     # Navigate to slide
                     await page.evaluate(f"window.goToSlide({slide_idx})")
-                    
+
                     # Wait 6 seconds for animations to complete
                     await asyncio.sleep(6)
 
@@ -199,21 +202,19 @@ class VideoExportWorker:
     ) -> Dict[int, List[Path]]:
         """
         Capture 5s animation (150 frames @ 30 FPS) per slide
-        
+
         Args:
             public_token: Public presentation token
             slide_count: Total number of slides
             output_dir: Directory to save screenshots
             job_id: Job ID for progress updates
-            
+
         Returns:
             Dict mapping slide_index to list of frame paths
         """
         from playwright.async_api import async_playwright
 
-        logger.info(
-            f"🎬 Animated mode: Capturing {slide_count} slides × 150 frames..."
-        )
+        logger.info(f"🎬 Animated mode: Capturing {slide_count} slides × 150 frames...")
 
         slide_frames = {}
         presentation_url = f"{self.frontend_url}/public/presentations/{public_token}"
@@ -228,7 +229,7 @@ class VideoExportWorker:
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
                     "--disable-dev-shm-usage",
-                ]
+                ],
             )
 
             page = await browser.new_page(
@@ -258,15 +259,15 @@ class VideoExportWorker:
                     frame_interval = 1 / fps  # ~33ms per frame
                     for frame_idx in range(frames_per_slide):
                         frame_path = slide_dir / f"frame_{frame_idx:04d}.png"
-                        
+
                         await page.screenshot(
                             path=str(frame_path),
                             type="png",
                             full_page=False,
                         )
-                        
+
                         frames.append(frame_path)
-                        
+
                         # Sleep for next frame (30 FPS = 33.3ms per frame)
                         await asyncio.sleep(frame_interval)
 
@@ -294,7 +295,9 @@ class VideoExportWorker:
             await browser.close()
 
         total_frames = sum(len(frames) for frames in slide_frames.values())
-        logger.info(f"✅ Captured {total_frames} frames across {len(slide_frames)} slides")
+        logger.info(
+            f"✅ Captured {total_frames} frames across {len(slide_frames)} slides"
+        )
         return slide_frames
 
     async def download_audio(
@@ -302,12 +305,12 @@ class VideoExportWorker:
     ) -> Path:
         """
         Download merged audio file
-        
+
         Args:
             audio_url: URL to download audio from
             output_path: Path to save audio file
             job_id: Job ID for progress updates
-            
+
         Returns:
             Path to downloaded audio file
         """
@@ -318,7 +321,9 @@ class VideoExportWorker:
         async with aiohttp.ClientSession() as session:
             async with session.get(audio_url) as response:
                 if response.status != 200:
-                    raise ValueError(f"Failed to download audio: HTTP {response.status}")
+                    raise ValueError(
+                        f"Failed to download audio: HTTP {response.status}"
+                    )
 
                 # Stream to file
                 with open(output_path, "wb") as f:
@@ -340,7 +345,7 @@ class VideoExportWorker:
     ) -> Path:
         """
         Encode video in optimized mode using FFmpeg slideshow
-        
+
         Args:
             screenshot_paths: List of screenshot image paths
             slide_timestamps: List of slide timestamp dicts with start_time, end_time
@@ -348,7 +353,7 @@ class VideoExportWorker:
             output_path: Path to save final MP4
             settings: Video export settings (resolution, fps, crf, etc.)
             job_id: Job ID for progress updates
-            
+
         Returns:
             Path to encoded video file
         """
@@ -362,7 +367,10 @@ class VideoExportWorker:
             for idx, screenshot_path in enumerate(screenshot_paths):
                 # Get duration from timestamps
                 if idx < len(slide_timestamps):
-                    duration = slide_timestamps[idx]["end_time"] - slide_timestamps[idx]["start_time"]
+                    duration = (
+                        slide_timestamps[idx]["end_time"]
+                        - slide_timestamps[idx]["start_time"]
+                    )
                 else:
                     duration = 5.0  # Default 5 seconds
 
@@ -386,15 +394,24 @@ class VideoExportWorker:
 
         ffmpeg_cmd = [
             "ffmpeg",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", str(durations_file),
-            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps}",
-            "-c:v", "libx264",
-            "-crf", str(crf),
-            "-preset", "medium",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(durations_file),
+            "-vf",
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps}",
+            "-c:v",
+            "libx264",
+            "-crf",
+            str(crf),
+            "-preset",
+            "medium",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             "-y",
             str(video_only_path),
         ]
@@ -438,13 +455,19 @@ class VideoExportWorker:
 
         merge_cmd = [
             "ffmpeg",
-            "-i", str(video_only_path),
-            "-i", str(audio_path),
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "128k",
+            "-i",
+            str(video_only_path),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
             "-shortest",
-            "-movflags", "+faststart",
+            "-movflags",
+            "+faststart",
             "-y",
             str(output_path),
         ]
@@ -480,7 +503,7 @@ class VideoExportWorker:
     ) -> Path:
         """
         Encode video in animated mode using FFmpeg image2pipe
-        
+
         Args:
             slide_frames: Dict mapping slide_index to list of frame paths
             slide_timestamps: List of slide timestamp dicts
@@ -488,7 +511,7 @@ class VideoExportWorker:
             output_path: Path to save final MP4
             settings: Video export settings
             job_id: Job ID for progress updates
-            
+
         Returns:
             Path to encoded video file
         """
@@ -501,7 +524,7 @@ class VideoExportWorker:
         with open(concat_file, "w") as f:
             for slide_idx in sorted(slide_frames.keys()):
                 frames = slide_frames[slide_idx]
-                
+
                 # Animation frames (5 seconds @ 30 FPS = 150 frames)
                 for frame_path in frames:
                     f.write(f"file '{frame_path.relative_to(temp_dir)}'\n")
@@ -509,7 +532,11 @@ class VideoExportWorker:
 
                 # Freeze last frame until next slide
                 if slide_idx < len(slide_timestamps) - 1:
-                    freeze_duration = slide_timestamps[slide_idx]["end_time"] - slide_timestamps[slide_idx]["start_time"] - 5
+                    freeze_duration = (
+                        slide_timestamps[slide_idx]["end_time"]
+                        - slide_timestamps[slide_idx]["start_time"]
+                        - 5
+                    )
                     if freeze_duration > 0:
                         last_frame = frames[-1]
                         f.write(f"file '{last_frame.relative_to(temp_dir)}'\n")
@@ -534,15 +561,24 @@ class VideoExportWorker:
 
         ffmpeg_cmd = [
             "ffmpeg",
-            "-f", "concat",
-            "-safe", "0",
-            "-i", str(concat_file),
-            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps}",
-            "-c:v", "libx264",
-            "-crf", str(crf),
-            "-preset", "medium",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(concat_file),
+            "-vf",
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps}",
+            "-c:v",
+            "libx264",
+            "-crf",
+            str(crf),
+            "-preset",
+            "medium",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
             "-y",
             str(video_only_path),
         ]
@@ -583,13 +619,19 @@ class VideoExportWorker:
 
         merge_cmd = [
             "ffmpeg",
-            "-i", str(video_only_path),
-            "-i", str(audio_path),
-            "-c:v", "copy",
-            "-c:a", "aac",
-            "-b:a", "128k",
+            "-i",
+            str(video_only_path),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "copy",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
             "-shortest",
-            "-movflags", "+faststart",
+            "-movflags",
+            "+faststart",
             "-y",
             str(output_path),
         ]
@@ -614,13 +656,144 @@ class VideoExportWorker:
 
         return output_path
 
+    async def upload_to_r2_and_library(
+        self,
+        video_path: Path,
+        user_id: str,
+        presentation_id: str,
+        job_id: str,
+        export_mode: str,
+        settings: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        Upload final video to R2 and save to library_videos
+
+        Args:
+            video_path: Path to final.mp4 file
+            user_id: User ID
+            presentation_id: Presentation ID
+            job_id: Export job ID
+            export_mode: optimized or animated
+            settings: Video export settings
+
+        Returns:
+            Dict with r2_url, library_video_id, etc.
+        """
+        logger.info("☁️  Uploading video to R2...")
+
+        # Initialize services (lazy init)
+        if not self.r2_service:
+            from src.services.r2_storage_service import R2StorageService
+
+            self.r2_service = R2StorageService()
+
+        if not self.library_manager:
+            from src.services.library_manager import LibraryManager
+
+            self.library_manager = LibraryManager(db=self.db)
+
+        # Read video file
+        with open(video_path, "rb") as f:
+            video_bytes = f.read()
+
+        file_size = len(video_bytes)
+        file_size_mb = file_size / (1024 * 1024)
+
+        # Generate R2 key
+        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        file_name = f"export_{job_id}_{export_mode}.mp4"
+        r2_key = f"videos/exports/{user_id}/{presentation_id}/{timestamp}_{job_id}.mp4"
+
+        # Upload to R2
+        upload_result = await self.r2_service.upload_file(
+            file_content=video_bytes,
+            r2_key=r2_key,
+            content_type="video/mp4",
+        )
+
+        r2_url = upload_result["public_url"]
+        logger.info(f"   ✅ Uploaded to R2: {r2_url}")
+
+        # Get video metadata
+        resolution = settings.get("resolution", "1080p")
+        width, height = (1920, 1080) if resolution == "1080p" else (1280, 720)
+        fps = settings.get("fps", 24)
+        crf = settings.get("crf", 28)
+
+        # Get video duration from video file (using ffprobe)
+        try:
+            ffprobe_cmd = [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(video_path),
+            ]
+            process = await asyncio.create_subprocess_exec(
+                *ffprobe_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await process.communicate()
+            duration = float(stdout.decode().strip()) if stdout else 0
+        except Exception as e:
+            logger.warning(f"   ⚠️  Could not get video duration: {e}")
+            duration = 0
+
+        # Save to library_videos
+        library_record = self.library_manager.save_library_file(
+            user_id=user_id,
+            filename=file_name,
+            file_type="video",
+            category="video",
+            r2_url=r2_url,
+            r2_key=r2_key,
+            file_size=file_size,
+            mime_type="video/mp4",
+            metadata={
+                "source_type": "presentation_export",
+                "presentation_id": presentation_id,
+                "export_job_id": job_id,
+                "export_mode": export_mode,
+                "resolution": resolution,
+                "width": width,
+                "height": height,
+                "fps": fps,
+                "crf": crf,
+                "duration_seconds": duration,
+                "codec": "h264",
+                "audio_codec": "aac",
+            },
+        )
+
+        library_video_id = library_record.get(
+            "library_id", library_record.get("file_id")
+        )
+
+        logger.info(f"   ✅ Saved to library_videos: {library_video_id}")
+        logger.info(
+            f"   📊 File size: {file_size_mb:.1f} MB, Duration: {duration:.1f}s"
+        )
+
+        return {
+            "r2_url": r2_url,
+            "r2_key": r2_key,
+            "library_video_id": library_video_id,
+            "file_size": file_size,
+            "file_size_mb": file_size_mb,
+            "duration": duration,
+        }
+
     async def process_task(self, task: VideoExportTask) -> bool:
         """
         Process a single video export task
-        
+
         Args:
             task: VideoExportTask from Redis queue
-            
+
         Returns:
             bool: True if processing successful
         """
@@ -677,7 +850,9 @@ class VideoExportWorker:
                 {"presentation_id": task.presentation_id}
             )
             if not sharing_config or not sharing_config.get("public_token"):
-                raise ValueError("Presentation not shared publicly. Generate public link first.")
+                raise ValueError(
+                    "Presentation not shared publicly. Generate public link first."
+                )
 
             public_token = sharing_config["public_token"]
             slide_count = len(presentation.get("slide_backgrounds", []))
@@ -750,6 +925,7 @@ class VideoExportWorker:
 
             # Save screenshot metadata for Phase 3 (FFmpeg)
             import json
+
             metadata_path = temp_dir / "screenshot_metadata.json"
             with open(metadata_path, "w") as f:
                 json.dump(screenshot_data, f, indent=2)
@@ -797,10 +973,31 @@ class VideoExportWorker:
                     job_id=job_id,
                 )
 
-            # 6. TODO Phase 4: Upload to S3/R2 (for now, just store local path)
-            # Get final file size
-            file_size_mb = final_video_path.stat().st_size / (1024 * 1024)
-            
+            # 6. Upload to R2 and save to library_videos
+            logger.info("☁️  Phase 4: Uploading to R2 storage...")
+
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="processing",
+                progress=90,
+                current_phase="upload",
+            )
+
+            upload_result = await self.upload_to_r2_and_library(
+                video_path=final_video_path,
+                user_id=task.user_id,
+                presentation_id=task.presentation_id,
+                job_id=job_id,
+                export_mode=task.export_mode,
+                settings=task.settings,
+            )
+
+            r2_url = upload_result["r2_url"]
+            library_video_id = upload_result["library_video_id"]
+            file_size_mb = upload_result["file_size_mb"]
+            duration = upload_result["duration"]
+
             # Mark as completed
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
@@ -808,8 +1005,10 @@ class VideoExportWorker:
                 status="completed",
                 progress=100,
                 current_phase="completed",
-                output_path=str(final_video_path),
+                output_url=r2_url,
+                library_video_id=library_video_id,
                 file_size_mb=file_size_mb,
+                duration_seconds=duration,
             )
 
             self.db.video_export_jobs.update_one(
@@ -819,24 +1018,37 @@ class VideoExportWorker:
                         "status": "completed",
                         "progress": 100,
                         "current_phase": "completed",
-                        "output_path": str(final_video_path),
+                        "output_url": r2_url,
+                        "library_video_id": library_video_id,
                         "file_size": file_size_mb,
+                        "duration": duration,
                         "updated_at": datetime.utcnow(),
                         "completed_at": datetime.utcnow(),
                     }
                 },
             )
 
+            # Cleanup temp directory
+            try:
+                shutil.rmtree(temp_dir)
+                logger.info(f"   🗑️  Cleaned up temp directory: {temp_dir}")
+            except Exception as cleanup_error:
+                logger.warning(f"   ⚠️  Failed to cleanup {temp_dir}: {cleanup_error}")
+
             elapsed = (datetime.utcnow() - start_time).total_seconds()
             logger.info(f"✅ Video export job {job_id} completed in {elapsed:.1f}s")
-            logger.info(f"   Output: {final_video_path} ({file_size_mb:.1f} MB)")
-            logger.info(f"   TODO Phase 4: Upload to S3/R2 storage")
+            logger.info(f"   📹 Video URL: {r2_url}")
+            logger.info(f"   📚 Library ID: {library_video_id}")
+            logger.info(f"   📊 File size: {file_size_mb:.1f} MB")
+            logger.info(f"   ⏱️  Duration: {duration:.1f}s")
 
             return True
 
         except Exception as e:
             error_msg = str(e)
-            logger.error(f"❌ Video export job {job_id} failed: {error_msg}", exc_info=True)
+            logger.error(
+                f"❌ Video export job {job_id} failed: {error_msg}", exc_info=True
+            )
 
             # Update status to failed
             await set_job_status(
@@ -866,7 +1078,9 @@ class VideoExportWorker:
                     shutil.rmtree(temp_dir)
                     logger.info(f"   🗑️  Cleaned up temp directory: {temp_dir}")
                 except Exception as cleanup_error:
-                    logger.warning(f"   ⚠️  Failed to cleanup {temp_dir}: {cleanup_error}")
+                    logger.warning(
+                        f"   ⚠️  Failed to cleanup {temp_dir}: {cleanup_error}"
+                    )
 
             return False
 

@@ -14,7 +14,7 @@ Python worker that processes video export tasks from Redis queue using Playwrigh
 
 ### Animated Mode (Premium)
 - **150 frames per slide** (5s @ 30 FPS animation)
-- **File size:** ~61 MB for 15 min presentation  
+- **File size:** ~61 MB for 15 min presentation
 - **Generation:** ~8 minutes
 - **Use case:** Marketing, professional presentations
 
@@ -141,7 +141,7 @@ FRONTEND_URL=https://wordai.pro  # For loading presentations
 - **Viewport:** 1920×1080 (Full HD)
 - **Device scale:** 1× (no HiDPI)
 - **Headless:** True (no GUI)
-- **Chromium args:** 
+- **Chromium args:**
   - `--no-sandbox`
   - `--disable-setuid-sandbox`
   - `--disable-dev-shm-usage`
@@ -198,7 +198,7 @@ Worker currently stops after screenshots (50% progress). Phase 3 will implement:
 1. **FFmpeg Encoding**
    - Optimized: Concat filter with durations.txt
    - Animated: Encode animation segments
-   
+
 2. **Audio Merging**
    - Download merged audio
    - Sync with video
@@ -272,5 +272,5 @@ docker-compose up -d --scale video-export-worker=3
 
 ---
 
-**Status:** Phase 2 Complete ✅  
+**Status:** Phase 2 Complete ✅
 **Next:** Phase 3 - FFmpeg Encoding

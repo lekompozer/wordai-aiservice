@@ -219,6 +219,7 @@ class VideoExportJobResponse(BaseModel):
 
     # Output (only when completed)
     download_url: Optional[str] = None
+    library_video_id: Optional[str] = Field(None, description="Library video ID")
     file_size: Optional[int] = None
     duration: Optional[float] = None
 
