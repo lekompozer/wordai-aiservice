@@ -3153,6 +3153,8 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
     **Resolution:** 1080p default (configurable)
 
     Returns job_id for status polling.
+
+    **Authentication:** Required (must be system user). If presentation is public, any authenticated user can export.
     """,
 )
 async def export_presentation_video(
@@ -3187,15 +3189,65 @@ async def export_presentation_video(
         if not presentation:
             raise HTTPException(404, "Presentation not found")
 
-        # Verify ownership
-        if presentation.get("user_id") != user_id:
-            raise HTTPException(403, "Access denied")
+        # 2. Check sharing settings
+        sharing_config = db.presentation_sharing_config.find_one(
+            {"presentation_id": presentation_id}
+        )
+
+        is_public = sharing_config and sharing_config.get("is_public", False)
+        is_owner = presentation.get("user_id") == user_id
+
+        # Check if download is allowed (default: allow if no config)
+        allow_download = True
+        if sharing_config and "sharing_settings" in sharing_config:
+            allow_download = sharing_config["sharing_settings"].get(
+                "allow_download", True
+            )
+
+        # 3. Authorization check
+        if not is_owner:
+            # Not owner - check if public and download allowed
+            if not is_public:
+                raise HTTPException(
+                    403, "Presentation is private. Only owner can export."
+                )
+            if not allow_download:
+                raise HTTPException(
+                    403, "Video download is not enabled for this presentation"
+                )
+
+            logger.info(
+                f"   Public access: User {user_id} exporting public presentation"
+            )
 
         # Verify document type
         if presentation.get("document_type") != "slide":
             raise HTTPException(400, "Document is not a slide presentation")
 
-        # 2. Check if narration exists for language
+        # 4. Rate limiting: 3 minutes between exports per user
+        from datetime import timedelta
+
+        rate_limit_key = f"video_export_rate_limit:{user_id}"
+
+        # Check Redis for last export time
+        queue = await get_video_export_queue()
+        last_export_time = await queue.redis_client.get(rate_limit_key)
+
+        if last_export_time:
+            # Calculate time since last export
+            last_time = datetime.fromisoformat(last_export_time.decode())
+            time_diff = datetime.utcnow() - last_time
+            wait_seconds = 180 - int(
+                time_diff.total_seconds()
+            )  # 3 minutes = 180 seconds
+
+            if wait_seconds > 0:
+                raise HTTPException(
+                    429,
+                    f"Rate limit exceeded. Please wait {wait_seconds} seconds before creating another export.",
+                )
+
+        # 5. Check if narration exists for language
         subtitle = db.presentation_subtitles.find_one(
             {"presentation_id": presentation_id, "language": request.language},
             sort=[("version", -1)],  # Latest version
@@ -3322,6 +3374,13 @@ async def export_presentation_video(
 
         await queue.enqueue_generic_task(task)
         logger.info(f"✅ Enqueued video export job: {job_id}")
+
+        # 10. Set rate limit timestamp (3 minutes TTL)
+        await queue.redis_client.setex(
+            rate_limit_key,
+            180,  # 3 minutes in seconds
+            datetime.utcnow().isoformat()
+        )
 
         return VideoExportCreateResponse(
             job_id=job_id,
