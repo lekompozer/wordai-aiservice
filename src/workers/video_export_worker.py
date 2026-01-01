@@ -297,6 +297,323 @@ class VideoExportWorker:
         logger.info(f"✅ Captured {total_frames} frames across {len(slide_frames)} slides")
         return slide_frames
 
+    async def download_audio(
+        self, audio_url: str, output_path: Path, job_id: str
+    ) -> Path:
+        """
+        Download merged audio file
+        
+        Args:
+            audio_url: URL to download audio from
+            output_path: Path to save audio file
+            job_id: Job ID for progress updates
+            
+        Returns:
+            Path to downloaded audio file
+        """
+        import aiohttp
+
+        logger.info(f"🎵 Downloading audio from: {audio_url}")
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(audio_url) as response:
+                if response.status != 200:
+                    raise ValueError(f"Failed to download audio: HTTP {response.status}")
+
+                # Stream to file
+                with open(output_path, "wb") as f:
+                    async for chunk in response.content.iter_chunked(8192):
+                        f.write(chunk)
+
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+        logger.info(f"✅ Audio downloaded: {output_path.name} ({file_size_mb:.1f} MB)")
+        return output_path
+
+    async def encode_video_optimized(
+        self,
+        screenshot_paths: List[Path],
+        slide_timestamps: List[Dict[str, float]],
+        audio_path: Path,
+        output_path: Path,
+        settings: Dict[str, Any],
+        job_id: str,
+    ) -> Path:
+        """
+        Encode video in optimized mode using FFmpeg slideshow
+        
+        Args:
+            screenshot_paths: List of screenshot image paths
+            slide_timestamps: List of slide timestamp dicts with start_time, end_time
+            audio_path: Path to audio file
+            output_path: Path to save final MP4
+            settings: Video export settings (resolution, fps, crf, etc.)
+            job_id: Job ID for progress updates
+            
+        Returns:
+            Path to encoded video file
+        """
+        logger.info(f"🎬 Encoding optimized video...")
+
+        temp_dir = screenshot_paths[0].parent
+
+        # 1. Create durations.txt with slide timestamps
+        durations_file = temp_dir / "durations.txt"
+        with open(durations_file, "w") as f:
+            for idx, screenshot_path in enumerate(screenshot_paths):
+                # Get duration from timestamps
+                if idx < len(slide_timestamps):
+                    duration = slide_timestamps[idx]["end_time"] - slide_timestamps[idx]["start_time"]
+                else:
+                    duration = 5.0  # Default 5 seconds
+
+                f.write(f"file '{screenshot_path.name}'\n")
+                f.write(f"duration {duration}\n")
+
+            # FFmpeg requires last file repeated without duration
+            if screenshot_paths:
+                f.write(f"file '{screenshot_paths[-1].name}'\n")
+
+        logger.info(f"   Created durations.txt with {len(screenshot_paths)} slides")
+
+        # 2. Get encoding settings
+        crf = settings.get("crf", 28)
+        fps = settings.get("fps", 24)
+        resolution = settings.get("resolution", "1080p")
+        width, height = (1920, 1080) if resolution == "1080p" else (1280, 720)
+
+        # 3. Encode video with FFmpeg concat demuxer
+        video_only_path = temp_dir / "video_only.mp4"
+
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(durations_file),
+            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps}",
+            "-c:v", "libx264",
+            "-crf", str(crf),
+            "-preset", "medium",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-y",
+            str(video_only_path),
+        ]
+
+        logger.info(f"   FFmpeg command: {' '.join(ffmpeg_cmd)}")
+
+        # Run FFmpeg
+        process = await asyncio.create_subprocess_exec(
+            *ffmpeg_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=str(temp_dir),
+        )
+
+        # Update progress: encoding (50-80%)
+        await set_job_status(
+            redis_client=self.queue_manager.redis_client,
+            job_id=job_id,
+            status="processing",
+            progress=65,
+            current_phase="encode",
+        )
+
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "FFmpeg encoding failed"
+            logger.error(f"   ❌ FFmpeg error: {error_msg}")
+            raise RuntimeError(f"FFmpeg encoding failed: {error_msg}")
+
+        logger.info(f"   ✅ Video encoded: {video_only_path.name}")
+
+        # 4. Merge with audio
+        await set_job_status(
+            redis_client=self.queue_manager.redis_client,
+            job_id=job_id,
+            status="processing",
+            progress=80,
+            current_phase="merge",
+        )
+
+        merge_cmd = [
+            "ffmpeg",
+            "-i", str(video_only_path),
+            "-i", str(audio_path),
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-shortest",
+            "-movflags", "+faststart",
+            "-y",
+            str(output_path),
+        ]
+
+        logger.info(f"   Merging audio: {' '.join(merge_cmd)}")
+
+        process = await asyncio.create_subprocess_exec(
+            *merge_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "Audio merge failed"
+            logger.error(f"   ❌ Merge error: {error_msg}")
+            raise RuntimeError(f"Audio merge failed: {error_msg}")
+
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+        logger.info(f"✅ Final video: {output_path.name} ({file_size_mb:.1f} MB)")
+
+        return output_path
+
+    async def encode_video_animated(
+        self,
+        slide_frames: Dict[int, List[Path]],
+        slide_timestamps: List[Dict[str, float]],
+        audio_path: Path,
+        output_path: Path,
+        settings: Dict[str, Any],
+        job_id: str,
+    ) -> Path:
+        """
+        Encode video in animated mode using FFmpeg image2pipe
+        
+        Args:
+            slide_frames: Dict mapping slide_index to list of frame paths
+            slide_timestamps: List of slide timestamp dicts
+            audio_path: Path to audio file
+            output_path: Path to save final MP4
+            settings: Video export settings
+            job_id: Job ID for progress updates
+            
+        Returns:
+            Path to encoded video file
+        """
+        logger.info(f"🎬 Encoding animated video...")
+
+        temp_dir = list(slide_frames.values())[0][0].parent.parent
+
+        # 1. Create concat file listing all frame sequences
+        concat_file = temp_dir / "concat.txt"
+        with open(concat_file, "w") as f:
+            for slide_idx in sorted(slide_frames.keys()):
+                frames = slide_frames[slide_idx]
+                
+                # Animation frames (5 seconds @ 30 FPS = 150 frames)
+                for frame_path in frames:
+                    f.write(f"file '{frame_path.relative_to(temp_dir)}'\n")
+                    f.write(f"duration {1/30}\n")  # 30 FPS
+
+                # Freeze last frame until next slide
+                if slide_idx < len(slide_timestamps) - 1:
+                    freeze_duration = slide_timestamps[slide_idx]["end_time"] - slide_timestamps[slide_idx]["start_time"] - 5
+                    if freeze_duration > 0:
+                        last_frame = frames[-1]
+                        f.write(f"file '{last_frame.relative_to(temp_dir)}'\n")
+                        f.write(f"duration {freeze_duration}\n")
+
+            # FFmpeg requires last file repeated
+            if slide_frames:
+                last_slide = max(slide_frames.keys())
+                last_frame = slide_frames[last_slide][-1]
+                f.write(f"file '{last_frame.relative_to(temp_dir)}'\n")
+
+        logger.info(f"   Created concat file for {len(slide_frames)} slides")
+
+        # 2. Get encoding settings
+        crf = settings.get("crf", 25)
+        fps = settings.get("fps", 30)
+        resolution = settings.get("resolution", "1080p")
+        width, height = (1920, 1080) if resolution == "1080p" else (1280, 720)
+
+        # 3. Encode video
+        video_only_path = temp_dir / "video_only.mp4"
+
+        ffmpeg_cmd = [
+            "ffmpeg",
+            "-f", "concat",
+            "-safe", "0",
+            "-i", str(concat_file),
+            "-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps}",
+            "-c:v", "libx264",
+            "-crf", str(crf),
+            "-preset", "medium",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
+            "-y",
+            str(video_only_path),
+        ]
+
+        logger.info(f"   FFmpeg command: {' '.join(ffmpeg_cmd)}")
+
+        await set_job_status(
+            redis_client=self.queue_manager.redis_client,
+            job_id=job_id,
+            status="processing",
+            progress=65,
+            current_phase="encode",
+        )
+
+        process = await asyncio.create_subprocess_exec(
+            *ffmpeg_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "FFmpeg encoding failed"
+            logger.error(f"   ❌ FFmpeg error: {error_msg}")
+            raise RuntimeError(f"FFmpeg encoding failed: {error_msg}")
+
+        logger.info(f"   ✅ Video encoded: {video_only_path.name}")
+
+        # 4. Merge with audio
+        await set_job_status(
+            redis_client=self.queue_manager.redis_client,
+            job_id=job_id,
+            status="processing",
+            progress=80,
+            current_phase="merge",
+        )
+
+        merge_cmd = [
+            "ffmpeg",
+            "-i", str(video_only_path),
+            "-i", str(audio_path),
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-shortest",
+            "-movflags", "+faststart",
+            "-y",
+            str(output_path),
+        ]
+
+        logger.info(f"   Merging audio...")
+
+        process = await asyncio.create_subprocess_exec(
+            *merge_cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        stdout, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            error_msg = stderr.decode() if stderr else "Audio merge failed"
+            logger.error(f"   ❌ Merge error: {error_msg}")
+            raise RuntimeError(f"Audio merge failed: {error_msg}")
+
+        file_size_mb = output_path.stat().st_size / (1024 * 1024)
+        logger.info(f"✅ Final video: {output_path.name} ({file_size_mb:.1f} MB)")
+
+        return output_path
+
     async def process_task(self, task: VideoExportTask) -> bool:
         """
         Process a single video export task
@@ -392,6 +709,7 @@ class VideoExportWorker:
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
+                status="processing",
                 progress=10,
                 current_phase="screenshot",
             )
@@ -442,20 +760,56 @@ class VideoExportWorker:
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
+                status="processing",
                 progress=50,
                 current_phase="encode",
                 screenshot_metadata_path=str(metadata_path),
             )
 
-            # TODO: Phase 3 - FFmpeg encoding will be implemented next
-            # For now, mark as completed with note
+            # 4. Download audio
+            logger.info("🎵 Downloading audio...")
+            audio_path = temp_dir / "audio.mp3"
+            await self.download_audio(
+                audio_url=audio["audio_url"],
+                output_path=audio_path,
+                job_id=job_id,
+            )
+
+            # 5. Encode video based on mode
+            final_video_path = temp_dir / "final.mp4"
+
+            if task.export_mode == "optimized":
+                await self.encode_video_optimized(
+                    screenshot_paths=screenshot_paths,
+                    slide_timestamps=slide_timestamps,
+                    audio_path=audio_path,
+                    output_path=final_video_path,
+                    settings=task.settings,
+                    job_id=job_id,
+                )
+            else:  # animated
+                await self.encode_video_animated(
+                    slide_frames=slide_frames,
+                    slide_timestamps=slide_timestamps,
+                    audio_path=audio_path,
+                    output_path=final_video_path,
+                    settings=task.settings,
+                    job_id=job_id,
+                )
+
+            # 6. TODO Phase 4: Upload to S3/R2 (for now, just store local path)
+            # Get final file size
+            file_size_mb = final_video_path.stat().st_size / (1024 * 1024)
+            
+            # Mark as completed
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
                 status="completed",
-                progress=50,  # Only screenshots done
-                current_phase="encode",
-                note="Phase 2 complete - screenshots captured. Phase 3 (FFmpeg encoding) pending.",
+                progress=100,
+                current_phase="completed",
+                output_path=str(final_video_path),
+                file_size_mb=file_size_mb,
             )
 
             self.db.video_export_jobs.update_one(
@@ -463,18 +817,20 @@ class VideoExportWorker:
                 {
                     "$set": {
                         "status": "completed",
-                        "progress": 50,
-                        "current_phase": "encode",
+                        "progress": 100,
+                        "current_phase": "completed",
+                        "output_path": str(final_video_path),
+                        "file_size": file_size_mb,
                         "updated_at": datetime.utcnow(),
                         "completed_at": datetime.utcnow(),
-                        "note": "Phase 2 complete - screenshots captured. Phase 3 pending.",
                     }
                 },
             )
 
             elapsed = (datetime.utcnow() - start_time).total_seconds()
-            logger.info(f"✅ Video export job {job_id} completed (Phase 2) in {elapsed:.1f}s")
-            logger.info(f"   Screenshots saved to: {temp_dir}")
+            logger.info(f"✅ Video export job {job_id} completed in {elapsed:.1f}s")
+            logger.info(f"   Output: {final_video_path} ({file_size_mb:.1f} MB)")
+            logger.info(f"   TODO Phase 4: Upload to S3/R2 storage")
 
             return True
 
@@ -522,7 +878,9 @@ class VideoExportWorker:
         while self.running:
             try:
                 # Process tasks from queue
-                task_dict = await self.queue_manager.dequeue_generic_task()
+                task_dict = await self.queue_manager.dequeue_generic_task(
+                    worker_id=self.worker_id
+                )
 
                 if task_dict:
                     # Parse task
