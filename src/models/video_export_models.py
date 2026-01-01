@@ -43,6 +43,13 @@ class ExportPhase(str, Enum):
     UPLOAD = "upload"  # Uploading to S3
 
 
+class ExportMode(str, Enum):
+    """Export mode (affects file size and quality)"""
+
+    OPTIMIZED = "optimized"  # Static slideshow (~48 MB, 2.5 min generation)
+    ANIMATED = "animated"  # 5s animation intro per slide (~61 MB, 8 min generation)
+
+
 class VideoExportRequest(BaseModel):
     """Request model for video export"""
 
@@ -50,6 +57,10 @@ class VideoExportRequest(BaseModel):
         default="vi",
         description="Language code for narration (vi/en/ja/etc)",
         pattern="^[a-z]{2}$",
+    )
+    export_mode: ExportMode = Field(
+        default=ExportMode.OPTIMIZED,
+        description="Export mode: optimized (48MB, fast) or animated (61MB, quality)",
     )
     resolution: VideoResolution = Field(
         default=VideoResolution.FULL_HD_1080,
@@ -66,6 +77,7 @@ class VideoExportRequest(BaseModel):
         json_schema_extra = {
             "example": {
                 "language": "vi",
+                "export_mode": "optimized",
                 "resolution": "1080p",
                 "quality": "medium",
                 "include_subtitles": False,
@@ -76,11 +88,14 @@ class VideoExportRequest(BaseModel):
 class VideoExportSettings(BaseModel):
     """Video export settings (internal)"""
 
+    # Export mode
+    export_mode: ExportMode
+
     # Video settings
     resolution: VideoResolution
     width: int  # Calculated from resolution
     height: int
-    fps: int = 24  # 24 FPS for static slideshow
+    fps: int  # 24 FPS for static, 30 FPS for animated
     crf: int  # Constant Rate Factor (quality) - calculated from quality preset
     preset: str = "medium"  # FFmpeg preset (fast/medium/slow)
 
@@ -104,20 +119,31 @@ class VideoExportSettings(BaseModel):
         }
 
         # Quality mapping (CRF values)
-        quality_map = {
-            VideoQuality.LOW: 30,
-            VideoQuality.MEDIUM: 28,
-            VideoQuality.HIGH: 26,
-        }
+        # Lower CRF for static (better compression), higher for animated
+        if request.export_mode == ExportMode.OPTIMIZED:
+            quality_map = {
+                VideoQuality.LOW: 30,
+                VideoQuality.MEDIUM: 28,
+                VideoQuality.HIGH: 26,
+            }
+            fps = 24
+        else:  # ANIMATED
+            quality_map = {
+                VideoQuality.LOW: 28,
+                VideoQuality.MEDIUM: 25,
+                VideoQuality.HIGH: 23,
+            }
+            fps = 30
 
         width, height = resolution_map[request.resolution]
         crf = quality_map[request.quality]
 
         return VideoExportSettings(
+            export_mode=request.export_mode,
             resolution=request.resolution,
             width=width,
             height=height,
-            fps=24,
+            fps=fps,
             crf=crf,
             preset="medium",
             audio_bitrate="192k" if request.quality != VideoQuality.LOW else "128k",
@@ -202,6 +228,8 @@ class VideoExportJobResponse(BaseModel):
     # Metadata
     presentation_id: str
     language: str
+    export_mode: Optional[str] = None
+    estimated_size_mb: Optional[int] = None
     created_at: datetime
     estimated_time_remaining: Optional[int] = Field(
         None, description="Estimated seconds remaining"

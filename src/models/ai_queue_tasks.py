@@ -209,8 +209,12 @@ class VideoExportTask(BaseModel):
     language: str = Field(..., description="Language code (vi/en/etc)")
     subtitle_id: str = Field(..., description="Subtitle ID for narration")
     audio_id: str = Field(..., description="Merged audio ID")
+    export_mode: str = Field(
+        default="optimized",
+        description="Export mode: 'optimized' (48MB, 2.5min) or 'animated' (61MB, 8min)",
+    )
     settings: dict = Field(
-        ..., description="Export settings (resolution, quality, etc)"
+        ..., description="Export settings (resolution, quality, fps)"
     )
 
     # Task metadata

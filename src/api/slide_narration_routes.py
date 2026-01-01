@@ -3178,6 +3178,7 @@ async def export_presentation_video(
         logger.info(f"🎬 Creating video export job for presentation {presentation_id}")
         logger.info(f"   User: {user_id}")
         logger.info(f"   Language: {request.language}")
+        logger.info(f"   Export Mode: {request.export_mode}")
         logger.info(f"   Quality: {request.quality}")
         logger.info(f"   Resolution: {request.resolution}")
 
@@ -3223,17 +3224,56 @@ async def export_presentation_video(
         # 3. Create export settings
         settings = VideoExportSettings.from_request(request)
 
-        # 4. Create job ID
+        # 4. Calculate estimated file size based on mode
+        audio_duration = audio.get("audio_metadata", {}).get(
+            "duration_seconds", 900
+        )  # Default 15 min
+        estimated_size_mb = 48  # Default for optimized mode
+
+        if request.export_mode == "optimized":
+            # Static slideshow: ~48 MB for 15 min
+            # Formula: (duration_minutes × 0.3 Mbps / 8) + (audio_minutes × 128 kbps / 8 / 1024)
+            video_mb = (audio_duration / 60) * 0.3 / 8 * 1000
+            audio_mb = (audio_duration / 60) * 128 / 8 / 1024 * 1000
+            estimated_size_mb = int(video_mb + audio_mb)
+        elif request.export_mode == "animated":
+            # 5s animation per slide + freeze: ~61 MB for 15 min
+            # Rough estimate based on slide count
+            slide_count = len(presentation.get("slide_backgrounds", []))
+            animation_seconds = slide_count * 5  # 5s per slide
+            static_seconds = audio_duration - animation_seconds
+            video_mb = (animation_seconds / 60) * 2 / 8 * 1000 + (
+                static_seconds / 60
+            ) * 0.1 / 8 * 1000
+            audio_mb = (audio_duration / 60) * 128 / 8 / 1024 * 1000
+            estimated_size_mb = int(video_mb + audio_mb)
+
+        # 5. Estimate generation time
+        slide_count = len(presentation.get("slide_backgrounds", []))
+        if request.export_mode == "optimized":
+            # 2s per slide + encoding
+            estimated_time_seconds = (slide_count * 2) + 60
+        else:
+            # 14s per slide + encoding
+            estimated_time_seconds = (slide_count * 14) + 60
+
+        logger.info(f"   📊 Estimated size: {estimated_size_mb} MB")
+        logger.info(f"   ⏱️  Estimated time: {estimated_time_seconds}s")
+
+        # 6. Create job ID
         job_id = f"export_{secrets.token_urlsafe(12)}"
 
-        # 5. Create job in MongoDB
+        # 7. Create job in MongoDB
         job_doc = {
             "_id": job_id,
             "job_id": job_id,
             "presentation_id": presentation_id,
             "user_id": user_id,
             "language": request.language,
+            "export_mode": request.export_mode,
             "settings": settings.model_dump(),
+            "estimated_size_mb": estimated_size_mb,
+            "estimated_time_seconds": estimated_time_seconds,
             "status": "pending",
             "progress": 0,
             "current_phase": None,
@@ -3251,7 +3291,7 @@ async def export_presentation_video(
         db.video_export_jobs.insert_one(job_doc)
         logger.info(f"✅ Created MongoDB job: {job_id}")
 
-        # 6. Create job in Redis (for real-time polling)
+        # 8. Create job in Redis (for real-time polling)
         queue = await get_video_export_queue()
 
         await set_job_status(
@@ -3261,17 +3301,22 @@ async def export_presentation_video(
             user_id=user_id,
             presentation_id=presentation_id,
             language=request.language,
+            export_mode=request.export_mode,
+            estimated_size_mb=estimated_size_mb,
+            estimated_time_seconds=estimated_time_seconds,
             created_at=datetime.utcnow().isoformat(),
         )
 
-        # 7. Enqueue task
+        # 9. Enqueue task
         task = VideoExportTask(
+            task_id=job_id,
             job_id=job_id,
             presentation_id=presentation_id,
             user_id=user_id,
             language=request.language,
             subtitle_id=str(subtitle["_id"]),
             audio_id=subtitle["merged_audio_id"],
+            export_mode=request.export_mode,
             settings=settings.model_dump(),
         )
 
@@ -3341,6 +3386,8 @@ async def get_export_job_status(
                 "user_id": job_doc["user_id"],
                 "presentation_id": job_doc["presentation_id"],
                 "language": job_doc["language"],
+                "export_mode": job_doc.get("export_mode"),
+                "estimated_size_mb": job_doc.get("estimated_size_mb"),
                 "output_url": job_doc.get("output_url"),
                 "file_size": job_doc.get("file_size"),
                 "duration": job_doc.get("duration"),
@@ -3357,8 +3404,8 @@ async def get_export_job_status(
         if job["status"] == "processing":
             progress = job.get("progress", 0)
             if progress > 0:
-                # Rough estimate: 60 seconds total processing
-                total_time = 60
+                # Use actual estimated time from job doc
+                total_time = job.get("estimated_time_seconds", 60)
                 elapsed_ratio = progress / 100
                 elapsed = total_time * elapsed_ratio
                 remaining = total_time - elapsed
@@ -3376,6 +3423,8 @@ async def get_export_job_status(
             error=job.get("error"),
             presentation_id=job["presentation_id"],
             language=job["language"],
+            export_mode=job.get("export_mode"),
+            estimated_size_mb=job.get("estimated_size_mb"),
             created_at=job["created_at"],
             estimated_time_remaining=estimated_time,
         )
