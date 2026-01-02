@@ -999,7 +999,7 @@ class VideoExportWorker:
             file_size_mb = upload_result["file_size_mb"]
             duration = upload_result["duration"]
 
-            # Mark as completed
+            # Mark as completed in Redis
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
@@ -1011,6 +1011,26 @@ class VideoExportWorker:
                 file_size_mb=file_size_mb,
                 duration_seconds=duration,
             )
+
+            # ✅ CRITICAL: Also update MongoDB (fallback for Redis expiry/disconnect)
+            completed_at = datetime.utcnow()
+            self.db.video_export_jobs.update_one(
+                {"_id": job_id},
+                {
+                    "$set": {
+                        "status": "completed",
+                        "progress": 100,
+                        "current_phase": "completed",
+                        "output_url": r2_url,
+                        "library_video_id": library_video_id,
+                        "file_size": upload_result["file_size"],
+                        "duration": duration,
+                        "completed_at": completed_at,
+                        "updated_at": completed_at,
+                    }
+                },
+            )
+            logger.info(f"   ✅ Updated MongoDB: status=completed")
 
             # Cleanup temp directory
             try:
@@ -1034,7 +1054,7 @@ class VideoExportWorker:
                 f"❌ Video export job {job_id} failed: {error_msg}", exc_info=True
             )
 
-            # Update status to failed
+            # Update status to failed in Redis
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=job_id,
@@ -1043,6 +1063,21 @@ class VideoExportWorker:
                 error=error_msg,
                 failed_at=datetime.utcnow().isoformat(),
             )
+
+            # ✅ CRITICAL: Also update MongoDB (fallback for Redis expiry/disconnect)
+            failed_at = datetime.utcnow()
+            self.db.video_export_jobs.update_one(
+                {"_id": job_id},
+                {
+                    "$set": {
+                        "status": "failed",
+                        "error_message": error_msg,
+                        "failed_at": failed_at,
+                        "updated_at": failed_at,
+                    }
+                },
+            )
+            logger.info(f"   ✅ Updated MongoDB: status=failed")
 
             # Cleanup temp directory on failure
             if temp_dir.exists():

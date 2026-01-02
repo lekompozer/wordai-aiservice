@@ -1314,7 +1314,7 @@ db.presentation_subtitles.findOne({_id: ObjectId("676cb85f8476e22e03e05fb7")})
 
   // Audio file
   "audio_url": "https://static.wordai.pro/audio/narrations/...",
-  "audio_type": "merged",  // "merged" = full presentation audio
+  "audio_type": "merged_presentation",  // Full merged presentation audio (NOT "merged"!)
 
   // ✅ CRITICAL: Slide timestamps array
   "slide_timestamps": [
@@ -1352,19 +1352,32 @@ db.presentation_subtitles.findOne({_id: ObjectId("676cb85f8476e22e03e05fb7")})
 
 **Query Examples:**
 ```javascript
-// Get audio by merged_audio_id (from subtitle)
+// ✅ Get merged audio by merged_audio_id (from subtitle)
 db.presentation_audio.findOne({
-  _id: ObjectId("676cb88e8476e22e03e05fc3")
+  _id: ObjectId("69515c9484db69188e87611c")
+})
+
+// ✅ Get merged audio by presentation (with filter)
+db.presentation_audio.findOne({
+  presentation_id: "doc_c49e8af18c03",
+  language: "vi",
+  audio_type: "merged_presentation"  // ⚠️ Important: NOT "merged"!
 })
 
 // Get slide timestamps (for video export)
 const audio = db.presentation_audio.findOne({...})
 const slideCount = audio.slide_timestamps.length  // 30
-const totalDuration = audio.audio_metadata.duration_seconds  // 484.844
+const totalDuration = audio.audio_metadata.duration_seconds  // 875.735
 
 // Get specific slide timing
 const slide5 = audio.slide_timestamps[5]
-// → {slide_index: 5, start_time: 78.2, end_time: 95.6, duration: 17.4}
+// → {slide_index: 5, start_time: 154.8, end_time: 187.5}
+
+// ⚠️ Production Verified (Jan 2, 2026):
+// - audio_type: "merged_presentation" (NOT "merged")
+// - slide_count: 30 ✅
+// - slide_timestamps: 30 items ✅
+// - Audio type "chunked" also exists (obsolete chunks)
 ```
 
 **Indexes:**
@@ -1416,7 +1429,7 @@ const slide5 = audio.slide_timestamps[5]
 
 ### Code Patterns
 
-#### ✅ CORRECT: Get slide count from audio
+#### ✅ CORRECT: Get slide count from audio (MUST use this pattern!)
 
 ```python
 from src.database.db_manager import DBManager
@@ -1425,23 +1438,43 @@ from bson import ObjectId
 db_manager = DBManager()
 db = db_manager.db
 
-# Get subtitle
+# 1. Get LATEST subtitle for language (critical: sort by version DESC)
 subtitle = db.presentation_subtitles.find_one(
     {"presentation_id": presentation_id, "language": "vi"},
-    sort=[("version", -1)]
+    sort=[("version", -1)]  # ⚠️ MUST sort to get latest!
 )
 
-# Get audio via merged_audio_id
+if not subtitle:
+    raise ValueError("No subtitle found")
+
+# 2. Check merged_audio_id exists
+if not subtitle.get("merged_audio_id"):
+    raise ValueError("No merged audio for this subtitle")
+
+# 3. Get merged audio by ObjectId
 audio = db.presentation_audio.find_one(
     {"_id": ObjectId(subtitle["merged_audio_id"])}
 )
 
-# ✅ CORRECT: Get slide count from timestamps
-slide_count = len(audio["slide_timestamps"])  # 30
-slide_timestamps = audio["slide_timestamps"]
+if not audio:
+    raise ValueError("Merged audio not found")
 
-# Get total duration
-total_duration = audio["audio_metadata"]["duration_seconds"]  # 484.844
+# 4. Verify audio type (should be "merged_presentation")
+if audio.get("audio_type") != "merged_presentation":
+    raise ValueError(f"Wrong audio type: {audio.get('audio_type')}")
+
+# 5. ✅ Get slide count from timestamps array
+slide_timestamps = audio["slide_timestamps"]
+slide_count = len(slide_timestamps)  # 30
+
+# 6. Get total duration
+audio_duration = audio["audio_metadata"]["duration_seconds"]  # 484.844
+
+# ⚠️ Production Verified:
+# - Latest subtitle version may change (v1, v2, v3...)
+# - Each version has different merged_audio_id
+# - MUST always query latest to get current audio
+# - Timestamps may have gaps/overlaps (audio merge issues)
 ```
 
 #### ❌ WRONG: Get slide count from presentation
