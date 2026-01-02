@@ -1158,6 +1158,413 @@ ssh root@104.248.147.155 "su - hoile -c 'docker exec mongodb mongosh ai_service_
 
 ---
 
+## 📚 Slide Narration System - Database Structure
+
+### Overview
+
+The narration system supports **multi-language** subtitles and audio for presentations. Each language can have multiple versions, and each version links to merged audio with slide timestamps.
+
+**Key Collections:**
+1. `documents` - Presentation metadata and slide data
+2. `presentation_subtitles` - Subtitle versions per language
+3. `presentation_audio` - Audio files with slide timestamps
+4. `video_export_jobs` - Video export jobs
+
+### Critical Understanding
+
+⚠️ **IMPORTANT:** Presentations using outline versions store slides in `slide_content` (JSON string), NOT in `slide_backgrounds` array!
+
+**DO NOT use `slide_backgrounds` for slide count!**
+- `slide_backgrounds` may only be `[{}]` (1 element)
+- Actual slide count comes from `audio.slide_timestamps` array
+- Each timestamp represents one slide's duration
+
+### Collection Relationships
+
+```
+documents (presentation)
+    ↓
+    ├── presentation_subtitles (multiple: per language × version)
+    │       ↓ (via merged_audio_id)
+    │       └── presentation_audio (merged audio with timestamps)
+    │
+    └── slide_outline_versions (optional: if using outline version)
+            └── slides array in slide_content (JSON)
+```
+
+### 1. documents Collection
+
+**Purpose:** Presentation metadata and slide structure
+
+**Key Fields:**
+```javascript
+{
+  "_id": ObjectId("..."),
+  "document_id": "doc_c49e8af18c03",  // ✅ Use this for queries!
+  "user_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
+  "document_type": "slide",
+  "title": "Giới thiệu về Generative AI...",
+
+  // ⚠️ WARNING: DO NOT use for slide count!
+  "slide_backgrounds": [{}],  // May only contain 1 element
+
+  // Outline version (if using new system)
+  "outline_version_id": "version_abc123",  // Link to slide_outline_versions
+
+  // Slide data (if using outline version)
+  "slide_content": "{\"slides\": [{...}, {...}, ...]}", // JSON string
+
+  "created_at": ISODate("..."),
+  "updated_at": ISODate("...")
+}
+```
+
+**Query Examples:**
+```javascript
+// Get presentation by document_id
+db.documents.findOne({document_id: "doc_c49e8af18c03"})
+
+// ❌ WRONG - Don't use slide_backgrounds for count
+const slideCount = presentation.slide_backgrounds.length  // May return 1!
+
+// ✅ CORRECT - Get from audio timestamps
+const audio = db.presentation_audio.findOne({...})
+const slideCount = audio.slide_timestamps.length  // Returns 30!
+```
+
+### 2. presentation_subtitles Collection
+
+**Purpose:** Subtitle versions for each language
+
+**Key Fields:**
+```javascript
+{
+  "_id": ObjectId("676cb85f8476e22e03e05fb7"),  // ✅ subtitle_id
+  "presentation_id": "doc_c49e8af18c03",
+  "user_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
+
+  // Language & Version
+  "language": "vi",  // ISO 639-1: vi, en, zh, ja, etc.
+  "version": 1,      // Increments for each regeneration
+
+  // Link to merged audio
+  "merged_audio_id": "676cb88e8476e22e03e05fc3",  // ✅ ObjectId as string
+
+  // Subtitle data per slide
+  "slides": [
+    {
+      "slide_index": 0,
+      "subtitle": "Xin chào các bạn...",
+      "start_time": 0.0,
+      "end_time": 15.5,
+      "narration_text": "Xin chào các bạn..."
+    },
+    {
+      "slide_index": 1,
+      "subtitle": "Hôm nay chúng ta sẽ tìm hiểu...",
+      "start_time": 15.5,
+      "end_time": 32.8,
+      "narration_text": "Hôm nay chúng ta sẽ tìm hiểu..."
+    }
+    // ... 30 slides total
+  ],
+
+  "total_slides": 30,
+  "created_at": ISODate("2024-12-25T17:00:00.000Z")
+}
+```
+
+**Query Patterns:**
+```javascript
+// Get latest subtitle for language
+db.presentation_subtitles.findOne(
+  {presentation_id: "doc_c49e8af18c03", language: "vi"},
+  {sort: {version: -1}}  // ✅ Latest version
+)
+
+// List all language versions
+db.presentation_subtitles.find(
+  {presentation_id: "doc_c49e8af18c03"}
+).sort({language: 1, version: -1})
+
+// Get specific subtitle by ID
+db.presentation_subtitles.findOne({_id: ObjectId("676cb85f8476e22e03e05fb7")})
+```
+
+**Indexes:**
+- `{presentation_id, language, version}` - For finding latest version
+- `{user_id}` - For user's subtitles
+
+### 3. presentation_audio Collection
+
+**Purpose:** Merged audio files with slide timestamps
+
+⚠️ **CRITICAL:** This is the **SOURCE OF TRUTH** for slide count and durations!
+
+**Key Fields:**
+```javascript
+{
+  "_id": ObjectId("676cb88e8476e22e03e05fc3"),  // ✅ Referenced by subtitle.merged_audio_id
+  "presentation_id": "doc_c49e8af18c03",
+  "user_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
+
+  // Language & Version (matches subtitle)
+  "language": "vi",
+  "version": 1,
+
+  // Audio file
+  "audio_url": "https://static.wordai.pro/audio/narrations/...",
+  "audio_type": "merged",  // "merged" = full presentation audio
+
+  // ✅ CRITICAL: Slide timestamps array
+  "slide_timestamps": [
+    {
+      "slide_index": 0,
+      "start_time": 0.0,      // Seconds from start
+      "end_time": 15.5,       // Seconds from start
+      "duration": 15.5        // Slide duration
+    },
+    {
+      "slide_index": 1,
+      "start_time": 15.5,
+      "end_time": 32.8,
+      "duration": 17.3
+    }
+    // ... 30 slides total
+  ],
+
+  // ✅ Use this for slide count!
+  "slide_count": 30,  // = slide_timestamps.length
+
+  // Audio metadata
+  "audio_metadata": {
+    "duration_seconds": 484.844,  // Total audio duration
+    "format": "mp3",
+    "sample_rate": 24000,
+    "channels": 1,
+    "bitrate": "128k"
+  },
+
+  "status": "completed",
+  "created_at": ISODate("2024-12-25T17:01:00.000Z")
+}
+```
+
+**Query Examples:**
+```javascript
+// Get audio by merged_audio_id (from subtitle)
+db.presentation_audio.findOne({
+  _id: ObjectId("676cb88e8476e22e03e05fc3")
+})
+
+// Get slide timestamps (for video export)
+const audio = db.presentation_audio.findOne({...})
+const slideCount = audio.slide_timestamps.length  // 30
+const totalDuration = audio.audio_metadata.duration_seconds  // 484.844
+
+// Get specific slide timing
+const slide5 = audio.slide_timestamps[5]
+// → {slide_index: 5, start_time: 78.2, end_time: 95.6, duration: 17.4}
+```
+
+**Indexes:**
+- `{presentation_id, language, version}` - For finding audio
+- `{user_id}` - For user's audio files
+
+### 4. video_export_jobs Collection
+
+**Purpose:** Track video export background jobs
+
+**Key Fields:**
+```javascript
+{
+  "_id": "export_AP4TevZWHzJXH6mr",
+  "job_id": "export_AP4TevZWHzJXH6mr",
+  "presentation_id": "doc_c49e8af18c03",
+  "user_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
+
+  // Input data
+  "language": "vi",
+  "subtitle_id": "676cb85f8476e22e03e05fb7",  // ✅ Link to subtitle
+  "audio_id": "676cb88e8476e22e03e05fc3",     // ✅ Link to audio
+
+  // Export settings
+  "export_mode": "animated",  // "optimized" or "animated"
+  "settings": {
+    "resolution": "1080p",
+    "fps": 30,
+    "crf": 25,
+    "quality": "medium"
+  },
+
+  // Status tracking
+  "status": "completed",  // pending → processing → completed/failed
+  "progress": 100,        // 0-100
+  "current_phase": "completed",  // load → screenshot → encode → upload → completed
+
+  // Output
+  "output_url": "https://static.wordai.pro/videos/exports/...",
+  "library_video_id": "lib_4d702416028b",
+  "file_size": 948736,  // bytes
+  "duration": 33.4,     // seconds
+
+  "created_at": ISODate("2026-01-02T13:45:23.000Z"),
+  "started_at": ISODate("2026-01-02T13:45:24.000Z"),
+  "completed_at": ISODate("2026-01-02T13:48:09.000Z")
+}
+```
+
+### Code Patterns
+
+#### ✅ CORRECT: Get slide count from audio
+
+```python
+from src.database.db_manager import DBManager
+from bson import ObjectId
+
+db_manager = DBManager()
+db = db_manager.db
+
+# Get subtitle
+subtitle = db.presentation_subtitles.find_one(
+    {"presentation_id": presentation_id, "language": "vi"},
+    sort=[("version", -1)]
+)
+
+# Get audio via merged_audio_id
+audio = db.presentation_audio.find_one(
+    {"_id": ObjectId(subtitle["merged_audio_id"])}
+)
+
+# ✅ CORRECT: Get slide count from timestamps
+slide_count = len(audio["slide_timestamps"])  # 30
+slide_timestamps = audio["slide_timestamps"]
+
+# Get total duration
+total_duration = audio["audio_metadata"]["duration_seconds"]  # 484.844
+```
+
+#### ❌ WRONG: Get slide count from presentation
+
+```python
+# ❌ WRONG - May return 1 instead of 30!
+presentation = db.documents.find_one({"document_id": presentation_id})
+slide_count = len(presentation.get("slide_backgrounds", []))  # Returns 1!
+```
+
+#### Video Export Worker Pattern
+
+```python
+async def process_task(self, task: VideoExportTask):
+    # 1. Load presentation (for public token only)
+    presentation = self.db.documents.find_one(
+        {"document_id": task.presentation_id}
+    )
+
+    # 2. Load subtitle
+    subtitle = self.db.presentation_subtitles.find_one(
+        {"_id": ObjectId(task.subtitle_id)}
+    )
+
+    # 3. Load audio
+    audio = self.db.presentation_audio.find_one(
+        {"_id": ObjectId(task.audio_id)}
+    )
+
+    # 4. ✅ Get slide count from audio timestamps
+    slide_timestamps = audio["slide_timestamps"]
+    slide_count = len(slide_timestamps)  # 30
+    audio_duration = audio["audio_metadata"]["duration_seconds"]
+
+    # 5. Capture screenshots (slide_count iterations)
+    for slide_idx in range(slide_count):
+        await page.evaluate(f"window.goToSlide({slide_idx})")
+        # ... capture screenshot
+
+    # 6. Encode video with slide durations
+    for idx, timestamp in enumerate(slide_timestamps):
+        duration = timestamp["end_time"] - timestamp["start_time"]
+        # ... add slide to video with correct duration
+```
+
+### Migration Notes
+
+**Old System (Deprecated):**
+- Used `slide_backgrounds` array for slide count
+- Single audio file per presentation
+- No language versioning
+
+**New System (Current):**
+- Use `slide_timestamps` array for slide count
+- Multiple languages supported
+- Version history for each language
+- Merged audio with precise timestamps
+
+**When to Use Each Field:**
+
+| Need | Use This | Don't Use |
+|------|----------|-----------|
+| Slide count | `audio.slide_timestamps.length` | `slide_backgrounds.length` |
+| Slide duration | `slide_timestamps[i].duration` | Calculate manually |
+| Total duration | `audio_metadata.duration_seconds` | Sum of slides |
+| Presentation ID | `document_id` (doc_xxx) | `_id` (ObjectId) |
+| Subtitle ID | `_id` (ObjectId as string) | Custom ID |
+| Audio ID | `merged_audio_id` | Direct lookup |
+
+### Common Queries
+
+```javascript
+// Get complete narration data for presentation
+const presentation_id = "doc_c49e8af18c03"
+const language = "vi"
+
+// 1. Get latest subtitle
+const subtitle = db.presentation_subtitles.findOne(
+  {presentation_id: presentation_id, language: language},
+  {sort: {version: -1}}
+)
+
+// 2. Get merged audio
+const audio = db.presentation_audio.findOne({
+  _id: ObjectId(subtitle.merged_audio_id)
+})
+
+// 3. Get slide count and timestamps
+const slideCount = audio.slide_timestamps.length
+const totalDuration = audio.audio_metadata.duration_seconds
+
+printjson({
+  presentation_id: presentation_id,
+  language: language,
+  subtitle_id: subtitle._id,
+  audio_id: audio._id,
+  audio_url: audio.audio_url,
+  slide_count: slideCount,
+  total_duration: totalDuration,
+  slides: audio.slide_timestamps.slice(0, 3)  // First 3 slides
+})
+```
+
+**Expected Output:**
+```javascript
+{
+  presentation_id: "doc_c49e8af18c03",
+  language: "vi",
+  subtitle_id: ObjectId("676cb85f8476e22e03e05fb7"),
+  audio_id: ObjectId("676cb88e8476e22e03e05fc3"),
+  audio_url: "https://static.wordai.pro/audio/narrations/...",
+  slide_count: 30,
+  total_duration: 484.844,
+  slides: [
+    {slide_index: 0, start_time: 0.0, end_time: 15.5, duration: 15.5},
+    {slide_index: 1, start_time: 15.5, end_time: 32.8, duration: 17.3},
+    {slide_index: 2, start_time: 32.8, end_time: 48.1, duration: 15.3}
+  ]
+}
+```
+
+---
+
 ### Redis Commands (Production)
 
 **Access Redis CLI:**

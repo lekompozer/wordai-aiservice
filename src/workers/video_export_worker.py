@@ -873,7 +873,9 @@ class VideoExportWorker:
             slide_count = len(slide_timestamps)
 
             if slide_count == 0:
-                raise ValueError("No slide timestamps found in audio. Please regenerate audio.")
+                raise ValueError(
+                    "No slide timestamps found in audio. Please regenerate audio."
+                )
 
             logger.info(f"   Slides: {slide_count} (from audio timestamps)")
             logger.info(f"   Token: {public_token}")
