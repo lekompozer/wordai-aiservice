@@ -264,12 +264,14 @@ class VideoExportWorker:
                     frame_interval = 1 / fps  # ~33ms per frame
 
                     for frame_idx in range(frames_per_slide):
-                        frame_path = slide_dir / f"frame_{frame_idx:04d}.png"
+                        frame_path = slide_dir / f"frame_{frame_idx:04d}.jpg"
 
                         # Capture current frame (animation is playing)
+                        # Use JPEG for 10x faster disk I/O (2-3MB PNG → 200-300KB JPEG)
                         await page.screenshot(
                             path=str(frame_path),
-                            type="png",
+                            type="jpeg",
+                            quality=85,  # Good quality, small size
                             full_page=False,
                         )
 
