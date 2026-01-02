@@ -850,10 +850,6 @@ class VideoExportWorker:
                 )
 
             public_token = sharing_config["public_token"]
-            slide_count = len(presentation.get("slide_backgrounds", []))
-
-            logger.info(f"   Slides: {slide_count}")
-            logger.info(f"   Token: {public_token}")
 
             # 2. Load subtitle and audio data
             subtitle = self.db.presentation_subtitles.find_one(
@@ -872,8 +868,16 @@ class VideoExportWorker:
             slide_timestamps = audio.get("slide_timestamps", [])
             audio_duration = audio.get("audio_metadata", {}).get("duration_seconds", 0)
 
+            # ✅ CRITICAL: Get slide count from audio timestamps (NOT slide_backgrounds)
+            # Presentations use outline_version → slide_backgrounds may be empty/incomplete
+            slide_count = len(slide_timestamps)
+
+            if slide_count == 0:
+                raise ValueError("No slide timestamps found in audio. Please regenerate audio.")
+
+            logger.info(f"   Slides: {slide_count} (from audio timestamps)")
+            logger.info(f"   Token: {public_token}")
             logger.info(f"   Audio duration: {audio_duration}s")
-            logger.info(f"   Slide timestamps: {len(slide_timestamps)}")
 
             # Update progress: loaded data
             await set_job_status(
