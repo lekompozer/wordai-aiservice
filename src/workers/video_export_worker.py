@@ -245,21 +245,28 @@ class VideoExportWorker:
             # Capture each slide
             for slide_idx in range(slide_count):
                 try:
-                    # Navigate to slide
+                    # Navigate to slide (triggers animation start)
                     await page.evaluate(f"window.goToSlide({slide_idx})")
-                    await asyncio.sleep(0.5)  # Brief settle time
+
+                    # ⚠️ CRITICAL: Wait for navigation to complete and animation to START
+                    # Animation starts immediately after slide change
+                    await asyncio.sleep(0.3)  # Brief stabilization
 
                     # Create slide directory
                     slide_dir = output_dir / f"slide_{slide_idx:03d}"
                     slide_dir.mkdir(exist_ok=True)
 
                     frames = []
+                    start_time = asyncio.get_event_loop().time()
 
-                    # Capture frames at 30 FPS for 5 seconds
+                    # ✅ Capture frames at 30 FPS for 5 seconds (animation duration)
+                    # Animation plays automatically - we just capture it frame-by-frame
                     frame_interval = 1 / fps  # ~33ms per frame
+
                     for frame_idx in range(frames_per_slide):
                         frame_path = slide_dir / f"frame_{frame_idx:04d}.png"
 
+                        # Capture current frame (animation is playing)
                         await page.screenshot(
                             path=str(frame_path),
                             type="png",
@@ -268,8 +275,13 @@ class VideoExportWorker:
 
                         frames.append(frame_path)
 
-                        # Sleep for next frame (30 FPS = 33.3ms per frame)
-                        await asyncio.sleep(frame_interval)
+                        # Wait until next frame time (maintain 30 FPS timing)
+                        elapsed = asyncio.get_event_loop().time() - start_time
+                        next_frame_time = (frame_idx + 1) * frame_interval
+                        sleep_time = max(0, next_frame_time - elapsed)
+
+                        if sleep_time > 0:
+                            await asyncio.sleep(sleep_time)
 
                     slide_frames[slide_idx] = frames
 
@@ -533,22 +545,41 @@ class VideoExportWorker:
             for slide_idx in sorted(slide_frames.keys()):
                 frames = slide_frames[slide_idx]
 
+                if slide_idx >= len(slide_timestamps):
+                    logger.warning(f"   ⚠️ No timestamp for slide {slide_idx}, skipping")
+                    continue
+
                 # Animation frames (5 seconds @ 30 FPS = 150 frames)
                 for frame_path in frames:
                     f.write(f"file '{frame_path.relative_to(temp_dir)}'\n")
                     f.write(f"duration {1/30}\n")  # 30 FPS
 
-                # Freeze last frame until next slide
-                if slide_idx < len(slide_timestamps) - 1:
-                    freeze_duration = (
-                        slide_timestamps[slide_idx]["end_time"]
-                        - slide_timestamps[slide_idx]["start_time"]
-                        - 5
+                # ✅ Calculate freeze duration from slide timestamps
+                slide_duration = (
+                    slide_timestamps[slide_idx]["end_time"]
+                    - slide_timestamps[slide_idx]["start_time"]
+                )
+
+                # Freeze last frame for remaining time (total duration - 5s animation)
+                freeze_duration = slide_duration - 5.0
+
+                # ⚠️ Handle edge cases (audio merge bugs, negative durations)
+                if freeze_duration < 0:
+                    logger.warning(
+                        f"   ⚠️ Slide {slide_idx}: duration {slide_duration:.1f}s < 5s animation, no freeze"
                     )
-                    if freeze_duration > 0:
-                        last_frame = frames[-1]
-                        f.write(f"file '{last_frame.relative_to(temp_dir)}'\n")
-                        f.write(f"duration {freeze_duration}\n")
+                    freeze_duration = 0
+                elif freeze_duration > 300:  # > 5 minutes
+                    logger.warning(
+                        f"   ⚠️ Slide {slide_idx}: freeze {freeze_duration:.1f}s too long (audio gap?), capping at 30s"
+                    )
+                    freeze_duration = 30.0
+
+                # Add freeze frame (if duration > 0 and not last slide)
+                if freeze_duration > 0 and slide_idx < len(slide_timestamps) - 1:
+                    last_frame = frames[-1]
+                    f.write(f"file '{last_frame.relative_to(temp_dir)}'\n")
+                    f.write(f"duration {freeze_duration}\n")
 
             # FFmpeg requires last file repeated
             if slide_frames:
