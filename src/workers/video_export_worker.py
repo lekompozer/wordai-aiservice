@@ -517,6 +517,14 @@ class VideoExportWorker:
         """
         logger.info(f"🎬 Encoding animated video...")
 
+        # Check if we have any frames
+        if not slide_frames or all(
+            len(frames) == 0 for frames in slide_frames.values()
+        ):
+            raise ValueError(
+                "No frames captured. Frontend must implement window.goToSlide(slideIndex) function for Playwright navigation."
+            )
+
         temp_dir = list(slide_frames.values())[0][0].parent.parent
 
         # 1. Create concat file listing all frame sequences
@@ -824,19 +832,6 @@ class VideoExportWorker:
                 current_phase="load",
             )
 
-            self.db.video_export_jobs.update_one(
-                {"_id": job_id},
-                {
-                    "$set": {
-                        "status": "processing",
-                        "started_at": start_time,
-                        "updated_at": datetime.utcnow(),
-                        "progress": 0,
-                        "current_phase": "load",
-                    }
-                },
-            )
-
             # 1. Load presentation data
             logger.info("📄 Loading presentation data...")
             presentation = self.db.documents.find_one(
@@ -1011,23 +1006,6 @@ class VideoExportWorker:
                 duration_seconds=duration,
             )
 
-            self.db.video_export_jobs.update_one(
-                {"_id": job_id},
-                {
-                    "$set": {
-                        "status": "completed",
-                        "progress": 100,
-                        "current_phase": "completed",
-                        "output_url": r2_url,
-                        "library_video_id": library_video_id,
-                        "file_size": file_size_mb,
-                        "duration": duration,
-                        "updated_at": datetime.utcnow(),
-                        "completed_at": datetime.utcnow(),
-                    }
-                },
-            )
-
             # Cleanup temp directory
             try:
                 shutil.rmtree(temp_dir)
@@ -1058,18 +1036,6 @@ class VideoExportWorker:
                 user_id=task.user_id,
                 error=error_msg,
                 failed_at=datetime.utcnow().isoformat(),
-            )
-
-            self.db.video_export_jobs.update_one(
-                {"_id": job_id},
-                {
-                    "$set": {
-                        "status": "failed",
-                        "error_message": error_msg,
-                        "updated_at": datetime.utcnow(),
-                        "completed_at": datetime.utcnow(),
-                    }
-                },
             )
 
             # Cleanup temp directory on failure

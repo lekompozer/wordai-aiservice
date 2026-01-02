@@ -2279,7 +2279,9 @@ async def get_public_presentation(public_token: str):
         # Prepare presentation data based on sharing settings
         presentation_data = {
             "id": str(presentation["_id"]),
-            "document_id": presentation.get("document_id"),  # Add document_id for video export
+            "document_id": presentation.get(
+                "document_id"
+            ),  # Add document_id for video export
             "title": presentation.get("title", ""),
             "document_type": presentation.get("document_type", "slide"),
         }

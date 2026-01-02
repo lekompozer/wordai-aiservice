@@ -752,6 +752,50 @@ Add `?debug=true` to status endpoint for additional info:
 
 ---
 
+## Frontend Requirements (CRITICAL)
+
+### Required: window.goToSlide() Function
+
+**⚠️ MANDATORY for video export to work!**
+
+The Playwright screenshot worker needs a global function to navigate between slides:
+
+```javascript
+// Must be available on public presentation page
+window.goToSlide = function(slideIndex) {
+  // Navigate to specified slide index (0-based)
+  // Example implementation:
+  if (window.presentation && window.presentation.goToSlide) {
+    window.presentation.goToSlide(slideIndex);
+  } else if (window.slideController) {
+    window.slideController.navigateToSlide(slideIndex);
+  }
+  // Or however your slide navigation works
+}
+```
+
+**Why needed:**
+- Worker uses Playwright to load public presentation URL
+- Calls `window.goToSlide(slideIndex)` to navigate to each slide
+- Captures screenshots at each position
+- Without this function, video export will fail with: "window.goToSlide is not a function"
+
+**Testing:**
+```javascript
+// Open browser console on public presentation page:
+window.goToSlide(0)  // Should show first slide
+window.goToSlide(1)  // Should show second slide
+```
+
+**Implementation checklist:**
+- [ ] Add `window.goToSlide(slideIndex)` to public presentation page
+- [ ] Function accepts 0-based slide index
+- [ ] Function actually navigates to the slide
+- [ ] Test in browser console before deploying
+- [ ] Verify backend worker can call it successfully
+
+---
+
 ## Backend Status
 
 ### Completed Components
