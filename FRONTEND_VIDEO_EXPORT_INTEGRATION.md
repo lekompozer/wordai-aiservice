@@ -23,7 +23,11 @@ Videos are generated asynchronously via background worker, uploaded to Cloudflar
 
 **Endpoint:** `POST /api/presentations/{presentation_id}/export/video`
 
+**⚠️ IMPORTANT:** `{presentation_id}` must be the `document_id` field (e.g., `doc_c49e8af18c03`), NOT the MongoDB `_id`.
+
 **Authentication:** Required (Firebase token)
+
+**Rate Limiting:** 1 export per 3 minutes per user (429 error if exceeded)
 
 **Request Body:**
 ```json
@@ -56,9 +60,13 @@ Videos are generated asynchronously via background worker, uploaded to Cloudflar
 **Error Responses:**
 - `400 Bad Request`: Missing required data (audio/subtitle not found for language)
 - `401 Unauthorized`: Invalid or missing authentication token
-- `403 Forbidden`: User doesn't have access to presentation
+- `403 Forbidden`:
+  - User doesn't have access to presentation (private presentation)
+  - Video download is not enabled for this presentation
 - `404 Not Found`: Presentation not found
 - `422 Unprocessable Entity`: Invalid parameters
+- `429 Too Many Requests`: Rate limit exceeded (wait 3 minutes)
+  - Response includes exact wait time: `"Please wait X seconds before creating another export"`
 - `500 Internal Server Error`: Server error
 
 ---
@@ -68,6 +76,13 @@ Videos are generated asynchronously via background worker, uploaded to Cloudflar
 **Endpoint:** `GET /api/export-jobs/{job_id}`
 
 **Authentication:** Required (must be job owner)
+
+**⚠️ CRITICAL:** Must include `Authorization: Bearer <firebase_token>` header in ALL polling requests!
+
+**Headers Required:**
+```
+Authorization: Bearer eyJhbGciOiJSUzI1NiIsImtpZCI6...
+```
 
 **Success Response:**
 ```json
@@ -132,6 +147,7 @@ Videos are generated asynchronously via background worker, uploaded to Cloudflar
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing or invalid authentication token (check Authorization header!)
 - `403 Forbidden`: User doesn't own this job
 - `404 Not Found`: Job not found
 
@@ -142,6 +158,11 @@ Videos are generated asynchronously via background worker, uploaded to Cloudflar
 ### Step 1: Initiate Export
 
 User clicks "Export Video" button → Frontend shows mode selection dialog:
+
+**⚠️ IMPORTANT - Presentation ID:**
+- Use `presentation.document_id` (NOT `presentation._id`)
+- Example: `doc_c49e8af18c03` ✅
+- Example: `694e1a82e1ffcd3926a7803e` ❌ (MongoDB _id)
 
 **Dialog Options:**
 1. **Export Mode Selection**
@@ -158,17 +179,18 @@ User clicks "Export Video" button → Frontend shows mode selection dialog:
 
 ### Step 2: Submit Request
 
-Frontend calls POST endpoint → Backend validates → Returns job_id
+Frontend calls POST endpoint with `document_id` → Backend validates → Returns job_id
 
 **Validation Checks (Backend):**
 - Presentation exists and user has access
 - Audio version exists for selected language
 - Subtitle version exists for selected language
-- Presentation is shared publicly (required for screenshot capture)
+- Rate limit not exceeded (3 minutes between exports)
 
 **If validation fails:**
 - Show error message to user
-- If public sharing required: prompt user to enable public sharing first
+- If 429 rate limit: Show countdown timer with exact wait time
+- If 403 forbidden: Check if presentation is private or download disabled
 
 ### Step 3: Show Progress Modal
 
@@ -347,12 +369,25 @@ User clicks download → Open download_url in new tab or trigger download
 ### Example Polling Logic (Conceptual)
 
 **Initial Request:**
-1. Call POST /api/presentations/{id}/export/video
+1. Call POST /api/presentations/{id}/export/video with auth header
 2. Receive job_id
 3. Start polling GET /api/export-jobs/{job_id}
 
+**⚠️ IMPORTANT - Authentication on Polling:**
+```javascript
+// WRONG - Missing auth header (will get 401)
+fetch(`/api/export-jobs/${job_id}`)
+
+// CORRECT - Must include Firebase token
+fetch(`/api/export-jobs/${job_id}`, {
+  headers: {
+    'Authorization': `Bearer ${firebaseToken}`
+  }
+})
+```
+
 **Polling Loop:**
-1. Get status every 2-3 seconds
+1. Get status every 2-3 seconds WITH auth header
 2. Update progress bar and phase text
 3. Calculate estimated time remaining
 4. If completed/failed → Stop polling
@@ -369,23 +404,37 @@ User clicks download → Open download_url in new tab or trigger download
 
 ### Common Errors and Solutions
 
-**1. "Presentation not found"**
-- **Cause:** Invalid presentation_id
-- **Action:** Show error, redirect to presentation list
+**1. "Presentation not found" (404)**
+- **Cause:** Invalid presentation_id or using MongoDB _id instead of document_id
+- **Action:** Verify you're using `presentation.document_id` (e.g., `doc_c49e8af18c03`)
+- **Fix:** Check that presentation object has `document_id` field
 
-**2. "Audio version not found for language 'en'"**
+**2. "Audio version not found for language 'en'" (400)**
 - **Cause:** No audio generated for selected language
 - **Action:** Prompt user to generate audio first
 - **UI:** Show "Generate Audio" button
 
-**3. "Subtitle version not found for language 'en'"**
+**3. "Subtitle version not found for language 'en'" (400)**
 - **Cause:** No subtitles for selected language
 - **Action:** Prompt user to generate subtitles first
 
-**4. "Presentation not shared publicly"**
-- **Cause:** Public sharing required for screenshot capture
-- **Action:** Prompt user to enable public sharing
-- **UI:** Show "Enable Sharing" button → Auto-enable → Retry export
+**4. "Rate limit exceeded. Please wait X seconds..." (429)**
+- **Cause:** User tried to create another export within 3 minutes
+- **Action:** Show countdown timer with exact wait time from error message
+- **UI:** Disable export button, show "Available in X seconds"
+
+**5. "Presentation is private. Only owner can export." (403)**
+- **Cause:** Non-owner trying to export private presentation
+- **Action:** Show "This presentation is private" message
+
+**6. "Video download is not enabled for this presentation" (403)**
+- **Cause:** Owner disabled download for public presentation
+- **Action:** Show "Download not allowed" message
+
+**7. "Unauthorized" (401 on polling)**
+- **Cause:** Missing Authorization header in GET /api/export-jobs/{job_id} request
+- **Action:** Ensure ALL polling requests include Firebase token in headers
+- **Fix:** Add `Authorization: Bearer <token>` to fetch headers
 
 **5. "FFmpeg encoding failed"**
 - **Cause:** Server-side encoding error

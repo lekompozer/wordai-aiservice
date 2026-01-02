@@ -2279,6 +2279,7 @@ async def get_public_presentation(public_token: str):
         # Prepare presentation data based on sharing settings
         presentation_data = {
             "id": str(presentation["_id"]),
+            "document_id": presentation.get("document_id"),  # Add document_id for video export
             "title": presentation.get("title", ""),
             "document_type": presentation.get("document_type", "slide"),
         }
@@ -3377,9 +3378,7 @@ async def export_presentation_video(
 
         # 10. Set rate limit timestamp (3 minutes TTL)
         await queue.redis_client.setex(
-            rate_limit_key,
-            180,  # 3 minutes in seconds
-            datetime.utcnow().isoformat()
+            rate_limit_key, 180, datetime.utcnow().isoformat()  # 3 minutes in seconds
         )
 
         return VideoExportCreateResponse(
