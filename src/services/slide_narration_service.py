@@ -1424,20 +1424,43 @@ Generate the complete narration in {language_name} now:"""
                 # Load audio segment (WAV format)
                 audio_segment = AudioSegment.from_wav(io.BytesIO(audio_data))
 
-                # Add chunk timestamps with offset
+                # ✅ FIX: Recalculate timestamps based on actual audio duration
+                # Chunk timestamps are AI predictions (from word count), NOT actual TTS output
                 chunk_timestamps = chunk_doc.get("slide_timestamps", [])
-                for ts in chunk_timestamps:
-                    global_timestamps.append(
-                        {
-                            "slide_index": ts["slide_index"],
-                            "start_time": current_time + ts["start_time"],
-                            "end_time": current_time + ts["end_time"],
-                        }
+                actual_chunk_duration = len(audio_segment) / 1000.0  # seconds
+
+                if chunk_timestamps:
+                    # Get predicted chunk duration from last timestamp
+                    predicted_chunk_duration = chunk_timestamps[-1]["end_time"]
+
+                    # Calculate scale factor to match actual audio
+                    scale_factor = (
+                        actual_chunk_duration / predicted_chunk_duration
+                        if predicted_chunk_duration > 0
+                        else 1.0
                     )
+
+                    logger.info(
+                        f"   📏 Chunk {chunk_idx}: predicted={predicted_chunk_duration:.1f}s, "
+                        f"actual={actual_chunk_duration:.1f}s, scale={scale_factor:.3f}"
+                    )
+
+                    # Scale timestamps to match actual audio duration
+                    for ts in chunk_timestamps:
+                        scaled_start = ts["start_time"] * scale_factor
+                        scaled_end = ts["end_time"] * scale_factor
+
+                        global_timestamps.append(
+                            {
+                                "slide_index": ts["slide_index"],
+                                "start_time": current_time + scaled_start,
+                                "end_time": current_time + scaled_end,
+                            }
+                        )
 
                 # Append to combined audio
                 combined_audio += audio_segment
-                current_time += len(audio_segment) / 1000.0  # pydub uses milliseconds
+                current_time += actual_chunk_duration
 
                 logger.info(
                     f"   ✅ Merged chunk {chunk_idx + 1}/{len(audio_documents)}"
