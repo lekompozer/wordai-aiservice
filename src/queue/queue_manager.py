@@ -41,7 +41,9 @@ def _serialize_redis_value(value: Any) -> Union[str, int, float, bytes]:
         return str(value)
 
 
-def _serialize_redis_mapping(data: Dict[str, Any]) -> Dict[str, Union[str, int, float, bytes]]:
+def _serialize_redis_mapping(
+    data: Dict[str, Any],
+) -> Dict[str, Union[str, int, float, bytes]]:
     """Serialize a dictionary for Redis hset mapping"""
     return {k: _serialize_redis_value(v) for k, v in data.items()}
 
@@ -1075,7 +1077,11 @@ async def get_job_status(redis_client, job_id: str) -> dict:
         job_data = await redis_client.hgetall(job_key)
 
         if not job_data:
-            logger.warning(f"⚠️ Job {job_id} not found in Redis")
+            # Job not in Redis - could be expired (normal after 24h) or never created
+            # API will fallback to MongoDB, so this is info level, not warning
+            logger.info(
+                f"📭 Job {job_id} not found in Redis (may be expired or completed)"
+            )
             return None
 
         # Convert bytes to strings and deserialize values
