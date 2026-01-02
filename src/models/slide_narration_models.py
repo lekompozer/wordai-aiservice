@@ -895,6 +895,9 @@ class LanguagePlayerData(BaseModel):
     audio_url: Optional[str] = Field(None, description="Merged audio URL")
     audio_id: Optional[str] = Field(None, description="Merged audio document ID")
     audio_status: Optional[str] = Field(None, description="Audio status")
+    slide_timestamps: Optional[List[Dict[str, Any]]] = Field(
+        None, description="Slide timestamps from merged audio"
+    )
 
     created_at: datetime = Field(..., description="Subtitle creation timestamp")
     updated_at: datetime = Field(..., description="Subtitle update timestamp")

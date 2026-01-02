@@ -3061,6 +3061,7 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
             # Get audio info - fallback to older versions if latest has no audio
             audio_url = None
             audio_id = None
+            slide_timestamps = None
             audio_status = subtitle.get("audio_status")
 
             # Try to get audio from selected subtitle first
@@ -3071,6 +3072,9 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
                 if audio_doc and audio_doc.get("audio_url"):
                     audio_url = audio_doc.get("audio_url")
                     audio_id = str(audio_doc["_id"])
+                    slide_timestamps = audio_doc.get(
+                        "slide_timestamps"
+                    )  # ✅ Get timestamps
                     logger.info(f"      Audio found in version {subtitle['version']}")
 
             # If no audio in selected version, fallback to older versions
@@ -3090,6 +3094,9 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
                         if audio_doc and audio_doc.get("audio_url"):
                             audio_url = audio_doc.get("audio_url")
                             audio_id = str(audio_doc["_id"])
+                            slide_timestamps = audio_doc.get(
+                                "slide_timestamps"
+                            )  # ✅ Get timestamps
                             audio_status = fallback_subtitle.get("audio_status")
                             logger.info(
                                 f"      ✅ Fallback: Using audio from version {fallback_subtitle['version']}"
@@ -3113,6 +3120,7 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
                 audio_url=audio_url,
                 audio_id=audio_id,
                 audio_status=audio_status,
+                slide_timestamps=slide_timestamps,  # ✅ Include timestamps
                 created_at=subtitle.get("created_at", datetime.utcnow()),
                 updated_at=subtitle.get("updated_at", datetime.utcnow()),
             )
