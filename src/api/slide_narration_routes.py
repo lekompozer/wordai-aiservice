@@ -58,6 +58,12 @@ from src.models.slide_narration_models import (
     LanguagePlayerData,
     GetPlayerDataResponse,
 )
+from src.models.video_export_models import (
+    VideoExportRequest,
+    VideoExportSettings,
+    VideoExportCreateResponse,
+    ExportStatus,
+)
 from src.services.slide_narration_service import get_slide_narration_service
 from src.services.points_service import get_points_service
 from src.middleware.firebase_auth import get_current_user
@@ -3159,17 +3165,11 @@ async def get_player_data(presentation_id: str, user: dict = Depends(get_current
 )
 async def export_presentation_video(
     presentation_id: str,
-    request: "VideoExportRequest",
+    request: VideoExportRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """Create video export job"""
     try:
-        from src.models.video_export_models import (
-            VideoExportRequest,
-            VideoExportSettings,
-            VideoExportCreateResponse,
-            ExportStatus,
-        )
         from src.models.ai_queue_tasks import VideoExportTask
         from src.queue.queue_manager import set_job_status
         from src.queue.queue_dependencies import get_video_export_queue
