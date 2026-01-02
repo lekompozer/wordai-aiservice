@@ -41,6 +41,7 @@ class ExportPhase(str, Enum):
     SCREENSHOT = "screenshot"  # Capturing slides
     ENCODE = "encode"  # FFmpeg processing
     UPLOAD = "upload"  # Uploading to S3
+    COMPLETED = "completed"  # Job finished successfully
 
 
 class ExportMode(str, Enum):
