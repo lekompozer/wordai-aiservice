@@ -420,32 +420,69 @@ class DocumentExportService:
     def _sanitize_html_for_weasyprint(self, html_content: str) -> str:
         """
         Sanitize HTML for WeasyPrint compatibility
-        Remove unsupported CSS properties and color formats
-        
+        Remove problematic CSS while preserving content structure
+
         Args:
             html_content: Original HTML content
-            
+
         Returns:
             Sanitized HTML content
         """
+        from bs4 import BeautifulSoup
         import re
-        
-        # Remove lab() color values (not supported by WeasyPrint)
-        html_content = re.sub(r'lab\([^)]+\)', 'rgb(0, 0, 0)', html_content)
-        
-        # Remove unsupported CSS properties
-        unsupported_properties = [
-            r'text-decoration-thickness:\s*[^;]+;',
-            r'margin-inline:\s*[^;]+;',
-        ]
-        
-        for pattern in unsupported_properties:
-            html_content = re.sub(pattern, '', html_content)
-        
-        # Remove transform properties that may cause issues
-        html_content = re.sub(r'transform:\s*[^;]+;', '', html_content)
-        
-        return html_content
+
+        try:
+            # Parse HTML
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove all style attributes that might contain unsupported CSS
+            for tag in soup.find_all(style=True):
+                style_str = tag.get('style', '')
+                
+                # List of problematic CSS properties to remove
+                problematic_patterns = [
+                    r'lab\([^)]+\)',  # lab() colors
+                    r'text-decoration-thickness:[^;]+;?',
+                    r'margin-inline:[^;]+;?',
+                    r'transform:[^;]+;?',
+                    r'-webkit-[^:]+:[^;]+;?',  # webkit prefixes
+                    r'-moz-[^:]+:[^;]+;?',     # mozilla prefixes
+                ]
+                
+                # Clean the style string
+                for pattern in problematic_patterns:
+                    style_str = re.sub(pattern, '', style_str)
+                
+                # Replace lab() colors in remaining style
+                style_str = re.sub(r'lab\([^)]+\)', 'rgb(0,0,0)', style_str)
+                
+                # Clean up multiple semicolons and spaces
+                style_str = re.sub(r';+', ';', style_str)
+                style_str = re.sub(r';\s*;', ';', style_str)
+                style_str = style_str.strip(';').strip()
+                
+                # Update or remove style attribute
+                if style_str:
+                    tag['style'] = style_str
+                else:
+                    del tag['style']
+            
+            # Also clean <style> tags
+            for style_tag in soup.find_all('style'):
+                css_content = style_tag.string or ''
+                for pattern in [r'lab\([^)]+\)', r'text-decoration-thickness:[^;]+;?', 
+                               r'margin-inline:[^;]+;?', r'transform:[^;]+;?']:
+                    css_content = re.sub(pattern, '', css_content)
+                css_content = re.sub(r'lab\([^)]+\)', 'rgb(0,0,0)', css_content)
+                style_tag.string = css_content
+            
+            return str(soup)
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Error sanitizing HTML with BeautifulSoup: {e}, using basic regex fallback")
+            # Fallback to basic replacement
+            html_content = re.sub(r'lab\([^)]+\)', 'rgb(0,0,0)', html_content)
+            return html_content
 
     def export_to_pdf(
         self, html_content: str, title: str = "document", document_type: str = "doc"
