@@ -783,28 +783,28 @@ try:
         path=temp_pdf_path,
         display_name=file_doc.get("original_name", "document.pdf")
     )
-    
+
     logger.info(f"✅ Uploaded to Gemini: {gemini_file.uri}")
-    
+
     # Wait for processing
     import time
     while gemini_file.state.name == "PROCESSING":
         time.sleep(2)
         gemini_file = genai.get_file(gemini_file.name)
-    
+
     if gemini_file.state.name == "FAILED":
         raise Exception(f"Gemini file processing failed: {gemini_file.state}")
-    
+
     # 6. Use file with Gemini model
     model = genai.GenerativeModel("gemini-2.0-flash-exp")
-    
+
     response = model.generate_content([
         gemini_file,
         "Analyze this PDF and extract key information..."
     ])
-    
+
     result = response.text
-    
+
 finally:
     # Cleanup temporary file
     if os.path.exists(temp_pdf_path):
@@ -863,7 +863,7 @@ async def analyze_slide_from_pdf(request: AnalyzeSlideFromPdfRequest):
     # ✅ CORRECT
     user_manager = get_user_manager()
     file_doc = user_manager.get_file_by_id(request.file_id, user_info["uid"])
-    
+
     # Download and process...
 ```
 
@@ -874,7 +874,7 @@ async def generate_test_from_file(request: TestGenerationRequest):
     # ✅ CORRECT
     user_manager = get_user_manager()
     file_info = user_manager.get_file_by_id(request.source_id, user_info["uid"])
-    
+
     # Process file...
 ```
 

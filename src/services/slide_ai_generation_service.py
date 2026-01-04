@@ -590,6 +590,180 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
             logger.error(f"❌ Gemini analysis failed: {e}")
             raise
 
+    async def analyze_slide_requirements_from_pdf(
+        self,
+        title: str,
+        target_goal: str,
+        slide_type: str,
+        num_slides_range: dict,
+        language: str,
+        user_query: str,
+        pdf_path: str,
+    ) -> dict:
+        """
+        Step 1 (PDF variant): Analyze PDF content and generate structured outline
+
+        Similar to analyze_slide_requirements() but includes PDF document analysis.
+
+        Args:
+            title: Presentation title
+            target_goal: Presentation goal
+            slide_type: "academy" or "business"
+            num_slides_range: {"min": int, "max": int}
+            language: "vi", "en", "zh"
+            user_query: Additional user instructions
+            pdf_path: Local path to PDF file
+
+        Returns:
+            dict with keys: presentation_summary, num_slides, slides
+        """
+        import time
+        import google.generativeai as genai
+
+        logger.info(f"📄 Calling Gemini for PDF slide analysis (Step 1)...")
+        logger.info(f"   Model: {self.gemini_model}")
+        logger.info(f"   PDF: {pdf_path}")
+        logger.info(
+            f"   Slides range: {num_slides_range['min']}-{num_slides_range['max']}"
+        )
+
+        uploaded_file = None
+        try:
+            # Configure genai (legacy API for file upload)
+            genai.configure(api_key=self.gemini_api_key)
+
+            # Upload PDF to Gemini Files API
+            logger.info(f"📤 Uploading PDF to Gemini Files API...")
+            uploaded_file = genai.upload_file(pdf_path)
+            logger.info(f"✅ PDF uploaded: {uploaded_file.uri}")
+
+            # Wait for file processing
+            while uploaded_file.state.name == "PROCESSING":
+                logger.info("⏳ Waiting for PDF processing...")
+                time.sleep(2)
+                uploaded_file = genai.get_file(uploaded_file.name)
+
+            if uploaded_file.state.name == "FAILED":
+                raise Exception("PDF processing failed in Gemini")
+
+            logger.info(f"✅ PDF ready: {uploaded_file.state.name}")
+
+            # Build prompt for PDF-based analysis
+            language_names = {
+                "vi": "Vietnamese (Tiếng Việt)",
+                "en": "English",
+                "zh": "Chinese (中文)",
+            }
+
+            mode_instructions = {
+                "academy": "Educational/Training Presentation: Detailed, informative content for learning with clear explanations and examples.",
+                "business": "Corporate/Sales Presentation: Concise, impactful messaging for decision-makers with data-driven insights.",
+            }
+
+            pdf_analysis_prompt = f"""You are an expert presentation designer. Analyze this PDF document and create a structured slide presentation outline.
+
+**PRESENTATION REQUIREMENTS:**
+
+Title: {title}
+Target Goal: {target_goal}
+Presentation Type: {slide_type.upper()} ({mode_instructions[slide_type]})
+Desired Slides: {num_slides_range['min']}-{num_slides_range['max']} slides
+Language: {language_names.get(language, language)}
+
+**USER CONTENT REQUIREMENTS:**
+{user_query}
+
+**YOUR TASK:**
+
+1. READ AND UNDERSTAND the PDF document thoroughly
+2. EXTRACT key information, main topics, and supporting details from the PDF
+3. CREATE a logical slide structure that covers the PDF content
+4. GENERATE {num_slides_range['min']}-{num_slides_range['max']} slides based on the PDF
+
+**OUTPUT FORMAT:**
+
+Return ONLY valid JSON with this EXACT structure (no markdown, no code blocks):
+
+{{
+  "presentation_summary": "Brief 2-3 sentence overview of the presentation",
+  "num_slides": <number between {num_slides_range['min']} and {num_slides_range['max']}>,
+  "slides": [
+    {{
+      "slide_number": 1,
+      "title": "Engaging Slide Title",
+      "content_points": [
+        "First key point from PDF",
+        "Second key point from PDF",
+        "Third key point from PDF"
+      ],
+      "suggested_visuals": ["icon-type", "chart-type"],
+      "image_suggestion": "Description of relevant image",
+      "estimated_duration": 45
+    }}
+  ]
+}}
+
+**CRITICAL REQUIREMENTS:**
+- Output MUST be valid JSON (no markdown formatting, no ```json blocks)
+- All content MUST come from the PDF document
+- All content MUST be in {language_names.get(language, language)}
+- Follow {slide_type} mode guidelines strictly
+- Slide count MUST be within range: {num_slides_range['min']}-{num_slides_range['max']}
+- Follow user instructions: {user_query}
+
+Generate the JSON now:"""
+
+            # Call Gemini with PDF using legacy API
+            model = genai.GenerativeModel(self.gemini_model)
+
+            response = model.generate_content(
+                [uploaded_file, pdf_analysis_prompt],
+                generation_config={
+                    "temperature": 0.7,
+                    "top_p": 0.95,
+                    "top_k": 40,
+                    "max_output_tokens": 8192,
+                    "response_mime_type": "application/json",
+                },
+            )
+
+            result_text = response.text.strip()
+            logger.info(f"✅ Gemini PDF analysis completed: {len(result_text)} chars")
+
+            # Parse JSON
+            result = json.loads(result_text)
+
+            # Validate structure
+            if "slides" not in result or "num_slides" not in result:
+                raise ValueError("Invalid analysis structure")
+
+            if len(result["slides"]) != result["num_slides"]:
+                logger.warning(
+                    f"⚠️ Slide count mismatch: {len(result['slides'])} vs {result['num_slides']}"
+                )
+                result["num_slides"] = len(result["slides"])
+
+            logger.info(f"✅ PDF analysis parsed: {result['num_slides']} slides")
+            return result
+
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse JSON: {e}")
+            logger.error(f"   Response text: {result_text[:500]}...")
+            raise ValueError(f"AI returned invalid JSON: {str(e)}")
+
+        except Exception as e:
+            logger.error(f"❌ Gemini PDF analysis failed: {e}")
+            raise
+
+        finally:
+            # Delete file from Gemini after processing
+            if uploaded_file:
+                try:
+                    genai.delete_file(uploaded_file.name)
+                    logger.info(f"🗑️ Deleted file from Gemini: {uploaded_file.name}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to delete Gemini file: {e}")
+
     async def generate_slide_html_batch(
         self,
         slides_outline: List[dict],
