@@ -433,55 +433,61 @@ class DocumentExportService:
 
         try:
             # Parse HTML
-            soup = BeautifulSoup(html_content, 'html.parser')
-            
+            soup = BeautifulSoup(html_content, "html.parser")
+
             # Remove all style attributes that might contain unsupported CSS
             for tag in soup.find_all(style=True):
-                style_str = tag.get('style', '')
-                
+                style_str = tag.get("style", "")
+
                 # List of problematic CSS properties to remove
                 problematic_patterns = [
-                    r'lab\([^)]+\)',  # lab() colors
-                    r'text-decoration-thickness:[^;]+;?',
-                    r'margin-inline:[^;]+;?',
-                    r'transform:[^;]+;?',
-                    r'-webkit-[^:]+:[^;]+;?',  # webkit prefixes
-                    r'-moz-[^:]+:[^;]+;?',     # mozilla prefixes
+                    r"lab\([^)]+\)",  # lab() colors
+                    r"text-decoration-thickness:[^;]+;?",
+                    r"margin-inline:[^;]+;?",
+                    r"transform:[^;]+;?",
+                    r"-webkit-[^:]+:[^;]+;?",  # webkit prefixes
+                    r"-moz-[^:]+:[^;]+;?",  # mozilla prefixes
                 ]
-                
+
                 # Clean the style string
                 for pattern in problematic_patterns:
-                    style_str = re.sub(pattern, '', style_str)
-                
+                    style_str = re.sub(pattern, "", style_str)
+
                 # Replace lab() colors in remaining style
-                style_str = re.sub(r'lab\([^)]+\)', 'rgb(0,0,0)', style_str)
-                
+                style_str = re.sub(r"lab\([^)]+\)", "rgb(0,0,0)", style_str)
+
                 # Clean up multiple semicolons and spaces
-                style_str = re.sub(r';+', ';', style_str)
-                style_str = re.sub(r';\s*;', ';', style_str)
-                style_str = style_str.strip(';').strip()
-                
+                style_str = re.sub(r";+", ";", style_str)
+                style_str = re.sub(r";\s*;", ";", style_str)
+                style_str = style_str.strip(";").strip()
+
                 # Update or remove style attribute
                 if style_str:
-                    tag['style'] = style_str
+                    tag["style"] = style_str
                 else:
-                    del tag['style']
-            
+                    del tag["style"]
+
             # Also clean <style> tags
-            for style_tag in soup.find_all('style'):
-                css_content = style_tag.string or ''
-                for pattern in [r'lab\([^)]+\)', r'text-decoration-thickness:[^;]+;?', 
-                               r'margin-inline:[^;]+;?', r'transform:[^;]+;?']:
-                    css_content = re.sub(pattern, '', css_content)
-                css_content = re.sub(r'lab\([^)]+\)', 'rgb(0,0,0)', css_content)
+            for style_tag in soup.find_all("style"):
+                css_content = style_tag.string or ""
+                for pattern in [
+                    r"lab\([^)]+\)",
+                    r"text-decoration-thickness:[^;]+;?",
+                    r"margin-inline:[^;]+;?",
+                    r"transform:[^;]+;?",
+                ]:
+                    css_content = re.sub(pattern, "", css_content)
+                css_content = re.sub(r"lab\([^)]+\)", "rgb(0,0,0)", css_content)
                 style_tag.string = css_content
-            
+
             return str(soup)
-            
+
         except Exception as e:
-            logger.warning(f"⚠️ Error sanitizing HTML with BeautifulSoup: {e}, using basic regex fallback")
+            logger.warning(
+                f"⚠️ Error sanitizing HTML with BeautifulSoup: {e}, using basic regex fallback"
+            )
             # Fallback to basic replacement
-            html_content = re.sub(r'lab\([^)]+\)', 'rgb(0,0,0)', html_content)
+            html_content = re.sub(r"lab\([^)]+\)", "rgb(0,0,0)", html_content)
             return html_content
 
     def export_to_pdf(
@@ -839,18 +845,14 @@ class DocumentExportService:
         try:
             # Generate file based on format
             if format == "pdf":
-                # Use Playwright for slide presentations (better quality)
-                # Use WeasyPrint for documents/notes (faster, simpler)
-                if document_type == "slide":
-                    logger.info("🎬 Using Playwright for slide PDF export")
-                    file_bytes, filename = await self.export_to_pdf_playwright(
-                        html_content, title, document_type
-                    )
-                else:
-                    logger.info("📄 Using WeasyPrint for document PDF export")
-                    file_bytes, filename = self.export_to_pdf(
-                        html_content, title, document_type
-                    )
+                # ✅ FIX: Use Playwright for ALL document types
+                # WeasyPrint has compatibility issues with modern HTML/CSS
+                logger.info(
+                    f"🎬 Using Playwright for PDF export (document_type={document_type})"
+                )
+                file_bytes, filename = await self.export_to_pdf_playwright(
+                    html_content, title, document_type
+                )
                 content_type = "application/pdf"
             elif format == "docx":
                 file_bytes, filename = self.export_to_docx(html_content, title)
