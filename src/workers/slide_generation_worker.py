@@ -95,6 +95,185 @@ class SlideGenerationWorker:
         Returns:
             bool: True if processing successful
         """
+        # Route based on step
+        if task.step == 1:
+            # Step 1: Analysis (text or PDF)
+            return await self.process_analysis_task(task)
+        elif task.step == 2:
+            # Step 2: HTML generation
+            return await self.process_html_generation_task(task)
+        else:
+            logger.error(f"❌ Unknown task step: {task.step}")
+            return False
+
+    async def process_analysis_task(self, task: SlideGenerationTask) -> bool:
+        """
+        Process Step 1: Slide analysis (text or PDF)
+
+        Args:
+            task: SlideGenerationTask with step=1
+
+        Returns:
+            bool: True if successful
+        """
+        analysis_id = task.document_id  # analysis_id is stored as document_id
+        start_time = datetime.utcnow()
+
+        try:
+            logger.info(
+                f"📝 Processing slide analysis for analysis_id {analysis_id} (user: {task.user_id})"
+            )
+
+            # Update Redis status to processing
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=analysis_id,
+                status="processing",
+                user_id=task.user_id,
+                started_at=start_time.isoformat(),
+                title=task.title or "Untitled Analysis",
+            )
+
+            # Determine if text-based or PDF-based analysis
+            is_pdf = task.file_id is not None
+
+            if is_pdf:
+                logger.info(f"📄 PDF-based analysis: file_id={task.file_id}")
+
+                # Call PDF analysis service
+                analysis_result = (
+                    await self.ai_service.analyze_slide_requirements_from_pdf(
+                        file_id=task.file_id,
+                        user_id=task.user_id,
+                        title=task.title,
+                        target_goal=task.target_goal,
+                        slide_type=task.slide_type,
+                        num_slides_range=task.num_slides_range,
+                        language=task.language,
+                        user_query=task.user_query,
+                    )
+                )
+            else:
+                logger.info(f"📝 Text-based analysis")
+
+                # Call text analysis service
+                analysis_result = await self.ai_service.analyze_slide_requirements(
+                    title=task.title,
+                    target_goal=task.target_goal,
+                    slide_type=task.slide_type,
+                    num_slides_range=task.num_slides_range,
+                    language=task.language,
+                    user_query=task.user_query,
+                )
+
+            processing_time = int(
+                (datetime.utcnow() - start_time).total_seconds() * 1000
+            )
+
+            # Convert slides to SlideOutlineItem format
+            from src.models.slide_ai_generation_models import SlideOutlineItem
+
+            slides_outline = []
+            for slide_data in analysis_result["slides"]:
+                slides_outline.append(
+                    {
+                        "slide_number": slide_data["slide_number"],
+                        "title": slide_data["title"],
+                        "content_points": slide_data.get("content_points", []),
+                        "suggested_visuals": slide_data.get("suggested_visuals", []),
+                        "image_suggestion": slide_data.get("image_suggestion"),
+                        "estimated_duration": slide_data.get("estimated_duration"),
+                        "image_url": None,  # User will add later
+                    }
+                )
+
+            # Save completed analysis to MongoDB
+            await asyncio.to_thread(
+                self.mongo.db["slide_analyses"].update_one,
+                {"_id": ObjectId(analysis_id)},
+                {
+                    "$set": {
+                        "presentation_summary": analysis_result.get(
+                            "presentation_summary", ""
+                        ),
+                        "num_slides": analysis_result["num_slides"],
+                        "slides_outline": slides_outline,
+                        "status": "completed",
+                        "processing_time_ms": processing_time,
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+
+            logger.info(
+                f"✅ Analysis completed: {len(slides_outline)} slides in {processing_time}ms"
+            )
+
+            # Deduct points after success
+            points_service = get_points_service()
+            await points_service.deduct_points(
+                user_id=task.user_id,
+                amount=2,
+                service="slide_ai_analysis_pdf" if is_pdf else "slide_ai_analysis",
+                resource_id=analysis_id,
+                description=f"Slide AI Analysis: {task.title}",
+            )
+
+            logger.info(f"💰 Deducted 2 points from user {task.user_id}")
+
+            # Update Redis status to completed
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=analysis_id,
+                status="completed",
+                user_id=task.user_id,
+                progress_percent=100,
+                total_slides=len(slides_outline),
+                title=task.title or "Untitled Analysis",
+            )
+
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Analysis failed: {e}", exc_info=True)
+
+            # Update MongoDB status to failed
+            try:
+                await asyncio.to_thread(
+                    self.mongo.db["slide_analyses"].update_one,
+                    {"_id": ObjectId(analysis_id)},
+                    {
+                        "$set": {
+                            "status": "failed",
+                            "error_message": str(e),
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
+                )
+            except Exception as db_error:
+                logger.error(f"❌ Failed to update MongoDB: {db_error}")
+
+            # Update Redis status to failed
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=analysis_id,
+                status="failed",
+                user_id=task.user_id,
+                error=str(e),
+            )
+
+            return False
+
+    async def process_html_generation_task(self, task: SlideGenerationTask) -> bool:
+        """
+        Process Step 2: HTML slide generation
+
+        Args:
+            task: SlideGenerationTask with step=2
+
+        Returns:
+            bool: True if successful
+        """
         document_id = task.document_id
         start_time = datetime.utcnow()
 

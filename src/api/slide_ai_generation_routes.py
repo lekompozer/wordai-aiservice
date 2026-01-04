@@ -47,6 +47,149 @@ db = db_manager.db
 # ============ STATUS POLLING ============
 
 
+@router.get("/analysis-status/{analysis_id}", response_model=AnalyzeSlideResponse)
+async def get_analysis_status(
+    analysis_id: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **Poll slide analysis status (Step 1)**
+
+    Returns current status of slide analysis FROM REDIS AND MONGODB:
+    - If pending/processing: Returns from Redis with empty outline
+    - If completed: Returns from MongoDB with full outline
+    - If failed: Returns error from Redis
+
+    Frontend should poll this endpoint every 2-3 seconds until status is 'completed' or 'failed'.
+
+    **Status Flow:**
+    1. pending → Worker picking up task
+    2. processing → AI analyzing content
+    3. completed → Outline ready in MongoDB
+    4. failed → Error occurred
+
+    **IMPORTANT:** Status is tracked in Redis, final result in MongoDB.
+    """
+    try:
+        from bson import ObjectId
+
+        # 1. Check MongoDB first for completed analysis
+        collection = db["slide_analyses"]
+        try:
+            analysis_doc = collection.find_one({"_id": ObjectId(analysis_id)})
+        except:
+            # Invalid ObjectId format
+            raise HTTPException(status_code=404, detail="Invalid analysis_id format")
+
+        if not analysis_doc:
+            raise HTTPException(
+                status_code=404,
+                detail="Analysis not found. It may have been deleted or never created.",
+            )
+
+        # Validate user owns this analysis
+        if analysis_doc.get("user_id") != user_info["uid"]:
+            raise HTTPException(
+                status_code=403, detail="Not authorized to view this analysis"
+            )
+
+        db_status = analysis_doc.get("status", "pending")
+
+        # 2. If completed in MongoDB, return full result
+        if db_status == "completed":
+            slides_outline = []
+            for slide_data in analysis_doc.get("slides_outline", []):
+                slides_outline.append(
+                    SlideOutlineItem(
+                        slide_number=slide_data["slide_number"],
+                        title=slide_data["title"],
+                        content_points=slide_data.get("content_points", []),
+                        suggested_visuals=slide_data.get("suggested_visuals", []),
+                        image_suggestion=slide_data.get("image_suggestion"),
+                        estimated_duration=slide_data.get("estimated_duration"),
+                        image_url=slide_data.get("image_url"),
+                    )
+                )
+
+            return AnalyzeSlideResponse(
+                success=True,
+                analysis_id=analysis_id,
+                presentation_summary=analysis_doc.get("presentation_summary", ""),
+                num_slides=analysis_doc.get("num_slides", 0),
+                slides_outline=slides_outline,
+                processing_time_ms=analysis_doc.get("processing_time_ms", 0),
+                points_deducted=2,  # Always 2 points for analysis
+                message="Analysis completed successfully!",
+                poll_url=None,  # No need to poll anymore
+            )
+
+        # 3. If failed in MongoDB, return error
+        if db_status == "failed":
+            error_msg = analysis_doc.get("error_message", "Unknown error")
+            return AnalyzeSlideResponse(
+                success=False,
+                analysis_id=analysis_id,
+                presentation_summary="",
+                num_slides=0,
+                slides_outline=[],
+                processing_time_ms=0,
+                points_deducted=0,
+                message=f"Analysis failed: {error_msg}",
+                poll_url=None,
+            )
+
+        # 4. Still pending/processing - Check Redis for real-time status
+        queue = await get_slide_generation_queue()
+        job = await get_job_status(queue.redis_client, analysis_id)
+
+        if job:
+            redis_status = job.get("status", "pending")
+            progress = job.get("progress_percent", 0)
+
+            # Build status message
+            if redis_status == "pending":
+                message = "Analysis is starting..."
+            elif redis_status == "processing":
+                source = analysis_doc.get("source", "text")
+                if source == "pdf":
+                    message = f"Analyzing PDF content... ({progress}% complete)"
+                else:
+                    message = f"Analyzing requirements... ({progress}% complete)"
+            else:
+                message = "Processing..."
+
+            return AnalyzeSlideResponse(
+                success=True,
+                analysis_id=analysis_id,
+                presentation_summary="",
+                num_slides=0,
+                slides_outline=[],
+                processing_time_ms=0,
+                points_deducted=0,
+                message=message,
+                poll_url=f"/api/slides/ai-generate/analysis-status/{analysis_id}",
+            )
+
+        # 5. No Redis status but MongoDB says pending - Worker hasn't picked up yet
+        return AnalyzeSlideResponse(
+            success=True,
+            analysis_id=analysis_id,
+            presentation_summary="",
+            num_slides=0,
+            slides_outline=[],
+            processing_time_ms=0,
+            points_deducted=0,
+            message="Analysis task queued. Waiting for worker to pick up...",
+            poll_url=f"/api/slides/ai-generate/analysis-status/{analysis_id}",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get analysis status: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/status/{document_id}", response_model=SlideGenerationStatus)
 async def get_slide_generation_status(
     document_id: str,
@@ -324,28 +467,23 @@ async def analyze_slide_requirements(
     user_info: dict = Depends(require_auth),
 ):
     """
-    **STEP 1: Analyze slide requirements and generate structured outline**
+    **STEP 1: Analyze slide requirements and generate structured outline (ASYNC)**
 
     **Cost:** 2 points
 
-    **Flow:**
+    **Flow (Async with Redis Queue):**
     1. User provides: title, goal, type, slide range, language, content query
-    2. AI (Gemini 2.0 Flash) analyzes and creates structured outline
-    3. Returns outline with:
-       - Optimal slide count (within range)
-       - Title and content points for each slide
-       - Image suggestions (user can add image URLs)
-       - Visual element suggestions
-
-    **User can then:**
-    - Review the outline
-    - Add image URLs to specific slides
-    - Regenerate with new query (keeps params)
-    - Proceed to Step 2 to generate HTML
+    2. Backend creates analysis job and returns analysis_id immediately
+    3. Background worker:
+       - AI (Gemini 2.0 Flash) analyzes and creates structured outline
+       - Saves outline to database
+       - Updates job status in Redis
+    4. Frontend polls `/api/slides/ai-generate/analysis-status/{analysis_id}` every 2-3 seconds
 
     **Returns:**
-    - analysis_id: Use this for Step 2
-    - slides_outline: Review and optionally add image URLs
+    - analysis_id: Use this for polling status and Step 2
+    - status: Always 'pending' initially
+    - poll_url: URL to check analysis status
     """
     try:
         logger.info(f"📝 Slide analysis request from user {user_info['uid']}")
@@ -373,41 +511,12 @@ async def analyze_slide_requirements(
                 },
             )
 
-        # 2. Call AI for analysis
-        ai_service = get_slide_ai_service()
-        start_time = datetime.now()
-
-        analysis_result = await ai_service.analyze_slide_requirements(
-            title=request.title,
-            target_goal=request.target_goal,
-            slide_type=request.slide_type,
-            num_slides_range=request.num_slides_range.dict(),
-            language=request.language,
-            user_query=request.user_query,
-        )
-
-        processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-
-        # 3. Save analysis to database
-        # db already initialized
+        # 2. Create analysis record in pending status
         collection = db["slide_analyses"]
-
-        # Convert slides to SlideOutlineItem models
-        slides_outline = []
-        for slide_data in analysis_result["slides"]:
-            slides_outline.append(
-                SlideOutlineItem(
-                    slide_number=slide_data["slide_number"],
-                    title=slide_data["title"],
-                    content_points=slide_data.get("content_points", []),
-                    suggested_visuals=slide_data.get("suggested_visuals", []),
-                    image_suggestion=slide_data.get("image_suggestion"),
-                    estimated_duration=slide_data.get("estimated_duration"),
-                    image_url=None,  # User will add later
-                )
-            )
+        analysis_id = str(ObjectId())
 
         analysis_doc = {
+            "_id": ObjectId(analysis_id),
             "user_id": user_info["uid"],
             "title": request.title,
             "target_goal": request.target_goal,
@@ -415,40 +524,55 @@ async def analyze_slide_requirements(
             "num_slides_range": request.num_slides_range.dict(),
             "language": request.language,
             "user_query": request.user_query,
-            "presentation_summary": analysis_result.get("presentation_summary", ""),
-            "num_slides": analysis_result["num_slides"],
-            "slides_outline": [slide.dict() for slide in slides_outline],
-            "status": "completed",
-            "processing_time_ms": processing_time,
+            "status": "pending",  # Will be updated by worker
+            "source": "text",
             "created_at": datetime.now(),
             "updated_at": datetime.now(),
         }
 
-        result = collection.insert_one(analysis_doc)
-        analysis_id = str(result.inserted_id)
+        collection.insert_one(analysis_doc)
+        logger.info(f"✅ Analysis record created: {analysis_id} (status=pending)")
 
-        logger.info(f"✅ Analysis saved: {analysis_id} ({len(slides_outline)} slides)")
+        # 3. Enqueue background task to Redis
+        queue = await get_slide_generation_queue()
 
-        # 4. Deduct points (only after success)
-        await points_service.deduct_points(
+        task = SlideGenerationTask(
+            task_id=analysis_id,
+            document_id=analysis_id,  # Use analysis_id as document_id for step 1
             user_id=user_info["uid"],
-            amount=2,
-            service="slide_ai_analysis",
-            resource_id=analysis_id,
-            description=f"Slide AI Analysis: {request.title}",
+            step=1,  # Text-based analysis
+            title=request.title,
+            target_goal=request.target_goal,
+            slide_type=request.slide_type,
+            num_slides_range=request.num_slides_range.dict(),
+            language=request.language,
+            user_query=request.user_query,
+            file_id=None,  # No file for text-based analysis
+            analysis_id=None,  # Not needed for step 1
         )
 
-        logger.info(f"💰 Deducted 2 points from user {user_info['uid']}")
+        success = await queue.enqueue_generic_task(task)
 
-        # 5. Return response
+        if not success:
+            # Rollback: Delete analysis record
+            collection.delete_one({"_id": ObjectId(analysis_id)})
+            raise HTTPException(
+                status_code=500, detail="Failed to enqueue slide analysis task"
+            )
+
+        logger.info(f"🚀 Slide analysis task enqueued to Redis: {analysis_id}")
+
+        # 4. Return immediately with job info (don't deduct points yet)
         return AnalyzeSlideResponse(
             success=True,
             analysis_id=analysis_id,
-            presentation_summary=analysis_result.get("presentation_summary", ""),
-            num_slides=len(slides_outline),
-            slides_outline=slides_outline,
-            processing_time_ms=processing_time,
-            points_deducted=2,
+            presentation_summary="",  # Will be filled by worker
+            num_slides=0,  # Will be filled by worker
+            slides_outline=[],  # Will be filled by worker
+            processing_time_ms=0,
+            points_deducted=0,  # Will be deducted after success
+            message="Slide analysis started. Poll /api/slides/ai-generate/analysis-status/{analysis_id} for status.",
+            poll_url=f"/api/slides/ai-generate/analysis-status/{analysis_id}",
         )
 
     except HTTPException:
@@ -575,7 +699,12 @@ async def analyze_slide_from_pdf(
             document_id=analysis_id,  # Use analysis_id as document_id for step 1
             user_id=user_info["uid"],
             step=1,  # PDF analysis step
-            outline=None,  # Will be generated
+            title=request.title,
+            target_goal=request.target_goal,
+            slide_type=request.slide_type,
+            num_slides_range=request.num_slides_range.dict(),
+            language=request.language,
+            user_query=request.user_query,
             file_id=request.file_id,  # PDF file to analyze
             analysis_id=None,  # Not needed for step 1
         )
@@ -760,7 +889,13 @@ async def create_slides_from_analysis(
             document_id=document_id,
             user_id=user_info["uid"],
             step=2,  # HTML generation step
-            outline=None,  # Not needed for step 2 (HTML generation)
+            title=None,  # Not needed for step 2
+            target_goal=None,
+            slide_type=None,
+            num_slides_range=None,
+            language=None,
+            user_query=None,
+            file_id=None,
             analysis_id=request.analysis_id,
         )
 

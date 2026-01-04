@@ -4,7 +4,7 @@ Pydantic models for AI tasks in Redis queue
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Dict, Optional
 from datetime import datetime
 
 
@@ -51,12 +51,19 @@ class SlideGenerationTask(BaseModel):
     """Task for Slide Generation queue"""
 
     task_id: str = Field(..., description="Unique task ID")
-    document_id: str = Field(..., description="Slide document ID")
+    document_id: str = Field(..., description="Slide document ID or analysis_id")
     user_id: str = Field(..., description="User ID")
     step: int = Field(..., description="Generation step (1 or 2)")
 
-    # Step 1: Analysis
-    outline: Optional[str] = Field(None, description="Slide outline (for step 1)")
+    # Step 1: Analysis (text or PDF)
+    title: Optional[str] = Field(None, description="Presentation title (step 1)")
+    target_goal: Optional[str] = Field(None, description="Presentation goal (step 1)")
+    slide_type: Optional[str] = Field(None, description="academy or business (step 1)")
+    num_slides_range: Optional[Dict[str, int]] = Field(
+        None, description="Slide count range (step 1)"
+    )
+    language: Optional[str] = Field(None, description="Language vi/en/zh (step 1)")
+    user_query: Optional[str] = Field(None, description="User content query (step 1)")
     file_id: Optional[str] = Field(
         None, description="PDF file ID (for PDF-based analysis in step 1)"
     )

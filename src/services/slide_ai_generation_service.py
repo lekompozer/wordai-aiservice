@@ -657,7 +657,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
                 language=language,
                 user_query=user_query,
             )
-            
+
             # Prepend PDF-specific instruction
             pdf_analysis_prompt = f"""**IMPORTANT: You are analyzing a PDF document. Extract all content from the uploaded PDF file.**
 
@@ -665,9 +665,9 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
 
             # Call Gemini with PDF using legacy API
             model = genai.GenerativeModel(self.gemini_model)
-            
+
             # Increase max_output_tokens for large slide counts
-            max_slides = num_slides_range['max']
+            max_slides = num_slides_range["max"]
             # Estimate: ~500 tokens per slide, add buffer
             estimated_tokens = min(max_slides * 600 + 1000, 32000)
 
@@ -690,21 +690,29 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
                 result = json.loads(result_text)
             except json.JSONDecodeError as e:
                 # Try to repair truncated JSON
-                logger.warning(f"⚠️ JSON parse error at position {e.pos}, attempting repair...")
-                
+                logger.warning(
+                    f"⚠️ JSON parse error at position {e.pos}, attempting repair..."
+                )
+
                 # If JSON is truncated, try to close it properly
-                if "slides" in result_text and result_text.count("[") > result_text.count("]"):
+                if "slides" in result_text and result_text.count(
+                    "["
+                ) > result_text.count("]"):
                     logger.info("🔧 Attempting to close truncated JSON array...")
                     # Add missing closing brackets
-                    missing_close_brackets = result_text.count("[") - result_text.count("]")
-                    missing_close_braces = result_text.count("{") - result_text.count("}")
-                    
+                    missing_close_brackets = result_text.count("[") - result_text.count(
+                        "]"
+                    )
+                    missing_close_braces = result_text.count("{") - result_text.count(
+                        "}"
+                    )
+
                     repaired_text = result_text
                     for _ in range(missing_close_braces):
                         repaired_text += "}"
                     for _ in range(missing_close_brackets):
                         repaired_text += "]"
-                    
+
                     try:
                         result = json.loads(repaired_text)
                         logger.info(f"✅ Successfully repaired JSON")
