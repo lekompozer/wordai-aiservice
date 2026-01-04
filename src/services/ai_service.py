@@ -66,7 +66,8 @@ class UnifiedAIService:
                     f"Generated embedding has incorrect size: {len(embedding)} != {self.vector_size}"
                 )
 
-            return embedding
+            # Ensure it's a list of floats (handle Tensor type)
+            return [float(x) for x in embedding]
 
         except Exception as e:
             self.logger.error(

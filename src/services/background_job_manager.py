@@ -30,11 +30,11 @@ class BackgroundJob:
         self.params = params
         self.status = JobStatus.PENDING
         self.progress = 0
-        self.result = None
-        self.error = None
+        self.result: Optional[Dict] = None
+        self.error: Optional[str] = None
         self.created_at = datetime.now()
-        self.started_at = None
-        self.completed_at = None
+        self.started_at: Optional[datetime] = None
+        self.completed_at: Optional[datetime] = None
         self.task = None
 
     def to_dict(self) -> Dict:
@@ -81,7 +81,9 @@ class BackgroundJobManager:
         """Get job by ID"""
         return self.jobs.get(job_id)
 
-    def update_progress(self, job_id: str, progress: int, status: JobStatus = None):
+    def update_progress(
+        self, job_id: str, progress: int, status: Optional[JobStatus] = None
+    ):
         """Update job progress"""
         job = self.jobs.get(job_id)
         if job:

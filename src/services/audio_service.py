@@ -143,7 +143,9 @@ class AudioService:
                 raise ValueError(error_msg)
 
             # Generate R2 path
-            r2_path = self.generate_r2_path(user_id, chapter_id, language, audio_format)
+            r2_path = self.generate_r2_path(
+                user_id, chapter_id, language, audio_format or "mp3"
+            )
 
             # Upload to R2
             if not self.r2_service:
