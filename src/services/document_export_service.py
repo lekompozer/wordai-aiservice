@@ -417,6 +417,36 @@ class DocumentExportService:
             logger.error(f"❌ Error generating PDF with Playwright: {e}")
             raise Exception(f"PDF generation failed: {str(e)}")
 
+    def _sanitize_html_for_weasyprint(self, html_content: str) -> str:
+        """
+        Sanitize HTML for WeasyPrint compatibility
+        Remove unsupported CSS properties and color formats
+        
+        Args:
+            html_content: Original HTML content
+            
+        Returns:
+            Sanitized HTML content
+        """
+        import re
+        
+        # Remove lab() color values (not supported by WeasyPrint)
+        html_content = re.sub(r'lab\([^)]+\)', 'rgb(0, 0, 0)', html_content)
+        
+        # Remove unsupported CSS properties
+        unsupported_properties = [
+            r'text-decoration-thickness:\s*[^;]+;',
+            r'margin-inline:\s*[^;]+;',
+        ]
+        
+        for pattern in unsupported_properties:
+            html_content = re.sub(pattern, '', html_content)
+        
+        # Remove transform properties that may cause issues
+        html_content = re.sub(r'transform:\s*[^;]+;', '', html_content)
+        
+        return html_content
+
     def export_to_pdf(
         self, html_content: str, title: str = "document", document_type: str = "doc"
     ) -> Tuple[bytes, str]:
@@ -433,6 +463,10 @@ class DocumentExportService:
         """
         try:
             from weasyprint import HTML, CSS
+
+            # ✅ Sanitize HTML for WeasyPrint compatibility
+            html_content = self._sanitize_html_for_weasyprint(html_content)
+            logger.info("🧹 HTML sanitized for WeasyPrint compatibility")
 
             # Choose page size based on document type
             if document_type == "slide":

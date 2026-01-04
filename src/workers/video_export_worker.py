@@ -789,7 +789,7 @@ class VideoExportWorker:
             user_id=user_id,
             filename=file_name,
             file_type="video",
-            category="video",
+            category="videos",  # ✅ FIX: Use "videos" to match API filter
             r2_url=r2_url,
             r2_key=r2_key,
             file_size=file_size,
