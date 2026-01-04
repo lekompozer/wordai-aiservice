@@ -648,73 +648,28 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
 
             logger.info(f"✅ PDF ready: {uploaded_file.state.name}")
 
-            # Build prompt for PDF-based analysis
-            language_names = {
-                "vi": "Vietnamese (Tiếng Việt)",
-                "en": "English",
-                "zh": "Chinese (中文)",
-            }
+            # Build prompt using SAME method as text analysis for consistency
+            base_prompt = self.build_analysis_prompt(
+                title=title,
+                target_goal=target_goal,
+                slide_type=slide_type,
+                num_slides_range=num_slides_range,
+                language=language,
+                user_query=user_query,
+            )
+            
+            # Prepend PDF-specific instruction
+            pdf_analysis_prompt = f"""**IMPORTANT: You are analyzing a PDF document. Extract all content from the uploaded PDF file.**
 
-            mode_instructions = {
-                "academy": "Educational/Training Presentation: Detailed, informative content for learning with clear explanations and examples.",
-                "business": "Corporate/Sales Presentation: Concise, impactful messaging for decision-makers with data-driven insights.",
-            }
-
-            pdf_analysis_prompt = f"""You are an expert presentation designer. Analyze this PDF document and create a structured slide presentation outline.
-
-**PRESENTATION REQUIREMENTS:**
-
-Title: {title}
-Target Goal: {target_goal}
-Presentation Type: {slide_type.upper()} ({mode_instructions[slide_type]})
-Desired Slides: {num_slides_range['min']}-{num_slides_range['max']} slides
-Language: {language_names.get(language, language)}
-
-**USER CONTENT REQUIREMENTS:**
-{user_query}
-
-**YOUR TASK:**
-
-1. READ AND UNDERSTAND the PDF document thoroughly
-2. EXTRACT key information, main topics, and supporting details from the PDF
-3. CREATE a logical slide structure that covers the PDF content
-4. GENERATE {num_slides_range['min']}-{num_slides_range['max']} slides based on the PDF
-
-**OUTPUT FORMAT:**
-
-Return ONLY valid JSON with this EXACT structure (no markdown, no code blocks):
-
-{{
-  "presentation_summary": "Brief 2-3 sentence overview of the presentation",
-  "num_slides": <number between {num_slides_range['min']} and {num_slides_range['max']}>,
-  "slides": [
-    {{
-      "slide_number": 1,
-      "title": "Engaging Slide Title",
-      "content_points": [
-        "First key point from PDF",
-        "Second key point from PDF",
-        "Third key point from PDF"
-      ],
-      "suggested_visuals": ["icon-type", "chart-type"],
-      "image_suggestion": "Description of relevant image",
-      "estimated_duration": 45
-    }}
-  ]
-}}
-
-**CRITICAL REQUIREMENTS:**
-- Output MUST be valid JSON (no markdown formatting, no ```json blocks)
-- All content MUST come from the PDF document
-- All content MUST be in {language_names.get(language, language)}
-- Follow {slide_type} mode guidelines strictly
-- Slide count MUST be within range: {num_slides_range['min']}-{num_slides_range['max']}
-- Follow user instructions: {user_query}
-
-Generate the JSON now:"""
+{base_prompt}"""
 
             # Call Gemini with PDF using legacy API
             model = genai.GenerativeModel(self.gemini_model)
+            
+            # Increase max_output_tokens for large slide counts
+            max_slides = num_slides_range['max']
+            # Estimate: ~500 tokens per slide, add buffer
+            estimated_tokens = min(max_slides * 600 + 1000, 32000)
 
             response = model.generate_content(
                 [uploaded_file, pdf_analysis_prompt],
@@ -722,7 +677,7 @@ Generate the JSON now:"""
                     "temperature": 0.7,
                     "top_p": 0.95,
                     "top_k": 40,
-                    "max_output_tokens": 8192,
+                    "max_output_tokens": estimated_tokens,
                     "response_mime_type": "application/json",
                 },
             )
@@ -730,8 +685,37 @@ Generate the JSON now:"""
             result_text = response.text.strip()
             logger.info(f"✅ Gemini PDF analysis completed: {len(result_text)} chars")
 
-            # Parse JSON
-            result = json.loads(result_text)
+            # Parse JSON with error handling
+            try:
+                result = json.loads(result_text)
+            except json.JSONDecodeError as e:
+                # Try to repair truncated JSON
+                logger.warning(f"⚠️ JSON parse error at position {e.pos}, attempting repair...")
+                
+                # If JSON is truncated, try to close it properly
+                if "slides" in result_text and result_text.count("[") > result_text.count("]"):
+                    logger.info("🔧 Attempting to close truncated JSON array...")
+                    # Add missing closing brackets
+                    missing_close_brackets = result_text.count("[") - result_text.count("]")
+                    missing_close_braces = result_text.count("{") - result_text.count("}")
+                    
+                    repaired_text = result_text
+                    for _ in range(missing_close_braces):
+                        repaired_text += "}"
+                    for _ in range(missing_close_brackets):
+                        repaired_text += "]"
+                    
+                    try:
+                        result = json.loads(repaired_text)
+                        logger.info(f"✅ Successfully repaired JSON")
+                    except:
+                        logger.error(f"❌ Failed to parse JSON: {e}")
+                        logger.error(f"   Response text: {result_text[:500]}...")
+                        raise ValueError(f"AI returned invalid JSON: {str(e)}")
+                else:
+                    logger.error(f"❌ Failed to parse JSON: {e}")
+                    logger.error(f"   Response text: {result_text[:500]}...")
+                    raise ValueError(f"AI returned invalid JSON: {str(e)}")
 
             # Validate structure
             if "slides" not in result or "num_slides" not in result:

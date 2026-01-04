@@ -467,32 +467,28 @@ async def analyze_slide_from_pdf(
     user_info: dict = Depends(require_auth),
 ):
     """
-    **STEP 1 (PDF): Analyze PDF content and generate structured slide outline**
+    **STEP 1 (PDF): Analyze PDF content and generate structured slide outline (ASYNC)**
 
     **Cost:** 2 points (same as regular analysis)
 
-    **Difference from regular analyze:**
-    - Accepts `file_id` instead of relying only on user_query
-    - Extracts content from PDF file (max 20MB)
-    - AI generates outline based on PDF content + user instructions
-
-    **Flow:**
+    **Flow (Async with Redis Queue):**
     1. User uploads PDF via `/api/files/upload` → gets `file_id`
     2. User provides: title, goal, type, slide range, language, user_query
-    3. Backend downloads PDF from R2 storage
-    4. Service layer handles PDF upload to Gemini Files API
-    5. AI analyzes PDF content + user instructions
-    6. Returns outline with slide structure
+    3. Backend creates analysis job and returns analysis_id immediately
+    4. Background worker:
+       - Downloads PDF from R2 storage
+       - Uploads PDF to Gemini Files API
+       - AI analyzes PDF content + user instructions
+       - Saves outline to database
+       - Updates job status in Redis
+    5. Frontend polls `/api/slides/ai-generate/analysis-status/{analysis_id}` every 2-3 seconds
 
     **Returns:**
-    - Same as `/analyze` endpoint
-    - analysis_id for Step 2
-    - slides_outline (user can add image URLs before Step 2)
+    - analysis_id: Use this for polling status
+    - status: Always 'pending' initially
+    - poll_url: URL to check analysis status
     """
     try:
-        import os
-        from src.services.file_download_service import FileDownloadService
-
         logger.info(f"📄 PDF slide analysis request from user {user_info['uid']}")
         logger.info(f"   File ID: {request.file_id}")
         logger.info(f"   Title: {request.title}")
@@ -518,7 +514,7 @@ async def analyze_slide_from_pdf(
                 },
             )
 
-        # 2. Get file from database
+        # 2. Validate file exists (quick check)
         from src.services.user_manager import get_user_manager
 
         user_manager = get_user_manager()
@@ -547,75 +543,12 @@ async def analyze_slide_from_pdf(
                 detail=f"PDF file too large: {file_size / 1024 / 1024:.1f}MB. Maximum: 20MB",
             )
 
-        # 3. Download PDF from R2
-        r2_key = file_doc.get("r2_key")
-        if not r2_key:
-            raise HTTPException(status_code=500, detail="File R2 key not found")
-
-        logger.info(f"📥 Downloading PDF from R2: {r2_key}")
-
-        temp_pdf_path = await FileDownloadService._download_file_from_r2_with_boto3(
-            r2_key=r2_key, file_type="pdf"
-        )
-
-        if not temp_pdf_path:
-            raise HTTPException(
-                status_code=500, detail="Failed to download PDF from R2"
-            )
-
-        logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
-
-        # 4. Call AI service for PDF analysis (service handles Gemini integration)
-        ai_service = get_slide_ai_service()
-        start_time = datetime.now()
-
-        try:
-            analysis_result = await ai_service.analyze_slide_requirements_from_pdf(
-                title=request.title,
-                target_goal=request.target_goal,
-                slide_type=request.slide_type,
-                num_slides_range=request.num_slides_range.dict(),
-                language=request.language,
-                user_query=request.user_query,
-                pdf_path=temp_pdf_path,
-            )
-
-        except Exception as e:
-            logger.error(f"❌ PDF analysis failed: {e}")
-            raise HTTPException(
-                status_code=500, detail=f"PDF analysis failed: {str(e)}"
-            )
-        finally:
-            # Cleanup temp file
-            if temp_pdf_path and os.path.exists(temp_pdf_path):
-                try:
-                    os.unlink(temp_pdf_path)
-                    logger.info(f"🗑️ Cleaned up temp file: {temp_pdf_path}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Failed to cleanup temp file: {e}")
-
-        processing_time = int((datetime.now() - start_time).total_seconds() * 1000)
-
-        # 5. Save analysis to database
-        # db already initialized
+        # 3. Create analysis record in pending status
         collection = db["slide_analyses"]
-
-        # Convert slides to SlideOutlineItem models
-        slides_outline = []
-        for slide_data in analysis_result["slides"]:
-            slides_outline.append(
-                SlideOutlineItem(
-                    slide_number=slide_data["slide_number"],
-                    title=slide_data["title"],
-                    content_points=slide_data.get("content_points", []),
-                    suggested_visuals=slide_data.get("suggested_visuals", []),
-                    image_suggestion=slide_data.get("image_suggestion"),
-                    estimated_duration=slide_data.get("estimated_duration"),
-                    image_url=None,  # User will add later
-                )
-            )
+        analysis_id = str(ObjectId())
 
         analysis_doc = {
+            "_id": ObjectId(analysis_id),
             "user_id": user_info["uid"],
             "title": request.title,
             "target_goal": request.target_goal,
@@ -623,12 +556,7 @@ async def analyze_slide_from_pdf(
             "num_slides_range": request.num_slides_range.dict(),
             "language": request.language,
             "user_query": request.user_query,
-            "presentation_summary": analysis_result.get("presentation_summary", ""),
-            "num_slides": analysis_result["num_slides"],
-            "slides_outline": [slide.dict() for slide in slides_outline],
-            "status": "completed",
-            "processing_time_ms": processing_time,
-            # PDF-specific metadata
+            "status": "pending",  # Will be updated by worker
             "source": "pdf",
             "source_file_id": request.file_id,
             "source_file_name": file_doc.get("original_file_name", ""),
@@ -636,33 +564,44 @@ async def analyze_slide_from_pdf(
             "updated_at": datetime.now(),
         }
 
-        result = collection.insert_one(analysis_doc)
-        analysis_id = str(result.inserted_id)
+        collection.insert_one(analysis_doc)
+        logger.info(f"✅ Analysis record created: {analysis_id} (status=pending)")
 
-        logger.info(
-            f"✅ PDF analysis saved: {analysis_id} ({len(slides_outline)} slides)"
-        )
+        # 4. Enqueue background task to Redis
+        queue = await get_slide_generation_queue()
 
-        # 6. Deduct points (only after success)
-        await points_service.deduct_points(
+        task = SlideGenerationTask(
+            task_id=analysis_id,
+            document_id=analysis_id,  # Use analysis_id as document_id for step 1
             user_id=user_info["uid"],
-            amount=2,
-            service="slide_ai_analysis_pdf",
-            resource_id=analysis_id,
-            description=f"Slide AI Analysis from PDF: {request.title}",
+            step=1,  # PDF analysis step
+            outline=None,  # Will be generated
+            file_id=request.file_id,  # PDF file to analyze
+            analysis_id=None,  # Not needed for step 1
         )
 
-        logger.info(f"💰 Deducted 2 points from user {user_info['uid']}")
+        success = await queue.enqueue_generic_task(task)
 
-        # 7. Return response
+        if not success:
+            # Rollback: Delete analysis record
+            collection.delete_one({"_id": ObjectId(analysis_id)})
+            raise HTTPException(
+                status_code=500, detail="Failed to enqueue PDF analysis task"
+            )
+
+        logger.info(f"🚀 PDF analysis task enqueued to Redis: {analysis_id}")
+
+        # 5. Return immediately with job info (don't deduct points yet)
         return AnalyzeSlideResponse(
             success=True,
             analysis_id=analysis_id,
-            presentation_summary=analysis_result.get("presentation_summary", ""),
-            num_slides=len(slides_outline),
-            slides_outline=slides_outline,
-            processing_time_ms=processing_time,
-            points_deducted=2,
+            presentation_summary="",  # Will be filled by worker
+            num_slides=0,  # Will be filled by worker
+            slides_outline=[],  # Will be filled by worker
+            processing_time_ms=0,
+            points_deducted=0,  # Will be deducted after success
+            message="PDF analysis started. Poll /api/slides/ai-generate/analysis-status/{analysis_id} for status.",
+            poll_url=f"/api/slides/ai-generate/analysis-status/{analysis_id}",
         )
 
     except HTTPException:

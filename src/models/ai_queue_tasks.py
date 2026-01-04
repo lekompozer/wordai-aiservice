@@ -57,6 +57,9 @@ class SlideGenerationTask(BaseModel):
 
     # Step 1: Analysis
     outline: Optional[str] = Field(None, description="Slide outline (for step 1)")
+    file_id: Optional[str] = Field(
+        None, description="PDF file ID (for PDF-based analysis in step 1)"
+    )
 
     # Step 2: HTML Generation
     analysis_id: Optional[str] = Field(

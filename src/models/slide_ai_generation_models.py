@@ -115,14 +115,20 @@ class AnalyzeSlideResponse(BaseModel):
     success: bool = Field(default=True)
     analysis_id: str = Field(..., description="Analysis ID for Step 2")
     presentation_summary: str = Field(
-        ..., description="2-3 sentence overview of presentation"
+        default="", description="2-3 sentence overview of presentation"
     )
-    num_slides: int = Field(..., description="AI-determined optimal slide count")
+    num_slides: int = Field(default=0, description="AI-determined optimal slide count")
     slides_outline: List[SlideOutlineItem] = Field(
-        ..., description="Structured outline for each slide"
+        default_factory=list, description="Structured outline for each slide"
     )
-    processing_time_ms: int = Field(..., description="AI processing time")
-    points_deducted: int = Field(default=2, description="Points cost (2 points)")
+    processing_time_ms: int = Field(default=0, description="AI processing time")
+    points_deducted: int = Field(default=0, description="Points cost (2 points)")
+
+    # For async PDF analysis
+    message: Optional[str] = Field(None, description="Status message for async mode")
+    poll_url: Optional[str] = Field(
+        None, description="URL to poll for status (async mode)"
+    )
 
 
 # ============ STEP 2: HTML GENERATION MODELS ============
