@@ -140,30 +140,100 @@ class SlideGenerationWorker:
             if is_pdf:
                 logger.info(f"📄 PDF-based analysis: file_id={task.file_id}")
 
-                # Call PDF analysis service
-                analysis_result = (
-                    await self.ai_service.analyze_slide_requirements_from_pdf(
-                        file_id=task.file_id,
-                        user_id=task.user_id,
-                        title=task.title,
-                        target_goal=task.target_goal,
-                        slide_type=task.slide_type,
-                        num_slides_range=task.num_slides_range,
-                        language=task.language,
-                        user_query=task.user_query,
+                # Validate required fields for PDF analysis
+                if not all(
+                    [
+                        task.file_id,
+                        task.title,
+                        task.target_goal,
+                        task.slide_type,
+                        task.num_slides_range,
+                        task.language,
+                        task.user_query,
+                    ]
+                ):
+                    raise Exception("Missing required fields for PDF analysis")
+
+                # 1. Get file info from MongoDB to get R2 key
+                from src.services.user_manager import get_user_manager
+
+                user_manager = get_user_manager()
+                file_doc = user_manager.get_file_by_id(
+                    str(task.file_id), task.user_id  # type: ignore
+                )
+
+                if not file_doc:
+                    raise Exception(
+                        f"File {task.file_id} not found for user {task.user_id}"
+                    )
+
+                r2_key = file_doc.get("r2_key")
+                if not r2_key:
+                    raise Exception(f"File {task.file_id} has no R2 key")
+
+                # 2. Download PDF from R2 to temp file
+                from src.services.file_download_service import FileDownloadService
+
+                logger.info(f"📥 Downloading PDF from R2: {r2_key}")
+                temp_file_path = (
+                    await FileDownloadService._download_file_from_r2_with_boto3(
+                        r2_key, "pdf"
                     )
                 )
+
+                if not temp_file_path:
+                    raise Exception(f"Failed to download PDF from R2 key: {r2_key}")
+
+                logger.info(f"✅ PDF downloaded to: {temp_file_path}")
+
+                # 3. Call PDF analysis service with local file path
+                try:
+                    analysis_result = (
+                        await self.ai_service.analyze_slide_requirements_from_pdf(
+                            title=task.title,  # type: ignore
+                            target_goal=task.target_goal,  # type: ignore
+                            slide_type=task.slide_type,  # type: ignore
+                            num_slides_range=task.num_slides_range,  # type: ignore
+                            language=task.language,  # type: ignore
+                            user_query=task.user_query,  # type: ignore
+                            pdf_path=temp_file_path,
+                        )
+                    )
+                finally:
+                    # Cleanup temp file
+                    import os
+
+                    try:
+                        os.remove(temp_file_path)
+                        logger.info(f"🗑️ Cleaned up temp file: {temp_file_path}")
+                    except Exception as cleanup_error:
+                        logger.warning(
+                            f"⚠️ Failed to cleanup temp file: {cleanup_error}"
+                        )
             else:
                 logger.info(f"📝 Text-based analysis")
 
+                # Validate required fields for text analysis
+                if not all(
+                    [
+                        task.title,
+                        task.target_goal,
+                        task.slide_type,
+                        task.num_slides_range,
+                        task.language,
+                        task.user_query,
+                    ]
+                ):
+                    raise Exception("Missing required fields for text analysis")
+
                 # Call text analysis service
                 analysis_result = await self.ai_service.analyze_slide_requirements(
-                    title=task.title,
-                    target_goal=task.target_goal,
-                    slide_type=task.slide_type,
-                    num_slides_range=task.num_slides_range,
-                    language=task.language,
-                    user_query=task.user_query,
+                    title=task.title,  # type: ignore
+                    target_goal=task.target_goal,  # type: ignore
+                    slide_type=task.slide_type,  # type: ignore
+                    num_slides_range=task.num_slides_range,  # type: ignore
+                    language=task.language,  # type: ignore
+                    user_query=task.user_query,  # type: ignore
                 )
 
             processing_time = int(
