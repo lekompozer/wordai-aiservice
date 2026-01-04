@@ -213,7 +213,7 @@ class RegenerateSlideRequest(BaseModel):
 
     document_id: str = Field(..., description="Existing slide document ID")
     slide_numbers: List[int] = Field(
-        ..., min_items=1, description="Slide numbers to regenerate (1-indexed)"
+        ..., min_length=1, description="Slide numbers to regenerate (1-indexed)"
     )
     user_query: str = Field(
         ..., min_length=1, max_length=6000, description="New instructions for slides"

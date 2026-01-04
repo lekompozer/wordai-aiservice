@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Dict, Any, Optional
 import logging
 import uuid
+from datetime import datetime
 
 from src.middleware.firebase_auth import get_current_user
 from src.services.points_service import get_points_service
@@ -318,6 +319,7 @@ async def ai_format_slide(
                 task_id=task_id,
                 job_id=task_id,
                 user_id=user_id,
+                document_id=None,  # Mode 1: single slide, no doc ID
                 slide_index=slide_data.slide_index,
                 current_html=slide_data.current_html,
                 elements=slide_data.elements or [],
@@ -326,6 +328,13 @@ async def ai_format_slide(
                 ),
                 user_instruction=request.user_instruction,
                 format_type=request.format_type,
+                is_batch=False,
+                batch_job_id=None,
+                total_slides=None,
+                slide_position=None,
+                process_entire_document=False,
+                chunk_index=None,
+                total_chunks=None,
             )
 
             success = await queue.enqueue_generic_task(task)
@@ -397,14 +406,23 @@ async def get_slide_format_job_status(
             return SlideFormatJobStatusResponse(
                 job_id=job_id,
                 status=SlideFormatJobStatus.PENDING,
-                created_at=None,
+                created_at=datetime.utcnow().isoformat(),
                 started_at=None,
                 completed_at=None,
                 processing_time_seconds=None,
+                is_batch=False,
+                total_slides=None,
+                completed_slides=None,
+                failed_slides=None,
+                slide_number=None,
+                slide_numbers=None,
                 formatted_html=None,
                 suggested_elements=None,
                 suggested_background=None,
                 ai_explanation=None,
+                slides_results=None,
+                new_version=None,
+                previous_version=None,
                 error=None,
             )
 
@@ -462,15 +480,23 @@ async def get_slide_format_job_status(
             return SlideFormatJobStatusResponse(
                 job_id=job["job_id"],
                 status=SlideFormatJobStatus(job["status"]),
-                created_at=job.get("created_at"),
+                created_at=job.get("created_at") or datetime.utcnow().isoformat(),
                 started_at=job.get("started_at"),
                 completed_at=job.get("completed_at"),
                 processing_time_seconds=job.get("processing_time_seconds"),
-                slide_number=job.get("slide_number"),  # Which slide was formatted
+                is_batch=job.get("is_batch", False),
+                total_slides=job.get("total_slides"),
+                completed_slides=job.get("completed_slides"),
+                failed_slides=job.get("failed_slides"),
+                slide_number=job.get("slide_number"),
+                slide_numbers=job.get("slide_numbers"),
                 formatted_html=job.get("formatted_html"),
                 suggested_elements=job.get("suggested_elements"),
                 suggested_background=job.get("suggested_background"),
                 ai_explanation=job.get("ai_explanation"),
+                slides_results=job.get("slides_results"),
+                new_version=job.get("new_version"),
+                previous_version=job.get("previous_version"),
                 error=job.get("error"),
             )
 
@@ -710,7 +736,7 @@ async def ai_edit_slide(
             )
 
             # Enqueue each slide separately (parallel processing)
-            for slide_data in slides_to_process:
+            for idx, slide_data in enumerate(slides_to_process):
                 task = SlideFormatTask(
                     task_id=str(uuid.uuid4()),
                     job_id=batch_job_id,
@@ -720,12 +746,17 @@ async def ai_edit_slide(
                     current_html=slide_data.current_html,
                     elements=slide_data.elements or [],
                     background=(
-                        slide_data.background.dict() if slide_data.background else None
+                        slide_data.background.dict() if slide_data.background else {}
                     ),
                     user_instruction=request.user_instruction,
                     format_type="edit",
                     is_batch=True,
-                    batch_parent_job_id=batch_job_id,
+                    batch_job_id=batch_job_id,  # Parent batch job ID
+                    total_slides=num_slides,
+                    slide_position=idx,
+                    process_entire_document=process_entire_document,
+                    chunk_index=None,  # Not chunking at task level
+                    total_chunks=None,
                 )
 
                 success = await queue.enqueue_generic_task(task)
@@ -757,11 +788,17 @@ async def ai_edit_slide(
                 current_html=slide_data.current_html,
                 elements=slide_data.elements or [],
                 background=(
-                    slide_data.background.dict() if slide_data.background else None
+                    slide_data.background.dict() if slide_data.background else {}
                 ),
                 user_instruction=request.user_instruction,
                 format_type="edit",
                 is_batch=False,
+                batch_job_id=None,  # Not a batch
+                total_slides=None,
+                slide_position=None,
+                process_entire_document=process_entire_document,
+                chunk_index=None,
+                total_chunks=None,
             )
 
             success = await queue.enqueue_generic_task(task)
