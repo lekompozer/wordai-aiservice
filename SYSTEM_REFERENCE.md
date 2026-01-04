@@ -711,7 +711,185 @@ video_id = str(result.inserted_id)
 
 ---
 
-### 💰 Points Management Pattern (MANDATORY)
+### � File Upload & Gemini Integration Pattern (CRITICAL)
+
+**When implementing features that:**
+1. Accept user file uploads (PDF, images, etc.)
+2. Send files to Gemini API for processing
+3. Need to retrieve uploaded files
+
+**⚠️ MANDATORY: Use `user_manager.get_file_by_id()` pattern**
+
+#### ✅ CORRECT: Standard File Upload Workflow
+
+```python
+from src.services.user_manager import get_user_manager
+from src.services.file_download_service import FileDownloadService
+import google.generativeai as genai
+
+# 1. Get file metadata from database
+user_manager = get_user_manager()
+file_doc = user_manager.get_file_by_id(file_id, user_id)
+
+if not file_doc:
+    raise HTTPException(
+        status_code=404,
+        detail="File not found. Please upload file first via /api/files/upload"
+    )
+
+# 2. Validate file type
+file_type = file_doc.get("file_type", "").lower()
+if file_type != ".pdf":
+    raise HTTPException(
+        status_code=400,
+        detail=f"Invalid file type: {file_type}. Only PDF files are supported."
+    )
+
+# 3. Check file size (optional but recommended)
+file_size = file_doc.get("file_size_bytes", 0)
+max_size = 20 * 1024 * 1024  # 20MB
+if file_size > max_size:
+    raise HTTPException(
+        status_code=400,
+        detail=f"File too large: {file_size/1024/1024:.1f}MB. Maximum allowed: 20MB"
+    )
+
+# 4. Download file from R2 storage
+file_download_service = FileDownloadService()
+r2_key = file_doc.get("r2_key")
+
+file_bytes = await file_download_service.download_file_from_r2(r2_key)
+
+if not file_bytes:
+    raise HTTPException(
+        status_code=500,
+        detail="Failed to download file from storage"
+    )
+
+# 5. Upload to Gemini Files API (for PDF analysis)
+genai.configure(api_key=APP_CONFIG["gemini_api_key"])
+
+# Create a temporary file for Gemini upload
+import tempfile
+import os
+
+with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
+    temp_file.write(file_bytes)
+    temp_pdf_path = temp_file.name
+
+try:
+    # Upload to Gemini
+    gemini_file = genai.upload_file(
+        path=temp_pdf_path,
+        display_name=file_doc.get("original_name", "document.pdf")
+    )
+    
+    logger.info(f"✅ Uploaded to Gemini: {gemini_file.uri}")
+    
+    # Wait for processing
+    import time
+    while gemini_file.state.name == "PROCESSING":
+        time.sleep(2)
+        gemini_file = genai.get_file(gemini_file.name)
+    
+    if gemini_file.state.name == "FAILED":
+        raise Exception(f"Gemini file processing failed: {gemini_file.state}")
+    
+    # 6. Use file with Gemini model
+    model = genai.GenerativeModel("gemini-2.0-flash-exp")
+    
+    response = model.generate_content([
+        gemini_file,
+        "Analyze this PDF and extract key information..."
+    ])
+    
+    result = response.text
+    
+finally:
+    # Cleanup temporary file
+    if os.path.exists(temp_pdf_path):
+        os.unlink(temp_pdf_path)
+
+# 7. Return result
+return {"analysis": result}
+```
+
+#### File Collections Structure
+
+**Collection:** `user_files` (primary) or `library_files` (library manager)
+
+**`user_manager.get_file_by_id()` searches:**
+- Collection: `user_files`
+- Filter: `{"file_id": file_id, "user_id": user_id, "is_deleted": False}`
+- Returns: File document or `None`
+
+**File Document Schema:**
+```python
+{
+    "_id": ObjectId("..."),
+    "file_id": "file_abc123",           # Unique file identifier
+    "user_id": "firebase_uid",          # Owner
+    "original_name": "document.pdf",    # Original filename
+    "file_type": ".pdf",                # Extension with dot
+    "file_size_bytes": 1048576,         # Size in bytes
+    "r2_key": "files/user123/doc.pdf",  # R2 storage path
+    "r2_url": "https://...",            # Public/signed URL
+    "is_deleted": False,                # Soft delete flag
+    "uploaded_at": ISODate("..."),
+    "metadata": {
+        "mime_type": "application/pdf",
+        "source": "upload"
+    }
+}
+```
+
+#### ❌ WRONG: Direct Collection Query
+
+```python
+# ❌ NEVER do this - collection 'files' doesn't exist
+files_collection = db["files"]
+file_doc = files_collection.find_one({
+    "file_id": file_id,
+    "user_id": user_id
+})
+```
+
+#### Working Examples in Codebase
+
+**Example 1: Slide Analysis from PDF** (`slide_ai_generation_routes.py`)
+```python
+@router.post("/analyze-from-pdf")
+async def analyze_slide_from_pdf(request: AnalyzeSlideFromPdfRequest):
+    # ✅ CORRECT
+    user_manager = get_user_manager()
+    file_doc = user_manager.get_file_by_id(request.file_id, user_info["uid"])
+    
+    # Download and process...
+```
+
+**Example 2: Online Test from File** (`test_creation_routes.py`)
+```python
+@router.post("/generate-test-from-file")
+async def generate_test_from_file(request: TestGenerationRequest):
+    # ✅ CORRECT
+    user_manager = get_user_manager()
+    file_info = user_manager.get_file_by_id(request.source_id, user_info["uid"])
+    
+    # Process file...
+```
+
+#### Key Points
+
+1. **Always use `user_manager.get_file_by_id()`** - Never query `db["files"]` directly
+2. **Collection is `user_files`** - Managed by user_manager service
+3. **Include user_id** - Ensures users can only access their own files
+4. **Check `is_deleted`** - get_file_by_id filters out soft-deleted files automatically
+5. **Download via FileDownloadService** - Handles R2 authentication and errors
+6. **Cleanup temp files** - Always delete temporary files after Gemini upload
+
+---
+
+### �💰 Points Management Pattern (MANDATORY)
 
 **All AI operations MUST check and deduct points before execution.**
 
