@@ -520,13 +520,11 @@ async def analyze_slide_from_pdf(
                 },
             )
 
-        # 2. Get file from database
-        # db already initialized
-        files_collection = db["files"]
+        # 2. Get file from database (check both user_files and library_files collections)
+        from src.services.user_manager import get_user_manager
 
-        file_doc = files_collection.find_one(
-            {"file_id": request.file_id, "user_id": user_info["uid"]}
-        )
+        user_manager = get_user_manager()
+        file_doc = user_manager.get_file_by_id(request.file_id, user_info["uid"])
 
         if not file_doc:
             raise HTTPException(
