@@ -649,10 +649,10 @@ class SlideGenerationWorker:
                     amount=points_needed,
                     service="slide_ai_generation",
                     resource_id=document_id,
-                    description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} chunks × 5 points)",
+                    description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} batches × 5 points)",
                 )
                 logger.info(
-                    f"💰 Deducted {points_needed} points ({total_batches} chunks × 5 points/chunk)"
+                    f"💰 Deducted {points_needed} points ({total_batches} batches × 5 points/batch)"
                 )
             else:
                 logger.info(

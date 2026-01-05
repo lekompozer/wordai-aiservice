@@ -751,12 +751,15 @@ async def create_slides_from_analysis(
     """
     **STEP 2: Generate HTML content for slides (Async Background Job)**
 
-    **Cost:** Variable based on slide count
-    - 1-15 slides: 2 points (1 AI batch)
-    - 16-30 slides: 4 points (2 AI batches)
-    - 31-45 slides: 6 points (3 AI batches)
+    **Cost:** Variable based on slide count (5 points per batch)
+    - 1-10 slides: 5 points (1 AI batch)
+    - 11-20 slides: 10 points (2 AI batches)
+    - 21-30 slides: 15 points (3 AI batches)
+    - 31-40 slides: 20 points (4 AI batches)
+    - 41-50 slides: 25 points (5 AI batches)
 
-    **Formula:** Math.ceil(num_slides / 15) * 2 points
+    **Formula:** Math.ceil(num_slides / 10) * 5 points
+    **Note:** Batch size reduced from 15 to 10 to avoid Claude token limits
 
     **Flow:**
     1. Get analysis from Step 1
@@ -771,7 +774,7 @@ async def create_slides_from_analysis(
     6. Frontend polls `/api/documents/{id}/status` for progress
 
     **Processing:**
-    - Slides generated in batches (15 per AI call)
+    - Slides generated in batches (10 per AI call)
     - Progress updated incrementally (0-100%)
     - Timeout: 15 minutes
     - Points deducted only after successful completion
@@ -801,8 +804,11 @@ async def create_slides_from_analysis(
 
         # 2. Calculate points needed
         num_slides = analysis["num_slides"]
-        batches_needed = (num_slides + 14) // 15  # Round up
-        points_needed = batches_needed * 2
+        # IMPORTANT: Worker uses BATCH_SIZE=10 (reduced from 15 to avoid Claude token limits)
+        # Must match worker's actual batch count for accurate billing
+        BATCH_SIZE = 10  # Same as worker
+        batches_needed = (num_slides + BATCH_SIZE - 1) // BATCH_SIZE  # Round up
+        points_needed = batches_needed * 5  # 5 points per batch
 
         logger.info(
             f"   Slides: {num_slides}, Batches: {batches_needed}, Points: {points_needed}"
