@@ -16,8 +16,8 @@ from bson import ObjectId
 from html import unescape
 from bs4 import BeautifulSoup
 
-from google import genai
-from google.genai import types as genai_types
+from google import genai  # type: ignore
+from google.genai import types as genai_types  # type: ignore
 
 logger = logging.getLogger("chatbot")
 
@@ -91,33 +91,35 @@ class SlideNarrationService:
         # Extract all headings with hierarchy
         headings = []
         for tag in soup.find_all(["h1", "h2", "h3", "h4", "h5", "h6"]):
-            headings.append(
-                {"level": int(tag.name[1]), "text": tag.get_text(strip=True)}
-            )
+            if tag.name:  # type: ignore
+                headings.append(
+                    {"level": int(tag.name[1]), "text": tag.get_text(strip=True)}  # type: ignore
+                )
 
         # Extract lists (ul/ol)
         lists = []
         for list_tag in soup.find_all(["ul", "ol"]):
-            list_items = [li.get_text(strip=True) for li in list_tag.find_all("li")]
-            if list_items:
-                lists.append(
-                    {
-                        "type": "bullet" if list_tag.name == "ul" else "numbered",
-                        "items": list_items,
-                    }
-                )
+            if hasattr(list_tag, "find_all"):
+                list_items = [li.get_text(strip=True) for li in list_tag.find_all("li")]  # type: ignore
+                if list_items:
+                    lists.append(
+                        {
+                            "type": "bullet" if list_tag.name == "ul" else "numbered",  # type: ignore
+                            "items": list_items,
+                        }
+                    )
 
         # Extract visual elements (icons, emojis, symbols)
         visual_elements = []
 
         # Find icons/symbols (common patterns: single char with large font-size)
         for elem in soup.find_all(style=True):
-            style = elem.get("style", "")
+            style = elem.get("style", "")  # type: ignore
             text = elem.get_text(strip=True)
 
             # Detect large single characters (likely icons/emojis)
-            if "font-size" in style and len(text) <= 3 and text:
-                font_size_match = re.search(r"font-size:\s*(\d+)", style)
+            if "font-size" in str(style) and len(text) <= 3 and text:  # type: ignore
+                font_size_match = re.search(r"font-size:\s*(\d+)", str(style))  # type: ignore
                 if font_size_match and int(font_size_match.group(1)) > 40:
                     visual_elements.append(
                         {
@@ -186,6 +188,9 @@ class SlideNarrationService:
                 title=title,
                 topic=topic,
             )
+
+            if not self.gemini_client:
+                raise ValueError("Gemini client not initialized")
 
             # Call Gemini
             response = self.gemini_client.models.generate_content(
@@ -1114,11 +1119,11 @@ Generate the complete narration in {language_name} now:"""
 
             # Validate audio quality (detect silent/corrupt audio)
             try:
-                from pydub import AudioSegment
+                from pydub import AudioSegment  # type: ignore
                 import io
 
                 # Load audio to validate
-                audio_format = metadata.get("format", "wav")
+                audio_format = metadata.get("format", "wav") if metadata else "wav"
                 if audio_format == "wav":
                     audio_segment = AudioSegment.from_wav(io.BytesIO(audio_data))
                 else:
@@ -1131,7 +1136,7 @@ Generate the complete narration in {language_name} now:"""
                 if duration_seconds < 0.5:
                     error_msg = f"Audio too short: {duration_seconds:.2f}s"
                     logger.error(
-                        f"❌ Chunk {chunk_index + 1}: {error_msg} (expected ~{metadata.get('duration', 0):.1f}s)"
+                        f"❌ Chunk {chunk_index + 1}: {error_msg} (expected ~{metadata.get('duration', 0) if metadata else 0:.1f}s)"
                     )
                     failed_chunks.append(
                         {
@@ -1177,7 +1182,7 @@ Generate the complete narration in {language_name} now:"""
             )
             audio_url = upload_result["public_url"]
 
-            total_duration = metadata.get("duration", 0)
+            total_duration = metadata.get("duration", 0) if metadata else 0
 
             # Calculate timestamps using WORD COUNT ratio (more accurate than Gemini timestamps)
             # Example: Slide 1 has 40 words, total chunk has 200 words, total audio is 220s
@@ -1270,9 +1275,19 @@ Generate the complete narration in {language_name} now:"""
                     "duration_seconds": total_duration,
                     "file_size_bytes": len(audio_data),
                     "format": "mp3",
-                    "sample_rate": metadata.get("sample_rate", 24000),
-                    "voice_name": metadata.get("voice_name", voice_name),
-                    "model": metadata.get("model", "gemini-2.5-flash-preview-tts"),
+                    "sample_rate": (
+                        metadata.get("sample_rate", 24000) if metadata else 24000
+                    ),
+                    "voice_name": (
+                        metadata.get("voice_name", voice_name)
+                        if metadata
+                        else voice_name
+                    ),
+                    "model": (
+                        metadata.get("model", "gemini-2.5-flash-preview-tts")
+                        if metadata
+                        else "gemini-2.5-flash-preview-tts"
+                    ),
                 },
                 "library_audio_id": str(library_audio),
                 "generation_method": "ai_generated",
@@ -1365,7 +1380,7 @@ Generate the complete narration in {language_name} now:"""
         """
         import io
         import httpx
-        from pydub import AudioSegment
+        from pydub import AudioSegment  # type: ignore
         from src.database.db_manager import DBManager
 
         db_manager = DBManager()

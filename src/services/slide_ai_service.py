@@ -19,8 +19,8 @@ logger = logging.getLogger("chatbot")
 
 # Initialize AI clients
 try:
-    from google import genai
-    from google.genai import types as genai_types
+    from google import genai  # type: ignore
+    from google.genai import types as genai_types  # type: ignore
 
     gemini_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
     logger.info("✅ Gemini client initialized for Edit mode")
@@ -105,7 +105,9 @@ class SlideAIService:
 
             logger.info(f"🎨 Formatting slide {request.slide_index} for user {user_id}")
             logger.info(f"   Format type: {request.format_type}")
-            logger.info(f"   Current HTML length: {len(request.current_html)} chars")
+            logger.info(
+                f"   Current HTML length: {len(request.current_html or '')} chars"
+            )
             logger.info(f"   Elements: {len(request.elements or [])}")
             logger.info(f"   Has background: {request.background is not None}")
 
@@ -144,7 +146,7 @@ class SlideAIService:
 
         # Log prompt size for debugging
         logger.info(
-            f"📊 Prompt size: {len(prompt)} chars, HTML size: {len(request.current_html)} chars"
+            f"📊 Prompt size: {len(prompt)} chars, HTML size: {len(request.current_html or '')} chars"
         )
 
         # ✅ Use STREAMING for large responses (> 10 min requires streaming)
@@ -160,6 +162,8 @@ class SlideAIService:
 
                 def _stream_claude_sync():
                     """Synchronous Claude streaming (runs in thread)"""
+                    if not self.claude_client:
+                        raise ValueError("Claude client not initialized")
                     response_text = ""
                     with self.claude_client.messages.stream(
                         model=self.claude_model,
@@ -344,7 +348,7 @@ class SlideAIService:
                     logger.warning("🔧 Attempting to repair malformed JSON...")
 
                     try:
-                        from json_repair import repair_json
+                        from json_repair import repair_json  # type: ignore
 
                         repaired_json_str = repair_json(extracted_json)
                         result = json.loads(repaired_json_str)
@@ -381,29 +385,40 @@ class SlideAIService:
                         logger.error(
                             f"JSON truncated? Check if response was cut off mid-sentence"
                         )
-                        
+
                         # Last resort: Try to extract formatted_html directly using regex
-                        logger.warning("🔧 Attempting direct HTML extraction as last resort...")
+                        logger.warning(
+                            "🔧 Attempting direct HTML extraction as last resort..."
+                        )
                         try:
                             import re
+
                             html_match = re.search(
                                 r'"formatted_html"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,',
                                 extracted_json,
-                                re.DOTALL
+                                re.DOTALL,
                             )
                             if html_match:
                                 html_content = html_match.group(1)
                                 # Unescape JSON string
-                                html_content = html_content.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
-                                logger.info(f"✅ Extracted HTML directly: {len(html_content)} chars")
+                                html_content = (
+                                    html_content.replace("\\n", "\n")
+                                    .replace('\\"', '"')
+                                    .replace("\\\\", "\\")
+                                )
+                                logger.info(
+                                    f"✅ Extracted HTML directly: {len(html_content)} chars"
+                                )
                                 result = {
                                     "formatted_html": html_content,
-                                    "metadata": {"extraction_method": "regex_fallback"}
+                                    "metadata": {"extraction_method": "regex_fallback"},
                                 }
                             else:
                                 raise e2  # Give up, raise original error
                         except Exception as extract_error:
-                            logger.error(f"❌ Direct HTML extraction failed: {extract_error}")
+                            logger.error(
+                                f"❌ Direct HTML extraction failed: {extract_error}"
+                            )
                             raise e2  # Raise original error
             else:
                 logger.error("❌ No JSON found in markdown code blocks either")
@@ -451,7 +466,8 @@ class SlideAIService:
         # Check if this is a batch with multiple slides
         import re
 
-        slide_markers = re.findall(r"<!-- Slide (\d+) -->", request.current_html)
+        current_html = request.current_html or ""
+        slide_markers = re.findall(r"<!-- Slide (\d+) -->", current_html)
         is_batch = len(slide_markers) > 1
 
         # Build context
@@ -468,7 +484,7 @@ class SlideAIService:
             bg = request.background
             if bg.type == "color":
                 background_info = f"\n\nCurrent Background: Solid color {bg.value}"
-            elif bg.type == "gradient":
+            elif bg.type == "gradient" and bg.gradient:
                 background_info = f"\n\nCurrent Background: {bg.gradient['type']} gradient with colors {bg.gradient['colors']}"
                 if bg.overlayOpacity:
                     background_info += f"\n  Overlay: {bg.overlayColor or '#000000'} at {bg.overlayOpacity} opacity"
@@ -664,7 +680,8 @@ FORBIDDEN ELEMENTS (DO NOT USE):
         # Check if batch or single slide
         import re
 
-        slide_markers = re.findall(r"<!-- Slide (\d+) -->", request.current_html)
+        current_html = request.current_html or ""
+        slide_markers = re.findall(r"<!-- Slide (\d+) -->", current_html)
         is_batch = len(slide_markers) > 1
 
         if is_batch:
