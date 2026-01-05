@@ -127,7 +127,7 @@ class SlideAIService:
                 "formatted_html": ai_result["formatted_html"],
                 "suggested_elements": ai_result.get("suggested_elements", []),
                 "suggested_background": ai_result.get("suggested_background"),
-                "ai_explanation": ai_result["ai_explanation"],
+                "ai_explanation": ai_result.get("ai_explanation", ""),
                 "processing_time_ms": processing_time,
             }
 
