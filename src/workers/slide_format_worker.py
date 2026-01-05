@@ -87,11 +87,14 @@ class SlideFormatWorker:
         timeout_seconds = 300  # 5 minutes max per task
 
         try:
-            async with asyncio.timeout(timeout_seconds):
-                return await self._process_task_internal(task)
+            return await asyncio.wait_for(
+                self._process_task_internal(task), timeout=timeout_seconds
+            )
         except asyncio.TimeoutError:
-            logger.error(f"❌ Job {job_id} TIMEOUT after {timeout_seconds}s - auto-failing")
-            
+            logger.error(
+                f"❌ Job {job_id} TIMEOUT after {timeout_seconds}s - auto-failing"
+            )
+
             # Mark as failed in Redis
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
@@ -104,7 +107,7 @@ class SlideFormatWorker:
             return False
         except Exception as e:
             logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
-            
+
             # Update status to failed
             if task.is_batch:
                 # Mode 2 & 3: Fail entire batch job
@@ -557,47 +560,53 @@ class SlideFormatWorker:
                         logger.warning(
                             "⚠️ Mode 3 but missing document_id or user_id, cannot create version"
                         )
-                
+
                 # ✅ CRITICAL: Mode 2 - Update MongoDB slide_backgrounds array for frontend polling
                 # Even without process_entire_document, we need to update individual slides in MongoDB
                 else:
                     # Mode 2: Update individual slides in slide_backgrounds array
                     document_id = batch_job.get("document_id")
                     user_id = batch_job.get("user_id")
-                    
+
                     if document_id and user_id:
                         try:
                             logger.info(
                                 f"📋 Mode 2: Updating slide_backgrounds for document {document_id}"
                             )
-                            
+
                             # Get DocumentManager
                             mongo = get_mongodb_service()
                             doc_manager = DocumentManager(mongo.db)
-                            
+
                             # Get current document
                             doc = doc_manager.get_document(document_id, user_id)
                             if doc:
                                 slide_backgrounds = doc.get("slide_backgrounds", [])
-                                
+
                                 # Update slide_backgrounds with formatted HTML
                                 for slide_result in all_slides_results:
                                     slide_idx = slide_result.get("slide_index")
                                     formatted_html = slide_result.get("formatted_html")
-                                    
-                                    if slide_idx is not None and formatted_html and slide_idx < len(slide_backgrounds):
+
+                                    if (
+                                        slide_idx is not None
+                                        and formatted_html
+                                        and slide_idx < len(slide_backgrounds)
+                                    ):
                                         # Update the slide's formatted_html field
-                                        slide_backgrounds[slide_idx]["formatted_html"] = formatted_html
+                                        slide_backgrounds[slide_idx][
+                                            "formatted_html"
+                                        ] = formatted_html
                                         logger.info(
                                             f"   ✅ Updated slide {slide_idx} in slide_backgrounds"
                                         )
-                                
+
                                 # Save updated slide_backgrounds to MongoDB
                                 mongo.db.documents.update_one(
                                     {"document_id": document_id, "user_id": user_id},
-                                    {"$set": {"slide_backgrounds": slide_backgrounds}}
+                                    {"$set": {"slide_backgrounds": slide_backgrounds}},
                                 )
-                                
+
                                 logger.info(
                                     f"✅ Mode 2: Updated {len(all_slides_results)} slides in MongoDB"
                                 )
@@ -605,7 +614,7 @@ class SlideFormatWorker:
                                 logger.warning(
                                     f"⚠️ Document {document_id} not found for Mode 2 update"
                                 )
-                        
+
                         except Exception as e:
                             logger.error(
                                 f"❌ Failed to update slide_backgrounds for document {document_id}: {e}",
@@ -677,14 +686,16 @@ class SlideFormatWorker:
                     # Start task in background
                     task_future = asyncio.create_task(self.process_task(task))
                     running_tasks.add(task_future)
-                    logger.info(f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)")
+                    logger.info(
+                        f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)"
+                    )
 
                 # Wait for at least one task to complete
                 if running_tasks:
                     done, running_tasks = await asyncio.wait(
                         running_tasks, return_when=asyncio.FIRST_COMPLETED
                     )
-                    
+
                     # Log completed tasks
                     for completed_task in done:
                         try:
@@ -692,7 +703,9 @@ class SlideFormatWorker:
                             if not success:
                                 logger.warning(f"⚠️ A task processing failed")
                         except Exception as e:
-                            logger.error(f"❌ Task raised exception: {e}", exc_info=True)
+                            logger.error(
+                                f"❌ Task raised exception: {e}", exc_info=True
+                            )
                 else:
                     # No tasks running and no tasks in queue
                     await asyncio.sleep(1)
