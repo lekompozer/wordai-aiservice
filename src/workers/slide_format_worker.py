@@ -237,6 +237,9 @@ class SlideFormatWorker:
                     total_chunks=task.total_chunks or 1,
                     chunk_results=chunk_results,
                     processing_time=processing_time,
+                    document_id=task.document_id,  # Pass document_id from task
+                    user_id=task.user_id,
+                    process_entire_document=task.process_entire_document,
                 )
 
                 logger.info(
@@ -381,6 +384,9 @@ class SlideFormatWorker:
         total_chunks: int,
         chunk_results: list,
         processing_time: float,
+        document_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        process_entire_document: bool = False,
     ):
         """Merge chunk results into batch job and mark complete when all chunks done"""
         try:
@@ -441,9 +447,8 @@ class SlideFormatWorker:
                 }
 
                 # Mode 3: Create new version in database (auto-save formatted slides)
-                if batch_job.get("process_entire_document"):
-                    document_id = batch_job.get("document_id")
-                    user_id = batch_job.get("user_id")
+                if process_entire_document:
+                    # Use document_id/user_id from task (more reliable than Redis batch_job)
 
                     if document_id and user_id:
                         try:
@@ -565,8 +570,7 @@ class SlideFormatWorker:
                 # Even without process_entire_document, we need to update individual slides in MongoDB
                 else:
                     # Mode 2: Update individual slides in slide_backgrounds array
-                    document_id = batch_job.get("document_id")
-                    user_id = batch_job.get("user_id")
+                    # Use document_id/user_id from task (more reliable than Redis batch_job)
 
                     if document_id and user_id:
                         try:
