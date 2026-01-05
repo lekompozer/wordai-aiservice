@@ -70,7 +70,7 @@ class SlideFormatWorker:
 
     async def process_task(self, task: SlideFormatTask) -> bool:
         """
-        Process slide format task
+        Process slide format task with timeout protection
 
         Args:
             task: SlideFormatTask from Redis queue
@@ -78,6 +78,58 @@ class SlideFormatWorker:
         Returns:
             bool: True if processing successful
         """
+        job_id = task.job_id
+        start_time = datetime.utcnow()
+
+        # ⏱️ TIMEOUT PROTECTION: Auto-fail if processing takes > 5 minutes
+        timeout_seconds = 300  # 5 minutes max per task
+
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                return await self._process_task_internal(task)
+        except asyncio.TimeoutError:
+            logger.error(f"❌ Job {job_id} TIMEOUT after {timeout_seconds}s - auto-failing")
+            
+            # Mark as failed in Redis
+            await set_job_status(
+                redis_client=self.queue_manager.redis_client,
+                job_id=job_id,
+                status="failed",
+                user_id=task.user_id,
+                error=f"Processing timeout after {timeout_seconds}s",
+                failed_at=datetime.utcnow().isoformat(),
+            )
+            return False
+        except Exception as e:
+            logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
+            
+            # Update status to failed
+            if task.is_batch:
+                # Mode 2 & 3: Fail entire batch job
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=task.batch_job_id or "",
+                    status="failed",
+                    user_id=task.user_id,
+                    error=str(e),
+                    completed_at=datetime.utcnow().isoformat(),
+                    failed_slides=task.total_slides,
+                )
+            else:
+                # Mode 1: Single slide
+                await set_job_status(
+                    redis_client=self.queue_manager.redis_client,
+                    job_id=job_id,
+                    status="failed",
+                    user_id=task.user_id,
+                    error=str(e),
+                    failed_at=datetime.utcnow().isoformat(),
+                )
+
+            return False
+
+    async def _process_task_internal(self, task: SlideFormatTask) -> bool:
+        """Internal task processing (separated for timeout wrapper)"""
         job_id = task.job_id
         start_time = datetime.utcnow()
 
@@ -502,6 +554,64 @@ class SlideFormatWorker:
                     else:
                         logger.warning(
                             "⚠️ Mode 3 but missing document_id or user_id, cannot create version"
+                        )
+                
+                # ✅ CRITICAL: Mode 2 - Update MongoDB slide_backgrounds array for frontend polling
+                # Even without process_entire_document, we need to update individual slides in MongoDB
+                else:
+                    # Mode 2: Update individual slides in slide_backgrounds array
+                    document_id = batch_job.get("document_id")
+                    user_id = batch_job.get("user_id")
+                    
+                    if document_id and user_id:
+                        try:
+                            logger.info(
+                                f"📋 Mode 2: Updating slide_backgrounds for document {document_id}"
+                            )
+                            
+                            # Get DocumentManager
+                            mongo = get_mongodb_service()
+                            doc_manager = DocumentManager(mongo.db)
+                            
+                            # Get current document
+                            doc = doc_manager.get_document(document_id, user_id)
+                            if doc:
+                                slide_backgrounds = doc.get("slide_backgrounds", [])
+                                
+                                # Update slide_backgrounds with formatted HTML
+                                for slide_result in all_slides_results:
+                                    slide_idx = slide_result.get("slide_index")
+                                    formatted_html = slide_result.get("formatted_html")
+                                    
+                                    if slide_idx is not None and formatted_html and slide_idx < len(slide_backgrounds):
+                                        # Update the slide's formatted_html field
+                                        slide_backgrounds[slide_idx]["formatted_html"] = formatted_html
+                                        logger.info(
+                                            f"   ✅ Updated slide {slide_idx} in slide_backgrounds"
+                                        )
+                                
+                                # Save updated slide_backgrounds to MongoDB
+                                mongo.db.documents.update_one(
+                                    {"document_id": document_id, "user_id": user_id},
+                                    {"$set": {"slide_backgrounds": slide_backgrounds}}
+                                )
+                                
+                                logger.info(
+                                    f"✅ Mode 2: Updated {len(all_slides_results)} slides in MongoDB"
+                                )
+                            else:
+                                logger.warning(
+                                    f"⚠️ Document {document_id} not found for Mode 2 update"
+                                )
+                        
+                        except Exception as e:
+                            logger.error(
+                                f"❌ Failed to update slide_backgrounds for document {document_id}: {e}",
+                                exc_info=True,
+                            )
+                    else:
+                        logger.warning(
+                            "⚠️ Mode 2 but missing document_id or user_id, cannot update MongoDB"
                         )
 
                 # Update batch job status to completed
