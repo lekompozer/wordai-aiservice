@@ -12,8 +12,8 @@ from typing import Dict, Optional, List, Any, Tuple
 from datetime import datetime
 from bson import ObjectId
 
-from google import genai
-from google.genai import types
+from google import genai  # type: ignore
+from google.genai import types  # type: ignore
 import config.config as config
 
 from src.services.google_tts_service import GoogleTTSService
@@ -469,7 +469,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         """
         available_voices = await self.google_tts.get_available_voices(language)
         if not available_voices:
-            return None
+            return []
 
         # Separate by gender
         male_voices = [v for v in available_voices if v.get("gender") == "MALE"]
@@ -635,7 +635,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                         f"   🎙️ No gender voices available for '{role}', using default"
                     )
 
-        return selected_voices if selected_voices else None
+        return selected_voices if selected_voices else []
 
     async def _generate_section_audio(
         self,
@@ -959,11 +959,11 @@ Return ONLY the questions array in JSON format."""
             },
         )
 
-        library_file_id = file_record.get("library_id", file_record.get("file_id"))
+        library_file_id = file_record.get("library_id", file_record.get("file_id", ""))
 
         logger.info(f"   ✅ Uploaded to R2: {public_url}")
 
-        return public_url, library_file_id
+        return public_url, library_file_id or ""
 
     async def generate_listening_test(
         self,
@@ -1019,7 +1019,7 @@ Return ONLY the questions array in JSON format."""
                 # Generate test_id for R2 key (will be passed from background job)
                 test_id_for_r2 = creator_id  # Use creator_id as fallback if no test_id
                 if hasattr(self, "_current_test_id"):
-                    test_id_for_r2 = self._current_test_id
+                    test_id_for_r2 = self._current_test_id  # type: ignore
 
                 audio_url, library_file_id = await self._upload_audio_to_r2(
                     audio_bytes=audio_bytes,

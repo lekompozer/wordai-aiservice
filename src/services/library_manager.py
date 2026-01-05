@@ -336,7 +336,7 @@ class LibraryManager:
             Success status
         """
         try:
-            update_fields = {"updated_at": datetime.now(timezone.utc)}
+            update_fields: Dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
 
             if filename is not None:
                 update_fields["filename"] = filename
@@ -538,7 +538,7 @@ class LibraryManager:
             # 2. Delete each file from R2 and MongoDB
             for file_doc in deleted_files:
                 library_id = file_doc.get("library_id")
-                if self.delete_library_file_permanent(
+                if library_id and self.delete_library_file_permanent(
                     library_id=library_id, user_id=user_id
                 ):
                     deleted_count += 1

@@ -19,7 +19,7 @@ class UserManager:
     def __init__(self, db_manager: Optional[DBManager]):
         self.db = db_manager
 
-        if self.db is not None and self.db.client is not None:
+        if self.db is not None and hasattr(self.db, "client") and self.db.client is not None:  # type: ignore
             # MongoDB collections
             self.users = self.db.db["users"]
             self.conversations = self.db.db["conversations"]
@@ -323,7 +323,7 @@ class UserManager:
         conversation_id: str,
         messages: List[Dict[str, str]],
         ai_provider: str,
-        metadata: Dict[str, Any] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Save or update a conversation
