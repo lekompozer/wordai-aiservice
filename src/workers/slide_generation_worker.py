@@ -38,8 +38,8 @@ class SlideGenerationWorker:
 
     def __init__(
         self,
-        worker_id: str = None,
-        redis_url: str = None,
+        worker_id: Optional[str] = None,
+        redis_url: Optional[str] = None,
         batch_size: int = 1,
         max_retries: int = 3,
     ):
@@ -587,6 +587,9 @@ class SlideGenerationWorker:
             current_doc = await asyncio.to_thread(
                 self.mongo.db["documents"].find_one, {"document_id": document_id}
             )
+            if not current_doc:
+                raise Exception(f"Document {document_id} not found after save")
+
             current_version = current_doc.get("version", 1)
             version_history = current_doc.get("version_history", [])
 

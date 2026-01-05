@@ -1313,3 +1313,191 @@ async def create_basic_slide_from_analysis(
     except Exception as e:
         logger.error(f"❌ Basic slide creation failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ PDF SLIDE IMPORT (Image-based) ============
+
+
+@router.post("/import-from-pdf")
+async def import_slides_from_pdf(
+    file_id: str,
+    title: str,
+    user_info: dict = Depends(require_auth),
+):
+    """
+    **Import PDF slides as image backgrounds (no AI processing)**
+
+    **Use case:** User has existing PDF presentation with beautiful design
+    → Convert each page to slide background image
+    → No text extraction, pure image-based slides
+
+    **Cost:** FREE (no AI processing)
+
+    **Flow:**
+    1. User uploads PDF via `/api/files/upload` → gets `file_id`
+    2. Call this endpoint with file_id + title
+    3. Backend:
+       - Downloads PDF from R2
+       - Converts each page to PNG image (150 DPI)
+       - Uploads images to R2
+       - Creates document with image backgrounds
+    4. Returns document_id ready for editing
+
+    **Note:** Slides will have empty HTML content, backgrounds are PDF page images
+
+    **Returns:**
+    - document_id: New slide document
+    - num_slides: Number of pages imported
+    - message: Success message
+    """
+    try:
+        logger.info(f"📄 PDF slide import request from user {user_info['uid']}")
+        logger.info(f"   File ID: {file_id}")
+        logger.info(f"   Title: {title}")
+
+        # 1. Get file info from MongoDB
+        from src.services.user_manager import get_user_manager
+
+        user_manager = get_user_manager()
+        file_doc = user_manager.get_file_by_id(file_id, user_info["uid"])
+
+        if not file_doc:
+            raise HTTPException(
+                status_code=404, detail="File not found or you don't have access"
+            )
+
+        # Validate file type
+        file_type = file_doc.get("file_type", "").lower()
+        if file_type != ".pdf":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {file_type}. Only PDF files are supported.",
+            )
+
+        r2_key = file_doc.get("r2_key")
+        if not r2_key:
+            raise HTTPException(status_code=500, detail="File R2 key not found")
+
+        # 2. Download PDF from R2
+        from src.services.file_download_service import FileDownloadService
+
+        logger.info(f"📥 Downloading PDF from R2: {r2_key}")
+        temp_pdf_path = await FileDownloadService._download_file_from_r2_with_boto3(
+            r2_key, "pdf"
+        )
+
+        if not temp_pdf_path:
+            raise HTTPException(
+                status_code=500, detail="Failed to download PDF from R2"
+            )
+
+        logger.info(f"✅ PDF downloaded to: {temp_pdf_path}")
+
+        try:
+            # 3. Convert PDF pages to images
+            from src.services.pdf_slide_import_service import (
+                get_pdf_slide_import_service,
+            )
+
+            import_service = get_pdf_slide_import_service()
+
+            logger.info("🎨 Converting PDF pages to images...")
+            images = await import_service.convert_pdf_to_slide_images(
+                temp_pdf_path, dpi=150
+            )
+
+            if not images:
+                raise HTTPException(
+                    status_code=400, detail="PDF has no pages or conversion failed"
+                )
+
+            num_slides = len(images)
+            logger.info(f"✅ Converted {num_slides} pages to images")
+
+            # 4. Upload images to R2
+            import os
+            import boto3
+
+            R2_ACCESS_KEY_ID = os.getenv("R2_ACCESS_KEY_ID")
+            R2_SECRET_ACCESS_KEY = os.getenv("R2_SECRET_ACCESS_KEY")
+            R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "wordai")
+            R2_ENDPOINT_URL = os.getenv("R2_ENDPOINT")
+
+            s3_client = boto3.client(
+                "s3",
+                endpoint_url=R2_ENDPOINT_URL,
+                aws_access_key_id=R2_ACCESS_KEY_ID,
+                aws_secret_access_key=R2_SECRET_ACCESS_KEY,
+                region_name="auto",
+            )
+
+            logger.info("📤 Uploading images to R2...")
+            image_urls = await import_service.upload_images_to_r2(
+                images=images,
+                user_id=user_info["uid"],
+                file_id=file_id,
+                s3_client=s3_client,
+                bucket_name=R2_BUCKET_NAME,
+            )
+
+            # 5. Create slide backgrounds
+            slide_backgrounds = import_service.create_slide_backgrounds(image_urls)
+
+            # 6. Create minimal HTML (empty slides)
+            content_html = import_service.create_minimal_html_slides(num_slides)
+
+            # 7. Create document in MongoDB
+            from src.services.document_manager import DocumentManager
+
+            doc_manager = DocumentManager(db)
+
+            document_id = doc_manager.create_document(
+                user_id=user_info["uid"],
+                title=title,
+                content_html=content_html,
+                content_text=f"Imported from PDF: {file_doc.get('original_file_name', 'Unknown')}",
+                source_type="imported",
+                document_type="slide",
+            )
+
+            # Add slide metadata
+            db["documents"].update_one(
+                {"document_id": document_id},
+                {
+                    "$set": {
+                        "slide_count": num_slides,
+                        "slide_backgrounds": slide_backgrounds,
+                        "slide_elements": [],
+                        # Mark as imported (not AI generated)
+                        "ai_generation_type": "pdf_import",
+                        "source_file_id": file_id,
+                        "creator_name": user_info.get("email", ""),
+                    }
+                },
+            )
+
+            logger.info(
+                f"✅ PDF imported successfully: {document_id} ({num_slides} slides)"
+            )
+
+            return {
+                "success": True,
+                "document_id": document_id,
+                "num_slides": num_slides,
+                "title": title,
+                "message": f"Successfully imported {num_slides} slides from PDF. Each page is now a slide background.",
+            }
+
+        finally:
+            # Cleanup temp PDF file
+            import os
+
+            if temp_pdf_path and os.path.exists(temp_pdf_path):
+                os.remove(temp_pdf_path)
+                logger.info(f"🗑️ Cleaned up temp PDF: {temp_pdf_path}")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ PDF import failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))

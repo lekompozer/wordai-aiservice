@@ -9,8 +9,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime
 import os
 
-from google import genai
-from google.genai import types
+from google import genai  # type: ignore
+from google.genai import types  # type: ignore
 import anthropic
 import config.config as config
 
@@ -618,7 +618,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
             dict with keys: presentation_summary, num_slides, slides
         """
         import time
-        import google.generativeai as genai
+        import google.generativeai as genai  # type: ignore
 
         logger.info(f"📄 Calling Gemini for PDF slide analysis (Step 1)...")
         logger.info(f"   Model: {self.gemini_model}")
@@ -850,8 +850,9 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
             slide_htmls = []
 
             for i, div in enumerate(slide_divs):
-                div["data-slide-index"] = str(batch_start_index + i)
-                slide_htmls.append(str(div))
+                if div:  # Type guard
+                    div["data-slide-index"] = str(batch_start_index + i)  # type: ignore
+                    slide_htmls.append(str(div))
 
             logger.info(f"✅ Parsed {len(slide_htmls)} slides from batch")
 
