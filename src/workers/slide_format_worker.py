@@ -257,7 +257,7 @@ class SlideFormatWorker:
                     formatted_html=result["formatted_html"],
                     suggested_elements=result.get("suggested_elements", []),
                     suggested_background=result.get("suggested_background"),
-                    ai_explanation=result["ai_explanation"],
+                    ai_explanation=result.get("ai_explanation", ""),
                     completed_at=end_time.isoformat(),
                     processing_time_seconds=processing_time,
                 )
