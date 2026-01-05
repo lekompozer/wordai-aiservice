@@ -893,19 +893,84 @@ async def generate_test_from_file(request: TestGenerationRequest):
 
 **All AI operations MUST check and deduct points before execution.**
 
+#### ⚠️ CRITICAL: Points Storage Architecture
+
+**The system uses TWO separate collections for points - DO NOT confuse them!**
+
+##### 1. `users` Collection - Display Only (❌ DO NOT use for payment validation)
+```javascript
+{
+  email: "user@example.com",
+  firebase_uid: "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
+  points: 2005,  // ← Frontend display ONLY, NOT source of truth!
+  subscription_plan: "vip"  // ← Also display only
+}
+```
+**Purpose:** Frontend UI display, legacy compatibility  
+**DO NOT USE FOR:** Payment validation, points checking, deduction operations
+
+##### 2. `user_subscriptions` Collection - SOURCE OF TRUTH (✅ ALWAYS use this)
+```javascript
+{
+  user_id: "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
+  plan: "vip",  // ← Real subscription tier
+  points_total: 2515,  // ← Total points purchased
+  points_used: 510,  // ← Total points consumed
+  points_remaining: 2005,  // ← ACTUAL balance (SOURCE OF TRUTH!)
+  is_active: true,
+  started_at: ISODate("2025-11-06T18:55:40.177Z"),
+  expires_at: ISODate("2026-02-04T18:55:40.176Z"),
+  storage_limit_mb: 51200,
+  // ... other subscription limits
+}
+```
+**Purpose:** Payment validation, points checking, subscription management  
+**ALWAYS USE FOR:** All payment operations, points deduction, subscription checks
+
+##### Why Two Collections?
+
+**Historical Reason:** `users.points` existed first for UI display. Payment system evolved to use separate `user_subscriptions` for transaction tracking and subscription management.
+
+**CRITICAL Rules:**
+- ✅ **PointsService** (`src/services/points_service.py`) ALWAYS queries `user_subscriptions.points_remaining`
+- ✅ **Payment validation** ALWAYS checks `user_subscriptions.plan` and `user_subscriptions.is_active`
+- ✅ **Admin user updates** MUST update BOTH collections:
+  - `users.points` (for frontend display)
+  - `user_subscriptions.points_remaining` (for actual payment validation)
+- ❌ **NEVER** check `users.points` for payment validation
+- ❌ **NEVER** assume updating `users.points` alone will work
+
+**Example Admin Update (CORRECT):**
+```bash
+# Update BOTH collections!
+# 1. Update users collection (frontend display)
+db.users.updateOne(
+  {email: "user@example.com"},
+  {$set: {points: 2005, subscription_plan: "vip"}}
+)
+
+# 2. Update user_subscriptions collection (actual payment check)
+db.user_subscriptions.updateOne(
+  {user_id: "17BeaeikPBQYk8OWeDUkqm0Ov8e2"},
+  {$set: {points_remaining: 2005, plan: "vip", updated_at: new Date()}}
+)
+```
+
+---
+
 #### Standard Points Flow
 
 ```python
 from src.services.points_service import get_points_service
 from fastapi import HTTPException
 
-# 1. Get points service
+# 1. Get points service (automatically uses user_subscriptions collection)
 points_service = get_points_service()
 
 # 2. Define operation cost
 POINTS_COST = 2  # See SERVICE_POINTS_COST in points_service.py
 
-# 3. Check balance BEFORE operation
+# 3. Check balance BEFORE operation (checks user_subscriptions.points_remaining)
 try:
     has_points = points_service.check_points(user_id, POINTS_COST)
     if not has_points:
