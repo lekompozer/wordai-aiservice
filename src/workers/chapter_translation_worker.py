@@ -173,9 +173,11 @@ class ChapterTranslationWorker:
         self,
         worker_id: str = "chapter_translation_worker",
         redis_url: str = "redis://redis-server:6379",
+        max_concurrent_jobs: int = 3,
     ):
         self.worker_id = worker_id
         self.redis_url = redis_url
+        self.max_concurrent_jobs = max_concurrent_jobs
         self.running = False
 
         # Initialize components
@@ -386,34 +388,53 @@ class ChapterTranslationWorker:
             return False
 
     async def run(self):
-        """Main worker loop"""
+        """Main worker loop with concurrency support"""
         await self.initialize()
         self.running = True
 
         logger.info(f"🚀 Worker {self.worker_id}: Started processing tasks")
+        logger.info(f"   🔄 Max concurrent jobs: {self.max_concurrent_jobs}")
+
+        running_tasks = set()
 
         while self.running:
             try:
-                # Fetch task from Redis queue
-                task_data = await self.queue_manager.dequeue_generic_task(
-                    worker_id=self.worker_id, timeout=5
-                )
+                # Fill up to max concurrency
+                while len(running_tasks) < self.max_concurrent_jobs and self.running:
+                    task_data = await self.queue_manager.dequeue_generic_task(
+                        worker_id=self.worker_id, timeout=1
+                    )
 
-                if not task_data:
-                    continue
+                    if not task_data:
+                        break
 
-                # Parse task
-                try:
-                    task = ChapterTranslationTask(**task_data)
-                except Exception as parse_error:
-                    logger.error(f"❌ Failed to parse task: {parse_error}")
-                    continue
+                    # Parse task
+                    try:
+                        task = ChapterTranslationTask(**task_data)
+                    except Exception as parse_error:
+                        logger.error(f"❌ Failed to parse task: {parse_error}")
+                        continue
 
-                # Process task
-                success = await self.process_task(task)
+                    # Start task in background
+                    task_future = asyncio.create_task(self.process_task(task))
+                    running_tasks.add(task_future)
+                    logger.info(f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)")
 
-                if not success:
-                    logger.warning(f"⚠️ Task {task.task_id} processing failed")
+                # Wait for at least one task to complete
+                if running_tasks:
+                    done, running_tasks = await asyncio.wait(
+                        running_tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    
+                    for completed_task in done:
+                        try:
+                            success = await completed_task
+                            if not success:
+                                logger.warning(f"⚠️ Task processing failed")
+                        except Exception as e:
+                            logger.error(f"❌ Task raised exception: {e}", exc_info=True)
+                else:
+                    await asyncio.sleep(1)
 
             except asyncio.CancelledError:
                 logger.info(f"🛑 Worker {self.worker_id}: Cancelled")
@@ -424,6 +445,11 @@ class ChapterTranslationWorker:
                     exc_info=True,
                 )
                 await asyncio.sleep(5)
+
+        # Wait for remaining tasks
+        if running_tasks:
+            logger.info(f"⏳ Waiting for {len(running_tasks)} tasks to complete...")
+            await asyncio.gather(*running_tasks, return_exceptions=True)
 
         logger.info(f"🏁 Worker {self.worker_id}: Stopped")
 

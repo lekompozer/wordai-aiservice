@@ -33,10 +33,12 @@ class SlideFormatWorker:
         worker_id: str = "slide_format_worker",
         redis_url: str = "redis://redis-server:6379",
         batch_size: int = 1,
+        max_concurrent_jobs: int = 5,
     ):
         self.worker_id = worker_id
         self.redis_url = redis_url
         self.batch_size = batch_size
+        self.max_concurrent_jobs = max_concurrent_jobs
         self.running = False
 
         # Initialize components
@@ -644,34 +646,56 @@ class SlideFormatWorker:
             )
 
     async def run(self):
-        """Main worker loop"""
+        """Main worker loop with concurrency support"""
         await self.initialize()
         self.running = True
 
         logger.info(f"🚀 Worker {self.worker_id}: Started processing tasks")
+        logger.info(f"   🔄 Max concurrent jobs: {self.max_concurrent_jobs}")
+
+        # Track running tasks
+        running_tasks = set()
 
         while self.running:
             try:
-                # Fetch task from Redis queue
-                task_data = await self.queue_manager.dequeue_generic_task(
-                    worker_id=self.worker_id, timeout=5
-                )
+                # Fill up to max concurrency
+                while len(running_tasks) < self.max_concurrent_jobs and self.running:
+                    task_data = await self.queue_manager.dequeue_generic_task(
+                        worker_id=self.worker_id, timeout=1
+                    )
 
-                if not task_data:
+                    if not task_data:
+                        break
+
+                    # Parse task
+                    try:
+                        task = SlideFormatTask(**task_data)
+                    except Exception as parse_error:
+                        logger.error(f"❌ Failed to parse task: {parse_error}")
+                        continue
+
+                    # Start task in background
+                    task_future = asyncio.create_task(self.process_task(task))
+                    running_tasks.add(task_future)
+                    logger.info(f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)")
+
+                # Wait for at least one task to complete
+                if running_tasks:
+                    done, running_tasks = await asyncio.wait(
+                        running_tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    
+                    # Log completed tasks
+                    for completed_task in done:
+                        try:
+                            success = await completed_task
+                            if not success:
+                                logger.warning(f"⚠️ A task processing failed")
+                        except Exception as e:
+                            logger.error(f"❌ Task raised exception: {e}", exc_info=True)
+                else:
+                    # No tasks running and no tasks in queue
                     await asyncio.sleep(1)
-                    continue
-
-                # Parse task
-                try:
-                    task = SlideFormatTask(**task_data)
-                except Exception as parse_error:
-                    logger.error(f"❌ Failed to parse task: {parse_error}")
-                    continue
-                # Process task
-                success = await self.process_task(task)
-
-                if not success:
-                    logger.warning(f"⚠️ Task {task.task_id} processing failed")
 
             except asyncio.CancelledError:
                 logger.info(f"🛑 Worker {self.worker_id}: Cancelled")
@@ -681,7 +705,12 @@ class SlideFormatWorker:
                     f"❌ Worker {self.worker_id}: Error in main loop: {e}",
                     exc_info=True,
                 )
-                await asyncio.sleep(5)  # Wait before retry
+                await asyncio.sleep(5)
+
+        # Wait for remaining tasks to complete
+        if running_tasks:
+            logger.info(f"⏳ Waiting for {len(running_tasks)} tasks to complete...")
+            await asyncio.gather(*running_tasks, return_exceptions=True)
 
         logger.info(f"🏁 Worker {self.worker_id}: Stopped")
 

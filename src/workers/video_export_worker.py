@@ -42,6 +42,7 @@ class VideoExportWorker:
         redis_url: Optional[str] = None,
         batch_size: int = 1,
         max_retries: int = 2,
+        max_concurrent_jobs: int = 2,
     ):
         self.worker_id = (
             worker_id or f"video_export_worker_{int(time.time())}_{os.getpid()}"
@@ -51,6 +52,7 @@ class VideoExportWorker:
         )
         self.batch_size = batch_size
         self.max_retries = max_retries
+        self.max_concurrent_jobs = max_concurrent_jobs
         self.running = False
 
         # Initialize components
@@ -1125,32 +1127,54 @@ class VideoExportWorker:
             return False
 
     async def run(self):
-        """Main worker loop"""
+        """Main worker loop with concurrency support"""
         self.running = True
         logger.info(f"🚀 Worker {self.worker_id} started")
+        logger.info(f"   🔄 Max concurrent jobs: {self.max_concurrent_jobs}")
+
+        running_tasks = set()
 
         while self.running:
             try:
-                # Process tasks from queue
-                task_dict = await self.queue_manager.dequeue_generic_task(
-                    worker_id=self.worker_id
-                )
+                # Fill up to max concurrency
+                while len(running_tasks) < self.max_concurrent_jobs and self.running:
+                    task_dict = await self.queue_manager.dequeue_generic_task(
+                        worker_id=self.worker_id, timeout=1
+                    )
 
-                if task_dict:
+                    if not task_dict:
+                        break
+
                     # Parse task
-                    task = VideoExportTask(**task_dict)
+                    try:
+                        task = VideoExportTask(**task_dict)
+                    except Exception as parse_error:
+                        logger.error(f"❌ Failed to parse task: {parse_error}")
+                        continue
+
                     logger.info(f"📥 Dequeued task: {task.job_id}")
 
-                    # Process task
-                    success = await self.process_task(task)
+                    # Start task in background
+                    task_future = asyncio.create_task(self.process_task(task))
+                    running_tasks.add(task_future)
+                    logger.info(f"📝 Started task {task.job_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)")
 
-                    if success:
-                        logger.info(f"✅ Task {task.job_id} completed successfully")
-                    else:
-                        logger.error(f"❌ Task {task.job_id} failed")
-
+                # Wait for at least one task to complete
+                if running_tasks:
+                    done, running_tasks = await asyncio.wait(
+                        running_tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    
+                    for completed_task in done:
+                        try:
+                            success = await completed_task
+                            if success:
+                                logger.info(f"✅ Task completed successfully")
+                            else:
+                                logger.error(f"❌ Task failed")
+                        except Exception as e:
+                            logger.error(f"❌ Task raised exception: {e}", exc_info=True)
                 else:
-                    # No tasks available, sleep briefly
                     await asyncio.sleep(1)
 
             except asyncio.CancelledError:
@@ -1158,7 +1182,12 @@ class VideoExportWorker:
                 break
             except Exception as e:
                 logger.error(f"❌ Worker error: {e}", exc_info=True)
-                await asyncio.sleep(5)  # Back off on error
+                await asyncio.sleep(5)
+
+        # Wait for remaining tasks
+        if running_tasks:
+            logger.info(f"⏳ Waiting for {len(running_tasks)} tasks to complete...")
+            await asyncio.gather(*running_tasks, return_exceptions=True)
 
         logger.info(f"✅ Worker {self.worker_id} stopped")
 

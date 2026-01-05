@@ -39,6 +39,7 @@ class SlideNarrationSubtitleWorker:
         redis_url: Optional[str] = None,
         batch_size: int = 1,
         max_retries: int = 2,
+        max_concurrent_jobs: int = 5,
     ):
         self.worker_id = (
             worker_id or f"narration_subtitle_worker_{int(time.time())}_{os.getpid()}"
@@ -48,6 +49,7 @@ class SlideNarrationSubtitleWorker:
         )
         self.batch_size = batch_size
         self.max_retries = max_retries
+        self.max_concurrent_jobs = max_concurrent_jobs
         self.running = False
 
         # Initialize components
@@ -203,37 +205,57 @@ class SlideNarrationSubtitleWorker:
             return False
 
     async def run(self):
-        """Main worker loop"""
+        """Main worker loop with concurrency support"""
         self.running = True
         logger.info(f"🚀 Worker {self.worker_id}: Starting to process tasks...")
         logger.info(f"   Batch size: {self.batch_size}")
         logger.info(f"   Max retries: {self.max_retries}")
+        logger.info(f"   🔄 Max concurrent jobs: {self.max_concurrent_jobs}")
 
         consecutive_errors = 0
         max_consecutive_errors = 5
+        running_tasks = set()
 
         while self.running:
             try:
-                # Dequeue task (returns raw dict, not parsed model)
-                task_data = await self.queue_manager.dequeue_generic_task(
-                    worker_id=self.worker_id, timeout=5
-                )
+                # Fill up to max concurrency
+                while len(running_tasks) < self.max_concurrent_jobs and self.running:
+                    task_data = await self.queue_manager.dequeue_generic_task(
+                        worker_id=self.worker_id, timeout=1
+                    )
 
-                if not task_data:
-                    # No task available, wait before retry
+                    if not task_data:
+                        break
+
+                    consecutive_errors = 0  # Reset error count on successful dequeue
+
+                    # Parse task
+                    try:
+                        task = SlideNarrationSubtitleTask(**task_data)
+                    except Exception as parse_error:
+                        logger.error(f"❌ Failed to parse task: {parse_error}")
+                        continue
+
+                    # Start task in background
+                    task_future = asyncio.create_task(self.process_task(task))
+                    running_tasks.add(task_future)
+                    logger.info(f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)")
+
+                # Wait for at least one task to complete
+                if running_tasks:
+                    done, running_tasks = await asyncio.wait(
+                        running_tasks, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    
+                    for completed_task in done:
+                        try:
+                            success = await completed_task
+                            if not success:
+                                logger.warning(f"⚠️  Task processing failed")
+                        except Exception as e:
+                            logger.error(f"❌ Task raised exception: {e}", exc_info=True)
+                else:
                     await asyncio.sleep(2)
-                    continue
-
-                consecutive_errors = 0  # Reset error count on successful dequeue
-
-                # Parse task
-                task = SlideNarrationSubtitleTask(**task_data)
-
-                # Process task
-                success = await self.process_task(task)
-
-                if not success:
-                    logger.warning(f"⚠️  Task {task.task_id} processing failed")
 
             except KeyboardInterrupt:
                 logger.info(f"⚠️  Worker {self.worker_id}: Keyboard interrupt received")
