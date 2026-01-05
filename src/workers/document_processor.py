@@ -10,7 +10,7 @@ import time
 import uuid
 import traceback
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import requests
 import boto3
 from botocore.config import Config
