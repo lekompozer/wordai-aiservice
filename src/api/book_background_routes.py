@@ -39,6 +39,11 @@ upload_router = APIRouter(
 # Separate router for slide backgrounds
 slide_router = APIRouter(prefix="/api/slide-backgrounds", tags=["Slide Backgrounds"])
 
+# Separate router for document backgrounds (A4 documents)
+document_router = APIRouter(
+    prefix="/api/document-backgrounds", tags=["Document Backgrounds"]
+)
+
 # Initialize services
 db_manager = DBManager()
 db = db_manager.db
@@ -220,6 +225,176 @@ async def update_book_background(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update background: {str(e)}",
+        )
+
+
+# ========== DOCUMENT BACKGROUND ENDPOINTS ==========
+
+
+@document_router.put("/{document_id}")
+async def update_document_background(
+    document_id: str,
+    request: UpdateBookBackgroundRequest,  # Reuse book background model
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Update A4 document background
+
+    **Supports same background types as books:**
+    - solid: Solid color background
+    - gradient: Gradient background
+    - theme: Predefined theme
+    - ai_image: AI-generated background
+    - custom_image: User-uploaded image
+
+    Example:
+    ```json
+    {
+      "config": {
+        "type": "ai_image",
+        "image": {
+          "url": "https://cdn.r2.wordai.vn/files/...",
+          "overlay_opacity": 0.3,
+          "overlay_color": "#000000"
+        }
+      }
+    }
+    ```
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify document ownership
+        document = db.documents.find_one(
+            {"document_id": document_id, "user_id": user_id}
+        )
+        if not document:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found or access denied",
+            )
+
+        # Update background
+        bg_service = get_book_background_service(db)
+        updated = bg_service.update_document_background(
+            document_id=document_id, user_id=user_id, config=request.background_config
+        )
+
+        if not updated:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Document not found"
+            )
+
+        logger.info(
+            f"✅ Updated document background: {document_id} (type: {request.background_config.type})"
+        )
+
+        return {
+            "success": True,
+            "document_id": document_id,
+            "background_config": request.background_config.model_dump(
+                exclude_none=True
+            ),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update document background: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update document background: {str(e)}",
+        )
+
+
+@document_router.get("/{document_id}")
+async def get_document_background(
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get A4 document background configuration
+
+    Returns:
+    ```json
+    {
+      "document_id": "doc_xxx",
+      "background_config": {
+        "type": "ai_image",
+        "image": {
+          "url": "https://...",
+          "overlay_opacity": 0.3
+        }
+      }
+    }
+    ```
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Get background config
+        bg_service = get_book_background_service(db)
+        config = bg_service.get_document_background(
+            document_id=document_id, user_id=user_id
+        )
+
+        return {"document_id": document_id, "background_config": config}
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get document background: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get document background: {str(e)}",
+        )
+
+
+@document_router.delete("/{document_id}")
+async def delete_document_background(
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Remove A4 document background (reset to default white)
+
+    Example response:
+    ```json
+    {
+      "success": true,
+      "document_id": "doc_xxx",
+      "message": "Background removed successfully"
+    }
+    ```
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Delete background
+        bg_service = get_book_background_service(db)
+        deleted = bg_service.delete_document_background(
+            document_id=document_id, user_id=user_id
+        )
+
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document not found or background already empty",
+            )
+
+        logger.info(f"✅ Deleted document background: {document_id}")
+
+        return {
+            "success": True,
+            "document_id": document_id,
+            "message": "Background removed successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete document background: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete document background: {str(e)}",
         )
 
 
@@ -533,7 +708,8 @@ async def upload_background_image(
 
         # Generate R2 key
         timestamp = int(time.time())
-        file_ext = file.filename.split(".")[-1] if "." in file.filename else "png"
+        filename = file.filename or "background.png"
+        file_ext = filename.split(".")[-1] if "." in filename else "png"
         r2_key = f"backgrounds/{user_id}/bg_{timestamp}.{file_ext}"
 
         # Upload to R2

@@ -484,6 +484,101 @@ class BookBackgroundService:
             logger.error(f"❌ Failed to delete chapter background: {e}")
             return False
 
+    # ========== DOCUMENT BACKGROUND METHODS ==========
+
+    def update_document_background(
+        self,
+        document_id: str,
+        user_id: str,
+        config: BackgroundConfig,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Update document background configuration (for A4 documents)
+
+        Args:
+            document_id: Document ID
+            user_id: User ID (for ownership verification)
+            config: Background configuration
+
+        Returns:
+            Updated document or None if not found
+        """
+        try:
+            result = self.db.documents.find_one_and_update(
+                {"document_id": document_id, "user_id": user_id},
+                {
+                    "$set": {
+                        "background_config": config.model_dump(exclude_none=True),
+                        "last_saved_at": datetime.now(timezone.utc),
+                    }
+                },
+                return_document=True,
+            )
+
+            if result:
+                logger.info(
+                    f"✅ Updated document background: {document_id} (type: {config.type})"
+                )
+                return result
+            return None
+
+        except Exception as e:
+            logger.error(f"❌ Failed to update document background: {e}", exc_info=True)
+            raise Exception(f"Failed to update document background: {str(e)}")
+
+    def get_document_background(
+        self, document_id: str, user_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get document background configuration
+
+        Args:
+            document_id: Document ID
+            user_id: User ID (for ownership verification)
+
+        Returns:
+            Background config or None
+        """
+        try:
+            document = self.db.documents.find_one(
+                {"document_id": document_id, "user_id": user_id},
+                {"background_config": 1},
+            )
+            return document.get("background_config") if document else None
+
+        except Exception as e:
+            logger.error(f"❌ Failed to get document background: {e}")
+            return None
+
+    def delete_document_background(self, document_id: str, user_id: str) -> bool:
+        """
+        Remove document background (reset to default)
+
+        Args:
+            document_id: Document ID
+            user_id: User ID (for ownership verification)
+
+        Returns:
+            True if deleted, False otherwise
+        """
+        try:
+            result = self.db.documents.update_one(
+                {"document_id": document_id, "user_id": user_id},
+                {
+                    "$unset": {"background_config": ""},
+                    "$set": {"last_saved_at": datetime.now(timezone.utc)},
+                },
+            )
+
+            if result.modified_count > 0:
+                logger.info(f"✅ Deleted document background: {document_id}")
+                return True
+            return False
+
+        except Exception as e:
+            logger.error(f"❌ Failed to delete document background: {e}")
+            return False
+
 
 # Singleton instance
 _book_background_service = None

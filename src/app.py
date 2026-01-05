@@ -242,6 +242,7 @@ from src.api.book_background_routes import router as book_background_router
 from src.api.book_background_routes import (
     upload_router as book_background_upload_router,
     slide_router as slide_background_router,
+    document_router as document_background_router,
 )
 
 # ✅ ADDED: Slide AI API - AI-powered slide formatting and editing
@@ -1148,6 +1149,12 @@ def create_app() -> FastAPI:
     app.include_router(
         slide_background_router,
         tags=["Slide Backgrounds", "AI Background Generation"],
+    )
+
+    # ✅ Document background endpoints (A4 documents)
+    app.include_router(
+        document_background_router,
+        tags=["Document Backgrounds", "A4 Documents"],
     )
 
     # ✅ NEW: Slide AI API - AI-powered slide formatting and editing

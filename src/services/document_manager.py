@@ -114,6 +114,7 @@ class DocumentManager:
         original_r2_url: Optional[str] = None,
         original_file_type: Optional[str] = None,
         folder_id: Optional[str] = None,
+        background_config: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Tạo document mới, trả về document_id
@@ -123,6 +124,7 @@ class DocumentManager:
             document_type: "doc", "slide", "note" (chỉ cho created documents)
             file_id: Optional - chỉ có khi source_type="file"
             folder_id: Optional - folder to organize document
+            background_config: Optional - Background configuration (for A4 documents)
         """
         document_id = f"doc_{uuid.uuid4().hex[:12]}"
         now = datetime.utcnow()
@@ -150,6 +152,8 @@ class DocumentManager:
             "original_file_type": original_file_type,
             # Organization
             "folder_id": folder_id,
+            # Background configuration (for A4 documents)
+            "background_config": background_config,
             "file_size_bytes": len(content_html.encode("utf-8")),
             "created_at": now,
             "last_saved_at": now,
@@ -218,8 +222,9 @@ class DocumentManager:
         slide_elements: Optional[list] = None,
         slide_backgrounds: Optional[list] = None,
         slides_outline: Optional[list] = None,  # NEW: Save outline for retry
+        background_config: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Cập nhật nội dung document (bao gồm title, slide_elements, slide_backgrounds, và slides_outline cho slide documents)"""
+        """Cập nhật nội dung document (bao gồm title, slide_elements, slide_backgrounds, slides_outline, và background_config)"""
         now = datetime.utcnow()
 
         update_data = {
@@ -272,6 +277,14 @@ class DocumentManager:
             logger.info(
                 f"📝 [SLIDES_OUTLINE_SAVE] Preparing to save: document_id={document_id}, "
                 f"user_id={user_id}, outline_count={len(slides_outline)}"
+            )
+
+        # ✅ NEW: Save background_config (for A4 documents)
+        if background_config is not None:
+            update_data["background_config"] = background_config
+            logger.info(
+                f"🎨 [BACKGROUND_CONFIG_SAVE] Preparing to save: document_id={document_id}, "
+                f"user_id={user_id}, type={background_config.get('type')}"
             )
 
         if is_auto_save:
