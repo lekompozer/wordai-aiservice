@@ -35,8 +35,8 @@ class AIEditorWorker:
 
     def __init__(
         self,
-        worker_id: str = None,
-        redis_url: str = None,
+        worker_id: Optional[str] = None,
+        redis_url: Optional[str] = None,
         batch_size: int = 1,
         max_retries: int = 3,
     ):

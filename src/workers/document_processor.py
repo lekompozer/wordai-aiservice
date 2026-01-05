@@ -86,7 +86,7 @@ class AIDocumentProcessor:
             f"🧠 Embedding Model: {EMBEDDING_MODEL or 'paraphrase-multilingual-mpnet-base-v2'}"
         )
 
-    async def start_worker(self, worker_id: str = None):
+    async def start_worker(self, worker_id: Optional[str] = None):
         """Start the worker to process documents from queue"""
         worker_id = worker_id or f"worker_{os.getpid()}_{int(time.time())}"
         queue_name = "document_processing_queue"
@@ -102,7 +102,9 @@ class AIDocumentProcessor:
             while True:
                 try:
                     # Wait for task from queue (30 second timeout)
-                    result = self.redis_client.brpop([queue_name], timeout=30)
+                    result = await asyncio.to_thread(
+                        self.redis_client.brpop, [queue_name], 30
+                    )
 
                     if not result:
                         # No task in queue, continue waiting
@@ -567,11 +569,11 @@ class AIDocumentProcessor:
         self,
         task_data: Dict[str, Any],
         status: str,
-        result: Dict[str, Any] = None,
-        error: str = None,
-        processing_time: float = None,
-        chunks_processed: int = None,
-        collection_name: str = None,
+        result: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+        processing_time: Optional[float] = None,
+        chunks_processed: Optional[int] = None,
+        collection_name: Optional[str] = None,
     ) -> bool:
         """Send callback to backend API"""
         try:

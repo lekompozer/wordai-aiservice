@@ -89,7 +89,7 @@ class SlideFormatWorker:
             if task.is_batch:
                 if task.total_chunks and task.total_chunks > 1:
                     logger.info(
-                        f"   📦 Chunk {task.chunk_index + 1}/{task.total_chunks}: {task.total_slides} slides"
+                        f"   📦 Chunk {(task.chunk_index or 0) + 1}/{task.total_chunks}: {task.total_slides} slides"
                     )
 
                     # Add delay between chunks to avoid Claude rate limits
@@ -134,7 +134,7 @@ class SlideFormatWorker:
             request = FormatRequest()
 
             # Process with slide AI service
-            result = await self.slide_ai_service.format_slide(request, task.user_id)
+            result = await self.slide_ai_service.format_slide(request, task.user_id)  # type: ignore
 
             end_time = datetime.utcnow()
             processing_time = (end_time - start_time).total_seconds()
@@ -175,7 +175,7 @@ class SlideFormatWorker:
 
                 # Update batch job with chunk results
                 await self._merge_chunk_results(
-                    batch_job_id=task.batch_job_id,
+                    batch_job_id=task.batch_job_id or "",
                     chunk_index=task.chunk_index or 0,
                     total_chunks=task.total_chunks or 1,
                     chunk_results=chunk_results,
@@ -183,7 +183,7 @@ class SlideFormatWorker:
                 )
 
                 logger.info(
-                    f"✅ Chunk {task.chunk_index + 1}/{task.total_chunks} completed: {len(chunk_results)} slides in {processing_time:.1f}s"
+                    f"✅ Chunk {(task.chunk_index or 0) + 1}/{task.total_chunks} completed: {len(chunk_results)} slides in {processing_time:.1f}s"
                 )
             else:
                 # Mode 1: Single slide processing
@@ -216,7 +216,7 @@ class SlideFormatWorker:
                 # Mode 2 & 3: Fail entire batch job
                 await set_job_status(
                     redis_client=self.queue_manager.redis_client,
-                    job_id=task.batch_job_id,
+                    job_id=task.batch_job_id or "",
                     status="failed",
                     user_id=task.user_id,
                     error=str(e),
@@ -240,8 +240,8 @@ class SlideFormatWorker:
         self,
         batch_job_id: str,
         slide_index: int,
-        result: dict = None,
-        error: str = None,
+        result: Optional[dict] = None,
+        error: Optional[str] = None,
     ):
         """Update parent batch job with slide result"""
         try:
@@ -304,7 +304,7 @@ class SlideFormatWorker:
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,
                 job_id=batch_job_id,
-                user_id=batch_job.get("user_id"),
+                user_id=batch_job.get("user_id") or "",
                 **update_data,
             )
 
@@ -339,16 +339,14 @@ class SlideFormatWorker:
             chunk_results_key = f"chunks:{batch_job_id}"
 
             # Store this chunk's results
-            await self.queue_manager.redis_client.hset(
+            self.queue_manager.redis_client.hset(  # type: ignore
                 chunk_results_key, str(chunk_index), json.dumps(chunk_results)
             )
-            await self.queue_manager.redis_client.expire(chunk_results_key, 86400)
+            self.queue_manager.redis_client.expire(chunk_results_key, 86400)  # type: ignore
 
             # Check if all chunks are complete
-            all_chunks = await self.queue_manager.redis_client.hgetall(
-                chunk_results_key
-            )
-            chunks_completed = len(all_chunks)
+            all_chunks = self.queue_manager.redis_client.hgetall(chunk_results_key)  # type: ignore
+            chunks_completed = len(all_chunks)  # type: ignore
 
             logger.info(
                 f"📦 Batch job {batch_job_id}: {chunks_completed}/{total_chunks} chunks completed"
@@ -358,9 +356,9 @@ class SlideFormatWorker:
                 # All chunks done - merge all results
                 all_slides_results = []
                 for idx in range(total_chunks):
-                    chunk_data = all_chunks.get(
+                    chunk_data = all_chunks.get(  # type: ignore
                         str(idx).encode()
-                        if isinstance(list(all_chunks.keys())[0], bytes)
+                        if isinstance(list(all_chunks.keys())[0], bytes)  # type: ignore
                         else str(idx)
                     )
                     if chunk_data:
@@ -376,7 +374,7 @@ class SlideFormatWorker:
 
                 update_data = {
                     "status": "completed",
-                    "user_id": batch_job.get("user_id"),
+                    "user_id": batch_job.get("user_id") or "",
                     "slide_numbers": slide_numbers,  # Array of formatted slide numbers (1-based)
                     "completed_slides": len(all_slides_results),
                     "failed_slides": 0,
@@ -514,7 +512,7 @@ class SlideFormatWorker:
                 )
 
                 # Cleanup chunk results
-                await self.queue_manager.redis_client.delete(chunk_results_key)
+                self.queue_manager.redis_client.delete(chunk_results_key)  # type: ignore
 
                 logger.info(
                     f"✅ Batch job {batch_job_id} COMPLETED: All {total_chunks} chunks merged, {len(all_slides_results)} total slides"
@@ -525,7 +523,7 @@ class SlideFormatWorker:
                     redis_client=self.queue_manager.redis_client,
                     job_id=batch_job_id,
                     status="processing",
-                    user_id=batch_job.get("user_id"),
+                    user_id=batch_job.get("user_id") or "",
                     completed_slides=chunks_completed * 12,  # Approximate
                 )
 

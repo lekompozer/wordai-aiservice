@@ -14,7 +14,7 @@ import json
 import uuid
 import re
 import aiohttp
-import redis
+import redis  # type: ignore
 import io
 from typing import Optional, List
 from datetime import datetime
@@ -63,8 +63,8 @@ class DocumentProcessingWorker:
 
     def __init__(
         self,
-        worker_id: str = None,
-        redis_url: str = None,
+        worker_id: Optional[str] = None,
+        redis_url: Optional[str] = None,
         batch_size: int = 1,
         max_retries: int = 3,
         poll_interval: float = 1.0,
