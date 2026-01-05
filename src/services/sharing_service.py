@@ -116,7 +116,7 @@ class SharingService:
             raise ValueError("Only owner can update sharing config")
 
         # Build update dict
-        update_fields = {"updated_at": datetime.utcnow()}
+        update_fields: Dict[str, Any] = {"updated_at": datetime.utcnow()}
 
         # Update public access
         if is_public is not None:
@@ -213,6 +213,8 @@ class SharingService:
         updated_config = self.sharing_configs.find_one(
             {"presentation_id": presentation_id}
         )
+        if not updated_config:
+            raise ValueError(f"Presentation {presentation_id} not found")
         updated_config["_id"] = str(updated_config["_id"])
 
         return updated_config
@@ -257,6 +259,8 @@ class SharingService:
         updated_config = self.sharing_configs.find_one(
             {"presentation_id": presentation_id}
         )
+        if not updated_config:
+            raise ValueError(f"Presentation {presentation_id} not found")
         updated_config["_id"] = str(updated_config["_id"])
 
         return updated_config

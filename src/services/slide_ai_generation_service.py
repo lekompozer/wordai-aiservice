@@ -630,18 +630,18 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
         uploaded_file = None
         try:
             # Configure genai (legacy API for file upload)
-            genai.configure(api_key=self.gemini_api_key)
+            genai.configure(api_key=self.gemini_api_key)  # type: ignore
 
             # Upload PDF to Gemini Files API
             logger.info(f"📤 Uploading PDF to Gemini Files API...")
-            uploaded_file = genai.upload_file(pdf_path)
+            uploaded_file = genai.upload_file(pdf_path)  # type: ignore
             logger.info(f"✅ PDF uploaded: {uploaded_file.uri}")
 
             # Wait for file processing
             while uploaded_file.state.name == "PROCESSING":
                 logger.info("⏳ Waiting for PDF processing...")
                 time.sleep(2)
-                uploaded_file = genai.get_file(uploaded_file.name)
+                uploaded_file = genai.get_file(uploaded_file.name)  # type: ignore
 
             if uploaded_file.state.name == "FAILED":
                 raise Exception("PDF processing failed in Gemini")
@@ -664,7 +664,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
 {base_prompt}"""
 
             # Call Gemini with PDF using legacy API
-            model = genai.GenerativeModel(self.gemini_model)
+            model = genai.GenerativeModel(self.gemini_model)  # type: ignore
 
             # Increase max_output_tokens for large slide counts
             max_slides = num_slides_range["max"]
@@ -673,7 +673,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
 
             response = model.generate_content(
                 [uploaded_file, pdf_analysis_prompt],
-                generation_config={
+                generation_config={  # type: ignore
                     "temperature": 0.7,
                     "top_p": 0.95,
                     "top_k": 40,
@@ -751,7 +751,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
             # Delete file from Gemini after processing
             if uploaded_file:
                 try:
-                    genai.delete_file(uploaded_file.name)
+                    genai.delete_file(uploaded_file.name)  # type: ignore
                     logger.info(f"🗑️ Deleted file from Gemini: {uploaded_file.name}")
                 except Exception as e:
                     logger.warning(f"⚠️ Failed to delete Gemini file: {e}")
