@@ -290,21 +290,25 @@ class SlideNarrationAudioWorker:
                     # Start task in background
                     task_future = asyncio.create_task(self.process_task(task))
                     running_tasks.add(task_future)
-                    logger.info(f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)")
+                    logger.info(
+                        f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)"
+                    )
 
                 # Wait for at least one task to complete
                 if running_tasks:
                     done, running_tasks = await asyncio.wait(
                         running_tasks, return_when=asyncio.FIRST_COMPLETED
                     )
-                    
+
                     for completed_task in done:
                         try:
                             success = await completed_task
                             if not success:
                                 logger.warning(f"⚠️  Task processing failed")
                         except Exception as e:
-                            logger.error(f"❌ Task raised exception: {e}", exc_info=True)
+                            logger.error(
+                                f"❌ Task raised exception: {e}", exc_info=True
+                            )
                 else:
                     await asyncio.sleep(2)
 

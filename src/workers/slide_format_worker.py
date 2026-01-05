@@ -396,13 +396,13 @@ class SlideFormatWorker:
             chunk_results_key = f"chunks:{batch_job_id}"
 
             # Store this chunk's results
-            self.queue_manager.redis_client.hset(  # type: ignore
+            await self.queue_manager.redis_client.hset(  # type: ignore
                 chunk_results_key, str(chunk_index), json.dumps(chunk_results)
             )
-            self.queue_manager.redis_client.expire(chunk_results_key, 86400)  # type: ignore
+            await self.queue_manager.redis_client.expire(chunk_results_key, 86400)  # type: ignore
 
             # Check if all chunks are complete
-            all_chunks = self.queue_manager.redis_client.hgetall(chunk_results_key)  # type: ignore
+            all_chunks = await self.queue_manager.redis_client.hgetall(chunk_results_key)  # type: ignore
             chunks_completed = len(all_chunks)  # type: ignore
 
             logger.info(
@@ -633,7 +633,7 @@ class SlideFormatWorker:
                 )
 
                 # Cleanup chunk results
-                self.queue_manager.redis_client.delete(chunk_results_key)  # type: ignore
+                await self.queue_manager.redis_client.delete(chunk_results_key)  # type: ignore
 
                 logger.info(
                     f"✅ Batch job {batch_job_id} COMPLETED: All {total_chunks} chunks merged, {len(all_slides_results)} total slides"
