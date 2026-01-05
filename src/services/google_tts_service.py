@@ -8,8 +8,8 @@ import logging
 import struct
 from typing import Dict, List, Optional, Tuple
 from bs4 import BeautifulSoup
-from google import genai
-from google.genai import types
+from google import genai  # type: ignore
+from google.genai import types  # type: ignore
 
 logger = logging.getLogger(__name__)
 

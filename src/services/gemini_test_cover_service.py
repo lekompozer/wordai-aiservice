@@ -11,8 +11,8 @@ import base64
 import uuid
 
 try:
-    from google import genai
-    from google.genai import types
+    from google import genai  # type: ignore
+    from google.genai import types  # type: ignore
     import boto3
     from botocore.client import Config
 

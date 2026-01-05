@@ -1272,8 +1272,8 @@ Begin evaluation:
         try:
             # Download and prepare media files
             import httpx
-            from google import genai
-            from google.genai import types
+            from google import genai  # type: ignore
+            from google.genai import types  # type: ignore
             import io
             import asyncio
 

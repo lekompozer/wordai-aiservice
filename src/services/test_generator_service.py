@@ -13,8 +13,8 @@ from typing import Dict, List, Optional, Tuple, Any
 from datetime import datetime
 from bson import ObjectId
 
-from google import genai
-from google.genai import types
+from google import genai  # type: ignore
+from google.genai import types  # type: ignore
 import config.config as config
 
 from src.services.prompt_builders import prompt_builder

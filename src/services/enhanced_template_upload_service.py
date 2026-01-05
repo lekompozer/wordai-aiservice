@@ -495,8 +495,8 @@ class EnhancedTemplateUploadService:
 
             # Use new Google Gen AI SDK for direct PDF processing
             try:
-                from google import genai
-                from google.genai import types
+                from google import genai  # type: ignore
+                from google.genai import types  # type: ignore
                 import os
 
                 # Configure new Gemini client with API key

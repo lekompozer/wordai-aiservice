@@ -21,11 +21,11 @@ class UserManager:
 
         if self.db is not None and hasattr(self.db, "client") and self.db.client is not None:  # type: ignore
             # MongoDB collections
-            self.users = self.db.db["users"]
-            self.conversations = self.db.db["conversations"]
-            self.user_files = self.db.db["user_files"]
-            self.folders = self.db.db["folders"]  # For Upload Files (simple_files)
-            self.document_folders = self.db.db[
+            self.users = self.db.db["users"]  # type: ignore
+            self.conversations = self.db.db["conversations"]  # type: ignore
+            self.user_files = self.db.db["user_files"]  # type: ignore
+            self.folders = self.db.db["folders"]  # type: ignore
+            self.document_folders = self.db.db[  # type: ignore
                 "document_folders"
             ]  # For Edited Documents (document_editor)
 

@@ -23,8 +23,8 @@ from PIL import Image
 import io
 import boto3
 from botocore.exceptions import ClientError
-from google import genai
-from google.genai import types
+from google import genai  # type: ignore
+from google.genai import types  # type: ignore
 
 from src.database.db_manager import DBManager
 from src.utils.logger import setup_logger
