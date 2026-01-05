@@ -197,10 +197,11 @@ BUSINESS STYLE GUIDELINES:
   * **DARK THEME**: Background: #0f172a or #1e293b, Text: #ffffff or #f8fafc
   * **LIGHT THEME**: Background: #ffffff or #fafafa, Text: #0f172a or #1e293b
   * **GRADIENT DARK**: Background: linear-gradient(135deg, #0f2027, #203a43, #2c5364), Text: #ffffff
-  * **GRADIENT LIGHT**: Background: linear-gradient(135deg, #ffecd2, #fcb69f), Text: #1e293b
+  * **GRADIENT LIGHT**: Background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%), Text: #1e293b
 - **CRITICAL**: Text MUST be clearly visible (white on dark, dark on light - NO exceptions)
 - Professional appearance with strong contrast
 - Use CSS Grid or Flexbox for modern layouts
+- **PREFERRED LIGHT BACKGROUND**: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%) - subtle and professional
 """,
         }
 
@@ -267,11 +268,16 @@ Language: {language}
    - **DIMENSIONS (FULL HD 16:9)**: Each slide MUST be exactly 1920px width × 1080px height
    - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden;`
    - All content must fit within this 1920×1080 canvas - use absolute positioning for precise layout
+   - **CRITICAL - VERTICAL CENTERING**:
+     * Content MUST be vertically centered within the 1080px height
+     * Use flexbox: `display: flex; flex-direction: column; justify-content: center; align-items: center;`
+     * Do NOT just ensure 25px from bottom - the content should be CENTERED vertically
+     * Minimum 25px clearance from bottom edge is a safety measure, not the primary goal
+     * Example: Content should be roughly y=200-880px (centered in 1080px), not starting at y=100 and ending at y=1055
    - **LAYOUT SYMMETRY & SPACING**:
      * Total padding-left + margin-left MUST EQUAL total padding-right + margin-right
      * Content must be centered horizontally within the 1920px width
      * All content height must fit within 1080px with minimum 25px bottom clearance
-     * Bottom margin/padding: Ensure at least 25px space from content to bottom edge (y=1055px max)
      * Example: If padding: 60px 80px, then left (80px) = right (80px) ✅
 
 2. **Structure for EACH slide:**
@@ -308,6 +314,7 @@ Language: {language}
    - **Vertical spacing**: Ensure content doesn't extend beyond slide bottom
    - **Overflow prevention**: Use `overflow: hidden;` on slide container
    - Use flexbox/grid for centering: `display: flex; justify-content: center; align-items: center; height: 100%;`
+   - **CRITICAL - Vertically Center Content**: Use flexbox to center content in the middle of the slide, not just add padding from bottom
    - Leave white space - don't cram content, but ensure all text is visible
    - **ADAPTIVE SIZING**: Automatically adjust font sizes for long content to ensure everything fits
 
@@ -321,7 +328,21 @@ Language: {language}
    - Use decorative elements: colored accent bars, icon bullets, background shapes
    - Keep content concise - avoid overly long text blocks (max 4-5 bullet points per slide)
 
-8. **Images (if provided):**
+8. **PREFERRED CONTENT LAYOUT (2-Column):**
+   - **FOR CONTENT SLIDES**: Strongly prefer text on LEFT + visual element on RIGHT layout
+   - Use 2-column grid: 60% text column (left) + 40% visual column (right)
+   - Visual elements can be: icons, illustrations, decorative shapes, colored boxes, diagrams
+   - Example structure:
+     ```html
+     <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 60px; align-items: center;">
+       <div><!-- Text content here --></div>
+       <div><!-- Visual element here: large icon, illustration, or decorative div --></div>
+     </div>
+     ```
+   - Single-column text-only layout should be RARE - only for very text-heavy content
+   - Even for text-heavy slides, try to include small visual accents or icons
+
+9. **Images (if provided):**
    - If `provided_image_url` exists, integrate it beautifully
    - Position: side-by-side with text OR full-width header
    - Style: `border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);`
@@ -412,11 +433,21 @@ Language: {language}
    - You can adjust wording, add examples, use better phrasing - just maintain outline's core message
 
    **SPECIAL SLIDES:**
-   - **Slide 0 (Title Slide)**: Prominent title + subtitle/description + author name if provided
-     - Large centered title (72px+)
-     - Subtitle explaining the presentation purpose
+   - **Slide 0 (Title Slide - MUST BE CREATIVE & IMPRESSIVE)**: First impression is CRITICAL!
+     - **IMPORTANT**: This slide must be visually stunning and memorable
+     - Create a unique, creative layout that matches the presentation title/topic
+     - Use bold typography, interesting layouts, creative visual elements
+     - Large centered title (72-96px, bold, eye-catching font weight)
+     - Engaging subtitle that hooks the audience
+     - Creative background: gradients, shapes, patterns that match the topic mood
+     - Consider using decorative elements: geometric shapes, accent lines, creative positioning
      - NO slide number on this slide
-     - Optional: Different background from content slides (gradient allowed here)
+     - Examples of creative approaches:
+       * For tech topics: modern, clean design with geometric elements
+       * For business: professional with dynamic shapes and gradients
+       * For creative topics: bold colors, artistic layouts, interesting typography
+       * For education: approachable, clear, with illustrative elements
+     - The goal: Make the audience want to see what comes next!
 
    - **Slide 1 (Table of Contents - REQUIRED)**: Overview of all main topics
      - Title: "Agenda" or "Table of Contents" or "Overview" in {language}
