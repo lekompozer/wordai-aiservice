@@ -357,12 +357,23 @@ class SlideAIService:
                                 "✅ JSON repaired successfully (unwrapped from list)!"
                             )
                         elif isinstance(result, list):
-                            logger.error(
-                                f"❌ JSON repair returned unexpected list with {len(result)} items"
-                            )
-                            raise ValueError(
-                                f"Unexpected list result from json_repair: {len(result)} items"
-                            )
+                            # Check if list contains dict with expected keys
+                            for item in result:
+                                if isinstance(item, dict) and "formatted_html" in item:
+                                    logger.warning(
+                                        f"⚠️ JSON repair returned list, using first dict with formatted_html"
+                                    )
+                                    result = item
+                                    break
+                            else:
+                                # No valid dict found
+                                logger.error(
+                                    f"❌ JSON repair returned unexpected list with {len(result)} items"
+                                )
+                                logger.error(f"First 3 items: {result[:3]}")
+                                raise ValueError(
+                                    f"Unexpected list result from json_repair: {len(result)} items"
+                                )
                         else:
                             logger.info("✅ JSON repaired successfully!")
                     except Exception as repair_error:
@@ -370,7 +381,30 @@ class SlideAIService:
                         logger.error(
                             f"JSON truncated? Check if response was cut off mid-sentence"
                         )
-                        raise e2  # Raise original error
+                        
+                        # Last resort: Try to extract formatted_html directly using regex
+                        logger.warning("🔧 Attempting direct HTML extraction as last resort...")
+                        try:
+                            import re
+                            html_match = re.search(
+                                r'"formatted_html"\s*:\s*"((?:[^"\\]|\\.)*)"\s*,',
+                                extracted_json,
+                                re.DOTALL
+                            )
+                            if html_match:
+                                html_content = html_match.group(1)
+                                # Unescape JSON string
+                                html_content = html_content.replace('\\n', '\n').replace('\\"', '"').replace('\\\\', '\\')
+                                logger.info(f"✅ Extracted HTML directly: {len(html_content)} chars")
+                                result = {
+                                    "formatted_html": html_content,
+                                    "metadata": {"extraction_method": "regex_fallback"}
+                                }
+                            else:
+                                raise e2  # Give up, raise original error
+                        except Exception as extract_error:
+                            logger.error(f"❌ Direct HTML extraction failed: {extract_error}")
+                            raise e2  # Raise original error
             else:
                 logger.error("❌ No JSON found in markdown code blocks either")
                 raise
