@@ -17,7 +17,7 @@ from src.models.lyria_models import (
     LyriaMusicResponse,
 )
 from src.services.points_service import get_points_service
-from src.services.rate_limit import check_ai_rate_limit
+from src.middleware.rate_limiter import check_ai_rate_limit
 from src.queue.queue_dependencies import get_lyria_music_queue
 from src.queue.queue_manager import get_job_status
 
