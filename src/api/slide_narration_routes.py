@@ -2289,10 +2289,18 @@ async def get_public_presentation(public_token: str):
         # Include content if enabled
         if sharing_settings.get("include_content", True):
             presentation_data["content_html"] = presentation.get("content_html", "")
-            presentation_data["slide_elements"] = presentation.get("slide_elements")
-            presentation_data["slide_backgrounds"] = presentation.get(
-                "slide_backgrounds"
-            )
+            
+            # Convert slide_backgrounds to slide_elements format for frontend
+            slide_backgrounds = presentation.get("slide_backgrounds")
+            if slide_backgrounds:
+                # slide_backgrounds has format: [{slideIndex, elements: [...]}]
+                # Frontend needs the same format, so directly assign
+                presentation_data["slide_elements"] = slide_backgrounds
+            else:
+                # Fallback to legacy slide_elements if exists
+                presentation_data["slide_elements"] = presentation.get("slide_elements")
+            
+            presentation_data["slide_backgrounds"] = slide_backgrounds
 
         # Get subtitles for all allowed languages if enabled
         language_data_list = []
