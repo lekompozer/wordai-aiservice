@@ -2331,18 +2331,19 @@ async def get_public_presentation(public_token: str):
 
         # Get subtitles for all allowed languages if enabled
         language_data_list = []
-        
+
         # FIX: Auto-detect all available languages instead of relying on allowed_languages
         # Get unique languages from presentation_subtitles collection
         available_languages = db.presentation_subtitles.distinct(
             "language", {"presentation_id": presentation_id}
         )
-        
-        # Use allowed_languages from settings if provided, otherwise use all available
-        allowed_languages = sharing_settings.get("allowed_languages")
-        if not allowed_languages or len(allowed_languages) == 0:
-            allowed_languages = available_languages if available_languages else [default_language]
-        
+
+        # ALWAYS use all available languages (ignore allowed_languages config)
+        # This ensures new languages automatically appear without manual config update
+        allowed_languages = (
+            available_languages if available_languages else [default_language]
+        )
+
         logger.info(f"   Available languages in DB: {available_languages}")
         logger.info(f"   Loading subtitles for languages: {allowed_languages}")
 
