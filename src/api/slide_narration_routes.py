@@ -951,25 +951,38 @@ async def get_latest_audio_job_status(
 @router.get(
     "/presentations/{presentation_id}/narrations",
     response_model=NarrationListResponse,
-    summary="List Narration Versions",
+    summary="List Narration Versions (DEPRECATED - Use /subtitles/v2)",
     description="""
-    **Get all narration versions for a presentation**
+    **⚠️ DEPRECATED: Use GET /presentations/{id}/subtitles/v2 instead**
 
-    Returns list of all narration versions with metadata.
-    Useful for showing version history and allowing user to regenerate.
+    This endpoint queries the OLD slide_narrations collection.
+    New multi-language system uses presentation_subtitles collection.
 
-    **No points cost** (read-only operation)
+    **Migration Path:**
+    - Old: GET /presentations/{id}/narrations
+    - New: GET /presentations/{id}/subtitles/v2
+
+    This endpoint will be redirected to V2 for backward compatibility.
     """,
 )
 async def list_narrations(
     presentation_id: str,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """List all narration versions for presentation"""
+    """
+    List all narration versions for presentation
+
+    DEPRECATED: Redirects to V2 subtitles endpoint for backward compatibility
+    """
     try:
         user_id = current_user["uid"]
 
-        # Check document exists (using document_id string, not ObjectId)
+        logger.warning(
+            f"⚠️ DEPRECATED endpoint called: /narrations. "
+            f"Use /subtitles/v2 instead. Presentation: {presentation_id}"
+        )
+
+        # Check document exists
         document = db.documents.find_one(
             {"document_id": presentation_id, "document_type": "slide"}
         )
@@ -979,28 +992,53 @@ async def list_narrations(
         if document.get("user_id") != user_id:
             raise HTTPException(403, "Not authorized to view this presentation")
 
-        # Fetch all narrations (presentation_id and user_id are strings)
-        cursor = db.slide_narrations.find(
+        # ✅ FIX: Query NEW collection (presentation_subtitles) instead of OLD (slide_narrations)
+        cursor = db.presentation_subtitles.find(
             {
                 "presentation_id": presentation_id,
                 "user_id": user_id,
             }
-        ).sort("created_at", -1)
+        ).sort([("language", 1), ("version", -1)])
 
         narrations = []
-        for doc in cursor:  # PyMongo sync cursor - use regular for, not async for
+        for doc in cursor:
+            # Get audio status from merged_audio_id
+            audio_ready = False
+            if doc.get("merged_audio_id"):
+                audio_doc = db.presentation_audio.find_one(
+                    {"_id": ObjectId(doc["merged_audio_id"])}
+                )
+                audio_ready = (
+                    audio_doc and audio_doc.get("status") == "completed"
+                    if audio_doc
+                    else False
+                )
+
+            # Calculate total duration from slides or audio
+            total_duration = 0.0
+            if doc.get("slides"):
+                # Sum subtitle durations from slides
+                for slide in doc["slides"]:
+                    for subtitle in slide.get("subtitles", []):
+                        total_duration += subtitle.get("duration", 0.0)
+
             narrations.append(
                 NarrationVersion(
-                    narration_id=str(doc["_id"]),
+                    narration_id=str(doc["_id"]),  # Use subtitle_id as narration_id
                     version=doc.get("version", 1),
-                    status=doc.get("status", "unknown"),
+                    status="completed" if audio_ready else "subtitles_only",
                     mode=doc.get("mode", "presentation"),
                     language=doc.get("language", "vi"),
-                    total_duration=doc.get("total_duration", 0.0),
+                    total_duration=total_duration,
                     created_at=doc.get("created_at", datetime.now()),
-                    audio_ready=(doc.get("status") == "completed"),
+                    audio_ready=audio_ready,
                 )
             )
+
+        logger.info(
+            f"📋 Listed {len(narrations)} subtitles from V2 collection "
+            f"(presentation_subtitles)"
+        )
 
         return NarrationListResponse(
             success=True,
