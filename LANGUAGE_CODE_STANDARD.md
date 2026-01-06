@@ -134,12 +134,12 @@ If you have existing data with mixed formats:
 // MongoDB migration script
 db.presentation_subtitles.find().forEach(function(doc) {
   var newLang = doc.language;
-  
+
   // Normalize to ISO 639-1
   if (newLang === "ja-JP") newLang = "ja";
   if (newLang === "en-US" || newLang === "en-GB") newLang = "en";
   if (newLang === "vi-VN") newLang = "vi";
-  
+
   if (newLang !== doc.language) {
     db.presentation_subtitles.updateOne(
       {_id: doc._id},
@@ -157,7 +157,7 @@ db.presentation_subtitles.find().forEach(function(doc) {
 ```python
 # ✅ CORRECT Pattern
 available_languages = db.presentation_subtitles.distinct(
-    "language", 
+    "language",
     {"presentation_id": presentation_id}
 )
 # Use all available, don't filter

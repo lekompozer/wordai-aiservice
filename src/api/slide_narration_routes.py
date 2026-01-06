@@ -2590,10 +2590,8 @@ async def get_public_audio(
         default_language = config["sharing_settings"].get("default_language", "vi")
         language = language or default_language
 
-        # Check allowed languages
-        allowed_languages = config["sharing_settings"].get("allowed_languages", [])
-        if allowed_languages and language not in allowed_languages:
-            raise HTTPException(403, f"Language {language} not allowed")
+        # FIX: Allow all available languages (no restriction)
+        # Auto-detect and allow any language that has audio
 
         # Get subtitle to find version
         query = {"presentation_id": presentation_id, "language": language}
