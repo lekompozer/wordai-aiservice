@@ -906,7 +906,7 @@ async def generate_test_from_file(request: TestGenerationRequest):
   subscription_plan: "vip"  // ← Also display only
 }
 ```
-**Purpose:** Frontend UI display, legacy compatibility  
+**Purpose:** Frontend UI display, legacy compatibility
 **DO NOT USE FOR:** Payment validation, points checking, deduction operations
 
 ##### 2. `user_subscriptions` Collection - SOURCE OF TRUTH (✅ ALWAYS use this)
@@ -924,7 +924,7 @@ async def generate_test_from_file(request: TestGenerationRequest):
   // ... other subscription limits
 }
 ```
-**Purpose:** Payment validation, points checking, subscription management  
+**Purpose:** Payment validation, points checking, subscription management
 **ALWAYS USE FOR:** All payment operations, points deduction, subscription checks
 
 ##### Why Two Collections?

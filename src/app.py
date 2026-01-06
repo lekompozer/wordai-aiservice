@@ -257,6 +257,9 @@ from src.api.slide_ai_generation_routes import router as slide_ai_generation_rou
 # ✅ ADDED: Slide Outline & Version Management API - Outline CRUD and version control
 from src.api.slide_outline_routes import router as slide_outline_router
 
+# ✅ ADDED: Slide Template API - Save and apply slide templates
+from src.api.slide_template_routes import router as slide_template_router
+
 # ✅ ADDED: Author API - Community books author management
 from src.api.author_routes import router as author_router
 
@@ -1044,6 +1047,12 @@ def create_app() -> FastAPI:
     app.include_router(
         gemini_slide_parser_router,
         tags=["Gemini Slide Parser", "AI Document Processing"],
+    )
+
+    # ✅ NEW: Slide Template API - Save and apply slide templates (Phase 1 MVP)
+    app.include_router(
+        slide_template_router,
+        tags=["Slide Templates", "Template Management"],
     )
 
     # ✅ NEW: Slide Share API - Public presentation sharing with password & analytics
