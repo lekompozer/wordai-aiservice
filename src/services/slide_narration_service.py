@@ -1134,9 +1134,9 @@ Generate the complete narration in {language_name} now:"""
                         text += "."
                     slide_text_parts.append(text)
 
-            # Join sentences with clear pause markers (... creates longer pauses)
-            # This helps waveform analysis detect sentence boundaries
-            slide_text = "... ".join(slide_text_parts)
+            # Join sentences with period and space for natural pauses
+            # (Using "..." made TTS speak too slowly)
+            slide_text = ". ".join(slide_text_parts)
 
             # Ensure slide ends with clear sentence terminator
             if slide_text and not slide_text.endswith("."):
