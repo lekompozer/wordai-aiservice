@@ -1129,15 +1129,21 @@ Generate the complete narration in {language_name} now:"""
             for subtitle in subtitles:
                 text = subtitle["text"].strip()
                 if text:
+                    # Ensure each sentence ends with period for clear sentence boundaries
+                    if not text.endswith("."):
+                        text += "."
                     slide_text_parts.append(text)
 
-            # Join with natural pauses (periods create natural pauses)
-            slide_text = ". ".join(slide_text_parts)
+            # Join sentences with clear pause markers (... creates longer pauses)
+            # This helps waveform analysis detect sentence boundaries
+            slide_text = "... ".join(slide_text_parts)
+
+            # Ensure slide ends with clear sentence terminator
             if slide_text and not slide_text.endswith("."):
                 slide_text += "."
 
-            # Add silence between slides using empty space (Gemini handles naturally)
-            slide_text += " "  # Natural pause between slides
+            # Add longer silence between slides for clear slide boundaries
+            slide_text += "... "  # Extended pause between slides
 
             # Calculate bytes for this slide
             slide_bytes = len(slide_text.encode("utf-8"))
