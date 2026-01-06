@@ -841,15 +841,20 @@ Generate the complete narration in {language_name} now:"""
         self,
         audio_segment,
         num_slides: int,
-        slide_word_counts: List[int],
+        slide_sentence_counts: List[int],
     ) -> List[Tuple[float, float]]:
         """
-        Detect slide boundaries from audio waveform using energy analysis
+        Detect slide boundaries from audio waveform using sentence-based analysis
+
+        Strategy:
+        1. Detect ALL sentence boundaries (pauses between sentences) from audio
+        2. Group sentence boundaries by slide based on sentence count
+        3. Slide boundary = end of last sentence of that slide
 
         Args:
             audio_segment: pydub AudioSegment
             num_slides: Expected number of slides
-            slide_word_counts: Word count for each slide (for weighting)
+            slide_sentence_counts: Number of sentences in each slide
 
         Returns:
             List of (start_time, end_time) tuples in seconds
@@ -880,89 +885,124 @@ Generate the complete narration in {language_name} now:"""
 
             smoothed_energy = gaussian_filter1d(energy, sigma=10)
 
-            # Find local minima (potential slide boundaries)
+            # Find local minima (sentence boundaries)
             from scipy.signal import find_peaks
 
-            # Invert to find valleys (low energy = pauses)
+            # Invert to find valleys (low energy = pauses between sentences)
             inverted_energy = -smoothed_energy
             peaks, properties = find_peaks(
                 inverted_energy,
-                distance=int(3000 / hop_ms),  # Min 3s between boundaries
-                prominence=np.std(inverted_energy) * 0.3,
+                distance=int(500 / hop_ms),  # Min 0.5s between sentences
+                prominence=np.std(inverted_energy)
+                * 0.2,  # Lower threshold for sentence pauses
             )
 
-            boundary_candidates = energy_times[peaks]
+            sentence_boundaries = energy_times[peaks]
+            total_sentences = sum(slide_sentence_counts)
 
             logger.info(
-                f"   🔍 Detected {len(boundary_candidates)} potential boundaries from energy analysis"
+                f"   🔍 Detected {len(sentence_boundaries)} sentence boundaries (expected ~{total_sentences})"
             )
 
-            # If we found good boundaries, use them
-            if len(boundary_candidates) >= num_slides - 1:
-                # Select best N-1 boundaries (N slides need N-1 splits)
-                # Sort by energy dip depth
+            # If we detected enough boundaries, group by slide
+            if len(sentence_boundaries) >= total_sentences - 1:
+                # Sort boundaries by prominence (deepest pauses first)
                 depths = properties["prominences"]
-                sorted_indices = np.argsort(depths)[::-1]  # Descending
-                best_boundaries = sorted(
-                    boundary_candidates[sorted_indices[: num_slides - 1]]
-                )
+                sorted_indices = np.argsort(depths)[::-1]
 
-                # Create slide segments
-                boundaries_with_edges = [0.0] + list(best_boundaries) + [total_duration]
-                segments = [
-                    (boundaries_with_edges[i], boundaries_with_edges[i + 1])
-                    for i in range(num_slides)
-                ]
+                # Select top N-1 boundaries for N total sentences
+                best_boundaries = sorted(
+                    sentence_boundaries[sorted_indices[: total_sentences - 1]]
+                )
 
                 logger.info(
-                    f"   ✅ Using energy-based boundaries: {len(segments)} segments"
+                    f"   📍 Using {len(best_boundaries)} best sentence boundaries"
                 )
-                return segments
+
+                # Group boundaries by slide
+                slide_segments = []
+                boundary_index = 0
+                current_start = 0.0
+
+                for slide_idx, sentence_count in enumerate(slide_sentence_counts):
+                    # For this slide, take next N sentence boundaries
+                    # (N-1 pauses for N sentences, last sentence ends at next slide start)
+                    sentences_in_slide = sentence_count
+
+                    if sentences_in_slide == 0:
+                        # Empty slide, skip
+                        slide_segments.append((current_start, current_start))
+                        continue
+
+                    # Find end of last sentence in this slide
+                    if boundary_index + sentences_in_slide - 1 < len(best_boundaries):
+                        slide_end = best_boundaries[
+                            boundary_index + sentences_in_slide - 1
+                        ]
+                        boundary_index += sentences_in_slide
+                    else:
+                        # Last slide or not enough boundaries
+                        slide_end = total_duration
+
+                    slide_segments.append((current_start, slide_end))
+                    current_start = slide_end
+
+                    logger.info(
+                        f"      Slide {slide_idx}: {sentence_count} sentences → "
+                        f"{slide_segments[-1][0]:.1f}s - {slide_segments[-1][1]:.1f}s"
+                    )
+
+                logger.info(
+                    f"   ✅ Sentence-based boundaries: {len(slide_segments)} slides"
+                )
+                return slide_segments
 
             else:
-                # Fallback: Use word-count weighted distribution
+                # Fallback: Use sentence-count weighted distribution
                 logger.warning(
-                    f"   ⚠️ Not enough boundaries detected, using word-weighted fallback"
+                    f"   ⚠️ Not enough boundaries detected, using sentence-weighted fallback"
                 )
-                return self._word_weighted_boundaries(total_duration, slide_word_counts)
+                return self._sentence_weighted_boundaries(
+                    total_duration, slide_sentence_counts
+                )
 
         except Exception as e:
             logger.warning(
-                f"   ⚠️ Energy analysis failed: {e}, using word-weighted fallback"
+                f"   ⚠️ Energy analysis failed: {e}, using sentence-weighted fallback"
             )
-            return self._word_weighted_boundaries(
-                len(audio_segment) / 1000.0, slide_word_counts
+            return self._sentence_weighted_boundaries(
+                len(audio_segment) / 1000.0, slide_sentence_counts
             )
 
-    def _word_weighted_boundaries(
-        self, total_duration: float, slide_word_counts: List[int]
+    def _sentence_weighted_boundaries(
+        self, total_duration: float, slide_sentence_counts: List[int]
     ) -> List[Tuple[float, float]]:
         """
-        Fallback: Calculate boundaries using word count proportions
+        Fallback: Calculate boundaries using sentence count proportions
 
         Args:
             total_duration: Total audio duration in seconds
-            slide_word_counts: Word count for each slide
+            slide_sentence_counts: Sentence count for each slide
 
         Returns:
             List of (start_time, end_time) tuples
         """
-        total_words = sum(slide_word_counts)
-        if total_words == 0:
+        total_sentences = sum(slide_sentence_counts)
+        if total_sentences == 0:
             # Equal distribution
-            duration_per_slide = total_duration / len(slide_word_counts)
+            duration_per_slide = total_duration / len(slide_sentence_counts)
             return [
                 (i * duration_per_slide, (i + 1) * duration_per_slide)
-                for i in range(len(slide_word_counts))
+                for i in range(len(slide_sentence_counts))
             ]
 
-        # Word-proportional distribution
+        # Sentence-proportional distribution
         segments = []
         current_time = 0.0
 
-        for word_count in slide_word_counts:
-            word_ratio = word_count / total_words
-            slide_duration = total_duration * word_ratio
+        for sentence_count in slide_sentence_counts:
+            sentence_ratio = sentence_count / total_sentences
+            slide_duration = total_duration * sentence_ratio
             segments.append((current_time, current_time + slide_duration))
             current_time += slide_duration
 
@@ -1316,33 +1356,41 @@ Generate the complete narration in {language_name} now:"""
 
             total_duration = metadata.get("duration", 0) if metadata else 0
 
-            # ✅ OPTION 4: HYBRID WAVEFORM ANALYSIS + WORD-WEIGHTED FALLBACK
-            # Analyze actual audio to detect slide boundaries instead of proportional word count
-            logger.info(
-                f"   🔬 Analyzing audio waveform for accurate slide boundaries..."
-            )
+            # ✅ SENTENCE-BASED WAVEFORM ANALYSIS
+            # Detect sentence boundaries from audio, then group by slide sentence count
+            logger.info(f"   🔬 Analyzing audio waveform for sentence boundaries...")
 
             slide_timestamps = []
 
-            # Count words for each slide (used for fallback)
-            slide_word_counts = []
+            # Count sentences for each slide (count periods)
+            slide_sentence_counts = []
             for slide_info in chunk_slides:
-                slide_subtitles = slide_info["subtitles"]
-                slide_words = sum(len(sub["text"].split()) for sub in slide_subtitles)
-                slide_info["word_count"] = slide_words
-                slide_word_counts.append(slide_words)
+                # Get full slide text from all subtitles
+                slide_text = " ".join(sub["text"] for sub in slide_info["subtitles"])
+                # Count sentences by counting periods (.)
+                # Vietnamese typically uses . for sentence endings
+                sentence_count = slide_text.count(".")
+                # If no periods, assume 1 sentence
+                if sentence_count == 0 and slide_text.strip():
+                    sentence_count = 1
+                slide_info["sentence_count"] = sentence_count
+                slide_sentence_counts.append(sentence_count)
 
-            total_words = sum(slide_word_counts)
+            total_sentences = sum(slide_sentence_counts)
             logger.info(
-                f"   📊 Chunk stats: {len(chunk_slides)} slides, {total_words} words, {total_duration:.1f}s audio"
+                f"   📊 Chunk stats: {len(chunk_slides)} slides, {total_sentences} sentences, {total_duration:.1f}s audio"
             )
+            for i, slide_info in enumerate(chunk_slides):
+                logger.info(
+                    f"      Slide {i}: {slide_info['sentence_count']} sentences"
+                )
 
             # Detect boundaries from audio waveform
             try:
                 boundaries = self._detect_slide_boundaries_from_audio(
                     audio_segment=audio_segment,
                     num_slides=len(chunk_slides),
-                    slide_word_counts=slide_word_counts,
+                    slide_sentence_counts=slide_sentence_counts,
                 )
 
                 # Create timestamps from detected boundaries
@@ -1356,29 +1404,29 @@ Generate the complete narration in {language_name} now:"""
                             "start_time": start,
                             "duration": slide_duration,
                             "end_time": end,
-                            "word_count": slide_info.get("word_count", 0),
+                            "sentence_count": slide_info.get("sentence_count", 0),
                         }
                     )
 
                     logger.info(
-                        f"      Slide {slide_info['slide_index']}: "
+                        f"      ✅ Slide {slide_info['slide_index']}: "
                         f"{slide_duration:.1f}s ({start:.1f}s → {end:.1f}s) "
-                        f"[{slide_info.get('word_count', 0)} words]"
+                        f"[{slide_info.get('sentence_count', 0)} sentences]"
                     )
 
             except Exception as e:
-                # Fallback to word-based if waveform analysis fails
+                # Fallback to sentence-based proportional if waveform analysis fails
                 logger.error(
-                    f"   ❌ Waveform analysis failed: {e}, using word-based fallback"
+                    f"   ❌ Waveform analysis failed: {e}, using sentence-proportional fallback"
                 )
                 current_position = 0
 
                 for slide_info in chunk_slides:
-                    slide_word_count = slide_info.get("word_count", 0)
+                    slide_sentence_count = slide_info.get("sentence_count", 0)
 
-                    if total_words > 0 and slide_word_count > 0:
-                        word_ratio = slide_word_count / total_words
-                        slide_duration = total_duration * word_ratio
+                    if total_sentences > 0 and slide_sentence_count > 0:
+                        sentence_ratio = slide_sentence_count / total_sentences
+                        slide_duration = total_duration * sentence_ratio
                     else:
                         slide_duration = total_duration / len(chunk_slides)
 
@@ -1388,7 +1436,7 @@ Generate the complete narration in {language_name} now:"""
                             "start_time": current_position,
                             "duration": slide_duration,
                             "end_time": current_position + slide_duration,
-                            "word_count": slide_word_count,
+                            "sentence_count": slide_sentence_count,
                         }
                     )
 
