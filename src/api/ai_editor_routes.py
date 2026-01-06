@@ -408,6 +408,18 @@ async def translate(
     """
     try:
         user_id = user_info["uid"]
+
+        # ✅ SECURITY: Rate limiting for AI translation
+        from src.middleware.rate_limiter import check_ai_rate_limit
+        from src.queue.queue_manager import get_redis_client
+
+        redis_client = get_redis_client()
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="ai_edit",
+            redis_client=redis_client,
+        )
+
         resource_id = request.document_id or request.chapter_id
         resource_type = "chapter" if request.chapter_id else "document"
 
@@ -531,6 +543,18 @@ async def format_document(
     """
     try:
         user_id = user_info["uid"]
+
+        # ✅ SECURITY: Rate limiting for AI formatting
+        from src.middleware.rate_limiter import check_ai_rate_limit
+        from src.queue.queue_manager import get_redis_client
+
+        redis_client = get_redis_client()
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="ai_format",
+            redis_client=redis_client,
+        )
+
         resource_id = request.document_id or request.chapter_id
         resource_type = "chapter" if request.chapter_id else "document"
 

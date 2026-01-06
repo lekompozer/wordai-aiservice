@@ -8,10 +8,13 @@ import os
 from pymongo import MongoClient
 from datetime import datetime
 
-# MongoDB connection
-MONGO_URI = os.getenv(
-    "MONGO_URI", "mongodb://admin:wordai@localhost:27017/wordai?authSource=admin"
-)
+# MongoDB connection - ✅ SECURITY: No default credentials
+MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI:
+    raise ValueError(
+        "MONGO_URI environment variable required.\n"
+        "Set it to: mongodb://username:password@host:port/dbname?authSource=admin"
+    )
 
 client = MongoClient(MONGO_URI)
 db = client["wordai"]

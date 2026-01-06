@@ -100,6 +100,18 @@ async def start_translation_job(
     """
     try:
         user_id = user["uid"]
+
+        # ✅ SECURITY: Rate limiting for expensive translation operation
+        from src.middleware.rate_limiter import check_ai_rate_limit
+        from src.queue.queue_manager import get_redis_client
+
+        redis_client = get_redis_client()
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="chapter_translation",
+            redis_client=redis_client,
+        )
+
         # Validate target language
         if request.target_language not in SUPPORTED_LANGUAGES:
             raise HTTPException(

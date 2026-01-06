@@ -133,6 +133,17 @@ async def generate_subtitles(
         user_id = current_user["uid"]
         user_email = current_user.get("email", "unknown")
 
+        # ✅ SECURITY: Rate limiting for subtitle generation
+        from src.middleware.rate_limiter import check_ai_rate_limit
+        from src.queue.queue_manager import get_redis_client
+
+        redis_client = get_redis_client()
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="subtitle_generation",
+            redis_client=redis_client,
+        )
+
         logger.info("=" * 80)
         logger.info(f"🎙️ SUBTITLE GENERATION REQUEST RECEIVED")
         logger.info(
@@ -665,6 +676,17 @@ async def generate_audio(
     try:
         user_id = current_user["uid"]
         user_email = current_user.get("email", "unknown")
+
+        # ✅ SECURITY: Rate limiting for audio generation
+        from src.middleware.rate_limiter import check_ai_rate_limit
+        from src.queue.queue_manager import get_redis_client
+
+        redis_client = get_redis_client()
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="audio_generation",
+            redis_client=redis_client,
+        )
 
         logger.info(f"🔊 Audio generation request: {narration_id}")
         logger.info(f"   User: {user_email}, Provider: {request.voice_config.provider}")

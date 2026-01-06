@@ -43,12 +43,13 @@ FREE_PLAN_CONFIG = {
 
 def get_mongodb_client(use_production: bool = False):
     """Get MongoDB client"""
-    if use_production:
-        mongodb_uri = os.getenv("MONGODB_URI")
-        if not mongodb_uri:
-            raise ValueError("MONGODB_URI environment variable not set")
-    else:
-        mongodb_uri = "mongodb://admin:WordAIMongoRootPassword@localhost:27017"
+    # ✅ SECURITY: Always require environment variable for credentials
+    mongodb_uri = os.getenv("MONGODB_URI")
+    if not mongodb_uri:
+        raise ValueError(
+            "MONGODB_URI environment variable not set. "
+            "Set it to: mongodb://username:password@host:port/dbname?authSource=admin"
+        )
 
     logger.info(f"Connecting to MongoDB...")
     client = MongoClient(mongodb_uri)

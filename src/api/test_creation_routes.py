@@ -64,7 +64,20 @@ async def generate_test(
     - No data loss on network errors
     """
     try:
-        logger.info(f"📝 Test generation request from user {user_info['uid']}")
+        user_id = user_info["uid"]
+
+        # ✅ SECURITY: Rate limiting for test generation
+        from src.middleware.rate_limiter import check_ai_rate_limit
+        from src.queue.queue_manager import get_redis_client
+
+        redis_client = get_redis_client()
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="test_generation",
+            redis_client=redis_client,
+        )
+
+        logger.info(f"📝 Test generation request from user {user_id}")
         logger.info(f"   Source: {request.source_type}/{request.source_id}")
         logger.info(f"   Title: {request.title}")
         logger.info(f"   Description: {request.description or '(none)'}")
@@ -653,7 +666,20 @@ async def generate_test_from_general_knowledge(
             effective_mode = "auto"
             mode_source = "defaulted"
 
-        logger.info(f"📝 General test generation request from user {user_info['uid']}")
+        user_id = user_info["uid"]
+
+        # ✅ SECURITY: Rate limiting for test generation
+        from src.middleware.rate_limiter import check_ai_rate_limit
+        from src.queue.queue_manager import get_redis_client
+
+        redis_client = get_redis_client()
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="test_generation",
+            redis_client=redis_client,
+        )
+
+        logger.info(f"📝 General test generation request from user {user_id}")
         logger.info(f"   Topic: {request.topic}")
         logger.info(f"   Category: {request.test_category}")
         logger.info(f"   Title: {request.title}")
