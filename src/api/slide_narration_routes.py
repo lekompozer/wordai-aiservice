@@ -406,29 +406,19 @@ async def generate_subtitles_async(
 
         soup = BeautifulSoup(content_html, "html.parser")
 
-        # FIX: Check all 3 selectors and pick the one with MOST results (>1)
-        # Priority: [data-slide-index] > .slide > section
-        by_attr = soup.select("[data-slide-index]")
-        by_class = soup.select(".slide")
-        by_section = soup.select("section")
+        # FIX: Use combined selector to get TOP-LEVEL slides only
+        # This ensures we get parent slide divs, not nested children
+        slide_elements = soup.select(".slide[data-slide-index]")
+
+        # If that fails, try alternatives
+        if not slide_elements:
+            slide_elements = soup.select("div[data-slide-index]")
+        if not slide_elements:
+            slide_elements = soup.select("section[data-slide-index]")
 
         logger.info(
-            f"🔍 Selector results: [data-slide-index]={len(by_attr)}, .slide={len(by_class)}, section={len(by_section)}"
+            f"🔍 Found {len(slide_elements)} slide elements with combined selector"
         )
-
-        # Choose the selector with most elements (avoiding wrapper divs)
-        slide_elements = (
-            by_attr
-            if len(by_attr) > 1
-            else (by_class if len(by_class) > len(by_attr) else by_section)
-        )
-
-        # If still only 1 or 0, try fallback to any selector that has results
-        if len(slide_elements) <= 1:
-            if len(by_class) > len(slide_elements):
-                slide_elements = by_class
-            elif len(by_section) > len(slide_elements):
-                slide_elements = by_section
 
         if not slide_elements:
             raise HTTPException(
