@@ -18,6 +18,7 @@ import uuid
 
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
+from src.middleware.query_protection import protect_query
 from src.models.book_review_models import (
     BookReviewCreate,
     BookReviewResponse,
@@ -127,16 +128,35 @@ async def create_book_review(
 
         db.book_reviews.insert_one(review_doc)
 
-        # Update book's average rating and review count
-        all_reviews = list(db.book_reviews.find({"book_id": book_id}))
-        average_rating = sum(r.get("rating", 0) for r in all_reviews) / len(all_reviews)
+        # Update book's average rating and review count using aggregation (more efficient)
+        rating_stats = list(
+            db.book_reviews.aggregate(
+                [
+                    {"$match": {"book_id": book_id}},
+                    {
+                        "$group": {
+                            "_id": None,
+                            "average_rating": {"$avg": "$rating"},
+                            "count": {"$sum": 1},
+                        }
+                    },
+                ]
+            )
+        )
+
+        if rating_stats:
+            average_rating = rating_stats[0]["average_rating"]
+            rating_count = rating_stats[0]["count"]
+        else:
+            average_rating = 0.0
+            rating_count = 0
 
         db.online_books.update_one(
             {"book_id": book_id},
             {
                 "$set": {
                     "community_config.average_rating": round(average_rating, 1),
-                    "community_config.rating_count": len(all_reviews),
+                    "community_config.rating_count": rating_count,
                 }
             },
         )
@@ -368,13 +388,22 @@ async def list_book_reviews(
                 )
             )
 
-        # Calculate average rating
-        all_reviews = list(db.book_reviews.find({"book_id": book_id}))
-        average_rating = (
-            sum(r.get("rating", 0) for r in all_reviews) / len(all_reviews)
-            if all_reviews
-            else 0.0
+        # Calculate average rating using aggregation (more efficient)
+        rating_stats = list(
+            db.book_reviews.aggregate(
+                [
+                    {"$match": {"book_id": book_id}},
+                    {
+                        "$group": {
+                            "_id": None,
+                            "average_rating": {"$avg": "$rating"},
+                        }
+                    },
+                ]
+            )
         )
+
+        average_rating = rating_stats[0]["average_rating"] if rating_stats else 0.0
 
         logger.info(f"📚 Listed {len(reviews)} reviews for book {book_id}")
 
@@ -453,21 +482,35 @@ async def delete_book_review(
         # Delete all likes for this review
         db.book_review_likes.delete_many({"review_id": review_id})
 
-        # Update book's average rating and review count
-        all_reviews = list(db.book_reviews.find({"book_id": book_id}))
-        if all_reviews:
-            average_rating = sum(r.get("rating", 0) for r in all_reviews) / len(
-                all_reviews
+        # Update book's average rating and review count using aggregation
+        rating_stats = list(
+            db.book_reviews.aggregate(
+                [
+                    {"$match": {"book_id": book_id}},
+                    {
+                        "$group": {
+                            "_id": None,
+                            "average_rating": {"$avg": "$rating"},
+                            "count": {"$sum": 1},
+                        }
+                    },
+                ]
             )
+        )
+
+        if rating_stats:
+            average_rating = rating_stats[0]["average_rating"]
+            rating_count = rating_stats[0]["count"]
         else:
             average_rating = 0.0
+            rating_count = 0
 
         db.online_books.update_one(
             {"book_id": book_id},
             {
                 "$set": {
                     "community_config.average_rating": round(average_rating, 1),
-                    "community_config.rating_count": len(all_reviews),
+                    "community_config.rating_count": rating_count,
                 }
             },
         )

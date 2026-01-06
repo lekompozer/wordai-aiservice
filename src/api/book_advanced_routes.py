@@ -15,6 +15,7 @@ import uuid
 
 # Authentication
 from src.middleware.firebase_auth import get_current_user
+from src.middleware.query_protection import protect_query
 
 # Services
 from src.services.book_chapter_manager import GuideBookBookChapterManager
@@ -884,11 +885,16 @@ async def duplicate_book(
 
         chapters_copied = 0
 
-        # 5. Copy chapters (if requested)
+        # 5. Copy chapters (if requested) - limit to 1000 for safety
         if request.copy_chapters:
-            chapters = list(
-                db.book_chapters.find({"book_id": book_id}).sort("order_index", 1)
+            chapters = protect_query(
+                db.book_chapters,
+                {"book_id": book_id},
+                limit=1000,
+                resource_type="chapters",
             )
+            # Sort by order_index
+            chapters = sorted(chapters, key=lambda c: c.get("order_index", 0))
 
             for chapter in chapters:
                 # Generate new chapter title

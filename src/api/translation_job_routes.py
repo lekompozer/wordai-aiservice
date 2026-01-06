@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List
 
 from src.middleware.firebase_auth import get_current_user
 from src.database.db_manager import DBManager
+from src.middleware.query_protection import protect_query
 from src.services.translation_job_service import TranslationJobService
 from src.services.book_manager import UserBookManager
 from src.services.points_service import get_points_service
@@ -667,9 +668,12 @@ async def delete_translation(
             },
         )
 
-        # Get all chapters
-        chapters = list(
-            db.book_chapters.find({"book_id": book_id, "is_deleted": {"$ne": True}})
+        # Get all chapters (limit to 1000 for safety)
+        chapters = protect_query(
+            db.book_chapters,
+            {"book_id": book_id, "is_deleted": {"$ne": True}},
+            limit=1000,
+            resource_type="chapters",
         )
 
         # Remove translation from all chapters

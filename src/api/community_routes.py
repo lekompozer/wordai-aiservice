@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, HTTPException, status
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from src.database.db_manager import DBManager
+from src.middleware.query_protection import protect_query
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/community", tags=["Community Books"])
@@ -340,12 +341,22 @@ async def get_featured_authors():
                         }
                     )
 
-                    # Get average rating from reviews
-                    reviews = list(db.author_reviews.find({"author_id": author_id}))
+                    # Get average rating from reviews using aggregation
+                    rating_stats = list(
+                        db.author_reviews.aggregate(
+                            [
+                                {"$match": {"author_id": author_id}},
+                                {
+                                    "$group": {
+                                        "_id": None,
+                                        "average_rating": {"$avg": "$rating"},
+                                    }
+                                },
+                            ]
+                        )
+                    )
                     avg_rating = (
-                        sum(r.get("rating", 0) for r in reviews) / len(reviews)
-                        if reviews
-                        else 0.0
+                        rating_stats[0]["average_rating"] if rating_stats else 0.0
                     )
 
                     # Get followers
@@ -420,12 +431,22 @@ async def get_featured_authors():
                     reads_result = list(db.online_books.aggregate(pipeline_reads))
                     total_reads = reads_result[0]["total_reads"] if reads_result else 0
 
-                    # Get average rating
-                    all_reviews = list(db.author_reviews.find({"author_id": author_id}))
+                    # Get average rating using aggregation
+                    rating_stats = list(
+                        db.author_reviews.aggregate(
+                            [
+                                {"$match": {"author_id": author_id}},
+                                {
+                                    "$group": {
+                                        "_id": None,
+                                        "average_rating": {"$avg": "$rating"},
+                                    }
+                                },
+                            ]
+                        )
+                    )
                     avg_rating = (
-                        sum(r.get("rating", 0) for r in all_reviews) / len(all_reviews)
-                        if all_reviews
-                        else 0.0
+                        rating_stats[0]["average_rating"] if rating_stats else 0.0
                     )
 
                     # Get followers
@@ -506,12 +527,22 @@ async def get_featured_authors():
                             reads_result[0]["total_reads"] if reads_result else 0
                         )
 
-                        # Get average rating
-                        reviews = list(db.author_reviews.find({"author_id": author_id}))
+                        # Get average rating using aggregation
+                        rating_stats = list(
+                            db.author_reviews.aggregate(
+                                [
+                                    {"$match": {"author_id": author_id}},
+                                    {
+                                        "$group": {
+                                            "_id": None,
+                                            "average_rating": {"$avg": "$rating"},
+                                        }
+                                    },
+                                ]
+                            )
+                        )
                         avg_rating = (
-                            sum(r.get("rating", 0) for r in reviews) / len(reviews)
-                            if reviews
-                            else 0.0
+                            rating_stats[0]["average_rating"] if rating_stats else 0.0
                         )
 
                         # Get followers

@@ -15,6 +15,7 @@ import uuid
 
 from ..middleware.auth import verify_firebase_token as require_auth
 from src.database.db_manager import DBManager
+from src.middleware.query_protection import protect_query
 
 logger = logging.getLogger(__name__)
 
@@ -351,10 +352,21 @@ async def rate_test(
                 },
             )
 
-            # Recalculate average
-            all_ratings = list(db.test_ratings.find({"test_id": test_id}))
-            total_rating = sum(r["rating"] for r in all_ratings)
-            avg_rating = total_rating / len(all_ratings)
+            # Recalculate average using aggregation
+            rating_stats = list(
+                db.test_ratings.aggregate(
+                    [
+                        {"$match": {"test_id": test_id}},
+                        {
+                            "$group": {
+                                "_id": None,
+                                "average_rating": {"$avg": "$rating"},
+                            }
+                        },
+                    ]
+                )
+            )
+            avg_rating = rating_stats[0]["average_rating"] if rating_stats else 0.0
 
             db.online_tests.update_one(
                 {"_id": ObjectId(test_id)},
@@ -394,11 +406,28 @@ async def rate_test(
 
             db.test_ratings.insert_one(rating_doc)
 
-            # Recalculate average
-            all_ratings = list(db.test_ratings.find({"test_id": test_id}))
-            total_rating = sum(r["rating"] for r in all_ratings)
-            avg_rating = total_rating / len(all_ratings)
-            rating_count = len(all_ratings)
+            # Recalculate average using aggregation
+            rating_stats = list(
+                db.test_ratings.aggregate(
+                    [
+                        {"$match": {"test_id": test_id}},
+                        {
+                            "$group": {
+                                "_id": None,
+                                "average_rating": {"$avg": "$rating"},
+                                "count": {"$sum": 1},
+                            }
+                        },
+                    ]
+                )
+            )
+
+            if rating_stats:
+                avg_rating = rating_stats[0]["average_rating"]
+                rating_count = rating_stats[0]["count"]
+            else:
+                avg_rating = 0.0
+                rating_count = 0
 
             db.online_tests.update_one(
                 {"_id": ObjectId(test_id)},
@@ -548,19 +577,34 @@ async def get_my_earnings(user_info: dict = Depends(require_auth)):
         # db already initialized at module level
         user_id = user_info["uid"]
 
-        # Get all tests owned by user
-        tests = list(db.online_tests.find({"creator_id": user_id}))
+        # Get all tests owned by user using aggregation (more efficient)
+        # First, get aggregated stats
+        earnings_pipeline = [
+            {"$match": {"creator_id": user_id, "marketplace_config.is_public": True}},
+            {
+                "$group": {
+                    "_id": None,
+                    "total_earnings": {"$sum": "$marketplace_config.total_earnings"},
+                }
+            },
+        ]
+        earnings_result = list(db.online_tests.aggregate(earnings_pipeline))
+        total_earnings = earnings_result[0]["total_earnings"] if earnings_result else 0
 
-        total_earnings = 0
+        # Then get test breakdown (limited to 100 most recent)
+        tests = protect_query(
+            db.online_tests,
+            {"creator_id": user_id, "marketplace_config.is_public": True},
+            limit=100,
+            resource_type="tests",
+        )
+
         test_breakdown = []
 
         for test in tests:
             mc = test.get("marketplace_config", {})
             if mc.get("is_public"):
-                test_earnings = mc.get(
-                    "total_earnings", 0
-                )  # Changed from total_revenue
-                total_earnings += test_earnings
+                test_earnings = mc.get("total_earnings", 0)
 
                 test_breakdown.append(
                     {
@@ -608,11 +652,22 @@ async def transfer_earnings_to_wallet(
         user_id = user_info["uid"]
         amount = request.amount_points
 
-        # 1. Calculate total available earnings
-        tests = list(db.online_tests.find({"creator_id": user_id}))
-        total_earnings = sum(
-            test.get("marketplace_config", {}).get("total_earnings", 0)
-            for test in tests  # Changed from total_revenue
+        # 1. Calculate total available earnings using aggregation (more efficient)
+        earnings_pipeline = [
+            {"$match": {"creator_id": user_id}},
+            {
+                "$group": {
+                    "_id": None,
+                    "total_earnings": {"$sum": "$marketplace_config.total_earnings"},
+                }
+            },
+        ]
+        earnings_result = list(db.online_tests.aggregate(earnings_pipeline))
+        total_earnings = earnings_result[0]["total_earnings"] if earnings_result else 0
+
+        # Load tests for deduction (limit to 1000 - should be enough for most users)
+        tests = protect_query(
+            db.online_tests, {"creator_id": user_id}, limit=1000, resource_type="tests"
         )
 
         # Validation: Minimum withdrawal amount

@@ -847,8 +847,13 @@ async def get_author_stats(
         # Get total followers
         total_followers = db.author_follows.count_documents({"author_id": author_id})
 
-        # Get review stats
-        reviews = list(db.author_reviews.find({"author_id": author_id}))
+        # Get review stats (limit to prevent loading thousands of reviews)
+        reviews = protect_query(
+            db.author_reviews,
+            {"author_id": author_id},
+            limit=500,
+            resource_type="reviews",
+        )
         total_reviews = len(reviews)
         average_rating = (
             sum(r.get("rating", 0) for r in reviews) / total_reviews
@@ -1233,13 +1238,22 @@ async def list_author_reviews(
                 )
             )
 
-        # Calculate average rating
-        all_reviews = list(db.author_reviews.find({"author_id": author_id}))
-        average_rating = (
-            sum(r.get("rating", 0) for r in all_reviews) / len(all_reviews)
-            if all_reviews
-            else 0.0
+        # Calculate average rating using aggregation (more efficient)
+        rating_stats = list(
+            db.author_reviews.aggregate(
+                [
+                    {"$match": {"author_id": author_id}},
+                    {
+                        "$group": {
+                            "_id": None,
+                            "average_rating": {"$avg": "$rating"},
+                        }
+                    },
+                ]
+            )
         )
+
+        average_rating = rating_stats[0]["average_rating"] if rating_stats else 0.0
 
         return AuthorReviewListResponse(
             reviews=reviews,
