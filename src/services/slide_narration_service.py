@@ -845,12 +845,12 @@ Generate the complete narration in {language_name} now:"""
     ) -> List[Tuple[float, float]]:
         """
         Detect slide boundaries from audio waveform using energy analysis
-        
+
         Args:
             audio_segment: pydub AudioSegment
             num_slides: Expected number of slides
             slide_word_counts: Word count for each slide (for weighting)
-            
+
         Returns:
             List of (start_time, end_time) tuples in seconds
         """
@@ -859,82 +859,91 @@ Generate the complete narration in {language_name} now:"""
             samples = np.array(audio_segment.get_array_of_samples())
             sample_rate = audio_segment.frame_rate
             total_duration = len(audio_segment) / 1000.0  # seconds
-            
+
             # Calculate energy envelope (RMS over windows)
             window_ms = 50  # 50ms windows
-            hop_ms = 25     # 50% overlap
+            hop_ms = 25  # 50% overlap
             window_samples = int(sample_rate * window_ms / 1000)
             hop_samples = int(sample_rate * hop_ms / 1000)
-            
+
             energy = []
             for i in range(0, len(samples) - window_samples, hop_samples):
-                window = samples[i:i + window_samples]
+                window = samples[i : i + window_samples]
                 rms = np.sqrt(np.mean(window.astype(float) ** 2))
                 energy.append(rms)
-            
+
             energy = np.array(energy)
             energy_times = np.arange(len(energy)) * hop_ms / 1000.0
-            
+
             # Smooth energy curve
             from scipy.ndimage import gaussian_filter1d
+
             smoothed_energy = gaussian_filter1d(energy, sigma=10)
-            
+
             # Find local minima (potential slide boundaries)
             from scipy.signal import find_peaks
+
             # Invert to find valleys (low energy = pauses)
             inverted_energy = -smoothed_energy
             peaks, properties = find_peaks(
                 inverted_energy,
                 distance=int(3000 / hop_ms),  # Min 3s between boundaries
-                prominence=np.std(inverted_energy) * 0.3
+                prominence=np.std(inverted_energy) * 0.3,
             )
-            
+
             boundary_candidates = energy_times[peaks]
-            
-            logger.info(f"   🔍 Detected {len(boundary_candidates)} potential boundaries from energy analysis")
-            
+
+            logger.info(
+                f"   🔍 Detected {len(boundary_candidates)} potential boundaries from energy analysis"
+            )
+
             # If we found good boundaries, use them
             if len(boundary_candidates) >= num_slides - 1:
                 # Select best N-1 boundaries (N slides need N-1 splits)
                 # Sort by energy dip depth
                 depths = properties["prominences"]
                 sorted_indices = np.argsort(depths)[::-1]  # Descending
-                best_boundaries = sorted(boundary_candidates[sorted_indices[:num_slides-1]])
-                
+                best_boundaries = sorted(
+                    boundary_candidates[sorted_indices[: num_slides - 1]]
+                )
+
                 # Create slide segments
                 boundaries_with_edges = [0.0] + list(best_boundaries) + [total_duration]
                 segments = [
-                    (boundaries_with_edges[i], boundaries_with_edges[i+1])
+                    (boundaries_with_edges[i], boundaries_with_edges[i + 1])
                     for i in range(num_slides)
                 ]
-                
-                logger.info(f"   ✅ Using energy-based boundaries: {len(segments)} segments")
+
+                logger.info(
+                    f"   ✅ Using energy-based boundaries: {len(segments)} segments"
+                )
                 return segments
-            
+
             else:
                 # Fallback: Use word-count weighted distribution
-                logger.warning(f"   ⚠️ Not enough boundaries detected, using word-weighted fallback")
+                logger.warning(
+                    f"   ⚠️ Not enough boundaries detected, using word-weighted fallback"
+                )
                 return self._word_weighted_boundaries(total_duration, slide_word_counts)
-                
+
         except Exception as e:
-            logger.warning(f"   ⚠️ Energy analysis failed: {e}, using word-weighted fallback")
-            return self._word_weighted_boundaries(
-                len(audio_segment) / 1000.0, 
-                slide_word_counts
+            logger.warning(
+                f"   ⚠️ Energy analysis failed: {e}, using word-weighted fallback"
             )
-    
+            return self._word_weighted_boundaries(
+                len(audio_segment) / 1000.0, slide_word_counts
+            )
+
     def _word_weighted_boundaries(
-        self,
-        total_duration: float,
-        slide_word_counts: List[int]
+        self, total_duration: float, slide_word_counts: List[int]
     ) -> List[Tuple[float, float]]:
         """
         Fallback: Calculate boundaries using word count proportions
-        
+
         Args:
             total_duration: Total audio duration in seconds
             slide_word_counts: Word count for each slide
-            
+
         Returns:
             List of (start_time, end_time) tuples
         """
@@ -946,17 +955,17 @@ Generate the complete narration in {language_name} now:"""
                 (i * duration_per_slide, (i + 1) * duration_per_slide)
                 for i in range(len(slide_word_counts))
             ]
-        
+
         # Word-proportional distribution
         segments = []
         current_time = 0.0
-        
+
         for word_count in slide_word_counts:
             word_ratio = word_count / total_words
             slide_duration = total_duration * word_ratio
             segments.append((current_time, current_time + slide_duration))
             current_time += slide_duration
-        
+
         return segments
 
     async def generate_audio_v2(
@@ -1309,10 +1318,12 @@ Generate the complete narration in {language_name} now:"""
 
             # ✅ OPTION 4: HYBRID WAVEFORM ANALYSIS + WORD-WEIGHTED FALLBACK
             # Analyze actual audio to detect slide boundaries instead of proportional word count
-            logger.info(f"   🔬 Analyzing audio waveform for accurate slide boundaries...")
-            
+            logger.info(
+                f"   🔬 Analyzing audio waveform for accurate slide boundaries..."
+            )
+
             slide_timestamps = []
-            
+
             # Count words for each slide (used for fallback)
             slide_word_counts = []
             for slide_info in chunk_slides:
@@ -1320,25 +1331,25 @@ Generate the complete narration in {language_name} now:"""
                 slide_words = sum(len(sub["text"].split()) for sub in slide_subtitles)
                 slide_info["word_count"] = slide_words
                 slide_word_counts.append(slide_words)
-            
+
             total_words = sum(slide_word_counts)
             logger.info(
                 f"   📊 Chunk stats: {len(chunk_slides)} slides, {total_words} words, {total_duration:.1f}s audio"
             )
-            
+
             # Detect boundaries from audio waveform
             try:
                 boundaries = self._detect_slide_boundaries_from_audio(
                     audio_segment=audio_segment,
                     num_slides=len(chunk_slides),
-                    slide_word_counts=slide_word_counts
+                    slide_word_counts=slide_word_counts,
                 )
-                
+
                 # Create timestamps from detected boundaries
                 for i, (start, end) in enumerate(boundaries):
                     slide_info = chunk_slides[i]
                     slide_duration = end - start
-                    
+
                     slide_timestamps.append(
                         {
                             "slide_index": slide_info["slide_index"],
@@ -1348,27 +1359,29 @@ Generate the complete narration in {language_name} now:"""
                             "word_count": slide_info.get("word_count", 0),
                         }
                     )
-                    
+
                     logger.info(
                         f"      Slide {slide_info['slide_index']}: "
                         f"{slide_duration:.1f}s ({start:.1f}s → {end:.1f}s) "
                         f"[{slide_info.get('word_count', 0)} words]"
                     )
-                
+
             except Exception as e:
                 # Fallback to word-based if waveform analysis fails
-                logger.error(f"   ❌ Waveform analysis failed: {e}, using word-based fallback")
+                logger.error(
+                    f"   ❌ Waveform analysis failed: {e}, using word-based fallback"
+                )
                 current_position = 0
-                
+
                 for slide_info in chunk_slides:
                     slide_word_count = slide_info.get("word_count", 0)
-                    
+
                     if total_words > 0 and slide_word_count > 0:
                         word_ratio = slide_word_count / total_words
                         slide_duration = total_duration * word_ratio
                     else:
                         slide_duration = total_duration / len(chunk_slides)
-                    
+
                     slide_timestamps.append(
                         {
                             "slide_index": slide_info["slide_index"],
@@ -1378,7 +1391,7 @@ Generate the complete narration in {language_name} now:"""
                             "word_count": slide_word_count,
                         }
                     )
-                    
+
                     current_position += slide_duration
 
             # Save to library
