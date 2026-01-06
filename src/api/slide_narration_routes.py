@@ -58,6 +58,12 @@ from src.models.slide_narration_models import (
     LanguagePlayerData,
     GetPlayerDataResponse,
 )
+from src.models.slide_timestamp_models import (
+    SlideTimestamp,
+    UpdateSlideTimestampsRequest,
+    UpdateSlideTimestampsResponse,
+    GetSlideTimestampsResponse,
+)
 from src.models.video_export_models import (
     VideoExportRequest,
     VideoExportSettings,
@@ -2103,6 +2109,227 @@ async def delete_audio_v2(
     except Exception as e:
         logger.error(f"❌ Failed to delete audio V2: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to delete audio: {str(e)}")
+
+
+# ============================================================
+# SLIDE TIMESTAMP EDITING (Manual Adjustment)
+# ============================================================
+
+
+@router.get(
+    "/presentations/{presentation_id}/audio/{audio_id}/timestamps",
+    response_model=GetSlideTimestampsResponse,
+    summary="Get Slide Timestamps for Manual Editing",
+    description="""
+    **Get current slide timestamps from merged audio for manual adjustment**
+
+    Use this to retrieve timestamps before editing them manually.
+
+    **Use case:**
+    - Timestamps are slightly off (voice at slide 15 but UI shows slide 17)
+    - Need to adjust timing for better sync
+    - Fix accumulated drift in later slides
+
+    **Returns:**
+    - Current slide_timestamps array
+    - Audio metadata (duration, slide count)
+    - Language and version info
+    """,
+)
+async def get_slide_timestamps(
+    presentation_id: str,
+    audio_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get slide timestamps for manual editing"""
+    try:
+        user_id = current_user["uid"]
+
+        # Get audio document
+        audio = db.presentation_audio.find_one(
+            {
+                "_id": ObjectId(audio_id),
+                "user_id": user_id,
+                "presentation_id": presentation_id,
+            }
+        )
+
+        if not audio:
+            raise HTTPException(404, "Audio not found")
+
+        # Verify it's merged audio (not chunk)
+        if audio.get("audio_type") != "merged_presentation":
+            raise HTTPException(
+                400,
+                f"Cannot edit timestamps for audio_type '{audio.get('audio_type')}'. "
+                "Only 'merged_presentation' audio can be edited.",
+            )
+
+        slide_timestamps = audio.get("slide_timestamps", [])
+        if not slide_timestamps:
+            raise HTTPException(400, "Audio has no slide_timestamps array")
+
+        return GetSlideTimestampsResponse(
+            success=True,
+            audio_id=str(audio["_id"]),
+            presentation_id=audio["presentation_id"],
+            language=audio["language"],
+            version=audio["version"],
+            slide_count=len(slide_timestamps),
+            audio_duration=audio.get("audio_metadata", {}).get("duration_seconds", 0),
+            slide_timestamps=[SlideTimestamp(**ts) for ts in slide_timestamps],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get slide timestamps: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to get timestamps: {str(e)}")
+
+
+@router.patch(
+    "/presentations/{presentation_id}/audio/{audio_id}/timestamps",
+    response_model=UpdateSlideTimestampsResponse,
+    summary="Update Slide Timestamps (Manual Fix)",
+    description="""
+    **Manually adjust slide timestamps to fix sync issues**
+
+    **Common use case:**
+    - Voice is at slide 15 but UI already advanced to slide 17
+    - First 5-10 slides are correct, but later slides drift
+    - Small timing errors accumulate over 30+ slides
+
+    **How to fix:**
+    1. GET current timestamps from this endpoint
+    2. Adjust start_time/end_time for affected slides
+    3. PATCH with updated array
+
+    **Validation:**
+    - end_time must be > start_time for each slide
+    - No overlaps between consecutive slides
+    - Timestamps must be in ascending order
+
+    **Example fix:**
+    ```json
+    {
+      "slide_timestamps": [
+        {"slide_index": 0, "start_time": 0.0, "end_time": 15.5},
+        {"slide_index": 1, "start_time": 15.5, "end_time": 32.0},
+        {"slide_index": 2, "start_time": 33.0, "end_time": 48.2}
+      ]
+    }
+    ```
+
+    **⚠️ Warning:** This directly updates the database. Cannot be undone!
+    """,
+)
+async def update_slide_timestamps(
+    presentation_id: str,
+    audio_id: str,
+    request: UpdateSlideTimestampsRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update slide timestamps manually"""
+    try:
+        user_id = current_user["uid"]
+
+        logger.info("=" * 80)
+        logger.info(f"✏️ MANUAL TIMESTAMP UPDATE REQUEST")
+        logger.info(f"📍 Audio ID: {audio_id}")
+        logger.info(f"👤 User: {user_id}")
+        logger.info(f"📊 Updating {len(request.slide_timestamps)} slides")
+        logger.info("=" * 80)
+
+        # Get audio document
+        audio = db.presentation_audio.find_one(
+            {
+                "_id": ObjectId(audio_id),
+                "user_id": user_id,
+                "presentation_id": presentation_id,
+            }
+        )
+
+        if not audio:
+            raise HTTPException(404, "Audio not found")
+
+        # Verify it's merged audio
+        if audio.get("audio_type") != "merged_presentation":
+            raise HTTPException(
+                400,
+                f"Cannot edit timestamps for audio_type '{audio.get('audio_type')}'. "
+                "Only 'merged_presentation' audio can be edited.",
+            )
+
+        # Validate slide count matches
+        current_timestamps = audio.get("slide_timestamps", [])
+        if len(request.slide_timestamps) != len(current_timestamps):
+            raise HTTPException(
+                400,
+                f"Slide count mismatch: provided {len(request.slide_timestamps)} "
+                f"but audio has {len(current_timestamps)} slides",
+            )
+
+        # Convert to dict format for MongoDB
+        new_timestamps = [
+            {
+                "slide_index": ts.slide_index,
+                "start_time": ts.start_time,
+                "end_time": ts.end_time,
+            }
+            for ts in request.slide_timestamps
+        ]
+
+        # Calculate new total duration (last slide's end_time)
+        total_duration = max(ts["end_time"] for ts in new_timestamps)
+
+        # Log changes
+        logger.info("📝 Timestamp changes:")
+        for i, (old, new) in enumerate(zip(current_timestamps, new_timestamps)):
+            if (
+                old["start_time"] != new["start_time"]
+                or old["end_time"] != new["end_time"]
+            ):
+                logger.info(
+                    f"   Slide {i}: "
+                    f"{old['start_time']:.1f}s-{old['end_time']:.1f}s → "
+                    f"{new['start_time']:.1f}s-{new['end_time']:.1f}s "
+                    f"(Δ start: {new['start_time'] - old['start_time']:+.1f}s, "
+                    f"Δ end: {new['end_time'] - old['end_time']:+.1f}s)"
+                )
+
+        # Update database
+        update_result = db.presentation_audio.update_one(
+            {"_id": ObjectId(audio_id)},
+            {
+                "$set": {
+                    "slide_timestamps": new_timestamps,
+                    "slide_count": len(new_timestamps),
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        if update_result.modified_count == 0:
+            logger.warning("⚠️ No documents modified (timestamps may be unchanged)")
+
+        logger.info(f"✅ Updated slide_timestamps for audio {audio_id}")
+        logger.info(f"   New duration: {total_duration:.1f}s")
+        logger.info("=" * 80)
+
+        return UpdateSlideTimestampsResponse(
+            success=True,
+            message=f"Updated {len(new_timestamps)} slide timestamps",
+            audio_id=str(audio["_id"]),
+            slide_count=len(new_timestamps),
+            total_duration=total_duration,
+            slide_timestamps=request.slide_timestamps,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update slide timestamps: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to update timestamps: {str(e)}")
 
 
 # ============================================================
