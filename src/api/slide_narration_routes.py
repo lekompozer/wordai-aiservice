@@ -448,9 +448,17 @@ async def generate_subtitles_async(
         # Build slides array
         slides = []
         for idx, element in enumerate(slide_elements):
-            # Try to get index from attribute, fallback to loop index
+            # Try to get index from attribute with safe conversion
             attr_index = element.get("data-slide-index")
-            slide_index = int(attr_index) if attr_index is not None else idx
+            slide_index = idx  # Default to loop index
+            
+            if attr_index is not None:
+                try:
+                    # Ensure it's a string and try to convert to int
+                    slide_index = int(str(attr_index).strip())
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"⚠️ Invalid data-slide-index '{attr_index}' at position {idx}, using index {idx}")
+                    slide_index = idx
 
             # Extract ONLY text content (no HTML tags) for AI subtitle generation
             slide_text = element.get_text(separator=" ", strip=True)
