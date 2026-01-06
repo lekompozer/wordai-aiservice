@@ -20,7 +20,7 @@ from src.models.slide_template_models import (
     SlideTemplate,
 )
 from src.services.slide_template_service import get_slide_template_service
-from src.middleware.auth import get_current_user
+from src.middleware.firebase_auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
