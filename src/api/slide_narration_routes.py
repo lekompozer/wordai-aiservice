@@ -397,46 +397,76 @@ async def generate_subtitles_async(
         if document.get("user_id") != user_id:
             raise HTTPException(403, "Not authorized to narrate this presentation")
 
-        # Extract slides from HTML
+        # Extract slides from HTML using BeautifulSoup (same as frontend)
         content_html = document.get("content_html", "")
         if not content_html:
             raise HTTPException(400, "Document has no content")
 
-        import re
+        from bs4 import BeautifulSoup
 
-        slide_pattern = r'<div[^>]*class="slide"[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>(?=\s*(?:<div[^>]*class="slide"|$))'
-        slide_matches = re.findall(
-            slide_pattern, content_html, re.DOTALL | re.IGNORECASE
+        soup = BeautifulSoup(content_html, "html.parser")
+
+        # FIX: Check all 3 selectors and pick the one with MOST results (>1)
+        # Priority: [data-slide-index] > .slide > section
+        by_attr = soup.select("[data-slide-index]")
+        by_class = soup.select(".slide")
+        by_section = soup.select("section")
+
+        logger.info(
+            f"🔍 Selector results: [data-slide-index]={len(by_attr)}, .slide={len(by_class)}, section={len(by_section)}"
         )
 
-        if not slide_matches:
-            slide_pattern_simple = r'<div[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>'
-            slide_matches = re.findall(
-                slide_pattern_simple, content_html, re.DOTALL | re.IGNORECASE
-            )
+        # Choose the selector with most elements (avoiding wrapper divs)
+        slide_elements = (
+            by_attr
+            if len(by_attr) > 1
+            else (by_class if len(by_class) > len(by_attr) else by_section)
+        )
 
-        if not slide_matches:
+        # If still only 1 or 0, try fallback to any selector that has results
+        if len(slide_elements) <= 1:
+            if len(by_class) > len(slide_elements):
+                slide_elements = by_class
+            elif len(by_section) > len(slide_elements):
+                slide_elements = by_section
+
+        if not slide_elements:
             raise HTTPException(
                 400, f"No slides found in document. Content length: {len(content_html)}"
             )
 
+        logger.info(f"✅ Using selector with {len(slide_elements)} slide elements")
+
+        # Prepare background lookup map (slideIndex -> background data)
+        slide_backgrounds = document.get("slide_backgrounds", [])
+        background_map = {
+            int(bg.get("slideIndex")): bg
+            for bg in slide_backgrounds
+            if bg.get("slideIndex") is not None
+        }
+
         # Build slides array
         slides = []
-        for idx, (slide_index, slide_html) in enumerate(slide_matches):
+        for idx, element in enumerate(slide_elements):
+            # Try to get index from attribute, fallback to loop index
+            attr_index = element.get("data-slide-index")
+            slide_index = int(attr_index) if attr_index is not None else idx
+
+            # Extract ONLY text content (no HTML tags) for AI subtitle generation
+            slide_text = element.get_text(separator=" ", strip=True)
+
             slides.append(
                 {
-                    "index": int(slide_index),
-                    "html": f'<div class="slide" data-slide-index="{slide_index}">{slide_html}</div>',
+                    "index": slide_index,
+                    "html": slide_text,  # Changed: plain text only, not HTML
                     "elements": [],
-                    "background": (
-                        document.get("slide_backgrounds", [])[int(slide_index)]
-                        if int(slide_index) < len(document.get("slide_backgrounds", []))
-                        else None
-                    ),
+                    "background": background_map.get(slide_index),
                 }
             )
 
-        logger.info(f"📄 Extracted {len(slides)} slides from document")
+        logger.info(
+            f"📄 Extracted {len(slides)} slides from document (text-only for subtitle generation)"
+        )
 
         # Filter slides by scope
         if request.scope == "current":
