@@ -1024,7 +1024,8 @@ async def list_narrations(
 
             narrations.append(
                 NarrationVersion(
-                    narration_id=str(doc["_id"]),  # Use subtitle_id as narration_id
+                    narration_id=str(doc["_id"]),  # Keep for backward compatibility
+                    subtitle_id=str(doc["_id"]),  # V2 system uses subtitle_id
                     version=doc.get("version", 1),
                     status="completed" if audio_ready else "subtitles_only",
                     mode=doc.get("mode", "presentation"),

@@ -390,6 +390,9 @@ class NarrationVersion(BaseModel):
     """Narration version metadata"""
 
     narration_id: str = Field(..., description="Narration ID")
+    subtitle_id: Optional[str] = Field(
+        None, description="Subtitle ID (V2 system, same as narration_id)"
+    )
     version: int = Field(..., description="Version number")
     status: str = Field(
         ..., description="Status: 'subtitles_only', 'completed', 'failed'"
