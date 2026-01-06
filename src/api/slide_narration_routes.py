@@ -69,6 +69,7 @@ from src.services.points_service import get_points_service
 from src.middleware.firebase_auth import get_current_user
 from src.services.document_manager import DocumentManager
 from src.database.db_manager import DBManager
+from src.utils.language_utils import normalize_language_code
 
 logger = logging.getLogger("chatbot")
 router = APIRouter(prefix="/api")
@@ -375,8 +376,17 @@ async def generate_subtitles_async(
             f"📍 Endpoint: POST /api/presentations/{presentation_id}/subtitles/generate"
         )
         logger.info(f"👤 User: {user_email} ({user_id})")
+
+        # NORMALIZE LANGUAGE CODE (ja-JP → ja, en-US → en)
+        original_language = request.language
+        normalized_language = normalize_language_code(request.language)
+        if original_language != normalized_language:
+            logger.info(
+                f"🔧 Language normalized: {original_language} → {normalized_language}"
+            )
+
         logger.info(
-            f"🎛️ Mode: {request.mode}, Language: {request.language}, Scope: {request.scope}"
+            f"🎛️ Mode: {request.mode}, Language: {normalized_language}, Scope: {request.scope}"
         )
         logger.info("=" * 80)
 
@@ -1573,8 +1583,17 @@ async def generate_subtitles_v2(
     """
     try:
         user_id = current_user["uid"]
+
+        # NORMALIZE LANGUAGE CODE (ja-JP → ja, en-US → en)
+        original_language = request.language
+        normalized_language = normalize_language_code(request.language)
+        if original_language != normalized_language:
+            logger.info(
+                f"🔧 Language normalized: {original_language} → {normalized_language}"
+            )
+
         logger.info(
-            f"Generating subtitles V2: presentation={presentation_id}, language={request.language}"
+            f"Generating subtitles V2: presentation={presentation_id}, language={normalized_language}"
         )
 
         # Deduct points
@@ -1591,7 +1610,7 @@ async def generate_subtitles_v2(
         narration_service = get_slide_narration_service()
         subtitle_doc = await narration_service.generate_subtitles_v2(
             presentation_id=presentation_id,
-            language=request.language,
+            language=normalized_language,  # Use normalized language
             mode=request.mode,
             user_id=user_id,
             user_query=request.user_query or "",
@@ -1622,6 +1641,16 @@ async def list_subtitles_v2(
     """
     try:
         user_id = current_user["uid"]
+
+        # NORMALIZE LANGUAGE CODE if provided (ja-JP → ja, en-US → en)
+        if language:
+            original_language = language
+            language = normalize_language_code(language)
+            if original_language != language:
+                logger.info(
+                    f"🔧 Query language normalized: {original_language} → {language}"
+                )
+
         logger.info(
             f"Listing subtitles V2: presentation={presentation_id}, language={language}"
         )
@@ -2000,6 +2029,15 @@ async def list_audio_v2(
     """
     try:
         user_id = current_user["uid"]
+
+        # NORMALIZE LANGUAGE CODE if provided (ja-JP → ja, en-US → en)
+        if language:
+            original_language = language
+            language = normalize_language_code(language)
+            if original_language != language:
+                logger.info(
+                    f"🔧 Query language normalized: {original_language} → {language}"
+                )
 
         # Build query
         query = {
@@ -2538,6 +2576,9 @@ async def get_public_subtitles(
         default_language = config["sharing_settings"].get("default_language", "vi")
         language = language or default_language
 
+        # NORMALIZE LANGUAGE CODE (ja-JP → ja, en-US → en)
+        language = normalize_language_code(language)
+
         # Check allowed languages
         allowed_languages = config["sharing_settings"].get("allowed_languages", [])
         if allowed_languages and language not in allowed_languages:
@@ -2589,6 +2630,9 @@ async def get_public_audio(
         presentation_id = config["presentation_id"]
         default_language = config["sharing_settings"].get("default_language", "vi")
         language = language or default_language
+
+        # NORMALIZE LANGUAGE CODE (ja-JP → ja, en-US → en)
+        language = normalize_language_code(language)
 
         # FIX: Allow all available languages (no restriction)
         # Auto-detect and allow any language that has audio
