@@ -423,7 +423,7 @@ class ChapterTranslationWorker:
                         try:
                             await asyncio.wait_for(
                                 self.process_task(task),
-                                timeout=self.JOB_TIMEOUT_SECONDS
+                                timeout=self.JOB_TIMEOUT_SECONDS,
                             )
                         except asyncio.TimeoutError:
                             logger.error(
@@ -440,7 +440,7 @@ class ChapterTranslationWorker:
                                     }
                                 },
                             )
-                    
+
                     task_future = asyncio.create_task(run_with_timeout())
                     running_tasks.add(task_future)
                     logger.info(

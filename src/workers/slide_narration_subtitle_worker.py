@@ -244,7 +244,7 @@ class SlideNarrationSubtitleWorker:
                         try:
                             await asyncio.wait_for(
                                 self.process_task(task),
-                                timeout=self.JOB_TIMEOUT_SECONDS
+                                timeout=self.JOB_TIMEOUT_SECONDS,
                             )
                         except asyncio.TimeoutError:
                             logger.error(
@@ -258,7 +258,7 @@ class SlideNarrationSubtitleWorker:
                                 user_id=task.user_id,
                                 error=f"Job timeout after {self.JOB_TIMEOUT_SECONDS} seconds",
                             )
-                    
+
                     task_future = asyncio.create_task(run_with_timeout())
                     running_tasks.add(task_future)
                     logger.info(

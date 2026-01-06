@@ -141,15 +141,14 @@ class TranslationWorker:
                 # Process task with timeout protection
                 try:
                     success = await asyncio.wait_for(
-                        self.process_task(task),
-                        timeout=self.JOB_TIMEOUT_SECONDS
+                        self.process_task(task), timeout=self.JOB_TIMEOUT_SECONDS
                     )
 
                     if success:
                         logger.info(f"✅ Task {task.task_id} completed successfully")
                     else:
                         logger.error(f"❌ Task {task.task_id} failed")
-                        
+
                 except asyncio.TimeoutError:
                     logger.error(
                         f"⏱️ Task {task.task_id} TIMEOUT after {self.JOB_TIMEOUT_SECONDS}s - marking as failed"
