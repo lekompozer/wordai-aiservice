@@ -1448,8 +1448,52 @@ documents (presentation)
   "document_type": "slide",
   "title": "Giới thiệu về Generative AI...",
 
-  // ⚠️ WARNING: DO NOT use for slide count!
-  "slide_backgrounds": [{}],  // May only contain 1 element
+  // ══════════════════════════════════════════════════
+  // SLIDE ELEMENTS - UPDATED 2026-01-06
+  // ══════════════════════════════════════════════════
+
+  // ✅ PRIMARY FIELD: Complete slide elements (ALL slides)
+  "slide_elements": [  // Array of slide with visual elements
+    {
+      "slideIndex": 0,  // Slide number (0-based)
+      "elements": [     // Visual elements on this slide
+        {
+          "id": "image-1767635679829-dmvrlcmx9",
+          "type": "image",  // "image" | "text" | "shape" | "chart"
+          "x": 91.66666666666667,     // Position X (pixels)
+          "y": 33.33333333333333,     // Position Y (pixels)
+          "width": 190,               // Width (pixels)
+          "height": 143,              // Height (pixels)
+          "zIndex": 100,              // Layer order
+          "src": "data:image/png;base64,...",  // Image data/URL
+          "objectFit": "contain",
+          "opacity": 1
+        }
+        // ... more elements
+      ]
+    },
+    // ... up to 43 slides (all slides with elements)
+  ],
+
+  // ❌ LEGACY/SECONDARY: AI-formatted slides only (SUBSET!)
+  "slide_backgrounds": [  // ⚠️ Only slides that went through AI formatting
+    {
+      "slideIndex": 8,   // May have gaps! Not all slides!
+      "elements": [],    // Usually empty or minimal
+      "formatted_html": "...",  // AI-generated HTML
+      "background_type": "gradient"
+    },
+    {
+      "slideIndex": 37,  // ⚠️ Sparse array!
+      "elements": []
+    }
+    // ⚠️ Only 3 entries vs 18+ in slide_elements!
+  ],
+
+  // ⚠️ WARNING: DO NOT use slide_backgrounds for:
+  //   - Slide count (incomplete!)
+  //   - Element rendering (use slide_elements!)
+  //   - Public API responses (use slide_elements!)
 
   // Outline version (if using new system)
   "outline_version_id": "version_abc123",  // Link to slide_outline_versions
@@ -1467,12 +1511,36 @@ documents (presentation)
 // Get presentation by document_id
 db.documents.findOne({document_id: "doc_c49e8af18c03"})
 
+// ══════════════════════════════════════════════════
+// SLIDE ELEMENTS - CORRECT USAGE (Updated 2026-01-06)
+// ══════════════════════════════════════════════════
+
+// ✅ CORRECT - Get all slide elements
+const doc = db.documents.findOne({document_id: "doc_06de72fea3d7"})
+const allElements = doc.slide_elements  // Returns 18+ slides
+console.log(`Total slides with elements: ${allElements.length}`)
+
+// ✅ CORRECT - Get elements for specific slide
+const slide5Elements = doc.slide_elements.find(s => s.slideIndex === 5)
+if (slide5Elements) {
+  console.log(`Slide 5 has ${slide5Elements.elements.length} elements`)
+}
+
+// ❌ WRONG - Don't use slide_backgrounds for elements!
+const wrongElements = doc.slide_backgrounds  // Only 3 slides! Incomplete!
+
 // ❌ WRONG - Don't use slide_backgrounds for count
-const slideCount = presentation.slide_backgrounds.length  // May return 1!
+const slideCount = presentation.slide_backgrounds.length  // Returns 3 instead of 43!
 
 // ✅ CORRECT - Get from audio timestamps
 const audio = db.presentation_audio.findOne({...})
 const slideCount = audio.slide_timestamps.length  // Returns 30!
+
+// ✅ CORRECT - For public API responses
+const publicData = {
+  slide_elements: doc.slide_elements,  // ✅ Complete data (18+ slides)
+  slide_backgrounds: doc.slide_backgrounds  // ❌ Legacy/AI-only (3 slides)
+}
 ```
 
 ### 2. presentation_subtitles Collection
@@ -2764,6 +2832,178 @@ ssh root@104.248.147.155 "docker exec redis-server redis-cli TTL 'job:abc-123'"
 # Delete stuck job
 ssh root@104.248.147.155 "docker exec redis-server redis-cli DEL 'job:abc-123'"
 ```
+
+---
+
+## 📊 Slide Elements Storage & Retrieval
+
+**Updated:** January 6, 2026
+**Purpose:** Clarify slide_elements vs slide_backgrounds structure
+
+### Database Fields
+
+**documents Collection:**
+
+```javascript
+{
+  // ✅ PRIMARY: Complete slide elements (ALL slides with custom elements)
+  "slide_elements": [
+    {
+      "slideIndex": 0,      // Slide number (0-based)
+      "elements": [         // Visual elements array
+        {
+          "id": "image-1767635679829",
+          "type": "image",  // image|text|shape|chart
+          "x": 91.67,       // Position X
+          "y": 33.33,       // Position Y
+          "width": 190,     // Width
+          "height": 143,    // Height
+          "zIndex": 100,    // Layer order
+          "src": "data:image/png;base64,...",
+          "objectFit": "contain",
+          "opacity": 1
+        }
+      ]
+    }
+    // Total: 18+ slides (all slides with custom elements)
+  ],
+
+  // ❌ SECONDARY: AI-formatted slides only (SPARSE!)
+  "slide_backgrounds": [
+    {
+      "slideIndex": 8,         // Only AI-formatted slides
+      "elements": [],          // Usually empty
+      "formatted_html": "...", // AI-generated HTML
+      "background_type": "gradient"
+    }
+    // Total: 3 slides (only slides formatted by AI worker)
+  ]
+}
+```
+
+### Key Differences
+
+| Field | Purpose | Count | Use Case |
+|-------|---------|-------|----------|
+| `slide_elements` | **User-created elements** | 18+ slides | ✅ Public API, rendering, element display |
+| `slide_backgrounds` | **AI-formatted slides** | 3 slides | ❌ Worker output only, incomplete data |
+
+### Critical Rules
+
+**✅ DO:**
+- Use `slide_elements` for public API responses
+- Use `slide_elements` for slide count with elements
+- Use `slide_elements` for element rendering
+- Query specific slide: `doc.slide_elements.find(s => s.slideIndex === 5)`
+
+**❌ DON'T:**
+- Use `slide_backgrounds` for slide count (only has AI-formatted slides!)
+- Use `slide_backgrounds` for element rendering (incomplete data!)
+- Assume `slide_backgrounds` has all slides (sparse array!)
+
+### API Implementation
+
+**Public Presentation Endpoint:**
+
+```python
+@router.get("/public/presentations/{public_token}")
+async def get_public_presentation(public_token: str):
+    # ... get presentation from MongoDB ...
+
+    if sharing_settings.get("include_content", True):
+        # ✅ CORRECT: Use slide_elements for frontend
+        slide_elements = presentation.get("slide_elements")
+        presentation_data["slide_elements"] = slide_elements
+
+        # Keep slide_backgrounds for backward compatibility only
+        presentation_data["slide_backgrounds"] = presentation.get("slide_backgrounds")
+```
+
+**MongoDB Queries:**
+
+```javascript
+// ✅ Get all slides with elements
+const doc = db.documents.findOne({document_id: "doc_06de72fea3d7"})
+const allSlides = doc.slide_elements  // 18 slides
+
+// ✅ Find specific slide
+const slide5 = doc.slide_elements.find(s => s.slideIndex === 5)
+
+// ✅ Count slides with elements
+const count = doc.slide_elements.length  // 18
+
+// ❌ WRONG: Using slide_backgrounds
+const wrongCount = doc.slide_backgrounds.length  // Only 3!
+```
+
+### Element Structure
+
+```typescript
+type SlideElement = {
+  slideIndex: number,
+  elements: Element[]
+}
+
+type Element = {
+  id: string,
+  type: "image" | "text" | "shape" | "chart",
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  zIndex: number,
+
+  // Type-specific fields
+  src?: string,           // Image URL/data
+  content?: string,       // Text content
+  fontSize?: number,      // Text size
+  color?: string,         // Text/shape color
+  backgroundColor?: string,
+  opacity?: number,
+  rotation?: number
+}
+```
+
+### Frontend Integration
+
+```typescript
+// ✅ CORRECT: Access slide elements
+const response = await fetch(`/api/public/presentations/${token}`)
+const data = await response.json()
+
+const slideElements = data.presentation.slide_elements  // 18+ slides
+
+// Find elements for current slide
+const currentSlide = slideElements.find(s => s.slideIndex === currentIndex)
+const elements = currentSlide?.elements || []
+
+// Render elements
+elements.forEach(el => {
+  if (el.type === 'image') {
+    renderImage(el)
+  } else if (el.type === 'text') {
+    renderText(el)
+  }
+})
+```
+
+### Migration Notes
+
+**Before (2026-01-05):**
+```python
+# ❌ Was using slide_backgrounds (incomplete!)
+presentation_data["slide_elements"] = presentation.get("slide_backgrounds")
+```
+
+**After (2026-01-06):**
+```python
+# ✅ Now using slide_elements (complete!)
+presentation_data["slide_elements"] = presentation.get("slide_elements")
+```
+
+**Commit:** `1b70a6a` - Fixed field mapping for public API
+
+---
 
 ### Related Documentation
 
