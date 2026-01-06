@@ -251,6 +251,9 @@ from src.api.slide_ai_routes import router as slide_ai_router
 # ✅ ADDED: Slide Narration API - AI-powered subtitle and audio generation
 from src.api.slide_narration_routes import router as slide_narration_router
 
+# ✅ ADDED: Lyria Music Generation API - AI-powered music from text prompts
+from src.api.lyria_routes import router as lyria_router
+
 # ✅ ADDED: Slide AI Generation API - AI-powered slide creation from scratch
 from src.api.slide_ai_generation_routes import router as slide_ai_generation_router
 
@@ -1176,6 +1179,12 @@ def create_app() -> FastAPI:
     app.include_router(
         slide_narration_router,
         tags=["Slide Narration", "AI"],
+    )
+
+    # ✅ NEW: Lyria Music Generation API - AI Tools for instrumental music
+    app.include_router(
+        lyria_router,
+        tags=["Lyria Music", "AI Tools", "Music Generation"],
     )
 
     # ✅ NEW: Slide AI Generation API - AI-powered slide creation from scratch
