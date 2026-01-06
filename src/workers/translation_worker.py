@@ -32,6 +32,9 @@ logger = setup_logger()
 class TranslationWorker:
     """Worker that processes translation jobs from Redis queue"""
 
+    # Job timeout: 20 minutes (translations can have many chapters)
+    JOB_TIMEOUT_SECONDS = 1200
+
     def __init__(
         self,
         worker_id: str = None,
@@ -135,13 +138,34 @@ class TranslationWorker:
                     logger.error(f"❌ Failed to parse task: {parse_error}")
                     continue
 
-                # Process task
-                success = await self.process_task(task)
+                # Process task with timeout protection
+                try:
+                    success = await asyncio.wait_for(
+                        self.process_task(task),
+                        timeout=self.JOB_TIMEOUT_SECONDS
+                    )
 
-                if success:
-                    logger.info(f"✅ Task {task.task_id} completed successfully")
-                else:
-                    logger.error(f"❌ Task {task.task_id} failed")
+                    if success:
+                        logger.info(f"✅ Task {task.task_id} completed successfully")
+                    else:
+                        logger.error(f"❌ Task {task.task_id} failed")
+                        
+                except asyncio.TimeoutError:
+                    logger.error(
+                        f"⏱️ Task {task.task_id} TIMEOUT after {self.JOB_TIMEOUT_SECONDS}s - marking as failed"
+                    )
+                    # Mark job as failed in MongoDB (translation uses MongoDB, not Redis)
+                    db = self.db_manager.db
+                    db.translation_jobs.update_one(
+                        {"job_id": task.job_id},
+                        {
+                            "$set": {
+                                "status": "failed",
+                                "error": f"Job timeout after {self.JOB_TIMEOUT_SECONDS} seconds",
+                                "updated_at": datetime.utcnow(),
+                            }
+                        },
+                    )
 
             except asyncio.CancelledError:
                 logger.info(f"🛑 Worker {self.worker_id}: Cancelled")

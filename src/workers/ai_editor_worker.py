@@ -33,6 +33,9 @@ logger = setup_logger()
 class AIEditorWorker:
     """Worker that processes AI editor tasks from Redis queue"""
 
+    # Job timeout: 10 minutes (AI editing can be slow for large documents)
+    JOB_TIMEOUT_SECONDS = 600
+
     def __init__(
         self,
         worker_id: Optional[str] = None,
@@ -303,11 +306,30 @@ Now, convert the following HTML document:
                         logger.error(f"❌ Failed to parse task: {parse_error}")
                         continue
 
-                    # Start task in background
-                    task_future = asyncio.create_task(self.process_task(task))
+                    # Start task in background with timeout protection
+                    async def run_with_timeout():
+                        try:
+                            await asyncio.wait_for(
+                                self.process_task(task),
+                                timeout=self.JOB_TIMEOUT_SECONDS
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error(
+                                f"⏱️ Job {task.job_id} TIMEOUT after {self.JOB_TIMEOUT_SECONDS}s - marking as failed"
+                            )
+                            # Mark job as failed in Redis
+                            await set_job_status(
+                                redis_client=self.queue_manager.redis_client,
+                                job_id=task.job_id,
+                                status="failed",
+                                user_id=task.user_id,
+                                error=f"Job timeout after {self.JOB_TIMEOUT_SECONDS} seconds",
+                            )
+                    
+                    task_future = asyncio.create_task(run_with_timeout())
                     running_tasks.add(task_future)
                     logger.info(
-                        f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)"
+                        f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active) [timeout: {self.JOB_TIMEOUT_SECONDS}s]"
                     )
 
                 # Wait for at least one task to complete

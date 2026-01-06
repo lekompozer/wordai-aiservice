@@ -169,6 +169,9 @@ def slugify(text: str) -> str:
 class ChapterTranslationWorker:
     """Worker for processing chapter translation tasks"""
 
+    # Job timeout: 15 minutes (chapter translation can have large HTML content)
+    JOB_TIMEOUT_SECONDS = 900
+
     def __init__(
         self,
         worker_id: str = "chapter_translation_worker",
@@ -415,11 +418,33 @@ class ChapterTranslationWorker:
                         logger.error(f"❌ Failed to parse task: {parse_error}")
                         continue
 
-                    # Start task in background
-                    task_future = asyncio.create_task(self.process_task(task))
+                    # Start task in background with timeout protection
+                    async def run_with_timeout():
+                        try:
+                            await asyncio.wait_for(
+                                self.process_task(task),
+                                timeout=self.JOB_TIMEOUT_SECONDS
+                            )
+                        except asyncio.TimeoutError:
+                            logger.error(
+                                f"⏱️ Job {task.job_id} TIMEOUT after {self.JOB_TIMEOUT_SECONDS}s - marking as failed"
+                            )
+                            # Mark job as failed in MongoDB (chapter translation uses MongoDB)
+                            self.db.chapter_translation_jobs.update_one(
+                                {"job_id": task.job_id},
+                                {
+                                    "$set": {
+                                        "status": "failed",
+                                        "error": f"Job timeout after {self.JOB_TIMEOUT_SECONDS} seconds",
+                                        "updated_at": datetime.utcnow(),
+                                    }
+                                },
+                            )
+                    
+                    task_future = asyncio.create_task(run_with_timeout())
                     running_tasks.add(task_future)
                     logger.info(
-                        f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active)"
+                        f"📝 Started task {task.task_id} ({len(running_tasks)}/{self.max_concurrent_jobs} active) [timeout: {self.JOB_TIMEOUT_SECONDS}s]"
                     )
 
                 # Wait for at least one task to complete
