@@ -57,9 +57,68 @@ class SlideFormatWorker:
             logger.info(
                 f"✅ Worker {self.worker_id}: Connected to Redis slide_format queue"
             )
+
+            # Cleanup stuck tasks from previous crashes
+            await self._cleanup_stuck_tasks()
         except Exception as e:
             logger.error(f"❌ Worker {self.worker_id}: Initialization failed: {e}")
             raise
+
+    async def _cleanup_stuck_tasks(self):
+        """Reset tasks stuck in 'processing' status > 10 minutes (from previous worker crashes)"""
+        try:
+            logger.info(f"🔍 Checking for stuck tasks...")
+
+            # Get all job keys
+            all_keys = await self.queue_manager.redis_client.keys("job:*")  # type: ignore
+            stuck_count = 0
+
+            for key in all_keys:  # type: ignore
+                if isinstance(key, bytes):
+                    key = key.decode()
+
+                # Skip chunk tasks, only check parent jobs and single jobs
+                if "_chunk_" in key:
+                    continue
+
+                job_id = key.replace("job:", "")
+                job = await get_job_status(self.queue_manager.redis_client, job_id)
+
+                if job and job.get("status") == "processing":
+                    started_at_str = job.get("started_at")
+                    if started_at_str:
+                        try:
+                            started_at = datetime.fromisoformat(started_at_str)
+                            elapsed_seconds = (
+                                datetime.utcnow() - started_at
+                            ).total_seconds()
+
+                            # Reset if stuck > 10 minutes
+                            if elapsed_seconds > 600:
+                                logger.warning(
+                                    f"🔄 Resetting stuck job {job_id} (stuck for {elapsed_seconds:.0f}s)"
+                                )
+
+                                await set_job_status(
+                                    redis_client=self.queue_manager.redis_client,
+                                    job_id=job_id,
+                                    status="failed",
+                                    user_id=job.get("user_id", ""),
+                                    error="Worker crashed or timeout - task auto-reset on worker restart",
+                                    completed_at=datetime.utcnow().isoformat(),
+                                )
+                                stuck_count += 1
+                        except Exception as e:
+                            logger.error(f"Error parsing started_at for {job_id}: {e}")
+
+            if stuck_count > 0:
+                logger.info(f"✅ Reset {stuck_count} stuck task(s)")
+            else:
+                logger.info(f"✅ No stuck tasks found")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to cleanup stuck tasks: {e}", exc_info=True)
+            # Don't fail initialization if cleanup fails
 
     async def shutdown(self):
         """Gracefully shutdown worker"""
@@ -83,8 +142,12 @@ class SlideFormatWorker:
         job_id = task.job_id
         start_time = datetime.utcnow()
 
-        # ⏱️ TIMEOUT PROTECTION: Auto-fail if processing takes > 5 minutes
-        timeout_seconds = 300  # 5 minutes max per task
+        # ⏱️ TIMEOUT PROTECTION: Dynamic timeout based on slides count
+        # Base 60s + 30s per slide (e.g., 12 slides = 420s = 7 minutes)
+        total_slides = task.total_slides or 1
+        timeout_seconds = 60 + (total_slides * 30)
+
+        logger.info(f"⏱️ Task timeout: {timeout_seconds}s ({total_slides} slide(s))")
 
         try:
             return await asyncio.wait_for(
@@ -92,7 +155,10 @@ class SlideFormatWorker:
             )
         except asyncio.TimeoutError:
             logger.error(
-                f"❌ Job {job_id} TIMEOUT after {timeout_seconds}s - auto-failing"
+                f"❌ Job {job_id} TIMEOUT after {timeout_seconds}s ({total_slides} slides) - auto-failing"
+            )
+            logger.error(
+                f"   Task details: user={task.user_id}, doc={task.document_id}, batch={task.is_batch}"
             )
 
             # Mark as failed in Redis
@@ -101,12 +167,17 @@ class SlideFormatWorker:
                 job_id=job_id,
                 status="failed",
                 user_id=task.user_id,
-                error=f"Processing timeout after {timeout_seconds}s",
+                error=f"Processing timeout after {timeout_seconds}s for {total_slides} slides",
                 failed_at=datetime.utcnow().isoformat(),
             )
             return False
         except Exception as e:
-            logger.error(f"❌ Job {job_id} failed: {e}", exc_info=True)
+            logger.error(
+                f"❌ Job {job_id} failed: {e}\n"
+                f"   Task: user={task.user_id}, doc={task.document_id}, "
+                f"slides={task.total_slides}, batch={task.is_batch}",
+                exc_info=True,
+            )
 
             # Update status to failed
             if task.is_batch:

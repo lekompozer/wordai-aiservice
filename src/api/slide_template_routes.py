@@ -33,15 +33,15 @@ router = APIRouter(prefix="/api/slides/templates", tags=["Slide Templates"])
     summary="Save slide as template",
     description="""
     Save a slide from a document as a reusable template.
-    
+
     **Requirements:**
     - User must own the source document
     - Slide index must exist in document
-    
+
     **Returns:**
     - Template ID, name, and metadata
     - Thumbnail URL (Phase 2)
-    
+
     **Limits:**
     - Free users: 50 templates (future)
     - Premium users: 200 templates (future)
@@ -74,19 +74,19 @@ async def create_template(
     summary="List user templates",
     description="""
     Get list of user's saved templates with filtering and pagination.
-    
+
     **Filters:**
     - `category`: Filter by category (title, content, conclusion, custom)
     - `tags`: Filter by tags (comma-separated, any match)
     - `search`: Search in name and description (case-insensitive)
-    
+
     **Pagination:**
     - `limit`: Results per page (default 20, max 100)
     - `offset`: Skip N results (default 0)
-    
+
     **Sorting:**
     - Always sorted by created_at DESC (newest first)
-    
+
     **Returns:**
     - List of templates with metadata
     - Total count and pagination info
@@ -141,10 +141,10 @@ async def list_templates(
     summary="Get template details",
     description="""
     Get full details of a specific template including HTML content.
-    
+
     **Requirements:**
     - User must own the template
-    
+
     **Returns:**
     - Complete template data including template_html
     - Style properties (background, fonts, colors)
@@ -189,16 +189,16 @@ async def get_template(
     summary="Update template metadata",
     description="""
     Update template name, description, category, or tags.
-    
+
     **Requirements:**
     - User must own the template
-    
+
     **Updatable fields:**
     - name: Template name (1-100 chars)
     - description: Template description (max 500 chars)
     - category: Category (title, content, conclusion, custom)
     - tags: Array of tags
-    
+
     **Note:** Template HTML cannot be updated. Create a new template instead.
     """,
 )
@@ -234,10 +234,10 @@ async def update_template(
     summary="Delete template",
     description="""
     Permanently delete a template.
-    
+
     **Requirements:**
     - User must own the template
-    
+
     **Warning:**
     - This action cannot be undone
     - Deleting a template does not affect slides that used it
@@ -279,21 +279,21 @@ async def delete_template(
     summary="Apply template to slide",
     description="""
     Apply a template to a specific slide in a document.
-    
+
     **Requirements:**
     - User must own both the template and target document
     - Target slide must exist in document
-    
+
     **Options:**
     - `preserve_content: true` (default): Keep existing text/images, only apply styles
     - `preserve_content: false`: Replace entire slide with template
-    
+
     **What gets applied:**
     - Background gradient/color
     - Layout structure (Phase 2)
     - Font styles (Phase 2)
     - Colors (Phase 2)
-    
+
     **Cost:** Free (no points deducted)
     """,
 )

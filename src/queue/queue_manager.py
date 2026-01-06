@@ -759,6 +759,21 @@ class QueueManager:
             # Serialize task using Pydantic
             task_data = task.model_dump_json()
 
+            # 🔒 PERSISTENT TASK DATA: Save full task JSON in hash for retry capability
+            # This allows worker to recover task data after crash
+            if hasattr(task, "task_id"):
+                task_key = f"task_data:{task.task_id}"
+                await self.redis_client.hset(  # type: ignore
+                    task_key,
+                    mapping={
+                        "task_json": task_data,
+                        "created_at": datetime.now().isoformat(),
+                        "queue_name": self.queue_name,
+                    },
+                )
+                # Keep task data for 24 hours (same as job status)
+                await self.redis_client.expire(task_key, 86400)  # type: ignore
+
             # Get priority from task if available
             priority = getattr(task, "priority", 1)
 
@@ -846,6 +861,34 @@ class QueueManager:
 
         except Exception as e:
             logger.error(f"Failed to dequeue task: {e}")
+            return None
+
+    async def get_task_data(self, task_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get full task data from Redis hash (for retry after crash).
+
+        Args:
+            task_id: Task ID to retrieve
+
+        Returns:
+            Task dict if found, None otherwise
+        """
+        try:
+            if not self.redis_client:
+                await self.connect()
+
+            task_key = f"task_data:{task_id}"
+            task_json = await self.redis_client.hget(task_key, "task_json")  # type: ignore
+
+            if task_json:
+                if isinstance(task_json, bytes):
+                    task_json = task_json.decode()
+                return json.loads(task_json)
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Failed to get task data for {task_id}: {e}")
             return None
 
     async def get_queue_size(self) -> int:

@@ -88,8 +88,11 @@ class SlideTemplateService:
             styles["font_family"] = font_match.group(1).strip()
 
         # Detect layout type
-        if 'grid-template-columns: 1fr 1fr' in slide_html or 'display: grid' in slide_html:
-            if slide_html.count('1fr') >= 2:
+        if (
+            "grid-template-columns: 1fr 1fr" in slide_html
+            or "display: grid" in slide_html
+        ):
+            if slide_html.count("1fr") >= 2:
                 styles["layout_type"] = "two-column"
             else:
                 styles["layout_type"] = "single-column"
@@ -267,10 +270,7 @@ class SlideTemplateService:
 
         # Get templates with pagination
         cursor = (
-            self.templates.find(query)
-            .sort("created_at", -1)
-            .skip(offset)
-            .limit(limit)
+            self.templates.find(query).sort("created_at", -1).skip(offset).limit(limit)
         )
 
         templates = []
@@ -464,7 +464,8 @@ class SlideTemplateService:
         )
 
         self.documents.update_one(
-            {"document_id": request.document_id}, {"$set": {"content_html": updated_html}}
+            {"document_id": request.document_id},
+            {"$set": {"content_html": updated_html}},
         )
 
         # 6. Update template usage statistics
