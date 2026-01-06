@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any, Dict
 from fastapi import APIRouter, Depends, HTTPException
 
-from src.auth.firebase_auth import get_current_user
+from src.middleware.firebase_auth import get_current_user
 from src.database.db_manager import DBManager
 from src.models.lyria_models import (
     LyriaMusicRequest,
