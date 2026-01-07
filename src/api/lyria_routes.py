@@ -85,24 +85,11 @@ async def generate_music(
             logger.info(f"🎲 Seed: {request.seed}")
         logger.info("=" * 80)
 
-        # ✅ SECURITY: Rate limiting
-        try:
-            await check_ai_rate_limit(
-                user_id=user_id,
-                action="lyria_music_generation",
-                max_requests=10,
-                window_seconds=60,
-            )
-        except Exception as rate_error:
-            logger.warning(f"⚠️ Rate limit exceeded: {user_id}")
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "rate_limit_exceeded",
-                    "message": "Too many requests. Please wait 1 minute.",
-                    "retry_after": 60,
-                },
-            )
+        # ✅ SECURITY: Rate limiting (10 requests/minute)
+        await check_ai_rate_limit(
+            user_id=user_id,
+            action="lyria_music_generation",
+        )
 
         # Get points service
         points_service = get_points_service()

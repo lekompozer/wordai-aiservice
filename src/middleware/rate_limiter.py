@@ -114,6 +114,8 @@ RATE_LIMITS = {
     # Slide AI generation
     "slide_ai_batch": {"max_requests": 10, "window_seconds": 3600},  # 10/hour
     "slide_ai_single": {"max_requests": 50, "window_seconds": 3600},  # 50/hour
+    # Lyria Music Generation (Expensive - Vertex AI)
+    "lyria_music_generation": {"max_requests": 10, "window_seconds": 60},  # 10/min
 }
 
 
