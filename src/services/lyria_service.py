@@ -6,6 +6,7 @@ Uses Google Vertex AI Lyria-002 model for instrumental music generation
 import os
 import logging
 import base64
+import asyncio
 from typing import Dict, Optional, Tuple
 from google import genai
 from google.genai import types
@@ -45,6 +46,7 @@ class LyriaService:
         prompt: str,
         negative_prompt: Optional[str] = None,
         seed: Optional[int] = None,
+        max_retries: int = 3,
     ) -> Tuple[bytes, Dict]:
         """
         Generate instrumental music from text prompt
@@ -53,95 +55,129 @@ class LyriaService:
             prompt: Text description of music (English)
             negative_prompt: What to exclude from music (optional)
             seed: Random seed for deterministic generation (optional)
+            max_retries: Max retry attempts for quota errors (default: 3)
 
         Returns:
             Tuple of (audio_bytes, metadata)
             - audio_bytes: MP3 audio data
             - metadata: Dict with duration, format, etc.
         """
-        try:
-            logger.info(f"🎵 Generating music with Lyria")
-            logger.info(f"   Prompt: {prompt[:100]}...")
 
-            # Build generation config
-            config = types.GenerateContentConfig(
-                temperature=1.0,  # Default for music generation
-                top_p=0.95,
-                top_k=40,
-                max_output_tokens=1024,
-            )
+        for attempt in range(max_retries):
+            try:
+                logger.info(
+                    f"🎵 Generating music with Lyria (attempt {attempt + 1}/{max_retries})"
+                )
+                logger.info(f"   Prompt: {prompt[:100]}...")
 
-            # Build prompt parts
-            prompt_parts = [prompt]
+                # Build generation config
+                config = types.GenerateContentConfig(
+                    temperature=1.0,  # Default for music generation
+                    top_p=0.95,
+                    top_k=40,
+                    max_output_tokens=1024,
+                )
 
-            if negative_prompt:
-                prompt_parts.append(f"\nNegative prompt: {negative_prompt}")
-                logger.info(f"   Negative prompt: {negative_prompt}")
+                # Build prompt parts
+                prompt_parts = [prompt]
 
-            if seed is not None:
-                logger.info(f"   Seed: {seed}")
-                # Note: Lyria may not support seed via genai SDK
-                # Will use temperature=0 for more deterministic output
-                config.temperature = 0.0
+                if negative_prompt:
+                    prompt_parts.append(f"\nNegative prompt: {negative_prompt}")
+                    logger.info(f"   Negative prompt: {negative_prompt}")
 
-            logger.info(f"   🔄 Calling Vertex AI Lyria API...")
+                if seed is not None:
+                    logger.info(f"   Seed: {seed}")
+                    # Note: Lyria may not support seed via genai SDK
+                    # Will use temperature=0 for more deterministic output
+                    config.temperature = 0.0
 
-            # Generate music using Vertex AI SDK
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents="\n".join(prompt_parts),
-                config=config,
-            )
+                logger.info(f"   🔄 Calling Vertex AI Lyria API...")
 
-            # Extract audio data
-            # Lyria returns audio in response parts
-            audio_bytes = None
+                # Generate music using Vertex AI SDK
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents="\n".join(prompt_parts),
+                    config=config,
+                )
 
-            if hasattr(response, "parts"):
-                for part in response.parts:
-                    if hasattr(part, "inline_data"):
-                        # Audio data is in inline_data
-                        audio_bytes = part.inline_data.data
-                        break
-                    elif hasattr(part, "data"):
-                        audio_bytes = part.data
-                        break
+                # Extract audio data
+                # Lyria returns audio in response parts
+                audio_bytes = None
 
-            if not audio_bytes:
-                # Fallback: Check if response has audio attribute
-                if hasattr(response, "audio"):
-                    audio_bytes = response.audio
-                elif hasattr(response, "text"):
-                    # May be base64 encoded
-                    audio_bytes = base64.b64decode(response.text)
-                else:
-                    raise ValueError(
-                        f"No audio data in response. Response type: {type(response)}"
+                if hasattr(response, "parts"):
+                    for part in response.parts:
+                        if hasattr(part, "inline_data"):
+                            # Audio data is in inline_data
+                            audio_bytes = part.inline_data.data
+                            break
+                        elif hasattr(part, "data"):
+                            audio_bytes = part.data
+                            break
+
+                if not audio_bytes:
+                    # Fallback: Check if response has audio attribute
+                    if hasattr(response, "audio"):
+                        audio_bytes = response.audio
+                    elif hasattr(response, "text"):
+                        # May be base64 encoded
+                        audio_bytes = base64.b64decode(response.text)
+                    else:
+                        raise ValueError(
+                            f"No audio data in response. Response type: {type(response)}"
+                        )
+
+                # Ensure audio_bytes is bytes
+                if isinstance(audio_bytes, str):
+                    audio_bytes = base64.b64decode(audio_bytes)
+
+                # Extract metadata
+                metadata = {
+                    "model": self.model,
+                    "format": "mp3",  # Lyria outputs MP3
+                    "duration_seconds": 30,  # Lyria generates ~30s music
+                    "prompt": prompt,
+                    "negative_prompt": negative_prompt,
+                    "seed": seed,
+                }
+
+                logger.info(f"✅ Music generated successfully")
+                logger.info(f"   Size: {len(audio_bytes)} bytes")
+                logger.info(f"   Duration: ~{metadata['duration_seconds']}s")
+
+                return audio_bytes, metadata
+
+            except Exception as e:
+                error_msg = str(e)
+
+                # Check if quota/rate limit error
+                is_quota_error = (
+                    "429" in error_msg
+                    or "RESOURCE_EXHAUSTED" in error_msg
+                    or "quota" in error_msg.lower()
+                    or "rate limit" in error_msg.lower()
+                )
+
+                if is_quota_error and attempt < max_retries - 1:
+                    # Exponential backoff: 5s, 15s, 45s
+                    wait_time = 5 * (3**attempt)
+                    logger.warning(
+                        f"⚠️ Quota/rate limit exceeded (attempt {attempt + 1}/{max_retries}). "
+                        f"Retrying in {wait_time}s..."
                     )
+                    logger.warning(f"   Error: {error_msg}")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    # Not quota error or final attempt - raise
+                    logger.error(f"❌ Lyria generation failed: {e}", exc_info=True)
 
-            # Ensure audio_bytes is bytes
-            if isinstance(audio_bytes, str):
-                audio_bytes = base64.b64decode(audio_bytes)
-
-            # Extract metadata
-            metadata = {
-                "model": self.model,
-                "format": "mp3",  # Lyria outputs MP3
-                "duration_seconds": 30,  # Lyria generates ~30s music
-                "prompt": prompt,
-                "negative_prompt": negative_prompt,
-                "seed": seed,
-            }
-
-            logger.info(f"✅ Music generated successfully")
-            logger.info(f"   Size: {len(audio_bytes)} bytes")
-            logger.info(f"   Duration: ~{metadata['duration_seconds']}s")
-
-            return audio_bytes, metadata
-
-        except Exception as e:
-            logger.error(f"❌ Lyria generation failed: {e}", exc_info=True)
-            raise
+                    if is_quota_error:
+                        raise Exception(
+                            f"Lyria quota exceeded. Google Cloud has very low default quota "
+                            f"for Lyria (1-2 requests/min). Please request quota increase at: "
+                            f"https://console.cloud.google.com/iam-admin/quotas?project=wordai-6779e"
+                        )
+                    raise
 
 
 # Singleton instance
