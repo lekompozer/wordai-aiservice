@@ -254,6 +254,9 @@ from src.api.slide_narration_routes import router as slide_narration_router
 # ✅ ADDED: Lyria Music Generation API - AI-powered music from text prompts
 from src.api.lyria_routes import router as lyria_router
 
+# ✅ ADDED: Feedback & Review API - User reviews with social sharing rewards
+from src.api.feedback_routes import router as feedback_router
+
 # ✅ ADDED: Slide AI Generation API - AI-powered slide creation from scratch
 from src.api.slide_ai_generation_routes import router as slide_ai_generation_router
 
@@ -1185,6 +1188,12 @@ def create_app() -> FastAPI:
     app.include_router(
         lyria_router,
         tags=["Lyria Music", "AI Tools", "Music Generation"],
+    )
+
+    # ✅ NEW: Feedback & Review API - User reviews with social sharing rewards
+    app.include_router(
+        feedback_router,
+        tags=["Feedback", "Reviews", "Points Rewards"],
     )
 
     # ✅ NEW: Slide AI Generation API - AI-powered slide creation from scratch
