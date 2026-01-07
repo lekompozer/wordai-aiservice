@@ -241,53 +241,56 @@ class LyriaMusicWorker:
 
         while self.running:
             try:
-                # Dequeue tasks (batch_size at a time)
-                tasks = await self.queue_manager.dequeue_batch(self.batch_size)
+                # Dequeue single task
+                task_data = await self.queue_manager.dequeue_generic_task(
+                    timeout=5  # 5 second timeout for blocking pop
+                )
 
-                if not tasks:
+                if not task_data:
                     # No tasks, wait before polling again
                     await asyncio.sleep(2)
                     continue
 
-                # Process tasks concurrently with timeout protection
-                async def run_with_timeout():
-                    """Wrapper to run task with timeout"""
-                    task = LyriaMusicTask(**tasks[0])  # Process one at a time
+                # Parse task
+                task = LyriaMusicTask(**task_data)
 
+                # Process task with timeout protection
+                try:
+                    await asyncio.wait_for(
+                        self.process_task(task), timeout=self.JOB_TIMEOUT_SECONDS
+                    )
+                    logger.info(
+                        f"✅ Worker {self.worker_id}: Completed task {task.job_id} within {self.JOB_TIMEOUT_SECONDS}s timeout"
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(
+                        f"⏱️ Worker {self.worker_id}: Task {task.job_id} exceeded {self.JOB_TIMEOUT_SECONDS}s timeout - marking as failed"
+                    )
+                    # Mark job as failed due to timeout
+                    await set_job_status(
+                        redis_client=self.queue_manager.redis_client,
+                        job_id=task.job_id,
+                        status="failed",
+                        error=f"Job exceeded {self.JOB_TIMEOUT_SECONDS}s timeout",
+                        updated_at=datetime.utcnow().isoformat(),
+                    )
+
+                    # Refund points on timeout
                     try:
-                        await asyncio.wait_for(
-                            self.process_task(task), timeout=self.JOB_TIMEOUT_SECONDS
-                        )
-                    except asyncio.TimeoutError:
-                        logger.error(
-                            f"⏱️ Job {task.job_id} TIMEOUT after {self.JOB_TIMEOUT_SECONDS}s"
-                        )
-
-                        # Mark as failed in Redis
-                        await set_job_status(
-                            redis_client=self.queue_manager.redis_client,
-                            job_id=task.job_id,
-                            status="failed",
+                        points_service = get_points_service()
+                        await points_service.refund_points(
                             user_id=task.user_id,
-                            error=f"Timeout after {self.JOB_TIMEOUT_SECONDS}s",
+                            service="lyria_music",
+                            resource_id=task.job_id,
                         )
-
-                        # Refund points
-                        try:
-                            await self.points_service.refund_points(
-                                user_id=task.user_id,
-                                amount=3,
-                                service="lyria_music",
-                                resource_id=task.job_id,
-                                description="Refund for timeout",
-                            )
-                            logger.info(f"✅ Refunded 3 points (timeout)")
-                        except Exception as refund_error:
-                            logger.error(f"❌ Refund failed: {refund_error}")
-
-                # Create task and await
-                task_future = asyncio.create_task(run_with_timeout())
-                await task_future
+                        logger.info(
+                            f"💰 Refunded points for user {task.user_id} due to timeout"
+                        )
+                    except Exception as refund_err:
+                        logger.error(
+                            f"❌ Failed to refund points: {refund_err}",
+                            exc_info=True,
+                        )
 
             except Exception as e:
                 logger.error(f"❌ Worker loop error: {e}", exc_info=True)
