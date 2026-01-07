@@ -45,14 +45,14 @@ class RateLimiter:
 
         try:
             # Remove old entries outside time window
-            self.redis.zremrangebyscore(key, 0, window_start)
+            await self.redis.zremrangebyscore(key, 0, window_start)
 
             # Count requests in current window
-            request_count = self.redis.zcard(key)
+            request_count = await self.redis.zcard(key)
 
             if request_count >= max_requests:
                 # Get oldest request time to calculate wait time
-                oldest = self.redis.zrange(key, 0, 0, withscores=True)
+                oldest = await self.redis.zrange(key, 0, 0, withscores=True)
                 if oldest:
                     oldest_timestamp = oldest[0][1]
                     wait_seconds = int(oldest_timestamp + window_seconds - current_time)
@@ -75,10 +75,10 @@ class RateLimiter:
                     )
 
             # Add current request
-            self.redis.zadd(key, {str(current_time): current_time})
+            await self.redis.zadd(key, {str(current_time): current_time})
 
             # Set expiry on the key
-            self.redis.expire(key, window_seconds)
+            await self.redis.expire(key, window_seconds)
 
             logger.info(
                 f"✅ Rate limit OK for {user_id} on {action}: "
