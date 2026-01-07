@@ -211,9 +211,7 @@ class LyriaMusicWorker:
                 await self.points_service.refund_points(
                     user_id=task.user_id,
                     amount=3,  # POINTS_COST_MUSIC
-                    service="lyria_music",
-                    resource_id=job_id,
-                    description=f"Refund for failed music generation: {str(e)[:100]}",
+                    reason=f"Lyria music generation failed: {str(e)[:100]}",
                 )
                 logger.info(f"✅ Refunded 3 points to user {task.user_id}")
             except Exception as refund_error:
@@ -281,8 +279,8 @@ class LyriaMusicWorker:
                         points_service = get_points_service()
                         await points_service.refund_points(
                             user_id=task.user_id,
-                            service="lyria_music",
-                            resource_id=task.job_id,
+                            amount=3,  # POINTS_COST_MUSIC
+                            reason=f"Lyria music generation timeout after {self.JOB_TIMEOUT_SECONDS}s",
                         )
                         logger.info(
                             f"💰 Refunded points for user {task.user_id} due to timeout"

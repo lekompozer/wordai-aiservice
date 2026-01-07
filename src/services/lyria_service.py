@@ -158,11 +158,12 @@ class LyriaService:
                 )
 
                 if is_quota_error and attempt < max_retries - 1:
-                    # Exponential backoff: 5s, 15s, 45s
-                    wait_time = 5 * (3**attempt)
+                    # Exponential backoff: 10s, 30s, 60s
+                    # Longer wait because quota is per minute
+                    wait_time = 10 * (3**attempt)
                     logger.warning(
                         f"⚠️ Quota/rate limit exceeded (attempt {attempt + 1}/{max_retries}). "
-                        f"Retrying in {wait_time}s..."
+                        f"Retrying in {wait_time}s... (Quota resets every minute)"
                     )
                     logger.warning(f"   Error: {error_msg}")
                     await asyncio.sleep(wait_time)
