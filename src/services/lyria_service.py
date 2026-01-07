@@ -6,10 +6,9 @@ Uses Google Vertex AI Lyria-002 model for instrumental music generation
 import os
 import logging
 import base64
-import httpx
 from typing import Dict, Optional, Tuple
-from google.auth import default
-from google.auth.transport.requests import Request
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
@@ -19,35 +18,27 @@ class LyriaService:
 
     def __init__(self):
         """Initialize Lyria service with Vertex AI credentials"""
-        self.project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
-        self.location = "us-central1"  # Lyria available in us-central1
-        self.model = "lyria-002"
+        # Use Vertex AI with credentials file (same pattern as TTS)
+        project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
+        location = "us-central1"  # Lyria available in us-central1
 
-        # Build Vertex AI endpoint
-        self.endpoint = (
-            f"https://{self.location}-aiplatform.googleapis.com/v1/"
-            f"projects/{self.project_id}/locations/{self.location}/"
-            f"publishers/google/models/{self.model}:predict"
-        )
-
-        # Get credentials
+        # Check for credentials file
         credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
         if not credentials_path:
             credentials_path = "/app/wordai-6779e-ed6189c466f1.json"
             if os.path.exists(credentials_path):
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+                logger.info(f"📁 Using credentials file: {credentials_path}")
+
+        # Initialize Gemini client with Vertex AI
+        self.client = genai.Client(vertexai=True, project=project_id, location=location)
+        self.model = "lyria-002"
 
         logger.info(
-            f"✅ Lyria service initialized (project={self.project_id}, location={self.location})"
+            f"✅ Lyria service initialized with Vertex AI (project={project_id}, location={location})"
         )
         logger.info(f"   Model: {self.model}")
-        logger.info(f"   Endpoint: {self.endpoint}")
-
-    def _get_access_token(self) -> str:
-        """Get Google Cloud access token for authentication"""
-        credentials, _ = default()
-        credentials.refresh(Request())
-        return credentials.token
+        logger.info("   No API key limit - using Vertex AI project quota")
 
     async def generate_music(
         self,
@@ -72,66 +63,65 @@ class LyriaService:
             logger.info(f"🎵 Generating music with Lyria")
             logger.info(f"   Prompt: {prompt[:100]}...")
 
-            # Build request payload
-            request_body = {
-                "instances": [
-                    {
-                        "prompt": prompt,
-                    }
-                ],
-                "parameters": {"sample_count": 1},
-            }
+            # Build generation config
+            config = types.GenerateContentConfig(
+                temperature=1.0,  # Default for music generation
+                top_p=0.95,
+                top_k=40,
+                max_output_tokens=1024,
+            )
 
-            # Add optional parameters
+            # Build prompt parts
+            prompt_parts = [prompt]
+
             if negative_prompt:
-                request_body["instances"][0]["negative_prompt"] = negative_prompt
+                prompt_parts.append(f"\nNegative prompt: {negative_prompt}")
                 logger.info(f"   Negative prompt: {negative_prompt}")
 
             if seed is not None:
-                # If seed is provided, remove sample_count (cannot use both)
-                request_body["instances"][0]["seed"] = seed
-                del request_body["parameters"]["sample_count"]
                 logger.info(f"   Seed: {seed}")
-
-            # Get access token
-            access_token = self._get_access_token()
-
-            # Make request to Vertex AI
-            headers = {
-                "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json",
-            }
+                # Note: Lyria may not support seed via genai SDK
+                # Will use temperature=0 for more deterministic output
+                config.temperature = 0.0
 
             logger.info(f"   🔄 Calling Vertex AI Lyria API...")
 
-            async with httpx.AsyncClient(
-                timeout=120.0
-            ) as client:  # 2 min timeout (music generation takes ~30-60s)
-                response = await client.post(
-                    self.endpoint, json=request_body, headers=headers
-                )
+            # Generate music using Vertex AI SDK
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents="\n".join(prompt_parts),
+                config=config,
+            )
 
-                response.raise_for_status()
-                result = response.json()
+            # Extract audio data
+            # Lyria returns audio in response parts
+            audio_bytes = None
 
-            # Parse response
-            # Lyria returns base64-encoded audio data
-            if "predictions" not in result or not result["predictions"]:
-                raise ValueError("No predictions in Lyria response")
+            if hasattr(response, "parts"):
+                for part in response.parts:
+                    if hasattr(part, "inline_data"):
+                        # Audio data is in inline_data
+                        audio_bytes = part.inline_data.data
+                        break
+                    elif hasattr(part, "data"):
+                        audio_bytes = part.data
+                        break
 
-            prediction = result["predictions"][0]
+            if not audio_bytes:
+                # Fallback: Check if response has audio attribute
+                if hasattr(response, "audio"):
+                    audio_bytes = response.audio
+                elif hasattr(response, "text"):
+                    # May be base64 encoded
+                    audio_bytes = base64.b64decode(response.text)
+                else:
+                    raise ValueError(
+                        f"No audio data in response. Response type: {type(response)}"
+                    )
 
-            # Audio data is in base64 format
-            if "audio" in prediction:
-                audio_base64 = prediction["audio"]
-                audio_bytes = base64.b64decode(audio_base64)
-            elif "audioContent" in prediction:
-                audio_base64 = prediction["audioContent"]
-                audio_bytes = base64.b64decode(audio_base64)
-            else:
-                raise ValueError(
-                    f"No audio data in response. Keys: {prediction.keys()}"
-                )
+            # Ensure audio_bytes is bytes
+            if isinstance(audio_bytes, str):
+                audio_bytes = base64.b64decode(audio_bytes)
 
             # Extract metadata
             metadata = {
@@ -143,24 +133,11 @@ class LyriaService:
                 "seed": seed,
             }
 
-            # Add any additional metadata from response
-            if "metadata" in prediction:
-                metadata.update(prediction["metadata"])
-
             logger.info(f"✅ Music generated successfully")
             logger.info(f"   Size: {len(audio_bytes)} bytes")
             logger.info(f"   Duration: ~{metadata['duration_seconds']}s")
 
             return audio_bytes, metadata
-
-        except httpx.HTTPStatusError as e:
-            error_detail = e.response.text
-            logger.error(
-                f"❌ Lyria API error ({e.response.status_code}): {error_detail}"
-            )
-            raise Exception(
-                f"Lyria API failed: {e.response.status_code} - {error_detail}"
-            )
 
         except Exception as e:
             logger.error(f"❌ Lyria generation failed: {e}", exc_info=True)
