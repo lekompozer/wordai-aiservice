@@ -243,7 +243,8 @@ class LyriaMusicWorker:
             try:
                 # Dequeue single task
                 task_data = await self.queue_manager.dequeue_generic_task(
-                    timeout=5  # 5 second timeout for blocking pop
+                    worker_id=self.worker_id,
+                    timeout=5,  # 5 second timeout for blocking pop
                 )
 
                 if not task_data:
