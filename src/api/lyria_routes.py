@@ -19,7 +19,7 @@ from src.models.lyria_models import (
 from src.services.points_service import get_points_service
 from src.middleware.rate_limiter import check_ai_rate_limit
 from src.queue.queue_dependencies import get_lyria_music_queue
-from src.queue.queue_manager import get_job_status
+from src.queue.queue_manager import get_job_status, set_job_status
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +129,20 @@ async def generate_music(
         # Generate job ID
         job_id = str(uuid.uuid4())
 
+        # Get queue
+        queue = await get_lyria_music_queue()
+
+        # ✅ CRITICAL: Create job status in Redis BEFORE enqueuing
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=job_id,
+            status="pending",
+            user_id=user_id,
+            prompt=request.prompt,
+            created_at=datetime.utcnow().isoformat(),
+            updated_at=datetime.utcnow().isoformat(),
+        )
+
         # Create task for queue
         task = LyriaMusicTask(
             task_id=job_id,
@@ -139,8 +153,7 @@ async def generate_music(
             seed=request.seed,
         )
 
-        # Get queue and enqueue
-        queue = await get_lyria_music_queue()
+        # Enqueue task
         await queue.enqueue_generic_task(task)
 
         logger.info(f"✅ Music generation job {job_id} enqueued")
