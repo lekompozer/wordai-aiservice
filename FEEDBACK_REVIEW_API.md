@@ -138,7 +138,7 @@ async function handleShare(platform: 'facebook' | 'twitter' | 'linkedin' | 'copy
   }
 
   setIsSubmitting(true);
-  
+
   const response = await fetch('/api/v1/feedback/review', {
     method: 'POST',
     headers: {
@@ -153,18 +153,18 @@ async function handleShare(platform: 'facebook' | 'twitter' | 'linkedin' | 'copy
   });
 
   const result = await response.json();
-  
+
   if (result.success) {
     if (result.points_awarded > 0) {
       toast.success(`🎁 Bạn đã nhận ${result.points_awarded} điểm!`);
     } else {
       toast.info(result.message);
     }
-    
+
     // Open share window based on platform
     openShareWindow(platform, result.review_id);
   }
-  
+
   setIsSubmitting(false);
 }
 
@@ -192,7 +192,7 @@ function openShareWindow(platform: string, reviewId: string) {
 ```tsx
 <div className="rating-stars">
   <span className="reward-banner">🎁 Nhận 5 điểm khi chia sẻ!</span>
-  
+
   <div className="stars">
     {[1, 2, 3, 4, 5].map((star) => (
       <Star
@@ -220,7 +220,7 @@ function openShareWindow(platform: string, reviewId: string) {
 #### Share Buttons
 ```tsx
 <div className="share-buttons">
-  <button 
+  <button
     onClick={() => handleShare('facebook')}
     disabled={rating === 0 || isSubmitting}
     className="share-btn facebook"
@@ -229,7 +229,7 @@ function openShareWindow(platform: string, reviewId: string) {
     {shareStatus?.can_share_today && <span className="new-badge">+5 điểm</span>}
   </button>
 
-  <button 
+  <button
     onClick={() => handleShare('twitter')}
     disabled={rating === 0 || isSubmitting}
     className="share-btn twitter"
@@ -238,7 +238,7 @@ function openShareWindow(platform: string, reviewId: string) {
     {shareStatus?.can_share_today && <span className="new-badge">+5 điểm</span>}
   </button>
 
-  <button 
+  <button
     onClick={() => handleShare('linkedin')}
     disabled={rating === 0 || isSubmitting}
     className="share-btn linkedin"
@@ -247,7 +247,7 @@ function openShareWindow(platform: string, reviewId: string) {
     {shareStatus?.can_share_today && <span className="new-badge">+5 điểm</span>}
   </button>
 
-  <button 
+  <button
     onClick={() => handleShare('copy')}
     disabled={rating === 0 || isSubmitting}
     className="share-btn copy"

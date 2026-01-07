@@ -44,11 +44,9 @@ def _check_can_share_today(user_id: str, db_manager: DBManager) -> Dict[str, Any
     today = _get_today_date_string()
 
     # Find user's last share
-    last_share = (
-        db_manager.db.user_feedback.find_one(
-            {"user_id": user_id, "shared_platform": {"$ne": None}},
-            sort=[("shared_at", -1)],
-        )
+    last_share = db_manager.db.user_feedback.find_one(
+        {"user_id": user_id, "shared_platform": {"$ne": None}},
+        sort=[("shared_at", -1)],
     )
 
     if not last_share:
@@ -62,9 +60,9 @@ def _check_can_share_today(user_id: str, db_manager: DBManager) -> Dict[str, Any
 
     if last_share_date == today:
         # Already shared today
-        tomorrow = (
-            datetime.strptime(today, "%Y-%m-%d") + timedelta(days=1)
-        ).strftime("%Y-%m-%d")
+        tomorrow = (datetime.strptime(today, "%Y-%m-%d") + timedelta(days=1)).strftime(
+            "%Y-%m-%d"
+        )
         return {
             "can_share": False,
             "last_share_date": last_share_date,
@@ -85,13 +83,13 @@ def _check_can_share_today(user_id: str, db_manager: DBManager) -> Dict[str, Any
     summary="Submit Review & Share for Reward",
     description="""
     Submit a review/rating and optionally share on social media.
-    
+
     **Reward System:**
     - Share on social media → Get 5 points
     - Limit: 1 share per day
     - Rating is required (1-5 stars)
     - Feedback text is optional (max 500 chars)
-    
+
     **Share Platforms:**
     - facebook: Share on Facebook
     - twitter: Tweet on X/Twitter
@@ -190,7 +188,7 @@ async def submit_review(
     summary="Check Share Status",
     description="""
     Check if user can share today for points reward.
-    
+
     Returns information about:
     - Whether user can share today
     - Last share date
