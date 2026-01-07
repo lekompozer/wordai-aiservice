@@ -4,10 +4,11 @@ Protects expensive API calls (Claude, Gemini, AI Image generation)
 """
 
 import time
-from typing import Optional
+from typing import Optional, Union
 from datetime import datetime, timedelta
 from fastapi import HTTPException
 from redis import Redis
+import redis.asyncio as aioredis
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class RateLimiter:
     """Redis-based rate limiter for API endpoints"""
 
-    def __init__(self, redis_client: Redis):
+    def __init__(self, redis_client: Union[Redis, aioredis.Redis]):
         self.redis = redis_client
 
     async def check_rate_limit(
@@ -122,7 +123,6 @@ RATE_LIMITS = {
 async def check_ai_rate_limit(
     user_id: str,
     action: str,
-    redis_client: Optional[Redis] = None,
 ) -> None:
     """
     Helper function to check rate limit for AI actions
@@ -130,7 +130,6 @@ async def check_ai_rate_limit(
     Args:
         user_id: User ID
         action: Action key from RATE_LIMITS
-        redis_client: Redis client (if None, will get from queue manager)
     """
     if action not in RATE_LIMITS:
         logger.warning(f"⚠️ Unknown rate limit action: {action}")
@@ -138,16 +137,19 @@ async def check_ai_rate_limit(
 
     config = RATE_LIMITS[action]
 
-    if not redis_client:
-        # Get Redis from queue manager
-        from src.queue.queue_manager import get_redis_client
+    # Create standalone Redis connection
+    from config.config import REDIS_URL
 
-        redis_client = get_redis_client()
+    redis_client = await aioredis.from_url(REDIS_URL, decode_responses=True)
 
-    limiter = RateLimiter(redis_client)
-    await limiter.check_rate_limit(
-        user_id=user_id,
-        action=action,
-        max_requests=config["max_requests"],
-        window_seconds=config["window_seconds"],
-    )
+    try:
+        limiter = RateLimiter(redis_client)
+        await limiter.check_rate_limit(
+            user_id=user_id,
+            action=action,
+            max_requests=config["max_requests"],
+            window_seconds=config["window_seconds"],
+        )
+    finally:
+        # Close connection
+        await redis_client.close()
