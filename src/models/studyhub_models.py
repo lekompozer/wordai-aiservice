@@ -425,6 +425,343 @@ class RecentActivityResponse(BaseModel):
     total: int
 
 
+# ==================== ENROLLMENT & PROGRESS MODELS ====================
+
+
+class EnrollRequest(BaseModel):
+    """Enroll in subject"""
+
+    pass  # No body needed, subject_id from path
+
+
+class EnrollmentResponse(BaseModel):
+    """Enrollment response"""
+
+    id: str = Field(..., alias="_id")
+    user_id: str
+    subject_id: str
+    subject_title: str
+    status: EnrollmentStatus
+    enrolled_at: datetime
+    last_accessed_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    progress_percentage: float = 0.0
+
+    class Config:
+        use_enum_values = True
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class MyEnrollmentsResponse(BaseModel):
+    """User's enrollments"""
+
+    enrollments: List[EnrollmentResponse]
+    total: int
+
+
+class ProgressDetailItem(BaseModel):
+    """Progress item for module/content"""
+
+    id: str
+    title: str
+    type: str  # "module" or "content"
+    status: LearningStatus
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        use_enum_values = True
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class SubjectProgressResponse(BaseModel):
+    """Subject learning progress"""
+
+    subject_id: str
+    subject_title: str
+    enrollment_status: EnrollmentStatus
+    overall_progress: float  # 0.0 to 1.0
+    total_modules: int
+    completed_modules: int
+    total_contents: int
+    completed_contents: int
+    last_position: Optional[Dict[str, str]] = None  # {module_id, content_id}
+    modules_progress: List[ProgressDetailItem]
+    enrolled_at: datetime
+    last_accessed_at: Optional[datetime] = None
+
+    class Config:
+        use_enum_values = True
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class MarkCompleteRequest(BaseModel):
+    """Mark content/module as complete"""
+
+    subject_id: str
+    module_id: Optional[str] = None
+    content_id: Optional[str] = None
+
+
+class SavePositionRequest(BaseModel):
+    """Save learning position"""
+
+    subject_id: str
+    module_id: str
+    content_id: str
+
+
+class SubjectLearnerItem(BaseModel):
+    """Learner info for subject owner"""
+
+    user_id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    enrolled_at: datetime
+    last_accessed_at: Optional[datetime] = None
+    progress_percentage: float
+    status: EnrollmentStatus
+
+    class Config:
+        use_enum_values = True
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class SubjectLearnersResponse(BaseModel):
+    """Subject learners list (owner only)"""
+
+    learners: List[SubjectLearnerItem]
+    total: int
+    subject_id: str
+
+
+# ==================== MARKETPLACE MODELS ====================
+
+
+class OwnerInfo(BaseModel):
+    """Subject owner/creator info"""
+
+    user_id: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class SubjectStats(BaseModel):
+    """Subject statistics for marketplace"""
+
+    total_modules: int = 0
+    total_learners: int = 0
+    total_views: int = 0
+    average_rating: float = 0.0
+    completion_rate: float = 0.0
+
+
+class MarketplaceSubjectItem(BaseModel):
+    """Marketplace subject item"""
+
+    id: str
+    title: str
+    description: Optional[str]
+    cover_image_url: Optional[str]
+    owner: OwnerInfo
+    category: Optional[str]
+    tags: List[str] = Field(default_factory=list)
+    level: Optional[str]  # beginner/intermediate/advanced
+    stats: SubjectStats
+    last_updated_at: datetime
+    created_at: datetime
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class MarketplaceSubjectsResponse(BaseModel):
+    """Marketplace subjects list response"""
+
+    subjects: List[MarketplaceSubjectItem]
+    total: int
+    skip: int
+    limit: int
+
+
+class SubjectPreview(BaseModel):
+    """Subject preview for creator profile"""
+
+    id: str
+    title: str
+    cover_image_url: Optional[str]
+    stats: SubjectStats
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class CreatorStats(BaseModel):
+    """Creator statistics"""
+
+    total_subjects: int = 0
+    total_students: int = 0
+    total_reads: int = 0
+    average_rating: float = 0.0
+    total_reviews: int = 0
+
+
+class FeaturedCreatorItem(BaseModel):
+    """Featured creator item"""
+
+    user_id: str
+    display_name: Optional[str]
+    avatar_url: Optional[str]
+    bio: Optional[str]
+    stats: CreatorStats
+    top_subject: Optional[SubjectPreview]
+    reason: str  # most_reads/best_reviews/top_subject
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class FeaturedCreatorsResponse(BaseModel):
+    """Featured creators response"""
+
+    featured_creators: List[FeaturedCreatorItem]
+
+
+class FeaturedSubjectItem(BaseModel):
+    """Featured subject of the week"""
+
+    id: str
+    title: str
+    cover_image_url: Optional[str]
+    owner: OwnerInfo
+    stats: SubjectStats
+    reason: str  # most_viewed_week/most_enrolled_week
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class FeaturedSubjectsResponse(BaseModel):
+    """Featured subjects response"""
+
+    featured_subjects: List[FeaturedSubjectItem]
+
+
+class TrendingSubjectItem(BaseModel):
+    """Trending subject today"""
+
+    id: str
+    title: str
+    cover_image_url: Optional[str]
+    owner: OwnerInfo
+    stats: SubjectStats
+    views_today: int
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class TrendingSubjectsResponse(BaseModel):
+    """Trending subjects response"""
+
+    trending_subjects: List[TrendingSubjectItem]
+
+
+class PopularTagItem(BaseModel):
+    """Popular tag item"""
+
+    tag: str
+    count: int
+
+
+class PopularTagsResponse(BaseModel):
+    """Popular tags response"""
+
+    popular_tags: List[PopularTagItem]
+
+
+class CategoryItem(BaseModel):
+    """Category item"""
+
+    name: str
+    count: int
+    icon: Optional[str]
+    description: Optional[str]
+
+
+class CategoriesResponse(BaseModel):
+    """Categories response"""
+
+    categories: List[CategoryItem]
+
+
+class ModulePreview(BaseModel):
+    """Module preview for marketplace"""
+
+    id: str
+    title: str
+    description: Optional[str]
+    order_index: int
+    content_count: int
+    is_preview: bool = False
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class SubjectPricing(BaseModel):
+    """Subject pricing info"""
+
+    is_free: bool = True
+    price: float = 0.0
+
+
+class SubjectPublicViewResponse(BaseModel):
+    """Public subject view for marketplace"""
+
+    id: str
+    title: str
+    description: Optional[str]
+    cover_image_url: Optional[str]
+    owner: OwnerInfo
+    category: Optional[str]
+    tags: List[str] = Field(default_factory=list)
+    level: Optional[str]
+    modules: List[ModulePreview]
+    stats: SubjectStats
+    pricing: SubjectPricing
+    created_at: datetime
+    last_updated_at: datetime
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class RelatedSubjectsResponse(BaseModel):
+    """Related subjects response"""
+
+    related_subjects: List[MarketplaceSubjectItem]
+
+
+class CreatorProfileResponse(BaseModel):
+    """Creator profile response"""
+
+    user_id: str
+    display_name: Optional[str]
+    avatar_url: Optional[str]
+    bio: Optional[str]
+    website: Optional[str]
+    social_links: Optional[Dict[str, str]]
+    stats: CreatorStats
+    featured_subjects: List[SubjectPreview]
+    joined_at: Optional[datetime]
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
 # ==================== DISCOVERY MODELS ====================
 
 

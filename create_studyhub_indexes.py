@@ -55,6 +55,48 @@ def create_studyhub_indexes():
     subjects.create_index("metadata.tags")
     print("✅ Created index: metadata.tags")
 
+    # ===== MARKETPLACE INDEXES (M1.4) =====
+    
+    # Compound index for marketplace subjects
+    subjects.create_index([("is_public_marketplace", 1), ("status", 1), ("last_updated_at", -1)])
+    print("✅ Created compound index: is_public_marketplace + status + last_updated_at")
+
+    # Index for marketplace views
+    subjects.create_index([("is_public_marketplace", 1), ("total_views", -1)])
+    print("✅ Created compound index: is_public_marketplace + total_views")
+
+    # Index for marketplace ratings
+    subjects.create_index([("is_public_marketplace", 1), ("metadata.avg_rating", -1)])
+    print("✅ Created compound index: is_public_marketplace + avg_rating")
+
+    # Index for category filtering
+    subjects.create_index([("category", 1), ("is_public_marketplace", 1)])
+    print("✅ Created compound index: category + is_public_marketplace")
+
+    # Index for tags filtering
+    subjects.create_index([("tags", 1), ("is_public_marketplace", 1)])
+    print("✅ Created compound index: tags + is_public_marketplace")
+
+    # Index for trending today
+    subjects.create_index([("views_today", -1), ("is_public_marketplace", 1)])
+    print("✅ Created compound index: views_today + is_public_marketplace")
+
+    # Index for trending this week
+    subjects.create_index([("views_this_week", -1), ("is_public_marketplace", 1)])
+    print("✅ Created compound index: views_this_week + is_public_marketplace")
+
+    # Index for level filtering
+    subjects.create_index("level")
+    print("✅ Created index: level")
+
+    # Index for marketplace category
+    subjects.create_index("category")
+    print("✅ Created index: category")
+
+    # Index for marketplace tags array
+    subjects.create_index("tags")
+    print("✅ Created index: tags")
+
     # ==================== MODULES COLLECTION ====================
     print("\n📖 Creating indexes for studyhub_modules...")
 
@@ -208,7 +250,7 @@ def create_studyhub_indexes():
 
     print("\n✅ All StudyHub indexes created successfully!")
     print("\n📝 Summary:")
-    print("   - studyhub_subjects: 7 indexes")
+    print("   - studyhub_subjects: 17 indexes (7 core + 10 marketplace)")
     print("   - studyhub_modules: 2 indexes")
     print("   - studyhub_module_contents: 4 indexes")
     print("   - studyhub_enrollments: 5 indexes")
@@ -216,7 +258,7 @@ def create_studyhub_indexes():
     print("   - studyhub_subject_pricing: 3 indexes (Phase 2)")
     print("   - studyhub_subject_purchases: 6 indexes (Phase 2)")
     print("   - studyhub_revenue_records: 3 indexes (Phase 2)")
-    print("   Total: 35 indexes")
+    print("   Total: 45 indexes")
 
 
 if __name__ == "__main__":

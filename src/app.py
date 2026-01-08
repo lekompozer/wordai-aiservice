@@ -290,6 +290,12 @@ from src.api.studyhub_subject_routes import router as studyhub_subject_router
 # ✅ ADDED: StudyHub Module API - Module & Content management (Milestone 1.2)
 from src.api.studyhub_module_routes import router as studyhub_module_router
 
+# ✅ ADDED: StudyHub Enrollment API - Enrollment & Progress tracking (Milestone 1.3)
+from src.api.studyhub_enrollment_routes import router as studyhub_enrollment_router
+
+# ✅ ADDED: StudyHub Marketplace API - Public marketplace & discovery (Milestone 1.4)
+from src.api.studyhub_marketplace_routes import router as studyhub_marketplace_router
+
 # ✅ ADDED: Image Editing API - AI-powered image editing using Gemini 3 Pro Image
 from src.api.image_editing_routes import router as image_editing_router
 
@@ -1266,6 +1272,12 @@ def create_app() -> FastAPI:
 
     # ✅ NEW: StudyHub Module API - Module & Content management (Milestone 1.2)
     app.include_router(studyhub_module_router, tags=["StudyHub - Modules & Content"])
+
+    # ✅ NEW: StudyHub Enrollment API - Enrollment & Progress tracking (Milestone 1.3)
+    app.include_router(studyhub_enrollment_router, tags=["StudyHub - Enrollment & Progress"])
+
+    # ✅ NEW: StudyHub Marketplace API - Public marketplace & discovery (Milestone 1.4)
+    app.include_router(studyhub_marketplace_router, tags=["StudyHub - Marketplace"])
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
     app.include_router(
