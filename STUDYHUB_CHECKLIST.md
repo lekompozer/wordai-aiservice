@@ -29,23 +29,22 @@ This checklist tracks the implementation progress of all StudyHub APIs across al
 
 ---
 
-### Milestone 1.2: Module & Content Basic ⏳ PENDING
+### Milestone 1.2: Module & Content Basic ✅ COMPLETED
 
 | # | Endpoint | Method | Status | Notes |
 |---|----------|--------|--------|-------|
-| 9 | `/api/studyhub/subjects/{subject_id}/modules` | POST | ⏳ TODO | Create module |
-| 10 | `/api/studyhub/subjects/{subject_id}/modules` | GET | ⏳ TODO | Get modules list |
-| 11 | `/api/studyhub/modules/{module_id}` | PUT | ⏳ TODO | Update module |
-| 12 | `/api/studyhub/modules/{module_id}` | DELETE | ⏳ TODO | Delete module |
-| 13 | `/api/studyhub/modules/{module_id}/reorder` | POST | ⏳ TODO | Reorder module |
-| 14 | `/api/studyhub/modules/{module_id}/content` | POST | ⏳ TODO | Add content to module |
-| 15 | `/api/studyhub/modules/{module_id}/content` | GET | ⏳ TODO | Get module contents |
-| 16 | `/api/studyhub/modules/{module_id}/content/{content_id}` | DELETE | ⏳ TODO | Delete content |
+| 9 | `/api/studyhub/subjects/{subject_id}/modules` | POST | ✅ Done | Create module |
+| 10 | `/api/studyhub/subjects/{subject_id}/modules` | GET | ✅ Done | Get modules list |
+| 11 | `/api/studyhub/modules/{module_id}` | PUT | ✅ Done | Update module |
+| 12 | `/api/studyhub/modules/{module_id}` | DELETE | ✅ Done | Delete module |
+| 13 | `/api/studyhub/modules/{module_id}/reorder` | POST | ✅ Done | Reorder module |
+| 14 | `/api/studyhub/modules/{module_id}/content` | POST | ✅ Done | Add content to module |
+| 15 | `/api/studyhub/modules/{module_id}/content` | GET | ✅ Done | Get module contents |
+| 16 | `/api/studyhub/modules/{module_id}/content/{content_id}` | DELETE | ✅ Done | Delete content |
 
-**Status**: ⏳ 0/8 APIs implemented
-**Target Sprint**: Sprint 2
-
----
+**Status**: ✅ 8/8 APIs implemented
+**Deployed**: Pending production deployment
+**Documentation**: ✅ Complete
 
 ### Milestone 1.3: Enrollment & Progress ⏳ PENDING
 
@@ -231,20 +230,20 @@ This checklist tracks the implementation progress of all StudyHub APIs across al
 ### Overall Progress
 
 - **Phase 1 Total**: 30 APIs
-  - ✅ Completed: 8 APIs (26.7%)
-  - ⏳ Pending: 22 APIs (73.3%)
+  - ✅ Completed: 16 APIs (53.3%)
+  - ⏳ Pending: 14 APIs (46.7%)
 
 - **Phase 2 Total**: 28 APIs
   - ⏳ Pending: 28 APIs (100%)
 
 - **Grand Total**: 58 APIs
-  - ✅ Completed: 8 APIs (13.8%)
-  - ⏳ Pending: 50 APIs (86.2%)
+  - ✅ Completed: 16 APIs (27.6%)
+  - ⏳ Pending: 42 APIs (72.4%)
 
 ### Milestones Completion
 
 - ✅ M1.1: Subject Core (100%) - 8/8 APIs
-- ⏳ M1.2: Module & Content (0%) - 0/8 APIs
+- ✅ M1.2: Module & Content (100%) - 8/8 APIs
 - ⏳ M1.3: Enrollment & Progress (0%) - 0/10 APIs
 - ⏳ M1.4: Discovery (0%) - 0/4 APIs
 - ⏳ M2.1: Content Integration (0%) - 0/14 APIs
