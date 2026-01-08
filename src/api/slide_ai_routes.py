@@ -105,9 +105,10 @@ async def ai_format_slide(
 
         # ✅ SECURITY: Rate limiting for slide AI formatting
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_manager import get_redis_client
+        from src.queue.queue_dependencies import get_slide_format_queue
 
-        redis_client = get_redis_client()
+        queue = await get_slide_format_queue()
+        redis_client = queue.redis_client
 
         # Determine if batch or single for rate limit action
         is_batch_request = bool(request.slides_data)

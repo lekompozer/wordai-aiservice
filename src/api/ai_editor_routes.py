@@ -411,9 +411,10 @@ async def translate(
 
         # ✅ SECURITY: Rate limiting for AI translation
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_manager import get_redis_client
+        from src.queue.queue_dependencies import get_ai_editor_queue
 
-        redis_client = get_redis_client()
+        queue = await get_ai_editor_queue()
+        redis_client = queue.redis_client
         await check_ai_rate_limit(
             user_id=user_id,
             action="ai_edit",
@@ -546,9 +547,10 @@ async def format_document(
 
         # ✅ SECURITY: Rate limiting for AI formatting
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_manager import get_redis_client
+        from src.queue.queue_dependencies import get_ai_editor_queue
 
-        redis_client = get_redis_client()
+        queue = await get_ai_editor_queue()
+        redis_client = queue.redis_client
         await check_ai_rate_limit(
             user_id=user_id,
             action="ai_format",

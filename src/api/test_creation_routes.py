@@ -68,9 +68,10 @@ async def generate_test(
 
         # ✅ SECURITY: Rate limiting for test generation
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_manager import get_redis_client
+        from src.queue.queue_dependencies import get_extraction_queue
 
-        redis_client = get_redis_client()
+        queue = await get_extraction_queue()
+        redis_client = queue.redis_client
         await check_ai_rate_limit(
             user_id=user_id,
             action="test_generation",
@@ -670,9 +671,10 @@ async def generate_test_from_general_knowledge(
 
         # ✅ SECURITY: Rate limiting for test generation
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_manager import get_redis_client
+        from src.queue.queue_dependencies import get_extraction_queue
 
-        redis_client = get_redis_client()
+        queue = await get_extraction_queue()
+        redis_client = queue.redis_client
         await check_ai_rate_limit(
             user_id=user_id,
             action="test_generation",
