@@ -357,6 +357,47 @@ class SubjectLearnersResponse(BaseModel):
     subject_id: str
 
 
+# ==================== DASHBOARD & ACTIVITY MODELS ====================
+
+
+class DashboardStats(BaseModel):
+    """Dashboard statistics"""
+
+    total_enrollments: int
+    active_enrollments: int
+    completed_subjects: int
+    total_time_spent_hours: float
+    subjects_in_progress: int
+
+
+class DashboardOverviewResponse(BaseModel):
+    """Dashboard overview"""
+
+    stats: DashboardStats
+    recent_subjects: List[EnrollmentResponse]
+
+
+class ActivityItem(BaseModel):
+    """Activity item"""
+
+    activity_type: str  # "enrolled", "completed_module", "completed_subject"
+    subject_id: str
+    subject_title: str
+    module_id: Optional[str] = None
+    module_title: Optional[str] = None
+    timestamp: datetime
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
+class RecentActivityResponse(BaseModel):
+    """Recent activity feed"""
+
+    activities: List[ActivityItem]
+    total: int
+
+
 # ==================== MARKETPLACE MODELS ====================
 
 
