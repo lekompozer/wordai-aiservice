@@ -73,6 +73,39 @@ async def create_subject(
         )
 
 
+# ==================== SHORTCUT: Get My Subjects ====================
+@router.get("/my-subjects", response_model=SubjectListResponse)
+async def get_my_subjects(
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get current user's subjects (shortcut for /owner/{user_id})
+
+    Convenience endpoint that automatically uses current user's ID
+    Returns all subjects owned by authenticated user
+    """
+    try:
+        manager = StudyHubSubjectManager(db_manager.db, current_user["uid"])
+
+        result = await manager.get_owner_subjects(
+            owner_id=current_user["uid"],
+            is_owner=True,
+            page=page,
+            limit=limit,
+        )
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error getting my subjects: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get subjects: {str(e)}",
+        )
+
+
 # ==================== API 2: Get Subject Details ====================
 @router.get("/{subject_id}", response_model=SubjectResponse)
 async def get_subject(
