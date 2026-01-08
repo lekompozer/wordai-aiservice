@@ -135,14 +135,10 @@ async def generate_subtitles(
 
         # ✅ SECURITY: Rate limiting for subtitle generation
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_dependencies import get_slide_narration_subtitle_queue
 
-        queue = await get_slide_narration_subtitle_queue()
-        redis_client = queue.redis_client
         await check_ai_rate_limit(
             user_id=user_id,
             action="subtitle_generation",
-            redis_client=redis_client,
         )
 
         logger.info("=" * 80)
@@ -680,14 +676,10 @@ async def generate_audio(
 
         # ✅ SECURITY: Rate limiting for audio generation
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_dependencies import get_slide_narration_audio_queue
 
-        queue = await get_slide_narration_audio_queue()
-        redis_client = queue.redis_client
         await check_ai_rate_limit(
             user_id=user_id,
             action="audio_generation",
-            redis_client=redis_client,
         )
 
         logger.info(f"🔊 Audio generation request: {narration_id}")

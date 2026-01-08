@@ -104,14 +104,10 @@ async def start_translation_job(
 
         # ✅ SECURITY: Rate limiting for expensive translation operation
         from src.middleware.rate_limiter import check_ai_rate_limit
-        from src.queue.queue_dependencies import get_translation_queue
 
-        queue = await get_translation_queue()
-        redis_client = queue.redis_client
         await check_ai_rate_limit(
             user_id=user_id,
             action="chapter_translation",
-            redis_client=redis_client,
         )
 
         # Validate target language
