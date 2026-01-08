@@ -96,246 +96,20 @@ POINTS_COST_SUBTITLE = 2
 POINTS_COST_AUDIO = 3
 
 
-@router.post(
-    "/presentations/{presentation_id}/narration/generate-subtitles",
-    response_model=SubtitleGenerateResponse,
-    summary="Generate Subtitles for Presentation",
-    description="""
-    **STEP 1: Generate subtitles with timestamps**
-
-    Uses Gemini 3 Pro to analyze slides and generate natural narration with accurate timing.
-
-    **Cost:** 2 points (deducted before generation)
-
-    **Features:**
-    - Mode-aware narration (presentation: concise, academy: detailed)
-    - Element reference tracking for animation sync
-    - Automatic timestamp calculation
-    - Version management (create new version each time)
-
-    **Flow:**
-    1. Check user has 2 points available
-    2. Generate subtitles with Gemini 3 Pro
-    3. Save to slide_narrations collection (status: 'subtitles_only')
-    4. Deduct 2 points
-    5. Return narration_id + subtitles
-
-    Next step: Use narration_id to generate audio (Step 2)
-    """,
-)
-async def generate_subtitles(
-    presentation_id: str,
-    request: SubtitleGenerateRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """Generate subtitles for presentation slides"""
-    try:
-        user_id = current_user["uid"]
-        user_email = current_user.get("email", "unknown")
-
-        # ✅ SECURITY: Rate limiting for subtitle generation
-        from src.middleware.rate_limiter import check_ai_rate_limit
-
-        await check_ai_rate_limit(
-            user_id=user_id,
-            action="subtitle_generation",
-        )
-
-        logger.info("=" * 80)
-        logger.info(f"🎙️ SUBTITLE GENERATION REQUEST RECEIVED")
-        logger.info(
-            f"📍 Endpoint: POST /api/presentations/{presentation_id}/narration/generate-subtitles"
-        )
-        logger.info(f"👤 User: {user_email} ({user_id})")
-        logger.info(
-            f"🎛️ Mode: {request.mode}, Language: {request.language}, Scope: {request.scope}"
-        )
-        if request.scope == "current":
-            logger.info(f"🎯 Current slide index: {request.current_slide_index}")
-        logger.info(
-            f"💬 User query: {request.user_query[:100] if request.user_query else '(none)'}"
-        )
-        logger.info("=" * 80)
-
-        # Validate presentation_id if provided in body
-        if request.presentation_id and request.presentation_id != presentation_id:
-            logger.error(
-                f"❌ Presentation ID mismatch: URL={presentation_id}, Body={request.presentation_id}"
-            )
-            raise HTTPException(400, "Presentation ID mismatch")
-
-        # Get points service
-        points_service = get_points_service()
-
-        # Check points BEFORE generation
-        check = await points_service.check_sufficient_points(
-            user_id=user_id,
-            points_needed=POINTS_COST_SUBTITLE,
-            service="slide_narration_subtitles",
-        )
-
-        if not check["has_points"]:
-            logger.warning(
-                f"❌ Insufficient points: {check['points_available']} < {POINTS_COST_SUBTITLE}"
-            )
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "error": "insufficient_points",
-                    "message": f"Không đủ điểm. Cần: {POINTS_COST_SUBTITLE}, Còn: {check['points_available']}",
-                    "points_needed": POINTS_COST_SUBTITLE,
-                    "points_available": check["points_available"],
-                },
-            )
-
-        # Fetch document from documents collection (where slides are stored)
-        doc_manager = DocumentManager(db)
-        document = db.documents.find_one(
-            {"document_id": presentation_id, "document_type": "slide"}
-        )
-
-        if not document:
-            raise HTTPException(404, "Slide document not found")
-
-        # Check ownership
-        if document.get("user_id") != user_id:
-            raise HTTPException(403, "Not authorized to narrate this presentation")
-
-        # Parse HTML content to extract slides
-        content_html = document.get("content_html", "")
-        if not content_html:
-            raise HTTPException(400, "Document has no content")
-
-        # Extract slides from HTML (split by slide divs)
-        import re
-        from html.parser import HTMLParser
-
-        # Split slides by <div class="slide">
-        slide_pattern = r'<div[^>]*class="slide"[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>(?=\s*(?:<div[^>]*class="slide"|$))'
-        slide_matches = re.findall(
-            slide_pattern, content_html, re.DOTALL | re.IGNORECASE
-        )
-
-        if not slide_matches:
-            # Fallback: split by any div with data-slide-index
-            slide_pattern_simple = r'<div[^>]*data-slide-index="(\d+)"[^>]*>(.*?)</div>'
-            slide_matches = re.findall(
-                slide_pattern_simple, content_html, re.DOTALL | re.IGNORECASE
-            )
-
-        if not slide_matches:
-            raise HTTPException(
-                400, f"No slides found in document. Content length: {len(content_html)}"
-            )
-
-        # Build slides array with html content
-        slides = []
-        for idx, (slide_index, slide_html) in enumerate(slide_matches):
-            slides.append(
-                {
-                    "index": int(slide_index),
-                    "html": f'<div class="slide" data-slide-index="{slide_index}">{slide_html}</div>',
-                    "elements": [],  # Will be populated by service if needed
-                    "background": (
-                        document.get("slide_backgrounds", [])[int(slide_index)]
-                        if int(slide_index) < len(document.get("slide_backgrounds", []))
-                        else None
-                    ),
-                }
-            )
-
-        logger.info(
-            f"📄 Extracted {len(slides)} slides from document {presentation_id}"
-        )
-
-        # Filter slides based on scope
-        if request.scope == "current":
-            if request.current_slide_index is None:
-                raise HTTPException(
-                    400, "current_slide_index required when scope='current'"
-                )
-
-            if request.current_slide_index < 0 or request.current_slide_index >= len(
-                slides
-            ):
-                raise HTTPException(
-                    400,
-                    f"Invalid slide index: {request.current_slide_index} (total: {len(slides)})",
-                )
-
-            # Generate for single slide only
-            slides = [slides[request.current_slide_index]]
-            logger.info(
-                f"🎯 Generating subtitles for slide {request.current_slide_index} only"
-            )
-        else:
-            logger.info(f"📊 Generating subtitles for all {len(slides)} slides")
-
-        # Get narration service
-        narration_service = get_slide_narration_service()
-
-        # Generate subtitles
-        result = await narration_service.generate_subtitles(
-            presentation_id=presentation_id,
-            slides=slides,
-            mode=request.mode,
-            language=request.language,
-            user_query=request.user_query,
-            title=document.get("title", "Untitled"),
-            topic=document.get("metadata", {}).get("topic", ""),
-            user_id=user_id,
-        )
-
-        # Calculate total duration
-        total_duration = sum(slide["slide_duration"] for slide in result["slides"])
-
-        # Save to database
-        narration_doc = {
-            "presentation_id": presentation_id,  # String document_id, NOT ObjectId
-            "user_id": user_id,  # String Firebase UID, NOT ObjectId
-            "version": _get_next_version(presentation_id),
-            "status": "subtitles_only",
-            "mode": request.mode,
-            "language": request.language,
-            "user_query": request.user_query,
-            "slides": result["slides"],
-            "audio_files": [],
-            "total_duration": total_duration,
-            "created_at": datetime.now(),
-            "updated_at": datetime.now(),
-        }
-
-        insert_result = db.slide_narrations.insert_one(narration_doc)
-        narration_id = str(insert_result.inserted_id)
-
-        # Deduct points AFTER successful generation
-        await points_service.deduct_points(
-            user_id=user_id,
-            amount=POINTS_COST_SUBTITLE,
-            service="slide_narration",
-            resource_id=narration_id,
-            description=f"Subtitle generation for presentation {presentation_id}",
-        )
-
-        logger.info(
-            f"✅ Subtitles generated: {narration_id}, {len(result['slides'])} slides, {total_duration:.1f}s"
-        )
-
-        return SubtitleGenerateResponse(
-            success=True,
-            narration_id=narration_id,
-            version=narration_doc["version"],
-            slides=result["slides"],
-            total_duration=total_duration,
-            processing_time_ms=result["processing_time_ms"],
-            points_deducted=POINTS_COST_SUBTITLE,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Subtitle generation failed: {e}", exc_info=True)
-        raise HTTPException(500, f"Failed to generate subtitles: {str(e)}")
+# ============================================================
+# V1 ENDPOINTS REMOVED - Use /subtitles/v2 instead
+# ============================================================
+# The following V1 endpoints have been removed to avoid confusion:
+# - POST /narration/generate-subtitles → Use POST /subtitles/v2
+# - POST /narration/{id}/generate-audio → Use POST /subtitles/v2/{id}/audio
+# - GET /narrations → Use GET /subtitles/v2
+# - GET /narration/{id} → Use GET /subtitles/v2/{id}
+# - PUT /narration/{id} → Use PUT /subtitles/v2/{id}
+# - DELETE /narration/{id} → Use DELETE /subtitles/v2/{id}
+#
+# All V1 endpoints used the deprecated `slide_narrations` collection.
+# V2 uses `presentation_subtitles` with multi-language support.
+# ============================================================
 
 
 @router.post(
@@ -634,184 +408,9 @@ async def get_subtitle_job_status(
         raise HTTPException(500, f"Failed to get job status: {str(e)}")
 
 
-@router.post(
-    "/presentations/{presentation_id}/narration/{narration_id}/generate-audio",
-    response_model=AudioGenerateResponse,
-    summary="Generate Audio from Subtitles",
-    description="""
-    **STEP 2: Generate audio from existing subtitles**
-
-    Uses GoogleTTSService (same as Listening Test) to convert subtitles to MP3 audio.
-
-    **Cost:** 2 points (deducted before generation)
-
-    **Features:**
-    - Multi-speaker support (future)
-    - Premium voice models
-    - Upload to library_audio collection
-    - R2 CDN hosting
-
-    **Flow:**
-    1. Check user has 2 points available
-    2. Fetch narration record with subtitles
-    3. Generate audio for each slide
-    4. Upload to R2 via library_audio
-    5. Update narration status to 'completed'
-    6. Deduct 2 points
-    7. Return audio_files with CDN URLs
-
-    Previous step: Generate subtitles first (Step 1)
-    """,
-)
-async def generate_audio(
-    presentation_id: str,
-    narration_id: str,
-    request: AudioGenerateRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """Generate audio from existing subtitles"""
-    try:
-        user_id = current_user["uid"]
-        user_email = current_user.get("email", "unknown")
-
-        # ✅ SECURITY: Rate limiting for audio generation
-        from src.middleware.rate_limiter import check_ai_rate_limit
-
-        await check_ai_rate_limit(
-            user_id=user_id,
-            action="audio_generation",
-        )
-
-        logger.info(f"🔊 Audio generation request: {narration_id}")
-        logger.info(f"   User: {user_email}, Provider: {request.voice_config.provider}")
-        logger.info(
-            f"   Slides in request: {'YES (' + str(len(request.slides)) + ')' if request.slides else 'NO (will use database)'}"
-        )
-
-        # Validate narration_id in request matches URL
-        if request.narration_id != narration_id:
-            raise HTTPException(400, "Narration ID mismatch")
-
-        # Get points service
-        points_service = get_points_service()
-
-        # Check points BEFORE generation
-        check = await points_service.check_sufficient_points(
-            user_id=user_id,
-            points_needed=POINTS_COST_AUDIO,
-            service="slide_narration_audio",
-        )
-
-        if not check["has_points"]:
-            logger.warning(
-                f"❌ Insufficient points: {check['points_available']} < {POINTS_COST_AUDIO}"
-            )
-            raise HTTPException(
-                status_code=402,
-                detail={
-                    "error": "insufficient_points",
-                    "message": f"Không đủ điểm. Cần: {POINTS_COST_AUDIO}, Còn: {check['points_available']}",
-                    "points_needed": POINTS_COST_AUDIO,
-                    "points_available": check["points_available"],
-                },
-            )
-
-        # Fetch narration from database
-        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
-        if not narration:
-            raise HTTPException(404, "Narration not found")
-
-        # Check ownership
-        if str(narration.get("user_id")) != user_id:
-            raise HTTPException(403, "Not authorized to modify this narration")
-
-        # Check has subtitles
-        if narration.get("status") == "completed":
-            raise HTTPException(400, "Audio already generated for this narration")
-
-        if not narration.get("slides"):
-            raise HTTPException(400, "Narration has no subtitles")
-
-        # ✅ FIX: Use slides from request if provided (edited subtitles), otherwise use database version
-        # This allows frontend to send edited subtitles directly without saving first
-        if request.slides:
-            logger.info(
-                f"🎯 Using {len(request.slides)} slides from request (edited subtitles)"
-            )
-            slides_with_subtitles = [slide.dict() for slide in request.slides]
-
-            # Also update database with edited slides for consistency
-            total_duration = sum(slide.slide_duration for slide in request.slides)
-            db.slide_narrations.update_one(
-                {"_id": ObjectId(narration_id)},
-                {
-                    "$set": {
-                        "slides": slides_with_subtitles,
-                        "total_duration": total_duration,
-                        "updated_at": datetime.now(),
-                    }
-                },
-            )
-            logger.info(
-                f"💾 Saved edited subtitles to database (total: {total_duration:.1f}s)"
-            )
-        else:
-            logger.info(
-                f"📚 Using {len(narration['slides'])} slides from database (saved version)"
-            )
-            slides_with_subtitles = narration["slides"]
-
-        # Get narration service
-        narration_service = get_slide_narration_service()
-
-        # Generate audio
-        result = await narration_service.generate_audio(
-            narration_id=narration_id,
-            slides_with_subtitles=slides_with_subtitles,
-            voice_config=request.voice_config.dict(),
-            user_id=user_id,
-        )
-
-        # Update database with audio files
-        db.slide_narrations.update_one(
-            {"_id": ObjectId(narration_id)},
-            {
-                "$set": {
-                    "audio_files": result["audio_files"],
-                    "voice_config": request.voice_config.dict(),
-                    "status": "completed",
-                    "updated_at": datetime.now(),
-                }
-            },
-        )
-
-        # Deduct points AFTER successful generation
-        await points_service.deduct_points(
-            user_id=user_id,
-            amount=POINTS_COST_AUDIO,
-            service="slide_narration_audio",
-            resource_id=narration_id,
-            description=f"Audio generation for narration {narration_id}",
-        )
-
-        logger.info(
-            f"✅ Audio generated: {narration_id}, {len(result['audio_files'])} files, {result['total_duration']:.1f}s"
-        )
-
-        return AudioGenerateResponse(
-            success=True,
-            narration_id=narration_id,
-            audio_files=result["audio_files"],
-            total_duration=result["total_duration"],
-            processing_time_ms=result["processing_time_ms"],
-            points_deducted=POINTS_COST_AUDIO,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Audio generation failed: {e}", exc_info=True)
-        raise HTTPException(500, f"Failed to generate audio: {str(e)}")
+# ============================================================
+# LIBRARY AUDIO INTEGRATION (deprecated, use V2 audio endpoints)
+# ============================================================
 
 
 @router.get(
@@ -996,387 +595,13 @@ async def get_latest_audio_job_status(
         raise HTTPException(500, f"Failed to get job status: {str(e)}")
 
 
-@router.get(
-    "/presentations/{presentation_id}/narrations",
-    response_model=NarrationListResponse,
-    summary="List Narration Versions (DEPRECATED - Use /subtitles/v2)",
-    description="""
-    **⚠️ DEPRECATED: Use GET /presentations/{id}/subtitles/v2 instead**
-
-    This endpoint queries the OLD slide_narrations collection.
-    New multi-language system uses presentation_subtitles collection.
-
-    **Migration Path:**
-    - Old: GET /presentations/{id}/narrations
-    - New: GET /presentations/{id}/subtitles/v2
-
-    This endpoint will be redirected to V2 for backward compatibility.
-    """,
-)
-async def list_narrations(
-    presentation_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """
-    List all narration versions for presentation
-
-    DEPRECATED: Redirects to V2 subtitles endpoint for backward compatibility
-    """
-    try:
-        user_id = current_user["uid"]
-
-        logger.warning(
-            f"⚠️ DEPRECATED endpoint called: /narrations. "
-            f"Use /subtitles/v2 instead. Presentation: {presentation_id}"
-        )
-
-        # Check document exists
-        document = db.documents.find_one(
-            {"document_id": presentation_id, "document_type": "slide"}
-        )
-        if not document:
-            raise HTTPException(404, "Presentation not found")
-
-        if document.get("user_id") != user_id:
-            raise HTTPException(403, "Not authorized to view this presentation")
-
-        # ✅ FIX: Query NEW collection (presentation_subtitles) instead of OLD (slide_narrations)
-        cursor = db.presentation_subtitles.find(
-            {
-                "presentation_id": presentation_id,
-                "user_id": user_id,
-            }
-        ).sort([("language", 1), ("version", -1)])
-
-        narrations = []
-        for doc in cursor:
-            # Get audio status from merged_audio_id
-            audio_ready = False
-            if doc.get("merged_audio_id"):
-                audio_doc = db.presentation_audio.find_one(
-                    {"_id": ObjectId(doc["merged_audio_id"])}
-                )
-                audio_ready = (
-                    audio_doc and audio_doc.get("status") == "completed"
-                    if audio_doc
-                    else False
-                )
-
-            # Calculate total duration from slides or audio
-            total_duration = 0.0
-            if doc.get("slides"):
-                # Sum subtitle durations from slides
-                for slide in doc["slides"]:
-                    for subtitle in slide.get("subtitles", []):
-                        total_duration += subtitle.get("duration", 0.0)
-
-            narrations.append(
-                NarrationVersion(
-                    narration_id=str(doc["_id"]),  # Keep for backward compatibility
-                    subtitle_id=str(doc["_id"]),  # V2 system uses subtitle_id
-                    version=doc.get("version", 1),
-                    status="completed" if audio_ready else "subtitles_only",
-                    mode=doc.get("mode", "presentation"),
-                    language=doc.get("language", "vi"),
-                    total_duration=total_duration,
-                    created_at=doc.get("created_at", datetime.now()),
-                    audio_ready=audio_ready,
-                )
-            )
-
-        logger.info(
-            f"📋 Listed {len(narrations)} subtitles from V2 collection "
-            f"(presentation_subtitles)"
-        )
-
-        return NarrationListResponse(
-            success=True,
-            narrations=narrations,
-            total_count=len(narrations),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to list narrations: {e}", exc_info=True)
-        raise HTTPException(500, f"Failed to list narrations: {str(e)}")
-
-
-# Helper functions
-
-
-def _get_next_version(presentation_id: str) -> int:
-    """Get next version number for narration"""
-    latest = db.slide_narrations.find_one(
-        {"presentation_id": presentation_id}, sort=[("version", -1)]
-    )
-    return (latest.get("version", 0) + 1) if latest else 1
-
-
-@router.get(
-    "/presentations/{presentation_id}/narration/{narration_id}",
-    response_model=NarrationDetailResponse,
-    summary="Get Narration by ID",
-    description="""
-    **Get detailed narration data by ID**
-
-    Returns complete narration record including:
-    - All subtitles with timestamps
-    - Audio files (if generated)
-    - Voice configuration (if audio generated)
-    - Version and status information
-
-    **No points cost** (read-only operation)
-
-    Use this to:
-    - Preview subtitles before audio generation
-    - Review/edit subtitles
-    - Check audio generation status
-    """,
-)
-async def get_narration_detail(
-    presentation_id: str,
-    narration_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """Delete narration version"""
-    try:
-        user_id = current_user["uid"]
-
-        # Fetch narration
-        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
-        if not narration:
-            raise HTTPException(404, "Narration not found")
-
-        # Check ownership
-        if str(narration.get("user_id")) != user_id:
-            raise HTTPException(403, "Not authorized to access this narration")
-
-        # Check presentation_id matches
-        if str(narration.get("presentation_id")) != presentation_id:
-            raise HTTPException(400, "Narration does not belong to this presentation")
-
-        return NarrationDetailResponse(
-            success=True,
-            narration_id=str(narration["_id"]),
-            presentation_id=str(narration.get("presentation_id")),
-            version=narration.get("version", 1),
-            status=narration.get("status", "unknown"),
-            mode=narration.get("mode", "presentation"),
-            language=narration.get("language", "vi"),
-            user_query=narration.get("user_query", ""),
-            slides=narration.get("slides", []),
-            audio_files=narration.get("audio_files", []),
-            voice_config=narration.get("voice_config"),
-            total_duration=narration.get("total_duration", 0.0),
-            created_at=narration.get("created_at", datetime.now()),
-            updated_at=narration.get("updated_at", datetime.now()),
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to get narration: {e}", exc_info=True)
-        raise HTTPException(500, f"Failed to get narration: {str(e)}")
-
-
-@router.put(
-    "/presentations/{presentation_id}/narration/{narration_id}",
-    response_model=UpdateSubtitlesResponse,
-    summary="Update Subtitles",
-    description="""
-    **Update/edit subtitles before audio generation**
-
-    Allows manual editing of:
-    - Subtitle text
-    - Timestamps (start_time, end_time, duration)
-    - Speaker assignments
-    - Element references
-    - Slide duration and auto-advance settings
-
-    **No points cost** (editing only)
-
-    **Requirements:**
-    - Narration must be in 'subtitles_only' status
-    - Cannot edit after audio is generated
-    - Timestamps must not overlap
-
-    Use this to:
-    - Fix AI-generated subtitle errors
-    - Adjust timing for better sync
-    - Customize narration before audio generation
-    """,
-)
-async def update_subtitles(
-    presentation_id: str,
-    narration_id: str,
-    request: UpdateSubtitlesRequest,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """Update subtitles before audio generation"""
-    try:
-        user_id = current_user["uid"]
-        logger.info(f"📝 Updating subtitles for narration {narration_id}")
-
-        # Fetch narration
-        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
-        if not narration:
-            raise HTTPException(404, "Narration not found")
-
-        # Check ownership
-        if str(narration.get("user_id")) != user_id:
-            raise HTTPException(403, "Not authorized to edit this narration")
-
-        # Check presentation_id matches
-        if str(narration.get("presentation_id")) != presentation_id:
-            raise HTTPException(400, "Narration does not belong to this presentation")
-
-        # Check status - can only edit before audio generation
-        if narration.get("status") == "completed":
-            raise HTTPException(
-                400,
-                "Cannot edit subtitles after audio has been generated. Create a new version instead.",
-            )
-
-        # Validate timestamps don't overlap
-        for slide in request.slides:
-            subtitles = slide.subtitles
-            for i in range(len(subtitles) - 1):
-                current = subtitles[i]
-                next_sub = subtitles[i + 1]
-                if current.end_time > next_sub.start_time:
-                    raise HTTPException(
-                        400,
-                        f"Overlapping timestamps in slide {slide.slide_index}: "
-                        f"subtitle {current.subtitle_index} ends at {current.end_time}s, "
-                        f"but subtitle {next_sub.subtitle_index} starts at {next_sub.start_time}s",
-                    )
-
-        # Calculate new total duration
-        total_duration = sum(slide.slide_duration for slide in request.slides)
-
-        # Update in database
-        updated_at = datetime.now()
-        db.slide_narrations.update_one(
-            {"_id": ObjectId(narration_id)},
-            {
-                "$set": {
-                    "slides": [slide.dict() for slide in request.slides],
-                    "total_duration": total_duration,
-                    "updated_at": updated_at,
-                }
-            },
-        )
-
-        logger.info(
-            f"✅ Updated subtitles for {len(request.slides)} slides, total: {total_duration:.1f}s"
-        )
-
-        return UpdateSubtitlesResponse(
-            success=True,
-            narration_id=narration_id,
-            slides=request.slides,
-            total_duration=total_duration,
-            updated_at=updated_at,
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to update subtitles: {e}", exc_info=True)
-        raise HTTPException(500, f"Failed to update subtitles: {str(e)}")
-
-
-@router.delete(
-    "/presentations/{presentation_id}/narration/{narration_id}",
-    response_model=DeleteNarrationResponse,
-    summary="Delete Narration",
-    description="""
-    **Delete a narration version**
-
-    Permanently deletes:
-    - Narration record with all subtitles
-    - Associated audio files from R2 (if generated)
-    - Library audio records
-
-    **No points cost** (deletion)
-
-    **Warning:** This action cannot be undone!
-
-    Use this to:
-    - Remove unwanted narration versions
-    - Clean up test data
-    - Free up storage space
-    """,
-)
-async def delete_narration(
-    presentation_id: str,
-    narration_id: str,
-    current_user: Dict[str, Any] = Depends(get_current_user),
-):
-    """Delete narration and associated audio files"""
-    try:
-        user_id = current_user["uid"]
-        logger.info(f"🗑️ Deleting narration {narration_id}")
-
-        # Fetch narration
-        narration = db.slide_narrations.find_one({"_id": ObjectId(narration_id)})
-        if not narration:
-            raise HTTPException(404, "Narration not found")
-
-        # Check ownership
-        if str(narration.get("user_id")) != user_id:
-            raise HTTPException(403, "Not authorized to delete this narration")
-
-        # Check presentation_id matches
-        if str(narration.get("presentation_id")) != presentation_id:
-            raise HTTPException(400, "Narration does not belong to this presentation")
-
-        # Delete associated audio files from library_audio
-        # Note: Audio files are stored in presentation_audio collection
-        # They will be orphaned when narration is deleted (acceptable for now)
-        audio_files = narration.get("audio_files", [])
-        if audio_files:
-            # TODO: Implement audio file cleanup from R2 storage
-            # from src.services.audio_service import AudioService
-            # audio_service = AudioService()
-            # for audio in audio_files:
-            #     library_audio_id = audio.get("library_audio_id")
-            #     if library_audio_id:
-            #         try:
-            #             await audio_service.delete_audio(library_audio_id)
-            #             logger.info(f"   Deleted audio: {library_audio_id}")
-            #         except Exception as e:
-            #             logger.warning(f"   Failed to delete audio {library_audio_id}: {e}")
-            logger.info(f"   Skipping audio file deletion ({len(audio_files)} files)")
-
-        # Delete narration record
-        db.slide_narrations.delete_one({"_id": ObjectId(narration_id)})
-
-        logger.info(
-            f"✅ Deleted narration {narration_id} with {len(audio_files)} audio files"
-        )
-
-        return DeleteNarrationResponse(
-            success=True,
-            narration_id=narration_id,
-            message=f"Narration version {narration.get('version', 1)} deleted successfully",
-        )
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"❌ Failed to delete narration: {e}", exc_info=True)
-        raise HTTPException(500, f"Failed to delete narration: {str(e)}")
-
-
 # ============================================================
-# LIBRARY AUDIO INTEGRATION
+# V2 SUBTITLE SYSTEM - Main Endpoints
 # ============================================================
 
 
-@router.get(
-    "/library-audio",
+@router.post(
+    "/presentations/{presentation_id}/subtitles/v2",
     response_model=LibraryAudioListResponse,
     summary="List Library Audio Files",
     description="""
@@ -1886,6 +1111,105 @@ async def delete_subtitle_v2(
     except Exception as e:
         logger.error(f"❌ Failed to delete subtitle V2: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to delete subtitle: {str(e)}")
+
+
+@router.put("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}")
+async def update_subtitle_v2(
+    presentation_id: str,
+    subtitle_id: str,
+    request: UpdateSubtitlesRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Update subtitle V2 (presentation_subtitles collection)
+
+    **IMPORTANT:** This updates the presentation_subtitles collection.
+    Use this for V2 subtitles, NOT the deprecated V1 endpoint.
+
+    **No points cost** (editing only)
+
+    **Features:**
+    - Edit subtitle text
+    - Adjust timestamps
+    - Update slide duration
+    - Validate no overlapping timestamps
+
+    **Requirements:**
+    - Cannot edit after audio is generated (immutable)
+    - Timestamps must not overlap
+    """
+    try:
+        user_id = current_user["uid"]
+        logger.info(f"📝 Updating subtitle V2: {subtitle_id}")
+
+        # Fetch subtitle from V2 collection
+        subtitle = db.presentation_subtitles.find_one(
+            {"_id": ObjectId(subtitle_id), "user_id": user_id}
+        )
+
+        if not subtitle:
+            raise HTTPException(404, "Subtitle not found")
+
+        # Check presentation_id matches
+        if str(subtitle.get("presentation_id")) != presentation_id:
+            raise HTTPException(400, "Subtitle does not belong to this presentation")
+
+        # Check if audio already generated (immutable)
+        if subtitle.get("merged_audio_id"):
+            raise HTTPException(
+                400,
+                "Cannot edit subtitles after audio has been generated. "
+                "Create a new version instead.",
+            )
+
+        # Validate timestamps don't overlap
+        for slide in request.slides:
+            subtitles = slide.subtitles
+            for i in range(len(subtitles) - 1):
+                current = subtitles[i]
+                next_sub = subtitles[i + 1]
+                if current.end_time > next_sub.start_time:
+                    raise HTTPException(
+                        400,
+                        f"Overlapping timestamps in slide {slide.slide_index}: "
+                        f"subtitle {current.subtitle_index} ends at {current.end_time}s, "
+                        f"but subtitle {next_sub.subtitle_index} starts at {next_sub.start_time}s",
+                    )
+
+        # Calculate new total duration
+        total_duration = sum(slide.slide_duration for slide in request.slides)
+
+        # Update in presentation_subtitles collection
+        updated_at = datetime.now()
+        db.presentation_subtitles.update_one(
+            {"_id": ObjectId(subtitle_id)},
+            {
+                "$set": {
+                    "slides": [slide.dict() for slide in request.slides],
+                    "total_duration": total_duration,
+                    "updated_at": updated_at,
+                }
+            },
+        )
+
+        logger.info(
+            f"✅ Updated subtitle V2 for {len(request.slides)} slides, "
+            f"total: {total_duration:.1f}s"
+        )
+
+        return UpdateSubtitlesResponse(
+            success=True,
+            narration_id=subtitle_id,
+            slides=request.slides,
+            total_duration=total_duration,
+            updated_at=updated_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update subtitle V2: {e}", exc_info=True)
+        raise HTTPException(500, f"Failed to update subtitle: {str(e)}")
 
 
 @router.post("/presentations/{presentation_id}/subtitles/v2/{subtitle_id}/audio")
