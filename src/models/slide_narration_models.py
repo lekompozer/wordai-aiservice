@@ -237,6 +237,10 @@ class AudioGenerateRequest(BaseModel):
 
     narration_id: str = Field(..., description="Narration ID from Step 1")
     voice_config: VoiceConfig = Field(..., description="Voice configuration")
+    slides: Optional[List[SlideWithSubtitles]] = Field(
+        None,
+        description="Optional: Slides with edited subtitles. If provided, will use these instead of fetching from database. If not provided, will use latest saved version from database.",
+    )
 
     class Config:
         json_schema_extra = {

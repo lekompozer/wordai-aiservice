@@ -684,6 +684,9 @@ async def generate_audio(
 
         logger.info(f"🔊 Audio generation request: {narration_id}")
         logger.info(f"   User: {user_email}, Provider: {request.voice_config.provider}")
+        logger.info(
+            f"   Slides in request: {'YES (' + str(len(request.slides)) + ')' if request.slides else 'NO (will use database)'}"
+        )
 
         # Validate narration_id in request matches URL
         if request.narration_id != narration_id:
@@ -729,13 +732,42 @@ async def generate_audio(
         if not narration.get("slides"):
             raise HTTPException(400, "Narration has no subtitles")
 
+        # ✅ FIX: Use slides from request if provided (edited subtitles), otherwise use database version
+        # This allows frontend to send edited subtitles directly without saving first
+        if request.slides:
+            logger.info(
+                f"🎯 Using {len(request.slides)} slides from request (edited subtitles)"
+            )
+            slides_with_subtitles = [slide.dict() for slide in request.slides]
+
+            # Also update database with edited slides for consistency
+            total_duration = sum(slide.slide_duration for slide in request.slides)
+            db.slide_narrations.update_one(
+                {"_id": ObjectId(narration_id)},
+                {
+                    "$set": {
+                        "slides": slides_with_subtitles,
+                        "total_duration": total_duration,
+                        "updated_at": datetime.now(),
+                    }
+                },
+            )
+            logger.info(
+                f"💾 Saved edited subtitles to database (total: {total_duration:.1f}s)"
+            )
+        else:
+            logger.info(
+                f"📚 Using {len(narration['slides'])} slides from database (saved version)"
+            )
+            slides_with_subtitles = narration["slides"]
+
         # Get narration service
         narration_service = get_slide_narration_service()
 
         # Generate audio
         result = await narration_service.generate_audio(
             narration_id=narration_id,
-            slides_with_subtitles=narration["slides"],
+            slides_with_subtitles=slides_with_subtitles,
             voice_config=request.voice_config.dict(),
             user_id=user_id,
         )

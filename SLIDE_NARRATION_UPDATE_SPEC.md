@@ -217,7 +217,7 @@ if request.slides:
     # ✅ Option 1: Use edited slides from request (KHUYẾN NGHỊ)
     logger.info(f"🎯 Using {len(request.slides)} slides from request (edited)")
     slides_with_subtitles = [slide.dict() for slide in request.slides]
-    
+
     # Save to DB immediately for consistency
     db.slide_narrations.update_one(
         {"_id": ObjectId(narration_id)},
@@ -298,14 +298,14 @@ interface AudioFile {
   narration_id: "507f1f77bcf86cd799439099",  // Same as _id
   presentation_id: "507f1f77bcf86cd799439011",
   user_id: "firebase_uid_123",
-  
+
   // Language & Version (CRITICAL!)
   language: "en",              // ISO 639-1 code
   version: 1,                  // Auto-increment per language
-  
+
   // Status
   status: "subtitles_only",    // "subtitles_only" | "completed" | "failed"
-  
+
   // Subtitle data
   slides: [
     {
@@ -327,7 +327,7 @@ interface AudioFile {
     }
   ],
   total_duration: 45.8,
-  
+
   // Audio data (populated after Step 2)
   audio_files: [
     {
@@ -341,11 +341,11 @@ interface AudioFile {
     }
   ],
   voice_config: {...},
-  
+
   // Timestamps
   created_at: ISODate("2026-01-08T10:00:00Z"),
   updated_at: ISODate("2026-01-08T10:05:00Z"),
-  
+
   // Mode & Scope
   mode: "comprehensive",       // "minimal" | "balanced" | "comprehensive"
   scope: "current"             // "current" | "all"
@@ -433,7 +433,7 @@ const handleGenerateAudio = async () => {
       slides: editedSlides  // ← CRITICAL: Gửi slides đã edit!
     }
   );
-  
+
   setHasUnsavedChanges(false);
   toast.success("Đang tạo audio...");
 };
