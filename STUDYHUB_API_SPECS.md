@@ -501,12 +501,12 @@ try {
   const response = await fetch('/api/studyhub/subjects', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
-  
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail);
   }
-  
+
   const data = await response.json();
   // Handle success
 } catch (error) {
@@ -529,6 +529,6 @@ This document will be updated as new milestones are implemented:
 
 ---
 
-**Document Version**: 1.0  
-**Last Updated**: January 8, 2026  
+**Document Version**: 1.0
+**Last Updated**: January 8, 2026
 **Milestone**: 1.1 (Subject Core)

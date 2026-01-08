@@ -287,6 +287,9 @@ from src.api.image_generation_phase2_routes import (
 # ✅ ADDED: StudyHub Subject API - Learning platform core subject management (Milestone 1.1)
 from src.api.studyhub_subject_routes import router as studyhub_subject_router
 
+# ✅ ADDED: StudyHub Module API - Module & Content management (Milestone 1.2)
+from src.api.studyhub_module_routes import router as studyhub_module_router
+
 # ✅ ADDED: Image Editing API - AI-powered image editing using Gemini 3 Pro Image
 from src.api.image_editing_routes import router as image_editing_router
 
@@ -1260,6 +1263,9 @@ def create_app() -> FastAPI:
 
     # ✅ NEW: StudyHub Subject API - Learning platform core management (Milestone 1.1)
     app.include_router(studyhub_subject_router, tags=["StudyHub - Subjects"])
+
+    # ✅ NEW: StudyHub Module API - Module & Content management (Milestone 1.2)
+    app.include_router(studyhub_module_router, tags=["StudyHub - Modules & Content"])
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
     app.include_router(
