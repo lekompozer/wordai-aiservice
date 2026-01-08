@@ -56,9 +56,11 @@ def create_studyhub_indexes():
     print("✅ Created index: metadata.tags")
 
     # ===== MARKETPLACE INDEXES (M1.4) =====
-    
+
     # Compound index for marketplace subjects
-    subjects.create_index([("is_public_marketplace", 1), ("status", 1), ("last_updated_at", -1)])
+    subjects.create_index(
+        [("is_public_marketplace", 1), ("status", 1), ("last_updated_at", -1)]
+    )
     print("✅ Created compound index: is_public_marketplace + status + last_updated_at")
 
     # Index for marketplace views

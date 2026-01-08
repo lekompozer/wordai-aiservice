@@ -1274,7 +1274,9 @@ def create_app() -> FastAPI:
     app.include_router(studyhub_module_router, tags=["StudyHub - Modules & Content"])
 
     # ✅ NEW: StudyHub Enrollment API - Enrollment & Progress tracking (Milestone 1.3)
-    app.include_router(studyhub_enrollment_router, tags=["StudyHub - Enrollment & Progress"])
+    app.include_router(
+        studyhub_enrollment_router, tags=["StudyHub - Enrollment & Progress"]
+    )
 
     # ✅ NEW: StudyHub Marketplace API - Public marketplace & discovery (Milestone 1.4)
     app.include_router(studyhub_marketplace_router, tags=["StudyHub - Marketplace"])

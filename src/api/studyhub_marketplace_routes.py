@@ -20,9 +20,7 @@ from src.models.studyhub_models import (
     CreatorProfileResponse,
 )
 
-router = APIRouter(
-    prefix="/api/studyhub/marketplace", tags=["StudyHub Marketplace"]
-)
+router = APIRouter(prefix="/api/studyhub/marketplace", tags=["StudyHub Marketplace"])
 
 manager = StudyHubMarketplaceManager()
 
@@ -39,7 +37,9 @@ async def search_subjects(
     q: Optional[str] = Query(None, description="Search by title or creator name"),
     category: Optional[str] = Query(None, description="Filter by category"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
-    level: Optional[str] = Query(None, description="Filter by level: beginner/intermediate/advanced"),
+    level: Optional[str] = Query(
+        None, description="Filter by level: beginner/intermediate/advanced"
+    ),
     sort_by: str = Query(
         "updated",
         description="Sort by: updated/views/rating/newest",

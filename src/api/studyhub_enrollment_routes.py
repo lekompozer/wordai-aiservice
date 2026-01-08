@@ -17,7 +17,7 @@ from src.models.studyhub_models import (
     DashboardOverviewResponse,
     RecentActivityResponse,
 )
-from src.api.firebase_auth import get_current_user
+from src.middleware.firebase_auth import get_current_user
 
 router = APIRouter(prefix="/api/studyhub", tags=["StudyHub Enrollment & Progress"])
 

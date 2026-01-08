@@ -102,9 +102,7 @@ class StudyHubMarketplaceManager:
         subjects = []
         for subject in subjects_cursor:
             owner = await self._get_owner_info(str(subject["owner_id"]))
-            subjects.append(
-                await self._build_marketplace_item(subject, owner)
-            )
+            subjects.append(await self._build_marketplace_item(subject, owner))
 
         return MarketplaceSubjectsResponse(
             subjects=subjects, total=total, skip=skip, limit=limit
@@ -320,9 +318,7 @@ class StudyHubMarketplaceManager:
         for item in top_reads:
             creator_id = str(item["_id"])
             if creator_id not in used_creators:
-                creator = await self._build_featured_creator(
-                    creator_id, "most_reads"
-                )
+                creator = await self._build_featured_creator(creator_id, "most_reads")
                 if creator:
                     featured.append(creator)
                     used_creators.add(creator_id)
@@ -351,9 +347,7 @@ class StudyHubMarketplaceManager:
         for item in top_ratings:
             creator_id = str(item["_id"])
             if creator_id not in used_creators:
-                creator = await self._build_featured_creator(
-                    creator_id, "best_reviews"
-                )
+                creator = await self._build_featured_creator(creator_id, "best_reviews")
                 if creator:
                     featured.append(creator)
                     used_creators.add(creator_id)
@@ -374,9 +368,7 @@ class StudyHubMarketplaceManager:
         for subject in top_subjects:
             creator_id = str(subject["owner_id"])
             if creator_id not in used_creators and len(featured) < 10:
-                creator = await self._build_featured_creator(
-                    creator_id, "top_subject"
-                )
+                creator = await self._build_featured_creator(creator_id, "top_subject")
                 if creator:
                     featured.append(creator)
                     used_creators.add(creator_id)
@@ -422,7 +414,7 @@ class StudyHubMarketplaceManager:
         ]
 
         results = list(self.db.studyhub_subjects.aggregate(pipeline))
-        
+
         # Category icons mapping
         category_icons = {
             "Programming": "💻",
@@ -449,7 +441,9 @@ class StudyHubMarketplaceManager:
 
     # ==================== SUBJECT VIEWS ====================
 
-    async def get_subject_public_view(self, subject_id: str) -> SubjectPublicViewResponse:
+    async def get_subject_public_view(
+        self, subject_id: str
+    ) -> SubjectPublicViewResponse:
         """Get public subject view + track views"""
         subject = self.db.studyhub_subjects.find_one(
             {
@@ -546,9 +540,7 @@ class StudyHubMarketplaceManager:
             query["$or"] = or_conditions
 
         related = list(
-            self.db.studyhub_subjects.find(query)
-            .sort("total_views", -1)
-            .limit(limit)
+            self.db.studyhub_subjects.find(query).sort("total_views", -1).limit(limit)
         )
 
         subjects = []

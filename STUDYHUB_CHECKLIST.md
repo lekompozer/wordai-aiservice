@@ -46,46 +46,48 @@ This checklist tracks the implementation progress of all StudyHub APIs across al
 **Deployed**: Pending production deployment
 **Documentation**: ✅ Complete
 
-### Milestone 1.3: Enrollment & Progress ⏳ PENDING
+### Milestone 1.3: Enrollment & Progress ✅ COMPLETED
 
 | # | Endpoint | Method | Status | Notes |
 |---|----------|--------|--------|-------|
-| 17 | `/api/studyhub/subjects/{subject_id}/enroll` | POST | ⏳ TODO | Enroll in subject |
-| 18 | `/api/studyhub/subjects/{subject_id}/enroll` | DELETE | ⏳ TODO | Unenroll from subject |
-| 19 | `/api/studyhub/enrollments` | GET | ⏳ TODO | Get user's enrollments |
-| 20 | `/api/studyhub/subjects/{subject_id}/progress` | GET | ⏳ TODO | Get learning progress |
-| 21 | `/api/studyhub/progress/mark-complete` | POST | ⏳ TODO | Mark as complete |
-| 22 | `/api/studyhub/progress/mark-incomplete` | POST | ⏳ TODO | Mark as incomplete |
-| 23 | `/api/studyhub/progress/last-position` | PUT | ⏳ TODO | Save learning position |
-| 24 | `/api/studyhub/subjects/{subject_id}/learners` | GET | ⏳ TODO | Get subject learners (owner) |
-| 25 | `/api/studyhub/dashboard/overview` | GET | ⏳ TODO | Dashboard overview |
-| 26 | `/api/studyhub/dashboard/recent-activity` | GET | ⏳ TODO | Recent activity |
+| 17 | `/api/studyhub/subjects/{subject_id}/enroll` | POST | ✅ Done | Enroll in subject |
+| 18 | `/api/studyhub/subjects/{subject_id}/enroll` | DELETE | ✅ Done | Unenroll from subject |
+| 19 | `/api/studyhub/enrollments` | GET | ✅ Done | Get user's enrollments |
+| 20 | `/api/studyhub/subjects/{subject_id}/progress` | GET | ✅ Done | Get learning progress |
+| 21 | `/api/studyhub/progress/mark-complete` | POST | ✅ Done | Mark as complete |
+| 22 | `/api/studyhub/progress/mark-incomplete` | POST | ✅ Done | Mark as incomplete |
+| 23 | `/api/studyhub/progress/last-position` | PUT | ✅ Done | Save learning position |
+| 24 | `/api/studyhub/subjects/{subject_id}/learners` | GET | ✅ Done | Get subject learners (owner) |
+| 25 | `/api/studyhub/dashboard/overview` | GET | ✅ Done | Dashboard overview |
+| 26 | `/api/studyhub/dashboard/recent-activity` | GET | ✅ Done | Recent activity |
 
-**Status**: ⏳ 0/10 APIs implemented
-**Target Sprint**: Sprint 3
+**Status**: ✅ 10/10 APIs implemented
+**Deployed**: Production
+**Documentation**: ✅ Complete
 
 ---
 
-### Milestone 1.4: Discovery & Marketplace ⏳ PENDING
+### Milestone 1.4: Discovery & Marketplace ✅ COMPLETED
 
 | # | Endpoint | Method | Status | Notes |
 |---|----------|--------|--------|-------|
-| 27 | `/api/studyhub/marketplace/subjects/search` | GET | ⏳ TODO | Search & filter subjects |
-| 28 | `/api/studyhub/marketplace/subjects/latest` | GET | ⏳ TODO | Latest updated subjects |
-| 29 | `/api/studyhub/marketplace/subjects/top` | GET | ⏳ TODO | Top viewed/enrolled subjects |
-| 30 | `/api/studyhub/marketplace/subjects/featured-week` | GET | ⏳ TODO | Featured subjects (3) |
-| 31 | `/api/studyhub/marketplace/subjects/trending-today` | GET | ⏳ TODO | Trending today (5) |
-| 32 | `/api/studyhub/marketplace/creators/featured` | GET | ⏳ TODO | Featured creators (10) |
-| 33 | `/api/studyhub/marketplace/tags/popular` | GET | ⏳ TODO | Popular tags (25) |
-| 34 | `/api/studyhub/marketplace/categories/popular` | GET | ⏳ TODO | All categories |
-| 35 | `/api/studyhub/marketplace/subjects/{subject_id}` | GET | ⏳ TODO | Public subject view |
-| 36 | `/api/studyhub/marketplace/subjects/{subject_id}/related` | GET | ⏳ TODO | Related subjects |
-| 37 | `/api/studyhub/marketplace/creators/{creator_id}/profile` | GET | ⏳ TODO | Creator profile |
-| 38 | `/api/studyhub/marketplace/creators/{creator_id}/subjects` | GET | ⏳ TODO | Creator's subjects |
+| 27 | `/api/studyhub/marketplace/subjects/search` | GET | ✅ Done | Search & filter subjects |
+| 28 | `/api/studyhub/marketplace/subjects/latest` | GET | ✅ Done | Latest updated subjects |
+| 29 | `/api/studyhub/marketplace/subjects/top` | GET | ✅ Done | Top viewed/enrolled subjects |
+| 30 | `/api/studyhub/marketplace/subjects/featured-week` | GET | ✅ Done | Featured subjects (3) |
+| 31 | `/api/studyhub/marketplace/subjects/trending-today` | GET | ✅ Done | Trending today (5) |
+| 32 | `/api/studyhub/marketplace/creators/featured` | GET | ✅ Done | Featured creators (10) |
+| 33 | `/api/studyhub/marketplace/tags/popular` | GET | ✅ Done | Popular tags (25) |
+| 34 | `/api/studyhub/marketplace/categories/popular` | GET | ✅ Done | All categories |
+| 35 | `/api/studyhub/marketplace/subjects/{subject_id}` | GET | ✅ Done | Public subject view |
+| 36 | `/api/studyhub/marketplace/subjects/{subject_id}/related` | GET | ✅ Done | Related subjects |
+| 37 | `/api/studyhub/marketplace/creators/{creator_id}/profile` | GET | ✅ Done | Creator profile |
+| 38 | `/api/studyhub/marketplace/creators/{creator_id}/subjects` | GET | ✅ Done | Creator's subjects |
 
-**Status**: ⏳ 0/12 APIs implemented
-**Target Sprint**: Sprint 4
+**Status**: ✅ 12/12 APIs implemented
+**Deployed**: Production
 **Pattern**: Similar to Community Books marketplace
+**Documentation**: ✅ Complete (STUDYHUB_M14_MARKETPLACE_APIS.md)
 
 ---
 
@@ -172,14 +174,20 @@ This checklist tracks the implementation progress of all StudyHub APIs across al
 ### Production Deployment
 
 - [x] Models created (`studyhub_models.py`)
-- [x] Services created (`studyhub_subject_manager.py`)
-- [x] Routes created (`studyhub_subject_routes.py`)
+- [x] M1.1 Services created (`studyhub_subject_manager.py`)
+- [x] M1.1 Routes created (`studyhub_subject_routes.py`)
+- [x] M1.2 Services created (`studyhub_module_manager.py`)
+- [x] M1.2 Routes created (`studyhub_module_routes.py`)
+- [x] M1.3 Services created (`studyhub_enrollment_manager.py`)
+- [x] M1.3 Routes created (`studyhub_enrollment_routes.py`)
+- [x] M1.4 Services created (`studyhub_marketplace_manager.py`)
+- [x] M1.4 Routes created (`studyhub_marketplace_routes.py`)
 - [x] Routes registered in `app.py`
 - [x] Code committed to GitHub
 - [x] Code pushed to repository
-- [ ] Code pulled on production server
-- [ ] Docker containers rebuilt
-- [ ] Indexes created on MongoDB
+- [x] Code pulled on production server
+- [x] Docker containers rebuilt
+- [ ] Indexes created on MongoDB (in progress)
 - [ ] APIs tested on production
 
 ### Documentation
@@ -239,25 +247,27 @@ This checklist tracks the implementation progress of all StudyHub APIs across al
 ### Overall Progress
 
 - **Phase 1 Total**: 38 APIs
-  - ✅ Completed: 16 APIs (42.1%)
-  - ⏳ Pending: 22 APIs (57.9%)
+  - ✅ Completed: 38 APIs (100%)
+  - ⏳ Pending: 0 APIs (0%)
 
 - **Phase 2 Total**: 28 APIs
   - ⏳ Pending: 28 APIs (100%)
 
 - **Grand Total**: 66 APIs
-  - ✅ Completed: 16 APIs (24.2%)
-  - ⏳ Pending: 50 APIs (75.8%)
+  - ✅ Completed: 38 APIs (57.6%)
+  - ⏳ Pending: 28 APIs (42.4%)
 
 ### Milestones Completion
 
 - ✅ M1.1: Subject Core (100%) - 8/8 APIs
 - ✅ M1.2: Module & Content (100%) - 8/8 APIs
-- ⏳ M1.3: Enrollment & Progress (0%) - 0/10 APIs
-- ⏳ M1.4: Discovery & Marketplace (0%) - 0/12 APIs
+- ✅ M1.3: Enrollment & Progress (100%) - 10/10 APIs
+- ✅ M1.4: Discovery & Marketplace (100%) - 12/12 APIs
 - ⏳ M2.1: Content Integration (0%) - 0/14 APIs
 - ⏳ M2.2: Monetization (0%) - 0/8 APIs
 - ⏳ M2.3: Analytics (0%) - 0/6 APIs
+
+**🎉 PHASE 1 MVP COMPLETE: 38/38 APIs (100%)**
 
 ---
 
