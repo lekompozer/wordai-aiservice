@@ -66,17 +66,26 @@ This checklist tracks the implementation progress of all StudyHub APIs across al
 
 ---
 
-### Milestone 1.4: Discovery & Search ⏳ PENDING
+### Milestone 1.4: Discovery & Marketplace ⏳ PENDING
 
 | # | Endpoint | Method | Status | Notes |
 |---|----------|--------|--------|-------|
-| 27 | `/api/studyhub/subjects/recommended` | GET | ⏳ TODO | Recommended subjects |
-| 28 | `/api/studyhub/subjects/trending` | GET | ⏳ TODO | Trending subjects |
-| 29 | `/api/studyhub/search` | GET | ⏳ TODO | Search subjects |
-| 30 | `/api/studyhub/subjects/{subject_id}/stats` | GET | ⏳ TODO | Subject statistics (owner) |
+| 27 | `/api/studyhub/marketplace/subjects/search` | GET | ⏳ TODO | Search & filter subjects |
+| 28 | `/api/studyhub/marketplace/subjects/latest` | GET | ⏳ TODO | Latest updated subjects |
+| 29 | `/api/studyhub/marketplace/subjects/top` | GET | ⏳ TODO | Top viewed/enrolled subjects |
+| 30 | `/api/studyhub/marketplace/subjects/featured-week` | GET | ⏳ TODO | Featured subjects (3) |
+| 31 | `/api/studyhub/marketplace/subjects/trending-today` | GET | ⏳ TODO | Trending today (5) |
+| 32 | `/api/studyhub/marketplace/creators/featured` | GET | ⏳ TODO | Featured creators (10) |
+| 33 | `/api/studyhub/marketplace/tags/popular` | GET | ⏳ TODO | Popular tags (25) |
+| 34 | `/api/studyhub/marketplace/categories/popular` | GET | ⏳ TODO | All categories |
+| 35 | `/api/studyhub/marketplace/subjects/{subject_id}` | GET | ⏳ TODO | Public subject view |
+| 36 | `/api/studyhub/marketplace/subjects/{subject_id}/related` | GET | ⏳ TODO | Related subjects |
+| 37 | `/api/studyhub/marketplace/creators/{creator_id}/profile` | GET | ⏳ TODO | Creator profile |
+| 38 | `/api/studyhub/marketplace/creators/{creator_id}/subjects` | GET | ⏳ TODO | Creator's subjects |
 
-**Status**: ⏳ 0/4 APIs implemented
+**Status**: ⏳ 0/12 APIs implemented
 **Target Sprint**: Sprint 4
+**Pattern**: Similar to Community Books marketplace
 
 ---
 
@@ -229,26 +238,26 @@ This checklist tracks the implementation progress of all StudyHub APIs across al
 
 ### Overall Progress
 
-- **Phase 1 Total**: 30 APIs
-  - ✅ Completed: 16 APIs (53.3%)
-  - ⏳ Pending: 14 APIs (46.7%)
+- **Phase 1 Total**: 38 APIs
+  - ✅ Completed: 16 APIs (42.1%)
+  - ⏳ Pending: 22 APIs (57.9%)
 
 - **Phase 2 Total**: 28 APIs
   - ⏳ Pending: 28 APIs (100%)
 
-- **Grand Total**: 58 APIs
-  - ✅ Completed: 16 APIs (27.6%)
-  - ⏳ Pending: 42 APIs (72.4%)
+- **Grand Total**: 66 APIs
+  - ✅ Completed: 16 APIs (24.2%)
+  - ⏳ Pending: 50 APIs (75.8%)
 
 ### Milestones Completion
 
 - ✅ M1.1: Subject Core (100%) - 8/8 APIs
 - ✅ M1.2: Module & Content (100%) - 8/8 APIs
 - ⏳ M1.3: Enrollment & Progress (0%) - 0/10 APIs
-- ⏳ M1.4: Discovery (0%) - 0/4 APIs
+- ⏳ M1.4: Discovery & Marketplace (0%) - 0/12 APIs
 - ⏳ M2.1: Content Integration (0%) - 0/14 APIs
-- ⏳ M2.2: Monetization (0%) - 0/10 APIs
-- ⏳ M2.3: Analytics (0%) - 0/4 APIs
+- ⏳ M2.2: Monetization (0%) - 0/8 APIs
+- ⏳ M2.3: Analytics (0%) - 0/6 APIs
 
 ---
 

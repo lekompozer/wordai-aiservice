@@ -3,12 +3,17 @@
 ## Tổng quan chiến lược
 
 Phase 1 và Phase 2 được chia thành **6 Milestones** có thể triển khai độc lập:
-- **Milestone 1.1**: Subject Core (Foundation)
-- **Milestone 1.2**: Module & Content Basic
-- **Milestone 1.3**: Enrollment & Progress
-- **Milestone 2.1**: Advanced Content Integration
-- **Milestone 2.2**: Monetization System
-- **Milestone 2.3**: Analytics & Optimization
+- **Milestone 1.1**: Subject Core - 8 APIs
+- **Milestone 1.2**: Module & Content Basic - 8 APIs
+- **Milestone 1.3**: Enrollment & Progress - 10 APIs
+- **Milestone 1.4**: Discovery & Marketplace - 12 APIs
+- **Milestone 2.1**: Advanced Content Integration - 14 APIs
+- **Milestone 2.2**: Monetization System - 8 APIs
+- **Milestone 2.3**: Analytics & Optimization - 6 APIs
+
+**Total Phase 1**: 38 APIs (M1.1 + M1.2 + M1.3 + M1.4)
+**Total Phase 2**: 28 APIs (M2.1 + M2.2 + M2.3)
+**Grand Total**: 66 APIs
 
 ---
 
@@ -290,40 +295,87 @@ learning_progress:
 
 ---
 
-### Milestone 1.4: Discovery & Search (Sprint 4 - 1 week)
+### Milestone 1.4: Discovery & Marketplace (Sprint 4 - 1 week)
 
-**Mục tiêu**: Tìm kiếm và khám phá Subject
+**Mục tiêu**: Public marketplace, discovery, browsing, search (tương tự Community Books)
 
-**APIs - Total: 4**
+**APIs - Total: 12**
 
-27. **GET** `/api/studyhub/subjects/recommended`
-    - Subject đề xuất cho user
-    - Algorithm: Based on enrolled subjects, tags, ratings
-    - Query: `limit=10`
-    - Response: Array of subjects
+27. **GET** `/api/studyhub/marketplace/subjects/search`
+    - Search & filter subjects
+    - Query: `q (title/creator), category, tags, level, sort_by (updated/views/rating/newest), skip, limit`
+    - Full-text search: title, owner name
+    - Response: Paginated marketplace subjects
 
-28. **GET** `/api/studyhub/subjects/trending`
-    - Subject trending (nhiều người học nhất)
-    - Time range: 7 days
-    - Query: `limit=20`
-    - Response: Array with stats
+28. **GET** `/api/studyhub/marketplace/subjects/latest`
+    - Latest updated subjects
+    - Query: `category, tags, skip, limit (default 20)`
+    - Sort by: last_updated_at DESC
+    - Response: 20 subjects for 2x10 grid
 
-29. **GET** `/api/studyhub/search`
-    - Tìm kiếm Subject
-    - Query: `q (keyword), tags, owner_id, page, limit`
-    - Full-text search: title, description
-    - Response: Search results
+29. **GET** `/api/studyhub/marketplace/subjects/top`
+    - Top most viewed/enrolled subjects
+    - Query: `category, tags, limit (default 10)`
+    - Sort by: total_views or total_learners
+    - Response: Top subjects
 
-30. **GET** `/api/studyhub/subjects/{subject_id}/stats`
-    - Thống kê chi tiết Subject (Owner only)
-    - Stats: Total learners, completion rate, avg time
-    - Chart data: enrollments over time
-    - Response: Stats object
+30. **GET** `/api/studyhub/marketplace/subjects/featured-week`
+    - 3 featured subjects of the week
+    - Algorithm: 2 most viewed + 1 most enrolled (last 7 days)
+    - Response: 3 subjects with full details
+
+31. **GET** `/api/studyhub/marketplace/subjects/trending-today`
+    - 5 trending subjects today
+    - Views in last 24 hours
+    - Response: 5 subjects with today's view count
+
+32. **GET** `/api/studyhub/marketplace/creators/featured`
+    - 10 featured creators for homepage
+    - Algorithm: 3 by total views, 3 by ratings, 4 by top subjects
+    - Response: Creators with stats (total subjects, students, avg rating)
+
+33. **GET** `/api/studyhub/marketplace/tags/popular`
+    - 25 most popular tags
+    - Sort by: subject count
+    - Response: Tags with counts
+
+34. **GET** `/api/studyhub/marketplace/categories/popular`
+    - All categories with subject count
+    - Response: Categories with metadata
+
+35. **GET** `/api/studyhub/marketplace/subjects/{subject_id}`
+    - Public subject preview (marketplace view)
+    - Track view count
+    - Response: Subject details (public data only)
+
+36. **GET** `/api/studyhub/marketplace/subjects/{subject_id}/related`
+    - Related subjects
+    - Based on: category, tags similarity
+    - Query: `limit (default 5)`
+    - Response: Related subjects
+
+37. **GET** `/api/studyhub/marketplace/creators/{creator_id}/profile`
+    - Public creator profile
+    - Stats: total subjects, total students, ratings
+    - Response: Creator info + subjects preview
+
+38. **GET** `/api/studyhub/marketplace/creators/{creator_id}/subjects`
+    - All public subjects by creator
+    - Query: `skip, limit`
+    - Response: Paginated subjects
 
 **Backend Requirements**:
-- Text search index on MongoDB
-- Caching for trending/recommended
-- Analytics tracking
+- Text search index on MongoDB (subjects.title)
+- Marketplace metadata in subjects collection:
+  - total_views: Number
+  - views_today: Number
+  - views_this_week: Number
+  - category: String
+  - tags: Array<String>
+  - level: String (beginner/intermediate/advanced)
+  - is_public_marketplace: Boolean
+- View tracking system (similar to book_views)
+- Caching for trending/featured endpoints
 
 ---
 
