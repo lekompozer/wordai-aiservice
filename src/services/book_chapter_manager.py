@@ -45,6 +45,109 @@ class GuideBookBookChapterManager:
 
             self.book_manager = UserBookManager(db)
 
+    def _generate_slug(self, text: str) -> str:
+        """
+        Generate URL-friendly slug from text
+        Handles Vietnamese characters and special chars
+        """
+        import re
+
+        # Vietnamese character mapping
+        vietnamese_map = {
+            "à": "a",
+            "á": "a",
+            "ạ": "a",
+            "ả": "a",
+            "ã": "a",
+            "â": "a",
+            "ầ": "a",
+            "ấ": "a",
+            "ậ": "a",
+            "ẩ": "a",
+            "ẫ": "a",
+            "ă": "a",
+            "ằ": "a",
+            "ắ": "a",
+            "ặ": "a",
+            "ẳ": "a",
+            "ẵ": "a",
+            "è": "e",
+            "é": "e",
+            "ẹ": "e",
+            "ẻ": "e",
+            "ẽ": "e",
+            "ê": "e",
+            "ề": "e",
+            "ế": "e",
+            "ệ": "e",
+            "ể": "e",
+            "ễ": "e",
+            "ì": "i",
+            "í": "i",
+            "ị": "i",
+            "ỉ": "i",
+            "ĩ": "i",
+            "ò": "o",
+            "ó": "o",
+            "ọ": "o",
+            "ỏ": "o",
+            "õ": "o",
+            "ô": "o",
+            "ồ": "o",
+            "ố": "o",
+            "ộ": "o",
+            "ổ": "o",
+            "ỗ": "o",
+            "ơ": "o",
+            "ờ": "o",
+            "ớ": "o",
+            "ợ": "o",
+            "ở": "o",
+            "ỡ": "o",
+            "ù": "u",
+            "ú": "u",
+            "ụ": "u",
+            "ủ": "u",
+            "ũ": "u",
+            "ư": "u",
+            "ừ": "u",
+            "ứ": "u",
+            "ự": "u",
+            "ử": "u",
+            "ữ": "u",
+            "ỳ": "y",
+            "ý": "y",
+            "ỵ": "y",
+            "ỷ": "y",
+            "ỹ": "y",
+            "đ": "d",
+        }
+
+        # Convert to lowercase
+        slug = text.lower().strip()
+
+        # Replace Vietnamese characters
+        for vn_char, latin_char in vietnamese_map.items():
+            slug = slug.replace(vn_char, latin_char)
+
+        # Remove non-alphanumeric characters (keep hyphens and spaces)
+        slug = re.sub(r"[^a-z0-9\s-]", "", slug)
+
+        # Replace spaces with hyphens
+        slug = re.sub(r"[\s]+", "-", slug)
+
+        # Remove multiple consecutive hyphens
+        slug = re.sub(r"-+", "-", slug)
+
+        # Remove leading/trailing hyphens
+        slug = slug.strip("-")
+
+        # Limit length
+        if len(slug) > 100:
+            slug = slug[:100].rstrip("-")
+
+        return slug or "chapter"
+
     def create_indexes(self):
         """Tạo indexes cho collection guide_chapters"""
         try:
