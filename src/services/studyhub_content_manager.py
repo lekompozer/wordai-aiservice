@@ -555,3 +555,170 @@ class StudyHubContentManager:
 
         await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
         return True
+
+    # ==================== FILE CONTENT ====================
+
+    async def link_existing_file_to_module(
+        self,
+        module_id: str,
+        file_id: str,
+        title: str,
+        is_required: bool = False,
+        is_preview: bool = False,
+    ) -> dict:
+        """
+        Link existing file to module
+
+        Args:
+            module_id: Module ID
+            file_id: File ID from studyhub_files
+            title: Content title
+            is_required: Required for completion
+            is_preview: Free preview content
+
+        Returns:
+            Created content document
+        """
+        # Check permission
+        await self.permissions.check_module_owner(self.user_id, module_id)
+
+        # Verify file exists and user uploaded it
+        file_doc = await self.db.studyhub_files.find_one(
+            {"_id": ObjectId(file_id), "uploaded_by": self.user_id, "deleted": {"$ne": True}}
+        )
+
+        if not file_doc:
+            raise HTTPException(
+                status_code=404,
+                detail="File not found or you don't have permission",
+            )
+
+        # Check if file already linked to this module
+        existing = await self.db.studyhub_module_contents.find_one(
+            {
+                "module_id": ObjectId(module_id),
+                "content_type": "file",
+                "data.file_id": file_id,
+            }
+        )
+
+        if existing:
+            raise HTTPException(
+                status_code=409, detail="File already linked to this module"
+            )
+
+        # Get module to get subject_id
+        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+
+        # Get next order_index
+        last_content = await self.db.studyhub_module_contents.find_one(
+            {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
+        )
+        order_index = (last_content["order_index"] + 1) if last_content else 1
+
+        # Create content record
+        content_doc = {
+            "module_id": ObjectId(module_id),
+            "content_type": "file",
+            "title": title,
+            "data": {
+                "file_id": file_id,
+                "file_url": file_doc.get("file_url"),
+                "file_name": file_doc.get("file_name"),
+                "file_type": file_doc.get("file_type"),
+                "file_size": file_doc.get("file_size"),
+            },
+            "is_required": is_required,
+            "is_preview": is_preview,
+            "order_index": order_index,
+            "created_at": datetime.now(timezone.utc),
+        }
+
+        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        content_doc["_id"] = result.inserted_id
+
+        # Update studyhub_context in file
+        await self.permissions.update_content_studyhub_context(
+            collection_name="studyhub_files",
+            content_id=file_id,
+            subject_id=str(module["subject_id"]),
+            module_id=module_id,
+            enabled=True,
+            is_preview=is_preview,
+        )
+
+        return content_doc
+
+    async def get_module_files(self, module_id: str) -> List[dict]:
+        """
+        Get all files in module
+
+        Args:
+            module_id: Module ID
+
+        Returns:
+            List of file contents with details
+        """
+        # Check permission (owner or enrolled)
+        await self.permissions.check_content_access(self.user_id, module_id)
+
+        # Get all file contents
+        contents = await self.db.studyhub_module_contents.find(
+            {"module_id": ObjectId(module_id), "content_type": "file"}
+        ).sort("order_index", 1).to_list(None)
+
+        # Enrich with file details
+        for content in contents:
+            file_id = content["data"].get("file_id")
+            if file_id:
+                file_doc = await self.db.studyhub_files.find_one(
+                    {"_id": ObjectId(file_id)}
+                )
+                if file_doc:
+                    content["file_details"] = {
+                        "uploaded_at": file_doc.get("uploaded_at"),
+                        "uploaded_by": file_doc.get("uploaded_by"),
+                        "download_count": file_doc.get("download_count", 0),
+                        "duration": file_doc.get("duration"),  # for videos
+                        "thumbnail_url": file_doc.get("thumbnail_url"),
+                    }
+
+        return contents
+
+    async def remove_file_from_module(self, content_id: str) -> bool:
+        """Remove file from module (soft delete)"""
+        content = await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id), "content_type": "file"}
+        )
+
+        if not content:
+            raise HTTPException(status_code=404, detail="File content not found")
+
+        await self.permissions.check_module_owner(
+            self.user_id, str(content["module_id"])
+        )
+
+        file_id = content["data"].get("file_id")
+        if file_id:
+            # Update studyhub_context
+            await self.permissions.update_content_studyhub_context(
+                collection_name="studyhub_files",
+                content_id=file_id,
+                subject_id="",
+                module_id="",
+                enabled=False,
+            )
+
+            # Mark file as deleted (soft delete)
+            await self.db.studyhub_files.update_one(
+                {"_id": ObjectId(file_id)},
+                {
+                    "$set": {
+                        "deleted": True,
+                        "deleted_at": datetime.now(timezone.utc),
+                    }
+                },
+            )
+
+        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+        return True

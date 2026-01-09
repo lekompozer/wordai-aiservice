@@ -77,6 +77,15 @@ class UpdateBookRequest(BaseModel):
     is_preview: Optional[bool] = None
 
 
+class LinkExistingFileRequest(BaseModel):
+    """Request to link existing file to module"""
+
+    file_id: str = Field(..., description="ID from studyhub_files")
+    title: str = Field(..., min_length=1, max_length=200)
+    is_required: bool = False
+    is_preview: bool = False
+
+
 # ==================== DOCUMENT CONTENT APIs ====================
 
 
@@ -456,3 +465,141 @@ async def remove_book_from_module(
     await manager.remove_book_from_module(content_id=content_id)
 
     return {"success": True, "message": "Book removed from module"}
+
+
+# ==================== FILE CONTENT APIs ====================
+
+
+@router.post(
+    "/modules/{module_id}/content/files/existing",
+    status_code=status.HTTP_201_CREATED,
+    summary="Link existing file to module",
+)
+async def link_existing_file_to_module(
+    module_id: str,
+    request: LinkExistingFileRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Link existing file to StudyHub module**
+
+    - Links file from My Files (studyhub_files collection)
+    - File must belong to user
+    - File cannot be already linked to this module
+    - Sets `studyhub_context.enabled = true` on file
+
+    **Permission**: Subject owner only
+    """
+    manager = StudyHubContentManager(user_id=current_user["uid"])
+
+    content = await manager.link_existing_file_to_module(
+        module_id=module_id,
+        file_id=request.file_id,
+        title=request.title,
+        is_required=request.is_required,
+        is_preview=request.is_preview,
+    )
+
+    return {
+        "id": str(content["_id"]),
+        "module_id": str(content["module_id"]),
+        "content_type": content["content_type"],
+        "title": content["title"],
+        "data": content["data"],
+        "is_required": content["is_required"],
+        "is_preview": content["is_preview"],
+        "order_index": content["order_index"],
+    }
+
+
+@router.post(
+    "/modules/{module_id}/content/files",
+    status_code=status.HTTP_201_CREATED,
+    summary="Upload file to module",
+)
+async def upload_file_to_module(
+    module_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Upload file to StudyHub module**
+
+    - Accepts multipart/form-data
+    - Max file size: 500 MB
+    - Supported: PDF, videos, audio, images, archives
+    - Uploads to Cloudflare R2 storage
+    - Virus scanning performed
+
+    **Permission**: Subject owner only
+    
+    **Note**: This endpoint requires file upload implementation with multipart/form-data.
+    Implementation pending - requires R2 storage integration.
+    """
+    raise HTTPException(
+        status_code=501,
+        detail="File upload not implemented yet. Please use link existing file endpoint instead.",
+    )
+
+
+@router.get(
+    "/modules/{module_id}/content/files",
+    summary="Get all files in module",
+)
+async def get_module_files(
+    module_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Get all files in module**
+
+    - Returns list of files with metadata
+    - Includes file details (size, type, download count, etc.)
+    - Ordered by order_index
+
+    **Permission**: Subject owner or enrolled user
+    """
+    manager = StudyHubContentManager(user_id=current_user["uid"])
+
+    contents = await manager.get_module_files(module_id=module_id)
+
+    return {
+        "contents": [
+            {
+                "id": str(content["_id"]),
+                "module_id": str(content["module_id"]),
+                "title": content["title"],
+                "data": content["data"],
+                "is_required": content["is_required"],
+                "is_preview": content["is_preview"],
+                "order_index": content["order_index"],
+                "file_details": content.get("file_details"),
+            }
+            for content in contents
+        ],
+        "total": len(contents),
+    }
+
+
+@router.delete(
+    "/content/files/{content_id}",
+    summary="Remove file from module",
+)
+async def remove_file_from_module(
+    content_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Unlink file from module**
+
+    - Removes content record from module
+    - Marks file as `deleted = true` (soft delete)
+    - File remains in storage for 30 days
+    - URL still accessible until cleanup
+
+    **Permission**: Subject owner only
+    """
+    manager = StudyHubContentManager(user_id=current_user["uid"])
+
+    await manager.remove_file_from_module(content_id=content_id)
+
+    return {"success": True, "message": "File removed from module"}
