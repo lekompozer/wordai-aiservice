@@ -448,6 +448,11 @@ class GuideBookBookChapterManager:
             chapter_id = chapter.get("chapter_id") or chapter.get("_id")
             parent_id = chapter.get("parent_id")
 
+            # Skip invalid chapters without ID
+            if not chapter_id or chapter_id not in chapter_map:
+                logger.warning(f"⚠️ Skipping invalid chapter without ID: {chapter}")
+                continue
+
             if parent_id is None:
                 # Root level
                 tree.append(chapter_map[chapter_id])
@@ -456,6 +461,12 @@ class GuideBookBookChapterManager:
                 parent = chapter_map.get(parent_id)
                 if parent:
                     parent["children"].append(chapter_map[chapter_id])
+                else:
+                    # Parent not found - treat as root
+                    logger.warning(
+                        f"⚠️ Parent {parent_id} not found for chapter {chapter_id}, treating as root"
+                    )
+                    tree.append(chapter_map[chapter_id])
 
         # Sort tree recursively
         self._sort_tree(tree)
