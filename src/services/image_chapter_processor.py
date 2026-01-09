@@ -42,6 +42,7 @@ class ImageChapterProcessor:
         user_id: str,
         chapter_id: str,
         preserve_order: bool = True,
+        cleanup_temp_urls: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         Convert image files to pages array
@@ -51,6 +52,7 @@ class ImageChapterProcessor:
             user_id: User ID for R2 path organization
             chapter_id: Chapter ID for R2 path organization
             preserve_order: Keep files in provided order (True for manga)
+            cleanup_temp_urls: Optional list of temp URLs to delete after upload
 
         Returns:
             {
@@ -124,11 +126,51 @@ class ImageChapterProcessor:
                 f"✅ [IMAGE_PROCESSOR] Successfully processed {result['total_pages']} images"
             )
 
+            # Cleanup temp URLs if provided
+            if cleanup_temp_urls:
+                await self._cleanup_temp_files(cleanup_temp_urls)
+
             return result
 
         except Exception as e:
             logger.error(f"❌ [IMAGE_PROCESSOR] Failed to process images: {e}")
             raise
+
+    async def _cleanup_temp_files(self, temp_urls: List[str]):
+        """
+        Delete temporary files from R2
+
+        Args:
+            temp_urls: List of temp CDN URLs to delete
+        """
+        try:
+            deleted_count = 0
+
+            for url in temp_urls:
+                try:
+                    # Extract object key from CDN URL
+                    # URL format: https://cdn.wordai.com/studyhub/books/{book_id}/temp/{uuid}.jpg
+                    if self.cdn_base_url in url:
+                        object_key = url.replace(f"{self.cdn_base_url}/", "")
+
+                        # Delete from R2
+                        self.s3_client.delete_object(
+                            Bucket=self.r2_bucket, Key=object_key
+                        )
+
+                        deleted_count += 1
+                        logger.info(f"  🗑️ Deleted temp file: {object_key}")
+
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to delete temp file {url}: {e}")
+                    # Continue with other files even if one fails
+
+            if deleted_count > 0:
+                logger.info(f"✅ Cleaned up {deleted_count} temp files")
+
+        except Exception as e:
+            logger.error(f"❌ Failed to cleanup temp files: {e}")
+            # Don't raise - cleanup failure shouldn't break chapter creation
 
     async def process_zip_to_pages(
         self,

@@ -35,6 +35,7 @@ from src.models.book_chapter_models import (
     # Phase 2: Multi-format content
     ChapterCreatePDFPages,
     ChapterCreateImagePages,
+    ChapterCreateFromUploadedImages,
     ChapterPagesUpdate,
 )
 
@@ -1727,28 +1728,21 @@ async def update_chapter_pages(
     "/{book_id}/chapters/upload-images",
     response_model=Dict[str, Any],
     status_code=status.HTTP_200_OK,
-    summary="Upload images for chapter creation",
+    summary="Upload images directly to chapter storage",
     description="""
-    Upload multiple images and get CDN URLs for chapter creation.
+    Upload images and get chapter_id + CDN URLs immediately.
 
-    **Features:**
-    - Upload up to 10 files per request
-    - Max 100 MB total size per request
-    - Returns CDN URLs immediately
-    - Can call multiple times to upload more images
-    - Images stored in temp folder until chapter creation
+    **Simplified Flow:**
+    - First upload: Auto-generates chapter_id
+    - Subsequent uploads: Use same chapter_id to add more pages
+    - Images uploaded directly to permanent storage
+    - No temp storage, no re-upload, no cleanup needed
 
     **Process:**
-    1. Validates file types and sizes
-    2. Converts to RGB and compresses to JPEG
-    3. Uploads to R2 CDN
-    4. Returns URLs
-
-    **Usage:**
-    1. Upload first batch (10 images) → Get URLs
-    2. Upload second batch (10 images) → Get more URLs
-    3. Accumulate all URLs in frontend
-    4. Call POST /from-images with complete URL list
+    1. Generate/use chapter_id
+    2. Upload to studyhub/chapters/{chapter_id}/page-{N}.jpg
+    3. Return chapter_id + URLs
+    4. Images ready for chapter creation
 
     **Required:** Owner access to the book
     """,
@@ -1795,13 +1789,17 @@ async def upload_images_for_chapter(
                 detail=f"Total size {total_size / 1024 / 1024:.1f}MB exceeds 100MB limit",
             )
 
+        # 3. Generate or use existing chapter_id
+        if not chapter_id:
+            chapter_id = str(uuid.uuid4())
+            logger.info(f"📝 [UPLOAD] Generated new chapter_id: {chapter_id}")
+        else:
+            logger.info(f"📝 [UPLOAD] Using existing chapter_id: {chapter_id}")
+
         logger.info(f"📤 [UPLOAD] Uploading {len(files)} images to book {book_id}")
         logger.info(f"   User: {user_id}, Total size: {total_size / 1024 / 1024:.2f}MB")
 
-        # 3. Process and upload each image
-        uploaded_images = []
-
-        # Get R2 config
+        # 4. Get current page count for this chapter_id
         from src.config import config
 
         s3_client = config.get_s3_client()
@@ -1809,6 +1807,21 @@ async def upload_images_for_chapter(
             "bucket": "wordai-storage",
             "cdn_base_url": "https://cdn.wordai.com",
         }
+
+        # List existing pages to get next page number
+        prefix = f"studyhub/chapters/{chapter_id}/"
+        try:
+            response = s3_client.list_objects_v2(
+                Bucket=r2_config["bucket"], Prefix=prefix
+            )
+            existing_pages = len(response.get("Contents", []))
+        except:
+            existing_pages = 0
+
+        next_page_number = existing_pages + 1
+
+        # 5. Process and upload each image
+        uploaded_images = []
 
         for idx, file in enumerate(files, 1):
             try:
@@ -1845,14 +1858,9 @@ async def upload_images_for_chapter(
                 image.save(buffer, format="JPEG", quality=90, optimize=True)
                 buffer.seek(0)
 
-                # Generate unique filename
-                file_uuid = str(uuid.uuid4())
-                file_extension = ".jpg"
-
-                # R2 path: studyhub/books/{book_id}/temp/{uuid}.jpg
-                object_key = (
-                    f"studyhub/books/{book_id}/temp/{file_uuid}{file_extension}"
-                )
+                # R2 path: studyhub/chapters/{chapter_id}/page-{N}.jpg (PERMANENT)
+                page_number = next_page_number + idx - 1
+                object_key = f"studyhub/chapters/{chapter_id}/page-{page_number}.jpg"
 
                 # Upload to R2
                 s3_client.upload_fileobj(
@@ -1872,24 +1880,30 @@ async def upload_images_for_chapter(
                         "url": cdn_url,
                         "width": original_width,
                         "height": original_height,
+                        "page_number": page_number,
                     }
                 )
 
                 logger.info(
-                    f"  ✅ Uploaded {idx}/{len(files)}: {file.filename} → {cdn_url}"
+                    f"  ✅ Uploaded page {page_number}: {file.filename} → {cdn_url}"
                 )
 
             except Exception as e:
                 logger.error(f"❌ Failed to process {file.filename}: {e}")
                 raise ValueError(f"Failed to process {file.filename}: {str(e)}")
 
+        current_page_count = existing_pages + len(uploaded_images)
+
         logger.info(f"✅ [UPLOAD] Successfully uploaded {len(uploaded_images)} images")
+        logger.info(f"   Chapter ID: {chapter_id}, Total pages: {current_page_count}")
 
         return {
             "success": True,
+            "chapter_id": chapter_id,  # Return for subsequent uploads
             "images": uploaded_images,
             "total_uploaded": len(uploaded_images),
             "total_size": total_size,
+            "current_page_count": current_page_count,
             "message": f"Uploaded {len(uploaded_images)} images successfully",
         }
 
@@ -1910,21 +1924,21 @@ async def upload_images_for_chapter(
     "/{book_id}/chapters/from-images",
     response_model=Dict[str, Any],
     status_code=status.HTTP_201_CREATED,
-    summary="Create chapter from images (manga/comics)",
+    summary="Create chapter from uploaded images",
     description="""
-    Create a new chapter from a list of image URLs (for manga, comics, photo books).
+    Create a new chapter from previously uploaded images.
+
+    **Simplified Flow:**
+    1. Upload images via POST /upload-images (get chapter_id)
+    2. Call this endpoint with chapter_id + metadata
+    3. Chapter created immediately (no re-upload)
 
     **Features:**
-    - Upload images in sequence (preserves order for manga)
-    - Variable dimensions (not fixed A4 like PDF)
-    - Optional manga metadata (reading direction, artist, genre)
-    - Element overlays: speech bubbles, sound effects, annotations
-
-    **Process:**
-    1. Downloads images from provided URLs
-    2. Re-uploads to R2 as chapter page backgrounds
-    3. Creates chapter with pages array (empty elements initially)
-    4. Returns chapter with all pages
+    - Images already in permanent storage
+    - No download/re-upload needed
+    - Variable dimensions (manga/comics/photo books)
+    - Optional manga metadata
+    - Element overlays support
 
     **Content Mode:** `image_pages`
 
@@ -1933,22 +1947,22 @@ async def upload_images_for_chapter(
 )
 async def create_chapter_from_images_endpoint(
     book_id: str,
-    request: ChapterCreateImagePages,
+    request: ChapterCreateFromUploadedImages,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    """Create chapter from image URLs (manga/comics/photo books)"""
+    """Create chapter from uploaded images (simplified - no file operations)"""
     try:
         user_id = current_user["uid"]
 
-        logger.info(f"🎨 [API] Creating image chapter in book {book_id}")
-        logger.info(f"   User: {user_id}, Title: {request.title}")
-        logger.info(f"   Images: {len(request.image_urls)}")
+        logger.info(f"🎨 [API] Creating chapter from uploaded images")
+        logger.info(f"   Book: {book_id}, User: {user_id}")
+        logger.info(f"   Chapter ID: {request.chapter_id}, Title: {request.title}")
 
-        # Create chapter from images
-        chapter = await chapter_manager.create_chapter_from_images(
+        # Create chapter from uploaded images
+        chapter = await chapter_manager.create_chapter_from_uploaded_images(
             book_id=book_id,
             user_id=user_id,
-            image_urls=request.image_urls,
+            chapter_id=request.chapter_id,
             title=request.title,
             slug=request.slug,
             order_index=request.order_index,
@@ -1961,15 +1975,14 @@ async def create_chapter_from_images_endpoint(
         )
 
         logger.info(
-            f"✅ [API] Created image chapter {chapter['_id']}: "
-            f"{chapter['total_pages']} pages"
+            f"✅ [API] Created chapter {chapter['_id']}: {chapter['total_pages']} pages"
         )
 
         return {
             "success": True,
             "chapter": chapter,
             "total_pages": chapter["total_pages"],
-            "message": f"Chapter created with {chapter['total_pages']} image pages",
+            "message": f"Chapter created with {chapter['total_pages']} pages",
         }
 
     except PermissionError as e:

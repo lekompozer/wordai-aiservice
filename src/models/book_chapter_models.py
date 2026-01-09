@@ -144,6 +144,30 @@ class ChapterCreateImagePages(BaseModel):
     )
 
 
+class ChapterCreateFromUploadedImages(BaseModel):
+    """Create chapter from previously uploaded images (simplified flow)"""
+
+    chapter_id: str = Field(
+        ...,
+        description="Chapter ID from upload-images endpoint (images already in R2)",
+    )
+    title: str = Field(..., min_length=1, max_length=200, description="Chapter title")
+    slug: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Chapter URL slug (auto-generated if not provided)",
+    )
+    parent_id: Optional[str] = Field(None, description="Parent chapter ID for nesting")
+    order_index: int = Field(
+        default=0, ge=0, description="Display order at current level"
+    )
+    is_published: bool = Field(default=True, description="Published status")
+    is_preview_free: bool = Field(default=False, description="Allow free preview")
+    manga_metadata: Optional[MangaMetadata] = Field(
+        None, description="Manga-specific settings"
+    )
+
+
 class ChapterPagesUpdate(BaseModel):
     """Update page elements (add highlights, notes, etc.)"""
 

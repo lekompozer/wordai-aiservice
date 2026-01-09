@@ -1540,14 +1540,22 @@ class GuideBookBookChapterManager:
                 # 3. Process images to pages
                 chapter_id = str(uuid.uuid4())
 
+                # Check if URLs are from temp folder (need cleanup)
+                temp_urls = [url for url in image_urls if "/temp/" in url]
+
                 result = await processor.process_images_to_pages(
                     image_paths=local_paths,
                     user_id=user_id,
                     chapter_id=chapter_id,
                     preserve_order=True,  # Keep order for manga
+                    cleanup_temp_urls=(
+                        temp_urls if temp_urls else None
+                    ),  # Cleanup temp files
                 )
 
                 logger.info(f"✅ Images processed: {result['total_pages']} pages")
+                if temp_urls:
+                    logger.info(f"🗑️ Cleaned up {len(temp_urls)} temp files")
 
                 # 4. Create chapter document
                 chapter_doc = {
@@ -1596,6 +1604,145 @@ class GuideBookBookChapterManager:
         except Exception as e:
             logger.error(
                 f"❌ [IMAGE_CHAPTER] Failed to create chapter from images: {e}"
+            )
+            raise
+
+    async def create_chapter_from_uploaded_images(
+        self,
+        book_id: str,
+        user_id: str,
+        chapter_id: str,
+        title: str,
+        slug: Optional[str] = None,
+        order_index: int = 0,
+        parent_id: Optional[str] = None,
+        is_published: bool = True,
+        is_preview_free: bool = False,
+        manga_metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Create chapter from previously uploaded images (simplified - no file operations)
+
+        Images are already in R2 at: studyhub/chapters/{chapter_id}/page-{N}.jpg
+
+        Args:
+            book_id: Book ID
+            user_id: User ID
+            chapter_id: Chapter ID from upload-images endpoint
+            title: Chapter title
+            slug: URL slug
+            order_index: Position in book
+            parent_id: Parent chapter ID
+            is_published: Published status
+            is_preview_free: Free preview access
+            manga_metadata: Optional manga settings
+
+        Returns:
+            Created chapter document with pages array
+        """
+        try:
+            # 1. Validate book ownership
+            book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+            if not book:
+                raise ValueError("Book not found or access denied")
+
+            logger.info(f"🎨 [UPLOADED_IMAGES] Creating chapter from uploaded images")
+            logger.info(f"   Book: {book_id}, User: {user_id}")
+            logger.info(f"   Chapter ID: {chapter_id}")
+
+            # 2. List uploaded images from R2
+            from PIL import Image
+            import io
+
+            prefix = f"studyhub/chapters/{chapter_id}/"
+            try:
+                response = self.s3_client.list_objects_v2(
+                    Bucket=self.r2_config.get("bucket", "wordai-storage"), Prefix=prefix
+                )
+                objects = response.get("Contents", [])
+                if not objects:
+                    raise ValueError(
+                        f"No images found for chapter_id {chapter_id}. "
+                        "Upload images first via POST /upload-images"
+                    )
+
+                # Sort by page number (page-1.jpg, page-2.jpg, etc.)
+                objects.sort(key=lambda x: x["Key"])
+
+                logger.info(f"📄 Found {len(objects)} uploaded pages")
+
+            except Exception as e:
+                logger.error(f"❌ Failed to list R2 objects: {e}")
+                raise ValueError(f"Failed to access uploaded images: {str(e)}")
+
+            # 3. Build pages array from R2 metadata
+            pages = []
+            for idx, obj in enumerate(objects, 1):
+                object_key = obj["Key"]
+                cdn_url = f"{self.r2_config.get('cdn_base_url', 'https://cdn.wordai.com')}/{object_key}"
+
+                # Get image dimensions from R2
+                try:
+                    response = self.s3_client.get_object(
+                        Bucket=self.r2_config.get("bucket", "wordai-storage"),
+                        Key=object_key,
+                    )
+                    image_data = response["Body"].read()
+                    image = Image.open(io.BytesIO(image_data))
+                    width, height = image.size
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not get dimensions for {object_key}: {e}")
+                    width, height = 0, 0
+
+                pages.append(
+                    {
+                        "page_number": idx,
+                        "background_image": cdn_url,
+                        "width": width,
+                        "height": height,
+                        "elements": [],  # Empty initially
+                    }
+                )
+
+            logger.info(f"✅ Built {len(pages)} pages from uploaded images")
+
+            # 4. Create chapter document
+            chapter_doc = {
+                "_id": chapter_id,  # Use uploaded chapter_id
+                "book_id": book_id,
+                "user_id": user_id,
+                "title": title,
+                "slug": slug or self._generate_slug(title),
+                "order_index": order_index,
+                "parent_id": parent_id,
+                "depth": 0 if not parent_id else self._calculate_depth(parent_id) + 1,
+                "content_mode": "image_pages",
+                "pages": pages,
+                "total_pages": len(pages),
+                "is_published": is_published,
+                "is_preview_free": is_preview_free,
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+
+            # Add manga metadata if provided
+            if manga_metadata:
+                chapter_doc["manga_metadata"] = manga_metadata
+                logger.info(f"📖 Added manga metadata: {manga_metadata}")
+
+            # Insert chapter
+            self.chapters_collection.insert_one(chapter_doc)
+            logger.info(f"✅ [UPLOADED_IMAGES] Created chapter: {chapter_id}")
+
+            # 5. Update book timestamp
+            if self.book_manager:
+                self.book_manager.update_book_timestamp(book_id)
+
+            return chapter_doc
+
+        except Exception as e:
+            logger.error(
+                f"❌ [UPLOADED_IMAGES] Failed to create chapter: {e}", exc_info=True
             )
             raise
 

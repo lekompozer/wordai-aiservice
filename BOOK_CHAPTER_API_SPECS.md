@@ -170,12 +170,12 @@ The Book Chapter system now supports **3 content modes** for different types of 
 
 **Content Type**: `multipart/form-data`
 
-**Description**: Upload multiple images for a chapter and get CDN URLs.
+**Description**: Upload images directly to chapter storage and get CDN URLs.
 
 **Form Data**:
 ```
 files: File[]               // Required - Image files (max 10 per request)
-chapter_id: string          // Optional - Organize in chapter folder
+chapter_id: string          // Optional - Use same ID for multiple upload batches
 ```
 
 **Request Headers**:
@@ -188,24 +188,28 @@ Authorization: Bearer <token>
 ```
 {
   "success": true,
+  "chapter_id": "uuid",              // NEW - Auto-generated on first upload
   "images": [
     {
       "file_name": "image1.jpg",
       "file_size": 234567,
-      "url": "https://cdn.wordai.com/studyhub/books/{book_id}/temp/image1-{uuid}.jpg",
+      "url": "https://cdn.wordai.com/studyhub/chapters/{chapter_id}/page-1.jpg",
       "width": 850,
-      "height": 1200
+      "height": 1200,
+      "page_number": 1               // NEW - Sequential page number
     },
     {
       "file_name": "image2.png",
       "file_size": 345678,
-      "url": "https://cdn.wordai.com/studyhub/books/{book_id}/temp/image2-{uuid}.jpg",
+      "url": "https://cdn.wordai.com/studyhub/chapters/{chapter_id}/page-2.jpg",
       "width": 920,
-      "height": 1300
+      "height": 1300,
+      "page_number": 2
     }
   ],
   "total_uploaded": 2,
   "total_size": 580245,
+  "current_page_count": 2,           // NEW - Total pages uploaded so far
   "message": "Uploaded 2 images successfully"
 }
 ```
@@ -217,20 +221,20 @@ Authorization: Bearer <token>
 - Each file max size: **20 MB**
 
 **Process**:
-1. Validates file types and sizes
-2. Converts images to RGB (handles transparency)
-3. Compresses to JPEG (quality 90)
-4. Uploads to R2 in temp folder
-5. Returns CDN URLs
-6. Images remain in temp folder until chapter is created
+1. First upload: Generates new `chapter_id` (UUID)
+2. Subsequent uploads: Use same `chapter_id` to continue adding pages
+3. Converts images to RGB (handles transparency)
+4. Compresses to JPEG (quality 90)
+5. Uploads directly to permanent storage: `studyhub/chapters/{chapter_id}/page-{N}.jpg`
+6. Returns URLs immediately (no temp storage, no re-upload)
 
 **Usage Flow**:
-1. User selects 10 images → Upload → Get URLs
-2. User selects 10 more images → Upload again → Get more URLs
-3. Accumulate all URLs in frontend
-4. Call `POST /from-images` with complete URL list
+1. User selects 10 images → Upload → Get `chapter_id` + URLs (pages 1-10)
+2. User selects 10 more → Upload with same `chapter_id` → Get URLs (pages 11-20)
+3. Repeat as needed
+4. Call `POST /from-images` with `chapter_id` + metadata (title, etc.)
 
-**Temp File Cleanup**: Images in temp folder are cleaned up after 24 hours if not used in chapter creation.
+**Storage**: Direct permanent storage - No temp folder, no cleanup needed
 
 **Error Responses**:
 - `400` - Too many files (>10), total size >100MB, unsupported format
@@ -251,18 +255,18 @@ Authorization: Bearer <token>
 **Request Body**:
 ```
 {
-  "image_urls": ["url1", "url2", ...],  // Required - List of image URLs
-  "title": "string",                     // Required
-  "slug": "string",                      // Optional
-  "order_index": 0,                      // Optional
-  "parent_id": "uuid",                   // Optional
-  "is_published": true,                  // Optional
-  "is_preview_free": false,              // Optional
-  "manga_metadata": {                    // Optional
-    "reading_direction": "rtl",          // "ltr" or "rtl"
-    "is_colored": false,                 // Boolean
-    "artist": "Artist Name",             // String
-    "genre": "Action, Adventure"         // String
+  "chapter_id": "uuid",                      // Required - From upload-images response
+  "title": "string",                         // Required
+  "slug": "string",                          // Optional
+  "order_index": 0,                          // Optional
+  "parent_id": "uuid",                       // Optional
+  "is_published": true,                      // Optional
+  "is_preview_free": false,                  // Optional
+  "manga_metadata": {                        // Optional
+    "reading_direction": "rtl",              // "ltr" or "rtl"
+    "is_colored": false,                     // Boolean
+    "artist": "Artist Name",                 // String
+    "genre": "Action, Adventure"             // String
   }
 }
 ```
@@ -272,9 +276,9 @@ Authorization: Bearer <token>
 {
   "success": true,
   "chapter": {
-    "_id": "uuid",
+    "_id": "uuid",                           // Same as chapter_id from upload
     "content_mode": "image_pages",
-    "pages": [...],
+    "pages": [...],                          // All uploaded pages
     "total_pages": 42,
     "manga_metadata": {...}
   },
@@ -284,17 +288,15 @@ Authorization: Bearer <token>
 ```
 
 **Process**:
-1. Downloads images from provided URLs
-2. Converts images to RGB (handles transparency)
-3. Uploads to R2 as JPEG (optimized)
-4. Creates chapter with pages array
-5. Preserves image order
-
-**Supported Formats**: JPG, PNG, WEBP, GIF
+1. Validates chapter_id has uploaded images
+2. Retrieves all page URLs from storage metadata
+3. Creates chapter document with pages array (images already in permanent storage)
+4. No image processing or moving needed
 
 **Error Responses**:
-- `400` - Invalid image URLs, unsupported format
+- `400` - Invalid chapter_id, no images found
 - `403` - Access denied
+- `404` - Chapter images not found
 - `500` - Processing error
 
 ---
@@ -552,13 +554,13 @@ genre: string               // Optional
 5. Redirect to chapter viewer
 
 **For Manga/Comics (Images)**:
-1. User selects images (up to 10) → Upload via `POST /upload-images`
-2. Receive image URLs
-3. Repeat step 1-2 if more than 10 images needed
-4. Accumulate all URLs in frontend state
-5. Call `POST /books/{book_id}/chapters/from-images` with complete URL list
-6. Wait for processing
-7. Receive chapter with `pages` array
+1. User selects 10 images → Upload via `POST /upload-images`
+2. Receive `chapter_id` + page URLs (pages 1-10)
+3. User selects 10 more images → Upload with same `chapter_id`
+4. Receive more page URLs (pages 11-20)
+5. Repeat as needed
+6. Call `POST /from-images` with `chapter_id` + title + metadata
+7. Chapter created immediately (images already in storage)
 8. Redirect to chapter viewer
 
 **For Manga/Comics (ZIP)** - ⚠️ Not available yet:
@@ -664,9 +666,14 @@ else if (chapter.content_mode === 'image_pages') {
 
 **CDN Base URL**: `https://cdn.wordai.com`
 
-**Path Pattern**:
-- Pages: `studyhub/chapters/{chapter_id}/page-{N}.jpg`
-- Thumbnails (future): `studyhub/chapters/{chapter_id}/page-{N}-thumb.jpg`
+**Path Patterns**:
+- **Chapter pages**: `studyhub/chapters/{chapter_id}/page-{N}.jpg` (permanent, uploaded directly)
+- **Thumbnails** (future): `studyhub/chapters/{chapter_id}/page-{N}-thumb.jpg`
+
+**Storage Flow (Simplified)**:
+1. Upload images → Direct to permanent storage with auto-generated `chapter_id`
+2. Create chapter → Use existing `chapter_id`, images already in place
+3. No temp storage, no file moving, single upload only
 
 **Image Format**: JPEG (quality 90, optimized)
 
