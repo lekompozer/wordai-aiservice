@@ -1369,12 +1369,14 @@ class GuideBookBookChapterManager:
                 raise ValueError("Book not found or access denied")
 
             # 2. Get PDF file from user_files (uploaded via POST /api/files/upload)
-            file_doc = self.db.user_files.find_one({"id": file_id, "user_id": user_id})
+            file_doc = self.db.user_files.find_one(
+                {"file_id": file_id, "user_id": user_id, "is_deleted": False}
+            )
             if not file_doc:
                 raise ValueError("PDF file not found or access denied")
 
-            # Check file type (user_files uses 'type' field, not 'file_type')
-            file_type = file_doc.get("type") or file_doc.get("file_type") or ""
+            # Check file type (user_files uses 'file_type' field)
+            file_type = file_doc.get("file_type", "")
             if (
                 not file_type.lower().endswith(".pdf")
                 and file_type != "application/pdf"
@@ -1387,7 +1389,7 @@ class GuideBookBookChapterManager:
             logger.info(f"   Book: {book_id}, User: {user_id}")
 
             # 3. Download PDF from R2 to temp file
-            pdf_url = file_doc.get("private_url") or file_doc.get("file_url")
+            pdf_url = file_doc.get("file_url")
             if not pdf_url:
                 raise ValueError("PDF file has no URL")
 

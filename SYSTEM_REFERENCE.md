@@ -711,6 +711,192 @@ video_id = str(result.inserted_id)
 
 ---
 
+### 📚 Book Collections Structure (CRITICAL)
+
+**⚠️ IMPORTANT:** The system uses `online_books` collection, NOT `guide_books` (legacy/deprecated).
+
+#### Core Collections
+
+##### 1. `online_books` - Book Metadata ✅ (PRIMARY)
+
+**Purpose:** Store book information (title, description, settings)
+
+**Key Fields:**
+```python
+{
+    "_id": ObjectId("..."),
+    "book_id": "book_79fff2603ee4",      # ✅ Use this for queries!
+    "user_id": "firebase_uid",           # Owner
+    "title": "Introduction to AI",
+    "description": "Learn AI basics",
+    "cover_image": "https://cdn.r2.wordai.vn/covers/abc.jpg",
+    "language": "vi",                    # Primary language
+    "created_at": datetime.utcnow(),
+    "updated_at": datetime.utcnow(),
+    "is_deleted": False,
+    "settings": {
+        "reading_mode": "scroll",        # scroll | page
+        "font_size": "medium",
+        "theme": "light"
+    }
+}
+```
+
+**Query Patterns:**
+```python
+from src.database.db_manager import DBManager
+
+db_manager = DBManager()
+db = db_manager.db
+
+# ✅ CORRECT: Query by book_id
+book = db.online_books.find_one({"book_id": book_id, "user_id": user_id})
+
+# ✅ CORRECT: List user's books
+books = db.online_books.find({"user_id": user_id, "is_deleted": False})
+
+# ❌ WRONG: Using _id field
+book = db.online_books.find_one({"_id": book_id})  # Won't work!
+
+# ❌ WRONG: Using guide_books collection
+book = db.guide_books.find_one({"_id": book_id})   # Deprecated!
+```
+
+##### 2. `book_chapters` - Chapter Content
+
+**Purpose:** Store chapter structure and content in multiple formats
+
+**Content Modes:**
+- `inline` - HTML/JSON text content (legacy)
+- `pdf_pages` - PDF extracted as A4 JPG pages (1240×1754px @ 150 DPI)
+- `image_pages` - Image sequences (manga, scanned books)
+
+**Schema:**
+```python
+{
+    "_id": "chapter_abc123",
+    "book_id": "book_79fff2603ee4",      # Links to online_books
+    "user_id": "firebase_uid",
+    "title": "Chapter 1: Introduction",
+    "chapter_number": 1,
+    "content_mode": "pdf_pages",         # inline | pdf_pages | image_pages
+
+    # PDF/Image pages mode
+    "pages": [
+        {
+            "page_number": 1,
+            "image_url": "https://cdn.r2.wordai.vn/studyhub/chapters/chapter_abc123/page-1.jpg",
+            "width": 1240,
+            "height": 1754,
+            "thumbnail_url": "https://.../page-1-thumb.jpg"
+        },
+        # ... more pages
+    ],
+
+    # Inline mode (legacy)
+    "content": "<p>Chapter content...</p>",
+
+    # Manga-specific settings
+    "manga_settings": {
+        "reading_direction": "rtl",      # rtl (right-to-left) | ltr
+        "page_layout": "single"          # single | double
+    },
+
+    "created_at": datetime.utcnow(),
+    "updated_at": datetime.utcnow()
+}
+```
+
+##### 3. `user_files` - File Uploads (PDFs, ZIPs)
+
+**Purpose:** Store uploaded files before processing
+
+**Schema:**
+```python
+{
+    "_id": ObjectId("..."),
+    "file_id": "file_1da6ba240601_part1_1767932029",  # ✅ Use this for queries!
+    "user_id": "firebase_uid",
+    "filename": "textbook.pdf",
+    "original_name": "AI Textbook.pdf",
+    "file_type": ".pdf",                 # File extension with dot
+    "file_url": "https://r2.wordai.vn/files/user123/root/file_abc/textbook.pdf",
+    "file_size": 5242880,                # Bytes
+    "uploaded_at": datetime.utcnow(),
+    "is_deleted": False,
+    "r2_key": "files/user123/root/file_abc/textbook.pdf",
+    "folder_id": "root"                  # Folder location
+}
+```
+
+**Query Pattern:**
+```python
+# ✅ CORRECT
+file_doc = db.user_files.find_one({
+    "file_id": file_id,
+    "user_id": user_id,
+    "is_deleted": False
+})
+
+# Access fields
+file_type = file_doc.get("file_type")  # e.g., ".pdf"
+file_url = file_doc.get("file_url")     # R2 URL
+```
+```
+
+**Upload Flow:**
+```python
+# 1. User uploads PDF via POST /api/files/upload
+# 2. File saved to user_files collection
+# 3. Create chapter from PDF:
+
+from src.services.book_chapter_manager import BookChapterManager
+
+chapter_manager = BookChapterManager()
+chapter = await chapter_manager.create_chapter_from_pdf(
+    book_id="book_79fff2603ee4",
+    file_id="file_1da6ba240601_part1_1767932029",
+    user_id=user_id,
+    chapter_title="Chapter 1"
+)
+# 4. PDF pages extracted as JPG images to R2
+# 5. Chapter saved with pages array
+```
+
+#### Common Patterns
+
+**Create Book:**
+```python
+from src.services.book_manager import UserBookManager
+
+book_manager = UserBookManager(db)
+book = book_manager.create_book(
+    user_id=user_id,
+    title="My Book",
+    description="Book description",
+    language="vi"
+)
+book_id = book["book_id"]
+```
+
+**Validate Book Ownership:**
+```python
+# ✅ CORRECT: Use online_books with book_id
+book = db.online_books.find_one({"book_id": book_id, "user_id": user_id})
+if not book:
+    raise HTTPException(403, "Book not found or access denied")
+
+# ❌ WRONG: Using guide_books
+book = db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+```
+
+**Storage Paths:**
+- PDFs: `files/{user_id}/root/{file_id}/{filename}.pdf` (private)
+- Chapter pages: `studyhub/chapters/{chapter_id}/page-{N}.jpg` (public CDN)
+- Thumbnails: `studyhub/chapters/{chapter_id}/page-{N}-thumb.jpg` (public CDN)
+
+---
+
 ### � File Upload & Gemini Integration Pattern (CRITICAL)
 
 **When implementing features that:**
