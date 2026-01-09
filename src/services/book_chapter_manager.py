@@ -1566,7 +1566,7 @@ class GuideBookBookChapterManager:
 
                 # 6. Update book timestamp
                 if self.book_manager:
-                    self.book_manager.update_book_timestamp(book_id)
+                    self.book_manager.touch_book(book_id)
 
                 # 7. Mark file as used in chapter (optional - for tracking)
                 try:
@@ -1717,7 +1717,7 @@ class GuideBookBookChapterManager:
 
                 # 5. Update book timestamp
                 if self.book_manager:
-                    self.book_manager.update_book_timestamp(book_id)
+                    self.book_manager.touch_book(book_id)
 
                 return chapter_doc
 
@@ -1866,7 +1866,7 @@ class GuideBookBookChapterManager:
 
             # 5. Update book timestamp
             if self.book_manager:
-                self.book_manager.update_book_timestamp(book_id)
+                self.book_manager.touch_book(book_id)
 
             return chapter_doc
 
@@ -1995,7 +1995,7 @@ class GuideBookBookChapterManager:
 
                 # 6. Update book timestamp
                 if self.book_manager:
-                    self.book_manager.update_book_timestamp(book_id)
+                    self.book_manager.touch_book(book_id)
 
                 # 7. Update file studyhub_context
                 self.db.studyhub_files.update_one(
@@ -2073,7 +2073,7 @@ class GuideBookBookChapterManager:
 
             # 3. Update book timestamp
             if self.book_manager:
-                self.book_manager.update_book_timestamp(chapter["book_id"])
+                self.book_manager.touch_book(chapter["book_id"])
 
             logger.info(f"✅ [MANGA_METADATA] Updated successfully")
 

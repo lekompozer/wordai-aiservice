@@ -2312,7 +2312,7 @@ async def delete_chapter_page(
 
         # Update book timestamp
         if chapter_manager.book_manager:
-            chapter_manager.book_manager.update_book_timestamp(chapter["book_id"])
+            chapter_manager.book_manager.touch_book(chapter["book_id"])
 
         logger.info(
             f"✅ [DELETE_PAGE] Deleted page {page_number}, "
@@ -2455,7 +2455,7 @@ async def reorder_chapter_pages(
 
         # Update book timestamp
         if chapter_manager.book_manager:
-            chapter_manager.book_manager.update_book_timestamp(chapter["book_id"])
+            chapter_manager.book_manager.touch_book(chapter["book_id"])
 
         logger.info(f"✅ [REORDER_PAGES] Reordered {total_pages} pages successfully")
 
