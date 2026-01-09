@@ -18,8 +18,7 @@ from typing import Dict, Any, List, Optional
 
 # Setup logging
 logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger("migration")
 
@@ -58,7 +57,7 @@ class DocumentToInlineMigration:
                         "title": 1,
                         "document_id": 1,
                         "user_id": 1,
-                    }
+                    },
                 )
             )
 
@@ -71,10 +70,7 @@ class DocumentToInlineMigration:
             raise
 
     async def migrate_chapter(
-        self,
-        chapter_id: str,
-        document_id: str,
-        dry_run: bool = False
+        self, chapter_id: str, document_id: str, dry_run: bool = False
     ) -> Dict[str, Any]:
         """
         Migrate single chapter from document to inline mode
@@ -92,18 +88,22 @@ class DocumentToInlineMigration:
             document = self.documents_collection.find_one({"_id": document_id})
 
             if not document:
-                logger.warning(f"⚠️ Document {document_id} not found, skipping chapter {chapter_id}")
+                logger.warning(
+                    f"⚠️ Document {document_id} not found, skipping chapter {chapter_id}"
+                )
                 return {
                     "chapter_id": chapter_id,
                     "status": "skipped",
-                    "reason": "document_not_found"
+                    "reason": "document_not_found",
                 }
 
             # 2. Extract content
             content = document.get("content", "")
             content_type = document.get("content_type", "html")
 
-            logger.info(f"📄 Chapter {chapter_id}: {len(content)} chars ({content_type})")
+            logger.info(
+                f"📄 Chapter {chapter_id}: {len(content)} chars ({content_type})"
+            )
 
             if dry_run:
                 logger.info(f"🔧 [DRY RUN] Would migrate chapter {chapter_id}")
@@ -128,8 +128,8 @@ class DocumentToInlineMigration:
                     },
                     "$unset": {
                         "document_id": "",  # Remove document reference
-                    }
-                }
+                    },
+                },
             )
 
             if result.modified_count == 1:
@@ -156,9 +156,7 @@ class DocumentToInlineMigration:
             }
 
     async def migrate_all(
-        self,
-        dry_run: bool = False,
-        batch_size: int = 100
+        self, dry_run: bool = False, batch_size: int = 100
     ) -> Dict[str, Any]:
         """
         Migrate all document chapters to inline mode
@@ -195,22 +193,24 @@ class DocumentToInlineMigration:
             results = []
 
             for i in range(0, total, batch_size):
-                batch = chapters[i:i+batch_size]
-                logger.info(f"📦 Processing batch {i//batch_size + 1}/{(total + batch_size - 1)//batch_size}")
+                batch = chapters[i : i + batch_size]
+                logger.info(
+                    f"📦 Processing batch {i//batch_size + 1}/{(total + batch_size - 1)//batch_size}"
+                )
 
                 for chapter in batch:
                     chapter_id = chapter["_id"]
                     document_id = chapter.get("document_id")
 
                     if not document_id:
-                        logger.warning(f"⚠️ Chapter {chapter_id} has no document_id, skipping")
+                        logger.warning(
+                            f"⚠️ Chapter {chapter_id} has no document_id, skipping"
+                        )
                         skipped += 1
                         continue
 
                     result = await self.migrate_chapter(
-                        chapter_id=chapter_id,
-                        document_id=document_id,
-                        dry_run=dry_run
+                        chapter_id=chapter_id, document_id=document_id, dry_run=dry_run
                     )
 
                     results.append(result)
@@ -288,7 +288,9 @@ class DocumentToInlineMigration:
             if remaining_document == 0:
                 logger.info("✅ All document chapters migrated successfully!")
             else:
-                logger.warning(f"⚠️ Still {remaining_document} document chapters remaining")
+                logger.warning(
+                    f"⚠️ Still {remaining_document} document chapters remaining"
+                )
 
             return {
                 "remaining_document": remaining_document,
@@ -311,18 +313,16 @@ async def main():
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Simulate migration without making changes"
+        help="Simulate migration without making changes",
     )
     parser.add_argument(
         "--batch-size",
         type=int,
         default=100,
-        help="Process chapters in batches (default: 100)"
+        help="Process chapters in batches (default: 100)",
     )
     parser.add_argument(
-        "--verify",
-        action="store_true",
-        help="Verify migration results only"
+        "--verify", action="store_true", help="Verify migration results only"
     )
 
     args = parser.parse_args()
@@ -344,8 +344,7 @@ async def main():
             await migration.verify_migration()
         else:
             result = await migration.migrate_all(
-                dry_run=args.dry_run,
-                batch_size=args.batch_size
+                dry_run=args.dry_run, batch_size=args.batch_size
             )
 
             # Verify after migration

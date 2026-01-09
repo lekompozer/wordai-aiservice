@@ -221,7 +221,7 @@ Before removing deprecated code:
 
 ## Timeline
 
-**Week 1**: 
+**Week 1**:
 - Day 1-2: Dry run migration in staging
 - Day 3-4: Live migration in staging
 - Day 5: Verification & testing

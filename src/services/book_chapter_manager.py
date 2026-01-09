@@ -34,7 +34,7 @@ class GuideBookBookChapterManager:
         self.db = db
         self.chapters_collection = db["book_chapters"]
         self.book_manager = book_manager
-        
+
         # R2 storage for PDF/image pages
         self.s3_client = s3_client
         self.r2_config = r2_config or {}
@@ -1345,7 +1345,7 @@ class GuideBookBookChapterManager:
     ) -> Dict[str, Any]:
         """
         Create chapter from PDF file (convert to page backgrounds)
-        
+
         Args:
             book_id: Book ID
             user_id: User ID (for authorization)
@@ -1356,7 +1356,7 @@ class GuideBookBookChapterManager:
             parent_id: Parent chapter ID (for nested chapters)
             is_published: Published status
             is_preview_free: Free preview access
-            
+
         Returns:
             Created chapter document with pages array
         """
@@ -1365,46 +1365,52 @@ class GuideBookBookChapterManager:
             book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
             if not book:
                 raise ValueError("Book not found or access denied")
-                
+
             # 2. Get PDF file from studyhub_files
-            file_doc = self.db.studyhub_files.find_one({"_id": file_id, "user_id": user_id})
+            file_doc = self.db.studyhub_files.find_one(
+                {"_id": file_id, "user_id": user_id}
+            )
             if not file_doc:
                 raise ValueError("PDF file not found or access denied")
-                
+
             if file_doc.get("file_type") != "application/pdf":
                 raise ValueError("File must be a PDF")
-                
-            logger.info(f"📄 [PDF_CHAPTER] Creating chapter from PDF: {file_doc.get('file_name')}")
+
+            logger.info(
+                f"📄 [PDF_CHAPTER] Creating chapter from PDF: {file_doc.get('file_name')}"
+            )
             logger.info(f"   Book: {book_id}, User: {user_id}")
-            
+
             # 3. Download PDF from R2 to temp file
             pdf_url = file_doc.get("file_url")
             if not pdf_url:
                 raise ValueError("PDF file has no URL")
-                
+
             temp_pdf_path = await self._download_file_from_r2(pdf_url, ".pdf")
-            
+
             try:
                 # 4. Process PDF to pages
                 from src.services.pdf_chapter_processor import PDFChapterProcessor
-                
+
                 chapter_id = str(uuid.uuid4())
-                
+
                 processor = PDFChapterProcessor(
                     s3_client=self.s3_client,
                     r2_bucket=self.r2_config.get("bucket", "wordai-storage"),
-                    cdn_base_url=self.r2_config.get("cdn_base_url", "https://cdn.wordai.com")
+                    cdn_base_url=self.r2_config.get(
+                        "cdn_base_url", "https://cdn.wordai.com"
+                    ),
                 )
-                
+
                 result = await processor.process_pdf_to_pages(
                     pdf_path=temp_pdf_path,
                     user_id=user_id,
                     chapter_id=chapter_id,
-                    dpi=150  # A4 @ 150 DPI = 1240×1754px
+                    dpi=150,  # A4 @ 150 DPI = 1240×1754px
                 )
-                
+
                 logger.info(f"✅ PDF processed: {result['total_pages']} pages")
-                
+
                 # 5. Create chapter document
                 chapter_doc = {
                     "_id": chapter_id,
@@ -1414,7 +1420,9 @@ class GuideBookBookChapterManager:
                     "slug": slug or self._generate_slug(title),
                     "order_index": order_index,
                     "parent_id": parent_id,
-                    "depth": 0 if not parent_id else self._calculate_depth(parent_id) + 1,
+                    "depth": (
+                        0 if not parent_id else self._calculate_depth(parent_id) + 1
+                    ),
                     "content_mode": "pdf_pages",  # NEW
                     "pages": result["pages"],  # Pages array
                     "total_pages": result["total_pages"],
@@ -1424,15 +1432,15 @@ class GuideBookBookChapterManager:
                     "created_at": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
                 }
-                
+
                 # Insert chapter
                 self.chapters_collection.insert_one(chapter_doc)
                 logger.info(f"✅ [PDF_CHAPTER] Created chapter: {chapter_id}")
-                
+
                 # 6. Update book timestamp
                 if self.book_manager:
                     self.book_manager.update_book_timestamp(book_id)
-                    
+
                 # 7. Update file studyhub_context
                 self.db.studyhub_files.update_one(
                     {"_id": file_id},
@@ -1445,21 +1453,21 @@ class GuideBookBookChapterManager:
                             },
                             "updated_at": datetime.utcnow(),
                         }
-                    }
+                    },
                 )
-                
+
                 return chapter_doc
-                
+
             finally:
                 # Cleanup temp file
                 if os.path.exists(temp_pdf_path):
                     os.remove(temp_pdf_path)
                     logger.info(f"🗑️ Cleaned up temp PDF file")
-                    
+
         except Exception as e:
             logger.error(f"❌ [PDF_CHAPTER] Failed to create chapter from PDF: {e}")
             raise
-    
+
     async def create_chapter_from_images(
         self,
         book_id: str,
@@ -1475,7 +1483,7 @@ class GuideBookBookChapterManager:
     ) -> Dict[str, Any]:
         """
         Create chapter from image URLs (manga, comics, photo books)
-        
+
         Args:
             book_id: Book ID
             user_id: User ID
@@ -1492,7 +1500,7 @@ class GuideBookBookChapterManager:
                 artist: str,
                 genre: str
             }
-            
+
         Returns:
             Created chapter document with pages array
         """
@@ -1501,40 +1509,46 @@ class GuideBookBookChapterManager:
             book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
             if not book:
                 raise ValueError("Book not found or access denied")
-                
+
             if not image_urls:
                 raise ValueError("No image URLs provided")
-                
-            logger.info(f"🎨 [IMAGE_CHAPTER] Creating chapter from {len(image_urls)} images")
+
+            logger.info(
+                f"🎨 [IMAGE_CHAPTER] Creating chapter from {len(image_urls)} images"
+            )
             logger.info(f"   Book: {book_id}, User: {user_id}")
-            
+
             # 2. Download images to temp directory
             from src.services.image_chapter_processor import ImageChapterProcessor
-            
+
             processor = ImageChapterProcessor(
                 s3_client=self.s3_client,
                 r2_bucket=self.r2_config.get("bucket", "wordai-storage"),
-                cdn_base_url=self.r2_config.get("cdn_base_url", "https://cdn.wordai.com")
+                cdn_base_url=self.r2_config.get(
+                    "cdn_base_url", "https://cdn.wordai.com"
+                ),
             )
-            
+
             temp_dir = tempfile.mkdtemp()
-            
+
             try:
                 # Download images
-                local_paths = await processor.download_images_from_urls(image_urls, temp_dir)
-                
+                local_paths = await processor.download_images_from_urls(
+                    image_urls, temp_dir
+                )
+
                 # 3. Process images to pages
                 chapter_id = str(uuid.uuid4())
-                
+
                 result = await processor.process_images_to_pages(
                     image_paths=local_paths,
                     user_id=user_id,
                     chapter_id=chapter_id,
-                    preserve_order=True  # Keep order for manga
+                    preserve_order=True,  # Keep order for manga
                 )
-                
+
                 logger.info(f"✅ Images processed: {result['total_pages']} pages")
-                
+
                 # 4. Create chapter document
                 chapter_doc = {
                     "_id": chapter_id,
@@ -1544,7 +1558,9 @@ class GuideBookBookChapterManager:
                     "slug": slug or self._generate_slug(title),
                     "order_index": order_index,
                     "parent_id": parent_id,
-                    "depth": 0 if not parent_id else self._calculate_depth(parent_id) + 1,
+                    "depth": (
+                        0 if not parent_id else self._calculate_depth(parent_id) + 1
+                    ),
                     "content_mode": "image_pages",  # NEW
                     "pages": result["pages"],  # Pages array
                     "total_pages": result["total_pages"],
@@ -1553,33 +1569,36 @@ class GuideBookBookChapterManager:
                     "created_at": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
                 }
-                
+
                 # Add manga metadata if provided
                 if manga_metadata:
                     chapter_doc["manga_metadata"] = manga_metadata
                     logger.info(f"📖 Added manga metadata: {manga_metadata}")
-                
+
                 # Insert chapter
                 self.chapters_collection.insert_one(chapter_doc)
                 logger.info(f"✅ [IMAGE_CHAPTER] Created chapter: {chapter_id}")
-                
+
                 # 5. Update book timestamp
                 if self.book_manager:
                     self.book_manager.update_book_timestamp(book_id)
-                    
+
                 return chapter_doc
-                
+
             finally:
                 # Cleanup temp directory
                 import shutil
+
                 if os.path.exists(temp_dir):
                     shutil.rmtree(temp_dir)
                     logger.info(f"🗑️ Cleaned up temp directory")
-                    
+
         except Exception as e:
-            logger.error(f"❌ [IMAGE_CHAPTER] Failed to create chapter from images: {e}")
+            logger.error(
+                f"❌ [IMAGE_CHAPTER] Failed to create chapter from images: {e}"
+            )
             raise
-    
+
     async def create_chapter_from_zip(
         self,
         book_id: str,
@@ -1596,7 +1615,7 @@ class GuideBookBookChapterManager:
     ) -> Dict[str, Any]:
         """
         Create chapter from manga ZIP file
-        
+
         Args:
             book_id: Book ID
             user_id: User ID
@@ -1609,7 +1628,7 @@ class GuideBookBookChapterManager:
             is_preview_free: Free preview access
             manga_metadata: Optional manga settings
             auto_sort: Auto-sort files numerically (True for manga)
-            
+
         Returns:
             Created chapter document with pages array
         """
@@ -1618,46 +1637,52 @@ class GuideBookBookChapterManager:
             book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
             if not book:
                 raise ValueError("Book not found or access denied")
-                
+
             # 2. Get ZIP file from studyhub_files
-            file_doc = self.db.studyhub_files.find_one({"_id": zip_file_id, "user_id": user_id})
+            file_doc = self.db.studyhub_files.find_one(
+                {"_id": zip_file_id, "user_id": user_id}
+            )
             if not file_doc:
                 raise ValueError("ZIP file not found or access denied")
-                
+
             if not file_doc.get("file_name", "").lower().endswith(".zip"):
                 raise ValueError("File must be a ZIP archive")
-                
-            logger.info(f"📦 [ZIP_CHAPTER] Creating chapter from ZIP: {file_doc.get('file_name')}")
+
+            logger.info(
+                f"📦 [ZIP_CHAPTER] Creating chapter from ZIP: {file_doc.get('file_name')}"
+            )
             logger.info(f"   Book: {book_id}, User: {user_id}")
-            
+
             # 3. Download ZIP from R2 to temp file
             zip_url = file_doc.get("file_url")
             if not zip_url:
                 raise ValueError("ZIP file has no URL")
-                
+
             temp_zip_path = await self._download_file_from_r2(zip_url, ".zip")
-            
+
             try:
                 # 4. Process ZIP to pages
                 from src.services.image_chapter_processor import ImageChapterProcessor
-                
+
                 chapter_id = str(uuid.uuid4())
-                
+
                 processor = ImageChapterProcessor(
                     s3_client=self.s3_client,
                     r2_bucket=self.r2_config.get("bucket", "wordai-storage"),
-                    cdn_base_url=self.r2_config.get("cdn_base_url", "https://cdn.wordai.com")
+                    cdn_base_url=self.r2_config.get(
+                        "cdn_base_url", "https://cdn.wordai.com"
+                    ),
                 )
-                
+
                 result = await processor.process_zip_to_pages(
                     zip_path=temp_zip_path,
                     user_id=user_id,
                     chapter_id=chapter_id,
-                    auto_sort=auto_sort
+                    auto_sort=auto_sort,
                 )
-                
+
                 logger.info(f"✅ ZIP processed: {result['total_pages']} pages")
-                
+
                 # 5. Create chapter document
                 chapter_doc = {
                     "_id": chapter_id,
@@ -1667,7 +1692,9 @@ class GuideBookBookChapterManager:
                     "slug": slug or self._generate_slug(title),
                     "order_index": order_index,
                     "parent_id": parent_id,
-                    "depth": 0 if not parent_id else self._calculate_depth(parent_id) + 1,
+                    "depth": (
+                        0 if not parent_id else self._calculate_depth(parent_id) + 1
+                    ),
                     "content_mode": "image_pages",  # NEW
                     "pages": result["pages"],  # Pages array
                     "total_pages": result["total_pages"],
@@ -1677,20 +1704,20 @@ class GuideBookBookChapterManager:
                     "created_at": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
                 }
-                
+
                 # Add manga metadata if provided
                 if manga_metadata:
                     chapter_doc["manga_metadata"] = manga_metadata
                     logger.info(f"📖 Added manga metadata: {manga_metadata}")
-                
+
                 # Insert chapter
                 self.chapters_collection.insert_one(chapter_doc)
                 logger.info(f"✅ [ZIP_CHAPTER] Created chapter: {chapter_id}")
-                
+
                 # 6. Update book timestamp
                 if self.book_manager:
                     self.book_manager.update_book_timestamp(book_id)
-                    
+
                 # 7. Update file studyhub_context
                 self.db.studyhub_files.update_one(
                     {"_id": zip_file_id},
@@ -1703,30 +1730,27 @@ class GuideBookBookChapterManager:
                             },
                             "updated_at": datetime.utcnow(),
                         }
-                    }
+                    },
                 )
-                
+
                 return chapter_doc
-                
+
             finally:
                 # Cleanup temp file
                 if os.path.exists(temp_zip_path):
                     os.remove(temp_zip_path)
                     logger.info(f"🗑️ Cleaned up temp ZIP file")
-                    
+
         except Exception as e:
             logger.error(f"❌ [ZIP_CHAPTER] Failed to create chapter from ZIP: {e}")
             raise
-    
+
     async def update_manga_metadata(
-        self,
-        chapter_id: str,
-        user_id: str,
-        manga_metadata: Dict[str, Any]
+        self, chapter_id: str, user_id: str, manga_metadata: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Update manga metadata for image_pages chapter
-        
+
         Args:
             chapter_id: Chapter ID
             user_id: User ID (for authorization)
@@ -1736,22 +1760,26 @@ class GuideBookBookChapterManager:
                 artist: str,
                 genre: str
             }
-            
+
         Returns:
             Updated chapter document
         """
         try:
             # 1. Validate chapter ownership and mode
-            chapter = self.chapters_collection.find_one({"_id": chapter_id, "user_id": user_id})
+            chapter = self.chapters_collection.find_one(
+                {"_id": chapter_id, "user_id": user_id}
+            )
             if not chapter:
                 raise ValueError("Chapter not found or access denied")
-                
+
             if chapter.get("content_mode") != "image_pages":
-                raise ValueError("Manga metadata only available for image_pages chapters")
-                
+                raise ValueError(
+                    "Manga metadata only available for image_pages chapters"
+                )
+
             logger.info(f"📖 [MANGA_METADATA] Updating chapter: {chapter_id}")
             logger.info(f"   Metadata: {manga_metadata}")
-            
+
             # 2. Update manga metadata
             updated_chapter = self.chapters_collection.find_one_and_update(
                 {"_id": chapter_id},
@@ -1761,56 +1789,59 @@ class GuideBookBookChapterManager:
                         "updated_at": datetime.utcnow(),
                     }
                 },
-                return_document=ReturnDocument.AFTER
+                return_document=ReturnDocument.AFTER,
             )
-            
+
             # 3. Update book timestamp
             if self.book_manager:
                 self.book_manager.update_book_timestamp(chapter["book_id"])
-                
+
             logger.info(f"✅ [MANGA_METADATA] Updated successfully")
-            
+
             return updated_chapter
-            
+
         except Exception as e:
             logger.error(f"❌ [MANGA_METADATA] Failed to update: {e}")
             raise
-    
+
     async def _download_file_from_r2(self, file_url: str, suffix: str = "") -> str:
         """
         Download file from R2 to temp file
-        
+
         Args:
             file_url: R2 CDN URL
             suffix: File extension (e.g., ".pdf", ".zip")
-            
+
         Returns:
             Local temp file path
         """
         import aiohttp
-        
+
         try:
             logger.info(f"⬇️ Downloading file from R2: {file_url}")
-            
+
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
             temp_path = temp_file.name
             temp_file.close()
-            
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(file_url) as response:
                     if response.status != 200:
-                        raise ValueError(f"Failed to download file: HTTP {response.status}")
-                        
+                        raise ValueError(
+                            f"Failed to download file: HTTP {response.status}"
+                        )
+
                     content = await response.read()
-                    
+
                     with open(temp_path, "wb") as f:
                         f.write(content)
-                        
-            logger.info(f"✅ Downloaded to temp file: {temp_path} ({len(content)} bytes)")
-            
+
+            logger.info(
+                f"✅ Downloaded to temp file: {temp_path} ({len(content)} bytes)"
+            )
+
             return temp_path
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to download file: {e}")
             raise
-

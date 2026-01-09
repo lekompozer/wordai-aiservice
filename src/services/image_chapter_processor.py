@@ -72,11 +72,16 @@ class ImageChapterProcessor:
                         background = Image.new("RGB", img.size, (255, 255, 255))
                         if img.mode == "P":
                             img = img.convert("RGBA")
-                        background.paste(img, mask=img.split()[-1] if img.mode in ("RGBA", "LA") else None)
+                        background.paste(
+                            img,
+                            mask=(
+                                img.split()[-1] if img.mode in ("RGBA", "LA") else None
+                            ),
+                        )
                         img = background
                     elif img.mode != "RGB":
                         img = img.convert("RGB")
-                    
+
                     images.append(img)
                     logger.info(
                         f"  ✅ Image {idx}/{len(image_paths)}: "
@@ -192,7 +197,9 @@ class ImageChapterProcessor:
                 full_paths, user_id, chapter_id, preserve_order=True
             )
 
-            logger.info(f"✅ [IMAGE_PROCESSOR] ZIP processed: {result['total_pages']} pages")
+            logger.info(
+                f"✅ [IMAGE_PROCESSOR] ZIP processed: {result['total_pages']} pages"
+            )
 
             return result
 

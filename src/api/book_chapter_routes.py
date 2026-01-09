@@ -1610,9 +1610,7 @@ async def create_chapter_from_pdf(
 
     except ValueError as e:
         logger.error(f"❌ Validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -1697,14 +1695,10 @@ async def update_chapter_pages(
         }
 
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         logger.error(f"❌ Validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
@@ -1719,6 +1713,7 @@ async def update_chapter_pages(
 # PHASE 2: Image Pages & Manga Support
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 @router.post(
     "/{book_id}/chapters/from-images",
     response_model=Dict[str, Any],
@@ -1726,21 +1721,21 @@ async def update_chapter_pages(
     summary="Create chapter from images (manga/comics)",
     description="""
     Create a new chapter from a list of image URLs (for manga, comics, photo books).
-    
+
     **Features:**
     - Upload images in sequence (preserves order for manga)
     - Variable dimensions (not fixed A4 like PDF)
     - Optional manga metadata (reading direction, artist, genre)
     - Element overlays: speech bubbles, sound effects, annotations
-    
+
     **Process:**
     1. Downloads images from provided URLs
     2. Re-uploads to R2 as chapter page backgrounds
     3. Creates chapter with pages array (empty elements initially)
     4. Returns chapter with all pages
-    
+
     **Content Mode:** `image_pages`
-    
+
     **Required:** Owner access to the book
     """,
 )
@@ -1752,11 +1747,11 @@ async def create_chapter_from_images_endpoint(
     """Create chapter from image URLs (manga/comics/photo books)"""
     try:
         user_id = current_user["uid"]
-        
+
         logger.info(f"🎨 [API] Creating image chapter in book {book_id}")
         logger.info(f"   User: {user_id}, Title: {request.title}")
         logger.info(f"   Images: {len(request.image_urls)}")
-        
+
         # Create chapter from images
         chapter = await chapter_manager.create_chapter_from_images(
             book_id=book_id,
@@ -1768,30 +1763,28 @@ async def create_chapter_from_images_endpoint(
             parent_id=request.parent_id,
             is_published=request.is_published,
             is_preview_free=request.is_preview_free,
-            manga_metadata=request.manga_metadata.dict() if request.manga_metadata else None,
+            manga_metadata=(
+                request.manga_metadata.dict() if request.manga_metadata else None
+            ),
         )
-        
+
         logger.info(
             f"✅ [API] Created image chapter {chapter['_id']}: "
             f"{chapter['total_pages']} pages"
         )
-        
+
         return {
             "success": True,
             "chapter": chapter,
             "total_pages": chapter["total_pages"],
             "message": f"Chapter created with {chapter['total_pages']} image pages",
         }
-        
+
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         logger.error(f"❌ Validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"❌ Failed to create image chapter: {e}", exc_info=True)
         raise HTTPException(
@@ -1807,22 +1800,22 @@ async def create_chapter_from_images_endpoint(
     summary="Create chapter from manga ZIP file",
     description="""
     Create a new chapter from a manga ZIP archive.
-    
+
     **Features:**
     - Extract all images from ZIP
     - Auto-sort files numerically (page-01.jpg, page-02.jpg, ...)
     - Support for manga metadata (reading direction, artist, genre)
     - Reference to original ZIP file preserved
-    
+
     **Process:**
     1. Downloads ZIP from StudyHub files
     2. Extracts images (JPG, PNG, WEBP, GIF)
     3. Sorts pages numerically
     4. Uploads to R2 as chapter backgrounds
     5. Creates chapter with pages array
-    
+
     **Content Mode:** `image_pages`
-    
+
     **Required:** Owner access to the book and ZIP file
     """,
 )
@@ -1845,10 +1838,10 @@ async def create_chapter_from_zip_endpoint(
     """Create chapter from manga ZIP file"""
     try:
         user_id = current_user["uid"]
-        
+
         logger.info(f"📦 [API] Creating chapter from ZIP in book {book_id}")
         logger.info(f"   User: {user_id}, Title: {title}, ZIP: {zip_file_id}")
-        
+
         # Build manga metadata
         manga_metadata = None
         if reading_direction or is_colored or artist or genre:
@@ -1861,7 +1854,7 @@ async def create_chapter_from_zip_endpoint(
                 manga_metadata["artist"] = artist
             if genre:
                 manga_metadata["genre"] = genre
-        
+
         # Create chapter from ZIP
         chapter = await chapter_manager.create_chapter_from_zip(
             book_id=book_id,
@@ -1876,12 +1869,12 @@ async def create_chapter_from_zip_endpoint(
             manga_metadata=manga_metadata,
             auto_sort=auto_sort,
         )
-        
+
         logger.info(
             f"✅ [API] Created chapter from ZIP {chapter['_id']}: "
             f"{chapter['total_pages']} pages"
         )
-        
+
         return {
             "success": True,
             "chapter": chapter,
@@ -1889,16 +1882,12 @@ async def create_chapter_from_zip_endpoint(
             "source_file_id": zip_file_id,
             "message": f"Chapter created from ZIP with {chapter['total_pages']} pages",
         }
-        
+
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         logger.error(f"❌ Validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"❌ Failed to create chapter from ZIP: {e}", exc_info=True)
         raise HTTPException(
@@ -1913,13 +1902,13 @@ async def create_chapter_from_zip_endpoint(
     summary="Update manga metadata",
     description="""
     Update manga-specific metadata for an image_pages chapter.
-    
+
     **Fields:**
     - `reading_direction`: "ltr" (left-to-right) or "rtl" (right-to-left, default for manga)
     - `is_colored`: true for colored manga, false for black & white
     - `artist`: Artist/illustrator name
     - `genre`: Genre tags (action, romance, comedy, etc.)
-    
+
     **Required:** Owner access and content_mode = "image_pages"
     """,
 )
@@ -1934,9 +1923,9 @@ async def update_manga_metadata_endpoint(
     """Update manga metadata for image_pages chapter"""
     try:
         user_id = current_user["uid"]
-        
+
         logger.info(f"📖 [API] Updating manga metadata for chapter {chapter_id}")
-        
+
         # Build manga metadata
         manga_metadata = {}
         if reading_direction:
@@ -1949,39 +1938,34 @@ async def update_manga_metadata_endpoint(
             manga_metadata["artist"] = artist
         if genre:
             manga_metadata["genre"] = genre
-            
+
         if not manga_metadata:
             raise ValueError("No manga metadata provided")
-        
+
         # Update metadata
         updated_chapter = await chapter_manager.update_manga_metadata(
             chapter_id=chapter_id,
             user_id=user_id,
             manga_metadata=manga_metadata,
         )
-        
+
         logger.info(f"✅ [API] Updated manga metadata for chapter {chapter_id}")
-        
+
         return {
             "success": True,
             "chapter": updated_chapter,
             "manga_metadata": updated_chapter.get("manga_metadata", {}),
             "message": "Manga metadata updated successfully",
         }
-        
+
     except PermissionError as e:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
         logger.error(f"❌ Validation error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"❌ Failed to update manga metadata: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update manga metadata: {str(e)}",
         )
-

@@ -55,18 +55,30 @@ class PageElement(BaseModel):
     type: ElementType = Field(..., description="Element type")
     x: float = Field(..., description="X position in pixels")
     y: float = Field(..., description="Y position in pixels")
-    width: Optional[float] = Field(None, description="Width in pixels (for shapes/images)")
-    height: Optional[float] = Field(None, description="Height in pixels (for shapes/images)")
+    width: Optional[float] = Field(
+        None, description="Width in pixels (for shapes/images)"
+    )
+    height: Optional[float] = Field(
+        None, description="Height in pixels (for shapes/images)"
+    )
     z_index: int = Field(default=1, ge=0, description="Layer order (0=bottom)")
 
     # Type-specific properties (optional, depends on element type)
     color: Optional[str] = Field(None, description="Color (CSS format: #hex or rgba())")
-    content: Optional[str] = Field(None, description="Text content (for text/annotation)")
-    font_size: Optional[int] = Field(None, ge=8, le=72, description="Font size (8-72px)")
+    content: Optional[str] = Field(
+        None, description="Text content (for text/annotation)"
+    )
+    font_size: Optional[int] = Field(
+        None, ge=8, le=72, description="Font size (8-72px)"
+    )
     font_family: Optional[str] = Field(None, description="Font family name")
     src: Optional[str] = Field(None, description="Image URL (for image type)")
-    style: Optional[str] = Field(None, description="Style variant (e.g., round, square for speech bubbles)")
-    opacity: Optional[float] = Field(None, ge=0.0, le=1.0, description="Opacity (0.0-1.0)")
+    style: Optional[str] = Field(
+        None, description="Style variant (e.g., round, square for speech bubbles)"
+    )
+    opacity: Optional[float] = Field(
+        None, ge=0.0, le=1.0, description="Opacity (0.0-1.0)"
+    )
 
 
 class PageContent(BaseModel):
@@ -76,18 +88,25 @@ class PageContent(BaseModel):
     background_url: str = Field(..., description="R2 CDN URL for background image")
     width: int = Field(..., ge=1, description="Page width in pixels")
     height: int = Field(..., ge=1, description="Page height in pixels")
-    elements: List[PageElement] = Field(default_factory=list, description="Overlay elements on this page")
+    elements: List[PageElement] = Field(
+        default_factory=list, description="Overlay elements on this page"
+    )
 
 
 class MangaMetadata(BaseModel):
     """Manga-specific metadata (for image_pages mode)"""
 
     reading_direction: Literal["left-to-right", "right-to-left"] = Field(
-        default="right-to-left", description="Reading direction (manga is typically RTL)"
+        default="right-to-left",
+        description="Reading direction (manga is typically RTL)",
     )
     is_colored: bool = Field(default=False, description="Colored or black & white")
-    artist: Optional[str] = Field(None, max_length=200, description="Artist/Author name")
-    genre: Optional[str] = Field(None, max_length=100, description="Genre (Action, Romance, etc.)")
+    artist: Optional[str] = Field(
+        None, max_length=200, description="Artist/Author name"
+    )
+    genre: Optional[str] = Field(
+        None, max_length=100, description="Genre (Action, Romance, etc.)"
+    )
 
 
 class ChapterCreatePDFPages(BaseModel):
@@ -95,9 +114,15 @@ class ChapterCreatePDFPages(BaseModel):
 
     file_id: str = Field(..., description="Existing PDF file ID from studyhub_files")
     title: str = Field(..., min_length=1, max_length=200, description="Chapter title")
-    slug: Optional[str] = Field(None, max_length=200, description="Chapter URL slug (auto-generated if not provided)")
+    slug: Optional[str] = Field(
+        None,
+        max_length=200,
+        description="Chapter URL slug (auto-generated if not provided)",
+    )
     parent_id: Optional[str] = Field(None, description="Parent chapter ID for nesting")
-    order_index: int = Field(default=0, ge=0, description="Display order at current level")
+    order_index: int = Field(
+        default=0, ge=0, description="Display order at current level"
+    )
     is_published: bool = Field(default=True, description="Published status")
     is_preview_free: bool = Field(default=False, description="Allow free preview")
 
@@ -105,21 +130,27 @@ class ChapterCreatePDFPages(BaseModel):
 class ChapterCreateImagePages(BaseModel):
     """Create chapter from image files (image_pages mode - manga/comics)"""
 
-    file_ids: List[str] = Field(..., min_items=1, description="List of image file IDs from studyhub_files")
+    file_ids: List[str] = Field(
+        ..., min_items=1, description="List of image file IDs from studyhub_files"
+    )
     title: str = Field(..., min_length=1, max_length=200, description="Chapter title")
     slug: Optional[str] = Field(None, max_length=200, description="Chapter URL slug")
     parent_id: Optional[str] = Field(None, description="Parent chapter ID for nesting")
     order_index: int = Field(default=0, ge=0, description="Display order")
     is_published: bool = Field(default=True, description="Published status")
     is_preview_free: bool = Field(default=False, description="Allow free preview")
-    manga_metadata: Optional[MangaMetadata] = Field(None, description="Manga-specific settings")
+    manga_metadata: Optional[MangaMetadata] = Field(
+        None, description="Manga-specific settings"
+    )
 
 
 class ChapterPagesUpdate(BaseModel):
     """Update page elements (add highlights, notes, etc.)"""
 
     pages: List[PageContent] = Field(
-        ..., min_items=1, description="Pages with updated elements (only include pages that changed)"
+        ...,
+        min_items=1,
+        description="Pages with updated elements (only include pages that changed)",
     )
 
 
