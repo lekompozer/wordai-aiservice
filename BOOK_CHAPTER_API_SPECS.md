@@ -114,7 +114,7 @@ The Book Chapter system now supports **3 content modes** for different types of 
 **Request Body**:
 ```
 {
-  "file_id": "uuid",              // Required - StudyHub file ID (must be PDF)
+  "file_id": "uuid",              // Required - File ID from POST /api/files/upload
   "title": "string",              // Required
   "slug": "string",               // Optional - Auto-generated if not provided
   "order_index": 0,               // Optional - Default: 0
@@ -147,18 +147,24 @@ The Book Chapter system now supports **3 content modes** for different types of 
 ```
 
 **Process**:
-1. Validates PDF file ownership
+1. Validates PDF file ownership (from user_files collection)
 2. Downloads PDF from R2
-3. Extracts pages as images (A4 @ 150 DPI)
-4. Uploads page images to R2
+3. Extracts pages as images (A4 @ 150 DPI → 1240×1754px)
+4. Uploads page images to R2: `studyhub/chapters/{chapter_id}/page-{N}.jpg`
 5. Creates chapter with pages array
-6. Updates file studyhub_context
+6. Marks file as used in chapter
 
 **Error Responses**:
 - `400` - Invalid file type (not PDF), validation error
 - `403` - Access denied (not owner)
 - `404` - Book or file not found
 - `500` - Processing error
+
+**Important Notes**:
+- PDF file must be uploaded via `POST /api/files/upload` first
+- File is stored in `user_files` collection (My Files)
+- Extracted page images are stored separately in R2
+- Original PDF file remains in My Files for download/reference
 
 ---
 
@@ -369,7 +375,105 @@ Authorization: Bearer <token>
 
 ---
 
-### 5. Update Manga Metadata
+### 6. Delete Page from Chapter
+
+**Endpoint**: `DELETE /api/v1/books/chapters/{chapter_id}/pages/{page_number}`
+
+**Authentication**: Required (Owner only)
+
+**Content Modes**: `pdf_pages`, `image_pages` only
+
+**Description**: Delete a specific page and renumber remaining pages.
+
+**Path Parameters**:
+```
+chapter_id: string    // Chapter ID
+page_number: number   // Page number to delete (1-indexed)
+```
+
+**Response**:
+```
+{
+  "success": true,
+  "deleted_page": 3,
+  "total_pages": 23,
+  "message": "Page 3 deleted successfully"
+}
+```
+
+**Process**:
+1. Removes page from pages array
+2. Deletes page image from R2 storage
+3. Renumbers remaining pages sequentially
+4. Updates total_pages count
+
+**Example**:
+- Before: [page 1, page 2, page 3, page 4]
+- Delete page 2
+- After: [page 1, page 2 (old 3), page 3 (old 4)]
+
+**Error Responses**:
+- `400` - Invalid content mode (not pdf_pages/image_pages)
+- `403` - Access denied (not owner)
+- `404` - Chapter or page not found
+- `500` - Processing error
+
+**Warning**: This operation cannot be undone. Page image is permanently deleted from storage.
+
+---
+
+### 7. Reorder Pages in Chapter
+
+**Endpoint**: `PUT /api/v1/books/chapters/{chapter_id}/pages/reorder`
+
+**Authentication**: Required (Owner only)
+
+**Content Modes**: `pdf_pages`, `image_pages` only
+
+**Description**: Reorder pages by specifying new sequence.
+
+**Request Body**:
+```
+{
+  "page_order": [3, 1, 2, 4]  // New page order (1-indexed)
+}
+```
+
+**Response**:
+```
+{
+  "success": true,
+  "total_pages": 4,
+  "new_order": [3, 1, 2, 4],
+  "message": "Pages reordered successfully"
+}
+```
+
+**Validation**:
+- Array length must match `total_pages`
+- All numbers must be unique
+- All numbers must be valid (1 to total_pages)
+
+**Example**:
+- Original order: [page 1, page 2, page 3, page 4]
+- Request: `page_order = [3, 1, 2, 4]`
+- Result: [page 3, page 1, page 2, page 4]
+- Page numbers updated: [1, 2, 3, 4]
+
+**Use Cases**:
+- Fix incorrect page order from PDF extraction
+- Rearrange manga/comic pages
+- Move important pages to front
+
+**Error Responses**:
+- `400` - Invalid page_order (wrong length, duplicates, invalid numbers)
+- `403` - Access denied (not owner)
+- `404` - Chapter not found
+- `500` - Processing error
+
+---
+
+### 8. Update Manga Metadata
 
 **Endpoint**: `PUT /api/v1/books/chapters/{chapter_id}/manga-metadata`
 
@@ -547,11 +651,17 @@ genre: string               // Optional
 ### 1. Chapter Creation Flow
 
 **For PDF Books**:
-1. User uploads PDF to StudyHub files → Get `file_id`
+1. User uploads PDF via `POST /api/files/upload` → Get `file_id`
 2. Call `POST /books/{book_id}/chapters/from-pdf` with `file_id`
 3. Wait for processing (can take 10-30 seconds for large PDFs)
-4. Receive chapter with `pages` array
+4. Receive chapter with `pages` array (extracted images)
 5. Redirect to chapter viewer
+
+**Important Notes**:
+- PDF uploaded to **My Files** (user_files collection)
+- PDF remains accessible in My Files for download/sharing
+- Chapter uses extracted page images (JPG), not original PDF
+- Original PDF referenced via `source_file_id`
 
 **For Manga/Comics (Images)**:
 1. User selects 10 images → Upload via `POST /upload-images`
@@ -620,7 +730,43 @@ else if (chapter.content_mode === 'image_pages') {
 1. Remove element from array
 2. Call `PUT /chapters/{id}/pages` to save
 
-### 4. Performance Considerations
+---
+
+### 4. Page Management
+
+**Delete Page**:
+```javascript
+// User clicks delete on page 3
+await DELETE `/chapters/{chapter_id}/pages/3`
+
+// Response: { deleted_page: 3, total_pages: 23 }
+// Remaining pages auto-renumbered: [1, 2, 3(old 4), 4(old 5), ...]
+```
+
+**Reorder Pages**:
+```javascript
+// Original: [page 1, page 2, page 3, page 4]
+// User drags page 3 to first position
+
+const newOrder = [3, 1, 2, 4]  // Page 3 now first
+
+await PUT `/chapters/{chapter_id}/pages/reorder`, {
+  page_order: newOrder
+}
+
+// Pages renumbered to: [1(old 3), 2(old 1), 3(old 2), 4]
+```
+
+**UI Recommendations**:
+- Show page thumbnails in grid/list view
+- Drag & drop to reorder
+- Delete button with confirmation dialog
+- Undo not available - warn users before delete
+- Show loading state during reorder (updates chapter)
+
+---
+
+### 5. Performance Considerations
 
 **Large Books (100+ pages)**:
 - Consider implementing lazy loading (load pages on demand)
@@ -666,18 +812,40 @@ else if (chapter.content_mode === 'image_pages') {
 
 **CDN Base URL**: `https://cdn.wordai.com`
 
+**Storage Collections**:
+- **PDF Files**: `user_files` collection (My Files)
+  - Uploaded via: `POST /api/files/upload`
+  - Storage path: `files/{user_id}/root/{file_id}/{filename}`
+  - Original PDF preserved for download
+
+- **Extracted Page Images**: Direct R2 storage (no collection)
+  - Created during: PDF/Image chapter creation
+  - Storage path: `studyhub/chapters/{chapter_id}/page-{N}.jpg`
+  - Permanent storage, referenced in chapter.pages array
+
 **Path Patterns**:
-- **Chapter pages**: `studyhub/chapters/{chapter_id}/page-{N}.jpg` (permanent, uploaded directly)
+- **PDF files**: `files/{user_id}/root/{file_id}/{filename}.pdf` (private, signed URLs)
+- **Chapter pages**: `studyhub/chapters/{chapter_id}/page-{N}.jpg` (public CDN)
 - **Thumbnails** (future): `studyhub/chapters/{chapter_id}/page-{N}-thumb.jpg`
 
-**Storage Flow (Simplified)**:
-1. Upload images → Direct to permanent storage with auto-generated `chapter_id`
-2. Create chapter → Use existing `chapter_id`, images already in place
-3. No temp storage, no file moving, single upload only
+**Storage Flow for PDF**:
+1. User uploads PDF → `POST /api/files/upload`
+2. PDF stored in: `files/{user_id}/root/{file_id}/document.pdf`
+3. Create chapter → `POST /from-pdf`
+4. Backend extracts pages → Upload to: `studyhub/chapters/{chapter_id}/page-1.jpg`, `page-2.jpg`, ...
+5. Chapter references both: `source_file_id` (PDF) + `pages[].background_url` (images)
+
+**Storage Flow for Images**:
+1. Upload images → `POST /upload-images` (with optional chapter_id)
+2. Images stored directly: `studyhub/chapters/{chapter_id}/page-{N}.jpg`
+3. Create chapter → `POST /from-images` (images already in place)
+4. No file moving, single upload only
 
 **Image Format**: JPEG (quality 90, optimized)
 
-**Caching**: CDN cached, no authentication required for public URLs
+**Caching**:
+- Chapter page images: Public CDN, cached
+- PDF files: Private, signed URLs (1 hour expiry)
 
 ---
 
@@ -698,6 +866,14 @@ else if (chapter.content_mode === 'image_pages') {
 ---
 
 ## Changelog
+
+### Version 2.1 (January 9, 2026 - Updated)
+- **BREAKING CHANGE**: PDF files now uploaded via `POST /api/files/upload` (My Files)
+- **BREAKING CHANGE**: `/from-pdf` now queries `user_files` collection (not studyhub_files)
+- Added `DELETE /chapters/{chapter_id}/pages/{page_number}` - Delete page + auto-renumber
+- Added `PUT /chapters/{chapter_id}/pages/reorder` - Reorder pages with validation
+- Clarified storage architecture: PDF in user_files, extracted images in R2
+- Updated documentation with page management workflows
 
 ### Version 2.0 (January 9, 2026)
 - Added `pdf_pages` content mode

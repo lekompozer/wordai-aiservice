@@ -2174,3 +2174,287 @@ async def update_manga_metadata_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update manga metadata: {str(e)}",
         )
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE MANAGEMENT: Delete & Reorder
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.delete(
+    "/chapters/{chapter_id}/pages/{page_number}",
+    status_code=status.HTTP_200_OK,
+    summary="Delete a page from chapter",
+    description="""
+    Delete a specific page from chapter (for pdf_pages or image_pages mode).
+
+    **Process:**
+    1. Removes page from pages array
+    2. Renumbers remaining pages sequentially
+    3. Updates total_pages count
+    4. Deletes page image from R2 storage
+
+    **Note:** Cannot undo this operation
+
+    **Required:** Owner access to the book
+    """,
+)
+async def delete_chapter_page(
+    chapter_id: str,
+    page_number: int,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Delete a page from chapter"""
+    try:
+        user_id = current_user["uid"]
+
+        logger.info(
+            f"🗑️ [DELETE_PAGE] Deleting page {page_number} from chapter {chapter_id}"
+        )
+        logger.info(f"   User: {user_id}")
+
+        # Get chapter
+        chapter = chapter_manager.chapters_collection.find_one({"_id": chapter_id})
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+            )
+
+        # Check ownership
+        book = db.guide_books.find_one({"_id": chapter["book_id"], "user_id": user_id})
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not book owner",
+            )
+
+        # Validate content mode
+        if chapter.get("content_mode") not in ["pdf_pages", "image_pages"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only delete pages from pdf_pages or image_pages chapters",
+            )
+
+        # Get pages
+        pages = chapter.get("pages", [])
+        if not pages:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Chapter has no pages"
+            )
+
+        # Find page to delete
+        page_to_delete = None
+        for page in pages:
+            if page.get("page_number") == page_number:
+                page_to_delete = page
+                break
+
+        if not page_to_delete:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Page {page_number} not found",
+            )
+
+        # Delete image from R2
+        try:
+            background_url = page_to_delete.get("background_url", "")
+            if background_url:
+                from src.config import config
+
+                s3_client = config.get_s3_client()
+                # Extract R2 key from URL
+                cdn_base = "https://cdn.wordai.com/"
+                if background_url.startswith(cdn_base):
+                    r2_key = background_url[len(cdn_base) :]
+                    s3_client.delete_object(Bucket="wordai-storage", Key=r2_key)
+                    logger.info(f"   🗑️ Deleted image from R2: {r2_key}")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not delete image from R2: {e}")
+
+        # Remove page from array
+        pages.remove(page_to_delete)
+
+        # Renumber remaining pages
+        for idx, page in enumerate(pages, 1):
+            page["page_number"] = idx
+
+        # Update chapter
+        result = chapter_manager.chapters_collection.update_one(
+            {"_id": chapter_id},
+            {
+                "$set": {
+                    "pages": pages,
+                    "total_pages": len(pages),
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update chapter",
+            )
+
+        # Update book timestamp
+        if chapter_manager.book_manager:
+            chapter_manager.book_manager.update_book_timestamp(chapter["book_id"])
+
+        logger.info(
+            f"✅ [DELETE_PAGE] Deleted page {page_number}, "
+            f"remaining pages: {len(pages)}"
+        )
+
+        return {
+            "success": True,
+            "deleted_page": page_number,
+            "total_pages": len(pages),
+            "message": f"Page {page_number} deleted successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete page: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete page: {str(e)}",
+        )
+
+
+@router.put(
+    "/chapters/{chapter_id}/pages/reorder",
+    status_code=status.HTTP_200_OK,
+    summary="Reorder pages in chapter",
+    description="""
+    Reorder pages in chapter by providing new page number mappings.
+
+    **Request Body:**
+    ```
+    {
+      "page_order": [3, 1, 2, 4]  // New order (1-indexed)
+    }
+    ```
+
+    **Example:**
+    - Original: [page 1, page 2, page 3, page 4]
+    - Request: page_order = [3, 1, 2, 4]
+    - Result: [page 3, page 1, page 2, page 4]
+
+    **Validation:**
+    - Array length must match total_pages
+    - All numbers must be unique
+    - All numbers must be valid page numbers (1 to total_pages)
+
+    **Required:** Owner access to the book
+    """,
+)
+async def reorder_chapter_pages(
+    chapter_id: str,
+    page_order: List[int],
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Reorder pages in chapter"""
+    try:
+        user_id = current_user["uid"]
+
+        logger.info(f"🔄 [REORDER_PAGES] Reordering pages in chapter {chapter_id}")
+        logger.info(f"   User: {user_id}, New order: {page_order}")
+
+        # Get chapter
+        chapter = chapter_manager.chapters_collection.find_one({"_id": chapter_id})
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+            )
+
+        # Check ownership
+        book = db.guide_books.find_one({"_id": chapter["book_id"], "user_id": user_id})
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not book owner",
+            )
+
+        # Validate content mode
+        if chapter.get("content_mode") not in ["pdf_pages", "image_pages"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Can only reorder pages in pdf_pages or image_pages chapters",
+            )
+
+        # Get pages
+        pages = chapter.get("pages", [])
+        total_pages = len(pages)
+
+        if not pages:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Chapter has no pages"
+            )
+
+        # Validate page_order
+        if len(page_order) != total_pages:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"page_order length ({len(page_order)}) must match total_pages ({total_pages})",
+            )
+
+        # Check all numbers are unique
+        if len(set(page_order)) != len(page_order):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="page_order contains duplicate numbers",
+            )
+
+        # Check all numbers are valid
+        valid_numbers = set(range(1, total_pages + 1))
+        provided_numbers = set(page_order)
+        if provided_numbers != valid_numbers:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"page_order must contain all numbers from 1 to {total_pages}",
+            )
+
+        # Create page lookup by original page number
+        page_lookup = {page["page_number"]: page for page in pages}
+
+        # Reorder pages
+        reordered_pages = []
+        for new_position, old_page_number in enumerate(page_order, 1):
+            page = page_lookup[old_page_number].copy()
+            page["page_number"] = new_position  # Assign new page number
+            reordered_pages.append(page)
+
+        # Update chapter
+        result = chapter_manager.chapters_collection.update_one(
+            {"_id": chapter_id},
+            {"$set": {"pages": reordered_pages, "updated_at": datetime.utcnow()}},
+        )
+
+        if result.modified_count == 0:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to update chapter",
+            )
+
+        # Update book timestamp
+        if chapter_manager.book_manager:
+            chapter_manager.book_manager.update_book_timestamp(chapter["book_id"])
+
+        logger.info(f"✅ [REORDER_PAGES] Reordered {total_pages} pages successfully")
+
+        return {
+            "success": True,
+            "total_pages": total_pages,
+            "new_order": page_order,
+            "message": "Pages reordered successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to reorder pages: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reorder pages: {str(e)}",
+        )

@@ -1366,23 +1366,26 @@ class GuideBookBookChapterManager:
             if not book:
                 raise ValueError("Book not found or access denied")
 
-            # 2. Get PDF file from studyhub_files
-            file_doc = self.db.studyhub_files.find_one(
-                {"_id": file_id, "user_id": user_id}
-            )
+            # 2. Get PDF file from user_files (uploaded via POST /api/files/upload)
+            file_doc = self.db.user_files.find_one({"id": file_id, "user_id": user_id})
             if not file_doc:
                 raise ValueError("PDF file not found or access denied")
 
-            if file_doc.get("file_type") != "application/pdf":
-                raise ValueError("File must be a PDF")
+            # Check file type (user_files uses 'type' field, not 'file_type')
+            file_type = file_doc.get("type") or file_doc.get("file_type") or ""
+            if (
+                not file_type.lower().endswith(".pdf")
+                and file_type != "application/pdf"
+            ):
+                raise ValueError(f"File must be a PDF (got: {file_type})")
 
             logger.info(
-                f"📄 [PDF_CHAPTER] Creating chapter from PDF: {file_doc.get('file_name')}"
+                f"📄 [PDF_CHAPTER] Creating chapter from PDF: {file_doc.get('filename')}"
             )
             logger.info(f"   Book: {book_id}, User: {user_id}")
 
             # 3. Download PDF from R2 to temp file
-            pdf_url = file_doc.get("file_url")
+            pdf_url = file_doc.get("private_url") or file_doc.get("file_url")
             if not pdf_url:
                 raise ValueError("PDF file has no URL")
 
@@ -1441,20 +1444,19 @@ class GuideBookBookChapterManager:
                 if self.book_manager:
                     self.book_manager.update_book_timestamp(book_id)
 
-                # 7. Update file studyhub_context
-                self.db.studyhub_files.update_one(
-                    {"_id": file_id},
-                    {
-                        "$set": {
-                            "studyhub_context": {
-                                "type": "book_chapter",
-                                "book_id": book_id,
-                                "chapter_id": chapter_id,
-                            },
-                            "updated_at": datetime.utcnow(),
-                        }
-                    },
-                )
+                # 7. Mark file as used in chapter (optional - for tracking)
+                try:
+                    self.db.user_files.update_one(
+                        {"id": file_id},
+                        {
+                            "$set": {
+                                "used_in_chapter": chapter_id,
+                                "updated_at": datetime.utcnow(),
+                            }
+                        },
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not update file metadata: {e}")
 
                 return chapter_doc
 
