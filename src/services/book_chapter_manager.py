@@ -1361,8 +1361,10 @@ class GuideBookBookChapterManager:
             Created chapter document with pages array
         """
         try:
-            # 1. Validate book ownership
-            book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+            # 1. Validate book ownership (online_books collection uses 'book_id' field)
+            book = self.db.online_books.find_one(
+                {"book_id": book_id, "user_id": user_id}
+            )
             if not book:
                 raise ValueError("Book not found or access denied")
 
@@ -1507,8 +1509,10 @@ class GuideBookBookChapterManager:
             Created chapter document with pages array
         """
         try:
-            # 1. Validate book ownership
-            book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+            # 1. Validate book ownership (online_books collection)
+            book = self.db.online_books.find_one(
+                {"book_id": book_id, "user_id": user_id}
+            )
             if not book:
                 raise ValueError("Book not found or access denied")
 
@@ -1643,8 +1647,10 @@ class GuideBookBookChapterManager:
             Created chapter document with pages array
         """
         try:
-            # 1. Validate book ownership
-            book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+            # 1. Validate book ownership (online_books collection)
+            book = self.db.online_books.find_one(
+                {"book_id": book_id, "user_id": user_id}
+            )
             if not book:
                 raise ValueError("Book not found or access denied")
 
@@ -1782,8 +1788,10 @@ class GuideBookBookChapterManager:
             Created chapter document with pages array
         """
         try:
-            # 1. Validate book ownership
-            book = self.db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+            # 1. Validate book ownership (online_books collection)
+            book = self.db.online_books.find_one(
+                {"book_id": book_id, "user_id": user_id}
+            )
             if not book:
                 raise ValueError("Book not found or access denied")
 

@@ -1761,8 +1761,8 @@ async def upload_images_for_chapter(
     try:
         user_id = current_user["uid"]
 
-        # 1. Validate book ownership
-        book = db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+        # 1. Validate book ownership (online_books collection)
+        book = db.online_books.find_one({"book_id": book_id, "user_id": user_id})
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -2220,8 +2220,10 @@ async def delete_chapter_page(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
             )
 
-        # Check ownership
-        book = db.guide_books.find_one({"_id": chapter["book_id"], "user_id": user_id})
+        # Check ownership (online_books collection)
+        book = db.online_books.find_one(
+            {"book_id": chapter["book_id"], "user_id": user_id}
+        )
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -2368,8 +2370,10 @@ async def reorder_chapter_pages(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
             )
 
-        # Check ownership
-        book = db.guide_books.find_one({"_id": chapter["book_id"], "user_id": user_id})
+        # Check ownership (online_books collection)
+        book = db.online_books.find_one(
+            {"book_id": chapter["book_id"], "user_id": user_id}
+        )
         if not book:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
