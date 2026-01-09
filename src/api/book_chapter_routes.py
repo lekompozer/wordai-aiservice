@@ -3,7 +3,16 @@ Online Book Chapter Management API Routes
 Handles chapter operations: create, read, update, delete, reorder, and bulk updates.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    HTTPException,
+    status,
+    Query,
+    Request,
+    UploadFile,
+    File,
+)
 from typing import List, Optional, Dict, Any
 import logging
 from datetime import datetime, timezone
@@ -1712,6 +1721,189 @@ async def update_chapter_pages(
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 2: Image Pages & Manga Support
 # ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.post(
+    "/{book_id}/chapters/upload-images",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_200_OK,
+    summary="Upload images for chapter creation",
+    description="""
+    Upload multiple images and get CDN URLs for chapter creation.
+
+    **Features:**
+    - Upload up to 10 files per request
+    - Max 100 MB total size per request
+    - Returns CDN URLs immediately
+    - Can call multiple times to upload more images
+    - Images stored in temp folder until chapter creation
+
+    **Process:**
+    1. Validates file types and sizes
+    2. Converts to RGB and compresses to JPEG
+    3. Uploads to R2 CDN
+    4. Returns URLs
+
+    **Usage:**
+    1. Upload first batch (10 images) → Get URLs
+    2. Upload second batch (10 images) → Get more URLs
+    3. Accumulate all URLs in frontend
+    4. Call POST /from-images with complete URL list
+
+    **Required:** Owner access to the book
+    """,
+)
+async def upload_images_for_chapter(
+    book_id: str,
+    files: List[UploadFile] = File(...),
+    chapter_id: Optional[str] = None,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Upload multiple images and get CDN URLs"""
+    from PIL import Image
+    import io
+    import uuid
+
+    try:
+        user_id = current_user["uid"]
+
+        # 1. Validate book ownership
+        book = db.guide_books.find_one({"_id": book_id, "user_id": user_id})
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Book not found or access denied",
+            )
+
+        # 2. Validate constraints
+        if len(files) > 10:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum 10 files per request",
+            )
+
+        # Check total size
+        total_size = 0
+        for file in files:
+            content = await file.read()
+            total_size += len(content)
+            await file.seek(0)  # Reset for re-reading
+
+        if total_size > 100 * 1024 * 1024:  # 100 MB
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"Total size {total_size / 1024 / 1024:.1f}MB exceeds 100MB limit",
+            )
+
+        logger.info(f"📤 [UPLOAD] Uploading {len(files)} images to book {book_id}")
+        logger.info(f"   User: {user_id}, Total size: {total_size / 1024 / 1024:.2f}MB")
+
+        # 3. Process and upload each image
+        uploaded_images = []
+
+        # Get R2 config
+        from src.config import config
+
+        s3_client = config.get_s3_client()
+        r2_config = {
+            "bucket": "wordai-storage",
+            "cdn_base_url": "https://cdn.wordai.com",
+        }
+
+        for idx, file in enumerate(files, 1):
+            try:
+                # Validate file type
+                if not file.content_type or not file.content_type.startswith("image/"):
+                    raise ValueError(f"File {file.filename} is not an image")
+
+                # Check individual file size
+                content = await file.read()
+                if len(content) > 20 * 1024 * 1024:  # 20 MB per file
+                    raise ValueError(f"File {file.filename} exceeds 20MB limit")
+
+                # Load image
+                image = Image.open(io.BytesIO(content))
+                original_width, original_height = image.size
+
+                # Convert to RGB (handle transparency)
+                if image.mode in ("RGBA", "LA", "P"):
+                    background = Image.new("RGB", image.size, (255, 255, 255))
+                    if image.mode == "P":
+                        image = image.convert("RGBA")
+                    background.paste(
+                        image,
+                        mask=(
+                            image.split()[-1] if image.mode in ("RGBA", "LA") else None
+                        ),
+                    )
+                    image = background
+                elif image.mode != "RGB":
+                    image = image.convert("RGB")
+
+                # Compress to JPEG
+                buffer = io.BytesIO()
+                image.save(buffer, format="JPEG", quality=90, optimize=True)
+                buffer.seek(0)
+
+                # Generate unique filename
+                file_uuid = str(uuid.uuid4())
+                file_extension = ".jpg"
+
+                # R2 path: studyhub/books/{book_id}/temp/{uuid}.jpg
+                object_key = (
+                    f"studyhub/books/{book_id}/temp/{file_uuid}{file_extension}"
+                )
+
+                # Upload to R2
+                s3_client.upload_fileobj(
+                    buffer,
+                    r2_config["bucket"],
+                    object_key,
+                    ExtraArgs={"ContentType": "image/jpeg"},
+                )
+
+                # Generate CDN URL
+                cdn_url = f"{r2_config['cdn_base_url']}/{object_key}"
+
+                uploaded_images.append(
+                    {
+                        "file_name": file.filename,
+                        "file_size": len(content),
+                        "url": cdn_url,
+                        "width": original_width,
+                        "height": original_height,
+                    }
+                )
+
+                logger.info(
+                    f"  ✅ Uploaded {idx}/{len(files)}: {file.filename} → {cdn_url}"
+                )
+
+            except Exception as e:
+                logger.error(f"❌ Failed to process {file.filename}: {e}")
+                raise ValueError(f"Failed to process {file.filename}: {str(e)}")
+
+        logger.info(f"✅ [UPLOAD] Successfully uploaded {len(uploaded_images)} images")
+
+        return {
+            "success": True,
+            "images": uploaded_images,
+            "total_uploaded": len(uploaded_images),
+            "total_size": total_size,
+            "message": f"Uploaded {len(uploaded_images)} images successfully",
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"❌ Validation error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        logger.error(f"❌ Failed to upload images: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload images: {str(e)}",
+        )
 
 
 @router.post(
