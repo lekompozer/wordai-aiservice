@@ -1388,12 +1388,29 @@ class GuideBookBookChapterManager:
             )
             logger.info(f"   Book: {book_id}, User: {user_id}")
 
-            # 3. Download PDF from R2 to temp file
-            pdf_url = file_doc.get("file_url")
-            if not pdf_url:
-                raise ValueError("PDF file has no URL")
+            # 3. Download PDF from R2 using r2_key (not file_url which is r2:// URI)
+            r2_key = file_doc.get("r2_key")
+            if not r2_key:
+                raise ValueError("PDF file has no R2 key")
 
-            temp_pdf_path = await self._download_file_from_r2(pdf_url, ".pdf")
+            logger.info(f"📥 Downloading PDF from R2: {r2_key}")
+
+            # Download to temp file using R2 client
+            import tempfile
+
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                temp_pdf_path = tmp_file.name
+
+                # Use S3 client to download from R2
+                file_obj = self.s3_client.get_object(
+                    Bucket=self.r2_config.get("bucket", "wordai"), Key=r2_key
+                )
+                file_content = file_obj["Body"].read()
+                tmp_file.write(file_content)
+
+                logger.info(
+                    f"✅ Downloaded {len(file_content)} bytes to {temp_pdf_path}"
+                )
 
             try:
                 # 4. Process PDF to pages
@@ -1451,7 +1468,7 @@ class GuideBookBookChapterManager:
                 # 7. Mark file as used in chapter (optional - for tracking)
                 try:
                     self.db.user_files.update_one(
-                        {"id": file_id},
+                        {"file_id": file_id},
                         {
                             "$set": {
                                 "used_in_chapter": chapter_id,
