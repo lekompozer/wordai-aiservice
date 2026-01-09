@@ -1541,6 +1541,7 @@ class GuideBookBookChapterManager:
                 # 5. Create chapter document
                 chapter_doc = {
                     "_id": chapter_id,
+                    "chapter_id": chapter_id,  # Required for unique index
                     "book_id": book_id,
                     "user_id": user_id,
                     "title": title,
@@ -1688,6 +1689,7 @@ class GuideBookBookChapterManager:
                 # 4. Create chapter document
                 chapter_doc = {
                     "_id": chapter_id,
+                    "chapter_id": chapter_id,  # Required for unique index
                     "book_id": book_id,
                     "user_id": user_id,
                     "title": title,
@@ -1839,6 +1841,7 @@ class GuideBookBookChapterManager:
             # 4. Create chapter document
             chapter_doc = {
                 "_id": chapter_id,  # Use uploaded chapter_id
+                "chapter_id": chapter_id,  # Required for unique index
                 "book_id": book_id,
                 "user_id": user_id,
                 "title": title,
@@ -1965,6 +1968,7 @@ class GuideBookBookChapterManager:
                 # 5. Create chapter document
                 chapter_doc = {
                     "_id": chapter_id,
+                    "chapter_id": chapter_id,  # Required for unique index
                     "book_id": book_id,
                     "user_id": user_id,
                     "title": title,
