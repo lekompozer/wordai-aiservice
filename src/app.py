@@ -296,6 +296,9 @@ from src.api.studyhub_enrollment_routes import router as studyhub_enrollment_rou
 # ✅ ADDED: StudyHub Marketplace API - Public marketplace & discovery (Milestone 1.4)
 from src.api.studyhub_marketplace_routes import router as studyhub_marketplace_router
 
+# ✅ ADDED: StudyHub Content Management API - Link Documents/Tests/Books to modules
+from src.api.studyhub_content_routes import router as studyhub_content_router
+
 # ✅ ADDED: Image Editing API - AI-powered image editing using Gemini 3 Pro Image
 from src.api.image_editing_routes import router as image_editing_router
 
@@ -1280,6 +1283,9 @@ def create_app() -> FastAPI:
 
     # ✅ NEW: StudyHub Marketplace API - Public marketplace & discovery (Milestone 1.4)
     app.include_router(studyhub_marketplace_router, tags=["StudyHub - Marketplace"])
+
+    # ✅ NEW: StudyHub Content Management API - Link Documents/Tests/Books
+    app.include_router(studyhub_content_router, tags=["StudyHub - Content Management"])
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
     app.include_router(

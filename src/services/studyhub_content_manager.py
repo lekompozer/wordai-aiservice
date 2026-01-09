@@ -1,0 +1,557 @@
+"""
+StudyHub Content Manager
+Handles linking Documents, Tests, Books, Files to StudyHub modules
+"""
+
+from typing import Optional, List, Dict, Any
+from bson import ObjectId
+from fastapi import HTTPException
+from datetime import datetime, timezone
+
+from src.database.db_manager import DBManager
+from src.services.studyhub_permissions import StudyHubPermissions
+
+
+class StudyHubContentManager:
+    """Manager for StudyHub content operations"""
+
+    def __init__(self, db=None, user_id: Optional[str] = None):
+        self.db_manager = DBManager()
+        self.db = db or self.db_manager.db
+        self.user_id = user_id
+        self.permissions = StudyHubPermissions()
+
+    # ==================== DOCUMENT CONTENT ====================
+
+    async def add_document_to_module(
+        self,
+        module_id: str,
+        document_id: str,
+        title: str,
+        is_required: bool = False,
+        is_preview: bool = False,
+    ) -> dict:
+        """
+        Link document to module
+
+        Args:
+            module_id: Module ID
+            document_id: Document ID from online_documents
+            title: Content title
+            is_required: Required for completion
+            is_preview: Free preview content
+
+        Returns:
+            Created content document
+        """
+        # Check permission
+        await self.permissions.check_module_owner(self.user_id, module_id)
+
+        # Verify document exists and user owns it
+        document = await self.db.online_documents.find_one(
+            {"_id": ObjectId(document_id), "owner_id": self.user_id}
+        )
+
+        if not document:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found or you don't have permission",
+            )
+
+        # Get module to get subject_id
+        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+
+        # Get next order_index
+        last_content = await self.db.studyhub_module_contents.find_one(
+            {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
+        )
+        order_index = (last_content["order_index"] + 1) if last_content else 1
+
+        # Create content record
+        content_doc = {
+            "module_id": ObjectId(module_id),
+            "content_type": "document",
+            "title": title,
+            "data": {"document_id": document_id, "document_url": document.get("url")},
+            "is_required": is_required,
+            "is_preview": is_preview,
+            "order_index": order_index,
+            "created_at": datetime.now(timezone.utc),
+        }
+
+        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        content_doc["_id"] = result.inserted_id
+
+        # Update studyhub_context in original document
+        await self.permissions.update_content_studyhub_context(
+            collection_name="online_documents",
+            content_id=document_id,
+            subject_id=str(module["subject_id"]),
+            module_id=module_id,
+            enabled=True,
+            is_preview=is_preview,
+        )
+
+        return content_doc
+
+    async def get_module_documents(self, module_id: str) -> List[dict]:
+        """
+        Get all documents in module
+
+        Args:
+            module_id: Module ID
+
+        Returns:
+            List of document contents
+        """
+        contents = (
+            await self.db.studyhub_module_contents.find(
+                {"module_id": ObjectId(module_id), "content_type": "document"}
+            )
+            .sort("order_index", 1)
+            .to_list(None)
+        )
+
+        # Enrich with document data
+        for content in contents:
+            doc_id = content["data"].get("document_id")
+            if doc_id:
+                document = await self.db.online_documents.find_one(
+                    {"_id": ObjectId(doc_id)}
+                )
+                if document:
+                    content["document_details"] = {
+                        "title": document.get("title"),
+                        "url": document.get("url"),
+                        "type": document.get("type"),
+                        "created_at": document.get("created_at"),
+                    }
+
+        return contents
+
+    async def update_document_content(
+        self,
+        content_id: str,
+        title: Optional[str] = None,
+        is_required: Optional[bool] = None,
+        is_preview: Optional[bool] = None,
+    ) -> dict:
+        """
+        Update document content settings
+
+        Args:
+            content_id: Content ID
+            title: New title
+            is_required: Update required flag
+            is_preview: Update preview flag
+
+        Returns:
+            Updated content
+        """
+        # Get content
+        content = await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id), "content_type": "document"}
+        )
+
+        if not content:
+            raise HTTPException(status_code=404, detail="Document content not found")
+
+        # Check permission
+        await self.permissions.check_module_owner(
+            self.user_id, str(content["module_id"])
+        )
+
+        # Build update
+        update_data = {}
+        if title is not None:
+            update_data["title"] = title
+        if is_required is not None:
+            update_data["is_required"] = is_required
+        if is_preview is not None:
+            update_data["is_preview"] = is_preview
+
+        if update_data:
+            await self.db.studyhub_module_contents.update_one(
+                {"_id": ObjectId(content_id)}, {"$set": update_data}
+            )
+
+            # Update studyhub_context if preview changed
+            if is_preview is not None:
+                module = await self.db.studyhub_modules.find_one(
+                    {"_id": content["module_id"]}
+                )
+                doc_id = content["data"].get("document_id")
+                if doc_id:
+                    await self.permissions.update_content_studyhub_context(
+                        collection_name="online_documents",
+                        content_id=doc_id,
+                        subject_id=str(module["subject_id"]),
+                        module_id=str(content["module_id"]),
+                        enabled=True,
+                        is_preview=is_preview,
+                    )
+
+        # Return updated content
+        return await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id)}
+        )
+
+    async def remove_document_from_module(self, content_id: str) -> bool:
+        """
+        Remove document from module (unlink)
+
+        Args:
+            content_id: Content ID to remove
+
+        Returns:
+            True if successful
+        """
+        # Get content
+        content = await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id), "content_type": "document"}
+        )
+
+        if not content:
+            raise HTTPException(status_code=404, detail="Document content not found")
+
+        # Check permission
+        await self.permissions.check_module_owner(
+            self.user_id, str(content["module_id"])
+        )
+
+        # Remove studyhub_context from original document
+        doc_id = content["data"].get("document_id")
+        if doc_id:
+            await self.permissions.update_content_studyhub_context(
+                collection_name="online_documents",
+                content_id=doc_id,
+                subject_id="",
+                module_id="",
+                enabled=False,
+            )
+
+        # Delete content record
+        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+
+        return True
+
+    # ==================== TEST CONTENT ====================
+
+    async def add_test_to_module(
+        self,
+        module_id: str,
+        test_id: str,
+        title: str,
+        passing_score: int = 70,
+        is_required: bool = False,
+        is_preview: bool = False,
+    ) -> dict:
+        """Link test to module"""
+        await self.permissions.check_module_owner(self.user_id, module_id)
+
+        # Verify test exists
+        test = await self.db.online_tests.find_one(
+            {"_id": ObjectId(test_id), "owner_id": self.user_id}
+        )
+
+        if not test:
+            raise HTTPException(status_code=404, detail="Test not found")
+
+        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+
+        # Get next order_index
+        last_content = await self.db.studyhub_module_contents.find_one(
+            {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
+        )
+        order_index = (last_content["order_index"] + 1) if last_content else 1
+
+        content_doc = {
+            "module_id": ObjectId(module_id),
+            "content_type": "test",
+            "title": title,
+            "data": {"test_id": test_id, "passing_score": passing_score},
+            "is_required": is_required,
+            "is_preview": is_preview,
+            "order_index": order_index,
+            "created_at": datetime.now(timezone.utc),
+        }
+
+        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        content_doc["_id"] = result.inserted_id
+
+        # Update studyhub_context
+        await self.permissions.update_content_studyhub_context(
+            collection_name="online_tests",
+            content_id=test_id,
+            subject_id=str(module["subject_id"]),
+            module_id=module_id,
+            enabled=True,
+            is_preview=is_preview,
+        )
+
+        return content_doc
+
+    async def get_module_tests(self, module_id: str) -> List[dict]:
+        """Get all tests in module"""
+        contents = (
+            await self.db.studyhub_module_contents.find(
+                {"module_id": ObjectId(module_id), "content_type": "test"}
+            )
+            .sort("order_index", 1)
+            .to_list(None)
+        )
+
+        # Enrich with test data
+        for content in contents:
+            test_id = content["data"].get("test_id")
+            if test_id:
+                test = await self.db.online_tests.find_one({"_id": ObjectId(test_id)})
+                if test:
+                    content["test_details"] = {
+                        "title": test.get("title"),
+                        "total_questions": len(test.get("questions", [])),
+                        "time_limit": test.get("time_limit"),
+                        "created_at": test.get("created_at"),
+                    }
+
+        return contents
+
+    async def update_test_content(
+        self,
+        content_id: str,
+        title: Optional[str] = None,
+        passing_score: Optional[int] = None,
+        is_required: Optional[bool] = None,
+        is_preview: Optional[bool] = None,
+    ) -> dict:
+        """Update test content settings"""
+        content = await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id), "content_type": "test"}
+        )
+
+        if not content:
+            raise HTTPException(status_code=404, detail="Test content not found")
+
+        await self.permissions.check_module_owner(
+            self.user_id, str(content["module_id"])
+        )
+
+        update_data = {}
+        if title is not None:
+            update_data["title"] = title
+        if is_required is not None:
+            update_data["is_required"] = is_required
+        if is_preview is not None:
+            update_data["is_preview"] = is_preview
+        if passing_score is not None:
+            update_data["data.passing_score"] = passing_score
+
+        if update_data:
+            await self.db.studyhub_module_contents.update_one(
+                {"_id": ObjectId(content_id)}, {"$set": update_data}
+            )
+
+            if is_preview is not None:
+                module = await self.db.studyhub_modules.find_one(
+                    {"_id": content["module_id"]}
+                )
+                test_id = content["data"].get("test_id")
+                if test_id:
+                    await self.permissions.update_content_studyhub_context(
+                        collection_name="online_tests",
+                        content_id=test_id,
+                        subject_id=str(module["subject_id"]),
+                        module_id=str(content["module_id"]),
+                        enabled=True,
+                        is_preview=is_preview,
+                    )
+
+        return await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id)}
+        )
+
+    async def remove_test_from_module(self, content_id: str) -> bool:
+        """Remove test from module"""
+        content = await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id), "content_type": "test"}
+        )
+
+        if not content:
+            raise HTTPException(status_code=404, detail="Test content not found")
+
+        await self.permissions.check_module_owner(
+            self.user_id, str(content["module_id"])
+        )
+
+        test_id = content["data"].get("test_id")
+        if test_id:
+            await self.permissions.update_content_studyhub_context(
+                collection_name="online_tests",
+                content_id=test_id,
+                subject_id="",
+                module_id="",
+                enabled=False,
+            )
+
+        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+        return True
+
+    # ==================== BOOK CONTENT ====================
+
+    async def add_book_to_module(
+        self,
+        module_id: str,
+        book_id: str,
+        title: str,
+        selected_chapters: Optional[List[str]] = None,
+        is_required: bool = False,
+        is_preview: bool = False,
+    ) -> dict:
+        """Link book to module"""
+        await self.permissions.check_module_owner(self.user_id, module_id)
+
+        book = await self.db.online_books.find_one(
+            {"_id": ObjectId(book_id), "owner_id": self.user_id}
+        )
+
+        if not book:
+            raise HTTPException(status_code=404, detail="Book not found")
+
+        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+
+        last_content = await self.db.studyhub_module_contents.find_one(
+            {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
+        )
+        order_index = (last_content["order_index"] + 1) if last_content else 1
+
+        content_doc = {
+            "module_id": ObjectId(module_id),
+            "content_type": "book",
+            "title": title,
+            "data": {
+                "book_id": book_id,
+                "selected_chapters": selected_chapters or [],
+            },
+            "is_required": is_required,
+            "is_preview": is_preview,
+            "order_index": order_index,
+            "created_at": datetime.now(timezone.utc),
+        }
+
+        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        content_doc["_id"] = result.inserted_id
+
+        await self.permissions.update_content_studyhub_context(
+            collection_name="online_books",
+            content_id=book_id,
+            subject_id=str(module["subject_id"]),
+            module_id=module_id,
+            enabled=True,
+            is_preview=is_preview,
+        )
+
+        return content_doc
+
+    async def get_module_books(self, module_id: str) -> List[dict]:
+        """Get all books in module"""
+        contents = (
+            await self.db.studyhub_module_contents.find(
+                {"module_id": ObjectId(module_id), "content_type": "book"}
+            )
+            .sort("order_index", 1)
+            .to_list(None)
+        )
+
+        for content in contents:
+            book_id = content["data"].get("book_id")
+            if book_id:
+                book = await self.db.online_books.find_one({"_id": ObjectId(book_id)})
+                if book:
+                    content["book_details"] = {
+                        "title": book.get("title"),
+                        "total_chapters": len(book.get("chapters", [])),
+                        "cover_url": book.get("cover_url"),
+                        "created_at": book.get("created_at"),
+                    }
+
+        return contents
+
+    async def update_book_content(
+        self,
+        content_id: str,
+        title: Optional[str] = None,
+        selected_chapters: Optional[List[str]] = None,
+        is_required: Optional[bool] = None,
+        is_preview: Optional[bool] = None,
+    ) -> dict:
+        """Update book content settings"""
+        content = await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id), "content_type": "book"}
+        )
+
+        if not content:
+            raise HTTPException(status_code=404, detail="Book content not found")
+
+        await self.permissions.check_module_owner(
+            self.user_id, str(content["module_id"])
+        )
+
+        update_data = {}
+        if title is not None:
+            update_data["title"] = title
+        if is_required is not None:
+            update_data["is_required"] = is_required
+        if is_preview is not None:
+            update_data["is_preview"] = is_preview
+        if selected_chapters is not None:
+            update_data["data.selected_chapters"] = selected_chapters
+
+        if update_data:
+            await self.db.studyhub_module_contents.update_one(
+                {"_id": ObjectId(content_id)}, {"$set": update_data}
+            )
+
+            if is_preview is not None:
+                module = await self.db.studyhub_modules.find_one(
+                    {"_id": content["module_id"]}
+                )
+                book_id = content["data"].get("book_id")
+                if book_id:
+                    await self.permissions.update_content_studyhub_context(
+                        collection_name="online_books",
+                        content_id=book_id,
+                        subject_id=str(module["subject_id"]),
+                        module_id=str(content["module_id"]),
+                        enabled=True,
+                        is_preview=is_preview,
+                    )
+
+        return await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id)}
+        )
+
+    async def remove_book_from_module(self, content_id: str) -> bool:
+        """Remove book from module"""
+        content = await self.db.studyhub_module_contents.find_one(
+            {"_id": ObjectId(content_id), "content_type": "book"}
+        )
+
+        if not content:
+            raise HTTPException(status_code=404, detail="Book content not found")
+
+        await self.permissions.check_module_owner(
+            self.user_id, str(content["module_id"])
+        )
+
+        book_id = content["data"].get("book_id")
+        if book_id:
+            await self.permissions.update_content_studyhub_context(
+                collection_name="online_books",
+                content_id=book_id,
+                subject_id="",
+                module_id="",
+                enabled=False,
+            )
+
+        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+        return True

@@ -206,8 +206,42 @@ class ModuleContentCreate(BaseModel):
 
     content_type: ContentType
     title: str = Field(..., min_length=1, max_length=200)
-    data: ContentData
+    data: Optional[ContentData] = None
     is_required: bool = False
+
+    # Legacy/convenience fields (auto-converted to data)
+    content_url: Optional[str] = None
+    content_text: Optional[str] = None
+    document_url: Optional[str] = None
+    link_url: Optional[str] = None
+    video_url: Optional[str] = None
+
+    @validator("data", always=True)
+    def build_data(cls, v, values):
+        """Auto-build data from convenience fields if data not provided"""
+        if v is not None:
+            return v
+
+        # Build data from convenience fields
+        data_dict = {}
+
+        # Map convenience fields to data fields
+        if values.get("content_url"):
+            if values.get("content_type") == ContentType.DOCUMENT:
+                data_dict["document_url"] = values["content_url"]
+            elif values.get("content_type") == ContentType.LINK:
+                data_dict["link_url"] = values["content_url"]
+            elif values.get("content_type") == ContentType.VIDEO:
+                data_dict["video_url"] = values["content_url"]
+
+        if values.get("document_url"):
+            data_dict["document_url"] = values["document_url"]
+        if values.get("link_url"):
+            data_dict["link_url"] = values["link_url"]
+        if values.get("video_url"):
+            data_dict["video_url"] = values["video_url"]
+
+        return ContentData(**data_dict) if data_dict else ContentData()
 
     class Config:
         use_enum_values = True

@@ -4,7 +4,7 @@
 
 Complete API documentation for StudyHub learning platform Phase 1 (38 APIs).
 
-**Base URL**: `https://api.wordai.pro`
+**Base URL**: `https://ai.wordai.pro`
 **Authentication**: Firebase Bearer token (except marketplace endpoints)
 
 ---
@@ -157,7 +157,7 @@ See [STUDYHUB_API_SPECS.md](STUDYHUB_API_SPECS.md) for detailed M1.1 specificati
 **Query Parameters**:
 - `status` (optional): active/completed/dropped
 
-**Response**: 
+**Response**:
 - Array of enrollments with subject info
 - Each includes progress_percentage
 
