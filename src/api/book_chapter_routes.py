@@ -23,6 +23,10 @@ from src.models.book_chapter_models import (
     ChapterReorderBulk,
     ChapterBulkUpdate,
     TogglePreviewRequest,
+    # Phase 2: Multi-format content
+    ChapterCreatePDFPages,
+    ChapterCreateImagePages,
+    ChapterPagesUpdate,
 )
 
 # Services
@@ -1514,4 +1518,198 @@ async def bulk_update_chapters(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to bulk update chapters: {str(e)}",
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# PHASE 2: Multi-format Content Support (PDF Pages, Image Pages)
+# ═══════════════════════════════════════════════════════════════════════
+
+
+@router.post(
+    "/{book_id}/chapters/from-pdf",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_chapter_from_pdf(
+    book_id: str,
+    request: ChapterCreatePDFPages,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Create chapter from existing PDF file (pdf_pages mode)
+
+    **Authentication:** Required (Owner only)
+
+    **Flow:**
+    1. Validate PDF file exists in studyhub_files
+    2. Download PDF from R2
+    3. Extract pages → Convert to PNG images
+    4. Upload page images to R2
+    5. Create chapter with pages array
+
+    **Request Body:**
+    - file_id: Existing PDF file ID from studyhub_files [REQUIRED]
+    - title: Chapter title [REQUIRED]
+    - slug: URL slug (auto-generated if not provided)
+    - parent_id: Parent chapter ID for nesting
+    - order_index: Display order (default: 0)
+    - is_published: Publish status (default: true)
+    - is_preview_free: Allow free preview (default: false)
+
+    **Returns:**
+    - 201: Chapter created with pages array
+    - 400: PDF file not found or invalid
+    - 403: User is not the book owner
+    - 404: Book not found
+    - 500: PDF processing failed
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Book {book_id} not found",
+            )
+
+        if book.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only book owner can create chapters",
+            )
+
+        logger.info(
+            f"📄 [API] Creating PDF chapter in book {book_id} from file {request.file_id}"
+        )
+
+        # Create chapter from PDF
+        chapter = await chapter_manager.create_chapter_from_pdf(
+            book_id=book_id,
+            user_id=user_id,
+            file_id=request.file_id,
+            title=request.title,
+            slug=request.slug,
+            order_index=request.order_index,
+            parent_id=request.parent_id,
+            is_published=request.is_published,
+            is_preview_free=request.is_preview_free,
+        )
+
+        logger.info(
+            f"✅ [API] Created PDF chapter {chapter['chapter_id']} with {chapter['total_pages']} pages"
+        )
+
+        return {
+            "success": True,
+            "chapter": chapter,
+            "message": f"Chapter created from PDF with {chapter['total_pages']} pages",
+        }
+
+    except ValueError as e:
+        logger.error(f"❌ Validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to create PDF chapter: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create PDF chapter: {str(e)}",
+        )
+
+
+@router.put(
+    "/chapters/{chapter_id}/pages",
+    response_model=Dict[str, Any],
+)
+async def update_chapter_pages(
+    chapter_id: str,
+    request: ChapterPagesUpdate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Update page elements (add highlights, notes, annotations)
+
+    **Authentication:** Required (Owner only)
+
+    **Supported Content Types:**
+    - pdf_pages: PDF chapters
+    - image_pages: Manga/Comic chapters
+
+    **Request Body:**
+    - pages: Array of pages with updated elements
+      - page_number: Page number (1-indexed)
+      - elements: Array of overlay elements
+        - id: Element ID
+        - type: Element type (highlight, text, shape, etc.)
+        - x, y: Position in pixels
+        - width, height: Dimensions (for shapes/images)
+        - color, content, etc.: Type-specific properties
+
+    **Notes:**
+    - Only updates specified pages (partial update)
+    - Preserves background URLs and dimensions
+    - Elements are overlay graphics on top of page backgrounds
+
+    **Returns:**
+    - 200: Pages updated successfully
+    - 400: Invalid content_source (not pdf_pages or image_pages)
+    - 403: User is not the book owner
+    - 404: Chapter not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        logger.info(
+            f"📝 [API] Updating {len(request.pages)} pages for chapter {chapter_id}"
+        )
+
+        # Convert Pydantic models to dicts
+        pages_data = [page.model_dump() for page in request.pages]
+
+        # Update pages
+        updated_chapter = await chapter_manager.update_chapter_pages(
+            chapter_id=chapter_id,
+            user_id=user_id,
+            pages_update=pages_data,
+        )
+
+        total_elements = sum(
+            len(page.get("elements", [])) for page in updated_chapter.get("pages", [])
+        )
+
+        logger.info(
+            f"✅ [API] Updated chapter {chapter_id}: "
+            f"{len(request.pages)} pages, {total_elements} total elements"
+        )
+
+        return {
+            "success": True,
+            "chapter": updated_chapter,
+            "pages_updated": len(request.pages),
+            "total_elements": total_elements,
+            "message": f"Updated {len(request.pages)} pages with {total_elements} elements",
+        }
+
+    except PermissionError as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(e)
+        )
+    except ValueError as e:
+        logger.error(f"❌ Validation error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update chapter pages: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update chapter pages: {str(e)}",
         )

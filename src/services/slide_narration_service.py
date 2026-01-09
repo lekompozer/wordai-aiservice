@@ -204,8 +204,49 @@ class SlideNarrationService:
                 ),
             )
 
+            # Extract response text (handle thought_signature parts)
+            response_text = None
+            try:
+                # Try simple text accessor first
+                if hasattr(response, "text") and response.text:
+                    response_text = response.text
+                    logger.info(
+                        f"✅ Extracted text using response.text ({len(response_text)} chars)"
+                    )
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to extract via response.text: {e}")
+
+            # Fallback: Extract from parts (handles thought_signature)
+            if not response_text:
+                try:
+                    if response.candidates and len(response.candidates) > 0:
+                        candidate = response.candidates[0]
+                        if (
+                            candidate.content
+                            and hasattr(candidate.content, "parts")
+                            and candidate.content.parts
+                        ):
+                            # Extract text from parts, ignoring non-text parts (like thought_signature)
+                            text_parts = []
+                            for part in candidate.content.parts:
+                                if hasattr(part, "text") and part.text:
+                                    text_parts.append(part.text)
+
+                            if text_parts:
+                                response_text = "".join(text_parts)
+                                logger.info(
+                                    f"✅ Extracted text from {len(text_parts)} parts (fallback) - {len(response_text)} chars"
+                                )
+                except Exception as e2:
+                    logger.error(f"❌ Failed to extract from parts: {e2}")
+
+            if not response_text:
+                raise ValueError(
+                    "Failed to extract text from Gemini response (both text and parts methods failed)"
+                )
+
             # Parse response
-            result = json.loads(response.text)
+            result = json.loads(response_text)
 
             # Validate and process subtitles
             processed_slides = self._process_subtitle_response(result, slides)

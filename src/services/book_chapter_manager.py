@@ -1,9 +1,12 @@
 """
 Guide Chapter Manager Service
 Phase 1: Database operations for Guide Chapters
+Phase 2: Multi-format content support (PDF pages, Image pages)
 """
 
 import uuid
+import os
+import tempfile
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import logging
@@ -18,17 +21,23 @@ class GuideBookBookChapterManager:
 
     MAX_DEPTH = 2  # 0, 1, 2 = 3 levels total
 
-    def __init__(self, db, book_manager=None):
+    def __init__(self, db, book_manager=None, s3_client=None, r2_config=None):
         """
         Initialize GuideBookBookChapterManager
 
         Args:
             db: PyMongo Database object (synchronous)
             book_manager: Optional UserBookManager instance for updating book timestamps
+            s3_client: Optional boto3 S3 client for R2 uploads (required for PDF/image chapters)
+            r2_config: Optional dict with R2 config {bucket, cdn_base_url}
         """
         self.db = db
         self.chapters_collection = db["book_chapters"]
         self.book_manager = book_manager
+        
+        # R2 storage for PDF/image pages
+        self.s3_client = s3_client
+        self.r2_config = r2_config or {}
 
         # Lazy import to avoid circular dependency
         if book_manager is None:
@@ -1071,7 +1080,13 @@ class GuideBookBookChapterManager:
 
     def get_chapter_with_content(self, chapter_id: str) -> Optional[Dict[str, Any]]:
         """
-        Get chapter with content (loads from document if content_source='document')
+        Get chapter with content (UPDATED - handles all content modes)
+
+        Content modes:
+        - inline: HTML/JSON content in chapter
+        - document: Load content from documents collection (DEPRECATED)
+        - pdf_pages: Pages array with backgrounds
+        - image_pages: Pages array with backgrounds + manga metadata
 
         Args:
             chapter_id: Chapter UUID
@@ -1089,7 +1104,8 @@ class GuideBookBookChapterManager:
         content_source = chapter.get("content_source", "inline")
 
         if content_source == "document":
-            # Load content from linked document
+            # ❌ DEPRECATED - Load from documents collection
+            # Phase 3 will migrate to inline mode
             document_id = chapter.get("document_id")
             if document_id:
                 document = self.db["documents"].find_one(
@@ -1120,8 +1136,40 @@ class GuideBookBookChapterManager:
                 )
                 chapter["content_html"] = ""
                 chapter["content"] = ""
-        else:
-            # Inline content - already in chapter
+
+        elif content_source in ["pdf_pages", "image_pages"]:
+            # ✅ NEW - Pages array with backgrounds
+            pages = chapter.get("pages", [])
+            total_pages = chapter.get("total_pages", len(pages))
+
+            logger.info(
+                f"📄 Loaded {content_source} chapter: {chapter_id} "
+                f"({total_pages} pages)"
+            )
+
+            # Enrich with file details if available
+            file_id = chapter.get("file_id")
+            if file_id:
+                file_doc = self.db["studyhub_files"].find_one({"file_id": file_id})
+                if file_doc:
+                    chapter["file_details"] = {
+                        "file_name": file_doc.get("file_name"),
+                        "file_type": file_doc.get("file_type"),
+                        "file_size": file_doc.get("file_size"),
+                        "uploaded_at": file_doc.get("uploaded_at"),
+                    }
+
+            # For image_pages, include manga metadata
+            if content_source == "image_pages":
+                manga_metadata = chapter.get("manga_metadata")
+                if manga_metadata:
+                    logger.info(
+                        f"   Manga: {manga_metadata.get('reading_direction')}, "
+                        f"colored={manga_metadata.get('is_colored')}"
+                    )
+
+        else:  # inline (default)
+            # ✅ Inline content - already in chapter
             content_html = chapter.get("content_html") or ""
             chapter["content"] = (
                 content_html  # Set 'content' for frontend compatibility
@@ -1278,3 +1326,22 @@ class GuideBookBookChapterManager:
         except DuplicateKeyError:
             logger.error(f"❌ Slug '{slug}' already exists in book {book_id}")
             raise
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # PHASE 2: Multi-format Content Support (PDF Pages, Image Pages)
+    # ═══════════════════════════════════════════════════════════════════════
+
+    async def create_chapter_from_pdf(
+        self,
+        book_id: str,
+        user_id: str,
+        file_id: str,
+        title: str,
+        slug: Optional[str] = None,
+        order_index: int = 0,
+        parent_id: Optional[str] = None,
+        is_published: bool = True,
+        is_preview_free: bool = False,
+    ) -> Dict[str, Any]:
+        pass  # Implementation added via editor
+

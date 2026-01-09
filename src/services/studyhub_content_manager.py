@@ -584,7 +584,11 @@ class StudyHubContentManager:
 
         # Verify file exists and user uploaded it
         file_doc = await self.db.studyhub_files.find_one(
-            {"_id": ObjectId(file_id), "uploaded_by": self.user_id, "deleted": {"$ne": True}}
+            {
+                "_id": ObjectId(file_id),
+                "uploaded_by": self.user_id,
+                "deleted": {"$ne": True},
+            }
         )
 
         if not file_doc:
@@ -663,9 +667,13 @@ class StudyHubContentManager:
         await self.permissions.check_content_access(self.user_id, module_id)
 
         # Get all file contents
-        contents = await self.db.studyhub_module_contents.find(
-            {"module_id": ObjectId(module_id), "content_type": "file"}
-        ).sort("order_index", 1).to_list(None)
+        contents = (
+            await self.db.studyhub_module_contents.find(
+                {"module_id": ObjectId(module_id), "content_type": "file"}
+            )
+            .sort("order_index", 1)
+            .to_list(None)
+        )
 
         # Enrich with file details
         for content in contents:

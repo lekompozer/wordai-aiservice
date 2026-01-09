@@ -531,7 +531,7 @@ async def upload_file_to_module(
     - Virus scanning performed
 
     **Permission**: Subject owner only
-    
+
     **Note**: This endpoint requires file upload implementation with multipart/form-data.
     Implementation pending - requires R2 storage integration.
     """
