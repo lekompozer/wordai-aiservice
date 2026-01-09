@@ -634,6 +634,30 @@ class GuideBookBookChapterManager:
 
         return self.chapters_collection.count_documents(query) > 0
 
+    def _generate_unique_slug(
+        self, book_id: str, base_slug: str, exclude_chapter_id: Optional[str] = None
+    ) -> str:
+        """
+        Generate unique slug by appending number if needed
+
+        Args:
+            book_id: Book UUID
+            base_slug: Base slug to start with
+            exclude_chapter_id: Optional chapter ID to exclude (for updates)
+
+        Returns:
+            Unique slug
+        """
+        slug = base_slug
+        counter = 2
+
+        # Keep trying until we find a unique slug
+        while self.slug_exists(book_id, slug, exclude_chapter_id):
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        return slug
+
     def _calculate_depth(self, parent_chapter_id: Optional[str]) -> int:
         """
         Calculate depth of chapter based on parent
@@ -1539,13 +1563,17 @@ class GuideBookBookChapterManager:
                 logger.info(f"✅ PDF processed: {result['total_pages']} pages")
 
                 # 5. Create chapter document
+                # Generate unique slug if not provided
+                base_slug = slug or self._generate_slug(title)
+                unique_slug = self._generate_unique_slug(book_id, base_slug)
+
                 chapter_doc = {
                     "_id": chapter_id,
                     "chapter_id": chapter_id,  # Required for unique index
                     "book_id": book_id,
                     "user_id": user_id,
                     "title": title,
-                    "slug": slug or self._generate_slug(title),
+                    "slug": unique_slug,
                     "order_index": order_index,
                     "parent_id": parent_id,
                     "depth": (
