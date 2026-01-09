@@ -433,16 +433,19 @@ class GuideBookBookChapterManager:
             self.chapters_collection.find(query, {"_id": 0}).sort("order_index", 1)
         )
 
-        # Build chapter map
+        # Build chapter map (handle legacy chapters without chapter_id)
         chapter_map = {}
         for chapter in chapters:
-            chapter_id = chapter["chapter_id"]
-            chapter_map[chapter_id] = {**chapter, "children": []}
+            # Backward compatibility: use _id if chapter_id not present
+            chapter_id = chapter.get("chapter_id") or chapter.get("_id")
+            if chapter_id:
+                chapter_map[chapter_id] = {**chapter, "children": []}
 
         # Build tree
         tree = []
         for chapter in chapters:
-            chapter_id = chapter["chapter_id"]
+            # Backward compatibility
+            chapter_id = chapter.get("chapter_id") or chapter.get("_id")
             parent_id = chapter.get("parent_id")
 
             if parent_id is None:
@@ -1715,13 +1718,17 @@ class GuideBookBookChapterManager:
                     logger.info(f"🗑️ Cleaned up {len(temp_urls)} temp files")
 
                 # 4. Create chapter document
+                # Generate unique slug if not provided
+                base_slug = slug or self._generate_slug(title)
+                unique_slug = self._generate_unique_slug(book_id, base_slug)
+
                 chapter_doc = {
                     "_id": chapter_id,
                     "chapter_id": chapter_id,  # Required for unique index
                     "book_id": book_id,
                     "user_id": user_id,
                     "title": title,
-                    "slug": slug or self._generate_slug(title),
+                    "slug": unique_slug,
                     "order_index": order_index,
                     "parent_id": parent_id,
                     "depth": (
@@ -1867,13 +1874,17 @@ class GuideBookBookChapterManager:
             logger.info(f"✅ Built {len(pages)} pages from uploaded images")
 
             # 4. Create chapter document
+            # Generate unique slug if not provided
+            base_slug = slug or self._generate_slug(title)
+            unique_slug = self._generate_unique_slug(book_id, base_slug)
+
             chapter_doc = {
                 "_id": chapter_id,  # Use uploaded chapter_id
                 "chapter_id": chapter_id,  # Required for unique index
                 "book_id": book_id,
                 "user_id": user_id,
                 "title": title,
-                "slug": slug or self._generate_slug(title),
+                "slug": unique_slug,
                 "order_index": order_index,
                 "parent_id": parent_id,
                 "depth": 0 if not parent_id else self._calculate_depth(parent_id) + 1,
@@ -1994,13 +2005,17 @@ class GuideBookBookChapterManager:
                 logger.info(f"✅ ZIP processed: {result['total_pages']} pages")
 
                 # 5. Create chapter document
+                # Generate unique slug if not provided
+                base_slug = slug or self._generate_slug(title)
+                unique_slug = self._generate_unique_slug(book_id, base_slug)
+
                 chapter_doc = {
                     "_id": chapter_id,
                     "chapter_id": chapter_id,  # Required for unique index
                     "book_id": book_id,
                     "user_id": user_id,
                     "title": title,
-                    "slug": slug or self._generate_slug(title),
+                    "slug": unique_slug,
                     "order_index": order_index,
                     "parent_id": parent_id,
                     "depth": (
