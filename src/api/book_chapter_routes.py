@@ -44,6 +44,7 @@ from src.services.book_manager import UserBookManager
 from src.services.book_chapter_manager import GuideBookBookChapterManager
 from src.services.book_permission_manager import GuideBookBookPermissionManager
 from src.services.document_manager import DocumentManager
+from src.services.r2_storage_service import get_r2_service
 
 # Database
 from src.database.db_manager import DBManager
@@ -56,9 +57,20 @@ router = APIRouter(prefix="/api/v1/books", tags=["Online Books Chapters"])
 db_manager = DBManager()
 db = db_manager.db
 
-# Initialize managers with DB
+# Initialize R2 storage
+r2_service = get_r2_service()
+
+# Initialize managers with DB and R2
 book_manager = UserBookManager(db)
-chapter_manager = GuideBookBookChapterManager(db)
+chapter_manager = GuideBookBookChapterManager(
+    db=db,
+    book_manager=book_manager,
+    s3_client=r2_service.s3_client,
+    r2_config={
+        "bucket": r2_service.bucket_name,
+        "cdn_base_url": "https://cdn.r2.wordai.vn",
+    },
+)
 permission_manager = GuideBookBookPermissionManager(db)
 document_manager = DocumentManager(db)
 
