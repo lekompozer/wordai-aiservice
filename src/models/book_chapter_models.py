@@ -106,6 +106,24 @@ class PageElement(BaseModel):
         None, ge=0.0, le=1.0, description="Opacity (0.0=transparent, 1.0=opaque)"
     )
 
+    @validator("font_size", pre=True)
+    def parse_font_size(cls, v):
+        """Parse font_size from CSS format (e.g., '18px') to int"""
+        if v is None:
+            return v
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str):
+            # Remove 'px' suffix and convert to int
+            v = v.strip().lower()
+            if v.endswith("px"):
+                v = v[:-2]
+            try:
+                return int(v)
+            except ValueError:
+                raise ValueError(f"Invalid font_size format: {v}. Expected int or string like '18px'")
+        return v
+
 
 class PageContent(BaseModel):
     """Single page with background image and overlay elements"""
@@ -157,7 +175,7 @@ class ChapterCreateImagePages(BaseModel):
     """Create chapter from image files (image_pages mode - manga/comics)"""
 
     file_ids: List[str] = Field(
-        ..., min_items=1, description="List of image file IDs from studyhub_files"
+        ..., min_length=1, description="List of image file IDs from studyhub_files"
     )
     title: str = Field(..., min_length=1, max_length=200, description="Chapter title")
     slug: Optional[str] = Field(None, max_length=200, description="Chapter URL slug")
