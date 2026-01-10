@@ -1744,24 +1744,24 @@ async def update_page_background(
 ):
     """
     Update background image for a specific page
-    
+
     **Authentication:** Required (Owner only)
-    
+
     **Supported Content Types:**
     - pdf_pages: PDF chapters
     - image_pages: Manga/Comic chapters
-    
+
     **Request Body:**
     - background_url: New background image URL (R2 CDN or external)
     - width: Optional - New page width (auto-detect if not provided)
     - height: Optional - New page height (auto-detect if not provided)
     - keep_elements: Optional - Keep existing elements (default: true)
-    
+
     **Use Cases:**
     - Replace corrupted page image
     - Update to higher quality image
     - Change page image entirely (e.g., fix wrong page in manga)
-    
+
     **Returns:**
     - 200: Background updated successfully
     - 400: Invalid content_mode or page not found
@@ -1770,11 +1770,11 @@ async def update_page_background(
     """
     try:
         user_id = current_user["uid"]
-        
+
         logger.info(
             f"🖼️ [API] Updating page {page_number} background for chapter {chapter_id}"
         )
-        
+
         # Update background
         updated_chapter = await chapter_manager.update_page_background(
             chapter_id=chapter_id,
@@ -1785,14 +1785,14 @@ async def update_page_background(
             height=request.height,
             keep_elements=request.keep_elements,
         )
-        
+
         # Get updated page info
         updated_page = None
         for page in updated_chapter.get("pages", []):
             if page["page_number"] == page_number:
                 updated_page = page
                 break
-        
+
         if updated_page:
             logger.info(
                 f"✅ [API] Updated page {page_number} background: "
@@ -1800,14 +1800,14 @@ async def update_page_background(
             )
         else:
             logger.warning(f"⚠️ Page {page_number} not found in updated chapter")
-        
+
         return {
             "success": True,
             "chapter": updated_chapter,
             "updated_page": updated_page,
             "message": f"Page {page_number} background updated successfully",
         }
-    
+
     except PermissionError as e:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
     except ValueError as e:
