@@ -1812,12 +1812,10 @@ async def upload_images_for_chapter(
         logger.info(f"   User: {user_id}, Total size: {total_size / 1024 / 1024:.2f}MB")
 
         # 4. Get current page count for this chapter_id
-        from src.config import config
-
-        s3_client = config.get_s3_client()
+        s3_client = r2_service.s3_client
         r2_config = {
-            "bucket": "wordai-storage",
-            "cdn_base_url": "https://static.wordai.pro",
+            "bucket": r2_service.bucket_name,
+            "cdn_base_url": r2_service.public_url,
         }
 
         # List existing pages to get next page number
@@ -2273,14 +2271,13 @@ async def delete_chapter_page(
         try:
             background_url = page_to_delete.get("background_url", "")
             if background_url:
-                from src.config import config
-
-                s3_client = config.get_s3_client()
                 # Extract R2 key from URL
-                cdn_base = "https://static.wordai.pro/"
+                cdn_base = f"{r2_service.public_url}/"
                 if background_url.startswith(cdn_base):
                     r2_key = background_url[len(cdn_base) :]
-                    s3_client.delete_object(Bucket="wordai-storage", Key=r2_key)
+                    r2_service.s3_client.delete_object(
+                        Bucket=r2_service.bucket_name, Key=r2_key
+                    )
                     logger.info(f"   🗑️ Deleted image from R2: {r2_key}")
         except Exception as e:
             logger.warning(f"⚠️ Could not delete image from R2: {e}")
