@@ -304,7 +304,28 @@ if cdn_url.startswith(cdn_base):
 
 ## ❌ Common R2 Mistakes to Avoid
 
-### 1. Using Wrong CDN Domain
+### 1. Using Wrong R2 Service Property Name
+
+```python
+# ❌ WRONG - no such attribute!
+from src.services.r2_storage_service import get_r2_service
+r2_service = get_r2_service()
+cdn_url = f"{r2_service.cdn_url}/{object_key}"  # ❌ AttributeError!
+
+# ✅ CORRECT - use public_url
+cdn_url = f"{r2_service.public_url}/{object_key}"  # ✅ Works!
+
+# Available R2 service properties:
+r2_service.s3_client        # boto3 S3 client
+r2_service.bucket_name      # "wordai"
+r2_service.public_url       # "https://static.wordai.pro" ← USE THIS!
+r2_service.endpoint_url     # Cloudflare R2 endpoint
+
+# Note: cdn_url is OK as LOCAL VARIABLE name, just not r2_service.cdn_url
+cdn_url = f"{r2_service.public_url}/{key}"  # ✅ Local variable is fine
+```
+
+### 2. Using Wrong CDN Domain
 
 ```python
 # ❌ WRONG
@@ -316,7 +337,7 @@ cdn_url = f"https://static.wordai.pro/{object_key}"
 cdn_url = f"{r2_service.public_url}/{object_key}"  # Best - uses env var
 ```
 
-### 2. Trying to Download r2:// URIs with HTTP
+### 3. Trying to Download r2:// URIs with HTTP
 
 ```python
 # ❌ WRONG - file_url is r2:// not https://

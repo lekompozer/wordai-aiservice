@@ -531,6 +531,26 @@ library_manager = LibraryManager(
 )
 ```
 
+**Error: `AttributeError: 'R2StorageService' object has no attribute 'cdn_url'`**
+```python
+# ❌ WRONG - Property name is public_url, not cdn_url
+from src.services.r2_storage_service import get_r2_service
+r2_service = get_r2_service()
+cdn_url = f"{r2_service.cdn_url}/{object_key}"  # ❌ AttributeError!
+
+# ✅ CORRECT - Use public_url property
+cdn_url = f"{r2_service.public_url}/{object_key}"  # ✅ Works!
+
+# Available R2 service properties:
+r2_service.s3_client        # boto3 S3 client
+r2_service.bucket_name      # "wordai"
+r2_service.public_url       # "https://static.wordai.pro" ← USE THIS!
+r2_service.endpoint_url     # Cloudflare R2 endpoint
+
+# Note: cdn_url is OK as LOCAL VARIABLE name
+cdn_url = f"{r2_service.public_url}/{key}"  # ✅ Variable name is fine
+```
+
 **Complete Example (Slide Narration Service):**
 ```python
 class SlideNarrationService:
