@@ -194,12 +194,22 @@ class ChapterCreateFromUploadedImages(BaseModel):
     )
 
 
+class PageElementsUpdate(BaseModel):
+    """Update elements for a specific page (partial update - elements only)"""
+
+    page_number: int = Field(..., ge=1, description="Page number to update (1-indexed)")
+    elements: List[PageElement] = Field(
+        default_factory=list,
+        description="Updated elements array for this page (replaces existing)",
+    )
+
+
 class ChapterPagesUpdate(BaseModel):
     """Update page elements (add highlights, notes, etc.)"""
 
-    pages: List[PageContent] = Field(
+    pages: List[PageElementsUpdate] = Field(
         ...,
-        min_items=1,
+        min_length=1,
         description="Pages with updated elements (only include pages that changed)",
     )
 

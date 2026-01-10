@@ -2141,6 +2141,96 @@ class GuideBookBookChapterManager:
             logger.error(f"❌ [MANGA_METADATA] Failed to update: {e}")
             raise
 
+    async def update_chapter_pages(
+        self,
+        chapter_id: str,
+        user_id: str,
+        pages_update: List[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Update page elements (highlights, notes, annotations, etc.)
+
+        Args:
+            chapter_id: Chapter ID
+            user_id: User ID (for authorization)
+            pages_update: List of page updates [{page_number: int, elements: [...]}]
+
+        Returns:
+            Updated chapter document
+        """
+        try:
+            # 1. Validate chapter ownership and mode
+            chapter = self.chapters_collection.find_one(
+                {"_id": chapter_id, "user_id": user_id}
+            )
+            if not chapter:
+                raise ValueError("Chapter not found or access denied")
+
+            content_mode = chapter.get("content_mode")
+            if content_mode not in ["pdf_pages", "image_pages"]:
+                raise ValueError(
+                    f"Page updates only available for pdf_pages/image_pages chapters, got: {content_mode}"
+                )
+
+            pages = chapter.get("pages", [])
+            if not pages:
+                raise ValueError("Chapter has no pages to update")
+
+            logger.info(f"📝 [UPDATE_PAGES] Updating chapter {chapter_id}")
+            logger.info(f"   Pages to update: {len(pages_update)}")
+
+            # 2. Create page lookup by page_number
+            pages_dict = {page["page_number"]: page for page in pages}
+
+            # 3. Update elements for specified pages
+            updated_count = 0
+            for page_update in pages_update:
+                page_number = page_update["page_number"]
+                new_elements = page_update.get("elements", [])
+
+                if page_number not in pages_dict:
+                    logger.warning(f"⚠️ Page {page_number} not found, skipping")
+                    continue
+
+                # Replace elements array (preserving background_url, width, height)
+                pages_dict[page_number]["elements"] = new_elements
+                updated_count += 1
+
+                logger.info(
+                    f"   ✅ Updated page {page_number}: {len(new_elements)} elements"
+                )
+
+            # 4. Convert back to list (preserve order)
+            updated_pages = sorted(pages_dict.values(), key=lambda p: p["page_number"])
+
+            # 5. Save to database
+            updated_chapter = self.chapters_collection.find_one_and_update(
+                {"_id": chapter_id},
+                {
+                    "$set": {
+                        "pages": updated_pages,
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+
+            # 6. Update book timestamp
+            if self.book_manager:
+                self.book_manager.touch_book(chapter["book_id"])
+
+            total_elements = sum(len(p.get("elements", [])) for p in updated_pages)
+            logger.info(
+                f"✅ [UPDATE_PAGES] Updated {updated_count} pages, "
+                f"{total_elements} total elements"
+            )
+
+            return updated_chapter
+
+        except Exception as e:
+            logger.error(f"❌ [UPDATE_PAGES] Failed to update: {e}")
+            raise
+
     async def _download_file_from_r2(self, file_url: str, suffix: str = "") -> str:
         """
         Download file from R2 to temp file

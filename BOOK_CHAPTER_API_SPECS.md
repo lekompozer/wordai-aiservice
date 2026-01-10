@@ -332,29 +332,46 @@ Authorization: Bearer <token>
 **Content Modes**: `pdf_pages`, `image_pages` only
 
 **Request Body**:
-```
+```json
 {
   "pages": [
     {
-      "page_number": 1,           // Required
-      "elements": [               // Required
+      "page_number": 1,
+      "elements": [
         {
           "id": "element_uuid",
-          "type": "highlight",    // See Element Types
+          "type": "highlight",
           "x": 100,
           "y": 200,
           "width": 300,
           "height": 50,
           "z_index": 1,
           "color": "#FFFF00",
-          "opacity": 0.3,
-          "content": "Annotation text"
+          "opacity": 0.3
+        },
+        {
+          "id": "note_001",
+          "type": "note",
+          "x": 150,
+          "y": 250,
+          "width": 400,
+          "height": 120,
+          "content": "My annotation here",
+          "color": "#FFF9C4",
+          "opacity": 0.9,
+          "z_index": 2
         }
       ]
     }
   ]
 }
 ```
+
+**Important Notes**:
+- **Only send `page_number` and `elements`** - do NOT include `background_url`, `width`, `height`
+- Backend preserves existing page metadata (background URL, dimensions)
+- Elements array **replaces** existing elements for that page
+- Use partial updates: only include pages that changed
 
 **Response**:
 ```
