@@ -12,6 +12,7 @@ from fastapi import (
     Request,
     UploadFile,
     File,
+    Form,
 )
 from typing import List, Optional, Dict, Any
 import logging
@@ -1739,8 +1740,12 @@ async def update_chapter_pages(
 async def update_page_background(
     chapter_id: str,
     page_number: int,
-    request: PageBackgroundUpdate,
     current_user: Dict[str, Any] = Depends(get_current_user),
+    file: Optional[UploadFile] = File(None),
+    background_url: Optional[str] = Form(None),
+    width: Optional[int] = Form(None),
+    height: Optional[int] = Form(None),
+    keep_elements: bool = Form(True),
 ):
     """
     Update background image for a specific page
@@ -1751,8 +1756,13 @@ async def update_page_background(
     - pdf_pages: PDF chapters
     - image_pages: Manga/Comic chapters
 
-    **Request Body:**
-    - background_url: New background image URL (R2 CDN or external)
+    **Request Methods:**
+    1. Upload new file: Send file via multipart/form-data
+    2. Use existing URL: Send background_url in form data
+
+    **Form Fields:**
+    - file: Image file to upload (JPG, PNG, WEBP) - EITHER this OR background_url
+    - background_url: Existing image URL - EITHER this OR file
     - width: Optional - New page width (auto-detect if not provided)
     - height: Optional - New page height (auto-detect if not provided)
     - keep_elements: Optional - Keep existing elements (default: true)
@@ -1764,7 +1774,7 @@ async def update_page_background(
 
     **Returns:**
     - 200: Background updated successfully
-    - 400: Invalid content_mode or page not found
+    - 400: Invalid content_mode, page not found, or both file and URL provided
     - 403: User is not the book owner
     - 404: Chapter not found
     """
@@ -1775,15 +1785,82 @@ async def update_page_background(
             f"🖼️ [API] Updating page {page_number} background for chapter {chapter_id}"
         )
 
+        # Validate: Must provide EITHER file OR background_url, not both
+        if file and background_url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either 'file' or 'background_url', not both",
+            )
+        if not file and not background_url:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Must provide either 'file' to upload or 'background_url'",
+            )
+
+        # If file provided → Upload to R2
+        final_url = background_url
+        if file:
+            logger.info(f"📤 [API] Uploading replacement image: {file.filename}")
+
+            # Validate file type
+            allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
+            if file.content_type not in allowed_types:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid file type. Allowed: JPG, PNG, WEBP. Got: {file.content_type}",
+                )
+
+            # Process and upload image
+            from PIL import Image
+            from io import BytesIO
+
+            contents = await file.read()
+            img = Image.open(BytesIO(contents))
+
+            # Convert to RGB (handle transparency)
+            if img.mode in ("RGBA", "LA", "P"):
+                background = Image.new("RGB", img.size, (255, 255, 255))
+                if img.mode == "P":
+                    img = img.convert("RGBA")
+                background.paste(
+                    img, mask=img.split()[-1] if img.mode == "RGBA" else None
+                )
+                img = background
+
+            # Auto-detect dimensions if not provided
+            if width is None or height is None:
+                width = width or img.size[0]
+                height = height or img.size[1]
+                logger.info(f"   📐 Detected dimensions: {width}×{height}px")
+
+            # Compress to JPEG
+            output = BytesIO()
+            img.save(output, format="JPEG", quality=90, optimize=True)
+            output.seek(0)
+
+            # Upload to R2: studyhub/chapters/{chapter_id}/page-{page_number}.jpg
+            r2_service = get_r2_service()
+            r2_key = f"studyhub/chapters/{chapter_id}/page-{page_number}.jpg"
+
+            r2_service.s3_client.put_object(
+                Bucket=r2_service.bucket_name,
+                Key=r2_key,
+                Body=output.getvalue(),
+                ContentType="image/jpeg",
+            )
+
+            final_url = f"{r2_service.cdn_url}/{r2_key}"
+            logger.info(f"✅ [API] Uploaded to R2: {final_url}")
+
         # Update background
         updated_chapter = await chapter_manager.update_page_background(
             chapter_id=chapter_id,
             user_id=user_id,
             page_number=page_number,
-            background_url=request.background_url,
-            width=request.width,
-            height=request.height,
-            keep_elements=request.keep_elements,
+            background_url=final_url,
+            width=width,
+            height=height,
+            keep_elements=keep_elements,
         )
 
         # Get updated page info

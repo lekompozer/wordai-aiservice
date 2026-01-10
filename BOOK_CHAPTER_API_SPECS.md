@@ -400,7 +400,12 @@ Authorization: Bearer <token>
 
 **Content Modes**: `pdf_pages`, `image_pages` only
 
-**Description**: Replace background image for a specific page (e.g., fix wrong page, update to higher quality image).
+**Content Type**: `multipart/form-data`
+
+**Description**: Replace background image for a specific page (e.g., fix wrong page, update to higher quality image). **Supports 2 methods:**
+
+1. **Upload new file** - Upload image file directly
+2. **Use existing URL** - Provide URL to existing image
 
 **Path Parameters**:
 ```
@@ -408,14 +413,31 @@ chapter_id: string     // Chapter ID
 page_number: number    // Page number to update (1-indexed)
 ```
 
-**Request Body**:
-```json
-{
-  "background_url": "https://static.wordai.pro/studyhub/chapters/abc/new-page-5.jpg",
-  "width": 1240,          // Optional - auto-detect if not provided
-  "height": 1754,         // Optional - auto-detect if not provided
-  "keep_elements": true   // Optional - default: true
-}
+**Form Fields**:
+```
+file: File                     // Image file (JPG, PNG, WEBP) - EITHER this OR background_url
+background_url: string         // Existing image URL - EITHER this OR file
+width: number (optional)       // Page width - auto-detect if not provided
+height: number (optional)      // Page height - auto-detect if not provided
+keep_elements: boolean         // Keep existing elements (default: true)
+```
+
+**Method 1: Upload New File**
+```bash
+curl -X PUT "https://api.wordai.pro/api/v1/books/chapters/{chapter_id}/pages/5/background" \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@new-page-5.jpg" \
+  -F "keep_elements=true"
+```
+
+**Method 2: Use Existing URL**
+```bash
+curl -X PUT "https://api.wordai.pro/api/v1/books/chapters/{chapter_id}/pages/5/background" \
+  -H "Authorization: Bearer <token>" \
+  -F "background_url=https://static.wordai.pro/studyhub/chapters/abc/new-page-5.jpg" \
+  -F "width=1240" \
+  -F "height=1754" \
+  -F "keep_elements=true"
 ```
 
 **Response**:
@@ -425,7 +447,7 @@ page_number: number    // Page number to update (1-indexed)
   "chapter": {...},
   "updated_page": {
     "page_number": 5,
-    "background_url": "https://static.wordai.pro/studyhub/chapters/abc/new-page-5.jpg",
+    "background_url": "https://static.wordai.pro/studyhub/chapters/abc/page-5.jpg",
     "width": 1240,
     "height": 1754,
     "elements": [...]
@@ -435,18 +457,30 @@ page_number: number    // Page number to update (1-indexed)
 ```
 
 **Features**:
-- **Auto-detect dimensions**: If `width`/`height` not provided, downloads image to get dimensions
+- **Direct upload**: Upload image file → automatically uploaded to R2 → background updated
+- **Auto-detect dimensions**: If `width`/`height` not provided, extracts from image
 - **Keep elements**: By default preserves existing annotations/highlights
-- **Clear elements**: Set `keep_elements: false` to remove all overlays when changing background
+- **Clear elements**: Set `keep_elements=false` to remove all overlays when changing background
+
+**Storage**:
+- Uploaded files stored at: `studyhub/chapters/{chapter_id}/page-{page_number}.jpg`
+- Overwrites existing page image
+- CDN URL: `https://static.wordai.pro/studyhub/chapters/{chapter_id}/page-{N}.jpg`
 
 **Use Cases**:
+- **Method 1 (Upload)**: User selects new image from device → upload + replace in one step
+- **Method 2 (URL)**: Image already uploaded elsewhere → just update reference
 - Replace corrupted page image
 - Update to higher quality scan
 - Fix wrong page in manga chapter
-- Change page entirely (different content)
+
+**Validation**:
+- Must provide EITHER `file` OR `background_url`, not both
+- File types: JPG, PNG, WEBP only
+- Max file size: 20MB
 
 **Error Responses**:
-- `400` - Invalid content mode, page not found, dimension detection failed
+- `400` - Invalid content mode, page not found, both file and URL provided, invalid file type
 - `403` - Access denied (not owner)
 - `404` - Chapter not found
 - `500` - Processing error
