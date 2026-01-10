@@ -1,7 +1,12 @@
 # System Reference - Backend Infrastructure
 
-**Last Updated:** December 27, 2025
+**Last Updated:** January 10, 2026
 **Purpose:** Complete reference for AI agents and developers working with the backend system
+
+**Related Documentation:**
+- **R2_STORAGE_GUIDELINES.md** - Cloudflare R2 storage patterns and CDN usage (✅ READ THIS FOR R2!)
+- **REDIS_STATUS_PATTERN.md** - Redis job status tracking patterns
+- **BOOK_CHAPTER_API_SPECS.md** - Book chapter API specifications
 
 ---
 
@@ -478,7 +483,7 @@ library_manager = LibraryManager(db=db_manager.db, s3_client=r2_service.s3_clien
 library_id = library_manager.save_library_file(
     user_id="user123",
     file_name="audio.mp3",
-    r2_url="https://cdn.r2.wordai.vn/audio/abc.mp3",
+    r2_url="https://static.wordai.pro/audio/abc.mp3",
     file_type="audio/mpeg",
     file_size=123456,
     category="audio",  # auto-detected from file_type
@@ -610,7 +615,7 @@ audio_doc = {
     "_id": ObjectId(),  # Generate new ID
     "user_id": user_id,
     "file_name": "narration_slide_0.mp3",
-    "r2_url": "https://cdn.r2.wordai.vn/audio/abc123.mp3",
+    "r2_url": "https://static.wordai.pro/audio/abc123.mp3",
     "duration": 15.5,  # seconds
     "file_size": 245678,  # bytes
     "format": "mp3",
@@ -657,7 +662,7 @@ image_doc = {
     "_id": ObjectId(),
     "user_id": user_id,
     "file_name": "diagram.png",
-    "r2_url": "https://cdn.r2.wordai.vn/images/xyz789.png",
+    "r2_url": "https://static.wordai.pro/images/xyz789.png",
     "width": 1920,
     "height": 1080,
     "file_size": 524288,
@@ -683,7 +688,7 @@ video_doc = {
     "_id": ObjectId(),
     "user_id": user_id,
     "file_name": "presentation.mp4",
-    "r2_url": "https://cdn.r2.wordai.vn/videos/def456.mp4",
+    "r2_url": "https://static.wordai.pro/videos/def456.mp4",
     "duration": 120.0,  # seconds
     "width": 1920,
     "height": 1080,
@@ -729,7 +734,7 @@ video_id = str(result.inserted_id)
     "user_id": "firebase_uid",           # Owner
     "title": "Introduction to AI",
     "description": "Learn AI basics",
-    "cover_image": "https://cdn.r2.wordai.vn/covers/abc.jpg",
+    "cover_image": "https://static.wordai.pro/covers/abc.jpg",
     "language": "vi",                    # Primary language
     "created_at": datetime.utcnow(),
     "updated_at": datetime.utcnow(),
@@ -785,7 +790,7 @@ book = db.guide_books.find_one({"_id": book_id})   # Deprecated!
     "pages": [
         {
             "page_number": 1,
-            "image_url": "https://cdn.r2.wordai.vn/studyhub/chapters/chapter_abc123/page-1.jpg",
+            "image_url": "https://static.wordai.pro/studyhub/chapters/chapter_abc123/page-1.jpg",
             "width": 1240,
             "height": 1754,
             "thumbnail_url": "https://.../page-1-thumb.jpg"

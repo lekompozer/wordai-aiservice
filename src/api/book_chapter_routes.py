@@ -68,7 +68,7 @@ chapter_manager = GuideBookBookChapterManager(
     s3_client=r2_service.s3_client,
     r2_config={
         "bucket": r2_service.bucket_name,
-        "cdn_base_url": "https://cdn.r2.wordai.vn",
+        "cdn_base_url": "https://static.wordai.pro",
     },
 )
 permission_manager = GuideBookBookPermissionManager(db)
@@ -1817,7 +1817,7 @@ async def upload_images_for_chapter(
         s3_client = config.get_s3_client()
         r2_config = {
             "bucket": "wordai-storage",
-            "cdn_base_url": "https://cdn.wordai.com",
+            "cdn_base_url": "https://static.wordai.pro",
         }
 
         # List existing pages to get next page number
@@ -2277,7 +2277,7 @@ async def delete_chapter_page(
 
                 s3_client = config.get_s3_client()
                 # Extract R2 key from URL
-                cdn_base = "https://cdn.wordai.com/"
+                cdn_base = "https://static.wordai.pro/"
                 if background_url.startswith(cdn_base):
                     r2_key = background_url[len(cdn_base) :]
                     s3_client.delete_object(Bucket="wordai-storage", Key=r2_key)

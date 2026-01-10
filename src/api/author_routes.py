@@ -493,7 +493,7 @@ async def confirm_avatar_upload(
         "success": true,
         "message": "Avatar updated successfully",
         "author_id": "@john_doe",
-        "avatar_url": "https://cdn.wordai.vn/author-avatars/..."
+        "avatar_url": "https://static.wordai.pro/author-avatars/..."
     }
     ```
     """

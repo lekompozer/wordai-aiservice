@@ -1563,7 +1563,7 @@ class GuideBookBookChapterManager:
                     s3_client=self.s3_client,
                     r2_bucket=self.r2_config.get("bucket", "wordai-storage"),
                     cdn_base_url=self.r2_config.get(
-                        "cdn_base_url", "https://cdn.wordai.com"
+                        "cdn_base_url", "https://static.wordai.pro"
                     ),
                 )
 
@@ -1696,7 +1696,7 @@ class GuideBookBookChapterManager:
                 s3_client=self.s3_client,
                 r2_bucket=self.r2_config.get("bucket", "wordai-storage"),
                 cdn_base_url=self.r2_config.get(
-                    "cdn_base_url", "https://cdn.wordai.com"
+                    "cdn_base_url", "https://static.wordai.pro"
                 ),
             )
 
@@ -1857,7 +1857,7 @@ class GuideBookBookChapterManager:
             pages = []
             for idx, obj in enumerate(objects, 1):
                 object_key = obj["Key"]
-                cdn_url = f"{self.r2_config.get('cdn_base_url', 'https://cdn.wordai.com')}/{object_key}"
+                cdn_url = f"{self.r2_config.get('cdn_base_url', 'https://static.wordai.pro')}/{object_key}"
 
                 # Get image dimensions from R2
                 try:
@@ -2002,7 +2002,7 @@ class GuideBookBookChapterManager:
                     s3_client=self.s3_client,
                     r2_bucket=self.r2_config.get("bucket", "wordai-storage"),
                     cdn_base_url=self.r2_config.get(
-                        "cdn_base_url", "https://cdn.wordai.com"
+                        "cdn_base_url", "https://static.wordai.pro"
                     ),
                 )
 

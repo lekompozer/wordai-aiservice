@@ -25,7 +25,7 @@ class R2StorageService:
         self.bucket_name = os.getenv("R2_BUCKET_NAME", "wordai-documents")
         # Use R2_ENDPOINT to match existing production config
         self.endpoint_url = os.getenv("R2_ENDPOINT")
-        self.public_url = os.getenv("R2_PUBLIC_URL", "https://cdn.wordai.vn")
+        self.public_url = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
 
         # Check if credentials are configured
         missing_vars = []

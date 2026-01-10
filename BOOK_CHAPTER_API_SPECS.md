@@ -52,7 +52,7 @@ The Book Chapter system now supports **3 content modes** for different types of 
   "pages": [
     {
       "page_number": 1,
-      "background_url": "https://cdn.wordai.com/studyhub/chapters/{chapter_id}/page-1.jpg",
+      "background_url": "https://static.wordai.pro/studyhub/chapters/{chapter_id}/page-1.jpg",
       "width": 1240,
       "height": 1754,
       "elements": [...]
@@ -82,7 +82,7 @@ The Book Chapter system now supports **3 content modes** for different types of 
   "pages": [
     {
       "page_number": 1,
-      "background_url": "https://cdn.wordai.com/studyhub/chapters/{chapter_id}/page-1.jpg",
+      "background_url": "https://static.wordai.pro/studyhub/chapters/{chapter_id}/page-1.jpg",
       "width": 850,
       "height": 1200,
       "elements": [...]
@@ -199,7 +199,7 @@ Authorization: Bearer <token>
     {
       "file_name": "image1.jpg",
       "file_size": 234567,
-      "url": "https://cdn.wordai.com/studyhub/chapters/{chapter_id}/page-1.jpg",
+      "url": "https://static.wordai.pro/studyhub/chapters/{chapter_id}/page-1.jpg",
       "width": 850,
       "height": 1200,
       "page_number": 1               // NEW - Sequential page number
@@ -207,7 +207,7 @@ Authorization: Bearer <token>
     {
       "file_name": "image2.png",
       "file_size": 345678,
-      "url": "https://cdn.wordai.com/studyhub/chapters/{chapter_id}/page-2.jpg",
+      "url": "https://static.wordai.pro/studyhub/chapters/{chapter_id}/page-2.jpg",
       "width": 920,
       "height": 1300,
       "page_number": 2
@@ -542,7 +542,7 @@ genre: string               // Optional
   "pages": [
     {
       "page_number": 1,
-      "background_url": "https://cdn.wordai.com/...",
+      "background_url": "https://static.wordai.pro/...",
       "width": 1240,
       "height": 1754,
       "elements": [...]
@@ -554,7 +554,7 @@ genre: string               // Optional
     "file_name": "document.pdf",
     "file_size": 2456789,
     "file_type": "application/pdf",
-    "file_url": "https://cdn.wordai.com/..."
+    "file_url": "https://static.wordai.pro/..."
   }
 }
 ```
@@ -569,7 +569,7 @@ genre: string               // Optional
   "pages": [
     {
       "page_number": 1,
-      "background_url": "https://cdn.wordai.com/...",
+      "background_url": "https://static.wordai.pro/...",
       "width": 850,
       "height": 1200,
       "elements": [...]
@@ -810,7 +810,7 @@ await PUT `/chapters/{chapter_id}/pages/reorder`, {
 
 ## CDN & Storage
 
-**CDN Base URL**: `https://cdn.wordai.com`
+**CDN Base URL**: `https://static.wordai.pro`
 
 **Storage Collections**:
 - **PDF Files**: `user_files` collection (My Files)
