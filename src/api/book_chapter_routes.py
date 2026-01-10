@@ -1849,7 +1849,7 @@ async def update_page_background(
                 ContentType="image/jpeg",
             )
 
-            final_url = f"{r2_service.cdn_url}/{r2_key}"
+            final_url = f"{r2_service.public_url}/{r2_key}"
             logger.info(f"✅ [API] Uploaded to R2: {final_url}")
 
         # Update background
