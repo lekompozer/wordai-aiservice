@@ -37,6 +37,7 @@ from src.models.book_chapter_models import (
     ChapterCreateImagePages,
     ChapterCreateFromUploadedImages,
     ChapterPagesUpdate,
+    PageBackgroundUpdate,
 )
 
 # Services
@@ -1728,6 +1729,97 @@ async def update_chapter_pages(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to update chapter pages: {str(e)}",
+        )
+
+
+@router.put(
+    "/chapters/{chapter_id}/pages/{page_number}/background",
+    response_model=Dict[str, Any],
+)
+async def update_page_background(
+    chapter_id: str,
+    page_number: int,
+    request: PageBackgroundUpdate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Update background image for a specific page
+    
+    **Authentication:** Required (Owner only)
+    
+    **Supported Content Types:**
+    - pdf_pages: PDF chapters
+    - image_pages: Manga/Comic chapters
+    
+    **Request Body:**
+    - background_url: New background image URL (R2 CDN or external)
+    - width: Optional - New page width (auto-detect if not provided)
+    - height: Optional - New page height (auto-detect if not provided)
+    - keep_elements: Optional - Keep existing elements (default: true)
+    
+    **Use Cases:**
+    - Replace corrupted page image
+    - Update to higher quality image
+    - Change page image entirely (e.g., fix wrong page in manga)
+    
+    **Returns:**
+    - 200: Background updated successfully
+    - 400: Invalid content_mode or page not found
+    - 403: User is not the book owner
+    - 404: Chapter not found
+    """
+    try:
+        user_id = current_user["uid"]
+        
+        logger.info(
+            f"🖼️ [API] Updating page {page_number} background for chapter {chapter_id}"
+        )
+        
+        # Update background
+        updated_chapter = await chapter_manager.update_page_background(
+            chapter_id=chapter_id,
+            user_id=user_id,
+            page_number=page_number,
+            background_url=request.background_url,
+            width=request.width,
+            height=request.height,
+            keep_elements=request.keep_elements,
+        )
+        
+        # Get updated page info
+        updated_page = None
+        for page in updated_chapter.get("pages", []):
+            if page["page_number"] == page_number:
+                updated_page = page
+                break
+        
+        if updated_page:
+            logger.info(
+                f"✅ [API] Updated page {page_number} background: "
+                f"{updated_page['width']}×{updated_page['height']}px"
+            )
+        else:
+            logger.warning(f"⚠️ Page {page_number} not found in updated chapter")
+        
+        return {
+            "success": True,
+            "chapter": updated_chapter,
+            "updated_page": updated_page,
+            "message": f"Page {page_number} background updated successfully",
+        }
+    
+    except PermissionError as e:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(e))
+    except ValueError as e:
+        logger.error(f"❌ Validation error: {e}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update page background: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update page background: {str(e)}",
         )
 
 

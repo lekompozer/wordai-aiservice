@@ -214,6 +214,26 @@ class ChapterPagesUpdate(BaseModel):
     )
 
 
+class PageBackgroundUpdate(BaseModel):
+    """Update background image for a specific page"""
+
+    background_url: str = Field(
+        ..., description="New background image URL (R2 CDN or external)"
+    )
+    width: Optional[int] = Field(
+        None, ge=1, description="New page width (optional, auto-detect if not provided)"
+    )
+    height: Optional[int] = Field(
+        None,
+        ge=1,
+        description="New page height (optional, auto-detect if not provided)",
+    )
+    keep_elements: bool = Field(
+        default=True,
+        description="Keep existing elements when changing background (default: true)",
+    )
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # EXISTING MODELS (Phase 1)
 # ═══════════════════════════════════════════════════════════════════════
@@ -365,7 +385,7 @@ class ChapterBulkUpdate(BaseModel):
     """Bulk update chapters (title, slug, order, parent) and optionally book info"""
 
     updates: List[ChapterBulkUpdateItem] = Field(
-        ..., min_items=1, description="List of chapter updates"
+        ..., min_length=1, description="List of chapter updates"
     )
     book_info: Optional[BookInfoUpdate] = Field(
         None, description="Optional book title and cover update"

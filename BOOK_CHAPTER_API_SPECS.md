@@ -392,7 +392,68 @@ Authorization: Bearer <token>
 
 ---
 
-### 6. Delete Page from Chapter
+### 6. Update Page Background Image
+
+**Endpoint**: `PUT /api/v1/books/chapters/{chapter_id}/pages/{page_number}/background`
+
+**Authentication**: Required (Owner only)
+
+**Content Modes**: `pdf_pages`, `image_pages` only
+
+**Description**: Replace background image for a specific page (e.g., fix wrong page, update to higher quality image).
+
+**Path Parameters**:
+```
+chapter_id: string     // Chapter ID
+page_number: number    // Page number to update (1-indexed)
+```
+
+**Request Body**:
+```json
+{
+  "background_url": "https://static.wordai.pro/studyhub/chapters/abc/new-page-5.jpg",
+  "width": 1240,          // Optional - auto-detect if not provided
+  "height": 1754,         // Optional - auto-detect if not provided
+  "keep_elements": true   // Optional - default: true
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "chapter": {...},
+  "updated_page": {
+    "page_number": 5,
+    "background_url": "https://static.wordai.pro/studyhub/chapters/abc/new-page-5.jpg",
+    "width": 1240,
+    "height": 1754,
+    "elements": [...]
+  },
+  "message": "Page 5 background updated successfully"
+}
+```
+
+**Features**:
+- **Auto-detect dimensions**: If `width`/`height` not provided, downloads image to get dimensions
+- **Keep elements**: By default preserves existing annotations/highlights
+- **Clear elements**: Set `keep_elements: false` to remove all overlays when changing background
+
+**Use Cases**:
+- Replace corrupted page image
+- Update to higher quality scan
+- Fix wrong page in manga chapter
+- Change page entirely (different content)
+
+**Error Responses**:
+- `400` - Invalid content mode, page not found, dimension detection failed
+- `403` - Access denied (not owner)
+- `404` - Chapter not found
+- `500` - Processing error
+
+---
+
+### 7. Delete Page from Chapter
 
 **Endpoint**: `DELETE /api/v1/books/chapters/{chapter_id}/pages/{page_number}`
 
@@ -439,7 +500,7 @@ page_number: number   // Page number to delete (1-indexed)
 
 ---
 
-### 7. Reorder Pages in Chapter
+### 8. Reorder Pages in Chapter
 
 **Endpoint**: `PUT /api/v1/books/chapters/{chapter_id}/pages/reorder`
 
@@ -490,7 +551,7 @@ page_number: number   // Page number to delete (1-indexed)
 
 ---
 
-### 8. Update Manga Metadata
+### 9. Update Manga Metadata
 
 **Endpoint**: `PUT /api/v1/books/chapters/{chapter_id}/manga-metadata`
 

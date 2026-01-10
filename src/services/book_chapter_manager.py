@@ -2231,6 +2231,120 @@ class GuideBookBookChapterManager:
             logger.error(f"❌ [UPDATE_PAGES] Failed to update: {e}")
             raise
 
+    async def update_page_background(
+        self,
+        chapter_id: str,
+        user_id: str,
+        page_number: int,
+        background_url: str,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        keep_elements: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Update background image for a specific page
+
+        Args:
+            chapter_id: Chapter ID
+            user_id: User ID (for authorization)
+            page_number: Page number to update (1-indexed)
+            background_url: New background image URL
+            width: New page width (optional, auto-detect from image if not provided)
+            height: New page height (optional, auto-detect from image if not provided)
+            keep_elements: Keep existing elements (default: True)
+
+        Returns:
+            Updated chapter document
+        """
+        try:
+            # 1. Validate chapter ownership and mode
+            chapter = self.chapters_collection.find_one(
+                {"_id": chapter_id, "user_id": user_id}
+            )
+            if not chapter:
+                raise ValueError("Chapter not found or access denied")
+
+            content_mode = chapter.get("content_mode")
+            if content_mode not in ["pdf_pages", "image_pages"]:
+                raise ValueError(
+                    f"Background update only available for pdf_pages/image_pages chapters, got: {content_mode}"
+                )
+
+            pages = chapter.get("pages", [])
+            if not pages:
+                raise ValueError("Chapter has no pages")
+
+            # 2. Find page to update
+            page_to_update = None
+            for page in pages:
+                if page["page_number"] == page_number:
+                    page_to_update = page
+                    break
+
+            if not page_to_update:
+                raise ValueError(f"Page {page_number} not found")
+
+            logger.info(f"🖼️ [UPDATE_BACKGROUND] Updating page {page_number} background")
+            logger.info(f"   Old: {page_to_update['background_url'][:80]}...")
+            logger.info(f"   New: {background_url[:80]}...")
+
+            # 3. Auto-detect dimensions if not provided
+            if width is None or height is None:
+                try:
+                    from PIL import Image
+                    import requests
+                    from io import BytesIO
+
+                    logger.info("   🔍 Auto-detecting image dimensions...")
+                    response = requests.get(background_url, timeout=10)
+                    img = Image.open(BytesIO(response.content))
+                    detected_width, detected_height = img.size
+
+                    width = width or detected_width
+                    height = height or detected_height
+                    logger.info(f"   📐 Dimensions: {width}×{height}px")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not auto-detect dimensions: {e}")
+                    # Use old dimensions as fallback
+                    width = width or page_to_update.get("width", 1240)
+                    height = height or page_to_update.get("height", 1754)
+
+            # 4. Update page
+            page_to_update["background_url"] = background_url
+            page_to_update["width"] = width
+            page_to_update["height"] = height
+
+            if not keep_elements:
+                page_to_update["elements"] = []
+                logger.info("   🗑️ Cleared existing elements")
+            else:
+                element_count = len(page_to_update.get("elements", []))
+                logger.info(f"   ✅ Keeping {element_count} existing elements")
+
+            # 5. Save to database
+            updated_chapter = self.chapters_collection.find_one_and_update(
+                {"_id": chapter_id},
+                {
+                    "$set": {
+                        "pages": pages,
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+                return_document=ReturnDocument.AFTER,
+            )
+
+            # 6. Update book timestamp
+            if self.book_manager:
+                self.book_manager.touch_book(chapter["book_id"])
+
+            logger.info(f"✅ [UPDATE_BACKGROUND] Page {page_number} background updated")
+
+            return updated_chapter
+
+        except Exception as e:
+            logger.error(f"❌ [UPDATE_BACKGROUND] Failed to update: {e}")
+            raise
+
     async def _download_file_from_r2(self, file_url: str, suffix: str = "") -> str:
         """
         Download file from R2 to temp file
