@@ -43,7 +43,7 @@ The Book Chapter system now supports **3 content modes** for different types of 
 - Width: `1240px`
 - Height: `1754px`
 
-**Element Types**: `highlight`, `text`, `shape`, `image`, `arrow`, `underline`, `strikethrough`
+**Element Types**: `highlight`, `text`, `shape`, `image`, `video`, `note`, `arrow`, `underline`, `strikethrough`
 
 **Schema**:
 ```
@@ -73,7 +73,7 @@ The Book Chapter system now supports **3 content modes** for different types of 
 
 **Page Dimensions**: Variable (preserves original image dimensions)
 
-**Element Types**: `speech_bubble`, `sound_effect`, `annotation`, `panel_border`, `highlight`, `text`, `shape`, `image`, `arrow`
+**Element Types**: `speech_bubble`, `sound_effect`, `annotation`, `panel_border`, `highlight`, `text`, `shape`, `image`, `video`, `note`, `arrow`
 
 **Schema**:
 ```
@@ -618,20 +618,114 @@ genre: string               // Optional
 ### Element Types
 
 #### For `pdf_pages`:
-- **`highlight`** - Transparent colored overlay
-- **`text`** - Text annotation
-- **`shape`** - Rectangle, circle, etc.
-- **`image`** - Embedded image
-- **`arrow`** - Directional arrow
-- **`underline`** - Text underline
-- **`strikethrough`** - Text strikethrough
+- **`highlight`** - Transparent colored overlay (x, y, width, height, color, opacity)
+- **`text`** - Text annotation (x, y, content, font_size, color)
+- **`shape`** - Rectangle, circle, etc. (x, y, width, height, color, style)
+- **`image`** - Embedded image (x, y, width, height, src)
+- **`video`** - Embedded video (x, y, width, height, src) ⭐ NEW
+- **`note`** - Rectangular note/comment area (x, y, width, height, content) ⭐ NEW
+- **`arrow`** - Directional arrow (x, y, width, height, color)
+- **`underline`** - Text underline (x, y, width, color)
+- **`strikethrough`** - Text strikethrough (x, y, width, color)
 
 #### For `image_pages`:
-- **`speech_bubble`** - Comic speech bubble
-- **`sound_effect`** - Sound effect text
-- **`annotation`** - General annotation
-- **`panel_border`** - Panel boundary
-- Plus all `pdf_pages` types
+- **`speech_bubble`** - Comic speech bubble (x, y, width, height, content, style)
+- **`sound_effect`** - Sound effect text (x, y, content, font_size)
+- **`annotation`** - General annotation (x, y, content)
+- **`panel_border`** - Panel boundary (x, y, width, height, color)
+- Plus all `pdf_pages` types (highlight, text, shape, image, video, note, arrow, etc.)
+
+### Element Examples
+
+#### Text Element
+```json
+{
+  "id": "text_001",
+  "type": "text",
+  "x": 100,
+  "y": 50,
+  "content": "Important annotation",
+  "font_size": 16,
+  "color": "#FF0000",
+  "font_family": "Arial",
+  "z_index": 2
+}
+```
+
+#### Image Element
+```json
+{
+  "id": "img_001",
+  "type": "image",
+  "x": 200,
+  "y": 300,
+  "width": 400,
+  "height": 300,
+  "src": "https://static.wordai.pro/images/diagram.png",
+  "z_index": 1
+}
+```
+
+#### Video Element ⭐ NEW
+```json
+{
+  "id": "video_001",
+  "type": "video",
+  "x": 150,
+  "y": 200,
+  "width": 640,
+  "height": 360,
+  "src": "https://youtube.com/embed/abc123",
+  "z_index": 1
+}
+```
+
+#### Note Element ⭐ NEW
+```json
+{
+  "id": "note_001",
+  "type": "note",
+  "x": 50,
+  "y": 100,
+  "width": 300,
+  "height": 150,
+  "content": "This is a detailed note explaining this section. Users can drag to create rectangular note areas.",
+  "color": "#FFF9C4",
+  "opacity": 0.9,
+  "z_index": 3
+}
+```
+
+#### Highlight Element
+```json
+{
+  "id": "hl_001",
+  "type": "highlight",
+  "x": 100,
+  "y": 200,
+  "width": 400,
+  "height": 30,
+  "color": "#FFFF00",
+  "opacity": 0.3,
+  "z_index": 0
+}
+```
+
+#### Speech Bubble (Manga)
+```json
+{
+  "id": "bubble_001",
+  "type": "speech_bubble",
+  "x": 250,
+  "y": 150,
+  "width": 200,
+  "height": 100,
+  "content": "Hello there!",
+  "style": "round",
+  "font_size": 14,
+  "z_index": 2
+}
+```
 
 ### Manga Metadata
 
