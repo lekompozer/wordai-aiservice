@@ -234,6 +234,36 @@ class PageBackgroundUpdate(BaseModel):
     )
 
 
+class PageReorderRequest(BaseModel):
+    """Request to reorder pages - supports 2 formats"""
+
+    page_order: Optional[List[int]] = Field(
+        None,
+        description="New page order as array (e.g., [3, 1, 2, 4] means page 3 becomes position 1)",
+    )
+    page_mapping: Optional[Dict[str, int]] = Field(
+        None,
+        description='Page number mapping as dict (e.g., {"1": 2, "2": 1} means page 1 → position 2)',
+    )
+
+    @validator("page_mapping", "page_order", pre=True, always=True)
+    def validate_one_format(cls, v, values, field):
+        """Ensure exactly one format is provided"""
+        page_order = values.get("page_order")
+        page_mapping = v if field.name == "page_mapping" else values.get("page_mapping")
+
+        # At root validator time, check both are not None
+        if field.name == "page_mapping":
+            if page_order is not None and page_mapping is not None:
+                raise ValueError(
+                    "Provide either 'page_order' OR 'page_mapping', not both"
+                )
+            if page_order is None and page_mapping is None:
+                raise ValueError("Must provide either 'page_order' or 'page_mapping'")
+
+        return v
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # EXISTING MODELS (Phase 1)
 # ═══════════════════════════════════════════════════════════════════════

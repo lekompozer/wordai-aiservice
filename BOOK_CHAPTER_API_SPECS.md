@@ -542,43 +542,75 @@ page_number: number   // Page number to delete (1-indexed)
 
 **Content Modes**: `pdf_pages`, `image_pages` only
 
-**Description**: Reorder pages by specifying new sequence.
+**Description**: Reorder pages by specifying new sequence. **Supports 2 request formats:**
 
-**Request Body**:
-```
+**Format 1: page_order (Array)**
+```json
 {
-  "page_order": [3, 1, 2, 4]  // New page order (1-indexed)
+  "page_order": [3, 1, 2, 4]
 }
 ```
+**Meaning:** Page 3 → position 1, Page 1 → position 2, Page 2 → position 3, Page 4 → position 4
+
+**Format 2: page_mapping (Dict)**
+```json
+{
+  "page_mapping": {
+    "1": 2,
+    "2": 1,
+    "3": 3,
+    "4": 4
+  }
+}
+```
+**Meaning:** Page 1 → position 2, Page 2 → position 1, Page 3 → stays at 3, Page 4 → stays at 4
 
 **Response**:
-```
+```json
 {
   "success": true,
   "total_pages": 4,
-  "new_order": [3, 1, 2, 4],
+  "new_order": [2, 1, 3, 4],
   "message": "Pages reordered successfully"
 }
 ```
 
 **Validation**:
-- Array length must match `total_pages`
-- All numbers must be unique
-- All numbers must be valid (1 to total_pages)
+- Must provide EITHER `page_order` OR `page_mapping` (not both)
+- All page numbers must be unique
+- All page numbers must be valid (1 to total_pages)
+- For `page_mapping`: keys must cover all pages (1 to total_pages)
 
-**Example**:
-- Original order: [page 1, page 2, page 3, page 4]
-- Request: `page_order = [3, 1, 2, 4]`
-- Result: [page 3, page 1, page 2, page 4]
-- Page numbers updated: [1, 2, 3, 4]
+**Examples**:
+
+**Example 1 (page_order):**
+```bash
+# Original: [page 1, page 2, page 3, page 4]
+curl -X PUT ".../chapters/{id}/pages/reorder" \
+  -d '{"page_order": [3, 1, 2, 4]}'
+
+# Result: [page 3, page 1, page 2, page 4]
+# Page numbers updated: [1, 2, 3, 4]
+```
+
+**Example 2 (page_mapping):**
+```bash
+# Original: [page 1, page 2, page 3]
+curl -X PUT ".../chapters/{id}/pages/reorder" \
+  -d '{"page_mapping": {"1": 3, "2": 1, "3": 2}}'
+
+# Result: [page 2, page 3, page 1]
+# Page numbers updated: [1, 2, 3]
+```
 
 **Use Cases**:
 - Fix incorrect page order from PDF extraction
 - Rearrange manga/comic pages
 - Move important pages to front
+- Swap two pages (easier with page_mapping)
 
 **Error Responses**:
-- `400` - Invalid page_order (wrong length, duplicates, invalid numbers)
+- `400` - Invalid format, wrong length, duplicates, invalid numbers, missing pages in mapping
 - `403` - Access denied (not owner)
 - `404` - Chapter not found
 - `500` - Processing error

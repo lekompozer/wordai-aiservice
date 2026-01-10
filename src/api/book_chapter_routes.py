@@ -39,6 +39,7 @@ from src.models.book_chapter_models import (
     ChapterCreateFromUploadedImages,
     ChapterPagesUpdate,
     PageBackgroundUpdate,
+    PageReorderRequest,
 )
 
 # Services
@@ -2507,31 +2508,35 @@ async def delete_chapter_page(
     status_code=status.HTTP_200_OK,
     summary="Reorder pages in chapter",
     description="""
-    Reorder pages in chapter by providing new page number mappings.
+    Reorder pages in chapter - supports 2 request formats:
 
-    **Request Body:**
-    ```
+    **Format 1: page_order (array)**
+    ```json
     {
-      "page_order": [3, 1, 2, 4]  // New order (1-indexed)
+      "page_order": [3, 1, 2, 4]
     }
     ```
+    Result: Page 3 → position 1, Page 1 → position 2, etc.
 
-    **Example:**
-    - Original: [page 1, page 2, page 3, page 4]
-    - Request: page_order = [3, 1, 2, 4]
-    - Result: [page 3, page 1, page 2, page 4]
+    **Format 2: page_mapping (dict)**
+    ```json
+    {
+      "page_mapping": {"1": 2, "2": 1, "3": 3, "4": 4}
+    }
+    ```
+    Result: Page 1 → position 2, Page 2 → position 1, etc.
 
     **Validation:**
-    - Array length must match total_pages
-    - All numbers must be unique
-    - All numbers must be valid page numbers (1 to total_pages)
+    - Must provide EITHER page_order OR page_mapping (not both)
+    - All page numbers must be unique
+    - All page numbers must be valid (1 to total_pages)
 
     **Required:** Owner access to the book
     """,
 )
 async def reorder_chapter_pages(
     chapter_id: str,
-    page_order: List[int],
+    request: PageReorderRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Reorder pages in chapter"""
@@ -2539,7 +2544,24 @@ async def reorder_chapter_pages(
         user_id = current_user["uid"]
 
         logger.info(f"🔄 [REORDER_PAGES] Reordering pages in chapter {chapter_id}")
-        logger.info(f"   User: {user_id}, New order: {page_order}")
+        logger.info(f"   User: {user_id}")
+
+        # Convert page_mapping to page_order if provided
+        if request.page_mapping:
+            # Convert {"1": 2, "2": 1, ...} to [2, 1, ...]
+            page_order = []
+            mapping_dict = {int(k): v for k, v in request.page_mapping.items()}
+            for i in range(1, len(mapping_dict) + 1):
+                if i not in mapping_dict:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"page_mapping missing page {i}",
+                    )
+                page_order.append(mapping_dict[i])
+            logger.info(f"   Converted page_mapping to page_order: {page_order}")
+        else:
+            page_order = request.page_order
+            logger.info(f"   Using page_order: {page_order}")
 
         # Get chapter
         chapter = chapter_manager.chapters_collection.find_one({"_id": chapter_id})
