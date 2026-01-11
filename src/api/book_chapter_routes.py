@@ -2101,6 +2101,210 @@ async def upload_images_for_chapter(
 
 
 @router.post(
+    "/chapters/{chapter_id}/upload-element-image",
+    response_model=Dict[str, Any],
+    status_code=status.HTTP_200_OK,
+    summary="Upload/copy image for page element (IMAGE/VIDEO thumbnail)",
+    description="""
+    Upload or copy image to use in page elements. Supports 2 methods:
+    
+    **Method 1: Upload new file**
+    - Send `file` in multipart form-data
+    - Backend uploads to public CDN (permanent)
+    
+    **Method 2: Copy from Library**
+    - Send `library_id` in form-data
+    - Backend downloads from Library → re-uploads to public CDN
+    - Converts private presigned URL → permanent public URL
+    
+    **Storage:** Public CDN (permanent, no expiry)
+    **Path:** `studyhub/chapters/{chapter_id}/elements/{uuid}.jpg`
+    **URL Format:** `https://static.wordai.pro/studyhub/chapters/{chapter_id}/elements/{uuid}.jpg`
+    
+    **Use Cases:**
+    - Upload new image for IMAGE element
+    - Copy image from Library (fixes presigned URL expiry issue)
+    - Video thumbnail for VIDEO element
+    
+    **Required:** Owner access to the chapter's book
+    """,
+)
+async def upload_element_image(
+    chapter_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    file: Optional[UploadFile] = File(None),
+    library_id: Optional[str] = Form(None),
+):
+    """Upload or copy image for page element overlay"""
+    from PIL import Image
+    import io
+    import uuid
+    import requests
+
+    try:
+        user_id = current_user["uid"]
+
+        logger.info(f"🖼️ [ELEMENT_IMAGE] Processing for chapter {chapter_id}")
+
+        # Validate: Must provide EITHER file OR library_id
+        if file and library_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Provide either 'file' or 'library_id', not both",
+            )
+        if not file and not library_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Must provide either 'file' to upload or 'library_id' to copy from Library",
+            )
+
+        # 1. Get chapter and validate ownership
+        chapter = chapter_manager.chapters_collection.find_one({"_id": chapter_id})
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Chapter not found"
+            )
+
+        # Check book ownership
+        book = db.online_books.find_one(
+            {"book_id": chapter["book_id"], "user_id": user_id}
+        )
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied - not book owner",
+            )
+
+        # 2. Get image content (from file upload OR library)
+        if file:
+            # Method 1: Upload file
+            logger.info(f"   📤 Uploading file: {file.filename}")
+
+            if not file.content_type or not file.content_type.startswith("image/"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File must be an image. Got: {file.content_type}",
+                )
+
+            content = await file.read()
+            source_name = file.filename
+
+        else:
+            # Method 2: Copy from Library
+            logger.info(f"   📥 Copying from Library: {library_id}")
+
+            # Get library file
+            library_file = db.library_files.find_one(
+                {"library_id": library_id, "user_id": user_id}
+            )
+            if not library_file:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Library file not found or access denied",
+                )
+
+            # Get file URL (might be presigned or r2_key)
+            file_url = library_file.get("file_url")
+            r2_key = library_file.get("r2_key")
+
+            if not file_url and not r2_key:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Library file has no URL or R2 key",
+                )
+
+            # If has r2_key, regenerate presigned URL
+            if r2_key:
+                s3_client = r2_service.s3_client
+                file_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": r2_service.bucket_name, "Key": r2_key},
+                    ExpiresIn=3600,
+                )
+                logger.info(f"   🔑 Regenerated presigned URL from r2_key")
+
+            # Download image from Library
+            try:
+                response = requests.get(file_url, timeout=30)
+                response.raise_for_status()
+                content = response.content
+                source_name = library_file.get("filename", "library_image")
+                logger.info(f"   ✅ Downloaded {len(content) / 1024:.1f}KB from Library")
+            except Exception as e:
+                logger.error(f"   ❌ Failed to download from Library: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Failed to download image from Library: {str(e)}",
+                )
+
+        # Check size
+        if len(content) > 10 * 1024 * 1024:  # 10 MB
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File size {len(content) / 1024 / 1024:.1f}MB exceeds 10MB limit",
+            )
+
+        # 3. Process image
+        image = Image.open(io.BytesIO(content))
+        original_width, original_height = image.size
+
+        # Convert to RGB
+        if image.mode in ("RGBA", "LA", "P"):
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            if image.mode == "P":
+                image = image.convert("RGBA")
+            background.paste(
+                image,
+                mask=(image.split()[-1] if image.mode in ("RGBA", "LA") else None),
+            )
+            image = background
+        elif image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # Compress to JPEG
+        buffer = io.BytesIO()
+        image.save(buffer, format="JPEG", quality=90, optimize=True)
+        buffer.seek(0)
+
+        # 4. Upload to R2: studyhub/chapters/{chapter_id}/elements/{uuid}.jpg
+        element_id = uuid.uuid4().hex
+        object_key = f"studyhub/chapters/{chapter_id}/elements/{element_id}.jpg"
+
+        s3_client = r2_service.s3_client
+        s3_client.upload_fileobj(
+            buffer,
+            r2_service.bucket_name,
+            object_key,
+            ExtraArgs={"ContentType": "image/jpeg"},
+        )
+
+        # 5. Generate public CDN URL (permanent)
+        cdn_url = f"{r2_service.public_url}/{object_key}"
+
+        logger.info(f"✅ [ELEMENT_IMAGE] Uploaded to public CDN: {cdn_url}")
+        logger.info(f"   Source: {source_name}, Size: {len(content) / 1024:.1f}KB")
+
+        return {
+            "success": True,
+            "url": cdn_url,
+            "width": original_width,
+            "height": original_height,
+            "file_size": len(content),
+            "file_name": source_name,
+            "message": "Element image uploaded successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to process element image: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process element image: {str(e)}",
+        )
+
+
+@router.post(
     "/{book_id}/chapters/from-images",
     response_model=Dict[str, Any],
     status_code=status.HTTP_201_CREATED,

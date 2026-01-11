@@ -307,6 +307,180 @@ Authorization: Bearer <token>
 
 ---
 
+### 3.5. Upload Element Image
+
+**Endpoint**: `POST /api/v1/books/chapters/{chapter_id}/upload-element-image`
+
+**Authentication**: Required (Owner only)
+
+**Content Type**: `multipart/form-data`
+
+**Description**: Upload or copy image to use in page elements. **Supports 2 methods:**
+
+**Method 1: Upload New File**
+```bash
+curl -X POST "/api/v1/books/chapters/{chapter_id}/upload-element-image" \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@diagram.png"
+```
+
+**Method 2: Copy from Library** (Solves presigned URL expiry issue)
+```bash
+curl -X POST "/api/v1/books/chapters/{chapter_id}/upload-element-image" \
+  -H "Authorization: Bearer <token>" \
+  -F "library_id=lib_abc123"
+```
+
+**Form Fields**:
+```
+file: File (Optional)         // Image file - EITHER this OR library_id
+library_id: string (Optional) // Library file ID - EITHER this OR file
+```
+
+**Storage Details**:
+- **Path**: `studyhub/chapters/{chapter_id}/elements/{uuid}.jpg`
+- **URL**: `https://static.wordai.pro/studyhub/chapters/{chapter_id}/elements/{uuid}.jpg`
+- **Type**: Public CDN (permanent, never expires)
+- **Max Size**: 10 MB per file
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "url": "https://static.wordai.pro/studyhub/chapters/abc/elements/f3a8b2c1.jpg",
+  "width": 800,
+  "height": 600,
+  "file_size": 156789,
+  "file_name": "diagram.png",
+  "message": "Element image uploaded successfully"
+}
+```
+
+**Usage Flow - Method 1 (Upload New)**:
+```javascript
+// 1. Upload new image file
+const formData = new FormData();
+formData.append('file', imageFile);
+
+const response = await fetch(`/api/v1/books/chapters/${chapterId}/upload-element-image`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}` },
+  body: formData
+});
+
+const { url, width, height } = await response.json();
+
+// 2. Use URL in element
+const imageElement = {
+  id: "img_001",
+  type: "image",
+  x: 100,
+  y: 200,
+  width: width,
+  height: height,
+  src: url  // ← Public CDN URL (permanent)
+};
+```
+
+**Usage Flow - Method 2 (Copy from Library)**:
+```javascript
+// User selects image from Library UI
+const selectedLibraryId = "lib_abc123";
+
+// 1. Copy library image to public CDN
+const formData = new FormData();
+formData.append('library_id', selectedLibraryId);
+
+const response = await fetch(`/api/v1/books/chapters/${chapterId}/upload-element-image`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${token}` },
+  body: formData
+});
+
+const { url, width, height } = await response.json();
+
+// 2. Use permanent URL in element (no more expiry!)
+const imageElement = {
+  id: "img_002",
+  type: "image",
+  x: 150,
+  y: 250,
+  width: width,
+  height: height,
+  src: url  // ← Copied to public CDN, permanent!
+};
+
+// 3. Save to chapter
+await updateChapterPages({
+  pages: [{ page_number: 1, elements: [imageElement] }]
+});
+```
+
+**How Method 2 Works**:
+1. Backend gets library file (private storage with presigned URL)
+2. Downloads image from Library (regenerates presigned URL if expired)
+3. Re-uploads to chapter public CDN path
+4. Returns permanent public URL
+
+**Benefits**:
+- ✅ **Permanent storage**: URLs never expire (unlike Library presigned URLs)
+- ✅ **Public CDN**: Fast delivery, no authentication needed
+- ✅ **Library integration**: User can select from existing images
+- ✅ **Automatic copy**: Backend handles download → re-upload
+- ✅ **Chapter scoped**: All element images organized by chapter
+- ✅ **No cleanup needed**: Stays with chapter lifecycle
+
+**Use Cases**:
+- Upload new image for IMAGE element overlay
+- Copy existing image from Library (fixes expiry issue)
+- Upload video thumbnail for VIDEO element
+- Add diagrams, charts, illustrations to PDF pages
+- Add character images, panels to manga pages
+
+**Validation**:
+- Must provide EITHER `file` OR `library_id` (not both)
+- File types: JPG, PNG, WEBP, GIF
+- Max size: 10 MB
+
+**Error Responses**:
+- `400` - Invalid file type, both file and library_id provided, or neither provided
+- `403` - Access denied (not book owner)
+- `404` - Chapter not found, or library file not found
+- `413` - File too large (>10MB)
+- `500` - Upload error, download from Library failed
+
+---
+
+### 4. Create Chapter from ZIP
+```
+{
+  "success": true,
+  "chapter": {
+    "_id": "uuid",                           // Same as chapter_id from upload
+    "content_mode": "image_pages",
+    "pages": [...],                          // All uploaded pages
+    "total_pages": 42,
+    "manga_metadata": {...}
+  },
+  "total_pages": 42,
+  "message": "Chapter created with 42 image pages"
+}
+```
+
+**Process**:
+1. Validates chapter_id has uploaded images
+2. Retrieves all page URLs from storage metadata
+3. Creates chapter document with pages array (images already in permanent storage)
+4. No image processing or moving needed
+
+**Error Responses**:
+- `400` - Invalid chapter_id, no images found
+- `403` - Access denied
+- `404` - Chapter images not found
+- `500` - Processing error
+
+---
+
 ### 4. Create Chapter from ZIP
 
 **Endpoint**: `POST /api/v1/books/{book_id}/chapters/from-zip`

@@ -121,7 +121,9 @@ class PageElement(BaseModel):
             try:
                 return int(v)
             except ValueError:
-                raise ValueError(f"Invalid font_size format: {v}. Expected int or string like '18px'")
+                raise ValueError(
+                    f"Invalid font_size format: {v}. Expected int or string like '18px'"
+                )
         return v
 
 
