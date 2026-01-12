@@ -565,13 +565,28 @@ CRITICAL REQUIREMENTS - FORMAT MODE (PRESERVE CONTENT):
 - Only improve HTML structure, spacing, typography inside the slide-wrapper
 - Use semantic HTML, Inter font family, and inline styles for better presentation
 
+⚠️ **CRITICAL - PREVENT OVERFLOW (EVERY SLIDE MUST FIT)**:
+- **SYMMETRIC PADDING**: Use `padding: 60px;` (all sides equal) or `padding: 40px 60px;` (top/bottom, left/right) for EVERY slide
+- **MAX CONTENT HEIGHT PER SLIDE**: Each slide's content MUST fit in 1080px total
+  * With padding: 60px → max content height = 960px (1080 - 2×60)
+  * With padding: 40px → max content height = 1000px (1080 - 2×40)
+- **ADJUST FOR LONG CONTENT**: If any slide has many items (5+ bullets):
+  1. Reduce font size for THAT slide: h1: 48-52px, h2: 36-40px, p: 24-28px
+  2. Reduce line-height: 1.4-1.5 (instead of 1.8)
+  3. Reduce margins: 20-25px between items (instead of 30-40px)
+  4. Use 2-column layout if >6 items
+- **HORIZONTAL CENTERING**: Left padding = Right padding on EVERY slide
+- **BOTTOM CLEARANCE**: Always leave 20-30px space from last element to bottom edge
+
 FORBIDDEN ELEMENTS (DO NOT USE):
 - ❌ NO <svg> tags or SVG elements (use CSS shapes with div/borders instead)
 - ❌ NO <polygon>, <path>, <circle> in SVG (causes parsing errors)
 - ❌ NO percentage values in SVG attributes (e.g., points="80%,10%")
 - ❌ NO complex decorative SVG graphics
+- ❌ NO content that exceeds 1080px height (causes overflow/clipping)
 - ✅ USE: Simple <div> with border, border-radius, transform for shapes
-- ✅ USE: CSS gradients, box-shadow for visual effects"""
+- ✅ USE: CSS gradients, box-shadow for visual effects
+- ✅ USE: Responsive font sizes and spacing for slides with long content"""
         else:
             prompt = f"""You are an expert presentation designer. Your task is to improve the layout, typography, and visual hierarchy of this slide WITHOUT changing the content.
 
@@ -597,19 +612,61 @@ Design Principles to Apply:
 3. **Consistency**: Maintain consistent spacing, alignment, and styling throughout
 4. **Readability**: Ensure text is easy to read (font size, line height, color contrast)
 5. **Modern Design**: Apply modern design patterns (semantic HTML, clean structure)
-6. **Background (Consistency)**: Keep existing background theme (dark/light), avoid changing to purple/blue gradients
-   - ❌ FORBIDDEN: Purple gradients (#667eea, #764ba2), changing dark to light or vice versa
-   - ✅ PRESERVE: Existing background color scheme
+6. **Background Theme Guidelines**:
+   - **LIGHT THEME Options** (for bright, professional look):
+     * Solid light: #ffffff, #fafafa, #f7fafc
+     * **Professional gradient (RECOMMENDED)**: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%)
+     * Subtle gradient: linear-gradient(135deg, #fafbfc 0%, #e8eef5 100%)
+     * Warm light: linear-gradient(135deg, #fef5f5 0%, #fef3c7 100%)
+   - **DARK THEME Options** (for modern, bold look):
+     * Deep dark: #0f172a, #1e293b, #1a202c
+     * Dark gradient: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #3b82f6 100%)
+   - **FORBIDDEN**:
+     * ❌ Purple gradients (#667eea, #764ba2) - overused
+     * ❌ Changing theme mid-presentation (dark → light or vice versa)
+     * ❌ Pure white (#ffffff) as sole background without gradients (too plain)
+   - **PRESERVE**: If slide already has a theme, keep it unless user asks to change
 7. **DIMENSIONS (Full HD 16:9)**: Ensure slide-wrapper is exactly 1920px × 1080px
    - Use: `width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; position: relative;`
    - All content must fit within this 1920×1080 canvas
 8. **Typography**: Prefer 'Inter', 'SF Pro Display', 'Segoe UI', Arial, sans-serif for modern, clean look
-9. **LAYOUT SYMMETRY & SPACING**:
-   - Total padding-left + margin-left MUST EQUAL total padding-right + margin-right
-   - Content must be centered horizontally within the 1920px width
-   - All content height must fit within 1080px with minimum 25px bottom clearance
-   - Bottom margin/padding: Ensure at least 25px space from content to bottom edge (y=1055px max)
-   - Example: If padding: 60px 80px, then left (80px) = right (80px) ✅
+9. **LAYOUT SYMMETRY & SPACING (CRITICAL - PREVENT OVERFLOW)**:
+
+   **SYMMETRIC PADDING (MUST BE EQUAL ON ALL SIDES)**:
+   - **Standard padding**: `padding: 80px;` (trái = phải = trên = dưới = 80px) ✅ RECOMMENDED
+   - **Alternative**: `padding: 60px 80px;` (trên/dưới = 60px, trái/phải = 80px) ✅ OK if needed
+   - **FORBIDDEN**: Asymmetric padding like `padding: 80px 100px 60px 120px;` ❌
+   - **Safe content area**: 1920px - (2 × padding-left/right) × 1080px - (2 × padding-top/bottom)
+     * Example: padding: 80px → safe area = 1760px × 920px
+
+   **VERTICAL SPACING (PREVENT HEIGHT OVERFLOW)**:
+   - **Max content height**: 1080px - (top padding + bottom padding + 20px safety margin)
+     * With padding: 80px → max content height = 900px
+     * With padding: 60px → max content height = 940px
+   - **For slides with many items** (5+ bullet points):
+     * Reduce font size: h1: 48-56px (instead of 64px), p: 24-28px (instead of 32px)
+     * Reduce line-height: 1.4-1.5 (instead of 1.8-2.0)
+     * Reduce margins: margin-bottom: 20-25px between items (instead of 30-40px)
+     * Compact layout: Use 2-column grid if >6 items
+   - **Bottom clearance**: Always leave 20-30px space from last element to bottom edge
+
+   **HORIZONTAL SPACING (PREVENT WIDTH OVERFLOW)**:
+   - Left padding MUST EQUAL right padding (perfectly centered)
+   - For 2-column layouts: Use `grid-template-columns: 1fr 1fr` or `60% 40%` (percentages of safe area)
+   - Text max-width: Never exceed (1920px - 2×padding) to prevent horizontal overflow
+
+   **CONTENT FITTING STRATEGIES** (when content is too much):
+   1. **Reduce font sizes**: Scale down proportionally (h1 -15%, p -15%)
+   2. **Tighten spacing**: line-height from 1.8 → 1.5, margins from 30px → 20px
+   3. **Use multi-column**: Split into 2 columns if >6 items
+   4. **Truncate intelligently**: Shorten verbose text while keeping meaning
+   5. **Remove excessive whitespace**: Reduce padding from 80px → 60px if needed (but keep symmetric!)
+
+   **EXAMPLES**:
+   - ✅ GOOD: `padding: 80px;` → Safe area: 1760×920px, content fits perfectly
+   - ✅ GOOD: `padding: 60px;` → Safe area: 1800×960px, more room for content
+   - ❌ BAD: `padding: 80px 120px;` → Asymmetric, content not centered
+   - ❌ BAD: Content height 1000px with padding: 80px → Total 1160px > 1080px OVERFLOW!
 
 REQUIRED OUTPUT STRUCTURE:
 ```html
@@ -634,13 +691,19 @@ Your Response (JSON format ONLY - NO MARKDOWN):
     "type": "gradient",
     "gradient": {{
       "type": "linear",
-      "colors": ["#667eea", "#764ba2", "#f093fb"]
+      "colors": ["#f5f7fa", "#e8eef5"]
     }},
     "overlayColor": "#000000",
-    "overlayOpacity": 0.3
+    "overlayOpacity": 0.1
   }},
   "ai_explanation": "Brief explanation of layout improvements made (1-2 sentences)"
 }}
+
+Examples for suggested_background:
+- Light gradient (professional): {{"type": "gradient", "gradient": {{"type": "linear", "colors": ["#f5f7fa", "#e8eef5"]}}, "overlayColor": "#000000", "overlayOpacity": 0.05}}
+- Dark gradient (modern): {{"type": "gradient", "gradient": {{"type": "linear", "colors": ["#0f172a", "#1e3a8a", "#3b82f6"]}}, "overlayColor": "#000000", "overlayOpacity": 0.3}}
+- Solid light: {{"type": "solid", "color": "#fafafa"}}
+- Solid dark: {{"type": "solid", "color": "#1e293b"}}
 
 ⚠️ CRITICAL: Return ONLY the JSON object above. DO NOT wrap it in ```json ``` markdown code blocks. Just output the raw JSON starting with {{ and ending with }}.
     }},
@@ -660,14 +723,30 @@ IMPORTANT - FORMAT MODE (PRESERVE CONTENT):
 - Focus on visual hierarchy and readability
 - Make the slide look professional and modern with Inter font family
 
+⚠️ **CRITICAL - PREVENT OVERFLOW (MUST FOLLOW)**:
+- **SYMMETRIC PADDING**: Use `padding: 80px;` (all sides equal) or `padding: 60px 80px;` (top/bottom, left/right)
+- **NEVER** use asymmetric padding (e.g., `padding: 80px 100px 60px 120px;`)
+- **MAX CONTENT HEIGHT**: Total height MUST NOT exceed 1080px
+  * With padding: 80px → max content height = 920px (1080 - 2×80)
+  * With padding: 60px → max content height = 960px (1080 - 2×60)
+- **ADJUST FOR LONG CONTENT**: If slide has many items (5+ bullets):
+  1. Reduce font size: h1: 48-52px, h2: 36-40px, p: 24-28px
+  2. Reduce line-height: 1.4-1.5 (instead of 1.8)
+  3. Reduce margins: 20-25px between items (instead of 30-40px)
+  4. Use 2-column layout if >6 items
+- **BOTTOM CLEARANCE**: Always leave 20-30px space from last element to bottom edge
+- **HORIZONTAL CENTERING**: Left padding = Right padding (perfectly symmetric)
+
 FORBIDDEN ELEMENTS (DO NOT USE):
 - ❌ NO <svg> tags or any SVG elements (causes parsing errors)
 - ❌ NO <polygon>, <path>, <circle>, or any SVG shapes
 - ❌ NO percentage values in any attributes (e.g., points="80%,10%")
 - ❌ NO complex decorative SVG graphics or inline event handlers
+- ❌ NO content that exceeds safe area (causes overflow/clipping)
 - ✅ USE: Simple <div> elements with CSS styling (border, border-radius, transform)
 - ✅ USE: CSS for shapes (e.g., border + transform: rotate() for triangles)
 - ✅ USE: background gradients, box-shadow, and other CSS effects
+- ✅ USE: Responsive font sizes and spacing for long content
 - ✅ EXAMPLE: <div style="width: 100px; height: 100px; border: 2px solid #ccc; transform: rotate(45deg);"></div>"""
 
         return prompt
