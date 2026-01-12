@@ -2767,6 +2767,13 @@ async def reorder_chapter_pages(
             page_order = request.page_order
             logger.info(f"   Using page_order: {page_order}")
 
+        # Type narrowing check (should never be None due to PageReorderRequest validation)
+        if page_order is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="page_order is required",
+            )
+
         # Get chapter
         chapter = chapter_manager.chapters_collection.find_one({"_id": chapter_id})
         if not chapter:
