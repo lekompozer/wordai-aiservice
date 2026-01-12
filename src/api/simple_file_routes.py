@@ -1215,7 +1215,7 @@ async def update_file(
 
         logger.info("✅ FILE UPDATE COMPLETED!")
         logger.info(f"   📄 File ID: {file_id}")
-        logger.info(f"   📁 New filename: {original_name}")
+        logger.info(f"   📁 New filename: {new_filename}")
         logger.info(f"   📂 New folder: {new_folder_id or 'root'}")
         logger.info("=" * 80)
 
