@@ -913,8 +913,8 @@ async def get_file(
                 for obj in response["Contents"]:
                     key = obj["Key"]
 
-                    # Check if this key contains our file_id
-                    if f"/{file_id}/" in key:
+                    # Check if this key contains our file_id (support multipart: file_xxx_part1_xxx)
+                    if f"/{file_id}/" in key or f"/{file_id}_" in key:
                         key_parts = key.split("/")
                         if len(key_parts) >= 4:
                             folder_part = key_parts[2]
@@ -923,7 +923,10 @@ async def get_file(
                                 key_parts[4] if len(key_parts) > 4 else key_parts[3]
                             )
 
-                            if found_file_id == file_id:
+                            # Check exact match OR prefix match (multipart)
+                            if found_file_id == file_id or found_file_id.startswith(
+                                f"{file_id}_"
+                            ):
                                 # Extract original name
                                 original_name = filename
                                 if "_" in filename and len(filename.split("_", 1)) > 1:
@@ -1054,11 +1057,16 @@ async def update_file(
         if "Contents" in response:
             for obj in response["Contents"]:
                 key = obj["Key"]
-                if f"/{file_id}/" in key:
+                # Support both exact match and partial match (for multipart files)
+                # Example: file_1da6ba240601_part1_1768224166 matches file_1da6ba240601
+                if f"/{file_id}/" in key or f"/{file_id}_" in key:
                     key_parts = key.split("/")
                     if len(key_parts) >= 4:
                         found_file_id = key_parts[3]
-                        if found_file_id == file_id:
+                        # Check exact match OR prefix match (multipart)
+                        if found_file_id == file_id or found_file_id.startswith(
+                            f"{file_id}_"
+                        ):
                             old_key = key
                             old_metadata = {
                                 "size": obj["Size"],
@@ -1068,10 +1076,19 @@ async def update_file(
                                     key_parts[4] if len(key_parts) > 4 else key_parts[3]
                                 ),
                             }
+                            logger.info(
+                                f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
+                            )
                             break
 
         if not old_key:
             logger.warning(f"❌ File {file_id} not found for update")
+            logger.warning(f"   Searched prefix: {prefix}")
+            logger.warning(f"   Files found: {len(response.get('Contents', []))}")
+            if "Contents" in response:
+                logger.warning(
+                    f"   Available files: {[obj['Key'] for obj in response['Contents'][:5]]}"
+                )
             raise HTTPException(status_code=404, detail="File not found")
 
         logger.info(f"   ✅ Found file: {old_key}")
@@ -1244,9 +1261,20 @@ async def download_file(
                 continue
             for obj in page["Contents"]:
                 key = obj["Key"]
-                if f"/{file_id}/" in key:
-                    file_key = key
-                    break
+                # Support multipart files: file_xxx_part1_xxx
+                if f"/{file_id}/" in key or f"/{file_id}_" in key:
+                    key_parts = key.split("/")
+                    if len(key_parts) >= 4:
+                        found_file_id = key_parts[3]
+                        # Check exact or prefix match
+                        if found_file_id == file_id or found_file_id.startswith(
+                            f"{file_id}_"
+                        ):
+                            file_key = key
+                            logger.info(
+                                f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
+                            )
+                            break
             if file_key:
                 break
 
@@ -1295,15 +1323,21 @@ async def delete_file(
                 for obj in response["Contents"]:
                     key = obj["Key"]
 
-                    # Check if this key contains our file_id
-                    if f"/{file_id}/" in key:
+                    # Check if this key contains our file_id (support multipart)
+                    if f"/{file_id}/" in key or f"/{file_id}_" in key:
                         key_parts = key.split("/")
                         if len(key_parts) >= 4:
                             found_file_id = key_parts[3]
-                            if found_file_id == file_id:
+                            # Check exact match OR prefix match (multipart)
+                            if found_file_id == file_id or found_file_id.startswith(
+                                f"{file_id}_"
+                            ):
                                 file_key = key
                                 filename = (
                                     key_parts[4] if len(key_parts) > 4 else key_parts[3]
+                                )
+                                logger.info(
+                                    f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
                                 )
                                 break
 
@@ -1375,13 +1409,19 @@ async def generate_file_download_url(
                 for obj in response["Contents"]:
                     key = obj["Key"]
 
-                    # Check if this key contains our file_id
-                    if f"/{file_id}/" in key:
+                    # Check if this key contains our file_id (support multipart)
+                    if f"/{file_id}/" in key or f"/{file_id}_" in key:
                         key_parts = key.split("/")
                         if len(key_parts) >= 4:
                             found_file_id = key_parts[3]
-                            if found_file_id == file_id:
+                            # Check exact match OR prefix match (multipart)
+                            if found_file_id == file_id or found_file_id.startswith(
+                                f"{file_id}_"
+                            ):
                                 file_key = key
+                                logger.info(
+                                    f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
+                                )
                                 break
 
             if not file_key:

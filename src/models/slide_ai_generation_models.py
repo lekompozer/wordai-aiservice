@@ -239,6 +239,13 @@ class CreateBasicSlideRequest(BaseModel):
     creator_name: Optional[str] = Field(None, description="Presenter name (optional)")
 
 
+class SaveOutlineOnlyRequest(BaseModel):
+    """Request to save outline as empty document (for later AI generation)"""
+
+    analysis_id: str = Field(..., description="Analysis ID from Step 1")
+    creator_name: Optional[str] = Field(None, description="Presenter name (optional)")
+
+
 class CreateBasicSlideResponse(BaseModel):
     """Response for basic slide creation"""
 

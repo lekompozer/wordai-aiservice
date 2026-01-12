@@ -23,6 +23,7 @@ from src.models.slide_ai_generation_models import (
     SlideImageAttachment,
     CreateBasicSlideRequest,
     CreateBasicSlideResponse,
+    SaveOutlineOnlyRequest,
     UpdateOutlineRequest,
     UpdateOutlineResponse,
 )
@@ -1016,6 +1017,7 @@ async def generate_slide_html_background(
             # Call AI to generate HTML for this batch
             batch_html = await ai_service.generate_slide_html_batch(
                 title=analysis["title"],
+                target_goal=analysis.get("target_goal", ""),
                 slide_type=analysis["slide_type"],
                 language=analysis["language"],
                 slides_outline=batch_slides,
@@ -1312,6 +1314,115 @@ async def create_basic_slide_from_analysis(
         raise
     except Exception as e:
         logger.error(f"❌ Basic slide creation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/save-outline-only", response_model=CreateBasicSlideResponse)
+async def save_outline_only(
+    request: SaveOutlineOnlyRequest, user_info: dict = Depends(require_auth)
+):
+    """
+    Save analysis outline as empty document (for later AI generation).
+
+    This endpoint creates a document with the outline from Step 1 (analyze)
+    but WITHOUT generating HTML content. The document is marked as ready
+    for AI generation, which can be triggered later using the document_id.
+
+    Use case: Review/edit outline before AI generation
+    Cost: FREE (0 points)
+
+    Flow:
+    1. POST /analyze → Get analysis_id
+    2. POST /save-outline-only → Get document_id (no HTML yet)
+    3. Later: Trigger AI generation using document_id
+    """
+    try:
+        logger.info(f"💾 Save outline request from user {user_info['uid']}")
+        logger.info(f"   Analysis ID: {request.analysis_id}")
+
+        # Get analysis from database
+        analysis = db["slide_analyses"].find_one(
+            {"_id": ObjectId(request.analysis_id), "user_id": user_info["uid"]}
+        )
+
+        if not analysis:
+            raise HTTPException(
+                status_code=404,
+                detail="Analysis not found. Please run Step 1 first.",
+            )
+
+        # Validate status
+        if analysis["status"] != "completed":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Analysis not ready (status: {analysis['status']})",
+            )
+
+        # Validate creator_name if provided
+        if request.creator_name:
+            from src.services.creator_name_validator import validate_creator_name
+
+            user_email = user_info.get("email", "")
+            validate_creator_name(request.creator_name, user_email, user_info["uid"])
+
+        slides_outline = analysis["slides_outline"]
+        num_slides = len(slides_outline)
+
+        logger.info(
+            f"💾 Creating empty document for analysis {request.analysis_id} ({num_slides} slides)"
+        )
+
+        # Create document via DocumentManager
+        doc_manager = DocumentManager(db)
+        document_id = doc_manager.create_document(
+            user_id=user_info["uid"],
+            title=analysis["title"],
+            content_html="",  # Empty HTML
+            content_text="",
+        )
+
+        logger.info(f"📄 Document created: {document_id}")
+
+        # Update document with outline data
+        db["documents"].update_one(
+            {"document_id": document_id},
+            {
+                "$set": {
+                    # Link to analysis
+                    "ai_analysis_id": request.analysis_id,
+                    "ai_slide_type": analysis["slide_type"],
+                    "ai_language": analysis["language"],
+                    "ai_num_slides": num_slides,
+                    # Mark as ready for AI generation (NOT generated yet)
+                    "ai_generation_type": "pending",
+                    # Save outline for later generation
+                    "slides_outline": slides_outline,
+                    # Empty slide data (to be generated later)
+                    "slide_elements": [],
+                    "slide_backgrounds": [],
+                    # Creator info
+                    "creator_name": request.creator_name or user_info.get("email", ""),
+                }
+            },
+        )
+
+        logger.info(
+            f"✅ Outline saved: {document_id} ({num_slides} slides, ready for AI generation, 0 points)"
+        )
+
+        return CreateBasicSlideResponse(
+            success=True,
+            document_id=document_id,
+            title=analysis["title"],
+            num_slides=num_slides,
+            created_at=datetime.now().isoformat(),
+            message=f"Outline saved successfully. {num_slides} slides ready for AI generation.",
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Save outline failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
