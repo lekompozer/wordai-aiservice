@@ -1319,6 +1319,13 @@ class GuideBookBookChapterManager:
                 f"📄 Loaded inline chapter content: {chapter_id} ({len(content_html)} chars)"
             )
 
+        # ✅ FIX: Map content_source to content_mode for frontend compatibility
+        # Frontend expects "content_mode" field, not "content_source"
+        chapter["content_mode"] = content_source
+        logger.info(
+            f"✅ Set content_mode={content_source} for chapter {chapter_id}"
+        )
+
         return chapter
 
     def convert_document_to_chapter(

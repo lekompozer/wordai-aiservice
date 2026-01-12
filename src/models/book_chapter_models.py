@@ -517,6 +517,20 @@ class ChapterResponse(BaseModel):
         default=None,
         description="Name of linked document (if content_source='document')",
     )
+    
+    # Content mode and pages (for pdf_pages/image_pages types)
+    content_mode: Optional[str] = Field(
+        default=None,
+        description="Content rendering mode: inline, document, pdf_pages, image_pages",
+    )
+    pages: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description="Array of pages for pdf_pages/image_pages content mode",
+    )
+    total_pages: Optional[int] = Field(
+        default=None,
+        description="Total number of pages for pdf_pages/image_pages",
+    )
 
 
 class ChapterTreeNode(BaseModel):
