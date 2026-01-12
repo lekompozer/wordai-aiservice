@@ -274,17 +274,15 @@ async def split_document(
                 )
 
                 # Create FILE for each chunk (not document!)
-                # Generate unique timestamp to avoid duplicate key errors on re-split
-                split_timestamp = int(datetime.now().timestamp())
-
                 for idx, chunk_path in enumerate(chunk_files):
                     part_num = idx + 1
                     start_page = (idx * chunk_size) + 1
                     end_page = min((idx + 1) * chunk_size, total_pages)
                     pages_count = end_page - start_page + 1
 
-                    # Generate part FILE ID with timestamp (avoid duplicates on re-split)
-                    part_file_id = f"{document_id}_part{part_num}_{split_timestamp}"
+                    # Generate COMPLETELY NEW file_id for each split part (no relation to original)
+                    # This prevents conflicts when splitting multiple times
+                    part_file_id = f"file_{uuid.uuid4().hex[:12]}"
                     original_filename = file_doc.get("filename", "Document")
                     # Remove .pdf extension if present
                     if original_filename.lower().endswith(".pdf"):
@@ -366,9 +364,6 @@ async def split_document(
                         status_code=400, detail=f"Invalid split ranges: {error_msg}"
                     )
 
-                # Generate unique timestamp to avoid duplicate key errors on re-split
-                split_timestamp = int(datetime.now().timestamp())
-
                 # Extract each range
                 for idx, range_info in enumerate(request.split_ranges):
                     part_num = idx + 1
@@ -385,8 +380,9 @@ async def split_document(
                         part_pdf_path,
                     )
 
-                    # Generate part FILE ID with timestamp (avoid duplicates on re-split)
-                    part_file_id = f"{document_id}_part{part_num}_{split_timestamp}"
+                    # Generate COMPLETELY NEW file_id for each split part (no relation to original)
+                    # This prevents conflicts when splitting multiple times
+                    part_file_id = f"file_{uuid.uuid4().hex[:12]}"
                     part_filename = f"{range_info.title}.pdf"
 
                     # Upload to R2 (STANDARD PATTERN: uploads/{user_id}/{file_id}.pdf)

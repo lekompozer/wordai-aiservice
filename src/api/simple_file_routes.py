@@ -1035,50 +1035,80 @@ async def update_file(
         if s3_client is None:
             raise HTTPException(status_code=503, detail="Storage service unavailable")
 
-        # Step 1: Find the existing file in R2
-        prefix = f"uploads/{user_id}/"
-        logger.info(f"   🔍 Searching for file with prefix: {prefix}")
-
-        response = s3_client.list_objects_v2(
-            Bucket=R2_BUCKET_NAME, Prefix=prefix, MaxKeys=1000
+        # Step 1: Try to get file from MongoDB first (has r2_key)
+        user_manager = get_user_manager()
+        file_doc = await asyncio.to_thread(
+            user_manager.get_file_by_id, file_id, user_id
         )
 
         old_key = None
         old_metadata = None
 
-        if "Contents" in response:
-            for obj in response["Contents"]:
-                key = obj["Key"]
-                # Pattern: uploads/{user_id}/{file_id}.ext or {file_id}_part{N}.ext
-                if f"/{file_id}" in key or f"/{file_id}_" in key:
-                    key_parts = key.split("/")
-                    if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
-                        old_filename = key_parts[2]
-                        # Extract file_id from filename
-                        found_file_id = old_filename.split(".")[0].split("_part")[0]
-                        # Check exact match OR prefix match (multipart)
-                        if found_file_id == file_id or old_filename.startswith(
-                            f"{file_id}_"
-                        ):
-                            old_key = key
-                            old_metadata = {
-                                "size": obj["Size"],
-                                "last_modified": obj["LastModified"],
-                                "old_filename": old_filename,
-                            }
-                            logger.info(
-                                f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
-                            )
-                            break
+        if file_doc and file_doc.get("r2_key"):
+            # ✅ Found in MongoDB with r2_key
+            old_key = file_doc.get("r2_key")
+            logger.info(f"   ✅ Found file in MongoDB: {old_key}")
+
+            # Get file info from R2
+            try:
+                obj_info = s3_client.head_object(Bucket=R2_BUCKET_NAME, Key=old_key)
+                old_metadata = {
+                    "size": obj_info["ContentLength"],
+                    "last_modified": obj_info["LastModified"],
+                    "old_filename": old_key.split("/")[-1],
+                }
+                logger.info(f"   📦 File size: {old_metadata['size']} bytes")
+            except Exception as e:
+                logger.warning(f"   ⚠️  Could not get R2 file info: {e}")
+                # Use MongoDB data
+                old_metadata = {
+                    "size": file_doc.get("file_size", 0),
+                    "last_modified": file_doc.get("last_modified"),
+                    "old_filename": file_doc.get("filename"),
+                }
+        else:
+            # Fallback: Search in R2 (for files not in MongoDB)
+            logger.info(f"   🔍 File not in MongoDB, searching R2...")
+            prefix = f"uploads/{user_id}/"
+            logger.info(f"   🔍 Searching with prefix: {prefix}")
+
+            response = s3_client.list_objects_v2(
+                Bucket=R2_BUCKET_NAME, Prefix=prefix, MaxKeys=1000
+            )
+
+            if "Contents" in response:
+                for obj in response["Contents"]:
+                    key = obj["Key"]
+                    # Pattern: uploads/{user_id}/{file_id}.ext
+                    if f"/{file_id}" in key or f"/{file_id}_" in key:
+                        key_parts = key.split("/")
+                        if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
+                            old_filename = key_parts[2]
+                            # Extract file_id from filename (before .ext)
+                            found_file_id = old_filename.rsplit(".", 1)[0]
+                            # Check exact match OR prefix match
+                            if found_file_id == file_id or old_filename.startswith(
+                                f"{file_id}_"
+                            ):
+                                old_key = key
+                                old_metadata = {
+                                    "size": obj["Size"],
+                                    "last_modified": obj["LastModified"],
+                                    "old_filename": old_filename,
+                                }
+                                logger.info(
+                                    f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
+                                )
+                                break
 
         if not old_key:
             logger.warning(f"❌ File {file_id} not found for update")
-            logger.warning(f"   Searched prefix: {prefix}")
-            logger.warning(f"   Files found: {len(response.get('Contents', []))}")
-            if "Contents" in response:
-                logger.warning(
-                    f"   Available files: {[obj['Key'] for obj in response['Contents'][:5]]}"
-                )
+            if file_doc:
+                logger.warning(f"   MongoDB file: {file_doc.get('filename')}")
+                logger.warning(f"   MongoDB r2_key: {file_doc.get('r2_key')}")
+            else:
+                prefix = f"uploads/{user_id}/"
+                logger.warning(f"   Searched prefix: {prefix}")
             raise HTTPException(status_code=404, detail="File not found")
 
         logger.info(f"   ✅ Found file: {old_key}")
