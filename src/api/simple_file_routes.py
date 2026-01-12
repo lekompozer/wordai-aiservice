@@ -593,7 +593,7 @@ async def upload_file(
         # Generate unique filename
         file_id = f"file_{uuid.uuid4().hex[:12]}"
         # Get file extension from original filename
-        file_ext = Path(file.filename).suffix.lower() or '.pdf'
+        file_ext = Path(file.filename).suffix.lower() or ".pdf"
         safe_filename = f"{file_id}{file_ext}"
         logger.info(f"   📝 Generated file ID: {file_id}")
         logger.info(f"   📝 Safe filename: {safe_filename}")
@@ -919,10 +919,12 @@ async def get_file(
                         if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
                             filename = key_parts[2]  # file_xxx.pdf
                             # Extract file_id from filename (before .ext or _part)
-                            found_file_id = filename.split('.')[0].split('_part')[0]
+                            found_file_id = filename.split(".")[0].split("_part")[0]
 
                             # Check exact match OR prefix match (multipart)
-                            if found_file_id == file_id or filename.startswith(f"{file_id}_"):
+                            if found_file_id == file_id or filename.startswith(
+                                f"{file_id}_"
+                            ):
                                 # filename is already just the base name (e.g., file_xxx.pdf)
                                 original_name = filename
 
@@ -1053,9 +1055,11 @@ async def update_file(
                     if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
                         old_filename = key_parts[2]
                         # Extract file_id from filename
-                        found_file_id = old_filename.split('.')[0].split('_part')[0]
+                        found_file_id = old_filename.split(".")[0].split("_part")[0]
                         # Check exact match OR prefix match (multipart)
-                        if found_file_id == file_id or old_filename.startswith(f"{file_id}_"):
+                        if found_file_id == file_id or old_filename.startswith(
+                            f"{file_id}_"
+                        ):
                             old_key = key
                             old_metadata = {
                                 "size": obj["Size"],
@@ -1291,9 +1295,11 @@ async def delete_file(
                         if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
                             filename = key_parts[2]
                             # Extract file_id from filename
-                            found_file_id = filename.split('.')[0].split('_part')[0]
+                            found_file_id = filename.split(".")[0].split("_part")[0]
                             # Check exact match OR prefix match (multipart)
-                            if found_file_id == file_id or filename.startswith(f"{file_id}_"):
+                            if found_file_id == file_id or filename.startswith(
+                                f"{file_id}_"
+                            ):
                                 file_key = key
                                 logger.info(
                                     f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
