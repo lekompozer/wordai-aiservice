@@ -592,17 +592,17 @@ async def upload_file(
 
         # Generate unique filename
         file_id = f"file_{uuid.uuid4().hex[:12]}"
-        timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-        safe_filename = f"{timestamp}_{file.filename.replace(' ', '_')}"
+        # Get file extension from original filename
+        file_ext = Path(file.filename).suffix.lower() or '.pdf'
+        safe_filename = f"{file_id}{file_ext}"
         logger.info(f"   📝 Generated file ID: {file_id}")
         logger.info(f"   📝 Safe filename: {safe_filename}")
 
-        # R2 key structure: files/{user_id}/{folder_id}/{file_id}/{filename}
+        # R2 key structure: uploads/{user_id}/{file_id}.ext (STANDARD for user_files)
+        r2_key = f"uploads/{user_id}/{safe_filename}"
         if folder_id:
-            r2_key = f"files/{user_id}/{folder_id}/{file_id}/{safe_filename}"
-            logger.info(f"   📂 Using folder: {folder_id}")
+            logger.info(f"   📂 Folder ID: {folder_id} (stored in MongoDB only)")
         else:
-            r2_key = f"files/{user_id}/root/{file_id}/{safe_filename}"
             logger.info(f"   📂 Using root folder (no folder_id specified)")
 
         logger.info(f"   🔑 R2 Key: {r2_key}")
@@ -900,9 +900,9 @@ async def get_file(
             logger.info(f"✅ Found file in MongoDB: {file_id}")
             return FileDownloadResponse(**file_data)
 
-        # 🔍 FALLBACK: Search in R2 for old files (legacy pattern: files/{user_id}/...)
-        prefix = f"files/{user_id}/"
-        logger.info(f"🔍 Searching for legacy file {file_id} with prefix: {prefix}")
+        # 🔍 FALLBACK: Search in R2 for files not in MongoDB
+        prefix = f"uploads/{user_id}/"
+        logger.info(f"🔍 Searching for file {file_id} in R2 with prefix: {prefix}")
 
         try:
             response = s3_client.list_objects_v2(
@@ -913,26 +913,18 @@ async def get_file(
                 for obj in response["Contents"]:
                     key = obj["Key"]
 
-                    # Check if this key contains our file_id (support multipart: file_xxx_part1_xxx)
-                    if f"/{file_id}/" in key or f"/{file_id}_" in key:
+                    # Pattern: uploads/{user_id}/{file_id}.ext or {file_id}_part{N}.ext
+                    if f"/{file_id}" in key or f"/{file_id}_" in key:
                         key_parts = key.split("/")
-                        if len(key_parts) >= 4:
-                            folder_part = key_parts[2]
-                            found_file_id = key_parts[3]
-                            filename = (
-                                key_parts[4] if len(key_parts) > 4 else key_parts[3]
-                            )
+                        if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
+                            filename = key_parts[2]  # file_xxx.pdf
+                            # Extract file_id from filename (before .ext or _part)
+                            found_file_id = filename.split('.')[0].split('_part')[0]
 
                             # Check exact match OR prefix match (multipart)
-                            if found_file_id == file_id or found_file_id.startswith(
-                                f"{file_id}_"
-                            ):
-                                # Extract original name
+                            if found_file_id == file_id or filename.startswith(f"{file_id}_"):
+                                # filename is already just the base name (e.g., file_xxx.pdf)
                                 original_name = filename
-                                if "_" in filename and len(filename.split("_", 1)) > 1:
-                                    timestamp_part, name_part = filename.split("_", 1)
-                                    if len(timestamp_part) == 15:
-                                        original_name = name_part
 
                                 file_ext = Path(filename).suffix.lower()
 
@@ -945,9 +937,7 @@ async def get_file(
                                     "original_name": original_name,
                                     "file_type": file_ext,
                                     "file_size": obj["Size"],
-                                    "folder_id": (
-                                        folder_part if folder_part != "root" else None
-                                    ),
+                                    "folder_id": None,  # uploads/ pattern has no folder in path
                                     "user_id": user_id,
                                     "r2_key": key,
                                     "download_url": download_url,
@@ -1044,7 +1034,7 @@ async def update_file(
             raise HTTPException(status_code=503, detail="Storage service unavailable")
 
         # Step 1: Find the existing file in R2
-        prefix = f"files/{user_id}/"
+        prefix = f"uploads/{user_id}/"
         logger.info(f"   🔍 Searching for file with prefix: {prefix}")
 
         response = s3_client.list_objects_v2(
@@ -1057,24 +1047,20 @@ async def update_file(
         if "Contents" in response:
             for obj in response["Contents"]:
                 key = obj["Key"]
-                # Support both exact match and partial match (for multipart files)
-                # Example: file_1da6ba240601_part1_1768224166 matches file_1da6ba240601
-                if f"/{file_id}/" in key or f"/{file_id}_" in key:
+                # Pattern: uploads/{user_id}/{file_id}.ext or {file_id}_part{N}.ext
+                if f"/{file_id}" in key or f"/{file_id}_" in key:
                     key_parts = key.split("/")
-                    if len(key_parts) >= 4:
-                        found_file_id = key_parts[3]
+                    if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
+                        old_filename = key_parts[2]
+                        # Extract file_id from filename
+                        found_file_id = old_filename.split('.')[0].split('_part')[0]
                         # Check exact match OR prefix match (multipart)
-                        if found_file_id == file_id or found_file_id.startswith(
-                            f"{file_id}_"
-                        ):
+                        if found_file_id == file_id or old_filename.startswith(f"{file_id}_"):
                             old_key = key
                             old_metadata = {
                                 "size": obj["Size"],
                                 "last_modified": obj["LastModified"],
-                                "folder_part": key_parts[2],
-                                "old_filename": (
-                                    key_parts[4] if len(key_parts) > 4 else key_parts[3]
-                                ),
+                                "old_filename": old_filename,
                             }
                             logger.info(
                                 f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
@@ -1094,55 +1080,31 @@ async def update_file(
         logger.info(f"   ✅ Found file: {old_key}")
         logger.info(f"   📦 Current size: {old_metadata['size']} bytes")
 
-        # Step 2: Determine new folder_id
+        # Step 2: Get new filename (if renaming)
+        if file_update.filename:
+            # User wants to rename
+            # Keep extension from original file
+            old_ext = Path(old_metadata["old_filename"]).suffix
+            new_filename = f"{file_id}{old_ext}"  # file_xxx.pdf
+            logger.info(f"   ✏️  Renaming to: {new_filename}")
+        else:
+            # Keep old filename
+            new_filename = old_metadata["old_filename"]
+            logger.info(f"   ✏️  Keeping filename: {new_filename}")
+
+        # Step 3: Check folder_id (for MongoDB only, R2 path doesn't change)
         new_folder_id = file_update.folder_id
         if new_folder_id and new_folder_id.lower() in ["default", "root", ""]:
             logger.info(f"   ⚠️  Converting folder_id '{new_folder_id}' → None (root)")
             new_folder_id = None
 
-        # If folder_id not provided, keep current folder
-        if file_update.folder_id is None:
-            new_folder_id = (
-                old_metadata["folder_part"]
-                if old_metadata["folder_part"] != "root"
-                else None
-            )
-            logger.info(f"   📂 Keeping current folder: {new_folder_id or 'root'}")
-        else:
-            logger.info(f"   📂 Moving to folder: {new_folder_id or 'root'}")
-
-        # Step 3: Determine new filename
-        # NO TIMESTAMP NEEDED: Each file has unique file_id folder in R2
-        # Structure: files/{user_id}/{folder_id}/{file_id}/{filename}
-        if file_update.filename:
-            # Use new filename directly (replace spaces with underscores)
-            new_filename = file_update.filename.replace(" ", "_")
-            logger.info(f"   ✏️  Renaming to: {new_filename}")
-        else:
-            # Keep old filename (strip timestamp if exists from old system)
-            old_filename = old_metadata["old_filename"]
-            # Remove timestamp prefix if exists (legacy format: 20251026_101810_filename.pdf)
-            if "_" in old_filename and len(old_filename.split("_", 1)) > 1:
-                timestamp_part = old_filename.split("_", 1)[0]
-                if len(timestamp_part) == 15:  # YYYYMMDD_HHMMSS format
-                    # Strip timestamp, keep only actual filename
-                    new_filename = old_filename.split("_", 1)[1]
-                else:
-                    new_filename = old_filename
-            else:
-                new_filename = old_filename
-            logger.info(f"   ✏️  Keeping filename: {new_filename}")
-
-        # Step 4: Build new R2 key
-        if new_folder_id:
-            new_key = f"files/{user_id}/{new_folder_id}/{file_id}/{new_filename}"
-        else:
-            new_key = f"files/{user_id}/root/{file_id}/{new_filename}"
+        # Step 4: Build new R2 key (ALWAYS uploads/ pattern)
+        new_key = f"uploads/{user_id}/{new_filename}"
 
         logger.info(f"   🔑 Old key: {old_key}")
         logger.info(f"   🔑 New key: {new_key}")
 
-        # Step 5: Copy file to new location if key changed
+        # Step 5: Copy file to new location if key changed (only for renames)
         if old_key != new_key:
             logger.info("   📦 Copying file to new location...")
 
@@ -1159,26 +1121,25 @@ async def update_file(
             s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=old_key)
             logger.info("   ✅ Old file deleted")
         else:
-            logger.info("   ℹ️  No changes to file location/name, skipping copy")
+            logger.info("   ℹ️  No changes to filename, skipping copy")
 
-        # Step 6: Extract original name (same as filename now, no timestamp prefix)
-        original_name = new_filename
-        logger.info(f"   📝 Original name: {original_name}")
-
-        # Step 7: UPDATE MONGODB - Critical fix!
+        # Step 6: UPDATE MONGODB
         logger.info("   💾 Updating file metadata in MongoDB...")
         user_manager = get_user_manager()
 
         update_data = {
-            "folder_id": new_folder_id,
             "filename": new_filename,
-            "original_name": original_name if file_update.filename else None,
             "r2_key": new_key,
-            "updated_at": datetime.utcnow(),
+            "last_modified": datetime.utcnow(),
         }
 
-        # Remove None values
-        update_data = {k: v for k, v in update_data.items() if v is not None}
+        # Add folder_id if provided
+        if file_update.folder_id is not None:
+            update_data["folder_id"] = new_folder_id
+
+        # Add original_name if user renamed the file
+        if file_update.filename:
+            update_data["original_name"] = file_update.filename
 
         db_updated = await asyncio.to_thread(
             user_manager.update_file_metadata,
@@ -1189,24 +1150,25 @@ async def update_file(
 
         if db_updated:
             logger.info("   ✅ MongoDB updated successfully!")
-            logger.info(f"      - folder_id: {new_folder_id or 'root'}")
             logger.info(f"      - filename: {new_filename}")
             logger.info(f"      - r2_key: {new_key}")
+            if new_folder_id:
+                logger.info(f"      - folder_id: {new_folder_id}")
         else:
             logger.warning("   ⚠️  MongoDB update failed or no changes detected")
 
-        # Step 8: Generate new signed URL (for immediate use after update)
+        # Step 7: Generate new signed URL
         logger.info("   🔐 Generating signed URL for updated file...")
         download_url = generate_signed_url(new_key, expiration=3600)
 
         file_ext = Path(new_filename).suffix.lower()
 
-        # Step 9: Build response
+        # Step 8: Build response
         now = datetime.utcnow()
         file_data = {
             "id": file_id,
             "filename": new_filename,
-            "original_name": original_name,
+            "original_name": file_update.filename or new_filename,
             "file_type": file_ext,
             "file_size": old_metadata["size"],
             "folder_id": new_folder_id,
@@ -1308,7 +1270,7 @@ async def delete_file(
             raise HTTPException(status_code=503, detail="Storage service unavailable")
 
         # Search for file to get its key
-        prefix = f"files/{user_id}/"
+        prefix = f"uploads/{user_id}/"
         logger.info(f"🔍 Searching for file {file_id} to delete")
 
         try:
@@ -1323,19 +1285,16 @@ async def delete_file(
                 for obj in response["Contents"]:
                     key = obj["Key"]
 
-                    # Check if this key contains our file_id (support multipart)
-                    if f"/{file_id}/" in key or f"/{file_id}_" in key:
+                    # Pattern: uploads/{user_id}/{file_id}.ext or {file_id}_part{N}.ext
+                    if f"/{file_id}" in key or f"/{file_id}_" in key:
                         key_parts = key.split("/")
-                        if len(key_parts) >= 4:
-                            found_file_id = key_parts[3]
+                        if len(key_parts) >= 3:  # uploads/{user_id}/{filename}
+                            filename = key_parts[2]
+                            # Extract file_id from filename
+                            found_file_id = filename.split('.')[0].split('_part')[0]
                             # Check exact match OR prefix match (multipart)
-                            if found_file_id == file_id or found_file_id.startswith(
-                                f"{file_id}_"
-                            ):
+                            if found_file_id == file_id or filename.startswith(f"{file_id}_"):
                                 file_key = key
-                                filename = (
-                                    key_parts[4] if len(key_parts) > 4 else key_parts[3]
-                                )
                                 logger.info(
                                     f"   🎯 Matched file_id: {found_file_id} (searching for: {file_id})"
                                 )
@@ -1352,6 +1311,15 @@ async def delete_file(
 
             # Delete the file from R2
             s3_client.delete_object(Bucket=R2_BUCKET_NAME, Key=file_key)
+
+            # Also mark as deleted in MongoDB (soft delete)
+            user_manager = get_user_manager()
+            await asyncio.to_thread(
+                user_manager.update_file_metadata,
+                file_id=file_id,
+                user_id=user_id,
+                update_data={"is_deleted": True, "last_modified": datetime.utcnow()},
+            )
 
             logger.info(
                 f"✅ Deleted file {filename} (ID: {file_id}) for user {user_email}"
