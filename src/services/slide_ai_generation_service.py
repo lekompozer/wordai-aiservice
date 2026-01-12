@@ -56,12 +56,16 @@ class SlideAIGenerationService:
             # Fallback to direct Anthropic API (5 points/batch)
             self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
             if not self.claude_api_key:
-                raise ValueError("ANTHROPIC_API_KEY not configured and Vertex AI unavailable")
-            
+                raise ValueError(
+                    "ANTHROPIC_API_KEY not configured and Vertex AI unavailable"
+                )
+
             self.claude_client = Anthropic(api_key=self.claude_api_key)
             self.claude_provider = "api"
             self.claude_model = "claude-sonnet-4-5-20250929"  # Standard API format
-            logger.info("✅ Claude API initialized for slide generation (fallback mode)")
+            logger.info(
+                "✅ Claude API initialized for slide generation (fallback mode)"
+            )
 
     def build_analysis_prompt(
         self,
@@ -174,6 +178,7 @@ Generate the JSON now:"""
         slide_type: str,
         language: str,
         title: str,
+        target_goal: str,
         logo_url: Optional[str],
         slide_images: Dict[int, str],  # slide_number -> image_url
         user_query: Optional[str],
@@ -200,13 +205,33 @@ Generate the JSON now:"""
         slides_json = json.dumps(slides_with_images, ensure_ascii=False, indent=2)
 
         # Determine topic-based theme recommendation
-        topic_lower = title.lower() + " " + target_goal.lower() + " " + (user_query or "").lower()
-        is_tech_topic = any(keyword in topic_lower for keyword in [
-            "technology", "tech", "ai", "machine learning", "artificial intelligence",
-            "programming", "coding", "software", "cybersecurity", "security",
-            "crypto", "blockchain", "encryption", "data science", "cloud computing",
-            "digital", "innovation", "automation", "robotics"
-        ])
+        topic_lower = (
+            title.lower() + " " + target_goal.lower() + " " + (user_query or "").lower()
+        )
+        is_tech_topic = any(
+            keyword in topic_lower
+            for keyword in [
+                "technology",
+                "tech",
+                "ai",
+                "machine learning",
+                "artificial intelligence",
+                "programming",
+                "coding",
+                "software",
+                "cybersecurity",
+                "security",
+                "crypto",
+                "blockchain",
+                "encryption",
+                "data science",
+                "cloud computing",
+                "digital",
+                "innovation",
+                "automation",
+                "robotics",
+            ]
+        )
 
         style_guidelines = {
             "academy": f"""
@@ -542,7 +567,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
     }}
   </style>
   {f'<img src="{logo_url}" style="position: absolute; top: 40px; right: 80px; width: 120px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  
+
   <!-- 2-COLUMN GRID: Text Left + Visual Right -->
   <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 80px; align-items: center; width: 100%; max-width: 1680px;">
     <!-- LEFT: Text Content -->
@@ -551,7 +576,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
       <p style="font-size: 28px; line-height: 1.5; margin-bottom: 40px; color: #64748b; opacity: 0; animation: fadeIn 0.6s ease-out 0.2s forwards;">Compelling subtitle explaining the presentation purpose and value proposition</p>
       <p style="font-size: 22px; color: #94a3b8; opacity: 0; animation: fadeIn 0.6s ease-out 0.4s forwards;">By Author Name | January 2026</p>
     </div>
-    
+
     <!-- RIGHT: Visual Element (colored shape placeholder) -->
     <div style="display: flex; justify-content: center; align-items: center; opacity: 0; animation: scaleIn 0.8s ease-out 0.6s forwards;">
       <div style="width: 420px; height: 420px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 24px; display: flex; justify-content: center; align-items: center; box-shadow: 0 20px 50px rgba(0,0,0,0.15);">
@@ -869,6 +894,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
         slide_type: str,
         language: str,
         title: str,
+        target_goal: str,
         logo_url: Optional[str],
         slide_images: Dict[int, str],
         user_query: Optional[str],
@@ -889,6 +915,7 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
             slide_type=slide_type,
             language=language,
             title=title,
+            target_goal=target_goal,
             logo_url=logo_url,
             slide_images=slide_images,
             user_query=user_query,

@@ -451,6 +451,7 @@ class SlideGenerationWorker:
                     # Call AI to generate HTML for this batch
                     batch_html = await self.ai_service.generate_slide_html_batch(
                         title=analysis["title"],
+                        target_goal=analysis.get("target_goal", ""),
                         slide_type=analysis["slide_type"],
                         language=analysis["language"],
                         slides_outline=batch_slides,
