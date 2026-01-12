@@ -233,17 +233,17 @@ class GuideBookBookChapterManager:
 
         # Determine content storage model
         document_id = data.get("document_id")
-        content_source = data.get("content_source", "inline")  # Default: inline
+        content_mode = data.get("content_mode", "inline")  # Default: inline
 
         # NEW LOGIC: Only use 'document' mode if EXPLICITLY set
-        # If document_id exists but content_source not specified → use 'inline' (copy content)
+        # If document_id exists but content_mode not specified → use 'inline' (copy content)
         # This ensures chapters store their own content in book_chapters collection
 
         # If inline mode but document_id provided, fetch content from document
         content_html_to_save = data.get("content_html")
         content_json_to_save = data.get("content_json")
 
-        if content_source == "inline" and document_id and not content_html_to_save:
+        if content_mode == "inline" and document_id and not content_html_to_save:
             # Fetch content from document and copy to chapter
             doc = self.db["documents"].find_one(
                 {"document_id": document_id},
@@ -264,14 +264,14 @@ class GuideBookBookChapterManager:
             "order_index": order_index,
             "depth": depth,
             # Content storage model
-            "content_source": content_source,  # "inline" or "document"
+            "content_mode": content_mode,  # "inline" or "document"
             "document_id": document_id,  # Keep reference even in inline mode
             # Inline content (always save for inline mode)
             "content_html": (
-                content_html_to_save if content_source == "inline" else None
+                content_html_to_save if content_mode == "inline" else None
             ),
             "content_json": (
-                content_json_to_save if content_source == "inline" else None
+                content_json_to_save if content_mode == "inline" else None
             ),
             # Publishing & preview
             "is_published": data.get("is_published", True),
@@ -823,21 +823,21 @@ class GuideBookBookChapterManager:
             True if updated successfully
 
         Raises:
-            ValueError: If chapter not found or invalid content_source
+            ValueError: If chapter not found or invalid content_mode
         """
-        # Get chapter to check content_source
+        # Get chapter to check content_mode
         chapter = self.chapters_collection.find_one(
             {"chapter_id": chapter_id},
-            {"_id": 0, "content_source": 1, "document_id": 1, "book_id": 1},
+            {"_id": 0, "content_mode": 1, "document_id": 1, "book_id": 1},
         )
 
         if not chapter:
             raise ValueError(f"Chapter not found: {chapter_id}")
 
-        content_source = chapter.get("content_source", "inline")
+        content_mode = chapter.get("content_mode", "inline")
         now = datetime.utcnow()
 
-        if content_source == "inline":
+        if content_mode == "inline":
             # Update content directly in chapter document
             result = self.chapters_collection.update_one(
                 {"chapter_id": chapter_id},
@@ -860,12 +860,12 @@ class GuideBookBookChapterManager:
                 return True
             return False
 
-        elif content_source == "document":
+        elif content_mode == "document":
             # Update content in linked document
             document_id = chapter.get("document_id")
             if not document_id:
                 raise ValueError(
-                    f"Chapter {chapter_id} has content_source='document' but no document_id"
+                    f"Chapter {chapter_id} has content_mode='document' but no document_id"
                 )
 
             result = self.db["documents"].update_one(
@@ -898,7 +898,7 @@ class GuideBookBookChapterManager:
             return False
 
         else:
-            raise ValueError(f"Unknown content_source: {content_source}")
+            raise ValueError(f"Unknown content_mode: {content_mode}")
 
     def update_chapter_translation(
         self,
@@ -920,18 +920,18 @@ class GuideBookBookChapterManager:
             True if updated successfully
 
         Raises:
-            ValueError: If chapter not found or invalid content_source
+            ValueError: If chapter not found or invalid content_mode
         """
-        # Get chapter to check content_source
+        # Get chapter to check content_mode
         chapter = self.chapters_collection.find_one(
             {"chapter_id": chapter_id},
-            {"_id": 0, "content_source": 1, "document_id": 1, "book_id": 1},
+            {"_id": 0, "content_mode": 1, "document_id": 1, "book_id": 1},
         )
 
         if not chapter:
             raise ValueError(f"Chapter not found: {chapter_id}")
 
-        content_source = chapter.get("content_source", "inline")
+        content_mode = chapter.get("content_mode", "inline")
         now = datetime.utcnow()
 
         # Build translation update object
@@ -943,7 +943,7 @@ class GuideBookBookChapterManager:
         if content_json:
             translation_update[f"translations.{language}.content_json"] = content_json
 
-        if content_source == "inline":
+        if content_mode == "inline":
             # Update translation in chapter document
             result = self.chapters_collection.update_one(
                 {"chapter_id": chapter_id},
@@ -965,12 +965,12 @@ class GuideBookBookChapterManager:
                 return True
             return False
 
-        elif content_source == "document":
+        elif content_mode == "document":
             # Update translation in linked document
             document_id = chapter.get("document_id")
             if not document_id:
                 raise ValueError(
-                    f"Chapter {chapter_id} has content_source='document' but no document_id"
+                    f"Chapter {chapter_id} has content_mode='document' but no document_id"
                 )
 
             result = self.db["documents"].update_one(
@@ -1000,7 +1000,7 @@ class GuideBookBookChapterManager:
             return False
 
         else:
-            raise ValueError(f"Unknown content_source: {content_source}")
+            raise ValueError(f"Unknown content_mode: {content_mode}")
 
     def delete_chapter_cascade(self, chapter_id: str) -> List[str]:
         """
@@ -1184,7 +1184,7 @@ class GuideBookBookChapterManager:
             "parent_id": parent_id,
             "depth": depth,
             # Document reference (Phase 6 - no content duplication)
-            "content_source": "document",  # "document" or "inline"
+            "content_mode": "document",  # "document" or "inline"
             "document_id": document_id,
             "content_html": None,  # Not stored here - loaded from document
             "content_json": None,
@@ -1242,9 +1242,9 @@ class GuideBookBookChapterManager:
         if not chapter:
             return None
 
-        content_source = chapter.get("content_source", "inline")
+        content_mode = chapter.get("content_mode", "inline")
 
-        if content_source == "document":
+        if content_mode == "document":
             # ❌ DEPRECATED - Load from documents collection
             # Phase 3 will migrate to inline mode
             document_id = chapter.get("document_id")
@@ -1273,18 +1273,18 @@ class GuideBookBookChapterManager:
                     chapter["content"] = ""
             else:
                 logger.warning(
-                    f"⚠️ Chapter {chapter_id} has content_source='document' but no document_id"
+                    f"⚠️ Chapter {chapter_id} has content_mode='document' but no document_id"
                 )
                 chapter["content_html"] = ""
                 chapter["content"] = ""
 
-        elif content_source in ["pdf_pages", "image_pages"]:
+        elif content_mode in ["pdf_pages", "image_pages"]:
             # ✅ NEW - Pages array with backgrounds
             pages = chapter.get("pages", [])
             total_pages = chapter.get("total_pages", len(pages))
 
             logger.info(
-                f"📄 Loaded {content_source} chapter: {chapter_id} "
+                f"📄 Loaded {content_mode} chapter: {chapter_id} "
                 f"({total_pages} pages)"
             )
 
@@ -1301,7 +1301,7 @@ class GuideBookBookChapterManager:
                     }
 
             # For image_pages, include manga metadata
-            if content_source == "image_pages":
+            if content_mode == "image_pages":
                 manga_metadata = chapter.get("manga_metadata")
                 if manga_metadata:
                     logger.info(
@@ -1318,11 +1318,6 @@ class GuideBookBookChapterManager:
             logger.info(
                 f"📄 Loaded inline chapter content: {chapter_id} ({len(content_html)} chars)"
             )
-
-        # ✅ FIX: Map content_source to content_mode for frontend compatibility
-        # Frontend expects "content_mode" field, not "content_source"
-        chapter["content_mode"] = content_source
-        logger.info(f"✅ Set content_mode={content_source} for chapter {chapter_id}")
 
         return chapter
 
@@ -1403,7 +1398,7 @@ class GuideBookBookChapterManager:
                 "order_index": order_index,
                 "depth": depth,
                 # Inline content storage
-                "content_source": "inline",
+                "content_mode": "inline",
                 "document_id": None,
                 "content_html": content_html,
                 "content_json": None,
@@ -1431,7 +1426,7 @@ class GuideBookBookChapterManager:
                 "order_index": order_index,
                 "depth": depth,
                 # Document reference storage
-                "content_source": "document",
+                "content_mode": "document",
                 "document_id": document_id,
                 "content_html": None,
                 "content_json": None,
@@ -1598,7 +1593,7 @@ class GuideBookBookChapterManager:
                     "depth": (
                         0 if not parent_id else self._calculate_depth(parent_id) + 1
                     ),
-                    "content_mode": "pdf_pages",  # NEW
+                    "content_mode": "pdf_pages",  # ✅ FIX: Use content_mode (mapped to content_mode in API)
                     "pages": result["pages"],  # Pages array
                     "total_pages": result["total_pages"],
                     "source_file_id": file_id,  # Reference to original PDF
@@ -1750,7 +1745,7 @@ class GuideBookBookChapterManager:
                     "depth": (
                         0 if not parent_id else self._calculate_depth(parent_id) + 1
                     ),
-                    "content_mode": "image_pages",  # NEW
+                    "content_mode": "image_pages",  # ✅ FIX: Use content_mode (mapped to content_mode in API)
                     "pages": result["pages"],  # Pages array
                     "total_pages": result["total_pages"],
                     "is_published": is_published,
@@ -1904,7 +1899,7 @@ class GuideBookBookChapterManager:
                 "order_index": order_index,
                 "parent_id": parent_id,
                 "depth": 0 if not parent_id else self._calculate_depth(parent_id) + 1,
-                "content_mode": "image_pages",
+                "content_mode": "image_pages",  # ✅ FIX: Use content_mode (mapped to content_mode in API)
                 "pages": pages,
                 "total_pages": len(pages),
                 "is_published": is_published,
