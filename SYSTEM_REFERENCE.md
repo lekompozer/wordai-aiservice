@@ -832,9 +832,13 @@ book = db.guide_books.find_one({"_id": book_id})   # Deprecated!
 }
 ```
 
-##### 3. `user_files` - File Uploads (PDFs, ZIPs)
+##### 3. `user_files` - File Uploads (PDFs, ZIPs) - SINGLE SOURCE OF TRUTH
 
-**Purpose:** Store uploaded files before processing
+**⚠️ CRITICAL:** This is the ONLY collection for file storage.
+
+**Purpose:** Store ALL uploaded files (PDFs, ZIPs, split parts, etc.)
+
+**R2 Storage Pattern:** `uploads/{user_id}/{file_id}.pdf`
 
 **Schema:**
 ```python
@@ -843,20 +847,30 @@ book = db.guide_books.find_one({"_id": book_id})   # Deprecated!
     "file_id": "file_1da6ba240601_part1_1767932029",  # ✅ Use this for queries!
     "user_id": "firebase_uid",
     "filename": "textbook.pdf",
-    "original_name": "AI Textbook.pdf",
-    "file_type": ".pdf",                 # File extension with dot
-    "file_url": "https://r2.wordai.vn/files/user123/root/file_abc/textbook.pdf",
+    "file_type": "application/pdf",      # MIME type
     "file_size": 5242880,                # Bytes
     "uploaded_at": datetime.utcnow(),
+    "last_modified": datetime.utcnow(),
     "is_deleted": False,
-    "r2_key": "files/user123/root/file_abc/textbook.pdf",
-    "folder_id": "root"                  # Folder location
+    "r2_key": "uploads/user123/file_1da6ba240601.pdf",  # Full R2 path
+
+    # Optional: Split PDF metadata
+    "is_split_part": True,               # If this is a split part
+    "original_file_id": "file_abc123",   # Parent file ID
+    "child_file_ids": ["file_part1", "file_part2"],  # Child parts (if parent)
+    "split_info": {
+        "start_page": 1,
+        "end_page": 10,
+        "part_number": 1,
+        "total_parts": 3,
+        "split_mode": "auto" | "manual"
+    }
 }
 ```
 
 **Query Pattern:**
 ```python
-# ✅ CORRECT
+# ✅ CORRECT - Query by file_id
 file_doc = db.user_files.find_one({
     "file_id": file_id,
     "user_id": user_id,
@@ -864,15 +878,28 @@ file_doc = db.user_files.find_one({
 })
 
 # Access fields
-file_type = file_doc.get("file_type")  # e.g., ".pdf"
-file_url = file_doc.get("file_url")     # R2 URL
+file_type = file_doc.get("file_type")  # e.g., "application/pdf"
+r2_key = file_doc.get("r2_key")        # e.g., "uploads/user123/file_abc.pdf"
+
+# List user files
+files = db.user_files.find({
+    "user_id": user_id,
+    "is_deleted": False
+}).sort("uploaded_at", -1)
+
+# Find split parts
+split_parts = db.user_files.find({
+    "original_file_id": parent_file_id,
+    "is_split_part": True,
+    "is_deleted": False
+})
 ```
 ```
 
 **Upload Flow:**
 ```python
 # 1. User uploads PDF via POST /api/files/upload
-# 2. File saved to user_files collection
+# 2. File saved to user_files collection with r2_key = "uploads/{user_id}/{file_id}.pdf"
 # 3. Create chapter from PDF:
 
 from src.services.book_chapter_manager import BookChapterManager
@@ -886,6 +913,17 @@ chapter = await chapter_manager.create_chapter_from_pdf(
 )
 # 4. PDF pages extracted as JPG images to R2
 # 5. Chapter saved with pages array
+```
+
+**Split PDF Flow:**
+```python
+# 1. User calls POST /api/pdf-documents/split
+# 2. Original file queried from user_files
+# 3. PDF split into parts, each part:
+#    - Uploaded to R2: uploads/{user_id}/{file_id}_part{N}_{timestamp}.pdf
+#    - Saved to user_files with is_split_part=True
+# 4. Original file updated with child_file_ids array
+# 5. All parts are regular files in user_files collection
 ```
 
 #### Common Patterns
@@ -1027,10 +1065,10 @@ return {"analysis": result}
 
 #### File Collections Structure
 
-**Collection:** `user_files` (primary) or `library_files` (library manager)
+**Collection:** `user_files` - SINGLE SOURCE OF TRUTH for all file storage
 
 **`user_manager.get_file_by_id()` searches:**
-- Collection: `user_files`
+- Collection: `user_files` ONLY
 - Filter: `{"file_id": file_id, "user_id": user_id, "is_deleted": False}`
 - Returns: File document or `None`
 
@@ -1040,25 +1078,26 @@ return {"analysis": result}
     "_id": ObjectId("..."),
     "file_id": "file_abc123",           # Unique file identifier
     "user_id": "firebase_uid",          # Owner
-    "original_name": "document.pdf",    # Original filename
-    "file_type": ".pdf",                # Extension with dot
-    "file_size_bytes": 1048576,         # Size in bytes
-    "r2_key": "files/user123/doc.pdf",  # R2 storage path
-    "r2_url": "https://...",            # Public/signed URL
+    "filename": "document.pdf",         # Current filename
+    "file_type": "application/pdf",     # MIME type
+    "file_size": 1048576,               # Size in bytes
+    "r2_key": "uploads/user123/file_abc123.pdf",  # R2 storage path (uploads/ prefix)
     "is_deleted": False,                # Soft delete flag
     "uploaded_at": ISODate("..."),
-    "metadata": {
-        "mime_type": "application/pdf",
-        "source": "upload"
-    }
+    "last_modified": ISODate("..."),
+    # Optional split metadata
+    "is_split_part": False,             # True if this is a split part
+    "original_file_id": None,           # Parent file if split part
+    "child_file_ids": [],               # Child parts if parent
 }
+```
 ```
 
 #### ❌ WRONG: Direct Collection Query
 
 ```python
-# ❌ NEVER do this - collection 'files' doesn't exist
-files_collection = db["files"]
+# ❌ NEVER do this - use UserManager instead
+files_collection = db["user_files"]
 file_doc = files_collection.find_one({
     "file_id": file_id,
     "user_id": user_id
@@ -1071,22 +1110,42 @@ file_doc = files_collection.find_one({
 ```python
 @router.post("/analyze-from-pdf")
 async def analyze_slide_from_pdf(request: AnalyzeSlideFromPdfRequest):
-    # ✅ CORRECT
+    # ✅ CORRECT - Always use UserManager
     user_manager = get_user_manager()
     file_doc = user_manager.get_file_by_id(request.file_id, user_info["uid"])
+
+    if not file_doc:
+        raise HTTPException(404, "File not found")
+
+    # File is in user_files collection
+    # R2 key pattern: uploads/{user_id}/{file_id}.pdf
+    r2_key = file_doc.get("r2_key")
 
     # Download and process...
 ```
 
-**Example 2: Online Test from File** (`test_creation_routes.py`)
+**Example 2: PDF Split** (`pdf_document_routes.py`)
 ```python
-@router.post("/generate-test-from-file")
-async def generate_test_from_file(request: TestGenerationRequest):
-    # ✅ CORRECT
-    user_manager = get_user_manager()
-    file_info = user_manager.get_file_by_id(request.source_id, user_info["uid"])
+@router.post("/split")
+async def split_pdf(request: SplitDocumentRequest):
+    # Original file from user_files
+    file_doc = db_manager.db.user_files.find_one({
+        "file_id": request.document_id,
+        "user_id": user_id,
+        "is_deleted": False
+    })
 
-    # Process file...
+    # Split parts ALSO saved to user_files
+    for part in split_parts:
+        part_file = {
+            "file_id": f"{document_id}_part{N}_{timestamp}",
+            "user_id": user_id,
+            "r2_key": f"uploads/{user_id}/{file_id}.pdf",
+            "is_split_part": True,
+            "original_file_id": document_id,
+            # ... other fields
+        }
+        db_manager.db.user_files.insert_one(part_file)
 ```
 
 #### Key Points
