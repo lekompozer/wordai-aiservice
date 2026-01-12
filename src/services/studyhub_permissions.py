@@ -196,7 +196,18 @@ class StudyHubPermissions:
         else:
             update_data = {"$set": update_data}
 
-        self.db[collection_name].update_one({"_id": ObjectId(content_id)}, update_data)
+        # Different collections use different ID fields
+        if collection_name == "online_books":
+            query = {"book_id": content_id}
+        elif collection_name == "online_documents":
+            query = {"document_id": content_id}
+        elif collection_name == "online_tests":
+            query = {"test_id": content_id}
+        else:
+            # Fallback to _id for other collections
+            query = {"_id": ObjectId(content_id)}
+
+        self.db[collection_name].update_one(query, update_data)
 
     async def publish_subject_to_marketplace(self, subject_id: str):
         """
@@ -234,9 +245,19 @@ class StudyHubPermissions:
                 if not ref_id:
                     continue
 
+                # Different collections use different ID fields
+                if collection_name == "online_books":
+                    query = {"book_id": ref_id}
+                elif collection_name == "online_documents":
+                    query = {"document_id": ref_id}
+                elif collection_name == "online_tests":
+                    query = {"test_id": ref_id}
+                else:
+                    query = {"_id": ObjectId(ref_id)}
+
                 # Update to marketplace mode
                 self.db[collection_name].update_one(
-                    {"_id": ObjectId(ref_id)},
+                    query,
                     {
                         "$set": {
                             "studyhub_context.mode": "marketplace",
