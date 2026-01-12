@@ -291,11 +291,19 @@ async def split_document(
                         original_filename = original_filename[:-4]
                     part_filename = f"{original_filename} - Part {part_num}.pdf"
 
-                    # Upload chunk to R2
+                    # Upload chunk to R2 (STANDARD PATTERN: files/{user_id}/{folder}/{file_id}/{filename})
                     with open(chunk_path, "rb") as f:
                         chunk_content = f.read()
 
-                    part_r2_key = f"uploads/{user_id}/{part_file_id}.pdf"
+                    # Use STANDARD file pattern like regular uploads
+                    folder_id = file_doc.get("folder_id") or "root"
+                    # Generate timestamp-prefixed filename
+                    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    stored_filename = f"{timestamp_str}_{part_filename}"
+                    part_r2_key = (
+                        f"files/{user_id}/{folder_id}/{part_file_id}/{stored_filename}"
+                    )
+
                     r2_client = _get_r2_client()
                     await r2_client.upload_file_from_bytes(
                         file_bytes=chunk_content,
@@ -303,26 +311,19 @@ async def split_document(
                         content_type="application/pdf",
                     )
 
-                    # Create FILE in user_files collection (hiển thị trong Upload Files!)
-                    # Inherit folder_id from original file (None = Root folder)
+                    # Create FILE in SIMPLE_FILES collection (standard pattern!)
                     now = datetime.now()
                     part_file = {
                         "file_id": part_file_id,
                         "user_id": user_id,
-                        "filename": part_filename,
-                        "original_name": part_filename,  # Required for list_user_files
-                        "file_type": ".pdf",
+                        "filename": stored_filename,
+                        "original_name": part_filename,
+                        "file_type": "application/pdf",
                         "file_size": len(chunk_content),
-                        "r2_key": part_r2_key,
-                        "file_url": f"r2://{R2_BUCKET_NAME}/{part_r2_key}",  # Private URL placeholder
-                        "is_deleted": False,  # CRITICAL: Required for list_user_files query!
-                        "deleted_at": None,
-                        "uploaded_at": now,  # Use uploaded_at (not upload_date)
-                        "updated_at": now,  # Use updated_at (not last_modified)
-                        "folder_id": file_doc.get(
-                            "folder_id", None
-                        ),  # Inherit from original, None = Root
-                        # Split info
+                        "folder_id": file_doc.get("folder_id"),  # None = root
+                        "created_at": now,
+                        "updated_at": now,
+                        # Split metadata
                         "is_split_part": True,
                         "original_file_id": document_id,
                         "split_info": {
@@ -334,7 +335,7 @@ async def split_document(
                         },
                     }
 
-                    db_manager.db.user_files.insert_one(part_file)
+                    db_manager.db.simple_files.insert_one(part_file)
 
                     split_parts.append(
                         SplitDocumentPart(
@@ -394,11 +395,18 @@ async def split_document(
                     part_file_id = f"{document_id}_part{part_num}_{split_timestamp}"
                     part_filename = f"{range_info.title}.pdf"
 
-                    # Upload to R2
+                    # Upload to R2 (STANDARD PATTERN: files/{user_id}/{folder}/{file_id}/{filename})
                     with open(part_pdf_path, "rb") as f:
                         part_content = f.read()
 
-                    part_r2_key = f"uploads/{user_id}/{part_file_id}.pdf"
+                    # Use STANDARD file pattern like regular uploads
+                    folder_id = file_doc.get("folder_id") or "root"
+                    timestamp_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    stored_filename = f"{timestamp_str}_{part_filename}"
+                    part_r2_key = (
+                        f"files/{user_id}/{folder_id}/{part_file_id}/{stored_filename}"
+                    )
+
                     r2_client = _get_r2_client()
                     await r2_client.upload_file_from_bytes(
                         file_bytes=part_content,
@@ -408,28 +416,21 @@ async def split_document(
 
                     pages_count = range_info.end_page - range_info.start_page + 1
 
-                    # Create FILE in user_files collection (hiển thị trong Upload Files!)
-                    # Inherit folder_id from original file (None = Root folder)
+                    # Create FILE in SIMPLE_FILES collection (standard pattern!)
                     now = datetime.now()
                     part_file = {
                         "file_id": part_file_id,
                         "user_id": user_id,
-                        "filename": part_filename,
-                        "original_name": part_filename,  # Required for list_user_files
-                        "file_type": ".pdf",
+                        "filename": stored_filename,
+                        "original_name": part_filename,
+                        "file_type": "application/pdf",
                         "file_size": len(part_content),
-                        "r2_key": part_r2_key,
-                        "file_url": f"r2://{R2_BUCKET_NAME}/{part_r2_key}",  # Private URL placeholder
-                        "is_deleted": False,  # CRITICAL: Required for list_user_files query!
-                        "deleted_at": None,
-                        "uploaded_at": now,  # Use uploaded_at (not upload_date)
-                        "updated_at": now,  # Use updated_at (not last_modified)
-                        "folder_id": file_doc.get(
-                            "folder_id", None
-                        ),  # Inherit from original, None = Root
+                        "folder_id": file_doc.get("folder_id"),  # None = root
+                        "created_at": now,
+                        "updated_at": now,
                         "description": range_info.description
                         or f"Pages {range_info.start_page}-{range_info.end_page}",
-                        # Split info
+                        # Split metadata
                         "is_split_part": True,
                         "original_file_id": document_id,
                         "split_info": {
@@ -441,7 +442,7 @@ async def split_document(
                         },
                     }
 
-                    db_manager.db.user_files.insert_one(part_file)
+                    db_manager.db.simple_files.insert_one(part_file)
 
                     split_parts.append(
                         SplitDocumentPart(
@@ -477,23 +478,35 @@ async def split_document(
             except Exception as usage_error:
                 logger.error(f"❌ Error updating file counter: {usage_error}")
 
-            # Update original file with child IDs (if it's in user_files)
+            # Update original file with child IDs (if it's in simple_files)
             child_ids = [
                 part.document_id for part in split_parts
             ]  # These are file_ids now
 
-            # Try to update in user_files first
-            result = db_manager.db.user_files.update_one(
+            # Try to update in simple_files first
+            result = db_manager.db.simple_files.update_one(
                 {"file_id": document_id},
                 {
                     "$set": {
                         "child_file_ids": child_ids,
-                        "last_modified": datetime.now(),
+                        "updated_at": datetime.now(),
                     }
                 },
             )
 
-            # If not found in user_files, try documents collection (backward compatibility)
+            # If not found in simple_files, try user_files (backward compatibility OLD data)
+            if result.matched_count == 0:
+                result = db_manager.db.user_files.update_one(
+                    {"file_id": document_id},
+                    {
+                        "$set": {
+                            "child_file_ids": child_ids,
+                            "last_modified": datetime.now(),
+                        }
+                    },
+                )
+
+            # If still not found, try documents collection (backward compatibility)
             if result.matched_count == 0:
                 db_manager.db.documents.update_one(
                     {"document_id": document_id},
