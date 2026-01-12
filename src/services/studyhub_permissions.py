@@ -28,7 +28,7 @@ class StudyHubPermissions:
         Returns:
             True if owner, raises HTTPException if not
         """
-        subject = await self.db.studyhub_subjects.find_one(
+        subject = self.db.studyhub_subjects.find_one(
             {"_id": ObjectId(subject_id), "owner_id": user_id}
         )
 
@@ -66,7 +66,7 @@ class StudyHubPermissions:
             HTTPException if access denied
         """
         # Get content
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id)}
         )
 
@@ -74,13 +74,11 @@ class StudyHubPermissions:
             raise HTTPException(status_code=404, detail="Content not found")
 
         # Get subject through module
-        module = await self.db.studyhub_modules.find_one({"_id": content["module_id"]})
+        module = self.db.studyhub_modules.find_one({"_id": content["module_id"]})
         if not module:
             raise HTTPException(status_code=404, detail="Module not found")
 
-        subject = await self.db.studyhub_subjects.find_one(
-            {"_id": module["subject_id"]}
-        )
+        subject = self.db.studyhub_subjects.find_one({"_id": module["subject_id"]})
         if not subject:
             raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -97,7 +95,7 @@ class StudyHubPermissions:
             raise HTTPException(status_code=404, detail="Subject not available")
 
         # Check 4: Must have active enrollment
-        enrollment = await self.db.studyhub_enrollments.find_one(
+        enrollment = self.db.studyhub_enrollments.find_one(
             {
                 "user_id": user_id,
                 "subject_id": subject["_id"],
@@ -124,7 +122,7 @@ class StudyHubPermissions:
         Returns:
             True if owner, raises HTTPException if not
         """
-        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+        module = self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
 
         if not module:
             raise HTTPException(status_code=404, detail="Module not found")
@@ -141,19 +139,17 @@ class StudyHubPermissions:
         Returns:
             Subject document
         """
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id)}
         )
         if not content:
             raise HTTPException(status_code=404, detail="Content not found")
 
-        module = await self.db.studyhub_modules.find_one({"_id": content["module_id"]})
+        module = self.db.studyhub_modules.find_one({"_id": content["module_id"]})
         if not module:
             raise HTTPException(status_code=404, detail="Module not found")
 
-        subject = await self.db.studyhub_subjects.find_one(
-            {"_id": module["subject_id"]}
-        )
+        subject = self.db.studyhub_subjects.find_one({"_id": module["subject_id"]})
         if not subject:
             raise HTTPException(status_code=404, detail="Subject not found")
 
@@ -179,9 +175,7 @@ class StudyHubPermissions:
             enabled: Enable StudyHub access
             is_preview: Mark as preview content
         """
-        subject = await self.db.studyhub_subjects.find_one(
-            {"_id": ObjectId(subject_id)}
-        )
+        subject = self.db.studyhub_subjects.find_one({"_id": ObjectId(subject_id)})
 
         mode = (
             "marketplace" if subject.get("is_public_marketplace", False) else "private"
@@ -202,9 +196,7 @@ class StudyHubPermissions:
         else:
             update_data = {"$set": update_data}
 
-        await self.db[collection_name].update_one(
-            {"_id": ObjectId(content_id)}, update_data
-        )
+        self.db[collection_name].update_one({"_id": ObjectId(content_id)}, update_data)
 
     async def publish_subject_to_marketplace(self, subject_id: str):
         """
@@ -214,15 +206,15 @@ class StudyHubPermissions:
             subject_id: Subject ID being published
         """
         # Get all modules in subject
-        modules = await self.db.studyhub_modules.find(
-            {"subject_id": ObjectId(subject_id)}
-        ).to_list(None)
+        modules = list(
+            self.db.studyhub_modules.find({"subject_id": ObjectId(subject_id)})
+        )
 
         for module in modules:
             # Get all contents in module
-            contents = await self.db.studyhub_module_contents.find(
-                {"module_id": module["_id"]}
-            ).to_list(None)
+            contents = list(
+                self.db.studyhub_module_contents.find({"module_id": module["_id"]})
+            )
 
             for content in contents:
                 # Map content type to collection
@@ -243,7 +235,7 @@ class StudyHubPermissions:
                     continue
 
                 # Update to marketplace mode
-                await self.db[collection_name].update_one(
+                self.db[collection_name].update_one(
                     {"_id": ObjectId(ref_id)},
                     {
                         "$set": {

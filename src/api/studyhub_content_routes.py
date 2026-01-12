@@ -358,7 +358,7 @@ async def remove_test_from_module(
 )
 async def add_book_to_module(
     module_id: str,
-    request: AddBookRequest,
+    body: dict,  # Accept raw dict to handle both wrapped and unwrapped formats
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -368,15 +368,27 @@ async def add_book_to_module(
     - Optional: specify selected chapters
     - Only subject owner can add books
     """
+    # Handle both unwrapped and wrapped formats
+    # Unwrapped: {book_id: "...", title: "..."}
+    # Wrapped: {data: {book_id: "...", title: "..."}}
+    data = body.get("data", body)
+
+    # Validate required fields
+    if "book_id" not in data or "title" not in data:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Missing required fields: book_id, title",
+        )
+
     manager = StudyHubContentManager(user_id=current_user["uid"])
 
     content = await manager.add_book_to_module(
         module_id=module_id,
-        book_id=request.book_id,
-        title=request.title,
-        selected_chapters=request.selected_chapters,
-        is_required=request.is_required,
-        is_preview=request.is_preview,
+        book_id=data["book_id"],
+        title=data["title"],
+        selected_chapters=data.get("selected_chapters"),
+        is_required=data.get("is_required", False),
+        is_preview=data.get("is_preview", False),
     )
 
     return {
