@@ -107,17 +107,14 @@ class StudyHubContentManager:
         contents = list(
             self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "document"}
-            )
-            .sort("order_index", 1)
+            ).sort("order_index", 1)
         )
 
         # Enrich with document data
         for content in contents:
             doc_id = content["data"].get("document_id")
             if doc_id:
-                document = self.db.online_documents.find_one(
-                    {"_id": ObjectId(doc_id)}
-                )
+                document = self.db.online_documents.find_one({"_id": ObjectId(doc_id)})
                 if document:
                     content["document_details"] = {
                         "title": document.get("title"),
@@ -191,9 +188,7 @@ class StudyHubContentManager:
                     )
 
         # Return updated content
-        return self.db.studyhub_module_contents.find_one(
-            {"_id": ObjectId(content_id)}
-        )
+        return self.db.studyhub_module_contents.find_one({"_id": ObjectId(content_id)})
 
     async def remove_document_from_module(self, content_id: str) -> bool:
         """
@@ -295,9 +290,7 @@ class StudyHubContentManager:
         contents = list(
             self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "test"}
-            )
-            .sort("order_index", 1)
-            
+            ).sort("order_index", 1)
         )
 
         # Enrich with test data
@@ -365,9 +358,7 @@ class StudyHubContentManager:
                         is_preview=is_preview,
                     )
 
-        return self.db.studyhub_module_contents.find_one(
-            {"_id": ObjectId(content_id)}
-        )
+        return self.db.studyhub_module_contents.find_one({"_id": ObjectId(content_id)})
 
     async def remove_test_from_module(self, content_id: str) -> bool:
         """Remove test from module"""
@@ -456,9 +447,7 @@ class StudyHubContentManager:
         contents = list(
             self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "book"}
-            )
-            .sort("order_index", 1)
-            
+            ).sort("order_index", 1)
         )
 
         for content in contents:
@@ -525,9 +514,7 @@ class StudyHubContentManager:
                         is_preview=is_preview,
                     )
 
-        return self.db.studyhub_module_contents.find_one(
-            {"_id": ObjectId(content_id)}
-        )
+        return self.db.studyhub_module_contents.find_one({"_id": ObjectId(content_id)})
 
     async def remove_book_from_module(self, content_id: str) -> bool:
         """Remove book from module"""
@@ -669,18 +656,14 @@ class StudyHubContentManager:
         contents = list(
             self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "file"}
-            )
-            .sort("order_index", 1)
-            
+            ).sort("order_index", 1)
         )
 
         # Enrich with file details
         for content in contents:
             file_id = content["data"].get("file_id")
             if file_id:
-                file_doc = self.db.studyhub_files.find_one(
-                    {"_id": ObjectId(file_id)}
-                )
+                file_doc = self.db.studyhub_files.find_one({"_id": ObjectId(file_id)})
                 if file_doc:
                     content["file_details"] = {
                         "uploaded_at": file_doc.get("uploaded_at"),
