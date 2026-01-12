@@ -48,7 +48,7 @@ class StudyHubContentManager:
         await self.permissions.check_module_owner(self.user_id, module_id)
 
         # Verify document exists and user owns it
-        document = await self.db.online_documents.find_one(
+        document = self.db.online_documents.find_one(
             {"_id": ObjectId(document_id), "owner_id": self.user_id}
         )
 
@@ -59,10 +59,10 @@ class StudyHubContentManager:
             )
 
         # Get module to get subject_id
-        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+        module = self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
 
         # Get next order_index
-        last_content = await self.db.studyhub_module_contents.find_one(
+        last_content = self.db.studyhub_module_contents.find_one(
             {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
         )
         order_index = (last_content["order_index"] + 1) if last_content else 1
@@ -79,7 +79,7 @@ class StudyHubContentManager:
             "created_at": datetime.now(timezone.utc),
         }
 
-        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        result = self.db.studyhub_module_contents.insert_one(content_doc)
         content_doc["_id"] = result.inserted_id
 
         # Update studyhub_context in original document
@@ -104,19 +104,18 @@ class StudyHubContentManager:
         Returns:
             List of document contents
         """
-        contents = (
-            await self.db.studyhub_module_contents.find(
+        contents = list(
+            self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "document"}
             )
             .sort("order_index", 1)
-            .to_list(None)
         )
 
         # Enrich with document data
         for content in contents:
             doc_id = content["data"].get("document_id")
             if doc_id:
-                document = await self.db.online_documents.find_one(
+                document = self.db.online_documents.find_one(
                     {"_id": ObjectId(doc_id)}
                 )
                 if document:
@@ -149,7 +148,7 @@ class StudyHubContentManager:
             Updated content
         """
         # Get content
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id), "content_type": "document"}
         )
 
@@ -171,13 +170,13 @@ class StudyHubContentManager:
             update_data["is_preview"] = is_preview
 
         if update_data:
-            await self.db.studyhub_module_contents.update_one(
+            self.db.studyhub_module_contents.update_one(
                 {"_id": ObjectId(content_id)}, {"$set": update_data}
             )
 
             # Update studyhub_context if preview changed
             if is_preview is not None:
-                module = await self.db.studyhub_modules.find_one(
+                module = self.db.studyhub_modules.find_one(
                     {"_id": content["module_id"]}
                 )
                 doc_id = content["data"].get("document_id")
@@ -192,7 +191,7 @@ class StudyHubContentManager:
                     )
 
         # Return updated content
-        return await self.db.studyhub_module_contents.find_one(
+        return self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id)}
         )
 
@@ -207,7 +206,7 @@ class StudyHubContentManager:
             True if successful
         """
         # Get content
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id), "content_type": "document"}
         )
 
@@ -231,7 +230,7 @@ class StudyHubContentManager:
             )
 
         # Delete content record
-        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+        self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
 
         return True
 
@@ -250,17 +249,17 @@ class StudyHubContentManager:
         await self.permissions.check_module_owner(self.user_id, module_id)
 
         # Verify test exists
-        test = await self.db.online_tests.find_one(
+        test = self.db.online_tests.find_one(
             {"_id": ObjectId(test_id), "owner_id": self.user_id}
         )
 
         if not test:
             raise HTTPException(status_code=404, detail="Test not found")
 
-        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+        module = self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
 
         # Get next order_index
-        last_content = await self.db.studyhub_module_contents.find_one(
+        last_content = self.db.studyhub_module_contents.find_one(
             {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
         )
         order_index = (last_content["order_index"] + 1) if last_content else 1
@@ -276,7 +275,7 @@ class StudyHubContentManager:
             "created_at": datetime.now(timezone.utc),
         }
 
-        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        result = self.db.studyhub_module_contents.insert_one(content_doc)
         content_doc["_id"] = result.inserted_id
 
         # Update studyhub_context
@@ -293,19 +292,19 @@ class StudyHubContentManager:
 
     async def get_module_tests(self, module_id: str) -> List[dict]:
         """Get all tests in module"""
-        contents = (
-            await self.db.studyhub_module_contents.find(
+        contents = list(
+            self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "test"}
             )
             .sort("order_index", 1)
-            .to_list(None)
+            
         )
 
         # Enrich with test data
         for content in contents:
             test_id = content["data"].get("test_id")
             if test_id:
-                test = await self.db.online_tests.find_one({"_id": ObjectId(test_id)})
+                test = self.db.online_tests.find_one({"_id": ObjectId(test_id)})
                 if test:
                     content["test_details"] = {
                         "title": test.get("title"),
@@ -325,7 +324,7 @@ class StudyHubContentManager:
         is_preview: Optional[bool] = None,
     ) -> dict:
         """Update test content settings"""
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id), "content_type": "test"}
         )
 
@@ -347,12 +346,12 @@ class StudyHubContentManager:
             update_data["data.passing_score"] = passing_score
 
         if update_data:
-            await self.db.studyhub_module_contents.update_one(
+            self.db.studyhub_module_contents.update_one(
                 {"_id": ObjectId(content_id)}, {"$set": update_data}
             )
 
             if is_preview is not None:
-                module = await self.db.studyhub_modules.find_one(
+                module = self.db.studyhub_modules.find_one(
                     {"_id": content["module_id"]}
                 )
                 test_id = content["data"].get("test_id")
@@ -366,13 +365,13 @@ class StudyHubContentManager:
                         is_preview=is_preview,
                     )
 
-        return await self.db.studyhub_module_contents.find_one(
+        return self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id)}
         )
 
     async def remove_test_from_module(self, content_id: str) -> bool:
         """Remove test from module"""
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id), "content_type": "test"}
         )
 
@@ -393,7 +392,7 @@ class StudyHubContentManager:
                 enabled=False,
             )
 
-        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+        self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
         return True
 
     # ==================== BOOK CONTENT ====================
@@ -410,16 +409,16 @@ class StudyHubContentManager:
         """Link book to module"""
         await self.permissions.check_module_owner(self.user_id, module_id)
 
-        book = await self.db.online_books.find_one(
-            {"_id": ObjectId(book_id), "owner_id": self.user_id}
+        book = self.db.online_books.find_one(
+            {"book_id": book_id, "owner_id": self.user_id}
         )
 
         if not book:
             raise HTTPException(status_code=404, detail="Book not found")
 
-        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+        module = self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
 
-        last_content = await self.db.studyhub_module_contents.find_one(
+        last_content = self.db.studyhub_module_contents.find_one(
             {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
         )
         order_index = (last_content["order_index"] + 1) if last_content else 1
@@ -438,7 +437,7 @@ class StudyHubContentManager:
             "created_at": datetime.now(timezone.utc),
         }
 
-        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        result = self.db.studyhub_module_contents.insert_one(content_doc)
         content_doc["_id"] = result.inserted_id
 
         await self.permissions.update_content_studyhub_context(
@@ -454,18 +453,18 @@ class StudyHubContentManager:
 
     async def get_module_books(self, module_id: str) -> List[dict]:
         """Get all books in module"""
-        contents = (
-            await self.db.studyhub_module_contents.find(
+        contents = list(
+            self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "book"}
             )
             .sort("order_index", 1)
-            .to_list(None)
+            
         )
 
         for content in contents:
             book_id = content["data"].get("book_id")
             if book_id:
-                book = await self.db.online_books.find_one({"_id": ObjectId(book_id)})
+                book = self.db.online_books.find_one({"_id": ObjectId(book_id)})
                 if book:
                     content["book_details"] = {
                         "title": book.get("title"),
@@ -485,7 +484,7 @@ class StudyHubContentManager:
         is_preview: Optional[bool] = None,
     ) -> dict:
         """Update book content settings"""
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id), "content_type": "book"}
         )
 
@@ -507,12 +506,12 @@ class StudyHubContentManager:
             update_data["data.selected_chapters"] = selected_chapters
 
         if update_data:
-            await self.db.studyhub_module_contents.update_one(
+            self.db.studyhub_module_contents.update_one(
                 {"_id": ObjectId(content_id)}, {"$set": update_data}
             )
 
             if is_preview is not None:
-                module = await self.db.studyhub_modules.find_one(
+                module = self.db.studyhub_modules.find_one(
                     {"_id": content["module_id"]}
                 )
                 book_id = content["data"].get("book_id")
@@ -526,13 +525,13 @@ class StudyHubContentManager:
                         is_preview=is_preview,
                     )
 
-        return await self.db.studyhub_module_contents.find_one(
+        return self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id)}
         )
 
     async def remove_book_from_module(self, content_id: str) -> bool:
         """Remove book from module"""
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id), "content_type": "book"}
         )
 
@@ -553,7 +552,7 @@ class StudyHubContentManager:
                 enabled=False,
             )
 
-        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+        self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
         return True
 
     # ==================== FILE CONTENT ====================
@@ -583,7 +582,7 @@ class StudyHubContentManager:
         await self.permissions.check_module_owner(self.user_id, module_id)
 
         # Verify file exists and user uploaded it
-        file_doc = await self.db.studyhub_files.find_one(
+        file_doc = self.db.studyhub_files.find_one(
             {
                 "_id": ObjectId(file_id),
                 "uploaded_by": self.user_id,
@@ -598,7 +597,7 @@ class StudyHubContentManager:
             )
 
         # Check if file already linked to this module
-        existing = await self.db.studyhub_module_contents.find_one(
+        existing = self.db.studyhub_module_contents.find_one(
             {
                 "module_id": ObjectId(module_id),
                 "content_type": "file",
@@ -612,10 +611,10 @@ class StudyHubContentManager:
             )
 
         # Get module to get subject_id
-        module = await self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+        module = self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
 
         # Get next order_index
-        last_content = await self.db.studyhub_module_contents.find_one(
+        last_content = self.db.studyhub_module_contents.find_one(
             {"module_id": ObjectId(module_id)}, sort=[("order_index", -1)]
         )
         order_index = (last_content["order_index"] + 1) if last_content else 1
@@ -638,7 +637,7 @@ class StudyHubContentManager:
             "created_at": datetime.now(timezone.utc),
         }
 
-        result = await self.db.studyhub_module_contents.insert_one(content_doc)
+        result = self.db.studyhub_module_contents.insert_one(content_doc)
         content_doc["_id"] = result.inserted_id
 
         # Update studyhub_context in file
@@ -667,19 +666,19 @@ class StudyHubContentManager:
         await self.permissions.check_content_access(self.user_id, module_id)
 
         # Get all file contents
-        contents = (
-            await self.db.studyhub_module_contents.find(
+        contents = list(
+            self.db.studyhub_module_contents.find(
                 {"module_id": ObjectId(module_id), "content_type": "file"}
             )
             .sort("order_index", 1)
-            .to_list(None)
+            
         )
 
         # Enrich with file details
         for content in contents:
             file_id = content["data"].get("file_id")
             if file_id:
-                file_doc = await self.db.studyhub_files.find_one(
+                file_doc = self.db.studyhub_files.find_one(
                     {"_id": ObjectId(file_id)}
                 )
                 if file_doc:
@@ -695,7 +694,7 @@ class StudyHubContentManager:
 
     async def remove_file_from_module(self, content_id: str) -> bool:
         """Remove file from module (soft delete)"""
-        content = await self.db.studyhub_module_contents.find_one(
+        content = self.db.studyhub_module_contents.find_one(
             {"_id": ObjectId(content_id), "content_type": "file"}
         )
 
@@ -718,7 +717,7 @@ class StudyHubContentManager:
             )
 
             # Mark file as deleted (soft delete)
-            await self.db.studyhub_files.update_one(
+            self.db.studyhub_files.update_one(
                 {"_id": ObjectId(file_id)},
                 {
                     "$set": {
@@ -728,5 +727,5 @@ class StudyHubContentManager:
                 },
             )
 
-        await self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
+        self.db.studyhub_module_contents.delete_one({"_id": ObjectId(content_id)})
         return True
