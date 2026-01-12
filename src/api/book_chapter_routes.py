@@ -2107,25 +2107,25 @@ async def upload_images_for_chapter(
     summary="Upload/copy image for page element (IMAGE/VIDEO thumbnail)",
     description="""
     Upload or copy image to use in page elements. Supports 2 methods:
-    
+
     **Method 1: Upload new file**
     - Send `file` in multipart form-data
     - Backend uploads to public CDN (permanent)
-    
+
     **Method 2: Copy from Library**
     - Send `library_id` in form-data
     - Backend downloads from Library → re-uploads to public CDN
     - Converts private presigned URL → permanent public URL
-    
+
     **Storage:** Public CDN (permanent, no expiry)
     **Path:** `studyhub/chapters/{chapter_id}/elements/{uuid}.jpg`
     **URL Format:** `https://static.wordai.pro/studyhub/chapters/{chapter_id}/elements/{uuid}.jpg`
-    
+
     **Use Cases:**
     - Upload new image for IMAGE element
     - Copy image from Library (fixes presigned URL expiry issue)
     - Video thumbnail for VIDEO element
-    
+
     **Required:** Owner access to the chapter's book
     """,
 )
@@ -2229,7 +2229,9 @@ async def upload_element_image(
                 response.raise_for_status()
                 content = response.content
                 source_name = library_file.get("filename", "library_image")
-                logger.info(f"   ✅ Downloaded {len(content) / 1024:.1f}KB from Library")
+                logger.info(
+                    f"   ✅ Downloaded {len(content) / 1024:.1f}KB from Library"
+                )
             except Exception as e:
                 logger.error(f"   ❌ Failed to download from Library: {e}")
                 raise HTTPException(

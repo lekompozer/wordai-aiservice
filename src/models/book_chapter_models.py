@@ -86,6 +86,10 @@ class PageElement(BaseModel):
 
     # Type-specific properties (optional, depends on element type)
     color: Optional[str] = Field(None, description="Color (CSS format: #hex or rgba())")
+    background_color: Optional[str] = Field(
+        None,
+        description="Background color for text/note elements (CSS format: #hex or rgba())",
+    )
     content: Optional[str] = Field(
         None,
         description="Text content (for text/note/annotation/speech_bubble/sound_effect)",

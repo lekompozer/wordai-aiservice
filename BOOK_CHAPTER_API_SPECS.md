@@ -920,16 +920,20 @@ genre: string               // Optional
 **Common Properties**:
 ```
 {
-  "id": "uuid",           // Unique element ID
-  "type": "string",       // Element type (see below)
-  "x": number,            // X position (pixels)
-  "y": number,            // Y position (pixels)
-  "width": number,        // Element width (pixels)
-  "height": number,       // Element height (pixels)
-  "z_index": number,      // Layer order (higher = on top)
-  "color": "string",      // Hex color (#RRGGBB)
-  "opacity": number,      // 0.0 - 1.0
-  "content": "string"     // Text content (if applicable)
+  "id": "uuid",              // Unique element ID
+  "type": "string",          // Element type (see below)
+  "x": number,               // X position (pixels)
+  "y": number,               // Y position (pixels)
+  "width": number,           // Element width (pixels)
+  "height": number,          // Element height (pixels)
+  "z_index": number,         // Layer order (higher = on top)
+  "color": "string",         // Text/border color (#RRGGBB or rgba())
+  "background_color": "string",  // Background color for text/note (#RRGGBB or rgba())
+  "opacity": number,         // 0.0 - 1.0
+  "content": "string",       // Text content (if applicable)
+  "font_size": number,       // Font size in pixels (8-72)
+  "font_family": "string",   // Font family name
+  "src": "string"            // Image/video URL (for image/video types)
 }
 ```
 
@@ -937,11 +941,11 @@ genre: string               // Optional
 
 #### For `pdf_pages`:
 - **`highlight`** - Transparent colored overlay (x, y, width, height, color, opacity)
-- **`text`** - Text annotation (x, y, content, font_size, color)
+- **`text`** - Text annotation (x, y, content, font_size, color, background_color)
 - **`shape`** - Rectangle, circle, etc. (x, y, width, height, color, style)
 - **`image`** - Embedded image (x, y, width, height, src)
 - **`video`** - Embedded video (x, y, width, height, src) ⭐ NEW
-- **`note`** - Rectangular note/comment area (x, y, width, height, content) ⭐ NEW
+- **`note`** - Rectangular note/comment area (x, y, width, height, content, color, background_color) ⭐ NEW
 - **`arrow`** - Directional arrow (x, y, width, height, color)
 - **`underline`** - Text underline (x, y, width, color)
 - **`strikethrough`** - Text strikethrough (x, y, width, color)
@@ -965,6 +969,7 @@ genre: string               // Optional
   "content": "Important annotation",
   "font_size": 16,
   "color": "#FF0000",
+  "background_color": "#FFFF00",
   "font_family": "Arial",
   "z_index": 2
 }
