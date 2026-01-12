@@ -517,7 +517,7 @@ class ChapterResponse(BaseModel):
         default=None,
         description="Name of linked document (if content_source='document')",
     )
-    
+
     # Content mode and pages (for pdf_pages/image_pages types)
     content_mode: Optional[str] = Field(
         default=None,

@@ -1322,9 +1322,7 @@ class GuideBookBookChapterManager:
         # ✅ FIX: Map content_source to content_mode for frontend compatibility
         # Frontend expects "content_mode" field, not "content_source"
         chapter["content_mode"] = content_source
-        logger.info(
-            f"✅ Set content_mode={content_source} for chapter {chapter_id}"
-        )
+        logger.info(f"✅ Set content_mode={content_source} for chapter {chapter_id}")
 
         return chapter
 
