@@ -651,16 +651,24 @@ class SlideGenerationWorker:
 
             # Deduct points (only if all batches completed successfully)
             if is_complete:
+                # Points calculation based on Claude provider:
+                # - Vertex AI: 2 points/batch (cheaper)
+                # - Direct API: 5 points/batch
+                points_per_batch = (
+                    2 if self.ai_service.claude_provider == "vertex" else 5
+                )
+                points_needed = total_batches * points_per_batch
+
                 points_service = get_points_service()
                 await points_service.deduct_points(
                     user_id=task.user_id,
                     amount=points_needed,
                     service="slide_ai_generation",
                     resource_id=document_id,
-                    description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} batches × 5 points)",
+                    description=f"AI Slide Generation: {actual_slides_count} slides ({total_batches} batches × {points_per_batch} points, {self.ai_service.claude_provider})",
                 )
                 logger.info(
-                    f"💰 Deducted {points_needed} points ({total_batches} batches × 5 points/batch)"
+                    f"💰 Deducted {points_needed} points ({total_batches} batches × {points_per_batch} points/batch, provider: {self.ai_service.claude_provider})"
                 )
             else:
                 logger.info(
@@ -829,10 +837,11 @@ class SlideGenerationWorker:
                     # Start task in background with timeout protection
                     async def run_with_timeout():
                         try:
-                            await asyncio.wait_for(
+                            success = await asyncio.wait_for(
                                 self.process_task(task),
                                 timeout=self.JOB_TIMEOUT_SECONDS,
                             )
+                            return success  # Return the result from process_task
                         except asyncio.TimeoutError:
                             logger.error(
                                 f"⏱️ Job {task.job_id} TIMEOUT after {self.JOB_TIMEOUT_SECONDS}s - marking as failed"
@@ -848,6 +857,7 @@ class SlideGenerationWorker:
                                     }
                                 },
                             )
+                            return False  # Timeout = failed
 
                     task_future = asyncio.create_task(run_with_timeout())
                     running_tasks.add(task_future)

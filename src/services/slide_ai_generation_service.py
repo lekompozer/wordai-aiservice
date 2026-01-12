@@ -11,7 +11,7 @@ import os
 
 from google import genai  # type: ignore
 from google.genai import types  # type: ignore
-import anthropic
+from anthropic import AnthropicVertex, Anthropic
 import config.config as config
 
 logger = logging.getLogger("chatbot")
@@ -29,12 +29,39 @@ class SlideAIGenerationService:
         self.gemini_client = genai.Client(api_key=self.gemini_api_key)
         self.gemini_model = "gemini-3-pro-preview"  # Gemini Pro 3 Preview
 
-        # Claude for HTML generation (Step 2)
-        self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not self.claude_api_key:
-            raise ValueError("ANTHROPIC_API_KEY not configured")
-        self.claude_client = anthropic.Anthropic(api_key=self.claude_api_key)
-        self.claude_model = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5
+        # Claude for HTML generation (Step 2) - Try Vertex AI first, fallback to API
+        try:
+            # Try Vertex AI first (cheaper: 2 points/batch)
+            project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
+            region = os.getenv("VERTEX_AI_REGION", "asia-southeast1")
+
+            # Check for credentials file
+            credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+            if not credentials_path:
+                credentials_path = "/app/wordai-6779e-ed6189c466f1.json"
+                if os.path.exists(credentials_path):
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
+
+            self.claude_client = AnthropicVertex(project_id=project_id, region=region)
+            self.claude_provider = "vertex"
+            self.claude_model = "claude-sonnet-4-5@20250929"  # Vertex AI format
+            logger.info(
+                f"✅ Claude Vertex AI initialized for slide generation (project={project_id}, region={region})"
+            )
+
+        except Exception as vertex_error:
+            logger.warning(f"⚠️ Failed to initialize Claude Vertex AI: {vertex_error}")
+            logger.info("🔄 Falling back to Claude API for slide generation...")
+
+            # Fallback to direct Anthropic API (5 points/batch)
+            self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
+            if not self.claude_api_key:
+                raise ValueError("ANTHROPIC_API_KEY not configured and Vertex AI unavailable")
+            
+            self.claude_client = Anthropic(api_key=self.claude_api_key)
+            self.claude_provider = "api"
+            self.claude_model = "claude-sonnet-4-5-20250929"  # Standard API format
+            logger.info("✅ Claude API initialized for slide generation (fallback mode)")
 
     def build_analysis_prompt(
         self,
@@ -172,36 +199,48 @@ Generate the JSON now:"""
 
         slides_json = json.dumps(slides_with_images, ensure_ascii=False, indent=2)
 
+        # Determine topic-based theme recommendation
+        topic_lower = title.lower() + " " + target_goal.lower() + " " + (user_query or "").lower()
+        is_tech_topic = any(keyword in topic_lower for keyword in [
+            "technology", "tech", "ai", "machine learning", "artificial intelligence",
+            "programming", "coding", "software", "cybersecurity", "security",
+            "crypto", "blockchain", "encryption", "data science", "cloud computing",
+            "digital", "innovation", "automation", "robotics"
+        ])
+
         style_guidelines = {
-            "academy": """
+            "academy": f"""
 ACADEMY STYLE GUIDELINES:
 - Clean, readable typography (use system fonts: Arial, Helvetica, sans-serif)
 - Generous white space for better focus
 - Clear heading hierarchy: h1 (56px bold) → h2 (40px) → p (28px)
 - Bullet points with check marks or arrows (✓ → ●)
-- Color scheme options (CHOOSE ONE per slide):
-  * **DARK THEME**: Background: #1a202c or #2d3748, Text: #ffffff or #f7fafc
+- **THEME SELECTION - IMPORTANT:**
+  * **DEFAULT (RECOMMENDED)**: LIGHT THEME - Best for educational content
   * **LIGHT THEME**: Background: #ffffff or #f7fafc, Text: #1a202c or #2d3748
-  * **GRADIENT DARK**: Background: linear-gradient(135deg, #667eea, #764ba2), Text: #ffffff
   * **GRADIENT LIGHT**: Background: linear-gradient(135deg, #e0c3fc, #8ec5fc), Text: #1a202c
+  * DARK THEME ONLY IF: Technology, programming, security, or crypto topics
+  * **DARK THEME**: Background: #1a202c or #2d3748, Text: #ffffff or #f7fafc
 - **CRITICAL**: Text MUST have high contrast with background (never use mid-tone backgrounds)
 - Emphasis on readability and comprehension
 - Use flexbox for centering and layout
 """,
-            "business": """
+            "business": f"""
 BUSINESS STYLE GUIDELINES:
 - Bold, modern sans-serif typography (Arial, Helvetica)
 - Strong heading fonts: h1 (64px bold), h2 (48px), p (32px)
 - Minimal text, maximum visual impact
-- Color scheme options (CHOOSE ONE per slide):
-  * **DARK THEME**: Background: #0f172a or #1e293b, Text: #ffffff or #f8fafc
-  * **LIGHT THEME**: Background: #ffffff or #fafafa, Text: #0f172a or #1e293b
-  * **GRADIENT DARK**: Background: linear-gradient(135deg, #0f2027, #203a43, #2c5364), Text: #ffffff
-  * **GRADIENT LIGHT**: Background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%), Text: #1e293b
+- **THEME SELECTION - CRITICAL:**
+  * **STRONGLY PREFER LIGHT THEME** for business/economics/management content
+  * **LIGHT THEME (DEFAULT)**: Background: #ffffff or #fafafa, Text: #0f172a or #1e293b
+  * **GRADIENT LIGHT (PROFESSIONAL)**: Background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%), Text: #1e293b
+  * ✅ Use LIGHT for: Business strategy, finance, economics, management, marketing, sales
+  * ❌ DARK THEME ONLY for: Technology, cybersecurity, crypto, blockchain, AI/ML topics
+  * **DARK THEME**: Background: #0f172a or #1e293b, Text: #ffffff (RARE - tech topics only)
+  * **Current presentation topic**: {'Technology-related - Dark theme OK' if is_tech_topic else 'Business/Academic - PREFER LIGHT THEME'}
 - **CRITICAL**: Text MUST be clearly visible (white on dark, dark on light - NO exceptions)
 - Professional appearance with strong contrast
 - Use CSS Grid or Flexbox for modern layouts
-- **PREFERRED LIGHT BACKGROUND**: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%) - subtle and professional
 """,
         }
 
@@ -434,19 +473,25 @@ Language: {language}
 
    **SPECIAL SLIDES:**
    - **Slide 0 (Title Slide - MUST BE CREATIVE & IMPRESSIVE)**: First impression is CRITICAL!
-     - **IMPORTANT**: This slide must be visually stunning and memorable
-     - Create a unique, creative layout that matches the presentation title/topic
-     - Use bold typography, interesting layouts, creative visual elements
-     - Large centered title (72-96px, bold, eye-catching font weight)
-     - Engaging subtitle that hooks the audience
-     - Creative background: gradients, shapes, patterns that match the topic mood
-     - Consider using decorative elements: geometric shapes, accent lines, creative positioning
+     - **LAYOUT REQUIREMENT**: 2-COLUMN layout - Text LEFT + Visual/Placeholder RIGHT
+     - **LEFT COLUMN (60%)**: Title, subtitle, author info
+       * Large title (64-80px, bold, eye-catching)
+       * Engaging subtitle (28-32px)
+       * Author/date info (20-24px)
+     - **RIGHT COLUMN (40%)**: Visual element or colored placeholder
+       * Large decorative shape, icon, or colored div (400-500px size)
+       * Geometric shapes, circles, hexagons with topic-related styling
+       * Background patterns or gradient fills
+       * Creative visual that matches the presentation topic
+     - **FORBIDDEN**: Centered text only layout (boring, overused)
+     - Creative background matching the theme
      - NO slide number on this slide
-     - Examples of creative approaches:
-       * For tech topics: modern, clean design with geometric elements
-       * For business: professional with dynamic shapes and gradients
-       * For creative topics: bold colors, artistic layouts, interesting typography
-       * For education: approachable, clear, with illustrative elements
+     - **MUST include <style> tag with @keyframes** for animations
+     - Examples by topic:
+       * Tech: Modern geometric shapes, circuit patterns, abstract tech visuals
+       * Business: Professional charts placeholder, growth graphs, building icons
+       * Creative: Artistic shapes, vibrant colors, dynamic patterns
+       * Education: Book icons, graduation elements, learning symbols
      - The goal: Make the audience want to see what comes next!
 
    - **Slide 1 (Table of Contents - REQUIRED)**: Overview of all main topics
@@ -455,12 +500,15 @@ Language: {language}
      - Each item with icon and brief description
      - Include slide number "01" in corner
      - Use numbered list or icon bullets
+     - **MUST include <style> tag with @keyframes**
 
    - **Content Slides (Slide 2+)**: Each slide should have 3-5 specific points with examples
      - Use concrete data, statistics, or real-world examples
      - Add visual hierarchy: main point → supporting details
      - Include icons or visual markers for each point
      - Include slide number (02, 03, 04...)
+     - **CRITICAL**: EVERY slide MUST have <style> tag with @keyframes definitions
+     - **CRITICAL**: ALL animations MUST use 'forwards' fill-mode (content stays visible)
 
    - **Last Slide (Thank You)**: Engaging closing with visual elements
      - "Thank You" message in large text
@@ -479,73 +527,101 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
 - Fast durations: 0.3-0.5s per element
 - Include `<style>` tag with @keyframes fadeIn in each slide
 
-**EXAMPLE OUTPUT (for 4 slides showing all special slide types with animation timing):**
+**EXAMPLE OUTPUT (for 4 slides showing all special slide types with proper animation):**
 
-<!-- Slide 0: Title (NO slide number) -->
-<div class="slide" data-slide-index="0" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e293b); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+<!-- Slide 0: Title Slide (NO slide number) - 2-COLUMN LAYOUT -->
+<div class="slide" data-slide-index="0" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #f5f7fa 0%, #e8eef5 100%); color: #1e293b; display: flex; justify-content: center; align-items: center; padding: 80px 120px; position: relative;">
+  <style>
+    @keyframes fadeIn {{
+      from {{ opacity: 0; transform: translateY(20px); }}
+      to {{ opacity: 1; transform: translateY(0); }}
+    }}
+    @keyframes scaleIn {{
+      from {{ opacity: 0; transform: scale(0.8); }}
+      to {{ opacity: 1; transform: scale(1); }}
+    }}
+  </style>
+  {f'<img src="{logo_url}" style="position: absolute; top: 40px; right: 80px; width: 120px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  
+  <!-- 2-COLUMN GRID: Text Left + Visual Right -->
+  <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 80px; align-items: center; width: 100%; max-width: 1680px;">
+    <!-- LEFT: Text Content -->
+    <div>
+      <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 30px; font-family: 'Inter', 'SF Pro Display', sans-serif; line-height: 1.2; opacity: 0; animation: fadeIn 0.6s ease-out forwards;">Presentation Title Here</h1>
+      <p style="font-size: 28px; line-height: 1.5; margin-bottom: 40px; color: #64748b; opacity: 0; animation: fadeIn 0.6s ease-out 0.2s forwards;">Compelling subtitle explaining the presentation purpose and value proposition</p>
+      <p style="font-size: 22px; color: #94a3b8; opacity: 0; animation: fadeIn 0.6s ease-out 0.4s forwards;">By Author Name | January 2026</p>
+    </div>
+    
+    <!-- RIGHT: Visual Element (colored shape placeholder) -->
+    <div style="display: flex; justify-content: center; align-items: center; opacity: 0; animation: scaleIn 0.8s ease-out 0.6s forwards;">
+      <div style="width: 420px; height: 420px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 24px; display: flex; justify-content: center; align-items: center; box-shadow: 0 20px 50px rgba(0,0,0,0.15);">
+        <div style="font-size: 120px; color: rgba(255,255,255,0.9);">📊</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 1: Table of Contents (WITH slide number 01, WITH <style>) -->
+<div class="slide" data-slide-index="1" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #ffffff; color: #1e293b; display: flex; justify-content: center; align-items: center; padding: 80px 120px; position: relative;">
   <style>
     @keyframes fadeIn {{
       from {{ opacity: 0; transform: translateY(20px); }}
       to {{ opacity: 1; transform: translateY(0); }}
     }}
   </style>
-  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <h1 style="font-size: 80px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif; opacity: 0; animation: fadeIn 0.5s ease-out forwards;">Presentation Title Here</h1>
-  <p style="font-size: 36px; text-align: center; max-width: 900px; line-height: 1.5; margin-bottom: 3rem; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;">Compelling subtitle explaining the presentation purpose and value</p>
-  <p style="font-size: 28px; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;">By Author Name | December 2025</p>
-</div>
-
-<!-- Slide 1: Table of Contents (WITH slide number 01) -->
-<div class="slide" data-slide-index="1" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 4rem; position: relative;">
-  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">01</div>
-  <div style="max-width: 1000px;">
-    <h1 style="font-size: 64px; font-weight: bold; margin-bottom: 4rem; font-family: 'Inter', 'SF Pro Display', sans-serif;">Agenda</h1>
+  {f'<img src="{logo_url}" style="position: absolute; top: 40px; right: 80px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  <div style="position: absolute; top: 50px; right: 80px; font-size: 28px; color: #94a3b8; opacity: 0.6;">01</div>
+  <div style="max-width: 1200px; width: 100%;">
+    <h1 style="font-size: 64px; font-weight: bold; margin-bottom: 60px; font-family: 'Inter', 'SF Pro Display', sans-serif; opacity: 0; animation: fadeIn 0.5s ease-out forwards;">Agenda</h1>
     <ul style="font-size: 32px; line-height: 2.2; list-style: none; padding: 0;">
-      <li style="margin-bottom: 2rem;">📊 <strong>1.</strong> Introduction to the Topic</li>
-      <li style="margin-bottom: 2rem;">💡 <strong>2.</strong> Key Concepts and Framework</li>
-      <li style="margin-bottom: 2rem;">🎯 <strong>3.</strong> Practical Applications</li>
-      <li style="margin-bottom: 2rem;">📈 <strong>4.</strong> Results and Impact</li>
-      <li style="margin-bottom: 2rem;">🚀 <strong>5.</strong> Next Steps</li>
+      <li style="margin-bottom: 30px; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;">📊 <strong>1.</strong> Introduction to the Topic</li>
+      <li style="margin-bottom: 30px; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;">💡 <strong>2.</strong> Key Concepts and Framework</li>
+      <li style="margin-bottom: 30px; opacity: 0; animation: fadeIn 0.5s ease-out 0.6s forwards;">🎯 <strong>3.</strong> Practical Applications</li>
+      <li style="margin-bottom: 30px; opacity: 0; animation: fadeIn 0.5s ease-out 0.8s forwards;">📈 <strong>4.</strong> Results and Impact</li>
+      <li style="margin-bottom: 30px; opacity: 0; animation: fadeIn 0.5s ease-out 1.0s forwards;">🚀 <strong>5.</strong> Next Steps</li>
     </ul>
   </div>
 </div>
 
-<!-- Slide 2: Content slide (WITH slide number 02, animation, balanced margins, visual elements) -->
-<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #0f172a; color: #ffffff; display: flex; justify-content: center; align-items: center; padding: 80px 100px; position: relative;">
+<!-- Slide 2: Content slide (WITH slide number 02, WITH <style>, WITH forwards) -->
+<div class="slide" data-slide-index="2" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: #ffffff; color: #1e293b; display: flex; justify-content: center; align-items: center; padding: 80px 120px; position: relative;">
   <style>
     @keyframes fadeIn {{
       from {{ opacity: 0; transform: translateY(20px); }}
       to {{ opacity: 1; transform: translateY(0); }}
     }}
   </style>
-  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">02</div>
-  <div style="max-width: 1600px;">
-    <h1 style="font-weight: bold; margin-bottom: 2.5rem; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #3b82f6; padding-left: 1.5rem; opacity: 0; animation: fadeIn 0.5s ease-out forwards; text-align: left;">Main Topic with Specific Details</h1>
-    <ul style="line-height: 1.6; list-style: none; padding: 0;">
-      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;"><span style="margin-right: 1rem;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data</span></li>
-      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;"><span style="margin-right: 1rem;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
-      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.6s forwards;"><span style="margin-right: 1rem;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
-      <li style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.8s forwards;"><span style="margin-right: 1rem;">🚀</span><span><strong>Visual Element:</strong> Charts, diagrams, or decorative shapes to illustrate the point</span></li>
+  {f'<img src="{logo_url}" style="position: absolute; top: 40px; right: 80px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  <div style="position: absolute; top: 50px; right: 80px; font-size: 28px; color: #94a3b8; opacity: 0.6;">02</div>
+  <div style="max-width: 1600px; width: 100%;">
+    <h1 style="font-size: 56px; font-weight: bold; margin-bottom: 50px; font-family: 'Inter', 'SF Pro Display', sans-serif; border-left: 6px solid #3b82f6; padding-left: 30px; opacity: 0; animation: fadeIn 0.5s ease-out forwards; text-align: left;">Main Topic with Specific Details</h1>
+    <ul style="font-size: 28px; line-height: 1.8; list-style: none; padding: 0;">
+      <li style="margin-bottom: 28px; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;"><span style="margin-right: 20px; font-size: 32px;">🎯</span><span><strong>Specific Point 1:</strong> Detailed explanation with concrete example or data</span></li>
+      <li style="margin-bottom: 28px; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.4s forwards;"><span style="margin-right: 20px; font-size: 32px;">💡</span><span><strong>Actionable Insight 2:</strong> Clear, specific guidance with real-world application</span></li>
+      <li style="margin-bottom: 28px; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.6s forwards;"><span style="margin-right: 20px; font-size: 32px;">📊</span><span><strong>Measurable Result 3:</strong> Include statistics, numbers, or tangible outcomes</span></li>
+      <li style="margin-bottom: 28px; display: flex; align-items: flex-start; opacity: 0; animation: fadeIn 0.5s ease-out 0.8s forwards;"><span style="margin-right: 20px; font-size: 32px;">🚀</span><span><strong>Best Practice 4:</strong> Proven strategies and implementation tips</span></li>
     </ul>
   </div>
 </div>
 
-<!-- Last Slide: Thank You (WITH slide number, gradient allowed, with animation) -->
-<div class="slide" data-slide-index="3" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e3a8a); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 4rem; position: relative;">
+<!-- Last Slide: Thank You (WITH slide number, gradient allowed, WITH <style>) -->
+<div class="slide" data-slide-index="3" style="width: 1920px; height: 1080px; min-height: 1080px; max-height: 1080px; overflow: hidden; background: linear-gradient(135deg, #0f172a, #1e3a8a); color: #ffffff; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 80px; position: relative;">
   <style>
     @keyframes fadeIn {{
       from {{ opacity: 0; transform: translateY(20px); }}
       to {{ opacity: 1; transform: translateY(0); }}
     }}
+    @keyframes scaleIn {{
+      from {{ opacity: 0; transform: scale(0.5); }}
+      to {{ opacity: 1; transform: scale(1); }}
+    }}
   </style>
-  {f'<img src="{logo_url}" style="position: absolute; top: 20px; left: 60px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
-  <div style="position: absolute; top: 40px; right: 60px; font-size: 24px; opacity: 0.5;">03</div>
-  <div style="font-size: 80px; margin-bottom: 2rem; opacity: 0; animation: fadeIn 0.5s ease-out forwards;">🎉</div>
-  <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 2rem; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif; opacity: 0; animation: fadeIn 0.5s ease-out 0.2s forwards;">Thank You!</h1>
-  <p style="font-size: 32px; text-align: center; max-width: 800px; line-height: 1.6; opacity: 0.9;">Questions? Let's discuss!</p>
-  <div style="margin-top: 3rem; font-size: 24px; opacity: 0.8;">contact@example.com | @yourhandle</div>
+  {f'<img src="{logo_url}" style="position: absolute; top: 40px; right: 80px; width: 100px; height: auto; z-index: 10;" alt="Logo" />' if logo_url else ''}
+  <div style="position: absolute; top: 50px; right: 80px; font-size: 28px; opacity: 0.6;">03</div>
+  <div style="font-size: 80px; margin-bottom: 40px; opacity: 0; animation: scaleIn 0.6s ease-out forwards;">🎉</div>
+  <h1 style="font-size: 72px; font-weight: bold; margin-bottom: 30px; text-align: center; font-family: 'Inter', 'SF Pro Display', sans-serif; opacity: 0; animation: fadeIn 0.6s ease-out 0.2s forwards;">Thank You!</h1>
+  <p style="font-size: 32px; text-align: center; max-width: 800px; line-height: 1.6; opacity: 0; animation: fadeIn 0.6s ease-out 0.4s forwards;">Questions? Let's discuss!</p>
+  <div style="margin-top: 50px; font-size: 24px; opacity: 0.8; opacity: 0; animation: fadeIn 0.6s ease-out 0.6s forwards;">contact@example.com | @yourhandle</div>
 </div>
 
 **NOW GENERATE {len(slides_outline)} BEAUTIFUL, WELL-CONTRASTED, SEPARATE SLIDES:**"""
