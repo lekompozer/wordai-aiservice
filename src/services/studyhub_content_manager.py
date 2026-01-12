@@ -401,7 +401,7 @@ class StudyHubContentManager:
         await self.permissions.check_module_owner(self.user_id, module_id)
 
         book = self.db.online_books.find_one(
-            {"book_id": book_id, "owner_id": self.user_id}
+            {"book_id": book_id, "user_id": self.user_id}
         )
 
         if not book:
