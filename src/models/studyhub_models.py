@@ -180,6 +180,7 @@ class ContentData(BaseModel):
     """Content-specific data"""
 
     # For document
+    document_id: Optional[str] = None
     document_url: Optional[str] = None
 
     # For link
