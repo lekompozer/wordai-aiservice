@@ -245,7 +245,7 @@ class StudyHubContentManager:
 
         # Verify test exists
         test = self.db.online_tests.find_one(
-            {"_id": ObjectId(test_id), "owner_id": self.user_id}
+            {"_id": ObjectId(test_id), "creator_id": self.user_id}
         )
 
         if not test:
