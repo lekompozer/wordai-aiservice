@@ -4,8 +4,8 @@ APIs for linking Documents, Tests, Books to StudyHub modules
 """
 
 from fastapi import APIRouter, HTTPException, Depends, status
-from typing import Optional, List
-from pydantic import BaseModel, Field
+from typing import Optional, List, Any
+from pydantic import BaseModel, Field, model_validator
 
 from src.services.studyhub_content_manager import StudyHubContentManager
 from src.middleware.firebase_auth import get_current_user
@@ -28,6 +28,14 @@ class AddDocumentRequest(BaseModel):
     is_required: bool = False
     is_preview: bool = False
 
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_data(cls, data: Any) -> Any:
+        """Unwrap data object if present (frontend compatibility)"""
+        if isinstance(data, dict) and "data" in data and len(data) == 1:
+            return data["data"]
+        return data
+
 
 class UpdateContentRequest(BaseModel):
     """Request to update content settings"""
@@ -45,6 +53,14 @@ class AddTestRequest(BaseModel):
     passing_score: int = Field(70, ge=0, le=100)
     is_required: bool = False
     is_preview: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_data(cls, data: Any) -> Any:
+        """Unwrap data object if present (frontend compatibility)"""
+        if isinstance(data, dict) and "data" in data and len(data) == 1:
+            return data["data"]
+        return data
 
 
 class UpdateTestRequest(BaseModel):
@@ -66,6 +82,14 @@ class AddBookRequest(BaseModel):
     )
     is_required: bool = False
     is_preview: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def unwrap_data(cls, data: Any) -> Any:
+        """Unwrap data object if present (frontend compatibility)"""
+        if isinstance(data, dict) and "data" in data and len(data) == 1:
+            return data["data"]
+        return data
 
 
 class UpdateBookRequest(BaseModel):
