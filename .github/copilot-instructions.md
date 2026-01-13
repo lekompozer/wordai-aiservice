@@ -119,6 +119,9 @@ KEYS "job:*"
 ❌ Wrong queue method: `await queue.enqueue(job_id, data)`
 ✅ Correct method: `await queue.enqueue_generic_task(task)`
 
+❌ Direct field access: `test["time_limit_minutes"]` (may cause KeyError)
+✅ Safe access: `test.get("time_limit_minutes", 60)` (with default)
+
 ## Quick Reference Links
 
 - Full docs: `/SYSTEM_REFERENCE.md`
