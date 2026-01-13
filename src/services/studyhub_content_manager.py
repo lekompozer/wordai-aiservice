@@ -48,8 +48,9 @@ class StudyHubContentManager:
         await self.permissions.check_module_owner(self.user_id, module_id)
 
         # Verify document exists and user owns it
+        # Documents use document_id (string) and user_id (owner field)
         document = self.db.online_documents.find_one(
-            {"_id": ObjectId(document_id), "owner_id": self.user_id}
+            {"document_id": document_id, "user_id": self.user_id}
         )
 
         if not document:
