@@ -31,6 +31,7 @@ class ContentType(str, Enum):
     DOCUMENT = "document"
     LINK = "link"
     VIDEO = "video"
+    FILE = "file"
     BOOK = "book"
     TEST = "test"
     SLIDES = "slides"
