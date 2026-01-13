@@ -1417,7 +1417,7 @@ async def get_my_tests(
                 "title": test["title"],
                 "description": test.get("description"),  # Optional field
                 "num_questions": len(test.get("questions", [])),
-                "time_limit_minutes": test["time_limit_minutes"],
+                "time_limit_minutes": test.get("time_limit_minutes", 60),  # Default 60 if missing
                 "test_category": test.get(
                     "test_category", "academic"
                 ),  # Add diagnostic/academic indicator

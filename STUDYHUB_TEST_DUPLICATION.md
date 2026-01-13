@@ -57,7 +57,7 @@ original_test = db.online_tests.find_one(
 studyhub_test = {
     **original_test,  # Spread operator - copies EVERYTHING
     "_id": None,
-    
+
     # NEW StudyHub markers
     "is_studyhub_copy": True,
     "source_test_id": ObjectId(test_id),
@@ -68,7 +68,7 @@ studyhub_test = {
         "is_required": is_required,
         "is_preview": is_preview,
     },
-    
+
     # Override specific fields
     "title": title,  # Customizable
     "created_at": datetime.now(timezone.utc),
@@ -195,7 +195,7 @@ studyhub_test_id = result.inserted_id
 {
   "_id": ObjectId("NEW_ID_GENERATED"),
   "title": "Module 1: Project Management Fundamentals",  // Custom
-  
+
   // NEW StudyHub markers
   "is_studyhub_copy": true,
   "source_test_id": ObjectId("693a71f49084fe1017fda718"),
@@ -206,17 +206,17 @@ studyhub_test_id = result.inserted_id
     "is_required": true,
     "is_preview": false
   },
-  
+
   // ALL original content copied
   "creator_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
   "questions": [...],  // SAME 40 questions
   "time_limit_minutes": 40,
   "num_questions": 40,
-  
+
   // Reset timestamps
   "created_at": "2025-01-13T...",
   "updated_at": "2025-01-13T...",
-  
+
   // marketplace_config removed (not for sale)
 }
 ```
@@ -372,7 +372,7 @@ tests = db.online_tests.find({
 ```python
 if not original_test:
     raise HTTPException(
-        status_code=404, 
+        status_code=404,
         detail="Test not found or you don't have permission"
     )
 ```
@@ -467,6 +467,6 @@ marketplace_tests = db.online_tests.find({
 
 ---
 
-**Last Updated**: January 13, 2026  
-**Migration Version**: v2.3  
+**Last Updated**: January 13, 2026
+**Migration Version**: v2.3
 **Field Standardization**: Complete
