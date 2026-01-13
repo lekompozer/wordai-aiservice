@@ -168,7 +168,7 @@ class StudyHubPermissions:
         Update studyhub_context field in original content collection
 
         Args:
-            collection_name: Collection name (online_documents, online_tests, online_books)
+            collection_name: Collection name (documents, online_tests, online_books)
             content_id: Content ID in original collection
             subject_id: Subject ID
             module_id: Module ID
@@ -199,7 +199,7 @@ class StudyHubPermissions:
         # Different collections use different ID fields
         if collection_name == "online_books":
             query = {"book_id": content_id}
-        elif collection_name == "online_documents":
+        elif collection_name == "documents":
             query = {"document_id": content_id}
         elif collection_name == "online_tests":
             query = {"test_id": content_id}
@@ -230,7 +230,7 @@ class StudyHubPermissions:
             for content in contents:
                 # Map content type to collection
                 collection_map = {
-                    "document": "online_documents",
+                    "document": "documents",
                     "test": "online_tests",
                     "book": "online_books",
                     "file": "studyhub_files",
@@ -248,7 +248,7 @@ class StudyHubPermissions:
                 # Different collections use different ID fields
                 if collection_name == "online_books":
                     query = {"book_id": ref_id}
-                elif collection_name == "online_documents":
+                elif collection_name == "documents":
                     query = {"document_id": ref_id}
                 elif collection_name == "online_tests":
                     query = {"test_id": ref_id}

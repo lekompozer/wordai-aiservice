@@ -36,7 +36,7 @@ class StudyHubContentManager:
 
         Args:
             module_id: Module ID
-            document_id: Document ID from online_documents
+            document_id: Document ID from documents collection
             title: Content title
             is_required: Required for completion
             is_preview: Free preview content
@@ -49,7 +49,7 @@ class StudyHubContentManager:
 
         # Verify document exists and user owns it
         # Documents use document_id (string) and user_id (owner field)
-        document = self.db.online_documents.find_one(
+        document = self.db.documents.find_one(
             {"document_id": document_id, "user_id": self.user_id}
         )
 
@@ -85,7 +85,7 @@ class StudyHubContentManager:
 
         # Update studyhub_context in original document
         await self.permissions.update_content_studyhub_context(
-            collection_name="online_documents",
+            collection_name="documents",
             content_id=document_id,
             subject_id=str(module["subject_id"]),
             module_id=module_id,
@@ -115,7 +115,7 @@ class StudyHubContentManager:
         for content in contents:
             doc_id = content["data"].get("document_id")
             if doc_id:
-                document = self.db.online_documents.find_one({"_id": ObjectId(doc_id)})
+                document = self.db.documents.find_one({"document_id": doc_id})
                 if document:
                     content["document_details"] = {
                         "title": document.get("title"),
@@ -180,7 +180,7 @@ class StudyHubContentManager:
                 doc_id = content["data"].get("document_id")
                 if doc_id:
                     await self.permissions.update_content_studyhub_context(
-                        collection_name="online_documents",
+                        collection_name="documents",
                         content_id=doc_id,
                         subject_id=str(module["subject_id"]),
                         module_id=str(content["module_id"]),
@@ -218,7 +218,7 @@ class StudyHubContentManager:
         doc_id = content["data"].get("document_id")
         if doc_id:
             await self.permissions.update_content_studyhub_context(
-                collection_name="online_documents",
+                collection_name="documents",
                 content_id=doc_id,
                 subject_id="",
                 module_id="",
