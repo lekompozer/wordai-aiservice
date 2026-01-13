@@ -261,10 +261,14 @@ class StudyHubContentManager:
         module = self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
 
         # Duplicate test in SAME collection with NEW ID
+        # Copy ALL fields from original test, add StudyHub markers
         studyhub_test = {
-            # StudyHub markers
-            "is_studyhub_copy": True,  # Flag to identify StudyHub tests
-            "source_test_id": ObjectId(test_id),  # Link to original
+            **original_test,  # Copy everything from original
+            # Remove _id to get new one
+            "_id": None,
+            # StudyHub markers (NEW fields)
+            "is_studyhub_copy": True,
+            "source_test_id": ObjectId(test_id),
             "studyhub_context": {
                 "subject_id": module["subject_id"],
                 "module_id": ObjectId(module_id),
@@ -272,23 +276,19 @@ class StudyHubContentManager:
                 "is_required": is_required,
                 "is_preview": is_preview,
             },
-            # Copy all test content from original
-            "creator_id": original_test["creator_id"],
-            "title": title,  # Can customize title for StudyHub
-            "description": original_test.get("description", ""),
-            "questions": original_test.get("questions", []),
-            "settings": original_test.get("settings", {}),
-            "test_type": original_test.get("test_type", "standard"),
-            "duration_minutes": original_test.get("duration_minutes"),
-            "total_points": original_test.get("total_points", 0),
-            "num_questions": original_test.get("num_questions", 0),
-            # Don't copy these (StudyHub-specific)
-            # - test_progress (separate per test ID)
-            # - test_results (separate per test ID)
-            # - marketplace_info (not for sale)
+            # Allow custom title for StudyHub
+            "title": title,
+            # Reset timestamps
             "created_at": datetime.now(timezone.utc),
             "updated_at": datetime.now(timezone.utc),
         }
+
+        # Remove _id key (MongoDB will generate new one)
+        studyhub_test.pop("_id", None)
+
+        # Remove fields that should NOT be copied
+        studyhub_test.pop("marketplace_config", None)  # Not for marketplace
+        studyhub_test.pop("migration_metadata", None)  # Not needed
 
         # Insert duplicate into SAME collection (online_tests)
         result = self.db.online_tests.insert_one(studyhub_test)

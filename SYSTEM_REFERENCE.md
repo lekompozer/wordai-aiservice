@@ -1,12 +1,13 @@
 # System Reference - Backend Infrastructure
 
-**Last Updated:** January 10, 2026
+**Last Updated:** January 13, 2026
 **Purpose:** Complete reference for AI agents and developers working with the backend system
 
 **Related Documentation:**
 - **R2_STORAGE_GUIDELINES.md** - Cloudflare R2 storage patterns and CDN usage (✅ READ THIS FOR R2!)
 - **REDIS_STATUS_PATTERN.md** - Redis job status tracking patterns
 - **BOOK_CHAPTER_API_SPECS.md** - Book chapter API specifications
+- **STUDYHUB_TEST_DUPLICATION.md** - StudyHub test duplication technical specs (✅ READ FOR STUDYHUB TESTS!)
 
 ---
 
@@ -1395,10 +1396,84 @@ Test documents and questions
 - `updated_at`: DateTime
 - `generated_at`: DateTime
 
+**StudyHub Fields (for duplicated tests only):**
+- `is_studyhub_copy`: Boolean (true for StudyHub tests)
+- `source_test_id`: ObjectId (reference to original test)
+- `studyhub_context`: Object
+  - `subject_id`: ObjectId
+  - `module_id`: ObjectId
+  - `passing_score`: Integer (can override original)
+  - `is_required`: Boolean
+  - `is_preview`: Boolean
+
 **Indexes:**
 - `_id`: Primary key
 - `creator_id`: For user's tests
 - `status`: For filtering ready tests
+- `is_studyhub_copy`: For filtering StudyHub tests
+- `source_test_id`: For finding original test
+- `studyhub_context.module_id`: For module tests
+
+**⚠️ CRITICAL: StudyHub Test Duplication**
+
+When adding a test to StudyHub, the system **DUPLICATES** the entire test into the SAME collection with a NEW `_id`. This ensures:
+
+✅ **Complete data isolation** - Each test has unique ID, separate progress/results
+✅ **All 67 endpoints compatible** - start, submit, grade, marketplace, sharing
+✅ **No code duplication** - Same collection = same endpoints work
+✅ **Simple architecture** - No need for separate `studyhub_tests` collection
+
+**Duplication Process:**
+1. Copy ALL fields from original test using spread operator: `{**original_test, ...}`
+2. Add StudyHub markers: `is_studyhub_copy`, `source_test_id`, `studyhub_context`
+3. Override: `title` (customizable), timestamps (reset)
+4. Remove: `_id` (new one generated), `marketplace_config`, `migration_metadata`
+5. Insert into `online_tests` with new ID
+
+**Example:**
+```javascript
+// Personal test
+{
+  _id: ObjectId("693a71f49084fe1017fda718"),
+  title: "PMP Practice Exam",
+  questions: [...],  // 40 questions
+  marketplace_config: {...}
+}
+
+// StudyHub copy (different ID, same collection)
+{
+  _id: ObjectId("NEW_ID"),  // NEW unique ID
+  title: "Module 1: PM Fundamentals",  // Custom title
+  questions: [...],  // SAME 40 questions copied
+  is_studyhub_copy: true,  // NEW marker
+  source_test_id: ObjectId("693a71f49084fe1017fda718"),  // Link to original
+  studyhub_context: {  // NEW StudyHub settings
+    subject_id: ObjectId("..."),
+    module_id: ObjectId("..."),
+    passing_score: 70,
+    is_required: true,
+    is_preview: false
+  }
+  // marketplace_config removed (not for sale)
+}
+```
+
+**Common Queries:**
+```javascript
+// Find StudyHub tests only
+db.online_tests.find({is_studyhub_copy: true})
+
+// Find personal tests only
+db.online_tests.find({is_studyhub_copy: {$ne: true}})
+
+// Find all copies of a test
+db.online_tests.find({source_test_id: ObjectId("original-test-id")})
+
+// Find tests in a module
+db.online_tests.find({"studyhub_context.module_id": ObjectId("module-id")})
+```
+
+**📖 Full Documentation:** See `STUDYHUB_TEST_DUPLICATION.md` for complete technical specs
 
 #### 2. **test_submissions**
 User test submissions and results
