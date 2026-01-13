@@ -594,7 +594,7 @@ class StudyHubContentManager:
 
         Args:
             module_id: Module ID
-            file_id: File ID from studyhub_files
+            file_id: File ID from library_files
             title: Content title
             is_required: Required for completion
             is_preview: Free preview content
@@ -606,10 +606,11 @@ class StudyHubContentManager:
         await self.permissions.check_module_owner(self.user_id, module_id)
 
         # Verify file exists and user uploaded it
-        file_doc = self.db.studyhub_files.find_one(
+        # Library files use file_id (string like 'lib_xxx') and user_id
+        file_doc = self.db.library_files.find_one(
             {
-                "_id": ObjectId(file_id),
-                "uploaded_by": self.user_id,
+                "file_id": file_id,
+                "user_id": self.user_id,
                 "deleted": {"$ne": True},
             }
         )
@@ -666,7 +667,7 @@ class StudyHubContentManager:
 
         # Update studyhub_context in file
         await self.permissions.update_content_studyhub_context(
-            collection_name="studyhub_files",
+            collection_name="library_files",
             content_id=file_id,
             subject_id=str(module["subject_id"]),
             module_id=module_id,
@@ -700,11 +701,11 @@ class StudyHubContentManager:
         for content in contents:
             file_id = content["data"].get("file_id")
             if file_id:
-                file_doc = self.db.studyhub_files.find_one({"_id": ObjectId(file_id)})
+                file_doc = self.db.library_files.find_one({"file_id": file_id})
                 if file_doc:
                     content["file_details"] = {
                         "uploaded_at": file_doc.get("uploaded_at"),
-                        "uploaded_by": file_doc.get("uploaded_by"),
+                        "uploaded_by": file_doc.get("user_id"),
                         "download_count": file_doc.get("download_count", 0),
                         "duration": file_doc.get("duration"),  # for videos
                         "thumbnail_url": file_doc.get("thumbnail_url"),
@@ -729,7 +730,7 @@ class StudyHubContentManager:
         if file_id:
             # Update studyhub_context
             await self.permissions.update_content_studyhub_context(
-                collection_name="studyhub_files",
+                collection_name="library_files",
                 content_id=file_id,
                 subject_id="",
                 module_id="",
@@ -737,8 +738,8 @@ class StudyHubContentManager:
             )
 
             # Mark file as deleted (soft delete)
-            self.db.studyhub_files.update_one(
-                {"_id": ObjectId(file_id)},
+            self.db.library_files.update_one(
+                {"file_id": file_id},
                 {
                     "$set": {
                         "deleted": True,

@@ -201,6 +201,12 @@ class ContentData(BaseModel):
     # For slides (Phase 2)
     slide_id: Optional[str] = None
 
+    # For file
+    file_id: Optional[str] = None
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
+
 
 class ModuleContentCreate(BaseModel):
     """Request to create module content"""

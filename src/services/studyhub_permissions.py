@@ -203,6 +203,8 @@ class StudyHubPermissions:
             query = {"document_id": content_id}
         elif collection_name == "online_tests":
             query = {"test_id": content_id}
+        elif collection_name == "library_files":
+            query = {"file_id": content_id}
         else:
             # Fallback to _id for other collections
             query = {"_id": ObjectId(content_id)}
@@ -233,7 +235,7 @@ class StudyHubPermissions:
                     "document": "documents",
                     "test": "online_tests",
                     "book": "online_books",
-                    "file": "studyhub_files",
+                    "file": "library_files",
                 }
 
                 collection_name = collection_map.get(content["content_type"])
@@ -252,6 +254,8 @@ class StudyHubPermissions:
                     query = {"document_id": ref_id}
                 elif collection_name == "online_tests":
                     query = {"test_id": ref_id}
+                elif collection_name == "library_files":
+                    query = {"file_id": ref_id}
                 else:
                     query = {"_id": ObjectId(ref_id)}
 
