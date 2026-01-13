@@ -240,18 +240,59 @@ class StudyHubContentManager:
         is_required: bool = False,
         is_preview: bool = False,
     ) -> dict:
-        """Link test to module"""
+        """
+        Link test to module by duplicating to NEW test ID in SAME collection
+
+        Benefits:
+        - All 67 existing endpoints work (start, submit, grading, marketplace...)
+        - No code duplication needed
+        - Data isolation via separate test IDs
+        """
         await self.permissions.check_module_owner(self.user_id, module_id)
 
-        # Verify test exists
-        test = self.db.online_tests.find_one(
+        # Verify original test exists
+        original_test = self.db.online_tests.find_one(
             {"_id": ObjectId(test_id), "creator_id": self.user_id}
         )
 
-        if not test:
+        if not original_test:
             raise HTTPException(status_code=404, detail="Test not found")
 
         module = self.db.studyhub_modules.find_one({"_id": ObjectId(module_id)})
+
+        # Duplicate test in SAME collection with NEW ID
+        studyhub_test = {
+            # StudyHub markers
+            "is_studyhub_copy": True,  # Flag to identify StudyHub tests
+            "source_test_id": ObjectId(test_id),  # Link to original
+            "studyhub_context": {
+                "subject_id": module["subject_id"],
+                "module_id": ObjectId(module_id),
+                "passing_score": passing_score,
+                "is_required": is_required,
+                "is_preview": is_preview,
+            },
+            # Copy all test content from original
+            "creator_id": original_test["creator_id"],
+            "title": title,  # Can customize title for StudyHub
+            "description": original_test.get("description", ""),
+            "questions": original_test.get("questions", []),
+            "settings": original_test.get("settings", {}),
+            "test_type": original_test.get("test_type", "standard"),
+            "duration_minutes": original_test.get("duration_minutes"),
+            "total_points": original_test.get("total_points", 0),
+            "num_questions": original_test.get("num_questions", 0),
+            # Don't copy these (StudyHub-specific)
+            # - test_progress (separate per test ID)
+            # - test_results (separate per test ID)
+            # - marketplace_info (not for sale)
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+
+        # Insert duplicate into SAME collection (online_tests)
+        result = self.db.online_tests.insert_one(studyhub_test)
+        studyhub_test_id = result.inserted_id
 
         # Get next order_index
         last_content = self.db.studyhub_module_contents.find_one(
@@ -259,11 +300,16 @@ class StudyHubContentManager:
         )
         order_index = (last_content["order_index"] + 1) if last_content else 1
 
+        # Link NEW test ID to module
         content_doc = {
             "module_id": ObjectId(module_id),
             "content_type": "test",
             "title": title,
-            "data": {"test_id": test_id, "passing_score": passing_score},
+            "data": {
+                "test_id": str(studyhub_test_id),  # NEW test ID
+                "source_test_id": test_id,  # Original test reference
+                "passing_score": passing_score,
+            },
             "is_required": is_required,
             "is_preview": is_preview,
             "order_index": order_index,
@@ -272,16 +318,6 @@ class StudyHubContentManager:
 
         result = self.db.studyhub_module_contents.insert_one(content_doc)
         content_doc["_id"] = result.inserted_id
-
-        # Update studyhub_context
-        await self.permissions.update_content_studyhub_context(
-            collection_name="online_tests",
-            content_id=test_id,
-            subject_id=str(module["subject_id"]),
-            module_id=module_id,
-            enabled=True,
-            is_preview=is_preview,
-        )
 
         return content_doc
 
