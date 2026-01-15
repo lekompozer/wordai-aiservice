@@ -14,7 +14,7 @@ from typing import Optional, List
 from datetime import datetime
 
 from src.services.studyhub_category_service import StudyHubCategoryService
-from src.services.firebase_auth import verify_firebase_token
+from src.middleware.auth import verify_firebase_token
 from src.models.studyhub_category_models import (
     CategoryID,
     CourseLevel,
