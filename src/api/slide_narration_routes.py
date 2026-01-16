@@ -2971,7 +2971,11 @@ async def export_presentation_video(
 
         if last_export_time:
             # Calculate time since last export
-            last_time = datetime.fromisoformat(last_export_time.decode())
+            # Handle both bytes and string from Redis
+            if isinstance(last_export_time, bytes):
+                last_time = datetime.fromisoformat(last_export_time.decode())
+            else:
+                last_time = datetime.fromisoformat(last_export_time)
             time_diff = datetime.utcnow() - last_time
             wait_seconds = 180 - int(
                 time_diff.total_seconds()
