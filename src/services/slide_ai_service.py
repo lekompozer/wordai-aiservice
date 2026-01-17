@@ -477,10 +477,26 @@ class SlideAIService:
             logger.info(f"📝 Building prompt with {len(request.elements)} elements")
 
             for i, elem in enumerate(request.elements):
-                # Extract important properties for clarity
-                elem_type = elem.type
-                pos = elem.position
-                props = elem.properties or {}
+                # Handle both dict and object formats (from Redis or direct API)
+                if isinstance(elem, dict):
+                    elem_type = elem.get("type")
+                    # Handle both nested and flat position formats
+                    if "position" in elem and isinstance(elem["position"], dict):
+                        pos = elem["position"]
+                    else:
+                        # Flat format
+                        pos = {
+                            "x": elem.get("x", 0),
+                            "y": elem.get("y", 0),
+                            "width": elem.get("width", 0),
+                            "height": elem.get("height", 0),
+                        }
+                    props = elem.get("properties") or {}
+                else:
+                    # Pydantic model object
+                    elem_type = elem.type
+                    pos = elem.position
+                    props = elem.properties or {}
 
                 # Build element description
                 desc = f"  {i+1}. Type: {elem_type}\n"
