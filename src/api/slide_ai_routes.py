@@ -155,8 +155,25 @@ async def ai_format_slide(
                 )
 
                 if doc:
-                    slide_elements_data = doc.get("slide_elements", [])
-                    slide_backgrounds_data = doc.get("slide_backgrounds", [])
+                    # ✅ FIX: Get from version_history[current_version] not root level!
+                    current_version = doc.get("version", 1)
+                    version_data = next(
+                        (
+                            v
+                            for v in doc.get("version_history", [])
+                            if v.get("version") == current_version
+                        ),
+                        None,
+                    )
+
+                    slide_elements_data = (
+                        version_data.get("slide_elements", []) if version_data else []
+                    )
+                    slide_backgrounds_data = (
+                        version_data.get("slide_backgrounds", [])
+                        if version_data
+                        else []
+                    )
 
                     # Enrich each slide with elements and background from database
                     for slide in slides_to_process:
@@ -234,8 +251,21 @@ async def ai_format_slide(
                 )
 
                 if doc:
+                    # ✅ FIX: Get from version_history[current_version] not root level!
+                    current_version = doc.get("version", 1)
+                    version_data = next(
+                        (
+                            v
+                            for v in doc.get("version_history", [])
+                            if v.get("version") == current_version
+                        ),
+                        None,
+                    )
+
                     # Get elements for this specific slide
-                    slide_elements_data = doc.get("slide_elements", [])
+                    slide_elements_data = (
+                        version_data.get("slide_elements", []) if version_data else []
+                    )
                     slide_data = next(
                         (
                             s
@@ -267,7 +297,11 @@ async def ai_format_slide(
 
                     # Get background for this slide if not provided
                     if not background_to_use:
-                        slide_backgrounds = doc.get("slide_backgrounds", [])
+                        slide_backgrounds = (
+                            version_data.get("slide_backgrounds", [])
+                            if version_data
+                            else []
+                        )
                         bg_data = next(
                             (
                                 b
