@@ -8,15 +8,36 @@ from typing import Optional, List, Dict, Any, Literal
 
 
 class SlideElement(BaseModel):
-    """Slide element (shape, image, icon)"""
-
+    """
+    Slide element (shape, image, icon)
+    
+    Flexible model that accepts both formats:
+    - Nested: {type, position: {x, y, width, height}, properties}
+    - Flat: {type, x, y, width, height, src, ...} (from frontend)
+    """
+    
+    # Core fields (always present)
     type: str = Field(..., description="Element type (shape, image, text, etc.)")
-    position: Dict[str, Any] = Field(
-        ..., description="Element position {x, y, width, height}"
+    
+    # Position - nested format (optional)
+    position: Optional[Dict[str, Any]] = Field(
+        None, description="Element position {x, y, width, height}"
     )
-    properties: Dict[str, Any] = Field(
+    
+    # Position - flat format (optional, from frontend)
+    x: Optional[float] = Field(None, description="X coordinate")
+    y: Optional[float] = Field(None, description="Y coordinate")
+    width: Optional[float] = Field(None, description="Width")
+    height: Optional[float] = Field(None, description="Height")
+    
+    # Properties
+    properties: Optional[Dict[str, Any]] = Field(
         default={}, description="Element properties (color, opacity, etc.)"
     )
+    
+    # Extra fields (allow any additional fields from frontend like src, zIndex, etc.)
+    class Config:
+        extra = "allow"  # Allow fields like src, zIndex, id, etc.
 
 
 class SlideBackground(BaseModel):
