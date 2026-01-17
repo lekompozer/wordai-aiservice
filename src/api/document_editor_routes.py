@@ -1303,14 +1303,14 @@ async def upload_slide_image(
 ):
     """
     Upload image for slide elements
-    
+
     Returns CDN URL instead of saving base64 in elements
-    
+
     Usage:
     1. Frontend: User uploads image via this endpoint
     2. Backend: Saves to CDN, returns URL
     3. Frontend: Saves URL in element.src instead of base64
-    
+
     Benefits:
     - Smaller request payloads (URL vs base64)
     - Faster saves and API calls
@@ -1318,53 +1318,51 @@ async def upload_slide_image(
     """
     from src.services.file_upload_service import FileUploadService
     from fastapi import UploadFile
-    
+
     user_id = user_data.get("uid")
-    
+
     try:
         # Validate file type
         if not file.content_type or not file.content_type.startswith("image/"):
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid file type: {file.content_type}. Only images are allowed."
+                detail=f"Invalid file type: {file.content_type}. Only images are allowed.",
             )
-        
+
         # Read file content
         file_content = await file.read()
-        
+
         # Upload to CDN (same service as book/library uploads)
         upload_service = FileUploadService()
-        
+
         # Generate filename: slide_images/{document_id}/{timestamp}_{original_name}
         import time
+
         timestamp = int(time.time() * 1000)
         filename = f"slide_images/{document_id}/{timestamp}_{file.filename}"
-        
+
         cdn_url = upload_service.upload_to_cdn(
-            file_content=file_content,
-            filename=filename,
-            content_type=file.content_type
+            file_content=file_content, filename=filename, content_type=file.content_type
         )
-        
+
         logger.info(
             f"✅ Uploaded slide image: document_id={document_id}, user_id={user_id}, "
             f"filename={file.filename}, cdn_url={cdn_url}"
         )
-        
+
         return {
             "success": True,
             "url": cdn_url,
             "filename": file.filename,
             "size": len(file_content),
-            "content_type": file.content_type
+            "content_type": file.content_type,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"❌ Error uploading slide image: {e}")
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
-
 
 
 @router.put("/{document_id}")
