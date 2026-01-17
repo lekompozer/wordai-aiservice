@@ -689,6 +689,14 @@ def create_app() -> FastAPI:
         except Exception as e:
             body_str = f"Error reading body: {e}"
 
+        # 🔧 FIX: Truncate long body (e.g. base64 images in slides) to prevent log spam
+        MAX_BODY_LOG_LENGTH = 1000  # Log only first 1000 chars
+        if len(body_str) > MAX_BODY_LOG_LENGTH:
+            body_str = (
+                body_str[:MAX_BODY_LOG_LENGTH]
+                + f"... (truncated, total {len(body_str)} chars)"
+            )
+
         logger.error(f"   Request Body: {body_str}")
         logger.error(f"   Validation Errors ({len(exc.errors())} total):")
         for i, error in enumerate(exc.errors(), 1):
