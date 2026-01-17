@@ -475,9 +475,27 @@ class SlideAIService:
         if request.elements:
             elements_info = f"\n\nCurrent Elements ({len(request.elements)}):\n"
             for i, elem in enumerate(request.elements):
-                elements_info += f"  {i+1}. {elem.type} at ({elem.position['x']}, {elem.position['y']}) - {elem.position['width']}x{elem.position['height']}\n"
-                if elem.properties:
-                    elements_info += f"     Properties: {elem.properties}\n"
+                # Extract important properties for clarity
+                elem_type = elem.type
+                pos = elem.position
+                props = elem.properties or {}
+                
+                # Build element description
+                desc = f"  {i+1}. Type: {elem_type}\n"
+                desc += f"     Position: x={pos['x']}px, y={pos['y']}px\n"
+                desc += f"     Size: {pos['width']}px × {pos['height']}px\n"
+                
+                # Highlight URL for images
+                if elem_type == "image" and "url" in props:
+                    desc += f"     🔗 Image URL: {props['url']}\n"
+                elif "src" in props:
+                    desc += f"     🔗 Image URL: {props['src']}\n"
+                
+                # Show other properties
+                if props:
+                    desc += f"     Properties: {props}\n"
+                
+                elements_info += desc
 
         background_info = ""
         if request.background:
@@ -509,13 +527,48 @@ Current Slides HTML:
 
 User Instruction: {instruction}
 
-**OVERLAY ELEMENTS REQUIREMENT**:
-- If elements are provided above (images, shapes, icons), you MUST include them in the formatted HTML
-- Render elements as absolute positioned divs with proper z-index layering
-- For images: Use <img src="URL" style="position: absolute; top: Ypx; left: Xpx; width: Wpx; height: Hpx; z-index: 10;" />
-- For shapes: Use <div> with appropriate styling (borders, border-radius, background)
-- Preserve all element URLs and positioning from the elements list
-- Layer content elements above background but below overlays
+**🎯 CRITICAL - OVERLAY ELEMENTS REQUIREMENT (MUST FOLLOW)**:
+
+When elements are provided in the "Current Elements" list above, you **MUST include ALL of them** in the formatted HTML output.
+
+**How to render each element type:**
+
+1. **Images** (type: "image"):
+   - Extract URL from properties (usually 'url' or 'src' field)
+   - Render as: `<img src="EXACT_URL_FROM_PROPERTIES" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 10; object-fit: cover;" />`
+   - Example: If element has position={{x: 100, y: 200, width: 300, height: 400}} and properties={{url: "https://cdn.example.com/image.jpg"}}
+     ```html
+     <img src="https://cdn.example.com/image.jpg" style="position: absolute; left: 100px; top: 200px; width: 300px; height: 400px; z-index: 10; object-fit: cover;" />
+     ```
+
+2. **Shapes** (type: "shape"):
+   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 5; {additional_styles_from_properties}"></div>`
+   - Extract color, border-radius, border, background from properties
+   - Example: If properties={{backgroundColor: "#667eea", borderRadius: "12px"}}
+     ```html
+     <div style="position: absolute; left: 50px; top: 50px; width: 200px; height: 100px; z-index: 5; background-color: #667eea; border-radius: 12px;"></div>
+     ```
+
+3. **Text overlays** (type: "text"):
+   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 15; {text_styles}">{text_content}</div>`
+   - Extract fontSize, color, fontWeight, textAlign from properties
+
+4. **Icons** (type: "icon"):
+   - Render as: `<img src="ICON_URL" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 12;" />`
+
+**Z-index layering order:**
+- Background: z-index: 0
+- Shapes/decorations: z-index: 5
+- Images: z-index: 10
+- Icons: z-index: 12
+- Text overlays: z-index: 15
+- Main text content: z-index: 20
+
+**⚠️ IMPORTANT**: 
+- Copy exact URLs from "Current Elements" list - do NOT modify or generate new URLs
+- Use exact position coordinates (x, y, width, height) from elements list
+- If user instruction says "keep/preserve images" or "giữ hình ảnh", ALL image elements MUST appear in output
+- Place element HTML INSIDE the slide-wrapper div, typically after main content but before closing </div>
 
 Design Principles to Apply:
 1. **Visual Hierarchy**: Use proper heading sizes (h1 > h2 > h3 > p), font weights, and spacing
@@ -598,13 +651,38 @@ Current Slide HTML:
 
 User Instruction: {instruction}
 
-**OVERLAY ELEMENTS REQUIREMENT**:
-- If elements are provided above (images, shapes, icons), you MUST include them in the formatted HTML
-- Render elements as absolute positioned divs/imgs with proper z-index layering
-- For images: Use <img src="URL" style="position: absolute; top: Ypx; left: Xpx; width: Wpx; height: Hpx; z-index: 10;" />
-- For shapes: Use <div> with appropriate styling (borders, border-radius, background, position: absolute)
-- Preserve all element URLs and positioning from the elements list above
-- Layer content elements above background but below overlays
+**🎯 CRITICAL - OVERLAY ELEMENTS REQUIREMENT (MUST FOLLOW)**:
+
+When elements are provided in the "Current Elements" list above, you **MUST include ALL of them** in the formatted HTML output.
+
+**How to render each element type:**
+
+1. **Images** (type: "image"):
+   - Extract URL from properties (usually 'url' or 'src' field)
+   - Render as: `<img src="EXACT_URL_FROM_PROPERTIES" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 10; object-fit: cover;" />`
+   - Example: If element has position={{x: 100, y: 200, width: 300, height: 400}} and properties={{url: "https://cdn.example.com/image.jpg"}}
+     ```html
+     <img src="https://cdn.example.com/image.jpg" style="position: absolute; left: 100px; top: 200px; width: 300px; height: 400px; z-index: 10; object-fit: cover;" />
+     ```
+
+2. **Shapes** (type: "shape"):
+   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 5; {additional_styles_from_properties}"></div>`
+   - Extract color, border-radius, border, background from properties
+
+3. **Text overlays** (type: "text"):
+   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; z-index: 15; {text_styles}">{text_content}</div>`
+
+4. **Icons** (type: "icon"):
+   - Render as: `<img src="ICON_URL" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 12;" />`
+
+**Z-index layering:**
+- Background: 0 | Shapes: 5 | Images: 10 | Icons: 12 | Text overlays: 15 | Main content: 20
+
+**⚠️ IMPORTANT**: 
+- Copy exact URLs from "Current Elements" list - do NOT modify URLs
+- Use exact coordinates from elements list
+- If user says "keep images" or "giữ hình ảnh", ALL image elements MUST be in output
+- Place elements INSIDE slide-wrapper, typically after main content
 
 Design Principles to Apply:
 1. **Visual Hierarchy**: Use proper heading sizes (h1 > h2 > h3 > p), font weights, and spacing
