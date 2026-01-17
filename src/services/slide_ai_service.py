@@ -505,12 +505,22 @@ class SlideAIService:
 
                 # Highlight URL for images
                 url_found = None
-                if elem_type == "image" and "url" in props:
-                    desc += f"     🔗 Image URL: {props['url']}\n"
-                    url_found = props["url"]
-                elif "src" in props:
-                    desc += f"     🔗 Image URL: {props['src']}\n"
-                    url_found = props["src"]
+                if elem_type == "image":
+                    # Check src field first (direct in element for dict format)
+                    if isinstance(elem, dict) and "src" in elem:
+                        url_found = elem.get("src")
+                    # Then check properties.src
+                    elif "src" in props:
+                        url_found = props["src"]
+                    # Finally check properties.url
+                    elif "url" in props:
+                        url_found = props["url"]
+                    
+                    # Only show URL if it's not base64
+                    if url_found and not url_found.startswith("data:"):
+                        desc += f"     🔗 Image URL: {url_found}\n"
+                    else:
+                        url_found = None  # Don't show base64 as URL
 
                 # 🔍 DEBUG: Log element details
                 logger.info(

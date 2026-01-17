@@ -72,10 +72,31 @@ ssh root@104.248.147.155 "su - hoile -c 'COMMAND'"
 
 **Working Directory:** `/home/hoile/wordai`
 
-**Deploy:** `./deploy-compose-with-rollback.sh` (full rebuild)
-**Nginx only:** `./restart-nginx.sh` (fast reload)
+### 5. Production Deployment (MANDATORY)
 
-### 5. MongoDB Access (Production)
+**MUST use this command for ALL deployments:**
+```bash
+ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./deploy-compose-with-rollback.sh'"
+```
+
+**Why this command is required:**
+- ✅ Full Docker rebuild (ensures all code changes applied)
+- ✅ Automatic rollback if deployment fails
+- ✅ Zero-downtime deployment with health checks
+- ✅ Pulls latest code from main branch
+- ✅ Rebuilds all containers (app, workers, nginx)
+
+**Alternative (ONLY for nginx config changes):**
+```bash
+ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && ./restart-nginx.sh'"
+```
+
+**NEVER use:**
+- ❌ `./restart-nginx.sh` for code changes (only reloads nginx, not Python code)
+- ❌ Manual docker commands without rollback safety
+- ❌ Direct git pull without rebuild
+
+### 6. MongoDB Access (Production)
 
 ```bash
 docker exec mongodb mongosh ai_service_db \
@@ -84,7 +105,7 @@ docker exec mongodb mongosh ai_service_db \
   --authenticationDatabase admin
 ```
 
-### 6. Redis Access (Production)
+### 7. Redis Access (Production)
 
 ```bash
 docker exec redis-server redis-cli
