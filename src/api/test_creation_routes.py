@@ -168,7 +168,7 @@ async def generate_test(
             logger.info(f"📄 Processing file type: {file_type}")
 
             # ========== PDF FILES: Send directly to Gemini (no parsing) ==========
-            if file_type == ".pdf":
+            if file_type.lower() in ["application/pdf", ".pdf", "pdf"]:
                 logger.info(f"📥 Downloading PDF from R2 for Gemini File API: {r2_key}")
 
                 # Download PDF to temp file (ONLY download, no need to parse)
@@ -218,7 +218,15 @@ async def generate_test(
                             logger.warning(f"⚠️ Failed to cleanup temp file: {e}")
 
             # ========== TEXT FILES: .md, .docx, .txt - Parse to text ==========
-            elif file_type in [".md", ".docx", ".txt", ".doc"]:
+            elif file_type.lower() in [
+                ".md",
+                ".docx",
+                ".txt",
+                ".doc",
+                "text/markdown",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "text/plain",
+            ]:
                 logger.info(f"📥 Downloading text file from R2: {r2_key}")
 
                 # Download file to temp location
@@ -235,15 +243,25 @@ async def generate_test(
 
                 try:
                     # Parse file to text based on type
-                    if file_type == ".txt":
+                    # Normalize file type to handle both MIME types and extensions
+                    normalized_type = file_type.lower()
+
+                    if normalized_type in [".txt", "text/plain", "txt"]:
                         with open(temp_file_path, "r", encoding="utf-8") as f:
                             content = f.read()
 
-                    elif file_type == ".md":
+                    elif normalized_type in [".md", "text/markdown", "md"]:
                         with open(temp_file_path, "r", encoding="utf-8") as f:
                             content = f.read()
 
-                    elif file_type in [".docx", ".doc"]:
+                    elif normalized_type in [
+                        ".docx",
+                        ".doc",
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        "application/msword",
+                        "docx",
+                        "doc",
+                    ]:
                         # Use python-docx to extract text
                         try:
                             from docx import Document
@@ -256,6 +274,11 @@ async def generate_test(
                                 status_code=500,
                                 detail=f"Failed to parse DOCX file: {str(e)}",
                             )
+                    else:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Unsupported text file type: {file_type}",
+                        )
 
                     logger.info(
                         f"✅ Parsed {file_type} file: {len(content)} characters"

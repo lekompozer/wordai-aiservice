@@ -341,7 +341,14 @@ async def parse_slides_from_file(
         logger.info(f"📄 File: {file_name} (type: {file_type})")
 
         # Validate file type
-        if file_type not in [".pdf", ".pptx"]:
+        if file_type.lower() not in [
+            "application/pdf",
+            ".pdf",
+            "pdf",
+            ".pptx",
+            "pptx",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        ]:
             raise HTTPException(
                 status_code=400,
                 detail=f"Unsupported file type: {file_type}. Only PDF and PPTX are supported.",
@@ -465,7 +472,7 @@ async def parse_slides_from_file(
 
             # Parse with Gemini
             try:
-                if file_type == ".pdf":
+                if file_type.lower() in ["application/pdf", ".pdf", "pdf"]:
                     # Upload PDF to Gemini Files API
                     pdf_uri = upload_pdf_to_gemini(tmp_path)
 
@@ -600,7 +607,7 @@ async def parse_slides_from_upload(
 
         # Validate file type
         file_ext = Path(file_name).suffix.lower()
-        if file_ext not in [".pdf", ".pptx"]:
+        if file_ext not in [".pdf", ".pptx", "pdf", "pptx"]:
             raise HTTPException(
                 status_code=400,
                 detail=f"Unsupported file type: {file_ext}. Only PDF and PPTX are supported.",
