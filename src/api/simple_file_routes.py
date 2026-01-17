@@ -93,14 +93,14 @@ class FileResponse(BaseModel):
 
     id: str
     filename: str
-    original_name: str
+    original_name: Optional[str] = None  # Some old files may not have this
     file_type: str
     file_size: int
     folder_id: Optional[str]
     user_id: str
     r2_key: str  # R2 storage key (internal use only)
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None  # Some old files may not have this
 
 
 class FileDownloadResponse(BaseModel):
@@ -783,14 +783,16 @@ async def list_all_files(
             file_data = {
                 "id": doc.get("file_id"),
                 "filename": doc.get("filename"),
-                "original_name": doc.get("original_name"),
+                "original_name": doc.get("original_name")
+                or doc.get("filename"),  # Fallback to filename
                 "file_type": doc.get("file_type"),
                 "file_size": doc.get("file_size"),
                 "folder_id": doc.get("folder_id"),
                 "user_id": doc.get("user_id"),
                 "r2_key": doc.get("r2_key"),
                 "created_at": doc.get("uploaded_at"),
-                "updated_at": doc.get("updated_at"),
+                "updated_at": doc.get("updated_at")
+                or doc.get("uploaded_at"),  # Fallback to created_at
             }
             root_files.append(FileResponse(**file_data))
 
@@ -814,14 +816,16 @@ async def list_all_files(
                 file_data = {
                     "id": doc.get("file_id"),
                     "filename": doc.get("filename"),
-                    "original_name": doc.get("original_name"),
+                    "original_name": doc.get("original_name")
+                    or doc.get("filename"),  # Fallback to filename
                     "file_type": doc.get("file_type"),
                     "file_size": doc.get("file_size"),
                     "folder_id": doc.get("folder_id"),
                     "user_id": doc.get("user_id"),
                     "r2_key": doc.get("r2_key"),
                     "created_at": doc.get("uploaded_at"),
-                    "updated_at": doc.get("updated_at"),
+                    "updated_at": doc.get("updated_at")
+                    or doc.get("uploaded_at"),  # Fallback to created_at
                 }
                 folder_files.append(FileResponse(**file_data))
 
