@@ -241,6 +241,12 @@ async def ai_format_slide(
             elements_to_use = request.elements or []
             background_to_use = request.background
 
+            # 🔍 DEBUG: Log document_id and elements from request
+            logger.info(f"🔍 Request document_id: {request.document_id}")
+            logger.info(
+                f"🔍 Request elements count: {len(request.elements) if request.elements else 0}"
+            )
+
             if request.document_id:
                 # Query document to get slide elements and background
                 from src.database.db_manager import DBManager
@@ -321,6 +327,14 @@ async def ai_format_slide(
                     logger.warning(
                         f"⚠️ Document {request.document_id} not found for user {user_id}"
                     )
+            else:
+                # No document_id provided - cannot auto-fetch elements!
+                logger.warning(
+                    f"⚠️ No document_id in request! Elements must be provided by frontend."
+                )
+                logger.warning(
+                    f"   Request has {len(elements_to_use)} elements from frontend"
+                )
 
             slides_to_process = [
                 SlideData(

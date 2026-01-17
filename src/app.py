@@ -529,21 +529,10 @@ async def start_background_workers():
 
         print("✅ Translation Worker started")
 
-        # ===== START SLIDE FORMAT WORKER =====
-        print("🎨 Starting Slide Format Worker...")
-        from src.workers.slide_format_worker import SlideFormatWorker
-
-        slide_format_worker = SlideFormatWorker(worker_id="app_slide_format_worker")
-
-        await slide_format_worker.initialize()
-
-        slide_format_worker_task = asyncio.create_task(slide_format_worker.run())
-        background_workers["slide_format_worker"] = {
-            "worker": slide_format_worker,
-            "task": slide_format_worker_task,
-        }
-
-        print("✅ Slide Format Worker started")
+        # ===== SLIDE FORMAT WORKER REMOVED =====
+        # ⚠️ Slide format worker now runs ONLY in dedicated slide-format-worker container
+        # This prevents duplicate processing and keeps API server lightweight
+        # See: docker-compose.yml -> slide-format-worker service
 
         # ===== START CHAPTER TRANSLATION WORKER =====
         print("📖 Starting Chapter Translation Worker...")
