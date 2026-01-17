@@ -234,7 +234,7 @@ async def split_document(
 
         # Check if it's a PDF
         file_type = file_doc.get("file_type", "")
-        if file_type.lower() != ".pdf":
+        if file_type.lower() not in ["application/pdf", ".pdf", "pdf"]:
             raise HTTPException(
                 status_code=400, detail=f"Only PDF files can be split, got: {file_type}"
             )
@@ -605,7 +605,7 @@ async def convert_document_with_ai(
 
         # Check if file is PDF
         file_type = file_doc.get("file_type", "")
-        if file_type.lower() != ".pdf":
+        if file_type.lower() not in ["application/pdf", ".pdf", "pdf"]:
             raise HTTPException(
                 status_code=400,
                 detail=f"Only PDF files supported for AI conversion, got: {file_type}",
