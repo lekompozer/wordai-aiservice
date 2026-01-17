@@ -474,6 +474,8 @@ class SlideAIService:
         elements_info = ""
         if request.elements:
             elements_info = f"\n\nCurrent Elements ({len(request.elements)}):\n"
+            logger.info(f"📝 Building prompt with {len(request.elements)} elements")
+
             for i, elem in enumerate(request.elements):
                 # Extract important properties for clarity
                 elem_type = elem.type
@@ -486,16 +488,29 @@ class SlideAIService:
                 desc += f"     Size: {pos['width']}px × {pos['height']}px\n"
 
                 # Highlight URL for images
+                url_found = None
                 if elem_type == "image" and "url" in props:
                     desc += f"     🔗 Image URL: {props['url']}\n"
+                    url_found = props["url"]
                 elif "src" in props:
                     desc += f"     🔗 Image URL: {props['src']}\n"
+                    url_found = props["src"]
+
+                # 🔍 DEBUG: Log element details
+                logger.info(
+                    f"   Element {i+1}: type={elem_type}, url={url_found or 'NO_URL'}"
+                )
 
                 # Show other properties
                 if props:
                     desc += f"     Properties: {props}\n"
 
                 elements_info += desc
+
+            # 🔍 DEBUG: Log full elements_info section
+            logger.info(f"📋 Elements info for prompt:\n{elements_info}")
+        else:
+            logger.warning("⚠️ No elements provided to format prompt!")
 
         background_info = ""
         if request.background:

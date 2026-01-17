@@ -175,6 +175,19 @@ async def ai_format_slide(
                                     SlideElement(**elem)
                                     for elem in slide_elem_data["elements"]
                                 ]
+                                # 🔍 DEBUG: Log fetched elements
+                                logger.info(
+                                    f"🖼️ Slide {slide.slide_index}: Fetched {len(slide.elements)} elements from database"
+                                )
+                                for i, elem in enumerate(slide.elements):
+                                    elem_type = elem.type
+                                    props = elem.properties or {}
+                                    url = (
+                                        props.get("url") or props.get("src") or "NO_URL"
+                                    )
+                                    logger.info(
+                                        f"   Element {i+1}: type={elem_type}, url={url}"
+                                    )
 
                         # Get background for this slide
                         if not slide.background:
@@ -242,6 +255,15 @@ async def ai_format_slide(
                         logger.info(
                             f"✅ Auto-fetched {len(elements_to_use)} elements for slide {request.slide_index} from database"
                         )
+                        # 🔍 DEBUG: Log each element's details
+                        for i, elem in enumerate(elements_to_use):
+                            elem_type = elem.type
+                            props = elem.properties or {}
+                            url = props.get("url") or props.get("src") or "NO_URL"
+                            pos = elem.position
+                            logger.info(
+                                f"   🖼️ Element {i+1}: type={elem_type}, position=({pos.get('x')},{pos.get('y')}), url={url}"
+                            )
 
                     # Get background for this slide if not provided
                     if not background_to_use:
