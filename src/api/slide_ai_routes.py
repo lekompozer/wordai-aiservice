@@ -144,17 +144,134 @@ async def ai_format_slide(
                     f"📋 Mode 2: Processing {len(slides_to_process)} specific slides (1 AI call)"
                 )
 
+            # ✅ AUTO-FETCH elements and backgrounds from database for batch if document_id provided
+            if request.document_id:
+                from src.database.db_manager import DBManager
+                from src.models.slide_ai_models import SlideElement, SlideBackground
+
+                db_manager = DBManager()
+                doc = db_manager.db.documents.find_one(
+                    {"document_id": request.document_id, "user_id": user_id}
+                )
+
+                if doc:
+                    slide_elements_data = doc.get("slide_elements", [])
+                    slide_backgrounds_data = doc.get("slide_backgrounds", [])
+
+                    # Enrich each slide with elements and background from database
+                    for slide in slides_to_process:
+                        # Get elements for this slide
+                        if not slide.elements or len(slide.elements) == 0:
+                            slide_elem_data = next(
+                                (
+                                    s
+                                    for s in slide_elements_data
+                                    if s.get("slideIndex") == slide.slide_index
+                                ),
+                                None,
+                            )
+                            if slide_elem_data and slide_elem_data.get("elements"):
+                                slide.elements = [
+                                    SlideElement(**elem)
+                                    for elem in slide_elem_data["elements"]
+                                ]
+
+                        # Get background for this slide
+                        if not slide.background:
+                            slide_bg_data = next(
+                                (
+                                    b
+                                    for b in slide_backgrounds_data
+                                    if b.get("slideIndex") == slide.slide_index
+                                ),
+                                None,
+                            )
+                            if slide_bg_data and slide_bg_data.get("background"):
+                                slide.background = SlideBackground(
+                                    **slide_bg_data["background"]
+                                )
+
+                    total_elements = sum(
+                        len(s.elements or []) for s in slides_to_process
+                    )
+                    logger.info(
+                        f"✅ Auto-fetched {total_elements} elements for {len(slides_to_process)} slides from database"
+                    )
+                else:
+                    logger.warning(
+                        f"⚠️ Document {request.document_id} not found for user {user_id}"
+                    )
+
         elif request.slide_index is not None and request.current_html:
             # Mode 1: Single slide (backward compatible)
             logger.info(f"📄 Mode 1: Processing single slide {request.slide_index}")
             from src.models.slide_ai_models import SlideData
 
+            # ✅ AUTO-FETCH elements and background from database if document_id provided
+            elements_to_use = request.elements or []
+            background_to_use = request.background
+
+            if request.document_id:
+                # Query document to get slide elements and background
+                from src.database.db_manager import DBManager
+
+                db_manager = DBManager()
+                doc = db_manager.db.documents.find_one(
+                    {"document_id": request.document_id, "user_id": user_id}
+                )
+
+                if doc:
+                    # Get elements for this specific slide
+                    slide_elements_data = doc.get("slide_elements", [])
+                    slide_data = next(
+                        (
+                            s
+                            for s in slide_elements_data
+                            if s.get("slideIndex") == request.slide_index
+                        ),
+                        None,
+                    )
+
+                    if slide_data and slide_data.get("elements"):
+                        # Convert DB elements to SlideElement models
+                        from src.models.slide_ai_models import SlideElement
+
+                        elements_to_use = [
+                            SlideElement(**elem) for elem in slide_data["elements"]
+                        ]
+                        logger.info(
+                            f"✅ Auto-fetched {len(elements_to_use)} elements for slide {request.slide_index} from database"
+                        )
+
+                    # Get background for this slide if not provided
+                    if not background_to_use:
+                        slide_backgrounds = doc.get("slide_backgrounds", [])
+                        bg_data = next(
+                            (
+                                b
+                                for b in slide_backgrounds
+                                if b.get("slideIndex") == request.slide_index
+                            ),
+                            None,
+                        )
+                        if bg_data and bg_data.get("background"):
+                            from src.models.slide_ai_models import SlideBackground
+
+                            background_to_use = SlideBackground(**bg_data["background"])
+                            logger.info(
+                                f"✅ Auto-fetched background for slide {request.slide_index} from database"
+                            )
+                else:
+                    logger.warning(
+                        f"⚠️ Document {request.document_id} not found for user {user_id}"
+                    )
+
             slides_to_process = [
                 SlideData(
                     slide_index=request.slide_index,
                     current_html=request.current_html,
-                    elements=request.elements or [],
-                    background=request.background,
+                    elements=elements_to_use,
+                    background=background_to_use,
                 )
             ]
         else:
