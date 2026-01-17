@@ -1308,7 +1308,7 @@ async def upload_slide_image(
 
     Usage:
     1. Frontend: User uploads image via this endpoint
-    2. Backend: Saves to CDN, returns URL
+    2. Backend: Saves to R2 CDN, returns URL
     3. Frontend: Saves URL in element.src instead of base64
 
     Benefits:
@@ -1316,8 +1316,8 @@ async def upload_slide_image(
     - Faster saves and API calls
     - CDN caching and delivery
     """
-    from src.services.file_upload_service import FileUploadService
-    from fastapi import UploadFile
+    from src.services.r2_storage_service import R2StorageService
+    import uuid
 
     user_id = user_data.get("uid")
 
@@ -1332,27 +1332,31 @@ async def upload_slide_image(
         # Read file content
         file_content = await file.read()
 
-        # Upload to CDN (same service as book/library uploads)
-        upload_service = FileUploadService()
+        # Initialize R2 service
+        r2_service = R2StorageService()
 
-        # Generate filename: slide_images/{document_id}/{timestamp}_{original_name}
-        import time
+        # Generate unique R2 key: slide-images/{user_id}/{document_id}/{uuid}_{filename}
+        unique_id = uuid.uuid4().hex[:12]
 
-        timestamp = int(time.time() * 1000)
-        filename = f"slide_images/{document_id}/{timestamp}_{file.filename}"
+        # Get file extension safely
+        filename = file.filename or "image.png"
+        file_ext = filename.split(".")[-1] if "." in filename else "png"
+        r2_key = f"slide-images/{user_id}/{document_id}/{unique_id}.{file_ext}"
 
-        cdn_url = upload_service.upload_to_cdn(
-            file_content=file_content, filename=filename, content_type=file.content_type
+        # Upload to R2
+        result = await r2_service.upload_file(
+            file_content=file_content, r2_key=r2_key, content_type=file.content_type
         )
 
         logger.info(
-            f"✅ Uploaded slide image: document_id={document_id}, user_id={user_id}, "
-            f"filename={file.filename}, cdn_url={cdn_url}"
+            f"✅ Uploaded slide image to R2: document_id={document_id}, user_id={user_id}, "
+            f"r2_key={r2_key}, url={result['public_url']}"
         )
 
         return {
             "success": True,
-            "url": cdn_url,
+            "url": result["public_url"],
+            "r2_key": result["r2_key"],
             "filename": file.filename,
             "size": len(file_content),
             "content_type": file.content_type,
