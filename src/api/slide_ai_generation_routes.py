@@ -653,7 +653,7 @@ async def analyze_slide_from_pdf(
 
         # Validate file type
         file_type = file_doc.get("file_type", "").lower()
-        if file_type != ".pdf":
+        if file_type not in ["application/pdf", ".pdf", "pdf"]:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid file type: {file_type}. Only PDF files are supported.",
@@ -1479,7 +1479,7 @@ async def import_slides_from_pdf(
 
         # Validate file type
         file_type = file_doc.get("file_type", "").lower()
-        if file_type != ".pdf":
+        if file_type not in ["application/pdf", ".pdf", "pdf"]:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid file type: {file_type}. Only PDF files are supported.",
