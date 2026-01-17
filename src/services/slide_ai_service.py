@@ -535,26 +535,26 @@ When elements are provided in the "Current Elements" list above, you **MUST incl
 
 1. **Images** (type: "image"):
    - Extract URL from properties (usually 'url' or 'src' field)
-   - Render as: `<img src="EXACT_URL_FROM_PROPERTIES" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 10; object-fit: cover;" />`
-   - Example: If element has position={{x: 100, y: 200, width: 300, height: 400}} and properties={{url: "https://cdn.example.com/image.jpg"}}
+   - Render as: `<img src="EXACT_URL_FROM_PROPERTIES" style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; height: {{height}}px; z-index: 10; object-fit: cover;" />`
+   - Example: If element has position={{{{x: 100, y: 200, width: 300, height: 400}}}} and properties={{{{url: "https://cdn.example.com/image.jpg"}}}}
      ```html
      <img src="https://cdn.example.com/image.jpg" style="position: absolute; left: 100px; top: 200px; width: 300px; height: 400px; z-index: 10; object-fit: cover;" />
      ```
 
 2. **Shapes** (type: "shape"):
-   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 5; {additional_styles_from_properties}"></div>`
+   - Render as: `<div style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; height: {{height}}px; z-index: 5; {{additional_styles_from_properties}}"></div>`
    - Extract color, border-radius, border, background from properties
-   - Example: If properties={{backgroundColor: "#667eea", borderRadius: "12px"}}
+   - Example: If properties={{{{backgroundColor: "#667eea", borderRadius: "12px"}}}}
      ```html
      <div style="position: absolute; left: 50px; top: 50px; width: 200px; height: 100px; z-index: 5; background-color: #667eea; border-radius: 12px;"></div>
      ```
 
 3. **Text overlays** (type: "text"):
-   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 15; {text_styles}">{text_content}</div>`
+   - Render as: `<div style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; height: {{height}}px; z-index: 15; {{text_styles}}">{{text_content}}</div>`
    - Extract fontSize, color, fontWeight, textAlign from properties
 
 4. **Icons** (type: "icon"):
-   - Render as: `<img src="ICON_URL" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 12;" />`
+   - Render as: `<img src="ICON_URL" style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; height: {{height}}px; z-index: 12;" />`
 
 **Z-index layering order:**
 - Background: z-index: 0
@@ -659,21 +659,21 @@ When elements are provided in the "Current Elements" list above, you **MUST incl
 
 1. **Images** (type: "image"):
    - Extract URL from properties (usually 'url' or 'src' field)
-   - Render as: `<img src="EXACT_URL_FROM_PROPERTIES" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 10; object-fit: cover;" />`
-   - Example: If element has position={{x: 100, y: 200, width: 300, height: 400}} and properties={{url: "https://cdn.example.com/image.jpg"}}
+   - Render as: `<img src="EXACT_URL_FROM_PROPERTIES" style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; height: {{height}}px; z-index: 10; object-fit: cover;" />`
+   - Example: If element has position={{{{x: 100, y: 200, width: 300, height: 400}}}} and properties={{{{url: "https://cdn.example.com/image.jpg"}}}}
      ```html
      <img src="https://cdn.example.com/image.jpg" style="position: absolute; left: 100px; top: 200px; width: 300px; height: 400px; z-index: 10; object-fit: cover;" />
      ```
 
 2. **Shapes** (type: "shape"):
-   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 5; {additional_styles_from_properties}"></div>`
+   - Render as: `<div style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; height: {{height}}px; z-index: 5; {{additional_styles_from_properties}}"></div>`
    - Extract color, border-radius, border, background from properties
 
 3. **Text overlays** (type: "text"):
-   - Render as: `<div style="position: absolute; left: {x}px; top: {y}px; width: {width}px; z-index: 15; {text_styles}">{text_content}</div>`
+   - Render as: `<div style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; z-index: 15; {{text_styles}}">{{text_content}}</div>`
 
 4. **Icons** (type: "icon"):
-   - Render as: `<img src="ICON_URL" style="position: absolute; left: {x}px; top: {y}px; width: {width}px; height: {height}px; z-index: 12;" />`
+   - Render as: `<img src="ICON_URL" style="position: absolute; left: {{x}}px; top: {{y}}px; width: {{width}}px; height: {{height}}px; z-index: 12;" />`
 
 **Z-index layering:**
 - Background: 0 | Shapes: 5 | Images: 10 | Icons: 12 | Text overlays: 15 | Main content: 20
