@@ -108,7 +108,7 @@ class FileDownloadResponse(BaseModel):
 
     id: str
     filename: str
-    original_name: str
+    original_name: Optional[str] = None  # Optional for legacy/split PDF files
     file_type: str
     file_size: int
     folder_id: Optional[str]
@@ -116,7 +116,7 @@ class FileDownloadResponse(BaseModel):
     r2_key: str
     download_url: str  # ✅ Signed URL (only for single file requests)
     created_at: datetime
-    updated_at: datetime
+    updated_at: Optional[datetime] = None  # Optional for legacy/split PDF files
 
 
 class FileUpdate(BaseModel):
@@ -890,7 +890,8 @@ async def get_file(
             file_data = {
                 "id": file_doc.get("file_id"),
                 "filename": file_doc.get("filename"),
-                "original_name": file_doc.get("original_name"),
+                "original_name": file_doc.get("original_name")
+                or file_doc.get("filename"),  # Fallback to filename
                 "file_type": file_doc.get("file_type"),
                 "file_size": file_doc.get("file_size"),
                 "folder_id": file_doc.get("folder_id"),
@@ -898,7 +899,8 @@ async def get_file(
                 "r2_key": r2_key,
                 "download_url": download_url,
                 "created_at": file_doc.get("uploaded_at"),
-                "updated_at": file_doc.get("updated_at"),
+                "updated_at": file_doc.get("updated_at")
+                or file_doc.get("uploaded_at"),  # Fallback to uploaded_at
             }
 
             logger.info(f"✅ Found file in MongoDB: {file_id}")
