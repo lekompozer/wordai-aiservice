@@ -479,22 +479,22 @@ class SlideAIService:
                 elem_type = elem.type
                 pos = elem.position
                 props = elem.properties or {}
-                
+
                 # Build element description
                 desc = f"  {i+1}. Type: {elem_type}\n"
                 desc += f"     Position: x={pos['x']}px, y={pos['y']}px\n"
                 desc += f"     Size: {pos['width']}px × {pos['height']}px\n"
-                
+
                 # Highlight URL for images
                 if elem_type == "image" and "url" in props:
                     desc += f"     🔗 Image URL: {props['url']}\n"
                 elif "src" in props:
                     desc += f"     🔗 Image URL: {props['src']}\n"
-                
+
                 # Show other properties
                 if props:
                     desc += f"     Properties: {props}\n"
-                
+
                 elements_info += desc
 
         background_info = ""
@@ -564,7 +564,7 @@ When elements are provided in the "Current Elements" list above, you **MUST incl
 - Text overlays: z-index: 15
 - Main text content: z-index: 20
 
-**⚠️ IMPORTANT**: 
+**⚠️ IMPORTANT**:
 - Copy exact URLs from "Current Elements" list - do NOT modify or generate new URLs
 - Use exact position coordinates (x, y, width, height) from elements list
 - If user instruction says "keep/preserve images" or "giữ hình ảnh", ALL image elements MUST appear in output
@@ -678,7 +678,7 @@ When elements are provided in the "Current Elements" list above, you **MUST incl
 **Z-index layering:**
 - Background: 0 | Shapes: 5 | Images: 10 | Icons: 12 | Text overlays: 15 | Main content: 20
 
-**⚠️ IMPORTANT**: 
+**⚠️ IMPORTANT**:
 - Copy exact URLs from "Current Elements" list - do NOT modify URLs
 - Use exact coordinates from elements list
 - If user says "keep images" or "giữ hình ảnh", ALL image elements MUST be in output
