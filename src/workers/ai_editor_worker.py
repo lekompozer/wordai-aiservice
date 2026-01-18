@@ -309,7 +309,7 @@ Now, convert the following HTML document:
                     # Start task in background with timeout protection
                     async def run_with_timeout():
                         try:
-                            await asyncio.wait_for(
+                            return await asyncio.wait_for(
                                 self.process_task(task),
                                 timeout=self.JOB_TIMEOUT_SECONDS,
                             )
@@ -325,6 +325,7 @@ Now, convert the following HTML document:
                                 user_id=task.user_id,
                                 error=f"Job timeout after {self.JOB_TIMEOUT_SECONDS} seconds",
                             )
+                            return False
 
                     task_future = asyncio.create_task(run_with_timeout())
                     running_tasks.add(task_future)
