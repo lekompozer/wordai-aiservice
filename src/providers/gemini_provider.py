@@ -331,7 +331,7 @@ JSON format:
     ) -> str:
         """
         Format and beautify document (A4) HTML content using Gemini 2.5 Flash
-        Optimized for fast document formatting
+        Optimized for fast document formatting with automatic chunking for large content
 
         Args:
             html_content: HTML to format
@@ -343,6 +343,30 @@ JSON format:
         if not self.enabled:
             raise Exception("Gemini Provider not available")
 
+        # Estimate tokens (rough: 1 token ≈ 4 chars)
+        estimated_tokens = len(html_content) // 4
+        MAX_TOKENS_PER_CHUNK = 40000  # ~160KB chars, leaves room for output
+
+        logger.info(
+            f"📊 Document content size: {len(html_content):,} chars (~{estimated_tokens:,} tokens)"
+        )
+
+        # If content is too large, split into chunks
+        if estimated_tokens > MAX_TOKENS_PER_CHUNK:
+            logger.warning(f"⚠️ Content too large, splitting into chunks...")
+            return await self._format_document_html_chunked(html_content, user_query)
+
+        # Normal formatting for smaller content
+        return await self._format_document_html_single(html_content, user_query)
+
+    async def _format_document_html_single(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+    ) -> str:
+        """
+        Format document HTML in a single request
+        """
         prompt = """You are an expert document formatter. Your task is to format and beautify document content for TipTap editor.
 
 FORMATTING RULES FOR DOCUMENTS:
@@ -407,6 +431,66 @@ OUTPUT REQUIREMENTS:
             return result.strip()
         except asyncio.TimeoutError:
             raise Exception("Formatting timed out after 240 seconds")
+
+    async def _format_document_html_chunked(
+        self,
+        html_content: str,
+        user_query: Optional[str] = None,
+    ) -> str:
+        """
+        Format large document HTML by splitting into chunks
+        Splits by paragraphs/headings to maintain coherence
+        """
+        from bs4 import BeautifulSoup
+
+        logger.info("🔪 Splitting document into chunks for formatting...")
+
+        # Parse HTML and find all block elements (p, h1-h6, ul, ol, blockquote, div)
+        soup = BeautifulSoup(html_content, "html.parser")
+
+        # Find all top-level block elements
+        block_elements = soup.find_all(
+            ["p", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "blockquote", "div"],
+            recursive=False,
+        )
+
+        if not block_elements or len(block_elements) < 10:
+            logger.warning(
+                "⚠️ Not enough block elements found, treating as single chunk"
+            )
+            return await self._format_document_html_single(html_content, user_query)
+
+        logger.info(
+            f"📄 Found {len(block_elements)} block elements, processing in chunks..."
+        )
+
+        # Process elements in chunks (estimate ~10KB per element, ~20 elements per chunk)
+        ELEMENTS_PER_CHUNK = 20
+        formatted_chunks = []
+
+        for i in range(0, len(block_elements), ELEMENTS_PER_CHUNK):
+            chunk_elements = block_elements[i : i + ELEMENTS_PER_CHUNK]
+            chunk_html = "\n".join(str(elem) for elem in chunk_elements)
+
+            # Estimate chunk size
+            chunk_size = len(chunk_html)
+            logger.info(
+                f"🎨 Formatting elements {i+1}-{min(i+ELEMENTS_PER_CHUNK, len(block_elements))} "
+                f"of {len(block_elements)} (~{chunk_size:,} chars)..."
+            )
+
+            formatted_chunk = await self._format_document_html_single(
+                chunk_html, user_query
+            )
+
+            formatted_chunks.append(formatted_chunk)
+            logger.info(f"✅ Chunk {i//ELEMENTS_PER_CHUNK + 1} formatted")
+
+        # Combine all formatted chunks
+        result = "\n\n".join(formatted_chunks)
+        logger.info(f"✅ All {len(block_elements)} elements formatted successfully")
+
+        return result
 
     async def edit_document_html(
         self,
