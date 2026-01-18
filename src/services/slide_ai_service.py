@@ -515,7 +515,7 @@ class SlideAIService:
                     # Finally check properties.url
                     elif "url" in props:
                         url_found = props["url"]
-                    
+
                     # Only show URL if it's not base64
                     if url_found and not url_found.startswith("data:"):
                         desc += f"     🔗 Image URL: {url_found}\n"
