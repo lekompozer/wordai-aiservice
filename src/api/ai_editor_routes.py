@@ -751,6 +751,9 @@ async def get_ai_editor_job_status(
             completed_at=job.get("completed_at"),
             result=job.get("result"),
             error=job.get("error"),
+            processing_time_seconds=job.get("processing_time_seconds"),
+            content_type=job.get("content_type"),
+            content_size=job.get("content_size"),
             message=message,
         )
 

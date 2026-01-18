@@ -70,6 +70,13 @@ class AIEditorJobStatusResponse(BaseModel):
     # Error (only if failed)
     error: Optional[str] = Field(None, description="Error message if failed")
 
+    # Processing metadata
+    processing_time_seconds: Optional[float] = Field(
+        None, description="Total processing time in seconds"
+    )
+    content_type: Optional[str] = Field(None, description="Content type (doc/slide)")
+    content_size: Optional[int] = Field(None, description="Content size in characters")
+
     # Progress info
     message: str = Field(..., description="Current status message")
 
