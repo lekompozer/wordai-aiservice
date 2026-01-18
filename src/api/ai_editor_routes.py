@@ -718,14 +718,18 @@ async def get_ai_editor_job_status(
             return AIEditorJobStatusResponse(
                 job_id=job_id,
                 status=AIEditorJobStatus.PENDING,
-                user_id=user_id,
-                message="Job not found - may have expired (24h TTL) or invalid job_id",
-                created_at=None,
+                success=False,
+                job_type=AIEditorJobType.FORMAT,
+                document_id="",
+                created_at=datetime.utcnow(),
                 started_at=None,
                 completed_at=None,
-                content_type=None,
-                formatted_content=None,
+                result=None,
                 error=None,
+                processing_time_seconds=None,
+                content_type=None,
+                content_size=None,
+                message="Job not found - may have expired (24h TTL) or invalid job_id",
             )
 
         # Build status message
@@ -744,6 +748,7 @@ async def get_ai_editor_job_status(
         return AIEditorJobStatusResponse(
             job_id=job["job_id"],
             status=AIEditorJobStatus(job["status"]),
+            success=(job["status"] == "completed"),
             job_type=AIEditorJobType(job.get("job_type", "edit")),
             document_id=job.get("document_id", ""),
             created_at=job["created_at"],
@@ -878,7 +883,7 @@ async def bilingual_convert(
             task_id=task_id,
             job_id=task_id,
             user_id=user_id,
-            document_id=resource_id,
+            document_id=resource_id or "",
             job_type="bilingual",
             content_type=resource_type,
             content=content_html,
@@ -886,6 +891,9 @@ async def bilingual_convert(
             source_language=request.source_language,
             target_language=request.target_language,
             bilingual_style=request.style.value,
+            slide_index=None,
+            elements=None,
+            background=None,
         )
 
         success = await queue.enqueue_generic_task(task)

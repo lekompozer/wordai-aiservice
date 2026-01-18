@@ -56,6 +56,9 @@ class AIEditorJobStatusResponse(BaseModel):
 
     job_id: str = Field(..., description="Job ID")
     status: AIEditorJobStatus = Field(..., description="Current status")
+    success: bool = Field(
+        ..., description="Whether the job succeeded (status=completed)"
+    )
     job_type: AIEditorJobType = Field(..., description="Job type")
     document_id: str = Field(..., description="Document ID")
 
