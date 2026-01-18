@@ -745,7 +745,7 @@ async def get_ai_editor_job_status(
         else:
             message = f"Unknown status: {status}"
 
-        return AIEditorJobStatusResponse(
+        response = AIEditorJobStatusResponse(
             job_id=job["job_id"],
             status=AIEditorJobStatus(job["status"]),
             success=(job["status"] == "completed"),
@@ -761,6 +761,13 @@ async def get_ai_editor_job_status(
             content_size=job.get("content_size"),
             message=message,
         )
+
+        # Debug log to verify success field
+        logger.info(
+            f"✅ Returning job status: success={response.success}, status={response.status}"
+        )
+
+        return response
 
     except HTTPException:
         raise
