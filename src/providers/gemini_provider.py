@@ -367,6 +367,10 @@ JSON format:
         """
         Format document HTML in a single request
         """
+        logger.info(
+            f"📝 Formatting document in SINGLE request ({len(html_content):,} chars)..."
+        )
+
         prompt = """You are an expert document formatter. Your task is to format and beautify document content for TipTap editor.
 
 FORMATTING RULES FOR DOCUMENTS:
@@ -414,6 +418,7 @@ OUTPUT REQUIREMENTS:
         full_prompt = f"{prompt}\n{user_instruction}:\n\n{html_content}"
 
         # Use Gemini 2.5 Flash for fast formatting
+        logger.info("🤖 Calling Gemini 2.5 Flash API (timeout: 240s)...")
         flash_model = genai.GenerativeModel(
             model_name="gemini-2.5-flash",
             generation_config=genai.GenerationConfig(
@@ -428,9 +433,14 @@ OUTPUT REQUIREMENTS:
                 timeout=240,
             )
             result = response.text if response.parts else ""
+            logger.info(f"✅ Gemini response received ({len(result):,} chars)")
             return result.strip()
         except asyncio.TimeoutError:
+            logger.error("❌ Gemini API timeout after 240 seconds")
             raise Exception("Formatting timed out after 240 seconds")
+        except Exception as e:
+            logger.error(f"❌ Gemini API error: {e}", exc_info=True)
+            raise
 
     async def _format_document_html_chunked(
         self,
