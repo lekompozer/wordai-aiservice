@@ -1292,6 +1292,177 @@ async def get_document(
 
 
 # ============================================================================
+# DUPLICATE DOCUMENT ENDPOINT
+# ============================================================================
+@router.post("/{document_id}/duplicate", response_model=DocumentResponse)
+@router.post("/{document_id}/duplicate/", response_model=DocumentResponse)
+async def duplicate_document(
+    document_id: str, user_data: Dict[str, Any] = Depends(verify_firebase_token)
+):
+    """
+    Duplicate document (doc/slide/note) with all elements, audio, subtitles
+
+    Creates a complete copy with:
+    - ✅ New document_id and element IDs
+    - ✅ All content: content_html, slide_elements, slide_backgrounds
+    - ✅ All media: slide_narrations, slide_subtitles (URLs preserved)
+    - ✅ Outline: slides_outline
+    - ✅ Title: "Copy of {original}"
+    - ✅ Fresh metadata: created_at, updated_at, version=1
+
+    Usage:
+    ```bash
+    POST /api/documents/{document_id}/duplicate
+    ```
+
+    Returns:
+    - DocumentResponse with new document_id
+    """
+    from bson import ObjectId
+    import time
+
+    user_id = user_data.get("uid")
+    doc_manager = get_document_manager()
+
+    try:
+        # === CHECK DOCUMENT LIMIT (NO POINTS DEDUCTION) ===
+        subscription_service = get_subscription_service()
+
+        if not await subscription_service.check_documents_limit(user_id):
+            subscription = await subscription_service.get_or_create_subscription(
+                user_id
+            )
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "document_limit_exceeded",
+                    "message": f"Bạn đã đạt giới hạn {subscription.documents_limit} documents. Nâng cấp để tạo thêm!",
+                    "current_count": subscription.documents_count,
+                    "limit": subscription.documents_limit,
+                    "upgrade_url": "/pricing",
+                },
+            )
+
+        logger.info(f"✅ Document limit check passed for user {user_id}")
+
+        # 1. Get original document
+        original = await asyncio.to_thread(
+            doc_manager.get_document, document_id, user_id
+        )
+
+        if not original:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        # 2. Generate new IDs
+        new_doc_id = f"doc_{ObjectId()}"
+        timestamp = int(time.time() * 1000)
+
+        # 3. Deep copy slide_elements with new element IDs
+        new_slide_elements = []
+        for slide in original.get("slide_elements", []):
+            new_elements = []
+            for elem in slide.get("elements", []):
+                # Create new element with new ID
+                new_elem = elem.copy() if isinstance(elem, dict) else {}
+                elem_type = new_elem.get("type", "elem")
+                new_elem["id"] = f"{elem_type}-{timestamp}-{ObjectId()}"
+                new_elements.append(new_elem)
+
+            new_slide_elements.append(
+                {"slideIndex": slide.get("slideIndex", 0), "elements": new_elements}
+            )
+
+        # 4. Copy all other fields (backgrounds, outline, media)
+        new_title = f"Copy of {original.get('title', 'Untitled')}"
+        now = datetime.now()
+
+        # Build new document dict
+        new_doc = {
+            "document_id": new_doc_id,
+            "user_id": user_id,
+            "title": new_title,
+            "document_type": original.get("document_type", "doc"),
+            "content_html": original.get("content_html", ""),
+            "content_text": original.get("content_text", ""),
+            # Slide-specific fields
+            "slide_elements": new_slide_elements,
+            "slide_backgrounds": original.get("slide_backgrounds", []),
+            "slides_outline": original.get("slides_outline", []),
+            "slide_count": original.get("slide_count", 0),
+            # Media (preserve URLs)
+            "slide_narrations": original.get("slide_narrations", []),
+            "slide_subtitles": original.get("slide_subtitles", []),
+            # Metadata - reset for new copy
+            "version": 1,
+            "version_history": [],
+            "folder_id": original.get("folder_id"),
+            "source_type": original.get("source_type", "created"),
+            "file_id": None,  # New copy should not reference original file
+            # Timestamps
+            "created_at": now,
+            "updated_at": now,
+            "last_saved_at": now,
+            # File stats - reset
+            "file_size_bytes": original.get("file_size_bytes", 0),
+            "auto_save_count": 0,
+            "manual_save_count": 0,
+            # Flags
+            "is_deleted": False,
+        }
+
+        # 5. Insert new document into database
+        result = await asyncio.to_thread(doc_manager.db.documents.insert_one, new_doc)
+
+        if not result.inserted_id:
+            raise HTTPException(
+                status_code=500, detail="Failed to create duplicate document"
+            )
+
+        logger.info(
+            f"✅ Duplicated document: {document_id} → {new_doc_id} "
+            f"(type: {new_doc['document_type']}, "
+            f"slides: {len(new_slide_elements)}, "
+            f"elements: {sum(len(s.get('elements', [])) for s in new_slide_elements)})"
+        )
+
+        # === INCREMENT DOCUMENT COUNTER (NO POINTS DEDUCTION) ===
+        try:
+            await subscription_service.update_usage(
+                user_id=user_id, update=SubscriptionUsageUpdate(documents=1)
+            )
+            logger.info(f"📊 Incremented document counter for user {user_id}")
+        except Exception as usage_error:
+            logger.error(f"❌ Error updating document counter: {usage_error}")
+            # Don't fail the request if counter update fails
+
+        # 6. Return duplicated document
+        return DocumentResponse(
+            document_id=new_doc["document_id"],
+            title=new_doc["title"],
+            content_html=new_doc["content_html"],
+            version=new_doc["version"],
+            last_saved_at=new_doc["last_saved_at"],
+            file_size_bytes=new_doc["file_size_bytes"],
+            auto_save_count=new_doc["auto_save_count"],
+            manual_save_count=new_doc["manual_save_count"],
+            source_type=new_doc["source_type"],
+            document_type=new_doc["document_type"],
+            file_id=new_doc.get("file_id"),
+            slide_elements=new_doc["slide_elements"],
+            slide_backgrounds=new_doc["slide_backgrounds"],
+            slides_outline=new_doc.get("slides_outline"),
+            outline_id=None,  # New copy doesn't have analysis ID
+            has_outline=bool(new_doc.get("slides_outline")),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error duplicating document: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
 # SLIDE IMAGE UPLOAD ENDPOINT
 # ============================================================================
 @router.post("/{document_id}/upload-slide-image")
