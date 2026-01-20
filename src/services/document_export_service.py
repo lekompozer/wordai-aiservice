@@ -337,13 +337,51 @@ class DocumentExportService:
                 """
                 logger.info(f"📄 Using Playwright with A4 for {document_type}")
 
-            # Wrap HTML with proper structure
+            # Extract Google Fonts and custom styles from original HTML
+            from bs4 import BeautifulSoup
+
+            extracted_fonts = ""
+
+            try:
+                soup = BeautifulSoup(html_content, "html.parser")
+
+                # Extract <link> tags for Google Fonts
+                font_links = soup.find_all(
+                    "link",
+                    href=lambda x: x
+                    and ("fonts.googleapis.com" in x or "fonts.gstatic.com" in x),
+                )
+                for link in font_links:
+                    extracted_fonts += str(link) + "\n"
+                    logger.info(
+                        f"🔤 Extracted Google Font link: {link.get('href', '')[:80]}"
+                    )
+
+                # Extract <style> tags with @font-face or @import
+                style_tags = soup.find_all("style")
+                for style in style_tags:
+                    style_content = style.string or ""
+                    if (
+                        "@font-face" in style_content
+                        or "@import" in style_content
+                        or "font-family" in style_content
+                    ):
+                        extracted_fonts += str(style) + "\n"
+                        logger.info(
+                            f"🔤 Extracted custom font styles ({len(style_content)} chars)"
+                        )
+
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to extract fonts from HTML: {e}")
+
+            # Wrap HTML with proper structure (preserve fonts)
             full_html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title}</title>
+    {extracted_fonts}
     {enhanced_css}
 </head>
 <body>
@@ -369,8 +407,21 @@ class DocumentExportService:
                     # Load HTML content
                     await page.set_content(full_html, wait_until="networkidle")
 
-                    # Wait for any images/resources to load
-                    await page.wait_for_timeout(1000)  # 1 second delay for rendering
+                    # Wait for fonts and images to load
+                    # - 500ms for fonts to download from Google Fonts
+                    # - 1500ms for images/resources to render
+                    await page.wait_for_timeout(2000)
+
+                    # Ensure all fonts are loaded before PDF generation
+                    await page.evaluate(
+                        """
+                        async () => {
+                            await document.fonts.ready;
+                        }
+                    """
+                    )
+
+                    logger.info("🔤 Fonts loaded and ready for PDF generation")
 
                     # Generate PDF
                     await page.pdf(

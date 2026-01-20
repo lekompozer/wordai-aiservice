@@ -1421,73 +1421,75 @@ async def duplicate_document(
         # 6. Copy audio and subtitle from separate collections (for slides)
         subtitle_count = 0
         audio_count = 0
-        
+
         if new_doc["document_type"] == "slide":
             try:
                 # 6a. Copy subtitles from presentation_subtitles collection
                 original_subtitles = list(
                     await asyncio.to_thread(
                         doc_manager.db.presentation_subtitles.find,
-                        {"presentation_id": document_id, "user_id": user_id}
+                        {"presentation_id": document_id, "user_id": user_id},
                     )
                 )
-                
+
                 # Map old subtitle_id -> new subtitle_id
                 subtitle_id_map = {}
-                
+
                 for old_subtitle in original_subtitles:
                     old_subtitle_id = str(old_subtitle["_id"])
                     new_subtitle = old_subtitle.copy()
-                    
+
                     # Update fields for new document
                     new_subtitle["_id"] = ObjectId()
                     new_subtitle["presentation_id"] = new_doc_id
                     new_subtitle["created_at"] = now
                     new_subtitle["updated_at"] = now
-                    
+
                     # Insert new subtitle
                     await asyncio.to_thread(
-                        doc_manager.db.presentation_subtitles.insert_one,
-                        new_subtitle
+                        doc_manager.db.presentation_subtitles.insert_one, new_subtitle
                     )
-                    
+
                     # Track mapping for audio copying
                     subtitle_id_map[old_subtitle_id] = str(new_subtitle["_id"])
                     subtitle_count += 1
-                
-                logger.info(f"📝 Copied {subtitle_count} subtitles to new document {new_doc_id}")
-                
+
+                logger.info(
+                    f"📝 Copied {subtitle_count} subtitles to new document {new_doc_id}"
+                )
+
                 # 6b. Copy audio from presentation_audio collection
                 original_audios = list(
                     await asyncio.to_thread(
                         doc_manager.db.presentation_audio.find,
-                        {"presentation_id": document_id, "user_id": user_id}
+                        {"presentation_id": document_id, "user_id": user_id},
                     )
                 )
-                
+
                 for old_audio in original_audios:
                     new_audio = old_audio.copy()
-                    
+
                     # Update fields for new document
                     new_audio["_id"] = ObjectId()
                     new_audio["presentation_id"] = new_doc_id
-                    
+
                     # Update subtitle_id if exists in map
                     old_subtitle_id = new_audio.get("subtitle_id")
                     if old_subtitle_id and old_subtitle_id in subtitle_id_map:
                         new_audio["subtitle_id"] = subtitle_id_map[old_subtitle_id]
-                    
+
                     new_audio["created_at"] = now
-                    
+
                     # Insert new audio
                     await asyncio.to_thread(
-                        doc_manager.db.presentation_audio.insert_one,
-                        new_audio
+                        doc_manager.db.presentation_audio.insert_one, new_audio
                     )
                     audio_count += 1
-                
-                logger.info(f"🎵 Copied {audio_count} audio files to new document {new_doc_id}")
-                
+
+                logger.info(
+                    f"🎵 Copied {audio_count} audio files to new document {new_doc_id}"
+                )
+
             except Exception as media_error:
                 logger.warning(f"⚠️ Error copying audio/subtitle: {media_error}")
                 # Don't fail the whole duplication if media copy fails
