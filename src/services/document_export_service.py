@@ -145,6 +145,85 @@ class DocumentExportService:
         timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
         return f"{filename}_{timestamp}"
 
+    def _convert_data_attributes_to_styles(self, html_content: str) -> str:
+        """
+        Convert data-* attributes to inline styles for PDF export compatibility
+
+        Converts:
+        - data-text-align="center" → style="text-align: center;"
+        - data-font-size="20px" → style="font-size: 20px;"
+        - data-color="#ff0000" → style="color: #ff0000;"
+
+        Preserves existing styles and merges new ones.
+
+        Args:
+            html_content: Original HTML content with data attributes
+
+        Returns:
+            HTML content with data attributes converted to inline styles
+        """
+        from bs4 import BeautifulSoup
+
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+
+            # Mapping of data attributes to CSS properties
+            data_to_css = {
+                "data-text-align": "text-align",
+                "data-font-size": "font-size",
+                "data-color": "color",
+                "data-background-color": "background-color",
+                "data-font-weight": "font-weight",
+                "data-font-style": "font-style",
+                "data-text-decoration": "text-decoration",
+            }
+
+            converted_count = 0
+
+            # Find all elements with data-* attributes
+            for data_attr, css_prop in data_to_css.items():
+                elements = soup.find_all(attrs={data_attr: True})
+
+                for element in elements:
+                    data_value = element.get(data_attr)
+
+                    if data_value:
+                        # Get existing style
+                        existing_style = element.get("style", "")
+
+                        # Parse existing styles into dict
+                        style_dict = {}
+                        if existing_style:
+                            for style_rule in existing_style.split(";"):
+                                if ":" in style_rule:
+                                    prop, val = style_rule.split(":", 1)
+                                    style_dict[prop.strip()] = val.strip()
+
+                        # Add/update the CSS property
+                        style_dict[css_prop] = data_value
+
+                        # Rebuild style string
+                        new_style = "; ".join(
+                            f"{k}: {v}" for k, v in style_dict.items()
+                        )
+                        element["style"] = new_style
+
+                        # Optionally remove the data attribute (keep it for debugging)
+                        # element.attrs.pop(data_attr, None)
+
+                        converted_count += 1
+
+            if converted_count > 0:
+                logger.info(
+                    f"✏️ Converted {converted_count} data-* attributes to inline styles for PDF export"
+                )
+
+            return str(soup)
+
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to convert data attributes to styles: {e}")
+            return html_content  # Return original on error
+
     async def export_to_pdf_playwright(
         self, html_content: str, title: str = "document", document_type: str = "doc"
     ) -> Tuple[bytes, str]:
@@ -165,6 +244,9 @@ class DocumentExportService:
             from playwright.async_api import async_playwright
             import tempfile
             import os
+
+            # Convert data-* attributes to inline styles for PDF compatibility
+            html_content = self._convert_data_attributes_to_styles(html_content)
 
             # Determine page size and styling
             if document_type == "slide":
