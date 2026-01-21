@@ -2,7 +2,7 @@
 Slide AI Service
 AI-powered slide formatting and editing using:
 - Claude Sonnet 4.5 on Vertex AI for Format mode (layout optimization)
-- Gemini 2.0 Pro 3 Preview for Edit mode (content rewriting)
+- Claude Sonnet 4.5 on Vertex AI for Edit mode (content rewriting)
 """
 
 import os
@@ -113,11 +113,11 @@ class SlideAIService:
 
             # Route to appropriate AI model
             if request.format_type == "format":
-                # Claude 3.5 Sonnet - Better for layout/design
+                # Claude 4.5 Sonnet - Better for layout/design
                 ai_result = await self._format_with_claude(request)
             else:  # edit
-                # Gemini Pro 3 - Better for creative writing
-                ai_result = await self._edit_with_gemini(request)
+                # Claude 4.5 Sonnet - Better for content editing with user instructions
+                ai_result = await self._edit_with_claude(request)
 
             processing_time = int((time.time() - start_time) * 1000)
 
@@ -138,7 +138,7 @@ class SlideAIService:
     async def _format_with_claude(
         self, request: SlideAIFormatRequest
     ) -> Dict[str, Any]:
-        """Format slide using Claude 3.5 Sonnet (layout optimization) with retry logic"""
+        """Format slide using Claude 4.5 Sonnet (layout optimization) with retry logic"""
         if not self.claude_client:
             raise ValueError("Claude client not initialized")
 
@@ -532,8 +532,153 @@ class SlideAIService:
 
         return result
 
+    async def _edit_with_claude(self, request: SlideAIFormatRequest) -> Dict[str, Any]:
+        """Edit slide content using Claude 4.5 Sonnet (content rewriting with user instructions)"""
+        if not self.claude_client:
+            raise ValueError("Claude client not initialized")
+
+        prompt = self._build_edit_prompt(request)
+
+        # Log prompt size
+        logger.info(
+            f"📊 Edit prompt size: {len(prompt)} chars, HTML size: {len(request.current_html or '')} chars"
+        )
+
+        # Use same streaming logic as format
+        logger.info("🌊 Starting Claude streaming for slide editing...")
+
+        max_retries = 3
+        retry_delay = 60
+
+        for attempt in range(max_retries):
+            try:
+
+                def _stream_claude_sync():
+                    """Synchronous Claude streaming"""
+                    if not self.claude_client:
+                        raise ValueError("Claude client not initialized")
+                    response_text = ""
+                    with self.claude_client.messages.stream(
+                        model=self.claude_model,
+                        max_tokens=52000,
+                        temperature=0.5,  # Slightly lower for edit (more focused)
+                        messages=[
+                            {
+                                "role": "user",
+                                "content": prompt,
+                            }
+                        ],
+                    ) as stream:
+                        for text in stream.text_stream:
+                            response_text += text
+                    return response_text
+
+                response_text = await asyncio.to_thread(_stream_claude_sync)
+                logger.info(
+                    f"✅ Claude edit streaming complete, response length: {len(response_text)} chars"
+                )
+                break
+
+            except PermissionDeniedError as e:
+                logger.error(f"❌ Vertex AI permission denied: {str(e)}")
+                logger.info("🔄 Attempting fallback to Claude API...")
+
+                try:
+                    api_key = os.getenv("ANTHROPIC_API_KEY")
+                    if not api_key:
+                        raise ValueError("ANTHROPIC_API_KEY not found")
+
+                    fallback_client = Anthropic(api_key=api_key)
+                    fallback_model = "claude-sonnet-4-5-20250929"
+
+                    def _stream_fallback():
+                        response_text = ""
+                        with fallback_client.messages.stream(
+                            model=fallback_model,
+                            max_tokens=52000,
+                            temperature=0.5,
+                            messages=[{"role": "user", "content": prompt}],
+                        ) as stream:
+                            for text in stream.text_stream:
+                                response_text += text
+                        return response_text
+
+                    response_text = await asyncio.to_thread(_stream_fallback)
+                    logger.info(f"✅ Fallback successful")
+                    break
+
+                except Exception as fallback_error:
+                    logger.error(f"❌ Fallback failed: {fallback_error}")
+                    raise e
+
+            except RateLimitError as e:
+                if attempt < max_retries - 1:
+                    wait_time = retry_delay * (attempt + 1)
+                    logger.warning(
+                        f"⚠️ Rate limit hit, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})"
+                    )
+                    await asyncio.sleep(wait_time)
+                else:
+                    logger.error(f"❌ Rate limit exceeded after {max_retries} attempts")
+                    raise
+
+        # Parse response (same as format_with_claude)
+        try:
+            result = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse Claude edit response: {e}")
+            logger.error(f"Response (first 500): {response_text[:500]}")
+            logger.error(f"Response (last 200): {response_text[-200:]}")
+
+            # Try to extract from markdown
+            import re
+
+            json_match = re.search(
+                r"```json\s*([\s\S]*?)\s*```", response_text, re.MULTILINE
+            )
+            if not json_match:
+                json_match = re.search(
+                    r"```\s*([\s\S]*?)\s*```", response_text, re.MULTILINE
+                )
+            if not json_match:
+                json_match = re.search(r"(\{[\s\S]*\})", response_text)
+
+            if json_match:
+                logger.info("✅ Found JSON in markdown, extracting...")
+                extracted = json_match.group(1).strip()
+                try:
+                    result = json.loads(extracted)
+                except json.JSONDecodeError as e2:
+                    logger.warning("🔧 Attempting JSON repair...")
+                    try:
+                        from json_repair import repair_json  # type: ignore
+
+                        repaired = repair_json(extracted)
+                        result = json.loads(repaired)
+                        if isinstance(result, list) and len(result) == 1:
+                            result = result[0]
+                        logger.info("✅ JSON repaired!")
+                    except Exception as repair_error:
+                        logger.error(f"❌ JSON repair failed: {repair_error}")
+                        raise e2
+            else:
+                logger.error("❌ No JSON found")
+                raise
+
+        # Post-process: Ensure wrapper
+        if "formatted_html" in result:
+            html = result["formatted_html"]
+            if not html.strip().startswith('<div class="slide-page">'):
+                logger.warning("⚠️ Missing wrapper, adding...")
+                result["formatted_html"] = (
+                    f'<div class="slide-page">\n  <div class="slide-wrapper">\n{html}\n  </div>\n</div>'
+                )
+                logger.info("✅ Added wrapper")
+
+        return result
+
     def _build_format_prompt(self, request: SlideAIFormatRequest) -> str:
-        """Build prompt for Format mode (Claude 3.5 Sonnet)"""
+        """Build prompt for Format mode (Claude 4.5 Sonnet)"""
 
         # Check if this is a batch with multiple slides
         import re
@@ -943,7 +1088,7 @@ FORBIDDEN ELEMENTS (DO NOT USE):
         return prompt
 
     def _build_edit_prompt(self, request: SlideAIFormatRequest) -> str:
-        """Build prompt for Edit mode (Gemini Pro 3 - low creativity, user query focused)"""
+        """Build prompt for Edit mode (Claude 4.5 Sonnet - focused content editing)"""
 
         instruction = request.user_instruction or "Improve the slide content"
 
