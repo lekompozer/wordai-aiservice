@@ -306,6 +306,28 @@ class SlideFormatWorker:
                     logger.warning(
                         f"⚠️ No slide markers found in AI response, using entire HTML for slide {task.slide_index}"
                     )
+
+                    # Debug: Log formatted_html length and first 200 chars
+                    logger.info(
+                        f"📝 Formatted HTML length: {len(formatted_html)} chars"
+                    )
+                    logger.info(
+                        f"📝 HTML preview (first 200 chars): {formatted_html[:200]}"
+                    )
+
+                    # Check if HTML has unexpected data-slide-index attribute
+                    if "data-slide-index=" in formatted_html:
+                        import re
+
+                        attr_match = re.search(
+                            r'data-slide-index="([^"]*)"', formatted_html
+                        )
+                        if attr_match:
+                            attr_value = attr_match.group(1)
+                            logger.warning(
+                                f"⚠️ Found data-slide-index attribute with value: {attr_value[:100]}"
+                            )
+
                     chunk_results.append(
                         {
                             "slide_index": task.slide_index,  # Use task's slide index
