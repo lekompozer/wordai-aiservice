@@ -424,31 +424,17 @@ class SlideAIService:
                 logger.error("❌ No JSON found in markdown code blocks either")
                 raise
 
-        # Post-process: Ensure formatted_html has proper wrapper structure and clean attributes
+        # Post-process: Ensure formatted_html has proper wrapper structure
         if "formatted_html" in result:
             html = result["formatted_html"]
-
-            # Remove ALL data-slide-index attributes (should not exist in format/edit output)
-            import re
-
-            if "data-slide-index" in html:
-                # Remove ANY data-slide-index attribute (regardless of value)
-                # This includes correct indices (e.g., "17") and malformed ones (e.g., "&lt;div...")
-                original_html = html
-                html = re.sub(r'\s+data-slide-index="[^"]*"', "", html)
-                if html != original_html:
-                    logger.warning("⚠️ Removed data-slide-index from format output")
-                    logger.info(
-                        "✅ data-slide-index removed (only generation service should have this)"
-                    )
-
             # Check if HTML already has slide-page wrapper
             if not html.strip().startswith('<div class="slide-page">'):
                 logger.warning("⚠️ Claude response missing wrapper, adding manually...")
-                html = f'<div class="slide-page">\n  <div class="slide-wrapper">\n{html}\n  </div>\n</div>'
+                # Wrap the HTML in proper structure
+                result["formatted_html"] = (
+                    f'<div class="slide-page">\n  <div class="slide-wrapper">\n{html}\n  </div>\n</div>'
+                )
                 logger.info("✅ Added slide-page wrapper to formatted HTML")
-
-            result["formatted_html"] = html
 
         return result
 
@@ -679,30 +665,15 @@ class SlideAIService:
                 logger.error("❌ No JSON found")
                 raise
 
-        # Post-process: Ensure wrapper and clean up attributes
+        # Post-process: Ensure wrapper
         if "formatted_html" in result:
             html = result["formatted_html"]
-
-            # Remove ALL data-slide-index attributes (should not exist in format/edit output)
-            import re
-
-            if "data-slide-index" in html:
-                # Remove ANY data-slide-index attribute (regardless of value)
-                # This includes correct indices (e.g., "17") and malformed ones (e.g., "&lt;div...")
-                original_html = html
-                html = re.sub(r'\s+data-slide-index="[^"]*"', "", html)
-                if html != original_html:
-                    logger.warning("⚠️ Removed data-slide-index from edit output")
-                    logger.info(
-                        "✅ data-slide-index removed (only generation service should have this)"
-                    )
-
             if not html.strip().startswith('<div class="slide-page">'):
                 logger.warning("⚠️ Missing wrapper, adding...")
-                html = f'<div class="slide-page">\n  <div class="slide-wrapper">\n{html}\n  </div>\n</div>'
+                result["formatted_html"] = (
+                    f'<div class="slide-page">\n  <div class="slide-wrapper">\n{html}\n  </div>\n</div>'
+                )
                 logger.info("✅ Added wrapper")
-
-            result["formatted_html"] = html
 
         return result
 
@@ -1167,16 +1138,18 @@ Current Slides HTML ({len(slide_markers)} slides):
 4. Preserve ALL HTML structure, styling, and layout
 5. Maintain the slide markers "<!-- Slide X -->"
 
-**Output Structure (CRITICAL)**:
-- PRESERVE slide markers: `<!-- Slide 0 -->`, `<!-- Slide 1 -->`, etc.
-- Each slide content MUST be wrapped: `<div class="slide-page"><div class="slide-wrapper">...content...</div></div>`
-- Output format: `<!-- Slide 0 -->\n<div class="slide-page"><div class="slide-wrapper">...edited content...</div></div>\n\n<!-- Slide 1 -->\n<div class="slide-page"><div class="slide-wrapper">...edited content...</div></div>`
-- DO NOT add data-slide-index attribute (remove it if present in input)
+**CRITICAL - data-slide-index Attribute**:
+- If you see `data-slide-index` attribute in the input HTML, you MUST preserve it with the CORRECT numeric value
+- Extract the slide number from the marker `<!-- Slide X -->` at the top
+- Use that number as the data-slide-index value: `data-slide-index="X"`
+- Example: If marker is `<!-- Slide 17 -->`, use `data-slide-index="17"`
+- ❌ DO NOT copy malformed values like `data-slide-index="<div class='slide'..."`
+- ❌ DO NOT use any non-numeric values
+- ✅ ONLY use the numeric slide index from the marker
 
 **Rules**:
 - ❌ DO NOT add creative content unless user asks
 - ❌ DO NOT change layout, styling, or structure
-- ❌ DO NOT modify or add data-slide-index attribute (remove it if present in output)
 - ✅ ONLY modify text content as specified in user instruction
 - ✅ Keep the same tone, length unless user asks to change
 - ✅ Preserve all slide-wrapper structure and dimensions
@@ -1226,15 +1199,9 @@ Current Slide HTML:
 3. Keep everything else EXACTLY the same
 4. Preserve ALL HTML structure, styling, and layout
 
-**Output Structure (CRITICAL)**:
-- Content MUST be wrapped: `<div class="slide-page"><div class="slide-wrapper" style="width: 1920px; height: 1080px; ...">...edited content...</div></div>`
-- DO NOT add data-slide-index attribute (remove it if present in input)
-- Use exact slide dimensions: 1920px × 1080px
-
 **Rules**:
 - ❌ DO NOT add creative content unless user asks
 - ❌ DO NOT change layout, styling, or structure
-- ❌ DO NOT modify or add data-slide-index attribute (remove it if present in output)
 - ✅ ONLY modify text content as specified in user instruction
 - ✅ Keep the same tone, length unless user asks to change
 - ✅ Preserve slide-wrapper structure (1920×1080px)
@@ -1247,7 +1214,7 @@ Current Slide HTML:
 
 Your Response (JSON format):
 {{
-  "formatted_html": "<div class='slide-page'><div class='slide-wrapper'>...modified content based on user instruction...</div></div>",
+  "formatted_html": "Modified HTML - ONLY changes from user instruction",
   "ai_explanation": "Brief summary of what was changed based on user instruction"
 }}
 
