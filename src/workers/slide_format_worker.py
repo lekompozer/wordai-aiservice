@@ -288,13 +288,23 @@ class SlideFormatWorker:
                         slide_index = int(slide_index_str)
 
                         # FIX: Correct malformed data-slide-index attribute
-                        # Claude sometimes copies malformed values like data-slide-index="<div class='slide'..."
-                        # Replace with correct numeric value from marker
+                        # Issue: data-slide-index="<div class=" slide"="" style="...">
+                        # After simple replace: data-slide-index="17" slide""="" style="..."
+                        # Solution: Remove entire malformed section, then add clean attribute
                         if "data-slide-index=" in html:
+                            # Step 1: Remove malformed data-slide-index and any debris
+                            # Match from data-slide-index= to next valid attribute or >
                             html = re.sub(
-                                r'\s+data-slide-index="[^"]*"',
-                                f' data-slide-index="{slide_index}"',
+                                r'\s+data-slide-index="[^"]*"[^>]*?(?=\s+\w+="|\s*>)',
+                                "",
                                 html,
+                            )
+                            # Step 2: Add correct attribute after class="slide"
+                            html = re.sub(
+                                r'(<div class="slide")',
+                                rf'\1 data-slide-index="{slide_index}"',
+                                html,
+                                count=1,
                             )
                             logger.info(f"✅ Fixed data-slide-index to {slide_index}")
 
@@ -340,11 +350,18 @@ class SlideFormatWorker:
                                 f"⚠️ Found malformed data-slide-index: {attr_value[:100]}"
                             )
 
-                        # Replace with correct value from task
+                        # Step 1: Remove malformed data-slide-index and any debris
                         formatted_html = re.sub(
-                            r'\s+data-slide-index="[^"]*"',
-                            f' data-slide-index="{task.slide_index}"',
+                            r'\s+data-slide-index="[^"]*"[^>]*?(?=\s+\w+="|\s*>)',
+                            "",
                             formatted_html,
+                        )
+                        # Step 2: Add correct attribute after class="slide"
+                        formatted_html = re.sub(
+                            r'(<div class="slide")',
+                            rf'\1 data-slide-index="{task.slide_index}"',
+                            formatted_html,
+                            count=1,
                         )
                         logger.info(f"✅ Fixed data-slide-index to {task.slide_index}")
 
