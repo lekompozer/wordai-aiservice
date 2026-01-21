@@ -1105,15 +1105,45 @@ FORBIDDEN ELEMENTS (DO NOT USE):
             if request.elements:
                 elements_info = f"\n\nOverlay Elements ({len(request.elements)}):\n"
                 for i, elem in enumerate(request.elements):
-                    elements_info += f"  {i+1}. {elem.type} at ({elem.position['x']}, {elem.position['y']}) - {elem.position['width']}x{elem.position['height']}\n"
-                    if (
-                        elem.type == "image"
-                        and elem.properties
-                        and "src" in elem.properties
-                    ):
-                        elements_info += f"     Image URL: {elem.properties['src']}\n"
-                    if elem.properties:
-                        elements_info += f"     Properties: {elem.properties}\n"
+                    # Handle both dict and object formats (from Redis or direct API)
+                    if isinstance(elem, dict):
+                        elem_type = elem.get("type")
+                        # Handle both nested and flat position formats
+                        if "position" in elem and isinstance(elem["position"], dict):
+                            pos = elem["position"]
+                        else:
+                            # Flat format
+                            pos = {
+                                "x": elem.get("x", 0),
+                                "y": elem.get("y", 0),
+                                "width": elem.get("width", 0),
+                                "height": elem.get("height", 0),
+                            }
+                        props = elem.get("properties") or {}
+                    else:
+                        # Pydantic model object
+                        elem_type = elem.type
+                        pos = elem.position
+                        props = elem.properties or {}
+
+                    elements_info += f"  {i+1}. {elem_type} at ({pos['x']}, {pos['y']}) - {pos['width']}x{pos['height']}\n"
+
+                    if elem_type == "image":
+                        # Check src field
+                        if isinstance(elem, dict) and "src" in elem:
+                            src = elem.get("src")
+                        elif "src" in props:
+                            src = props["src"]
+                        elif "url" in props:
+                            src = props["url"]
+                        else:
+                            src = None
+
+                        if src:
+                            elements_info += f"     Image URL: {src}\n"
+
+                    if props:
+                        elements_info += f"     Properties: {props}\n"
 
             prompt = f"""You are a content editor. Your task is to modify the slide content STRICTLY based on the user's instruction.
 
@@ -1167,15 +1197,45 @@ IMPORTANT: Focus on user instruction. Be conservative. Change as little as possi
             if request.elements:
                 elements_info = f"\n\nOverlay Elements ({len(request.elements)}):\n"
                 for i, elem in enumerate(request.elements):
-                    elements_info += f"  {i+1}. {elem.type} at ({elem.position['x']}, {elem.position['y']}) - {elem.position['width']}x{elem.position['height']}\n"
-                    if (
-                        elem.type == "image"
-                        and elem.properties
-                        and "src" in elem.properties
-                    ):
-                        elements_info += f"     Image URL: {elem.properties['src']}\n"
-                    if elem.properties:
-                        elements_info += f"     Properties: {elem.properties}\n"
+                    # Handle both dict and object formats (from Redis or direct API)
+                    if isinstance(elem, dict):
+                        elem_type = elem.get("type")
+                        # Handle both nested and flat position formats
+                        if "position" in elem and isinstance(elem["position"], dict):
+                            pos = elem["position"]
+                        else:
+                            # Flat format
+                            pos = {
+                                "x": elem.get("x", 0),
+                                "y": elem.get("y", 0),
+                                "width": elem.get("width", 0),
+                                "height": elem.get("height", 0),
+                            }
+                        props = elem.get("properties") or {}
+                    else:
+                        # Pydantic model object
+                        elem_type = elem.type
+                        pos = elem.position
+                        props = elem.properties or {}
+
+                    elements_info += f"  {i+1}. {elem_type} at ({pos['x']}, {pos['y']}) - {pos['width']}x{pos['height']}\n"
+
+                    if elem_type == "image":
+                        # Check src field
+                        if isinstance(elem, dict) and "src" in elem:
+                            src = elem.get("src")
+                        elif "src" in props:
+                            src = props["src"]
+                        elif "url" in props:
+                            src = props["url"]
+                        else:
+                            src = None
+
+                        if src:
+                            elements_info += f"     Image URL: {src}\n"
+
+                    if props:
+                        elements_info += f"     Properties: {props}\n"
 
             prompt = f"""You are a content editor. Your task is to modify the slide content STRICTLY based on the user's instruction.
 

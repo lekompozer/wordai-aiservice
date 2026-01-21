@@ -934,45 +934,66 @@ async def ai_edit_slide(
                 process_entire_document=process_entire_document,
             )
 
-            # Enqueue each slide separately (parallel processing)
-            for idx, slide_data in enumerate(slides_to_process):
+            # Split slides into chunks (max 12 slides per chunk)
+            chunks = []
+            for i in range(0, len(slides_to_process), MAX_SLIDES_PER_CHUNK):
+                chunks.append(slides_to_process[i : i + MAX_SLIDES_PER_CHUNK])
+
+            num_chunks = len(chunks)
+            logger.info(
+                f"📦 Splitting {num_slides} slides into {num_chunks} chunk(s) (max {MAX_SLIDES_PER_CHUNK} slides/chunk)"
+            )
+
+            # Create tasks for each chunk
+            for chunk_idx, chunk_slides in enumerate(chunks):
+                chunk_task_id = f"{batch_job_id}_chunk_{chunk_idx}"
+
+                # Combine HTML for this chunk
+                combined_html = "\n\n".join(
+                    [
+                        f"<!-- Slide {s.slide_index} -->\n{s.current_html}"
+                        for s in chunk_slides
+                    ]
+                )
+
                 task = SlideFormatTask(
-                    task_id=str(uuid.uuid4()),
-                    job_id=batch_job_id,
+                    task_id=chunk_task_id,
+                    job_id=chunk_task_id,
                     user_id=user_id,
                     document_id=request.document_id,
-                    slide_index=slide_data.slide_index,
-                    current_html=slide_data.current_html,
-                    elements=slide_data.elements or [],
-                    background=(
-                        slide_data.background.dict() if slide_data.background else {}
-                    ),
+                    slide_index=0,  # Not used for batch
+                    current_html=combined_html,
+                    elements=[],
+                    background={},
                     user_instruction=request.user_instruction,
                     format_type="edit",
                     is_batch=True,
-                    batch_job_id=batch_job_id,  # Parent batch job ID
-                    total_slides=num_slides,
-                    slide_position=idx,
+                    batch_job_id=batch_job_id,
+                    total_slides=len(chunk_slides),
+                    slide_position=chunk_idx,
                     process_entire_document=process_entire_document,
-                    chunk_index=None,  # Not chunking at task level
-                    total_chunks=None,
+                    chunk_index=chunk_idx,
+                    total_chunks=num_chunks,
                 )
 
                 success = await queue.enqueue_generic_task(task)
+
                 if not success:
-                    logger.error(
-                        f"❌ Failed to enqueue slide {slide_data.slide_index} for job {batch_job_id}"
+                    logger.error(f"❌ Failed to enqueue chunk task {chunk_task_id}")
+                else:
+                    logger.info(
+                        f"✅ Enqueued chunk {chunk_idx + 1}/{num_chunks} ({len(chunk_slides)} slides)"
                     )
 
             logger.info(
-                f"✅ Batch job {batch_job_id} created with {num_slides} sub-tasks"
+                f"✅ Batch job {batch_job_id} created with {num_chunks} chunk(s)"
             )
 
             return CreateSlideFormatJobResponse(
                 job_id=batch_job_id,
                 status=SlideFormatJobStatus.PENDING,
-                message=f"Edit job for {num_slides} slides queued. Poll /api/slides/jobs/{batch_job_id} for status.",
-                estimated_time=f"{num_slides * 15}-{num_slides * 30} seconds",
+                message=f"Edit job for {num_slides} slides in {num_chunks} chunk(s) queued. Worker will add 90s delay between chunks. Poll /api/slides/jobs/{batch_job_id} for status.",
+                estimated_time=f"{num_chunks * 120 + max(0, num_chunks - 1) * 90}-{num_chunks * 240 + max(0, num_chunks - 1) * 90} seconds (includes inter-chunk delays)",
             )
 
         else:
