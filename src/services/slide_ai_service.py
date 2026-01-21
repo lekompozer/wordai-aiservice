@@ -455,8 +455,80 @@ class SlideAIService:
             ),
         )
 
-        # Parse Gemini response
-        result = json.loads(response.text)
+        # Parse Gemini response with JSON repair fallback
+        response_text = response.text
+
+        try:
+            result = json.loads(response_text)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ Failed to parse Gemini response as JSON: {e}")
+            logger.error(f"Response length: {len(response_text)} chars")
+            logger.error(f"Response text (first 500 chars): {response_text[:500]}")
+            logger.error(f"Response text (last 200 chars): {response_text[-200:]}")
+
+            # Try to repair malformed JSON
+            logger.warning("🔧 Attempting to repair malformed JSON from Gemini...")
+            try:
+                from json_repair import repair_json  # type: ignore
+
+                repaired_json_str = repair_json(response_text)
+                result = json.loads(repaired_json_str)
+
+                # json_repair sometimes returns a list instead of dict
+                if isinstance(result, list) and len(result) == 1:
+                    result = result[0]
+                    logger.info("✅ JSON repaired successfully (unwrapped from list)!")
+                elif isinstance(result, list):
+                    # Check if list contains dict with expected keys
+                    for item in result:
+                        if isinstance(item, dict) and "formatted_html" in item:
+                            logger.warning(
+                                "⚠️ JSON repair returned list, using first dict with formatted_html"
+                            )
+                            result = item
+                            break
+                    else:
+                        logger.error(
+                            f"❌ JSON repair returned unexpected list with {len(result)} items"
+                        )
+                        raise ValueError(f"Unexpected list result from json_repair")
+                else:
+                    logger.info("✅ Gemini JSON repaired successfully!")
+
+            except Exception as repair_error:
+                logger.error(f"❌ Gemini JSON repair failed: {repair_error}")
+
+                # Last resort: Try to extract formatted_html directly
+                logger.warning(
+                    "🔧 Attempting direct HTML extraction from Gemini response..."
+                )
+                try:
+                    import re
+
+                    html_match = re.search(
+                        r'"formatted_html"\s*:\s*"((?:[^"\\]|\\.)*)"',
+                        response_text,
+                        re.DOTALL,
+                    )
+                    if html_match:
+                        formatted_html = html_match.group(1)
+                        # Unescape JSON string
+                        formatted_html = formatted_html.replace('\\"', '"').replace(
+                            "\\n", "\n"
+                        )
+                        result = {
+                            "formatted_html": formatted_html,
+                            "suggested_elements": [],
+                            "suggested_background": None,
+                            "ai_explanation": "Extracted via fallback (JSON parse failed)",
+                        }
+                        logger.warning("⚠️ Used fallback HTML extraction")
+                    else:
+                        logger.error("❌ Direct HTML extraction failed")
+                        raise repair_error
+                except Exception as extract_error:
+                    logger.error(f"❌ HTML extraction failed: {extract_error}")
+                    raise e  # Raise original JSON error
 
         return result
 
