@@ -286,6 +286,18 @@ class SlideFormatWorker:
                     # Case 1: AI preserved slide markers (ideal)
                     for slide_index_str, html in matches:
                         slide_index = int(slide_index_str)
+
+                        # FIX: Correct malformed data-slide-index attribute
+                        # Claude sometimes copies malformed values like data-slide-index="<div class='slide'..."
+                        # Replace with correct numeric value from marker
+                        if "data-slide-index=" in html:
+                            html = re.sub(
+                                r'\s+data-slide-index="[^"]*"',
+                                f' data-slide-index="{slide_index}"',
+                                html,
+                            )
+                            logger.info(f"✅ Fixed data-slide-index to {slide_index}")
+
                         chunk_results.append(
                             {
                                 "slide_index": slide_index,  # Use actual slide_index from marker
@@ -315,7 +327,7 @@ class SlideFormatWorker:
                         f"📝 HTML preview (first 200 chars): {formatted_html[:200]}"
                     )
 
-                    # Check if HTML has unexpected data-slide-index attribute
+                    # FIX: Correct malformed data-slide-index attribute
                     if "data-slide-index=" in formatted_html:
                         import re
 
@@ -325,8 +337,16 @@ class SlideFormatWorker:
                         if attr_match:
                             attr_value = attr_match.group(1)
                             logger.warning(
-                                f"⚠️ Found data-slide-index attribute with value: {attr_value[:100]}"
+                                f"⚠️ Found malformed data-slide-index: {attr_value[:100]}"
                             )
+
+                        # Replace with correct value from task
+                        formatted_html = re.sub(
+                            r'\s+data-slide-index="[^"]*"',
+                            f' data-slide-index="{task.slide_index}"',
+                            formatted_html,
+                        )
+                        logger.info(f"✅ Fixed data-slide-index to {task.slide_index}")
 
                     chunk_results.append(
                         {
