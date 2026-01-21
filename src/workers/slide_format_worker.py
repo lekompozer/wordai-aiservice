@@ -281,12 +281,35 @@ class SlideFormatWorker:
 
                 # Prepare results for this chunk
                 chunk_results = []
-                for slide_index_str, html in matches:
-                    slide_index = int(slide_index_str)
+
+                if matches:
+                    # Case 1: AI preserved slide markers (ideal)
+                    for slide_index_str, html in matches:
+                        slide_index = int(slide_index_str)
+                        chunk_results.append(
+                            {
+                                "slide_index": slide_index,  # Use actual slide_index from marker
+                                "formatted_html": html.strip(),
+                                "suggested_elements": result.get(
+                                    "suggested_elements", []
+                                ),
+                                "suggested_background": result.get(
+                                    "suggested_background"
+                                ),
+                                "ai_explanation": result.get("ai_explanation", ""),
+                                "error": None,
+                            }
+                        )
+                else:
+                    # Case 2: AI didn't preserve markers (fallback)
+                    # Assume entire response is for the single slide being processed
+                    logger.warning(
+                        f"⚠️ No slide markers found in AI response, using entire HTML for slide {task.slide_index}"
+                    )
                     chunk_results.append(
                         {
-                            "slide_index": slide_index,  # Use actual slide_index from marker
-                            "formatted_html": html.strip(),
+                            "slide_index": task.slide_index,  # Use task's slide index
+                            "formatted_html": formatted_html.strip(),
                             "suggested_elements": result.get("suggested_elements", []),
                             "suggested_background": result.get("suggested_background"),
                             "ai_explanation": result.get("ai_explanation", ""),
@@ -301,21 +324,34 @@ class SlideFormatWorker:
                     indices = [r["slide_index"] for r in chunk_results]
                     logger.info(f"   📌 Slide indices: {indices}")
 
-                # Update batch job with chunk results
-                await self._merge_chunk_results(
-                    batch_job_id=task.batch_job_id or "",
-                    chunk_index=task.chunk_index or 0,
-                    total_chunks=task.total_chunks or 1,
-                    chunk_results=chunk_results,
-                    processing_time=processing_time,
-                    document_id=task.document_id,  # Pass document_id from task
-                    user_id=task.user_id,
-                    process_entire_document=task.process_entire_document,
-                )
-
-                logger.info(
-                    f"✅ Chunk {(task.chunk_index or 0) + 1}/{task.total_chunks} completed: {len(chunk_results)} slides in {processing_time:.1f}s"
-                )
+                # Update batch job based on chunking mode
+                if task.total_chunks and task.total_chunks > 1:
+                    # Mode 3: Chunked batch - merge chunk results
+                    await self._merge_chunk_results(
+                        batch_job_id=task.batch_job_id or "",
+                        chunk_index=task.chunk_index or 0,
+                        total_chunks=task.total_chunks or 1,
+                        chunk_results=chunk_results,
+                        processing_time=processing_time,
+                        document_id=task.document_id,
+                        user_id=task.user_id,
+                        process_entire_document=task.process_entire_document,
+                    )
+                    logger.info(
+                        f"✅ Chunk {(task.chunk_index or 0) + 1}/{task.total_chunks} completed: {len(chunk_results)} slides in {processing_time:.1f}s"
+                    )
+                else:
+                    # Mode 2: Non-chunked batch - update batch job directly for each slide
+                    for slide_result in chunk_results:
+                        await self._update_batch_job(
+                            batch_job_id=task.batch_job_id or "",
+                            slide_index=slide_result["slide_index"],
+                            result=slide_result,
+                            error=slide_result.get("error"),
+                        )
+                    logger.info(
+                        f"✅ Batch job updated: {len(chunk_results)} slide(s) in {processing_time:.1f}s"
+                    )
             else:
                 # Mode 1: Single slide processing
                 await set_job_status(
