@@ -1182,11 +1182,12 @@ Current Slides HTML ({len(slide_markers)} slides):
 - ❌ DO NOT change layout, styling, or structure
 - ✅ ONLY modify text content as specified in user instruction
 - ✅ Keep the same tone, length unless user asks to change
-- ✅ Preserve all slide-wrapper structure and dimensions
+- ✅ MUST wrap each slide in: <div class="slide-page"><div class="slide-wrapper" style="font-family: 'Inter', 'SF Pro Display', sans-serif;">...content...</div></div>
+- ✅ Preserve all slide-wrapper structure and dimensions (1920px × 1080px)
 
 Your Response (JSON format):
 {{
-  "formatted_html": "Modified HTML with {len(slide_markers)} slides - ONLY changes from user instruction",
+  "formatted_html": "Modified HTML with {len(slide_markers)} slides wrapped in slide-page/slide-wrapper - ONLY changes from user instruction",
   "ai_explanation": "Brief summary of what was changed based on user instruction"
 }}
 
@@ -1264,7 +1265,8 @@ Current Slide HTML:
 - ❌ DO NOT change layout, styling, or structure
 - ✅ ONLY modify text content as specified in user instruction
 - ✅ Keep the same tone, length unless user asks to change
-- ✅ Preserve slide-wrapper structure (1920×1080px)
+- ✅ MUST wrap output in: <div class="slide-page"><div class="slide-wrapper" style="font-family: 'Inter', 'SF Pro Display', sans-serif;">...content...</div></div>
+- ✅ Preserve all slide-wrapper structure and dimensions (1920px × 1080px)
 
 **Examples of good edits**:
 - User: "Make it shorter" → Remove verbose parts, keep key points
@@ -1274,7 +1276,7 @@ Current Slide HTML:
 
 Your Response (JSON format):
 {{
-  "formatted_html": "Modified HTML - ONLY changes from user instruction",
+  "formatted_html": "Modified HTML wrapped in slide-page/slide-wrapper - ONLY changes from user instruction",
   "ai_explanation": "Brief summary of what was changed based on user instruction"
 }}
 
