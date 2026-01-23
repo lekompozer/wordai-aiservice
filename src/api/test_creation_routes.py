@@ -3607,8 +3607,8 @@ async def generate_listening_test(
         logger.info(f"💰 User has sufficient points for listening test generation")
 
         # Create test record
-        # db already initialized
-        db = db
+        db_manager = DBManager()
+        db = db_manager.db
         collection = db["online_tests"]
 
         test_doc = {
