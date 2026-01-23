@@ -63,6 +63,7 @@ class TestGenerationWorker:
         """Process listening test generation task"""
         job_id = task_data.get("job_id", "unknown")
         user_id = task_data.get("creator_id", "unknown")
+        test_id = task_data.get("test_id")  # Get test_id from task data
 
         try:
             logger.info(f"🎙️ Processing listening test job {job_id}")
@@ -105,12 +106,12 @@ class TestGenerationWorker:
                 user_id=user_id,
                 progress_percent=100,
                 message="Test generated successfully",
-                test_id=result["test_id"],
+                test_id=test_id,  # Use test_id from task_data, not result
                 completed_at=datetime.utcnow().isoformat(),
             )
 
             logger.info(f"✅ Listening test job {job_id} completed")
-            return result
+            return {"test_id": test_id}  # Return test_id for consistency
 
         except Exception as e:
             logger.error(f"❌ Listening test job {job_id} failed: {e}", exc_info=True)
