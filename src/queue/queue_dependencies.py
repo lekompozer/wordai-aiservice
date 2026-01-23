@@ -23,6 +23,7 @@ _slide_narration_subtitle_queue: Optional[QueueManager] = None
 _slide_narration_audio_queue: Optional[QueueManager] = None
 _video_export_queue: Optional[QueueManager] = None
 _lyria_music_queue: Optional[QueueManager] = None
+_test_generation_queue: Optional[QueueManager] = None
 
 
 async def get_extraction_queue() -> QueueManager:
@@ -217,13 +218,29 @@ async def get_lyria_music_queue() -> QueueManager:
     return _lyria_music_queue
 
 
+async def get_test_generation_queue() -> QueueManager:
+    """Get Redis queue manager for test generation tasks (listening, grammar, vocabulary)"""
+    global _test_generation_queue
+    if _test_generation_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
+        _test_generation_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="test_generation",
+            status_expiry_hours=48,  # Keep longer for test analysis
+            max_queue_size=2000,
+        )
+        await _test_generation_queue.connect()
+        logger.info("✅ Test Generation queue manager connected")
+    return _test_generation_queue
+
+
 async def cleanup_queues():
     """Cleanup queue connections on shutdown"""
     global _extraction_queue, _document_queue, _storage_queue
     global _ai_editor_queue, _slide_generation_queue, _translation_queue
     global _slide_format_queue, _chapter_translation_queue
     global _slide_narration_subtitle_queue, _slide_narration_audio_queue
-    global _video_export_queue, _lyria_music_queue  # Add lyria_music to cleanup list
+    global _video_export_queue, _lyria_music_queue, _test_generation_queue  # Add test_generation
 
     if _extraction_queue:
         await _extraction_queue.disconnect()
@@ -284,3 +301,8 @@ async def cleanup_queues():
         await _lyria_music_queue.disconnect()
         _lyria_music_queue = None
         logger.info("🧹 Lyria Music queue disconnected")
+
+    if _test_generation_queue:
+        await _test_generation_queue.disconnect()
+        _test_generation_queue = None
+        logger.info("🧹 Test Generation queue disconnected")
