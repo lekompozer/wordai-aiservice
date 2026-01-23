@@ -191,6 +191,38 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
 
         result = json.loads(response.text)
 
+        # Debug: Log result structure before conversion
+        logger.info(f"🔍 Gemini response structure:")
+        if "audio_sections" in result:
+            logger.info(
+                f"   - audio_sections: {len(result['audio_sections'])} sections"
+            )
+            for i, section in enumerate(result["audio_sections"]):
+                if "questions" in section:
+                    logger.info(
+                        f"   - Section {i}: {len(section['questions'])} questions"
+                    )
+                    for j, q in enumerate(
+                        section["questions"][:2]
+                    ):  # Log first 2 questions
+                        logger.info(
+                            f"      Q{j}: type={q.get('question_type')}, has_correct_answers={('correct_answers' in q)}"
+                        )
+                        if "correct_answers" in q:
+                            logger.info(
+                                f"         correct_answers type: {type(q['correct_answers'])}"
+                            )
+                            if (
+                                isinstance(q["correct_answers"], list)
+                                and len(q["correct_answers"]) > 0
+                            ):
+                                logger.info(
+                                    f"         first answer type: {type(q['correct_answers'][0])}"
+                                )
+                                logger.info(
+                                    f"         first answer: {q['correct_answers'][0]}"
+                                )
+
         # Convert Gemini array format to object format for storage
         self._convert_gemini_arrays_to_objects(result)
 
@@ -329,6 +361,17 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
                 ):
                     answers_dict = {}
                     for answer in question["correct_answers"]:
+                        # Validate answer is dict with required fields
+                        if not isinstance(answer, dict):
+                            logger.warning(
+                                f"⚠️ Skipping invalid answer (not dict): {answer}"
+                            )
+                            continue
+                        if "blank_key" not in answer or "answers" not in answer:
+                            logger.warning(
+                                f"⚠️ Skipping invalid answer (missing fields): {answer}"
+                            )
+                            continue
                         answers_dict[answer["blank_key"]] = answer["answers"]
                     question["correct_answers"] = answers_dict
 
