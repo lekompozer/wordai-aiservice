@@ -17,13 +17,213 @@ Hệ thống test generation đã được migrate sang **Redis Worker Pattern**
 
 ## 📋 Available Test Generation Endpoints
 
-### 1. Listening Comprehension Test
-### 2. Grammar Test (Coming Soon)
-### 3. Vocabulary Test (Coming Soon)
+### 1. PDF/Document Test ✅ (Worker Queue)
+### 2. General Knowledge Test ✅ (Worker Queue)
+### 3. Listening Comprehension Test ✅ (Worker Queue)
+
+
+**All test types use Redis Worker with max 5 concurrent tasks.**
 
 ---
 
-## 🎙️ 1. LISTENING COMPREHENSION TEST
+## 📄 1. PDF/DOCUMENT TEST
+
+### Endpoint
+```
+POST /api/v1/tests/generate
+```
+
+### Description
+Generate test from uploaded PDF or document stored in database.
+
+### Request Headers
+```http
+Authorization: Bearer <firebase_token>
+Content-Type: application/json
+```
+
+### Request Body
+```typescript
+interface GenerateTestRequest {
+  // Basic info
+  title: string;                    // "Chapter 3 Quiz - Biology"
+  description?: string;              // Optional description
+  language: string;                  // "en", "vi", "zh", "fr"
+  difficulty?: string;               // "beginner", "intermediate", "advanced"
+
+  // Source
+  source_type: "document" | "file"; // "document" (from DB), "file" (from R2)
+  source_id: string;                // Document ID or R2 file key
+
+  // Test configuration
+  num_questions?: number;           // Total questions (if not using split)
+  num_mcq_questions?: number;       // Number of MCQ questions
+  num_essay_questions?: number;     // Number of essay questions
+  mcq_points?: number;              // Points per MCQ (default: 1)
+  essay_points?: number;            // Points per essay (default: 10)
+
+  // MCQ options
+  num_options?: number;             // 2-6 options per question (default: 4)
+  num_correct_answers?: number;     // 1-4 correct answers (default: 1)
+  mcq_type_config?: {
+    type: "single" | "multiple";
+    num_options: number;
+    num_correct: number;
+  };
+
+  // Test settings
+  test_category?: string;           // "academic", "professional", "diagnostic"
+  test_type?: string;               // "multiple_choice", "essay", "mixed"
+  time_limit_minutes?: number;      // Default: 60
+  passing_score?: number;           // Default: 70
+  max_retries?: number;             // Default: 3
+  deadline?: string;                // ISO 8601 date
+  show_answers_timing?: string;     // "immediate", "after_deadline", "manual"
+
+  // Optional
+  user_query?: string;              // Custom instructions for AI
+  creator_name?: string;            // Creator display name
+}
+```
+
+### Response
+```typescript
+{
+  success: true,
+  test_id: "677a8e1234567890abcdef12",
+  job_id: "uuid-v4-job-id",           // NEW: For job tracking
+  status: "pending",
+  title: "Chapter 3 Quiz - Biology",
+  description: "Biology test from Chapter 3",
+  num_questions: 20,
+  time_limit_minutes: 60,
+  created_at: "2026-01-23T11:30:00Z",
+  message: "Test created successfully. AI is generating questions via worker..."
+}
+```
+
+### Frontend Implementation
+```typescript
+async function generatePDFTest(data: GenerateTestRequest) {
+  const response = await fetch('/api/v1/tests/generate', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${firebaseToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  });
+
+  const result = await response.json();
+
+  // Start polling for status
+  pollTestStatus(result.test_id, result.job_id);
+
+  return result;
+}
+```
+
+---
+
+## 🧠 2. GENERAL KNOWLEDGE TEST
+
+### Endpoint
+```
+POST /api/v1/tests/generate/general
+```
+
+### Description
+Generate test from general AI knowledge (no document/file required). Perfect for personality tests, trivia, diagnostic tests.
+
+### Request Headers
+```http
+Authorization: Bearer <firebase_token>
+Content-Type: application/json
+```
+
+### Request Body
+```typescript
+interface GenerateGeneralTestRequest {
+  // Basic info
+  title: string;                    // "MBTI Personality Assessment"
+  description?: string;              // Optional description
+  language: string;                  // "en", "vi", "zh", "fr"
+  topic: string;                     // "Personality", "History", "Science"
+  difficulty?: string;               // "beginner", "intermediate", "advanced"
+
+  // Test configuration
+  num_questions?: number;           // Total questions (if not using split)
+  num_mcq_questions?: number;       // Number of MCQ questions
+  num_essay_questions?: number;     // Number of essay questions
+  mcq_points?: number;              // Points per MCQ (default: 1)
+  essay_points?: number;            // Points per essay (default: 10)
+
+  // MCQ options
+  num_options?: number;             // 2-6 options per question (default: 4)
+  num_correct_answers?: number;     // 1-4 correct answers (default: 1)
+  mcq_type_config?: {
+    type: "single" | "multiple";
+    num_options: number;
+    num_correct: number;
+  };
+
+  // Test settings
+  test_category?: string;           // "academic", "professional", "diagnostic"
+  test_type?: string;               // "multiple_choice", "essay", "mixed"
+  time_limit_minutes?: number;      // Default: 60
+  passing_score?: number;           // Default: 70
+  max_retries?: number;             // Default: 3
+  deadline?: string;                // ISO 8601 date
+  show_answers_timing?: string;     // "immediate", "after_deadline", "manual"
+
+  // Optional
+  user_query?: string;              // Custom instructions for AI
+  creator_name?: string;            // Creator display name
+}
+```
+
+### Response
+```typescript
+{
+  success: true,
+  test_id: "677a8e1234567890abcdef12",
+  job_id: "uuid-v4-job-id",           // NEW: For job tracking
+  status: "pending",
+  title: "MBTI Personality Assessment",
+  description: "Personality test based on MBTI framework",
+  topic: "Personality",
+  test_category: "diagnostic",
+  num_questions: 20,
+  time_limit_minutes: 30,
+  created_at: "2026-01-23T11:30:00Z",
+  message: "Test created successfully. AI is generating questions from general knowledge..."
+}
+```
+
+### Frontend Implementation
+```typescript
+async function generateGeneralTest(data: GenerateGeneralTestRequest) {
+  const response = await fetch('/api/v1/tests/generate/general', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${firebaseToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  });
+
+  const result = await response.json();
+
+  // Start polling for status
+  pollTestStatus(result.test_id, result.job_id);
+
+  return result;
+}
+```
+
+---
+
+## 🎙️ 3. LISTENING COMPREHENSION TEST
 
 ### Endpoint
 ```

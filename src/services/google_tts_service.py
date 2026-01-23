@@ -18,7 +18,7 @@ class GoogleTTSService:
     """Service for Google Cloud Text-to-Speech via Vertex AI (Gemini TTS)"""
 
     def __init__(self):
-        """Initialize Gemini client with Vertex AI"""
+        """Initialize Gemini clients (Vertex AI + Google AI for multi-speaker)"""
         # Use Vertex AI with credentials file (no API key needed)
         project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
         location = "us-central1"  # TTS models only available in us-central1
@@ -31,8 +31,18 @@ class GoogleTTSService:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
                 logger.info(f"📁 Using credentials file: {credentials_path}")
 
-        # Initialize Gemini client with Vertex AI
+        # Initialize Gemini client with Vertex AI (for single speaker)
         self.client = genai.Client(vertexai=True, project=project_id, location=location)
+
+        # Initialize Google AI client for multi-speaker (requires API key)
+        gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if gemini_api_key:
+            self.ai_client = genai.Client(api_key=gemini_api_key)
+            logger.info("✅ Google AI client initialized for multi-speaker TTS")
+        else:
+            self.ai_client = None
+            logger.warning("⚠️ No GEMINI_API_KEY - multi-speaker TTS will be disabled")
+
         logger.info(
             f"✅ Gemini TTS initialized with Vertex AI (project={project_id}, location={location})"
         )
@@ -508,11 +518,17 @@ class GoogleTTSService:
                 f"🎙️ Generating multi-speaker audio: {len(speaker_roles)} speakers, {len(lines)} lines"
             )
 
+            # Use Google AI client for multi-speaker (Vertex AI doesn't support it)
+            if not self.ai_client:
+                raise ValueError(
+                    "Multi-speaker TTS requires Google AI API key. Set GEMINI_API_KEY environment variable."
+                )
+
             # Generate audio (run in thread pool to avoid blocking event loop)
             import asyncio
 
             response = await asyncio.to_thread(
-                self.client.models.generate_content,
+                self.ai_client.models.generate_content,
                 model=model,
                 contents=prompt_text,
                 config=types.GenerateContentConfig(
