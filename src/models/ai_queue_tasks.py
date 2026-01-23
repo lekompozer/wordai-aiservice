@@ -240,7 +240,8 @@ class TestGenerationTask(BaseModel):
     task_id: str = Field(..., description="Unique task ID (same as job_id)")
     job_id: str = Field(..., description="Job ID for status tracking")
     task_type: str = Field(
-        ..., description="Test type: 'listening', 'grammar', 'vocabulary', 'general'"
+        ...,
+        description="Test type: 'pdf', 'general', 'listening', 'grammar', 'vocabulary'",
     )
     test_id: str = Field(..., description="MongoDB test document ID")
     creator_id: str = Field(..., description="User ID who created test")
@@ -249,13 +250,36 @@ class TestGenerationTask(BaseModel):
     title: str = Field(..., description="Test title")
     description: Optional[str] = Field(None, description="Test description")
     language: str = Field(..., description="Test language code (en, vi, zh, etc)")
-    topic: str = Field(..., description="Test topic/subject")
-    difficulty: str = Field(..., description="Difficulty level")
+    topic: Optional[str] = Field(None, description="Test topic/subject")
+    difficulty: Optional[str] = Field(None, description="Difficulty level")
     num_questions: int = Field(..., description="Number of questions")
     time_limit_minutes: int = Field(default=60, description="Time limit in minutes")
     passing_score: int = Field(default=70, description="Passing score percentage")
     use_pro_model: bool = Field(
         default=False, description="Use Gemini Pro model (costs more)"
+    )
+    user_query: Optional[str] = Field(None, description="Custom user query for AI")
+
+    # PDF test specific (source_type = 'document' or 'file')
+    source_type: Optional[str] = Field(
+        None, description="'document', 'file', 'general_knowledge', 'audio'"
+    )
+    source_id: Optional[str] = Field(None, description="Document ID or file R2 key")
+    test_category: Optional[str] = Field(
+        None, description="'academic', 'professional', 'diagnostic'"
+    )
+    num_mcq_questions: Optional[int] = Field(
+        None, description="Number of MCQ questions"
+    )
+    num_essay_questions: Optional[int] = Field(
+        None, description="Number of essay questions"
+    )
+    mcq_points: Optional[int] = Field(None, description="Points per MCQ")
+    essay_points: Optional[int] = Field(None, description="Points per essay")
+    mcq_type_config: Optional[dict] = Field(None, description="MCQ type configuration")
+    num_options: Optional[int] = Field(None, description="Number of options per MCQ")
+    num_correct_answers: Optional[int] = Field(
+        None, description="Number of correct answers per MCQ"
     )
 
     # Listening test specific
@@ -263,7 +287,6 @@ class TestGenerationTask(BaseModel):
         None, description="Number of audio sections"
     )
     audio_config: Optional[dict] = Field(None, description="Audio configuration")
-    user_query: Optional[str] = Field(None, description="Custom user query for AI")
     user_transcript: Optional[str] = Field(
         None, description="User-provided transcript (Phase 7)"
     )

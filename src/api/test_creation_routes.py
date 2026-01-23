@@ -42,11 +42,10 @@ db = db_manager.db
 @router.post("/generate")
 async def generate_test(
     request: GenerateTestRequest,
-    background_tasks: BackgroundTasks,
     user_info: dict = Depends(require_auth),
 ):
     """
-    Generate a new test from document or file (AI-powered)
+    Generate a new test from document or file (AI-powered) using Redis Worker
 
     **NEW Async Pattern**: Returns immediately with test_id and status='pending'.
     Background job generates questions. Frontend polls /tests/{test_id}/status.
@@ -369,50 +368,87 @@ async def generate_test(
 
         logger.info(f"✅ Test record created: {test_id} with status='pending'")
 
-        # ========== Start background job for AI generation ==========
-        background_tasks.add_task(
-            generate_test_background,
+        # ========== Enqueue job to Redis Worker ==========
+        from src.queue.queue_dependencies import get_test_generation_queue
+        from src.queue.queue_manager import set_job_status
+        from src.models.ai_queue_tasks import TestGenerationTask
+
+        job_id = str(uuid.uuid4())
+        queue = await get_test_generation_queue()
+
+        # Set initial job status in Redis
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=job_id,
+            status="pending",
+            user_id=user_info["uid"],
             test_id=test_id,
-            content=content,
+            task_type="pdf",
             title=request.title,
-            user_query=request.user_query,
+            num_questions=request.num_questions
+            or ((request.num_mcq_questions or 0) + (request.num_essay_questions or 0)),
             language=request.language,
+        )
+
+        # Create task object
+        task = TestGenerationTask(
+            task_id=job_id,
+            job_id=job_id,
+            task_type="pdf",
+            test_id=test_id,
+            creator_id=user_info["uid"],
+            title=request.title,
+            description=request.description,
+            language=request.language,
+            topic=request.description if request.description else request.title,
             difficulty=request.difficulty,
             num_questions=request.num_questions
-            or (request.num_mcq_questions + request.num_essay_questions),
-            creator_id=user_info["uid"],
+            or ((request.num_mcq_questions or 0) + (request.num_essay_questions or 0)),
+            time_limit_minutes=request.time_limit_minutes,
+            passing_score=request.passing_score,
+            use_pro_model=False,
+            user_query=request.user_query,
+            # PDF-specific fields
             source_type=request.source_type,
             source_id=request.source_id,
-            time_limit_minutes=request.time_limit_minutes,
-            gemini_pdf_bytes=(
-                gemini_pdf_bytes if request.source_type == "file" else None
-            ),
+            test_category=request.test_category,
+            num_mcq_questions=request.num_mcq_questions,
+            num_essay_questions=request.num_essay_questions,
+            mcq_points=request.mcq_points,
+            essay_points=request.essay_points,
+            mcq_type_config=request.mcq_type_config,
             num_options=request.num_options if request.num_options > 0 else 4,
             num_correct_answers=(
                 request.num_correct_answers if request.num_correct_answers > 0 else 1
             ),
-            test_category=request.test_category,
-            test_type=request.test_type,
-            num_mcq_questions=request.num_mcq_questions,
-            num_essay_questions=request.num_essay_questions,
-            mcq_type_config=request.mcq_type_config,
-            topic=request.description if request.description else request.title,
-            is_general_knowledge=False,
+            points_cost=0,  # Will be calculated by worker
         )
 
-        logger.info(f"🚀 Background job queued for test {test_id}")
+        # Enqueue task
+        enqueued = await queue.enqueue_generic_task(task)
+
+        if not enqueued:
+            logger.error(f"❌ Failed to enqueue task {job_id}")
+            raise HTTPException(
+                status_code=500, detail="Failed to queue test generation job"
+            )
+
+        logger.info(
+            f"🚀 Job {job_id} enqueued to test-generation-worker for test {test_id}"
+        )
 
         # ========== Return immediately ==========
         return {
             "success": True,
             "test_id": test_id,
+            "job_id": job_id,  # NEW: Include job_id for polling
             "status": "pending",
             "title": request.title,
             "description": request.description,
             "num_questions": request.num_questions,
             "time_limit_minutes": request.time_limit_minutes,
             "created_at": test_doc["created_at"].isoformat(),
-            "message": "Test created successfully. AI is generating questions...",
+            "message": "Test created successfully. AI is generating questions via worker...",
         }
 
     except HTTPException:
@@ -649,11 +685,10 @@ class GenerateGeneralTestRequest(BaseModel):
 @router.post("/generate/general")
 async def generate_test_from_general_knowledge(
     http_request: Request,
-    background_tasks: BackgroundTasks,
     user_info: dict = Depends(require_auth),
 ):
     """
-    Generate a new test from general AI knowledge (no file/document required)
+    Generate a new test from general AI knowledge using Redis Worker
 
     **NEW Endpoint**: Creates tests based on topic and user query without needing source material.
 
@@ -751,48 +786,79 @@ async def generate_test_from_general_knowledge(
 
         logger.info(f"✅ Test record created: {test_id} with status='pending'")
 
-        # Build comprehensive content from topic and query
-        content = f"""Topic: {request.topic}
+        # ========== Enqueue job to Redis Worker ==========
+        from src.queue.queue_dependencies import get_test_generation_queue
+        from src.queue.queue_manager import set_job_status
+        from src.models.ai_queue_tasks import TestGenerationTask
 
-Instructions: {request.user_query}
+        job_id = str(uuid.uuid4())
+        queue = await get_test_generation_queue()
 
-Generate a comprehensive {request.test_category} test based on general knowledge of this topic."""
-
-        # Start background job
-        background_tasks.add_task(
-            generate_test_background,
+        # Set initial job status in Redis
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=job_id,
+            status="pending",
+            user_id=user_info["uid"],
             test_id=test_id,
-            content=content,
+            task_type="general",
             title=request.title,
-            user_query=request.user_query,
+            num_questions=request.num_questions,
             language=request.language,
+        )
+
+        # Create task object
+        task = TestGenerationTask(
+            task_id=job_id,
+            job_id=job_id,
+            task_type="general",
+            test_id=test_id,
+            creator_id=user_info["uid"],
+            title=request.title,
+            description=request.description,
+            language=request.language,
+            topic=request.topic,
             difficulty=request.difficulty,
             num_questions=request.num_questions,
-            creator_id=user_info["uid"],
+            time_limit_minutes=request.time_limit_minutes,
+            passing_score=request.passing_score,
+            use_pro_model=False,
+            user_query=request.user_query,
+            # General test specific fields
             source_type="general_knowledge",
             source_id=request.topic,
-            time_limit_minutes=request.time_limit_minutes,
-            gemini_pdf_bytes=None,
+            test_category=request.test_category,
+            num_mcq_questions=request.num_mcq_questions,
+            num_essay_questions=request.num_essay_questions,
+            mcq_points=request.mcq_points,
+            essay_points=request.essay_points,
+            mcq_type_config=(
+                request.mcq_type_config if request.mcq_type_config else None
+            ),
             num_options=request.num_options if request.num_options > 0 else 4,
             num_correct_answers=(
                 request.num_correct_answers if request.num_correct_answers > 0 else 1
             ),
-            test_category=request.test_category,
-            test_type=request.test_type,
-            num_mcq_questions=request.num_mcq_questions,
-            num_essay_questions=request.num_essay_questions,
-            mcq_type_config=(
-                request.mcq_type_config if request.mcq_type_config else None
-            ),
-            topic=request.topic,
-            is_general_knowledge=True,
+            points_cost=0,  # Will be calculated by worker
         )
 
-        logger.info(f"🚀 Background job queued for general test {test_id}")
+        # Enqueue task
+        enqueued = await queue.enqueue_generic_task(task)
+
+        if not enqueued:
+            logger.error(f"❌ Failed to enqueue task {job_id}")
+            raise HTTPException(
+                status_code=500, detail="Failed to queue test generation job"
+            )
+
+        logger.info(
+            f"🚀 Job {job_id} enqueued to test-generation-worker for general test {test_id}"
+        )
 
         return {
             "success": True,
             "test_id": test_id,
+            "job_id": job_id,  # NEW: Include job_id for polling
             "status": "pending",
             "title": request.title,
             "description": request.description,

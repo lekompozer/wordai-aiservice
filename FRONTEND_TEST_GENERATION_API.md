@@ -1,6 +1,6 @@
 # Frontend Integration Guide - Test Generation APIs
 
-**Date:** January 23, 2026  
+**Date:** January 23, 2026
 **Version:** 2.0 (Worker Queue Pattern)
 
 ## 🎯 Overview
@@ -45,24 +45,24 @@ interface GenerateListeningTestRequest {
   language: string;                  // "en", "vi", "zh", "fr"
   topic: string;                     // "Travel", "Business", "Education"
   difficulty: string;                // "beginner", "intermediate", "advanced"
-  
+
   // Test configuration
   num_questions: number;             // 10, 20, 30, 40
   num_audio_sections: number;        // 1-4 sections
   time_limit_minutes?: number;       // Default: 60
   passing_score?: number;            // Default: 70
   use_pro_model?: boolean;           // Default: false (Gemini Pro vs Flash)
-  
+
   // Audio configuration
   audio_config: {
     num_speakers: number;            // 1 (monologue) or 2 (dialogue)
     voice_names?: string[];          // Optional: ["Aoede", "Charon"]
     speaking_rate?: number;          // 0.5 - 2.0, default: 1.0
   };
-  
+
   // Optional custom query
   user_query?: string;               // "Create a conversation about..."
-  
+
   // Phase 7 & 8 (Advanced)
   user_transcript?: string;          // User-provided transcript
   audio_file_path?: string;          // Uploaded audio file path (R2)
@@ -132,7 +132,7 @@ interface TestStatusResponse {
   progress_percent: number;          // 0-100
   message: string;                   // Progress description
   error_message?: string;            // If status = "failed"
-  
+
   // Completed state (status = "completed")
   test?: {
     _id: string;
@@ -158,32 +158,32 @@ interface TestStatusResponse {
 async function pollTestStatus(testId) {
   const maxAttempts = 120;  // 2 minutes (1 section = ~60s)
   const pollInterval = 1000; // 1 second
-  
+
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const response = await fetch(`/api/v1/tests/${testId}/status`, {
       headers: {
         'Authorization': `Bearer ${firebaseToken}`
       }
     });
-    
+
     const data = await response.json();
-    
+
     console.log(`Progress: ${data.progress_percent}% - ${data.message}`);
-    
+
     if (data.status === 'completed') {
       console.log('✅ Test generated successfully!');
       return data.test;
     }
-    
+
     if (data.status === 'failed') {
       console.error('❌ Test generation failed:', data.error_message);
       throw new Error(data.error_message);
     }
-    
+
     // Wait before next poll
     await new Promise(resolve => setTimeout(resolve, pollInterval));
   }
-  
+
   throw new Error('Test generation timeout');
 }
 
@@ -377,23 +377,23 @@ interface AudioSection {
 ```javascript
 try {
   const response = await createListeningTest(requestData);
-  
+
   if (response.status === 402) {
     const error = await response.json();
     showUpgradeModal(error.detail);
     return;
   }
-  
+
   if (response.status === 503) {
     showToast('Server busy, please try again later');
     return;
   }
-  
+
   const data = await response.json();
   const test = await pollTestStatus(data.test_id);
-  
+
   navigateToTest(test._id);
-  
+
 } catch (error) {
   console.error('Test generation error:', error);
   showToast('Failed to generate test');
@@ -408,20 +408,20 @@ try {
 ```javascript
 function TestGenerationProgress({ testId }) {
   const [status, setStatus] = useState(null);
-  
+
   useEffect(() => {
     const interval = setInterval(async () => {
       const data = await fetchTestStatus(testId);
       setStatus(data);
-      
+
       if (data.status === 'completed' || data.status === 'failed') {
         clearInterval(interval);
       }
     }, 1000);
-    
+
     return () => clearInterval(interval);
   }, [testId]);
-  
+
   return (
     <div>
       <ProgressBar value={status?.progress_percent || 0} />
@@ -521,5 +521,5 @@ docker logs ai-chatbot-rag -f | grep "listening"
 
 ---
 
-**Last Updated:** January 23, 2026  
+**Last Updated:** January 23, 2026
 **Backend Version:** Worker Queue Pattern v2.0
