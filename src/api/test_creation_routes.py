@@ -3653,21 +3653,71 @@ async def generate_listening_test(
 
         logger.info(f"✅ Test record created: {test_id}")
 
-        # Start background generation in separate task (non-blocking)
-        asyncio.create_task(
-            generate_listening_test_background_job(
-                test_id=test_id,
-                request=request,
-                user_id=user_id,
-                points_cost=points_cost,  # Pass points_cost to background job
-            )
+        # Enqueue job to Redis for worker processing
+        from src.queue.queue_dependencies import get_test_generation_queue
+        from src.queue.queue_manager import set_job_status
+        from src.models.ai_queue_tasks import TestGenerationTask
+        import uuid
+
+        job_id = str(uuid.uuid4())
+
+        # Get queue
+        queue = await get_test_generation_queue()
+
+        # Create job in Redis with pending status
+        await set_job_status(
+            redis_client=queue.redis_client,
+            job_id=job_id,
+            status="pending",
+            user_id=user_id,
+            progress_percent=0,
+            message="Waiting for worker...",
+            test_id=test_id,
+            task_type="listening",
         )
+
+        # Create task model
+        task = TestGenerationTask(
+            task_id=job_id,
+            job_id=job_id,
+            task_type="listening",
+            test_id=test_id,
+            creator_id=user_id,
+            title=request.title,
+            description=request.description,
+            language=request.language,
+            topic=request.topic,
+            difficulty=request.difficulty,
+            num_questions=request.num_questions,
+            num_audio_sections=request.num_audio_sections,
+            audio_config=(
+                request.audio_config if isinstance(request.audio_config, dict) else {}
+            ),
+            user_query=request.user_query,
+            time_limit_minutes=request.time_limit_minutes,
+            passing_score=request.passing_score,
+            use_pro_model=request.use_pro_model,
+            user_transcript=request.user_transcript,
+            audio_file_path=request.audio_file_path,
+            points_cost=points_cost,
+            priority=1,
+        )
+
+        # Enqueue task for worker
+        enqueued = await queue.enqueue_generic_task(task)
+        if not enqueued:
+            raise HTTPException(
+                status_code=503, detail="Queue is full. Please try again later."
+            )
+
+        logger.info(f"✅ Job {job_id} enqueued for test {test_id}")
 
         return {
             "success": True,
             "test_id": test_id,
+            "job_id": job_id,
             "status": "pending",
-            "message": "Listening test generation started. Poll /tests/{test_id}/status for progress.",
+            "message": "Listening test generation queued. Poll /tests/{test_id}/status for progress.",
             "estimated_time_seconds": request.num_audio_sections
             * 60,  # ~1 min per section
         }

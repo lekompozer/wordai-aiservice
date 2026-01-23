@@ -252,6 +252,46 @@ services:
           cpus: "1"
 
   # ============================================================================
+  # Test Generation Worker - AI test generation (listening, grammar, vocab)
+  # ============================================================================
+  test-generation-worker:
+    container_name: test-generation-worker
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    command: python -m src.workers.test_generation_worker
+    volumes:
+      - ./logs:/app/logs
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+      - ./wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - REDIS_URL=redis://redis-server:6379
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
+      - VERTEX_AI_REGION=asia-southeast1
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_API_KEY2=${GEMINI_API_KEY2}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+    depends_on:
+      - redis-server
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "1"
+
+  # ============================================================================
   # Slide Generation Worker - AI slide creation from analysis
   # ============================================================================
   slide-generation-worker:

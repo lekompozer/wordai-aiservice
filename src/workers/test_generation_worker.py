@@ -11,13 +11,14 @@ Uses Redis Worker Pattern with max 5 concurrent tasks.
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime
 
-from src.queue.queue_dependencies import get_test_generation_queue
 from src.queue.queue_manager import set_job_status
 from src.services.listening_test_generator_service import ListeningTestGeneratorService
 from src.database.db_manager import DBManager
+from src.models.ai_queue_tasks import TestGenerationTask
 
 # Setup logging
 logging.basicConfig(
@@ -167,7 +168,7 @@ class TestGenerationWorker:
                     await asyncio.sleep(1)
                     continue
 
-                # Get next task from queue (using generic task pattern)
+                # Get next task from queue (returns dict with task JSON)
                 task_data = await self.queue_manager.dequeue_generic_task(
                     worker_id=self.worker_id, timeout=1
                 )
@@ -177,10 +178,22 @@ class TestGenerationWorker:
                     await asyncio.sleep(2)
                     continue
 
+                # Parse task to TestGenerationTask model
+                try:
+                    task = TestGenerationTask(**task_data)
+                    logger.info(f"📝 Dequeued {task.task_type} test task {task.job_id}")
+                except Exception as e:
+                    logger.error(f"❌ Failed to parse task data: {e}")
+                    logger.error(f"   Task data: {task_data}")
+                    continue
+
+                # Convert task to dict for process_task
+                task_dict = task.model_dump()
+
                 # Process task in background
-                task = asyncio.create_task(self.process_task(task_data))
-                self.active_tasks.add(task)
-                task.add_done_callback(self.active_tasks.discard)
+                async_task = asyncio.create_task(self.process_task(task_dict))
+                self.active_tasks.add(async_task)
+                async_task.add_done_callback(self.active_tasks.discard)
 
                 logger.info(
                     f"📋 Active tasks: {len(self.active_tasks)}/{self.max_concurrent_tasks}"

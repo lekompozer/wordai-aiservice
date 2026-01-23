@@ -232,3 +232,50 @@ class VideoExportTask(BaseModel):
     priority: int = Field(default=1, description="1=normal, 2=high, 3=urgent")
     max_retries: int = Field(default=2, description="Max retries before failure")
     retry_count: int = Field(default=0)
+
+
+class TestGenerationTask(BaseModel):
+    """Task for Test Generation queue (all test types)"""
+
+    task_id: str = Field(..., description="Unique task ID (same as job_id)")
+    job_id: str = Field(..., description="Job ID for status tracking")
+    task_type: str = Field(
+        ..., description="Test type: 'listening', 'grammar', 'vocabulary', 'general'"
+    )
+    test_id: str = Field(..., description="MongoDB test document ID")
+    creator_id: str = Field(..., description="User ID who created test")
+
+    # Common test parameters
+    title: str = Field(..., description="Test title")
+    description: Optional[str] = Field(None, description="Test description")
+    language: str = Field(..., description="Test language code (en, vi, zh, etc)")
+    topic: str = Field(..., description="Test topic/subject")
+    difficulty: str = Field(..., description="Difficulty level")
+    num_questions: int = Field(..., description="Number of questions")
+    time_limit_minutes: int = Field(default=60, description="Time limit in minutes")
+    passing_score: int = Field(default=70, description="Passing score percentage")
+    use_pro_model: bool = Field(
+        default=False, description="Use Gemini Pro model (costs more)"
+    )
+
+    # Listening test specific
+    num_audio_sections: Optional[int] = Field(
+        None, description="Number of audio sections"
+    )
+    audio_config: Optional[dict] = Field(None, description="Audio configuration")
+    user_query: Optional[str] = Field(None, description="Custom user query for AI")
+    user_transcript: Optional[str] = Field(
+        None, description="User-provided transcript (Phase 7)"
+    )
+    audio_file_path: Optional[str] = Field(
+        None, description="Uploaded audio file path (Phase 8)"
+    )
+
+    # Points tracking
+    points_cost: int = Field(..., description="Points cost for this test generation")
+
+    # Task metadata
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    priority: int = Field(default=1, description="1=normal, 2=high, 3=urgent")
+    max_retries: int = Field(default=2, description="Max retries before failure")
+    retry_count: int = Field(default=0)
