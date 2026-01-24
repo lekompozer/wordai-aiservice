@@ -189,7 +189,37 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
             ),
         )
 
-        result = json.loads(response.text)
+        # Parse JSON with json_repair fallback (Gemini sometimes returns malformed JSON)
+        try:
+            result = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON parse error: {e}")
+            logger.warning(
+                f"📄 Response preview (first 500 chars): {response.text[:500]}"
+            )
+            logger.warning("🔧 Attempting to repair malformed JSON...")
+
+            try:
+                from json_repair import repair_json  # type: ignore
+
+                repaired_json_str = repair_json(response.text)
+                result = json.loads(repaired_json_str)
+
+                # json_repair sometimes returns a list instead of dict
+                if isinstance(result, list) and len(result) == 1:
+                    result = result[0]
+                    logger.info("✅ JSON repaired successfully (unwrapped from list)!")
+                elif isinstance(result, list):
+                    logger.error(
+                        f"❌ JSON repair returned unexpected list with {len(result)} items"
+                    )
+                    raise ValueError(f"Unexpected list result from json_repair")
+                else:
+                    logger.info("✅ JSON repaired successfully!")
+
+            except Exception as repair_error:
+                logger.error(f"❌ JSON repair also failed: {repair_error}")
+                raise
 
         # Debug: Log result structure before conversion
         logger.info(f"🔍 Gemini response structure:")
@@ -920,7 +950,35 @@ Return ONLY the questions array in JSON format."""
             ),
         )
 
-        questions = json.loads(response.text)
+        # Parse JSON with json_repair fallback (Gemini sometimes returns malformed JSON)
+        try:
+            questions = json.loads(response.text)
+        except json.JSONDecodeError as e:
+            logger.error(f"❌ JSON parse error: {e}")
+            logger.warning(
+                f"📄 Response preview (first 500 chars): {response.text[:500]}"
+            )
+            logger.warning("🔧 Attempting to repair malformed JSON...")
+
+            try:
+                from json_repair import repair_json  # type: ignore
+
+                repaired_json_str = repair_json(response.text)
+                questions = json.loads(repaired_json_str)
+
+                # json_repair sometimes returns a list instead of dict
+                if isinstance(questions, dict) and len(questions) == 1:
+                    # If it's a dict with single key, might be wrapped
+                    logger.info("✅ JSON repaired successfully!")
+                elif isinstance(questions, list):
+                    # Expected format - array of questions
+                    logger.info("✅ JSON repaired successfully!")
+                else:
+                    logger.info("✅ JSON repaired successfully!")
+
+            except Exception as repair_error:
+                logger.error(f"❌ JSON repair also failed: {repair_error}")
+                raise
 
         # Validate and filter
         self._convert_gemini_arrays_to_objects(
