@@ -14,6 +14,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
+from bson import ObjectId
 
 from src.queue.queue_manager import set_job_status
 from src.services.listening_test_generator_service import ListeningTestGeneratorService
@@ -96,6 +97,27 @@ class TestGenerationWorker:
                 creator_id=user_id,
                 user_transcript=task_data.get("user_transcript"),
                 audio_file_path=task_data.get("audio_file_path"),
+            )
+
+            # Update MongoDB test document with generated data
+            logger.info(f"💾 Updating MongoDB test document {test_id}...")
+
+            update_data = {
+                "status": "ready",
+                "progress_percent": 100,
+                "progress_message": "Test ready!",
+                "questions": result.get("questions", []),
+                "audio_sections": result.get("audio_sections", []),
+                "generated_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+
+            self.db["online_tests"].update_one(
+                {"_id": ObjectId(test_id)}, {"$set": update_data}
+            )
+
+            logger.info(
+                f"✅ MongoDB updated: {len(result.get('questions', []))} questions, {len(result.get('audio_sections', []))} audio sections"
             )
 
             # Update status to completed
