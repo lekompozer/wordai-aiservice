@@ -47,13 +47,13 @@ async def publish_test_to_marketplace(
     test_id: str,
     cover_image: Optional[UploadFile] = File(None),
     title: str = Form(...),
-    description: str = Form(...),
+    description: str = Form(""),  # Default empty, will use test title if empty
     short_description: Optional[str] = Form(None),
     price_points: int = Form(...),
     category: str = Form(...),
     language: str = Form(..., description="Test language (vi, en, ja, etc.)"),
-    tags: str = Form(...),
-    difficulty_level: str = Form(...),
+    tags: str = Form("general,test"),  # Default tags if not provided
+    difficulty_level: str = Form("intermediate"),  # Default difficulty
     evaluation_criteria: Optional[str] = Form(None),
     creator_name: Optional[str] = Form(None),
     user_info: dict = Depends(require_auth),
@@ -86,6 +86,11 @@ async def publish_test_to_marketplace(
         logger.info(f"   Price: {price_points} points")
         logger.info(f"   Category: {category}")
         logger.info(f"   Language: {language}")
+
+        # Auto-generate description from test if empty
+        if not description or len(description.strip()) == 0:
+            description = f"{title} - Test created with AI-powered question generation. Practice and improve your skills with this comprehensive assessment."
+            logger.info(f"   Auto-generated description (original empty)")
 
         # ========== Step 1: Validate test exists and user is creator ==========
         test_doc = db["online_tests"].find_one({"_id": ObjectId(test_id)})

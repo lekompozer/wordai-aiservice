@@ -305,6 +305,15 @@ from src.api.studyhub_category_routes import router as studyhub_category_router
 # ✅ ADDED: StudyHub Community API - Community subjects marketplace (Phase 1: 6 APIs)
 from src.routes.studyhub_community_routes import router as studyhub_community_router
 
+# ✅ NEW: StudyHub Discussion API - Community discussions & comments (Phase 2: 6 APIs)
+from src.routes.studyhub_discussion_routes import router as studyhub_discussion_router
+
+# ✅ NEW: StudyHub Review API - Course reviews & ratings (Phase 3: 4 APIs)
+from src.routes.studyhub_review_routes import router as studyhub_review_router
+
+# ✅ NEW: StudyHub Wishlist API - Course wishlists (Phase 4: 3 APIs)
+from src.routes.studyhub_wishlist_routes import router as studyhub_wishlist_router
+
 # ✅ ADDED: Image Editing API - AI-powered image editing using Gemini 3 Pro Image
 from src.api.image_editing_routes import router as image_editing_router
 
@@ -1298,6 +1307,21 @@ def create_app() -> FastAPI:
     # ✅ NEW: StudyHub Community API - Community subjects marketplace (Phase 1: 6 APIs)
     app.include_router(
         studyhub_community_router, prefix="/api", tags=["StudyHub - Community Subjects"]
+    )
+
+    # ✅ NEW: StudyHub Discussion API - Community discussions & comments (Phase 2: 6 APIs)
+    app.include_router(
+        studyhub_discussion_router, prefix="/api", tags=["StudyHub - Discussions"]
+    )
+
+    # ✅ NEW: StudyHub Review API - Course reviews & ratings (Phase 3: 4 APIs)
+    app.include_router(
+        studyhub_review_router, prefix="/api", tags=["StudyHub - Reviews"]
+    )
+
+    # ✅ NEW: StudyHub Wishlist API - Course wishlists (Phase 4: 3 APIs)
+    app.include_router(
+        studyhub_wishlist_router, prefix="/api", tags=["StudyHub - Wishlist"]
     )
 
     # ✅ Hybrid Search Strategy - Enhanced callbacks, search & CRUD operations
