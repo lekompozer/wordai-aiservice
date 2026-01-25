@@ -332,6 +332,8 @@ class ProgressDetailItem(BaseModel):
     type: str  # "module" or "content"
     status: LearningStatus
     completed_at: Optional[datetime] = None
+    total_tests: Optional[int] = None  # For modules only
+    total_files: Optional[int] = None  # For modules only
 
     class Config:
         use_enum_values = True
@@ -343,12 +345,20 @@ class SubjectProgressResponse(BaseModel):
 
     subject_id: str
     subject_title: str
+    subject_description: Optional[str] = None
+    owner_name: str
+    category: Optional[str] = None
+    cover_image_url: Optional[str] = None
+    avg_rating: float
+    total_learners: int
     enrollment_status: EnrollmentStatus
     overall_progress: float  # 0.0 to 1.0
     total_modules: int
     completed_modules: int
     total_contents: int
     completed_contents: int
+    total_tests: int
+    total_files: int
     last_position: Optional[Dict[str, str]] = None  # {module_id, content_id}
     modules_progress: List[ProgressDetailItem]
     enrolled_at: datetime

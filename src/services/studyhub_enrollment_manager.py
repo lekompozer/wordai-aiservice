@@ -194,6 +194,15 @@ class StudyHubEnrollmentManager:
         if not subject:
             raise HTTPException(status_code=404, detail="Subject not found")
 
+        # Get owner info
+        owner = self.db.users.find_one({"_id": subject["owner_id"]})
+        owner_name = owner.get("displayName", "Unknown") if owner else "Unknown"
+
+        # Get metadata for rating and learners
+        metadata = subject.get("metadata", {})
+        avg_rating = metadata.get("avg_rating", 0.0)
+        total_learners = metadata.get("total_students", 0)
+
         # Get modules
         modules = list(
             self.db.studyhub_modules.find(
@@ -222,6 +231,8 @@ class StudyHubEnrollmentManager:
         total_contents = 0
         completed_modules = 0
         completed_contents = 0
+        total_tests = 0
+        total_files = 0
         modules_progress = []
 
         for module in modules:
@@ -236,6 +247,12 @@ class StudyHubEnrollmentManager:
 
             total_contents += len(contents)
             module_completed = True
+
+            # Count tests and files in this module
+            module_tests = sum(1 for c in contents if c.get("content_type") == "test")
+            module_files = sum(1 for c in contents if c.get("content_type") == "file")
+            total_tests += module_tests
+            total_files += module_files
 
             # Check module completion
             for content in contents:
@@ -274,6 +291,8 @@ class StudyHubEnrollmentManager:
                         if module_key in progress_map
                         else None
                     ),
+                    total_tests=module_tests,
+                    total_files=module_files,
                 )
             )
 
@@ -288,12 +307,20 @@ class StudyHubEnrollmentManager:
         return SubjectProgressResponse(
             subject_id=subject_id,
             subject_title=subject["title"],
+            subject_description=subject.get("description"),
+            owner_name=owner_name,
+            category=subject.get("category"),
+            cover_image_url=subject.get("cover_image_url"),
+            avg_rating=avg_rating,
+            total_learners=total_learners,
             enrollment_status=enrollment["status"],
             overall_progress=overall_progress,
             total_modules=total_modules,
             completed_modules=completed_modules,
             total_contents=total_contents,
             completed_contents=completed_contents,
+            total_tests=total_tests,
+            total_files=total_files,
             last_position=last_position,
             modules_progress=modules_progress,
             enrolled_at=enrollment["enrolled_at"],
