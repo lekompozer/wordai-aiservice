@@ -19,9 +19,9 @@ from src.models.studyhub_community_models import (
     CommunitySubjectDetail,
     CoursesInSubjectResponse,
     PublishToCommunityRequest,
-    UpdateMarketplaceInfoRequest
+    UpdateMarketplaceInfoRequest,
 )
-from src.auth.jwt_bearer import get_current_user
+from src.middleware.firebase_auth import get_current_user
 
 router = APIRouter()
 
@@ -30,21 +30,28 @@ router = APIRouter()
     "/marketplace/community-subjects",
     response_model=CommunitySubjectsResponse,
     summary="Get Community Subjects",
-    description="List all community subjects with filtering and pagination"
+    description="List all community subjects with filtering and pagination",
 )
 async def get_community_subjects(
-    category: Optional[str] = Query(None, description="Filter by category (it, business, finance, etc.)"),
+    category: Optional[str] = Query(
+        None, description="Filter by category (it, business, finance, etc.)"
+    ),
     search: Optional[str] = Query(None, description="Text search in title"),
-    is_featured: Optional[bool] = Query(None, description="Filter featured subjects only"),
-    sort_by: str = Query("display_order", description="Sort by: display_order, total_courses, total_students"),
+    is_featured: Optional[bool] = Query(
+        None, description="Filter featured subjects only"
+    ),
+    sort_by: str = Query(
+        "display_order",
+        description="Sort by: display_order, total_courses, total_students",
+    ),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100)
+    limit: int = Query(20, ge=1, le=100),
 ):
     """
     **API-39: GET /marketplace/community-subjects**
-    
+
     Get list of community subjects for marketplace browsing.
-    
+
     **Query Parameters:**
     - `category`: Filter by category (optional)
     - `search`: Text search (optional)
@@ -52,7 +59,7 @@ async def get_community_subjects(
     - `sort_by`: Sort field (default: display_order)
     - `skip`: Pagination offset (default: 0)
     - `limit`: Max results (default: 20, max: 100)
-    
+
     **Returns:**
     ```json
     {
@@ -82,10 +89,10 @@ async def get_community_subjects(
             is_featured=is_featured,
             sort_by=sort_by,
             skip=skip,
-            limit=limit
+            limit=limit,
         )
         return result
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -94,18 +101,18 @@ async def get_community_subjects(
     "/marketplace/community-subjects/{slug}",
     response_model=CommunitySubjectDetail,
     summary="Get Community Subject Detail",
-    description="Get detailed info about a community subject with top courses preview"
+    description="Get detailed info about a community subject with top courses preview",
 )
 async def get_community_subject_detail(slug: str):
     """
     **API-40: GET /marketplace/community-subjects/{slug}**
-    
+
     Get detailed information about a specific community subject.
     Includes top 3 courses preview.
-    
+
     **Path Parameters:**
     - `slug`: Community subject slug (e.g., "python-programming")
-    
+
     **Returns:**
     ```json
     {
@@ -129,12 +136,14 @@ async def get_community_subject_detail(slug: str):
     try:
         manager = StudyHubCommunityManager()
         result = await manager.get_community_subject_detail(slug)
-        
+
         if not result:
-            raise HTTPException(status_code=404, detail=f"Community subject not found: {slug}")
-            
+            raise HTTPException(
+                status_code=404, detail=f"Community subject not found: {slug}"
+            )
+
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -145,27 +154,29 @@ async def get_community_subject_detail(slug: str):
     "/marketplace/community-subjects/{slug}/courses",
     response_model=CoursesInSubjectResponse,
     summary="Get Courses in Community Subject",
-    description="Get all published courses under a community subject"
+    description="Get all published courses under a community subject",
 )
 async def get_courses_in_subject(
     slug: str,
-    sort_by: str = Query("popularity", description="Sort by: popularity, rating, newest"),
+    sort_by: str = Query(
+        "popularity", description="Sort by: popularity, rating, newest"
+    ),
     skip: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100)
+    limit: int = Query(20, ge=1, le=100),
 ):
     """
     **API-41: GET /marketplace/community-subjects/{slug}/courses**
-    
+
     Get all published courses (subjects) in a community subject.
-    
+
     **Path Parameters:**
     - `slug`: Community subject slug
-    
+
     **Query Parameters:**
     - `sort_by`: Sort by (popularity, rating, newest) - default: popularity
     - `skip`: Pagination offset
     - `limit`: Max results (max: 100)
-    
+
     **Returns:**
     ```json
     {
@@ -191,13 +202,10 @@ async def get_courses_in_subject(
     try:
         manager = StudyHubCommunityManager()
         result = await manager.get_courses_in_subject(
-            slug=slug,
-            sort_by=sort_by,
-            skip=skip,
-            limit=limit
+            slug=slug, sort_by=sort_by, skip=skip, limit=limit
         )
         return result
-        
+
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
@@ -207,34 +215,34 @@ async def get_courses_in_subject(
 @router.post(
     "/subjects/{subject_id}/publish-to-community",
     summary="Publish Subject to Community",
-    description="Publish a subject (course) to community marketplace"
+    description="Publish a subject (course) to community marketplace",
 )
 async def publish_to_community(
     subject_id: str,
     request: PublishToCommunityRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     **API-42: POST /subjects/{id}/publish-to-community**
-    
+
     Publish a subject to the community marketplace.
     Links the subject to a community subject category.
-    
+
     **Authentication:** Required (JWT)
-    
+
     **Path Parameters:**
     - `subject_id`: StudyHub subject ID
-    
+
     **Request Body:**
     ```json
     {
         "community_subject_id": "python-programming"
     }
     ```
-    
+
     **Returns:**
     Updated subject with `marketplace_status: "published"`
-    
+
     **Permissions:**
     - Must be the creator of the subject
     - Subject must not already be published
@@ -243,19 +251,19 @@ async def publish_to_community(
         user_id = current_user.get("user_id")
         if not user_id:
             raise HTTPException(status_code=401, detail="User ID not found in token")
-        
+
         manager = StudyHubCommunityManager()
         result = await manager.publish_subject_to_community(
             subject_id=subject_id,
             community_subject_id=request.community_subject_id,
-            user_id=user_id
+            user_id=user_id,
         )
-        
+
         return {
             "message": "Subject published to community successfully",
-            "subject": result
+            "subject": result,
         }
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -265,26 +273,25 @@ async def publish_to_community(
 @router.post(
     "/subjects/{subject_id}/unpublish",
     summary="Unpublish Subject from Community",
-    description="Remove a subject from community marketplace"
+    description="Remove a subject from community marketplace",
 )
 async def unpublish_from_community(
-    subject_id: str,
-    current_user: dict = Depends(get_current_user)
+    subject_id: str, current_user: dict = Depends(get_current_user)
 ):
     """
     **API-43: POST /subjects/{id}/unpublish**
-    
+
     Unpublish a subject from the community marketplace.
     Sets status back to "draft".
-    
+
     **Authentication:** Required (JWT)
-    
+
     **Path Parameters:**
     - `subject_id`: StudyHub subject ID
-    
+
     **Returns:**
     Updated subject with `marketplace_status: "draft"`
-    
+
     **Permissions:**
     - Must be the creator of the subject
     - Subject must be currently published
@@ -293,18 +300,15 @@ async def unpublish_from_community(
         user_id = current_user.get("user_id")
         if not user_id:
             raise HTTPException(status_code=401, detail="User ID not found in token")
-        
+
         manager = StudyHubCommunityManager()
-        result = await manager.unpublish_subject(
-            subject_id=subject_id,
-            user_id=user_id
-        )
-        
+        result = await manager.unpublish_subject(subject_id=subject_id, user_id=user_id)
+
         return {
             "message": "Subject unpublished from community successfully",
-            "subject": result
+            "subject": result,
         }
-        
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -314,23 +318,23 @@ async def unpublish_from_community(
 @router.put(
     "/subjects/{subject_id}/marketplace",
     summary="Update Marketplace Info",
-    description="Update marketplace-specific information for a subject"
+    description="Update marketplace-specific information for a subject",
 )
 async def update_marketplace_info(
     subject_id: str,
     request: UpdateMarketplaceInfoRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(get_current_user),
 ):
     """
     **API-44: PUT /subjects/{id}/marketplace**
-    
+
     Update marketplace metadata for a subject.
-    
+
     **Authentication:** Required (JWT)
-    
+
     **Path Parameters:**
     - `subject_id`: StudyHub subject ID
-    
+
     **Request Body:**
     ```json
     {
@@ -338,10 +342,10 @@ async def update_marketplace_info(
         "is_verified_organization": true
     }
     ```
-    
+
     **Returns:**
     Updated subject document
-    
+
     **Permissions:**
     - Must be the creator of the subject
     """
@@ -349,20 +353,17 @@ async def update_marketplace_info(
         user_id = current_user.get("user_id")
         if not user_id:
             raise HTTPException(status_code=401, detail="User ID not found in token")
-        
+
         manager = StudyHubCommunityManager()
         result = await manager.update_marketplace_info(
             subject_id=subject_id,
             user_id=user_id,
             organization=request.organization,
-            is_verified_organization=request.is_verified_organization
+            is_verified_organization=request.is_verified_organization,
         )
-        
-        return {
-            "message": "Marketplace info updated successfully",
-            "subject": result
-        }
-        
+
+        return {"message": "Marketplace info updated successfully", "subject": result}
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
