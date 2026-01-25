@@ -323,6 +323,7 @@ async def publish_test_to_marketplace(
             "evaluation_criteria": evaluation_criteria,  # Optional criteria for AI evaluation
             "slug": slug,  # ✅ NEW: SEO-friendly URL slug
             "meta_description": meta_description,  # ✅ NEW: SEO meta description
+            "attachments": attachments,  # ✅ Include PDF attachments for reading comprehension
             "published_at": datetime.utcnow(),
             "total_participants": 0,
             "total_earnings": 0,
