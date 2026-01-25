@@ -172,7 +172,8 @@ class TestGenerationWorker:
 
             # Import and call existing generate_test_background function
             from src.services.online_test_utils import generate_test_background
-            from src.services.document_manager import get_document_manager
+            from src.services.document_manager import DocumentManager
+            from src.database.db_manager import DBManager
 
             # Fetch document content if source_type is 'document'
             content = ""
@@ -181,7 +182,8 @@ class TestGenerationWorker:
 
             if source_type == "document":
                 # Fetch document content from MongoDB
-                doc_manager = get_document_manager()
+                db_manager = DBManager()
+                doc_manager = DocumentManager(db_manager.db)
                 doc = doc_manager.get_document(task_data.get("source_id"))
                 if not doc:
                     raise ValueError(f"Document {task_data.get('source_id')} not found")
