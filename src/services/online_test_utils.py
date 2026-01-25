@@ -245,6 +245,15 @@ async def generate_test_background(
     - essay: Essay questions only
     - mixed: Both MCQ and essay questions
     """
+    # Normalize test_type (frontend may send "multiple_choice" instead of "mcq")
+    test_type_mapping = {
+        "multiple_choice": "mcq",
+        "mcq": "mcq",
+        "essay": "essay",
+        "mixed": "mixed",
+    }
+    test_type = test_type_mapping.get(test_type, test_type)
+
     # Use shared MongoDB connection (not a new client!)
     mongo_service = get_mongodb_service()
     collection = mongo_service.db["online_tests"]
