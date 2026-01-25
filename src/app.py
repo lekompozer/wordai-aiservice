@@ -1294,7 +1294,7 @@ def create_app() -> FastAPI:
     app.include_router(
         studyhub_category_router, tags=["StudyHub - Categories & Courses"]
     )
-    
+
     # ✅ NEW: StudyHub Community API - Community subjects marketplace (Phase 1: 6 APIs)
     app.include_router(
         studyhub_community_router, prefix="/api", tags=["StudyHub - Community Subjects"]

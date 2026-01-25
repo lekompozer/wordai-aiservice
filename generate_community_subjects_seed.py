@@ -9,22 +9,36 @@ SUBJECTS_DATA = {
     # 💻 Công nghệ thông tin (IT) - 15 subjects
     "it": [
         ("python-programming", "Python Programming", "Lập trình Python", "🐍"),
-        ("javascript-programming", "JavaScript Programming", "Lập trình JavaScript", "📜"),
+        (
+            "javascript-programming",
+            "JavaScript Programming",
+            "Lập trình JavaScript",
+            "📜",
+        ),
         ("react-development", "React Development", "Phát triển React", "⚛️"),
         ("nodejs-development", "Node.js Development", "Phát triển Node.js", "🟢"),
         ("web-development", "Web Development", "Phát triển Web", "🌐"),
         ("data-science", "Data Science", "Khoa học Dữ liệu", "📊"),
-        ("mobile-app-development", "Mobile App Development", "Phát triển Ứng dụng Di động", "📱"),
+        (
+            "mobile-app-development",
+            "Mobile App Development",
+            "Phát triển Ứng dụng Di động",
+            "📱",
+        ),
         ("database-design", "Database Design", "Thiết kế Cơ sở Dữ liệu", "🗄️"),
         ("cloud-computing", "Cloud Computing", "Điện toán Đám mây", "☁️"),
         ("devops", "DevOps", "DevOps", "🔧"),
         ("cybersecurity", "Cybersecurity", "An ninh Mạng", "🔒"),
-        ("artificial-intelligence", "Artificial Intelligence", "Trí tuệ Nhân tạo", "🤖"),
+        (
+            "artificial-intelligence",
+            "Artificial Intelligence",
+            "Trí tuệ Nhân tạo",
+            "🤖",
+        ),
         ("blockchain", "Blockchain Development", "Phát triển Blockchain", "⛓️"),
         ("game-development", "Game Development", "Phát triển Game", "🎮"),
         ("software-testing", "Software Testing", "Kiểm thử Phần mềm", "✅"),
     ],
-    
     # 💼 Kinh doanh (BUSINESS) - 15 subjects
     "business": [
         ("marketing-fundamentals", "Marketing Fundamentals", "Cơ bản Marketing", "📊"),
@@ -35,15 +49,24 @@ SUBJECTS_DATA = {
         ("sales-skills", "Sales Skills", "Kỹ năng Bán hàng", "💼"),
         ("customer-service", "Customer Service", "Dịch vụ Khách hàng", "🤝"),
         ("ecommerce", "E-Commerce", "Thương mại Điện tử", "🛒"),
-        ("social-media-marketing", "Social Media Marketing", "Marketing Mạng Xã hội", "📱"),
+        (
+            "social-media-marketing",
+            "Social Media Marketing",
+            "Marketing Mạng Xã hội",
+            "📱",
+        ),
         ("content-marketing", "Content Marketing", "Marketing Nội dung", "✍️"),
         ("brand-management", "Brand Management", "Quản lý Thương hiệu", "🏷️"),
         ("business-analytics", "Business Analytics", "Phân tích Kinh doanh", "📈"),
-        ("supply-chain-management", "Supply Chain Management", "Quản lý Chuỗi Cung ứng", "🚚"),
+        (
+            "supply-chain-management",
+            "Supply Chain Management",
+            "Quản lý Chuỗi Cung ứng",
+            "🚚",
+        ),
         ("human-resources", "Human Resources", "Quản trị Nhân sự", "👥"),
         ("leadership", "Leadership", "Kỹ năng Lãnh đạo", "👔"),
     ],
-    
     # 💰 Tài chính (FINANCE) - 15 subjects
     "finance": [
         ("personal-finance", "Personal Finance", "Tài chính Cá nhân", "💵"),
@@ -62,15 +85,24 @@ SUBJECTS_DATA = {
         ("banking", "Banking", "Ngân hàng", "🏦"),
         ("economics", "Economics", "Kinh tế học", "📚"),
     ],
-    
     # 🎓 Chứng chỉ (CERTIFICATE) - 15 subjects
     "certificate": [
         ("pmp-certification", "PMP Certification", "Chứng chỉ PMP", "📜"),
         ("aws-certification", "AWS Certification", "Chứng chỉ AWS", "☁️"),
-        ("google-analytics", "Google Analytics Certification", "Chứng chỉ Google Analytics", "📊"),
+        (
+            "google-analytics",
+            "Google Analytics Certification",
+            "Chứng chỉ Google Analytics",
+            "📊",
+        ),
         ("cissp", "CISSP Certification", "Chứng chỉ CISSP", "🔒"),
         ("comptia", "CompTIA Certification", "Chứng chỉ CompTIA", "💻"),
-        ("microsoft-certification", "Microsoft Certification", "Chứng chỉ Microsoft", "🪟"),
+        (
+            "microsoft-certification",
+            "Microsoft Certification",
+            "Chứng chỉ Microsoft",
+            "🪟",
+        ),
         ("scrum-master", "Scrum Master Certification", "Chứng chỉ Scrum Master", "🏃"),
         ("six-sigma", "Six Sigma Certification", "Chứng chỉ Six Sigma", "📈"),
         ("cpa", "CPA Certification", "Chứng chỉ CPA", "🧮"),
@@ -81,7 +113,6 @@ SUBJECTS_DATA = {
         ("google-cloud", "Google Cloud Certification", "Chứng chỉ Google Cloud", "☁️"),
         ("azure-certification", "Azure Certification", "Chứng chỉ Azure", "🔷"),
     ],
-    
     # 🌍 Ngôn ngữ (LANGUAGE) - 15 subjects
     "language": [
         ("english-speaking", "English Speaking", "Giao tiếp Tiếng Anh", "🗣️"),
@@ -100,7 +131,6 @@ SUBJECTS_DATA = {
         ("pronunciation", "Pronunciation", "Phát âm", "🎤"),
         ("vocabulary-building", "Vocabulary Building", "Xây dựng Từ vựng", "📚"),
     ],
-    
     # 🌱 Phát triển bản thân (PERSONAL DEVELOPMENT) - 15 subjects
     "personal-development": [
         ("time-management", "Time Management", "Quản lý Thời gian", "⏰"),
@@ -119,7 +149,6 @@ SUBJECTS_DATA = {
         ("motivation", "Motivation", "Động lực", "🔥"),
         ("self-discipline", "Self-Discipline", "Kỷ luật Bản thân", "🎖️"),
     ],
-    
     # 🎨 Lối sống (LIFESTYLE) - 15 subjects
     "lifestyle": [
         ("graphic-design", "Graphic Design", "Thiết kế Đồ họa", "🎨"),
@@ -138,7 +167,6 @@ SUBJECTS_DATA = {
         ("home-organization", "Home Organization", "Tổ chức Nhà cửa", "🏡"),
         ("sustainable-living", "Sustainable Living", "Sống Bền vững", "♻️"),
     ],
-    
     # 📚 Học thuật (ACADEMICS) - 15 subjects
     "academics": [
         ("toan-12", "Toán 12", "Toán học lớp 12", "📐"),
@@ -157,7 +185,6 @@ SUBJECTS_DATA = {
         ("college-admission", "College Admission", "Tuyển sinh Đại học", "🏫"),
         ("essay-writing", "Essay Writing", "Viết Luận", "✍️"),
     ],
-    
     # 🔬 Khoa học (SCIENCE) - 15 subjects
     "science": [
         ("physics", "Physics", "Vật lý", "⚛️"),
@@ -176,7 +203,6 @@ SUBJECTS_DATA = {
         ("microbiology", "Microbiology", "Vi sinh vật học", "🦠"),
         ("biochemistry", "Biochemistry", "Hóa sinh", "⚗️"),
     ],
-    
     # 🛠️ Kỹ năng (SKILLS) - 15 subjects
     "skills": [
         ("excel-skills", "Excel Skills", "Kỹ năng Excel", "📊"),
@@ -198,21 +224,21 @@ SUBJECTS_DATA = {
 }
 
 print('"""')
-print('Setup Community Subjects - Seed data for StudyHub marketplace')
-print('Creates standardized subject topics that creators can publish courses to')
-print('')
-print('Run: python setup_community_subjects.py')
+print("Setup Community Subjects - Seed data for StudyHub marketplace")
+print("Creates standardized subject topics that creators can publish courses to")
+print("")
+print("Run: python setup_community_subjects.py")
 print('"""')
-print('')
-print('from src.database.db_manager import DBManager')
-print('from datetime import datetime')
-print('import logging')
-print('')
-print('logging.basicConfig(level=logging.INFO)')
-print('logger = logging.getLogger(__name__)')
-print('')
-print('')
-print('COMMUNITY_SUBJECTS = [')
+print("")
+print("from src.database.db_manager import DBManager")
+print("from datetime import datetime")
+print("import logging")
+print("")
+print("logging.basicConfig(level=logging.INFO)")
+print("logger = logging.getLogger(__name__)")
+print("")
+print("")
+print("COMMUNITY_SUBJECTS = [")
 
 order = 0
 for category, subjects in SUBJECTS_DATA.items():
@@ -228,14 +254,16 @@ for category, subjects in SUBJECTS_DATA.items():
         "science": "🔬 KHOA HỌC (SCIENCE)",
         "skills": "🛠️ KỸ NĂNG (SKILLS)",
     }
-    
-    print(f'    # ==================== {category_names[category]} ====================')
-    
+
+    print(f"    # ==================== {category_names[category]} ====================")
+
     for idx, (slug, title, title_vi, icon) in enumerate(subjects, 1):
         order += 1
-        is_featured = "True" if idx <= 5 else "False"  # First 5 in each category are featured
-        
-        print('    {')
+        is_featured = (
+            "True" if idx <= 5 else "False"
+        )  # First 5 in each category are featured
+
+        print("    {")
         print(f'        "_id": "{slug}",')
         print(f'        "slug": "{slug}",')
         print(f'        "title": "{title}",')
@@ -251,35 +279,37 @@ for category, subjects in SUBJECTS_DATA.items():
         print(f'        "avg_rating": 0.0,')
         print(f'        "is_featured": {is_featured},')
         print(f'        "display_order": {order},')
-        print('    },')
-    
-    print('')
+        print("    },")
 
-print(']')
-print('')
-print('')
-print('def setup_community_subjects():')
+    print("")
+
+print("]")
+print("")
+print("")
+print("def setup_community_subjects():")
 print('    """Seed community subjects collection"""')
-print('    try:')
-print('        db_manager = DBManager()')
-print('        db = db_manager.db')
+print("    try:")
+print("        db_manager = DBManager()")
+print("        db = db_manager.db")
 print('        collection = db["community_subjects"]')
-print('')
-print('        # Add timestamps')
-print('        now = datetime.utcnow()')
-print('        for subject in COMMUNITY_SUBJECTS:')
+print("")
+print("        # Add timestamps")
+print("        now = datetime.utcnow()")
+print("        for subject in COMMUNITY_SUBJECTS:")
 print('            subject["created_at"] = now')
 print('            subject["updated_at"] = now')
-print('')
-print('        # Drop existing collection (if re-seeding)')
-print('        collection.drop()')
+print("")
+print("        # Drop existing collection (if re-seeding)")
+print("        collection.drop()")
 print('        logger.info("Dropped existing community_subjects collection")')
-print('')
-print('        # Insert subjects')
-print('        result = collection.insert_many(COMMUNITY_SUBJECTS)')
-print('        logger.info(f"✅ Inserted {len(result.inserted_ids)} community subjects")')
-print('')
-print('        # Create indexes')
+print("")
+print("        # Insert subjects")
+print("        result = collection.insert_many(COMMUNITY_SUBJECTS)")
+print(
+    '        logger.info(f"✅ Inserted {len(result.inserted_ids)} community subjects")'
+)
+print("")
+print("        # Create indexes")
 print('        logger.info("Creating indexes...")')
 print('        collection.create_index([("slug", 1)], unique=True)')
 print('        collection.create_index([("category", 1)])')
@@ -288,24 +318,28 @@ print('        collection.create_index([("total_courses", -1)])')
 print('        collection.create_index([("total_students", -1)])')
 print('        collection.create_index([("is_featured", -1), ("display_order", 1)])')
 print('        logger.info("✅ Created indexes for community_subjects")')
-print('')
-print('        # Print summary')
+print("")
+print("        # Print summary")
 print('        logger.info("\\n" + "=" * 60)')
 print('        logger.info("SUMMARY BY CATEGORY:")')
 print('        logger.info("=" * 60)')
 print('        categories = ["it", "business", "finance", "certificate", "language",')
-print('                     "personal-development", "lifestyle", "academics", "science", "skills"]')
-print('        for cat in categories:')
-print('            count = len([s for s in COMMUNITY_SUBJECTS if s["category"] == cat])')
+print(
+    '                     "personal-development", "lifestyle", "academics", "science", "skills"]'
+)
+print("        for cat in categories:")
+print(
+    '            count = len([s for s in COMMUNITY_SUBJECTS if s["category"] == cat])'
+)
 print('            logger.info(f"  {cat.upper()}: {count} subjects")')
-print('')
+print("")
 print('        logger.info("\\n✅ Community subjects setup completed!")')
 print('        logger.info(f"Total subjects: {len(COMMUNITY_SUBJECTS)}")')
-print('')
-print('    except Exception as e:')
+print("")
+print("    except Exception as e:")
 print('        logger.error(f"❌ Error setting up community subjects: {e}")')
-print('        raise')
-print('')
-print('')
+print("        raise")
+print("")
+print("")
 print('if __name__ == "__main__":')
-print('    setup_community_subjects()')
+print("    setup_community_subjects()")
