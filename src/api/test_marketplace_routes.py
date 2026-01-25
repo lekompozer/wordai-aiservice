@@ -134,6 +134,20 @@ async def publish_test_to_marketplace(
                 detail=f"Test must have at least {min_questions} questions (current: {len(questions)})",
             )
 
+        # Log attachments info (if any)
+        attachments = test_doc.get("attachments", [])
+        if attachments:
+            total_attachment_size = sum(
+                att.get("file_size_mb", 0) for att in attachments
+            )
+            logger.info(
+                f"   📎 Attachments: {len(attachments)} files ({total_attachment_size:.2f}MB total)"
+            )
+            for att in attachments:
+                logger.info(
+                    f"      - {att.get('title', 'Untitled')} ({att.get('file_size_mb', 0):.2f}MB)"
+                )
+
         # ========== Step 4: Validate form inputs ==========
         if len(title) < 10:
             logger.warning(f"❌ Publish failed: Title too short ({len(title)} chars)")
@@ -858,6 +872,9 @@ async def get_public_test_details(
             "test_language": test_doc.get(
                 "test_language", test_doc.get("language", "vi")
             ),
+            # Attachments (PDF files for reading comprehension)
+            "attachments": test_doc.get("attachments", []),
+            "total_attachments": len(test_doc.get("attachments", [])),
         }
 
         # Add user-specific fields only if authenticated
