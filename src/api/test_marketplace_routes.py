@@ -372,10 +372,12 @@ async def publish_test_to_marketplace(
             "marketplace_config": marketplace_config,
         }
 
-    except HTTPException:
+    except HTTPException as e:
+        logger.error(f"❌ HTTPException during publish: {e.status_code} - {e.detail}")
         raise
     except Exception as e:
         logger.error(f"❌ Failed to publish test: {e}")
+        logger.exception(e)  # Log full traceback
         raise HTTPException(status_code=500, detail=str(e))
 
 
