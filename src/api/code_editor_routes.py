@@ -185,9 +185,7 @@ async def increment_run_count(
 
 
 @router.post("/files/{file_id}/duplicate", response_model=dict)
-async def duplicate_file(
-    file_id: str, current_user: dict = Depends(get_current_user)
-):
+async def duplicate_file(file_id: str, current_user: dict = Depends(get_current_user)):
     """
     Clone/duplicate a file
 
@@ -225,7 +223,9 @@ async def create_folder(
         name=request.name,
         parent_id=request.parent_id,
         color=request.color,
-        language_filter=request.language_filter.value if request.language_filter else None,
+        language_filter=(
+            request.language_filter.value if request.language_filter else None
+        ),
     )
 
     return result
@@ -265,7 +265,9 @@ async def update_folder(
         user_id=user_id,
         name=request.name,
         color=request.color,
-        language_filter=request.language_filter.value if request.language_filter else None,
+        language_filter=(
+            request.language_filter.value if request.language_filter else None
+        ),
     )
 
     return result

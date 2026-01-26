@@ -80,9 +80,7 @@ class CodeEditorManager:
         result = self.db.code_files.insert_one(file_doc)
         file_doc["_id"] = result.inserted_id
 
-        logger.info(
-            f"✅ Created file '{name}' for user {user_id}, language={language}"
-        )
+        logger.info(f"✅ Created file '{name}' for user {user_id}, language={language}")
 
         return self._format_file_response(file_doc)
 
@@ -446,9 +444,7 @@ class CodeEditorManager:
             try:
                 compile(code, "<string>", "exec")
             except SyntaxError as e:
-                raise HTTPException(
-                    status_code=400, detail=f"Python syntax error: {e}"
-                )
+                raise HTTPException(status_code=400, detail=f"Python syntax error: {e}")
         # JavaScript, HTML, CSS validation can be added here
         # For now, just basic checks
 
@@ -481,7 +477,9 @@ class CodeEditorManager:
             "name": file_doc["name"],
             "language": file_doc["language"],
             "code": file_doc["code"],
-            "folder_id": str(file_doc["folder_id"]) if file_doc.get("folder_id") else None,
+            "folder_id": (
+                str(file_doc["folder_id"]) if file_doc.get("folder_id") else None
+            ),
             "tags": file_doc.get("tags", []),
             "is_public": file_doc.get("is_public", False),
             "description": file_doc.get("description"),
@@ -498,7 +496,9 @@ class CodeEditorManager:
             "id": str(file_doc["_id"]),
             "name": file_doc["name"],
             "language": file_doc["language"],
-            "folder_id": str(file_doc["folder_id"]) if file_doc.get("folder_id") else None,
+            "folder_id": (
+                str(file_doc["folder_id"]) if file_doc.get("folder_id") else None
+            ),
             "tags": file_doc.get("tags", []),
             "is_public": file_doc.get("is_public", False),
             "description": file_doc.get("description"),

@@ -999,7 +999,9 @@ def create_app() -> FastAPI:
     app.include_router(document_editor_router, tags=["Document Editor"])
 
     # ✅ ADDED: Code Editor API - File management, templates, exercises (Phase 1)
-    app.include_router(code_editor_router, tags=["Code Editor", "Phase 1: File Management"])
+    app.include_router(
+        code_editor_router, tags=["Code Editor", "Phase 1: File Management"]
+    )
 
     # ✅ ADDED: AI Editor Suite - Edit, Translate, Format, Bilingual Conversion
     app.include_router(ai_editor_router, tags=["AI Editor Suite"])

@@ -205,7 +205,9 @@ def create_code_editor_indexes():
     print("  ✅ achievement_type")
 
     # User + achievement (no duplicates)
-    db.user_achievements.create_index([("user_id", 1), ("achievement_type", 1)], unique=True)
+    db.user_achievements.create_index(
+        [("user_id", 1), ("achievement_type", 1)], unique=True
+    )
     print("  ✅ user_id + achievement_type (UNIQUE)")
 
     print("\n✅ All Code Editor indexes created successfully!")
