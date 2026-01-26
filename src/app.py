@@ -198,6 +198,9 @@ from src.api.pdf_document_routes import router as pdf_document_router
 # ✅ ADDED: Public API routes (no auth) for wordai.pro homepage
 from src.api.public_routes import router as public_router
 
+# ✅ ADDED: Code Editor API - File management, templates, exercises (Phase 1)
+from src.api.code_editor_routes import router as code_editor_router
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -994,6 +997,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Document Editor API - Document management with auto-save
     app.include_router(document_editor_router, tags=["Document Editor"])
+
+    # ✅ ADDED: Code Editor API - File management, templates, exercises (Phase 1)
+    app.include_router(code_editor_router, tags=["Code Editor", "Phase 1: File Management"])
 
     # ✅ ADDED: AI Editor Suite - Edit, Translate, Format, Bilingual Conversion
     app.include_router(ai_editor_router, tags=["AI Editor Suite"])
