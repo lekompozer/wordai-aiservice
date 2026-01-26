@@ -545,7 +545,10 @@ class StudyHubEnrollmentManager:
             progress["duration"] = tracking_data.get("duration", 0)
 
             # Auto-complete if >= 90%
-            if progress["watched_percentage"] >= 90 and progress.get("status") != "completed":
+            if (
+                progress["watched_percentage"] >= 90
+                and progress.get("status") != "completed"
+            ):
                 progress["status"] = "completed"
                 progress["completed_at"] = now
                 auto_completed = True
@@ -674,9 +677,7 @@ class StudyHubEnrollmentManager:
             },
         }
 
-    async def get_module_presentation(
-        self, module_id: str, user_id: str
-    ) -> dict:
+    async def get_module_presentation(self, module_id: str, user_id: str) -> dict:
         """Get primary presentation content for module"""
         # Get module
         module = self.db.studyhub_modules.find_one(
@@ -739,7 +740,9 @@ class StudyHubEnrollmentManager:
                     "title": presentation["title"],
                     "url": presentation.get("url"),
                     "duration": presentation.get("metadata", {}).get("duration"),
-                    "total_slides": presentation.get("metadata", {}).get("total_slides"),
+                    "total_slides": presentation.get("metadata", {}).get(
+                        "total_slides"
+                    ),
                     "is_presentation": True,
                     "priority": 1,
                 }
@@ -789,9 +792,7 @@ class StudyHubEnrollmentManager:
         """Configure subject progress weight (owner only)"""
         # Validate weights sum to 1.0
         if abs(module_weight + test_weight - 1.0) > 0.001:
-            raise HTTPException(
-                status_code=400, detail="Weights must sum to 1.0"
-            )
+            raise HTTPException(status_code=400, detail="Weights must sum to 1.0")
 
         # Check ownership
         subject = self.db.studyhub_subjects.find_one(
