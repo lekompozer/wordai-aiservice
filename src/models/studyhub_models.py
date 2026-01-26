@@ -385,6 +385,75 @@ class SavePositionRequest(BaseModel):
     content_id: str
 
 
+class TrackProgressRequest(BaseModel):
+    """Auto-track learning progress (video/slides)"""
+
+    subject_id: str
+    module_id: str
+    content_id: str
+    content_type: str  # "video" or "slides"
+    tracking_data: dict  # {current_time, duration, watched_percentage} or {current_slide, total_slides}
+
+
+class TrackProgressResponse(BaseModel):
+    """Track progress response"""
+
+    status: str
+    auto_completed: bool
+    progress: dict
+    module_progress: float
+    subject_progress: float
+
+
+class SetPresentationRequest(BaseModel):
+    """Set primary presentation content for module"""
+
+    content_id: str
+
+
+class PresentationContentResponse(BaseModel):
+    """Presentation content details"""
+
+    content_id: str
+    content_type: str
+    title: str
+    url: Optional[str] = None
+    duration: Optional[int] = None  # For video (seconds)
+    total_slides: Optional[int] = None  # For slides
+    is_presentation: bool
+    priority: int
+
+
+class ModulePresentationResponse(BaseModel):
+    """Module presentation with progress"""
+
+    module_id: str
+    module_title: str
+    presentation: Optional[PresentationContentResponse] = None
+    user_progress: Optional[dict] = None
+    alternative_presentations: List[PresentationContentResponse] = []
+
+
+class SubjectProgressWeightRequest(BaseModel):
+    """Configure subject progress weight"""
+
+    module_weight: float  # 0.0 - 1.0
+    test_weight: float  # 0.0 - 1.0
+
+
+class SubjectProgressWeightResponse(BaseModel):
+    """Subject progress weight configuration"""
+
+    subject_id: str
+    subject_title: str
+    module_weight: float
+    test_weight: float
+    updated_at: datetime
+
+    class Config:
+        json_encoders = {datetime: lambda v: v.isoformat()}
+
+
 class SubjectLearnerItem(BaseModel):
     """Learner info for subject owner"""
 

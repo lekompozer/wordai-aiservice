@@ -16,6 +16,12 @@ from src.models.studyhub_models import (
     SubjectLearnersResponse,
     DashboardOverviewResponse,
     RecentActivityResponse,
+    TrackProgressRequest,
+    TrackProgressResponse,
+    SetPresentationRequest,
+    ModulePresentationResponse,
+    SubjectProgressWeightRequest,
+    SubjectProgressWeightResponse,
 )
 from src.middleware.firebase_auth import get_current_user
 
@@ -169,6 +175,130 @@ async def save_last_position(
     return await manager.save_last_position(
         user_id, request.subject_id, request.module_id, request.content_id
     )
+
+
+# ==================== AUTO-TRACKING APIs ====================
+
+
+@router.post(
+    "/progress/track",
+    response_model=TrackProgressResponse,
+    summary="Auto-track learning progress (API-41)",
+)
+async def track_progress(
+    request: TrackProgressRequest, current_user: dict = Depends(get_current_user)
+):
+    """
+    **Auto-track learning progress (video/slides)**
+
+    - Video: Tracks playback position and watched percentage
+    - Slides: Tracks current slide index
+    - Auto-completes when threshold reached (video >= 90%, slides at end)
+    - Updates enrollment last_accessed_at
+    - Returns current module and subject progress
+
+    **Tracking Data**:
+    - Video: `{current_time, duration, watched_percentage}`
+    - Slides: `{current_slide, total_slides}`
+    """
+    user_id = current_user["uid"]
+    return await manager.track_learning_progress(
+        user_id,
+        request.subject_id,
+        request.module_id,
+        request.content_id,
+        request.content_type,
+        request.tracking_data,
+    )
+
+
+# ==================== PRESENTATION MANAGEMENT ====================
+
+
+@router.put(
+    "/modules/{module_id}/presentation",
+    summary="Set module presentation (API-42)",
+)
+async def set_module_presentation(
+    module_id: str,
+    request: SetPresentationRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Set primary presentation content for module**
+
+    - Owner only
+    - Sets one content as primary presentation
+    - Un-sets previous presentation
+    - Auto-selects video > slides > document if not set
+    """
+    user_id = current_user["uid"]
+    return await manager.set_module_presentation(module_id, request.content_id, user_id)
+
+
+@router.get(
+    "/modules/{module_id}/presentation",
+    response_model=ModulePresentationResponse,
+    summary="Get module presentation (API-43)",
+)
+async def get_module_presentation(
+    module_id: str, current_user: dict = Depends(get_current_user)
+):
+    """
+    **Get primary presentation content for module**
+
+    - Returns primary presentation content
+    - Includes user's progress on this content
+    - Lists alternative presentations
+    - Auto-selects if not manually set
+    """
+    user_id = current_user["uid"]
+    return await manager.get_module_presentation(module_id, user_id)
+
+
+# ==================== SUBJECT PROGRESS WEIGHT ====================
+
+
+@router.put(
+    "/subjects/{subject_id}/progress-weight",
+    response_model=SubjectProgressWeightResponse,
+    summary="Configure subject progress weight (API-44)",
+)
+async def configure_progress_weight(
+    subject_id: str,
+    request: SubjectProgressWeightRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Configure subject progress weight**
+
+    - Owner only
+    - Adjust weight between modules and tests
+    - Default: 70% modules + 30% tests
+    - Weights must sum to 1.0
+    """
+    user_id = current_user["uid"]
+    return await manager.configure_progress_weight(
+        subject_id, request.module_weight, request.test_weight, user_id
+    )
+
+
+@router.get(
+    "/subjects/{subject_id}/progress-weight",
+    response_model=SubjectProgressWeightResponse,
+    summary="Get subject progress weight (API-45)",
+)
+async def get_progress_weight(
+    subject_id: str, current_user: dict = Depends(get_current_user)
+):
+    """
+    **Get subject progress weight configuration**
+
+    - Returns current weight settings
+    - Default: 70% modules + 30% tests
+    """
+    user_id = current_user["uid"]
+    return await manager.get_progress_weight(subject_id, user_id)
 
 
 # ==================== LEARNER MANAGEMENT ====================
