@@ -50,7 +50,7 @@ class StudyHubEnrollmentManager:
         # Check if already enrolled
         existing = self.db.studyhub_enrollments.find_one(
             {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "status": {"$ne": "dropped"},
             }
@@ -61,7 +61,7 @@ class StudyHubEnrollmentManager:
         # Create enrollment
         now = datetime.now(timezone.utc)
         enrollment_doc = {
-            "user_id": ObjectId(user_id),
+            "user_id": user_id,
             "subject_id": ObjectId(subject_id),
             "status": EnrollmentStatus.ACTIVE.value,
             "enrolled_at": now,
@@ -100,7 +100,7 @@ class StudyHubEnrollmentManager:
         """Unenroll from subject (mark as dropped)"""
         enrollment = self.db.studyhub_enrollments.find_one(
             {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "status": {"$ne": "dropped"},
             }
@@ -130,7 +130,7 @@ class StudyHubEnrollmentManager:
         self, user_id: str, status: Optional[str] = None
     ) -> MyEnrollmentsResponse:
         """Get user's enrollments"""
-        query = {"user_id": ObjectId(user_id)}
+        query = {"user_id": user_id}
         if status:
             query["status"] = status
 
@@ -179,7 +179,7 @@ class StudyHubEnrollmentManager:
         # Check enrollment
         enrollment = self.db.studyhub_enrollments.find_one(
             {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "status": {"$ne": "dropped"},
             }
@@ -195,8 +195,8 @@ class StudyHubEnrollmentManager:
             raise HTTPException(status_code=404, detail="Subject not found")
 
         # Get owner info
-        owner = self.db.users.find_one({"_id": subject["owner_id"]})
-        owner_name = owner.get("displayName", "Unknown") if owner else "Unknown"
+        owner = self.db.users.find_one({"firebase_uid": subject["owner_id"]})
+        owner_name = owner.get("display_name", "Unknown") if owner else "Unknown"
 
         # Get metadata for rating and learners
         metadata = subject.get("metadata", {})
@@ -214,7 +214,7 @@ class StudyHubEnrollmentManager:
         progress_records = list(
             self.db.studyhub_learning_progress.find(
                 {
-                    "user_id": ObjectId(user_id),
+                    "user_id": user_id,
                     "subject_id": ObjectId(subject_id),
                 }
             )
@@ -338,7 +338,7 @@ class StudyHubEnrollmentManager:
         # Check enrollment
         enrollment = self.db.studyhub_enrollments.find_one(
             {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "status": {"$ne": "dropped"},
             }
@@ -351,7 +351,7 @@ class StudyHubEnrollmentManager:
         if content_id:
             # Mark content as complete
             progress_doc = {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "module_id": ObjectId(module_id),
                 "content_id": ObjectId(content_id),
@@ -362,7 +362,7 @@ class StudyHubEnrollmentManager:
             }
             self.db.studyhub_learning_progress.update_one(
                 {
-                    "user_id": ObjectId(user_id),
+                    "user_id": user_id,
                     "subject_id": ObjectId(subject_id),
                     "module_id": ObjectId(module_id),
                     "content_id": ObjectId(content_id),
@@ -379,7 +379,7 @@ class StudyHubEnrollmentManager:
             )
             for content in contents:
                 progress_doc = {
-                    "user_id": ObjectId(user_id),
+                    "user_id": user_id,
                     "subject_id": ObjectId(subject_id),
                     "module_id": ObjectId(module_id),
                     "content_id": content["_id"],
@@ -390,7 +390,7 @@ class StudyHubEnrollmentManager:
                 }
                 self.db.studyhub_learning_progress.update_one(
                     {
-                        "user_id": ObjectId(user_id),
+                        "user_id": user_id,
                         "subject_id": ObjectId(subject_id),
                         "module_id": ObjectId(module_id),
                         "content_id": content["_id"],
@@ -425,7 +425,7 @@ class StudyHubEnrollmentManager:
         # Check enrollment
         enrollment = self.db.studyhub_enrollments.find_one(
             {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "status": {"$ne": "dropped"},
             }
@@ -437,7 +437,7 @@ class StudyHubEnrollmentManager:
             # Delete progress record
             self.db.studyhub_learning_progress.delete_one(
                 {
-                    "user_id": ObjectId(user_id),
+                    "user_id": user_id,
                     "subject_id": ObjectId(subject_id),
                     "module_id": ObjectId(module_id),
                     "content_id": ObjectId(content_id),
@@ -447,7 +447,7 @@ class StudyHubEnrollmentManager:
             # Delete all content progress in module
             self.db.studyhub_learning_progress.delete_many(
                 {
-                    "user_id": ObjectId(user_id),
+                    "user_id": user_id,
                     "subject_id": ObjectId(subject_id),
                     "module_id": ObjectId(module_id),
                 }
@@ -468,7 +468,7 @@ class StudyHubEnrollmentManager:
         # Check enrollment
         enrollment = self.db.studyhub_enrollments.find_one(
             {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "status": {"$ne": "dropped"},
             }
@@ -547,19 +547,17 @@ class StudyHubEnrollmentManager:
         """Get dashboard overview"""
         # Get active enrollments
         active_enrollments = list(
-            self.db.studyhub_enrollments.find(
-                {"user_id": ObjectId(user_id), "status": "active"}
-            )
+            self.db.studyhub_enrollments.find({"user_id": user_id, "status": "active"})
         )
 
         # Get completed enrollments
         completed_count = self.db.studyhub_enrollments.count_documents(
-            {"user_id": ObjectId(user_id), "status": "completed"}
+            {"user_id": user_id, "status": "completed"}
         )
 
         # Get total learning time (estimate based on content completion)
         total_completed_contents = self.db.studyhub_learning_progress.count_documents(
-            {"user_id": ObjectId(user_id), "status": "completed"}
+            {"user_id": user_id, "status": "completed"}
         )
         total_hours = total_completed_contents * 0.5  # Estimate 30min per content
 
@@ -602,7 +600,7 @@ class StudyHubEnrollmentManager:
         # Get recent progress records
         progress_records = list(
             self.db.studyhub_learning_progress.find(
-                {"user_id": ObjectId(user_id), "status": "completed"}
+                {"user_id": user_id, "status": "completed"}
             )
             .sort("completed_at", -1)
             .limit(limit)
@@ -673,7 +671,7 @@ class StudyHubEnrollmentManager:
         # Get completed contents
         completed_contents = self.db.studyhub_learning_progress.count_documents(
             {
-                "user_id": ObjectId(user_id),
+                "user_id": user_id,
                 "subject_id": ObjectId(subject_id),
                 "status": "completed",
             }

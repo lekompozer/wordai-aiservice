@@ -644,14 +644,14 @@ class StudyHubMarketplaceManager:
 
     async def _get_owner_info(self, user_id: str) -> OwnerInfo:
         """Get owner/creator info"""
-        user = self.db.users.find_one({"_id": ObjectId(user_id)})
+        user = self.db.users.find_one({"firebase_uid": user_id})
         if not user:
             return OwnerInfo(user_id=user_id, display_name="Unknown", avatar_url=None)
 
         return OwnerInfo(
             user_id=user_id,
             display_name=user.get("display_name", "Unknown"),
-            avatar_url=user.get("avatar_url"),
+            avatar_url=user.get("photo_url"),
         )
 
     async def _get_subject_stats(self, subject: Dict) -> SubjectStats:
