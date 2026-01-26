@@ -555,7 +555,7 @@ class StudyHubMarketplaceManager:
     async def get_creator_profile(self, creator_id: str) -> CreatorProfileResponse:
         """Get public creator profile"""
         # Get user
-        user = self.db.users.find_one({"_id": ObjectId(creator_id)})
+        user = self.db.users.find_one({"firebase_uid": creator_id})
         if not user:
             raise HTTPException(status_code=404, detail="Creator not found")
 
@@ -566,7 +566,7 @@ class StudyHubMarketplaceManager:
         top_subjects = list(
             self.db.studyhub_subjects.find(
                 {
-                    "owner_id": ObjectId(creator_id),
+                    "owner_id": creator_id,
                     "status": "published",
                     "is_public_marketplace": True,
                     "deleted_at": None,
@@ -609,7 +609,7 @@ class StudyHubMarketplaceManager:
     ) -> MarketplaceSubjectsResponse:
         """Get all public subjects by creator"""
         query = {
-            "owner_id": ObjectId(creator_id),
+            "owner_id": creator_id,
             "status": "published",
             "is_public_marketplace": True,
             "deleted_at": None,
@@ -698,7 +698,7 @@ class StudyHubMarketplaceManager:
         # Count subjects
         total_subjects = self.db.studyhub_subjects.count_documents(
             {
-                "owner_id": ObjectId(creator_id),
+                "owner_id": creator_id,
                 "status": "published",
                 "is_public_marketplace": True,
                 "deleted_at": None,
@@ -709,7 +709,7 @@ class StudyHubMarketplaceManager:
         subjects = list(
             self.db.studyhub_subjects.find(
                 {
-                    "owner_id": ObjectId(creator_id),
+                    "owner_id": creator_id,
                     "status": "published",
                     "is_public_marketplace": True,
                     "deleted_at": None,
@@ -743,7 +743,7 @@ class StudyHubMarketplaceManager:
         self, creator_id: str, reason: str
     ) -> Optional[FeaturedCreatorItem]:
         """Build featured creator item"""
-        user = self.db.users.find_one({"_id": ObjectId(creator_id)})
+        user = self.db.users.find_one({"firebase_uid": creator_id})
         if not user:
             return None
 
@@ -753,7 +753,7 @@ class StudyHubMarketplaceManager:
         # Get top subject
         top_subject = self.db.studyhub_subjects.find_one(
             {
-                "owner_id": ObjectId(creator_id),
+                "owner_id": creator_id,
                 "status": "published",
                 "is_public_marketplace": True,
                 "deleted_at": None,

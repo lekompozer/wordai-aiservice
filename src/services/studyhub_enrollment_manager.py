@@ -176,7 +176,17 @@ class StudyHubEnrollmentManager:
         self, user_id: str, subject_id: str
     ) -> SubjectProgressResponse:
         """Get learning progress for subject"""
-        # Check enrollment
+        # Get subject first
+        subject = self.db.studyhub_subjects.find_one(
+            {"_id": ObjectId(subject_id), "deleted_at": None}
+        )
+        if not subject:
+            raise HTTPException(status_code=404, detail="Subject not found")
+
+        # Check if user is owner (owners can view without enrollment)
+        is_owner = subject["owner_id"] == user_id
+
+        # Check enrollment (not required for owners)
         enrollment = self.db.studyhub_enrollments.find_one(
             {
                 "user_id": user_id,
@@ -184,15 +194,8 @@ class StudyHubEnrollmentManager:
                 "status": {"$ne": "dropped"},
             }
         )
-        if not enrollment:
+        if not enrollment and not is_owner:
             raise HTTPException(status_code=404, detail="Not enrolled in this subject")
-
-        # Get subject
-        subject = self.db.studyhub_subjects.find_one(
-            {"_id": ObjectId(subject_id), "deleted_at": None}
-        )
-        if not subject:
-            raise HTTPException(status_code=404, detail="Subject not found")
 
         # Get owner info
         owner = self.db.users.find_one({"firebase_uid": subject["owner_id"]})
@@ -301,8 +304,18 @@ class StudyHubEnrollmentManager:
             completed_contents / total_contents if total_contents > 0 else 0.0
         )
 
-        # Get last position
-        last_position = enrollment.get("last_position")
+        # Get enrollment fields (defaults for owners without enrollment)
+        if enrollment:
+            last_position = enrollment.get("last_position")
+            enrollment_status = enrollment["status"]
+            enrolled_at = enrollment["enrolled_at"]
+            last_accessed_at = enrollment.get("last_accessed_at")
+        else:
+            # Owner viewing their own subject (no enrollment)
+            last_position = None
+            enrollment_status = EnrollmentStatus.ACTIVE  # Default for owners
+            enrolled_at = subject["created_at"]  # Use subject creation date
+            last_accessed_at = None
 
         return SubjectProgressResponse(
             subject_id=subject_id,
@@ -313,7 +326,7 @@ class StudyHubEnrollmentManager:
             cover_image_url=subject.get("cover_image_url"),
             avg_rating=avg_rating,
             total_learners=total_learners,
-            enrollment_status=enrollment["status"],
+            enrollment_status=enrollment_status,
             overall_progress=overall_progress,
             total_modules=total_modules,
             completed_modules=completed_modules,
@@ -323,8 +336,8 @@ class StudyHubEnrollmentManager:
             total_files=total_files,
             last_position=last_position,
             modules_progress=modules_progress,
-            enrolled_at=enrollment["enrolled_at"],
-            last_accessed_at=enrollment.get("last_accessed_at"),
+            enrolled_at=enrolled_at,
+            last_accessed_at=last_accessed_at,
         )
 
     async def mark_complete(
