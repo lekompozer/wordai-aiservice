@@ -73,8 +73,8 @@ async def list_files(
     search: Optional[str] = Query(None, description="Search in name/description"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    sort_by: FileSortBy = Query(FileSortBy.updated_at),
-    order: SortOrder = Query(SortOrder.desc),
+    sort_by: FileSortBy = Query(FileSortBy.UPDATED_AT),
+    order: SortOrder = Query(SortOrder.DESC),
     current_user: dict = Depends(get_current_user),
 ):
     """
