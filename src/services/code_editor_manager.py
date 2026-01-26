@@ -523,3 +523,293 @@ class CodeEditorManager:
             "created_at": folder_doc["created_at"],
             "updated_at": folder_doc["updated_at"],
         }
+
+    # ==================== TEMPLATE LIBRARY ====================
+
+    async def list_templates(
+        self,
+        category: Optional[str] = None,
+        language: Optional[str] = None,
+        difficulty: Optional[str] = None,
+        search: Optional[str] = None,
+        featured: Optional[bool] = None,
+        limit: int = 50,
+        skip: int = 0,
+    ) -> dict:
+        """List code templates with filtering"""
+        query = {"is_active": True}
+
+        if category:
+            query["category"] = category
+        if language:
+            query["programming_language"] = language
+        if difficulty:
+            query["difficulty"] = difficulty
+        if featured is not None:
+            query["is_featured"] = featured
+        if search:
+            query["$or"] = [
+                {"title": {"$regex": search, "$options": "i"}},
+                {"description": {"$regex": search, "$options": "i"}},
+                {"tags": {"$in": [search.lower()]}},
+            ]
+
+        total = self.db.code_templates.count_documents(query)
+        templates = list(
+            self.db.code_templates.find(query)
+            .sort("metadata.usage_count", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        return {
+            "success": True,
+            "templates": [self._format_template_response(t) for t in templates],
+            "pagination": {
+                "total": total,
+                "skip": skip,
+                "limit": limit,
+                "has_more": skip + len(templates) < total,
+            },
+        }
+
+    async def list_categories(self, language: Optional[str] = None) -> dict:
+        """List template categories"""
+        query = {}
+        if language:
+            query["language"] = language
+
+        categories = list(self.db.code_template_categories.find(query).sort("order", 1))
+
+        return {
+            "success": True,
+            "categories": [self._format_category_response(c) for c in categories],
+        }
+
+    async def get_template(self, template_id: str) -> dict:
+        """Get template details"""
+        if not ObjectId.is_valid(template_id):
+            raise HTTPException(status_code=400, detail="Invalid template ID")
+
+        template = self.db.code_templates.find_one(
+            {"_id": ObjectId(template_id), "is_active": True}
+        )
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        return {
+            "success": True,
+            "template": self._format_template_response(template, include_code=True),
+        }
+
+    async def use_template(
+        self,
+        template_id: str,
+        user_id: str,
+        file_name: str,
+        folder_id: Optional[str] = None,
+    ) -> dict:
+        """Create file from template"""
+        if not ObjectId.is_valid(template_id):
+            raise HTTPException(status_code=400, detail="Invalid template ID")
+
+        template = self.db.code_templates.find_one(
+            {"_id": ObjectId(template_id), "is_active": True}
+        )
+
+        if not template:
+            raise HTTPException(status_code=404, detail="Template not found")
+
+        # Create file from template
+        file_result = await self.create_file(
+            user_id=user_id,
+            name=file_name,
+            language=template["programming_language"],
+            code=template["code"],
+            folder_id=folder_id,
+            tags=template.get("tags", []),
+            is_public=False,
+            description=f"Created from template: {template['title']}",
+        )
+
+        # Increment template usage count
+        self.db.code_templates.update_one(
+            {"_id": ObjectId(template_id)},
+            {"$inc": {"metadata.usage_count": 1}},
+        )
+
+        logger.info(
+            f"✅ User {user_id} used template '{template['title']}' → file '{file_name}'"
+        )
+
+        return {
+            "success": True,
+            "file": file_result,
+        }
+
+    # ==================== SQL GRADING ====================
+
+    async def grade_sql_exercise(
+        self,
+        exercise_id: str,
+        user_id: str,
+        code: str,
+    ) -> dict:
+        """Grade SQL exercise submission"""
+        import sqlite3
+        import tempfile
+        import os
+
+        if not ObjectId.is_valid(exercise_id):
+            raise HTTPException(status_code=400, detail="Invalid exercise ID")
+
+        exercise = self.db.code_exercises.find_one({"_id": ObjectId(exercise_id)})
+
+        if not exercise:
+            raise HTTPException(status_code=404, detail="Exercise not found")
+
+        if exercise.get("language") != "sql":
+            raise HTTPException(
+                status_code=400, detail="Exercise is not a SQL exercise"
+            )
+
+        # Create temporary SQLite database
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".db", delete=False
+        ) as temp_db:
+            db_path = temp_db.name
+
+        try:
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            # Setup test database schema and data
+            setup_sql = exercise.get("setup_sql", "")
+            if setup_sql:
+                cursor.executescript(setup_sql)
+
+            # Run user's SQL
+            test_results = []
+            total_points = 0
+            earned_points = 0
+
+            for test_case in exercise.get("test_cases", []):
+                test_number = test_case.get("test_number", 1)
+                expected_output = test_case.get("expected_output", "")
+                points = test_case.get("points", 1)
+                total_points += points
+
+                try:
+                    # Execute user code
+                    cursor.execute(code)
+                    actual_result = cursor.fetchall()
+
+                    # Compare results
+                    expected_result = eval(expected_output)  # Parse expected result
+                    passed = actual_result == expected_result
+
+                    if passed:
+                        earned_points += points
+
+                    test_results.append(
+                        {
+                            "test_number": test_number,
+                            "passed": passed,
+                            "expected": str(expected_result),
+                            "actual": str(actual_result),
+                            "points_earned": points if passed else 0,
+                            "error_message": None,
+                        }
+                    )
+
+                except Exception as e:
+                    test_results.append(
+                        {
+                            "test_number": test_number,
+                            "passed": False,
+                            "expected": expected_output,
+                            "actual": "",
+                            "points_earned": 0,
+                            "error_message": str(e),
+                        }
+                    )
+
+            conn.close()
+
+            # Calculate score
+            score = int((earned_points / total_points) * 100) if total_points > 0 else 0
+            passed = score >= 70
+
+            # Save submission
+            submission_doc = {
+                "exercise_id": ObjectId(exercise_id),
+                "user_id": user_id,
+                "code": code,
+                "language": "sql",
+                "score": score,
+                "points_earned": earned_points,
+                "total_points": total_points,
+                "passed": passed,
+                "test_results": test_results,
+                "submitted_at": datetime.now(timezone.utc),
+            }
+
+            self.db.code_submissions.insert_one(submission_doc)
+
+            logger.info(
+                f"✅ SQL exercise graded: exercise_id={exercise_id}, user_id={user_id}, score={score}%"
+            )
+
+            return {
+                "success": True,
+                "submission": {
+                    "id": str(submission_doc["_id"]),
+                    "score": score,
+                    "passed": passed,
+                    "points_earned": earned_points,
+                    "total_points": total_points,
+                    "test_results": test_results,
+                    "submitted_at": submission_doc["submitted_at"],
+                },
+            }
+
+        finally:
+            # Cleanup temp database
+            if os.path.exists(db_path):
+                os.unlink(db_path)
+
+    # ==================== TEMPLATE FORMATTING ====================
+
+    def _format_template_response(
+        self, template_doc: dict, include_code: bool = False
+    ) -> dict:
+        """Format template document for response"""
+        response = {
+            "id": str(template_doc["_id"]),
+            "title": template_doc["title"],
+            "category": template_doc["category"],
+            "programming_language": template_doc.get("programming_language", "python"),
+            "difficulty": template_doc.get("difficulty", "beginner"),
+            "description": template_doc.get("description", ""),
+            "tags": template_doc.get("tags", []),
+            "is_featured": template_doc.get("is_featured", False),
+            "metadata": template_doc.get("metadata", {}),
+            "created_at": template_doc.get("created_at"),
+            "updated_at": template_doc.get("updated_at"),
+        }
+
+        if include_code:
+            response["code"] = template_doc.get("code", "")
+
+        return response
+
+    def _format_category_response(self, category_doc: dict) -> dict:
+        """Format category document for response"""
+        return {
+            "id": category_doc["id"],
+            "name": category_doc["name"],
+            "language": category_doc.get("language", "python"),
+            "description": category_doc.get("description", ""),
+            "order": category_doc.get("order", 0),
+        }

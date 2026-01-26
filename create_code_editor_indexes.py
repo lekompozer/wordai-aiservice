@@ -72,8 +72,8 @@ def create_code_editor_indexes():
     print("\n📋 Creating code_templates indexes...")
 
     # Language + category filtering
-    db.code_templates.create_index([("language", 1), ("category", 1)])
-    print("  ✅ language + category")
+    db.code_templates.create_index([("programming_language", 1), ("category", 1)])
+    print("  ✅ programming_language + category")
 
     # Difficulty filtering
     db.code_templates.create_index([("difficulty", 1)])

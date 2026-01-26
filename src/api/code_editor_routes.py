@@ -295,3 +295,132 @@ async def delete_folder(
     )
 
     return result
+
+
+# ==================== TEMPLATE LIBRARY ====================
+
+
+@router.get("/templates", response_model=dict)
+async def list_templates(
+    category: Optional[str] = Query(None, description="Filter by category ID"),
+    language: Optional[CodeLanguage] = Query(None, description="Filter by language"),
+    difficulty: Optional[str] = Query(
+        None, description="beginner/intermediate/advanced"
+    ),
+    search: Optional[str] = Query(None, description="Search in title/description"),
+    featured: Optional[bool] = Query(None, description="Show only featured templates"),
+    limit: int = Query(50, ge=1, le=100),
+    skip: int = Query(0, ge=0),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    List code templates with filtering
+
+    - **category**: Filter by category ID (e.g., 'python-lop10-gioi-thieu')
+    - **language**: Filter by language (python, javascript, html, css, sql)
+    - **difficulty**: Filter by difficulty level
+    - **search**: Search in title and description
+    - **featured**: Show only featured templates
+    """
+    manager = CodeEditorManager()
+
+    result = await manager.list_templates(
+        category=category,
+        language=language,
+        difficulty=difficulty,
+        search=search,
+        featured=featured,
+        limit=limit,
+        skip=skip,
+    )
+
+    return result
+
+
+@router.get("/categories", response_model=dict)
+async def list_categories(
+    language: Optional[CodeLanguage] = Query(None, description="Filter by language"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    List template categories
+
+    - **language**: Filter by programming language
+    """
+    manager = CodeEditorManager()
+
+    result = await manager.list_categories(language=language)
+
+    return result
+
+
+@router.get("/templates/{template_id}", response_model=dict)
+async def get_template(
+    template_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get template details including full code
+    """
+    manager = CodeEditorManager()
+
+    result = await manager.get_template(template_id=template_id)
+
+    return result
+
+
+@router.post("/templates/{template_id}/use", response_model=dict)
+async def use_template(
+    template_id: str,
+    file_name: str = Query(..., description="New file name"),
+    folder_id: Optional[str] = Query(None, description="Target folder ID"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Create new file from template
+
+    - **file_name**: Name for the new file (with extension)
+    - **folder_id**: Optional folder to create file in
+
+    Creates a new file with template code and increments template usage count
+    """
+    user_id = current_user["uid"]
+    manager = CodeEditorManager()
+
+    result = await manager.use_template(
+        template_id=template_id,
+        user_id=user_id,
+        file_name=file_name,
+        folder_id=folder_id,
+    )
+
+    return result
+
+
+# ==================== EXERCISES & GRADING ====================
+
+
+@router.post("/exercises/{exercise_id}/grade-sql", response_model=dict)
+async def grade_sql_exercise(
+    exercise_id: str,
+    code: str = Query(..., description="SQL code to grade"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Grade SQL exercise submission
+
+    - **exercise_id**: Exercise ID to grade
+    - **code**: SQL code submission
+
+    Executes SQL against test database and validates results
+    """
+    user_id = current_user["uid"]
+    manager = CodeEditorManager()
+
+    result = await manager.grade_sql_exercise(
+        exercise_id=exercise_id,
+        user_id=user_id,
+        code=code,
+    )
+
+    return result

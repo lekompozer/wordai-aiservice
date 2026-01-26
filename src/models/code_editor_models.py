@@ -19,6 +19,7 @@ class CodeLanguage(str, Enum):
     JAVASCRIPT = "javascript"
     HTML = "html"
     CSS = "css"
+    SQL = "sql"
 
 
 class FileSortBy(str, Enum):
@@ -99,9 +100,9 @@ class CreateFileRequest(BaseModel):
         """Validate file name format"""
         import re
 
-        if not re.match(r"^[\w\-. ]+\.(py|js|html|css)$", v):
+        if not re.match(r"^[\w\-. ]+\.(py|js|html|css|sql)$", v):
             raise ValueError(
-                "Invalid file name. Must end with .py, .js, .html, or .css"
+                "Invalid file name. Must end with .py, .js, .html, .css, or .sql"
             )
         return v
 
@@ -129,9 +130,9 @@ class UpdateFileRequest(BaseModel):
         if v is not None:
             import re
 
-            if not re.match(r"^[\w\-. ]+\.(py|js|html|css)$", v):
+            if not re.match(r"^[\w\-. ]+\.(py|js|html|css|sql)$", v):
                 raise ValueError(
-                    "Invalid file name. Must end with .py, .js, .html, or .css"
+                    "Invalid file name. Must end with .py, .js, .html, .css, or .sql"
                 )
         return v
 
