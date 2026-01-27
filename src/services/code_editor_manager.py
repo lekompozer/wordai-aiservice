@@ -543,12 +543,14 @@ class CodeEditorManager:
         if category:
             # Support both 'category' (old) and 'topic_id' (new Learning System)
             # Append to existing $or or create new condition
-            category_condition = {"$or": [{"category": category}, {"topic_id": category}]}
+            category_condition = {
+                "$or": [{"category": category}, {"topic_id": category}]
+            }
             if "$or" in query:
                 query = {"$and": [query, category_condition]}
             else:
                 query.update(category_condition)
-                
+
         if language:
             query["programming_language"] = language
         if difficulty:
@@ -606,7 +608,7 @@ class CodeEditorManager:
         template = self.db.code_templates.find_one(
             {"id": template_id, "is_published": True}
         )
-        
+
         # Fallback to ObjectId (_id) for old templates
         if not template and ObjectId.is_valid(template_id):
             template = self.db.code_templates.find_one(
@@ -633,7 +635,7 @@ class CodeEditorManager:
         template = self.db.code_templates.find_one(
             {"id": template_id, "is_published": True}
         )
-        
+
         # Fallback to ObjectId (_id) for old templates
         if not template and ObjectId.is_valid(template_id):
             template = self.db.code_templates.find_one(
@@ -816,11 +818,12 @@ class CodeEditorManager:
         """Format template document for response"""
         # Use UUID string ID if exists (Learning System), otherwise ObjectId
         template_id = template_doc.get("id") or str(template_doc["_id"])
-        
+
         response = {
             "id": template_id,
             "title": template_doc["title"],
-            "category": template_doc.get("category") or template_doc.get("topic_id"),  # Support both fields
+            "category": template_doc.get("category")
+            or template_doc.get("topic_id"),  # Support both fields
             "programming_language": template_doc.get("programming_language", "python"),
             "difficulty": template_doc.get("difficulty", "beginner"),
             "description": template_doc.get("description", ""),

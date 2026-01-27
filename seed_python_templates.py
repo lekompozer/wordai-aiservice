@@ -24,18 +24,18 @@ def create_templates():
     """
     Create comprehensive Python templates for all topics
     """
-    
+
     print("=" * 80)
     print("SEEDING PYTHON TEMPLATES")
     print("=" * 80)
-    
+
     if DRY_RUN:
         print("\n⚠️  DRY RUN MODE - No changes will be made")
         print("Set DRY_RUN = False to execute seeding\n")
-    
+
     db_manager = DBManager()
     db = db_manager.db
-    
+
     # Statistics
     stats = {
         "total_templates": 0,
@@ -43,43 +43,42 @@ def create_templates():
         "skipped": 0,
         "errors": 0,
     }
-    
+
     # Define templates for each topic
     templates = [
         # ==================== LỚP 10 - GIỚI THIỆU PYTHON ====================
         {
             "topic_id": "python-lop10-gioi-thieu",
             "title": "Cài đặt Python và chạy chương trình đầu tiên",
-            "code": '''# Cài đặt Python từ python.org
+            "code": """# Cài đặt Python từ python.org
 # Kiểm tra phiên bản
 import sys
 print(f"Python version: {sys.version}")
-print("Hello, Python!")''',
+print("Hello, Python!")""",
             "description": "Kiểm tra cài đặt Python và chạy chương trình đầu tiên",
             "difficulty": "beginner",
-            "tags": ["lop10", "gioi-thieu", "setup"]
+            "tags": ["lop10", "gioi-thieu", "setup"],
         },
         {
             "topic_id": "python-lop10-gioi-thieu",
             "title": "Sử dụng Python Interactive Shell",
-            "code": '''# Mở terminal/cmd và gõ: python
+            "code": """# Mở terminal/cmd và gõ: python
 # Thử các phép toán cơ bản
 >>> 2 + 3
 5
 >>> 10 * 5
 50
 >>> print("Welcome to Python!")
-Welcome to Python!''',
+Welcome to Python!""",
             "description": "Làm quen với Python Shell để thử nghiệm code nhanh",
             "difficulty": "beginner",
-            "tags": ["lop10", "gioi-thieu", "shell"]
+            "tags": ["lop10", "gioi-thieu", "shell"],
         },
-        
         # ==================== LỚP 10 - BIẾN VÀ KIỂU DỮ LIỆU ====================
         {
             "topic_id": "python-lop10-bien-kieu-du-lieu",
             "title": "Kiểu Boolean (True/False)",
-            "code": '''# Boolean - giá trị đúng/sai
+            "code": """# Boolean - giá trị đúng/sai
 is_student = True
 has_passed = False
 
@@ -89,15 +88,15 @@ print(f"Đã qua môn: {has_passed}")
 # Kết quả so sánh trả về boolean
 age = 16
 is_adult = age >= 18
-print(f"Đã trưởng thành: {is_adult}")''',
+print(f"Đã trưởng thành: {is_adult}")""",
             "description": "Kiểu dữ liệu Boolean để biểu diễn giá trị logic",
             "difficulty": "beginner",
-            "tags": ["lop10", "bien", "boolean"]
+            "tags": ["lop10", "bien", "boolean"],
         },
         {
             "topic_id": "python-lop10-bien-kieu-du-lieu",
             "title": "Toán tử số học nâng cao",
-            "code": '''# Các toán tử số học
+            "code": """# Các toán tử số học
 a = 17
 b = 5
 
@@ -107,17 +106,16 @@ print(f"Nhân: {a} * {b} = {a * b}")
 print(f"Chia: {a} / {b} = {a / b}")
 print(f"Chia lấy phần nguyên: {a} // {b} = {a // b}")
 print(f"Chia lấy dư: {a} % {b} = {a % b}")
-print(f"Lũy thừa: {a} ** 2 = {a ** 2}")''',
+print(f"Lũy thừa: {a} ** 2 = {a ** 2}")""",
             "description": "Các phép toán số học cơ bản và nâng cao trong Python",
             "difficulty": "beginner",
-            "tags": ["lop10", "bien", "toan-tu"]
+            "tags": ["lop10", "bien", "toan-tu"],
         },
-        
         # ==================== LỚP 10 - NHẬP/XUẤT DỮ LIỆU ====================
         {
             "topic_id": "python-lop10-nhap-xuat",
             "title": "Định dạng output với f-string",
-            "code": '''# f-string - cách định dạng hiện đại nhất
+            "code": """# f-string - cách định dạng hiện đại nhất
 name = "Nguyễn Văn A"
 age = 16
 score = 8.75
@@ -133,15 +131,15 @@ print(f"Pi = {pi:.2f}")  # 2 chữ số thập phân
 
 # Căn lề
 print(f"{'Tên':<10} {'Điểm':>5}")
-print(f"{name:<10} {score:>5.1f}")''',
+print(f"{name:<10} {score:>5.1f}")""",
             "description": "Sử dụng f-string để định dạng output đẹp mắt",
             "difficulty": "beginner",
-            "tags": ["lop10", "nhap-xuat", "format"]
+            "tags": ["lop10", "nhap-xuat", "format"],
         },
         {
             "topic_id": "python-lop10-nhap-xuat",
             "title": "Nhập nhiều giá trị cùng lúc",
-            "code": '''# Nhập nhiều giá trị trên cùng một dòng
+            "code": """# Nhập nhiều giá trị trên cùng một dòng
 print("Nhập họ tên và tuổi (cách nhau bởi dấu cách):")
 data = input().split()
 name = data[0]
@@ -153,17 +151,16 @@ print(f"Xin chào {name}, bạn {age} tuổi")
 print("Nhập chiều dài và chiều rộng:")
 length, width = map(float, input().split())
 area = length * width
-print(f"Diện tích: {area} m²")''',
+print(f"Diện tích: {area} m²")""",
             "description": "Nhập nhiều giá trị cùng lúc và xử lý",
             "difficulty": "intermediate",
-            "tags": ["lop10", "nhap-xuat", "split"]
+            "tags": ["lop10", "nhap-xuat", "split"],
         },
-        
         # ==================== LỚP 10 - CẤU TRÚC ĐIỀU KIỆN ====================
         {
             "topic_id": "python-lop10-dieu-kien",
             "title": "Ternary Operator (If rút gọn)",
-            "code": '''# Toán tử ba ngôi - viết if else trên một dòng
+            "code": """# Toán tử ba ngôi - viết if else trên một dòng
 age = 17
 status = "Trưởng thành" if age >= 18 else "Chưa trưởng thành"
 print(status)
@@ -178,17 +175,16 @@ print(status)
 # Ví dụ khác
 score = 7.5
 result = "Đậu" if score >= 5 else "Rớt"
-print(f"Kết quả: {result}")''',
+print(f"Kết quả: {result}")""",
             "description": "Viết điều kiện ngắn gọn với ternary operator",
             "difficulty": "intermediate",
-            "tags": ["lop10", "dieu-kien", "ternary"]
+            "tags": ["lop10", "dieu-kien", "ternary"],
         },
-        
         # ==================== LỚP 10 - VÒNG LẶP ====================
         {
             "topic_id": "python-lop10-vong-lap",
             "title": "Vòng lặp For với range()",
-            "code": '''# range(start, stop, step)
+            "code": """# range(start, stop, step)
 # In số từ 0 đến 4
 for i in range(5):
     print(i, end=" ")
@@ -207,15 +203,15 @@ print()
 # Đếm ngược từ 10 về 1
 for i in range(10, 0, -1):
     print(i, end=" ")
-print()''',
+print()""",
             "description": "Sử dụng range() để tạo vòng lặp với các bước khác nhau",
             "difficulty": "beginner",
-            "tags": ["lop10", "vong-lap", "range"]
+            "tags": ["lop10", "vong-lap", "range"],
         },
         {
             "topic_id": "python-lop10-vong-lap",
             "title": "Break và Continue",
-            "code": '''# Break - thoát khỏi vòng lặp
+            "code": """# Break - thoát khỏi vòng lặp
 print("Tìm số chia hết cho 7:")
 for i in range(1, 100):
     if i % 7 == 0:
@@ -228,15 +224,15 @@ for i in range(1, 11):
     if i % 2 == 0:  # Nếu là số chẵn
         continue     # Bỏ qua, không in
     print(i, end=" ")
-print()''',
+print()""",
             "description": "Điều khiển vòng lặp với break và continue",
             "difficulty": "intermediate",
-            "tags": ["lop10", "vong-lap", "break", "continue"]
+            "tags": ["lop10", "vong-lap", "break", "continue"],
         },
         {
             "topic_id": "python-lop10-vong-lap",
             "title": "Nested Loop (Vòng lặp lồng nhau)",
-            "code": '''# In bảng cửu chương
+            "code": """# In bảng cửu chương
 for i in range(1, 10):
     for j in range(1, 10):
         print(f"{i} x {j} = {i*j:2d}", end="  |  ")
@@ -254,17 +250,16 @@ print("\\nHình chữ nhật 5x3:")
 for i in range(3):
     for j in range(5):
         print("# ", end="")
-    print()''',
+    print()""",
             "description": "Vòng lặp lồng nhau để tạo các mẫu hình",
             "difficulty": "intermediate",
-            "tags": ["lop10", "vong-lap", "nested"]
+            "tags": ["lop10", "vong-lap", "nested"],
         },
-        
         # ==================== LỚP 10 - LIST VÀ STRING ====================
         {
             "topic_id": "python-lop10-list-string",
             "title": "List Methods - Các phương thức List",
-            "code": '''# Tạo list
+            "code": """# Tạo list
 fruits = ["táo", "chuối", "cam"]
 
 # Thêm phần tử
@@ -284,15 +279,15 @@ print(f"Đã sắp xếp: {fruits}")
 
 # Đảo ngược
 fruits.reverse()
-print(f"Đảo ngược: {fruits}")''',
+print(f"Đảo ngược: {fruits}")""",
             "description": "Các phương thức làm việc với List",
             "difficulty": "beginner",
-            "tags": ["lop10", "list", "methods"]
+            "tags": ["lop10", "list", "methods"],
         },
         {
             "topic_id": "python-lop10-list-string",
             "title": "String Methods - Các phương thức String",
-            "code": '''# String methods
+            "code": """# String methods
 text = "  Hello Python World  "
 
 # Loại bỏ khoảng trắng
@@ -311,17 +306,16 @@ print(f"find(): {text.find('Python')}")
 
 # Tách chuỗi
 words = text.strip().split()
-print(f"split(): {words}")''',
+print(f"split(): {words}")""",
             "description": "Các phương thức xử lý chuỗi trong Python",
             "difficulty": "beginner",
-            "tags": ["lop10", "string", "methods"]
+            "tags": ["lop10", "string", "methods"],
         },
-        
         # ==================== LỚP 10 - HÀM CƠ BẢN ====================
         {
             "topic_id": "python-lop10-ham",
             "title": "Hàm với Return",
-            "code": '''# Hàm trả về giá trị
+            "code": """# Hàm trả về giá trị
 def tinh_tong(a, b):
     return a + b
 
@@ -342,15 +336,15 @@ tb = tinh_trung_binh(diem)
 print(f"Điểm trung bình: {tb:.2f}")
 
 so = 10
-print(f"{so} là số chẵn: {kiem_tra_chan(so)}")''',
+print(f"{so} là số chẵn: {kiem_tra_chan(so)}")""",
             "description": "Tạo hàm trả về giá trị với return",
             "difficulty": "beginner",
-            "tags": ["lop10", "ham", "return"]
+            "tags": ["lop10", "ham", "return"],
         },
         {
             "topic_id": "python-lop10-ham",
             "title": "Hàm với tham số mặc định",
-            "code": '''# Tham số mặc định
+            "code": """# Tham số mặc định
 def chao_mung(name, greeting="Xin chào"):
     return f"{greeting}, {name}!"
 
@@ -367,12 +361,11 @@ def dien_tich_hcn(dai, rong=None):
     return dai * rong
 
 print(f"Hình vuông 5x5: {dien_tich_hcn(5)}")
-print(f"Hình chữ nhật 5x3: {dien_tich_hcn(5, 3)}")''',
+print(f"Hình chữ nhật 5x3: {dien_tich_hcn(5, 3)}")""",
             "description": "Sử dụng tham số mặc định trong hàm",
             "difficulty": "intermediate",
-            "tags": ["lop10", "ham", "default-param"]
+            "tags": ["lop10", "ham", "default-param"],
         },
-        
         # ==================== LỚP 10 - BÀI TẬP THỰC HÀNH ====================
         {
             "topic_id": "python-lop10-bai-tap",
@@ -401,7 +394,7 @@ for i in range(1, 101):
 print()''',
             "description": "Viết chương trình kiểm tra và liệt kê số nguyên tố",
             "difficulty": "intermediate",
-            "tags": ["lop10", "bai-tap", "nguyen-to"]
+            "tags": ["lop10", "bai-tap", "nguyen-to"],
         },
         {
             "topic_id": "python-lop10-bai-tap",
@@ -429,7 +422,7 @@ print(f"ƯCLN({a}, {b}) = {ucln}")
 print(f"BCNN({a}, {b}) = {bcnn}")''',
             "description": "Tìm ước chung lớn nhất và bội chung nhỏ nhất",
             "difficulty": "intermediate",
-            "tags": ["lop10", "bai-tap", "ucln"]
+            "tags": ["lop10", "bai-tap", "ucln"],
         },
         {
             "topic_id": "python-lop10-bai-tap",
@@ -464,14 +457,13 @@ for i in range(n + 1):
     print()''',
             "description": "Tính giai thừa, tổ hợp và vẽ tam giác Pascal",
             "difficulty": "intermediate",
-            "tags": ["lop10", "bai-tap", "giai-thua"]
+            "tags": ["lop10", "bai-tap", "giai-thua"],
         },
-        
         # ==================== LỚP 11 - CƠ BẢN NÂNG CAO ====================
         {
             "topic_id": "python-lop11-co-ban",
             "title": "Tuple - Dữ liệu bất biến",
-            "code": '''# Tuple - không thể thay đổi sau khi tạo
+            "code": """# Tuple - không thể thay đổi sau khi tạo
 coordinates = (10, 20)
 print(f"Tọa độ: {coordinates}")
 print(f"x = {coordinates[0]}, y = {coordinates[1]}")
@@ -488,15 +480,15 @@ print(f"Tên: {name}, Tuổi: {age}, Lớp: {class_name}, Điểm: {score}")
 # Tuple methods
 numbers = (1, 2, 3, 2, 4, 2, 5)
 print(f"Số lần xuất hiện của 2: {numbers.count(2)}")
-print(f"Vị trí đầu tiên của 3: {numbers.index(3)}")''',
+print(f"Vị trí đầu tiên của 3: {numbers.index(3)}")""",
             "description": "Làm việc với Tuple - kiểu dữ liệu bất biến",
             "difficulty": "intermediate",
-            "tags": ["lop11", "tuple", "immutable"]
+            "tags": ["lop11", "tuple", "immutable"],
         },
         {
             "topic_id": "python-lop11-co-ban",
             "title": "Dictionary - Từ điển",
-            "code": '''# Dictionary - lưu trữ cặp key-value
+            "code": """# Dictionary - lưu trữ cặp key-value
 student = {
     "name": "Nguyễn Văn A",
     "age": 17,
@@ -519,15 +511,15 @@ for key, value in student.items():
 
 # Dictionary methods
 print(f"\\nCác keys: {student.keys()}")
-print(f"Các values: {student.values()}")''',
+print(f"Các values: {student.values()}")""",
             "description": "Sử dụng Dictionary để lưu trữ dữ liệu có cấu trúc",
             "difficulty": "intermediate",
-            "tags": ["lop11", "dictionary", "dict"]
+            "tags": ["lop11", "dictionary", "dict"],
         },
         {
             "topic_id": "python-lop11-co-ban",
             "title": "Set - Tập hợp",
-            "code": '''# Set - tập hợp không có phần tử trùng lặp
+            "code": """# Set - tập hợp không có phần tử trùng lặp
 numbers = {1, 2, 3, 4, 5}
 print(f"Tập hợp: {numbers}")
 
@@ -549,17 +541,16 @@ print(f"Hiệu đối xứng (A △ B): {A ^ B}")
 # Set methods
 A.add(6)
 A.remove(1)
-print(f"A sau khi thêm 6 và xóa 1: {A}")''',
+print(f"A sau khi thêm 6 và xóa 1: {A}")""",
             "description": "Làm việc với Set và các phép toán tập hợp",
             "difficulty": "intermediate",
-            "tags": ["lop11", "set", "tap-hop"]
+            "tags": ["lop11", "set", "tap-hop"],
         },
-        
         # ==================== LỚP 11 - XỬ LÝ CHUỖI & LIST NÂNG CAO ====================
         {
             "topic_id": "python-lop11-chuoi-list",
             "title": "List Comprehension",
-            "code": '''# List comprehension - cách tạo list ngắn gọn
+            "code": """# List comprehension - cách tạo list ngắn gọn
 # Cách thông thường
 squares = []
 for i in range(1, 11):
@@ -576,15 +567,15 @@ print(f"Bình phương số chẵn: {even_squares}")
 
 # Nested list comprehension
 matrix = [[i * j for j in range(1, 4)] for i in range(1, 4)]
-print(f"Ma trận 3x3: {matrix}")''',
+print(f"Ma trận 3x3: {matrix}")""",
             "description": "Tạo list nhanh chóng với list comprehension",
             "difficulty": "intermediate",
-            "tags": ["lop11", "list", "comprehension"]
+            "tags": ["lop11", "list", "comprehension"],
         },
         {
             "topic_id": "python-lop11-chuoi-list",
             "title": "Lambda Functions",
-            "code": '''# Lambda - hàm ẩn danh (anonymous function)
+            "code": """# Lambda - hàm ẩn danh (anonymous function)
 # Hàm thông thường
 def square(x):
     return x ** 2
@@ -607,15 +598,15 @@ print(f"Filter số chẵn: {even_numbers}")
 # Sử dụng lambda với sorted()
 students = [("An", 8), ("Bình", 9), ("Chi", 7.5)]
 sorted_students = sorted(students, key=lambda x: x[1], reverse=True)
-print(f"Sắp xếp theo điểm: {sorted_students}")''',
+print(f"Sắp xếp theo điểm: {sorted_students}")""",
             "description": "Sử dụng lambda functions cho code ngắn gọn",
             "difficulty": "advanced",
-            "tags": ["lop11", "lambda", "functional"]
+            "tags": ["lop11", "lambda", "functional"],
         },
         {
             "topic_id": "python-lop11-chuoi-list",
             "title": "String Formatting nâng cao",
-            "code": '''# Các cách format string
+            "code": """# Các cách format string
 name = "Nguyễn Văn A"
 age = 17
 score = 8.75
@@ -636,47 +627,46 @@ print(f"Dấu phân cách: {number:,.2f}")
 print(f"Phần trăm: {0.85:.2%}")
 
 # Alignment
-print(f"{'Left':<10}|{'Center':^10}|{'Right':>10}")''',
+print(f"{'Left':<10}|{'Center':^10}|{'Right':>10}")""",
             "description": "Các cách định dạng chuỗi trong Python",
             "difficulty": "intermediate",
-            "tags": ["lop11", "string", "formatting"]
+            "tags": ["lop11", "string", "formatting"],
         },
-        
         # ==================== LỚP 11 - THAO TÁC VỚI FILE ====================
         {
             "topic_id": "python-lop11-file",
             "title": "Đọc file text line by line",
-            "code": '''# Đọc file từng dòng
+            "code": """# Đọc file từng dòng
 try:
     with open('data.txt', 'r', encoding='utf-8') as file:
         # Cách 1: Đọc tất cả
         content = file.read()
         print("Toàn bộ nội dung:")
         print(content)
-        
+
     # Cách 2: Đọc từng dòng
     with open('data.txt', 'r', encoding='utf-8') as file:
         print("\\nĐọc từng dòng:")
         for line_number, line in enumerate(file, 1):
             print(f"Dòng {line_number}: {line.strip()}")
-            
+
     # Cách 3: Đọc vào list
     with open('data.txt', 'r', encoding='utf-8') as file:
         lines = file.readlines()
         print(f"\\nTổng số dòng: {len(lines)}")
-        
+
 except FileNotFoundError:
     print("Không tìm thấy file!")
 except Exception as e:
-    print(f"Lỗi: {e}")''',
+    print(f"Lỗi: {e}")""",
             "description": "Các cách đọc file text trong Python",
             "difficulty": "intermediate",
-            "tags": ["lop11", "file", "read"]
+            "tags": ["lop11", "file", "read"],
         },
         {
             "topic_id": "python-lop11-file",
             "title": "Xử lý file CSV",
-            "code": '''import csv
+            "code": """import csv
 
 # Ghi file CSV
 students = [
@@ -703,12 +693,11 @@ print("\\nĐọc CSV thành dictionary:")
 with open('students.csv', 'r', encoding='utf-8') as file:
     reader = csv.DictReader(file)
     for row in reader:
-        print(f"{row['Tên']}: {row['Điểm']}")''',
+        print(f"{row['Tên']}: {row['Điểm']}")""",
             "description": "Đọc và ghi file CSV để lưu trữ dữ liệu dạng bảng",
             "difficulty": "intermediate",
-            "tags": ["lop11", "file", "csv"]
+            "tags": ["lop11", "file", "csv"],
         },
-        
         # ==================== LỚP 11 - HÀM VÀ CHƯƠNG TRÌNH CON ====================
         {
             "topic_id": "python-lop11-ham-nang-cao",
@@ -742,7 +731,7 @@ def mixed_function(required, *args, **kwargs):
 mixed_function("value1", "arg1", "arg2", key1="kwarg1", key2="kwarg2")''',
             "description": "Sử dụng *args và **kwargs cho hàm linh hoạt",
             "difficulty": "advanced",
-            "tags": ["lop11", "ham", "args", "kwargs"]
+            "tags": ["lop11", "ham", "args", "kwargs"],
         },
         {
             "topic_id": "python-lop11-ham-nang-cao",
@@ -778,7 +767,7 @@ def gcd(a, b):
 print(f"\\nƯCLN(48, 18) = {gcd(48, 18)}")''',
             "description": "Viết hàm đệ quy để giải quyết bài toán",
             "difficulty": "advanced",
-            "tags": ["lop11", "ham", "recursion"]
+            "tags": ["lop11", "ham", "recursion"],
         },
         {
             "topic_id": "python-lop11-ham-nang-cao",
@@ -824,9 +813,8 @@ def say_hello():
 say_hello()''',
             "description": "Sử dụng decorators để mở rộng chức năng hàm",
             "difficulty": "advanced",
-            "tags": ["lop11", "ham", "decorator"]
+            "tags": ["lop11", "ham", "decorator"],
         },
-        
         # ==================== LỚP 11 - BÀI TẬP TỔNG HỢP ====================
         {
             "topic_id": "python-lop11-bai-tap",
@@ -836,7 +824,7 @@ class Library:
     def __init__(self):
         self.books = {}  # {id: {title, author, year, available}}
         self.next_id = 1
-    
+
     def add_book(self, title, author, year):
         """Thêm sách mới"""
         self.books[self.next_id] = {
@@ -847,7 +835,7 @@ class Library:
         }
         print(f"Đã thêm sách ID: {self.next_id}")
         self.next_id += 1
-    
+
     def borrow_book(self, book_id):
         """Mượn sách"""
         if book_id in self.books:
@@ -858,13 +846,13 @@ class Library:
                 print("Sách đang được mượn")
         else:
             print("Không tìm thấy sách")
-    
+
     def return_book(self, book_id):
         """Trả sách"""
         if book_id in self.books:
             self.books[book_id]['available'] = True
             print(f"Đã trả: {self.books[book_id]['title']}")
-    
+
     def list_books(self):
         """Liệt kê tất cả sách"""
         for id, book in self.books.items():
@@ -880,9 +868,8 @@ lib.borrow_book(1)
 lib.list_books()''',
             "description": "Xây dựng hệ thống quản lý thư viện đơn giản",
             "difficulty": "advanced",
-            "tags": ["lop11", "bai-tap", "project"]
+            "tags": ["lop11", "bai-tap", "project"],
         },
-        
         # ==================== LỚP 12 - LẬP TRÌNH HƯỚNG ĐỐI TƯỢNG ====================
         {
             "topic_id": "python-lop12-oop",
@@ -891,24 +878,24 @@ lib.list_books()''',
 class Student:
     # Class variable (biến lớp)
     school = "THPT ABC"
-    
+
     def __init__(self, name, age, student_id):
         # Instance variables (biến đối tượng)
         self.name = name
         self.age = age
         self.student_id = student_id
         self.scores = []
-    
+
     def add_score(self, score):
         """Thêm điểm"""
         self.scores.append(score)
-    
+
     def get_average(self):
         """Tính điểm trung bình"""
         if not self.scores:
             return 0
         return sum(self.scores) / len(self.scores)
-    
+
     def __str__(self):
         """String representation"""
         return f"Student({self.name}, ID: {self.student_id})"
@@ -924,17 +911,17 @@ print(f"Điểm trung bình: {student1.get_average():.2f}")
 print(f"Trường: {Student.school}")''',
             "description": "Tạo và sử dụng class cơ bản trong Python",
             "difficulty": "intermediate",
-            "tags": ["lop12", "oop", "class"]
+            "tags": ["lop12", "oop", "class"],
         },
         {
             "topic_id": "python-lop12-oop",
             "title": "Inheritance - Kế thừa",
-            "code": '''# Lớp cha (Parent class)
+            "code": """# Lớp cha (Parent class)
 class Person:
     def __init__(self, name, age):
         self.name = name
         self.age = age
-    
+
     def introduce(self):
         return f"Tôi là {self.name}, {self.age} tuổi"
 
@@ -944,11 +931,11 @@ class Student(Person):
         super().__init__(name, age)  # Gọi __init__ của lớp cha
         self.student_id = student_id
         self.scores = []
-    
+
     def introduce(self):
         # Override method của lớp cha
         return f"{super().introduce()}, MSSV: {self.student_id}"
-    
+
     def add_score(self, score):
         self.scores.append(score)
 
@@ -956,7 +943,7 @@ class Teacher(Person):
     def __init__(self, name, age, subject):
         super().__init__(name, age)
         self.subject = subject
-    
+
     def introduce(self):
         return f"{super().introduce()}, dạy {self.subject}"
 
@@ -965,10 +952,10 @@ student = Student("An", 17, "HS001")
 teacher = Teacher("Bình", 35, "Toán")
 
 print(student.introduce())
-print(teacher.introduce())''',
+print(teacher.introduce())""",
             "description": "Kế thừa class và override methods",
             "difficulty": "intermediate",
-            "tags": ["lop12", "oop", "inheritance"]
+            "tags": ["lop12", "oop", "inheritance"],
         },
         {
             "topic_id": "python-lop12-oop",
@@ -979,7 +966,7 @@ class BankAccount:
         self.account_number = account_number
         self.owner = owner
         self.__balance = balance  # Private attribute (__)
-    
+
     def deposit(self, amount):
         """Nạp tiền"""
         if amount > 0:
@@ -987,7 +974,7 @@ class BankAccount:
             print(f"Đã nạp {amount:,.0f}đ")
         else:
             print("Số tiền không hợp lệ")
-    
+
     def withdraw(self, amount):
         """Rút tiền"""
         if amount > 0 and amount <= self.__balance:
@@ -995,11 +982,11 @@ class BankAccount:
             print(f"Đã rút {amount:,.0f}đ")
         else:
             print("Số tiền không hợp lệ hoặc không đủ số dư")
-    
+
     def get_balance(self):
         """Xem số dư"""
         return self.__balance
-    
+
     def __str__(self):
         return f"TK {self.account_number} - {self.owner}: {self.__balance:,.0f}đ"
 
@@ -1014,7 +1001,7 @@ print(f"Số dư: {account.get_balance():,.0f}đ")
 # print(account.__balance)  # AttributeError''',
             "description": "Đóng gói dữ liệu với private attributes",
             "difficulty": "intermediate",
-            "tags": ["lop12", "oop", "encapsulation"]
+            "tags": ["lop12", "oop", "encapsulation"],
         },
         {
             "topic_id": "python-lop12-oop",
@@ -1023,12 +1010,12 @@ print(f"Số dư: {account.get_balance():,.0f}đ")
 class Circle:
     def __init__(self, radius):
         self._radius = radius
-    
+
     @property
     def radius(self):
         """Getter cho radius"""
         return self._radius
-    
+
     @radius.setter
     def radius(self, value):
         """Setter cho radius với validation"""
@@ -1036,18 +1023,18 @@ class Circle:
             self._radius = value
         else:
             raise ValueError("Bán kính phải > 0")
-    
+
     @property
     def diameter(self):
         """Property chỉ đọc"""
         return self._radius * 2
-    
+
     @property
     def area(self):
         """Diện tích"""
         import math
         return math.pi * self._radius ** 2
-    
+
     @property
     def circumference(self):
         """Chu vi"""
@@ -1067,7 +1054,7 @@ print(f"\\nSau khi đổi bán kính:")
 print(f"Diện tích: {circle.area:.2f}")''',
             "description": "Sử dụng @property decorator cho getters và setters",
             "difficulty": "advanced",
-            "tags": ["lop12", "oop", "property"]
+            "tags": ["lop12", "oop", "property"],
         },
         {
             "topic_id": "python-lop12-oop",
@@ -1075,28 +1062,28 @@ print(f"Diện tích: {circle.area:.2f}")''',
             "code": '''# Static methods và Class methods
 class MathOperations:
     pi = 3.14159
-    
+
     def __init__(self, name):
         self.name = name
-    
+
     @staticmethod
     def add(a, b):
         """Static method - không cần self hay cls"""
         return a + b
-    
+
     @staticmethod
     def multiply(a, b):
         return a * b
-    
+
     @classmethod
     def create_default(cls):
         """Class method - nhận cls thay vì self"""
         return cls("Default Calculator")
-    
+
     @classmethod
     def get_pi(cls):
         return cls.pi
-    
+
     def instance_method(self):
         """Instance method - cần self"""
         return f"Calculator: {self.name}"
@@ -1115,9 +1102,8 @@ calc2 = MathOperations("My Calculator")
 print(f"2 + 3 = {calc2.add(2, 3)}")''',
             "description": "Phân biệt static methods, class methods và instance methods",
             "difficulty": "advanced",
-            "tags": ["lop12", "oop", "static", "classmethod"]
+            "tags": ["lop12", "oop", "static", "classmethod"],
         },
-        
         # ==================== LỚP 12 - CẤU TRÚC DỮ LIỆU ====================
         {
             "topic_id": "python-lop12-du-lieu",
@@ -1126,29 +1112,29 @@ print(f"2 + 3 = {calc2.add(2, 3)}")''',
 class Stack:
     def __init__(self):
         self.items = []
-    
+
     def is_empty(self):
         return len(self.items) == 0
-    
+
     def push(self, item):
         """Thêm phần tử vào đỉnh stack"""
         self.items.append(item)
-    
+
     def pop(self):
         """Lấy và xóa phần tử ở đỉnh"""
         if not self.is_empty():
             return self.items.pop()
         return None
-    
+
     def peek(self):
         """Xem phần tử đỉnh không xóa"""
         if not self.is_empty():
             return self.items[-1]
         return None
-    
+
     def size(self):
         return len(self.items)
-    
+
     def __str__(self):
         return f"Stack: {self.items}"
 
@@ -1156,7 +1142,7 @@ class Stack:
 def check_parentheses(expression):
     stack = Stack()
     pairs = {'(': ')', '[': ']', '{': '}'}
-    
+
     for char in expression:
         if char in pairs.keys():
             stack.push(char)
@@ -1165,7 +1151,7 @@ def check_parentheses(expression):
                 return False
             if pairs[stack.pop()] != char:
                 return False
-    
+
     return stack.is_empty()
 
 # Test
@@ -1173,7 +1159,7 @@ print(check_parentheses("(a + b) * [c - d]"))  # True
 print(check_parentheses("(a + b] * (c - d)"))  # False''',
             "description": "Cài đặt Stack và ứng dụng kiểm tra ngoặc",
             "difficulty": "intermediate",
-            "tags": ["lop12", "data-structure", "stack"]
+            "tags": ["lop12", "data-structure", "stack"],
         },
         {
             "topic_id": "python-lop12-du-lieu",
@@ -1182,29 +1168,29 @@ print(check_parentheses("(a + b] * (c - d)"))  # False''',
 class Queue:
     def __init__(self):
         self.items = []
-    
+
     def is_empty(self):
         return len(self.items) == 0
-    
+
     def enqueue(self, item):
         """Thêm phần tử vào cuối hàng"""
         self.items.append(item)
-    
+
     def dequeue(self):
         """Lấy và xóa phần tử đầu hàng"""
         if not self.is_empty():
             return self.items.pop(0)
         return None
-    
+
     def front(self):
         """Xem phần tử đầu hàng"""
         if not self.is_empty():
             return self.items[0]
         return None
-    
+
     def size(self):
         return len(self.items)
-    
+
     def __str__(self):
         return f"Queue: {self.items}"
 
@@ -1223,7 +1209,7 @@ print(f"Bệnh nhân: {waiting_room.dequeue()}")
 print(f"Còn lại: {waiting_room}")''',
             "description": "Cài đặt Queue và ứng dụng mô phỏng hàng đợi",
             "difficulty": "intermediate",
-            "tags": ["lop12", "data-structure", "queue"]
+            "tags": ["lop12", "data-structure", "queue"],
         },
         {
             "topic_id": "python-lop12-du-lieu",
@@ -1237,41 +1223,41 @@ class Node:
 class LinkedList:
     def __init__(self):
         self.head = None
-    
+
     def append(self, data):
         """Thêm vào cuối"""
         new_node = Node(data)
         if not self.head:
             self.head = new_node
             return
-        
+
         current = self.head
         while current.next:
             current = current.next
         current.next = new_node
-    
+
     def prepend(self, data):
         """Thêm vào đầu"""
         new_node = Node(data)
         new_node.next = self.head
         self.head = new_node
-    
+
     def delete(self, data):
         """Xóa node có giá trị data"""
         if not self.head:
             return
-        
+
         if self.head.data == data:
             self.head = self.head.next
             return
-        
+
         current = self.head
         while current.next:
             if current.next.data == data:
                 current.next = current.next.next
                 return
             current = current.next
-    
+
     def print_list(self):
         """In danh sách"""
         current = self.head
@@ -1291,14 +1277,13 @@ llist.delete(2)
 llist.print_list()''',
             "description": "Cài đặt Linked List từ đầu",
             "difficulty": "advanced",
-            "tags": ["lop12", "data-structure", "linked-list"]
+            "tags": ["lop12", "data-structure", "linked-list"],
         },
-        
         # ==================== LỚP 12 - THƯ VIỆN PYTHON ====================
         {
             "topic_id": "python-lop12-thu-vien",
             "title": "Datetime - Xử lý ngày tháng",
-            "code": '''from datetime import datetime, date, timedelta
+            "code": """from datetime import datetime, date, timedelta
 
 # Lấy thời gian hiện tại
 now = datetime.now()
@@ -1327,15 +1312,15 @@ print(f"\\nSố ngày đã sống: {age_in_days}")
 # Parse string thành datetime
 date_str = "2024-12-25"
 christmas = datetime.strptime(date_str, '%Y-%m-%d')
-print(f"Giáng sinh: {christmas}")''',
+print(f"Giáng sinh: {christmas}")""",
             "description": "Làm việc với ngày tháng thời gian trong Python",
             "difficulty": "intermediate",
-            "tags": ["lop12", "library", "datetime"]
+            "tags": ["lop12", "library", "datetime"],
         },
         {
             "topic_id": "python-lop12-thu-vien",
             "title": "Random - Số ngẫu nhiên",
-            "code": '''import random
+            "code": """import random
 
 # Số ngẫu nhiên trong khoảng
 print("Số ngẫu nhiên:")
@@ -1366,15 +1351,15 @@ def lottery(participants, winners=3):
     return random.sample(participants, winners)
 
 students = ["An", "Bình", "Chi", "Dũng", "Em", "Giang"]
-print(f"\\nNgười trúng thưởng: {lottery(students)}")''',
+print(f"\\nNgười trúng thưởng: {lottery(students)}")""",
             "description": "Tạo số và lựa chọn ngẫu nhiên",
             "difficulty": "beginner",
-            "tags": ["lop12", "library", "random"]
+            "tags": ["lop12", "library", "random"],
         },
         {
             "topic_id": "python-lop12-thu-vien",
             "title": "Math - Toán học",
-            "code": '''import math
+            "code": """import math
 
 # Hằng số toán học
 print(f"Pi: {math.pi}")
@@ -1406,15 +1391,15 @@ print(f"tan(45°) = {math.tan(angle_rad):.4f}")
 # Giá trị tuyệt đối và dấu
 print(f"\\n|−5| = {abs(-5)}")
 print(f"max(3,7,2,9,1) = {max(3, 7, 2, 9, 1)}")
-print(f"min(3,7,2,9,1) = {min(3, 7, 2, 9, 1)}")''',
+print(f"min(3,7,2,9,1) = {min(3, 7, 2, 9, 1)}")""",
             "description": "Sử dụng module math cho các phép toán",
             "difficulty": "beginner",
-            "tags": ["lop12", "library", "math"]
+            "tags": ["lop12", "library", "math"],
         },
         {
             "topic_id": "python-lop12-thu-vien",
             "title": "Collections - Counter và defaultdict",
-            "code": '''from collections import Counter, defaultdict
+            "code": """from collections import Counter, defaultdict
 
 # Counter - đếm phần tử
 text = "hello world hello python"
@@ -1446,12 +1431,11 @@ test_results = [("An", 8), ("Bình", 7), ("An", 9), ("Chi", 8)]
 for name, score in test_results:
     scores[name] += score
 
-print(f"\\nTổng điểm: {dict(scores)}")''',
+print(f"\\nTổng điểm: {dict(scores)}")""",
             "description": "Sử dụng Counter và defaultdict từ collections",
             "difficulty": "intermediate",
-            "tags": ["lop12", "library", "collections"]
+            "tags": ["lop12", "library", "collections"],
         },
-        
         # ==================== LỚP 12 - DỰ ÁN TỔNG HỢP ====================
         {
             "topic_id": "python-lop12-du-an",
@@ -1464,7 +1448,7 @@ class TodoList:
     def __init__(self, filename="todos.json"):
         self.filename = filename
         self.todos = self.load_todos()
-    
+
     def load_todos(self):
         """Đọc danh sách từ file"""
         try:
@@ -1472,12 +1456,12 @@ class TodoList:
                 return json.load(f)
         except FileNotFoundError:
             return []
-    
+
     def save_todos(self):
         """Lưu danh sách vào file"""
         with open(self.filename, 'w', encoding='utf-8') as f:
             json.dump(self.todos, f, ensure_ascii=False, indent=2)
-    
+
     def add_todo(self, task, priority="normal"):
         """Thêm công việc mới"""
         todo = {
@@ -1490,7 +1474,7 @@ class TodoList:
         self.todos.append(todo)
         self.save_todos()
         print(f"✓ Đã thêm: {task}")
-    
+
     def complete_todo(self, todo_id):
         """Đánh dấu hoàn thành"""
         for todo in self.todos:
@@ -1500,27 +1484,27 @@ class TodoList:
                 print(f"✓ Hoàn thành: {todo['task']}")
                 return
         print("Không tìm thấy công việc")
-    
+
     def delete_todo(self, todo_id):
         """Xóa công việc"""
         self.todos = [t for t in self.todos if t['id'] != todo_id]
         self.save_todos()
         print("✓ Đã xóa")
-    
+
     def list_todos(self, show_completed=True):
         """Hiển thị danh sách"""
         print("\\n" + "="*50)
         print("DANH SÁCH CÔNG VIỆC")
         print("="*50)
-        
+
         for todo in self.todos:
             if not show_completed and todo['completed']:
                 continue
-            
+
             status = "✓" if todo['completed'] else "○"
             priority_mark = "!" if todo['priority'] == "high" else ""
             print(f"[{todo['id']}] {status} {todo['task']} {priority_mark}")
-        
+
         print("="*50)
 
 # Sử dụng
@@ -1532,7 +1516,7 @@ app.complete_todo(1)
 app.list_todos()''',
             "description": "Ứng dụng quản lý công việc với lưu file JSON",
             "difficulty": "advanced",
-            "tags": ["lop12", "project", "todo"]
+            "tags": ["lop12", "project", "todo"],
         },
         {
             "topic_id": "python-lop12-du-an",
@@ -1549,29 +1533,29 @@ def scrape_website(url):
         # Gửi request
         response = requests.get(url, timeout=10)
         response.raise_for_status()
-        
+
         # Parse HTML
         soup = BeautifulSoup(response.content, 'html.parser')
-        
+
         # Lấy tiêu đề
         title = soup.find('title')
         print(f"Tiêu đề: {title.text if title else 'N/A'}")
-        
+
         # Lấy tất cả links
         links = soup.find_all('a', href=True)
         print(f"\\nSố lượng links: {len(links)}")
         print("\\n5 links đầu tiên:")
         for link in links[:5]:
             print(f"- {link['href']}")
-        
+
         # Lấy tất cả headings
         headings = soup.find_all(['h1', 'h2', 'h3'])
         print(f"\\nCác headings:")
         for h in headings[:5]:
             print(f"{h.name}: {h.text.strip()}")
-        
+
         return soup
-        
+
     except requests.exceptions.RequestException as e:
         print(f"Lỗi: {e}")
         return None
@@ -1583,7 +1567,7 @@ if __name__ == "__main__":
     scrape_website(url)''',
             "description": "Web scraper cơ bản để lấy dữ liệu từ website",
             "difficulty": "advanced",
-            "tags": ["lop12", "project", "webscraping"]
+            "tags": ["lop12", "project", "webscraping"],
         },
         {
             "topic_id": "python-lop12-du-an",
@@ -1596,7 +1580,7 @@ class WeatherClient:
     def __init__(self, api_key):
         self.api_key = api_key
         self.base_url = "http://api.openweathermap.org/data/2.5/weather"
-    
+
     def get_weather(self, city):
         """Lấy thông tin thời tiết của thành phố"""
         params = {
@@ -1605,12 +1589,12 @@ class WeatherClient:
             'units': 'metric',  # Celsius
             'lang': 'vi'
         }
-        
+
         try:
             response = requests.get(self.base_url, params=params)
             response.raise_for_status()
             data = response.json()
-            
+
             return {
                 'city': data['name'],
                 'temperature': data['main']['temp'],
@@ -1619,11 +1603,11 @@ class WeatherClient:
                 'description': data['weather'][0]['description'],
                 'wind_speed': data['wind']['speed']
             }
-        
+
         except requests.exceptions.RequestException as e:
             print(f"Lỗi API: {e}")
             return None
-    
+
     def display_weather(self, city):
         """Hiển thị thông tin thời tiết"""
         weather = self.get_weather(city)
@@ -1646,31 +1630,29 @@ class WeatherClient:
 print("Cần đăng ký API key tại: https://openweathermap.org/api")''',
             "description": "Client API lấy thông tin thời tiết từ OpenWeatherMap",
             "difficulty": "advanced",
-            "tags": ["lop12", "project", "api"]
+            "tags": ["lop12", "project", "api"],
         },
     ]
-    
+
     # Insert templates
     for template_data in templates:
         topic_id = template_data["topic_id"]
         title = template_data["title"]
-        
+
         # Check if template already exists
-        existing = db.code_templates.find_one({
-            "topic_id": topic_id,
-            "title": title
-        })
-        
+        existing = db.code_templates.find_one({"topic_id": topic_id, "title": title})
+
         if existing:
             print(f"⏭️  Skipped (exists): {title}")
             stats["skipped"] += 1
             continue
-        
+
         # Create template
         try:
             import uuid
+
             now = datetime.utcnow()
-            
+
             template = {
                 "id": str(uuid.uuid4()),
                 "topic_id": topic_id,
@@ -1689,7 +1671,7 @@ print("Cần đăng ký API key tại: https://openweathermap.org/api")''',
                     "version": "1.0",
                     "usage_count": 0,
                     "view_count": 0,
-                    "dependencies": []
+                    "dependencies": [],
                 },
                 "like_count": 0,
                 "is_published": True,
@@ -1697,18 +1679,18 @@ print("Cần đăng ký API key tại: https://openweathermap.org/api")''',
                 "created_at": now,
                 "updated_at": now,
             }
-            
+
             if not DRY_RUN:
                 db.code_templates.insert_one(template)
-            
+
             print(f"✅ Created: {title}")
             stats["created"] += 1
             stats["total_templates"] += 1
-            
+
         except Exception as e:
             print(f"❌ Error creating {title}: {str(e)}")
             stats["errors"] += 1
-    
+
     # Print summary
     print("\n" + "=" * 80)
     print("SEEDING SUMMARY")
@@ -1718,7 +1700,7 @@ print("Cần đăng ký API key tại: https://openweathermap.org/api")''',
     print(f"Skipped (exists): {stats['skipped']}")
     print(f"Errors: {stats['errors']}")
     print("=" * 80)
-    
+
     if DRY_RUN:
         print("\n⚠️  DRY RUN COMPLETE - No changes were made")
         print("Set DRY_RUN = False to execute seeding")
@@ -1735,5 +1717,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n\n❌ Seeding failed: {str(e)}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
