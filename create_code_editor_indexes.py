@@ -53,7 +53,7 @@ def create_code_editor_indexes():
     db.code_files.create_index(
         [("name", "text"), ("description", "text")],
         default_language="english",
-        language_override="text_language"
+        language_override="text_language",
     )
     print("  ✅ text search (name, description) with language_override='text_language'")
 
