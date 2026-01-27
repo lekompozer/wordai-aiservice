@@ -201,6 +201,9 @@ from src.api.public_routes import router as public_router
 # ✅ ADDED: Code Editor API - File management, templates, exercises (Phase 1)
 from src.api.code_editor_routes import router as code_editor_router
 
+# ✅ ADDED: Learning System API - Categories, Topics, Knowledge, Community
+from src.api.learning_routes import router as learning_router
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -1002,6 +1005,9 @@ def create_app() -> FastAPI:
     app.include_router(
         code_editor_router, tags=["Code Editor", "Phase 1: File Management"]
     )
+
+    # ✅ ADDED: Learning System API - Categories, Topics, Knowledge, Community
+    app.include_router(learning_router, tags=["Learning System"])
 
     # ✅ ADDED: AI Editor Suite - Edit, Translate, Format, Bilingual Conversion
     app.include_router(ai_editor_router, tags=["AI Editor Suite"])
