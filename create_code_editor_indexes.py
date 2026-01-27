@@ -49,9 +49,13 @@ def create_code_editor_indexes():
     db.code_files.create_index([("user_id", 1), ("metadata.run_count", -1)])
     print("  ✅ user_id + run_count")
 
-    # Text search on name and description
-    db.code_files.create_index([("name", "text"), ("description", "text")])
-    print("  ✅ text search (name, description)")
+    # Text search on name and description (with custom language_override)
+    db.code_files.create_index(
+        [("name", "text"), ("description", "text")],
+        default_language="english",
+        language_override="text_language"
+    )
+    print("  ✅ text search (name, description) with language_override='text_language'")
 
     # ==================== CODE FOLDERS ====================
     print("\n📂 Creating code_folders indexes...")
