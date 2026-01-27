@@ -152,6 +152,7 @@ class KnowledgeArticleCreate(BaseModel):
     """Create knowledge article request"""
 
     topic_id: str = Field(..., description="Parent topic ID")
+    language: str = Field("vi", description="Content language code (vi/en/ja)")
     title: str = Field(..., min_length=1, max_length=300, description="Article title")
     content: str = Field(..., min_length=1, description="Article content (Markdown)")
     excerpt: Optional[str] = Field(None, max_length=500, description="Short summary")
@@ -165,6 +166,9 @@ class KnowledgeArticleCreate(BaseModel):
 class KnowledgeArticleUpdate(BaseModel):
     """Update knowledge article request"""
 
+    language: Optional[str] = Field(
+        None, description="Content language code (vi/en/ja)"
+    )
     title: Optional[str] = Field(None, min_length=1, max_length=300)
     content: Optional[str] = Field(None, min_length=1)
     excerpt: Optional[str] = Field(None, max_length=500)
@@ -180,9 +184,19 @@ class KnowledgeArticleResponse(BaseModel):
     id: str
     topic_id: str
     category_id: str
-    title: str
-    content: str
-    excerpt: Optional[str]
+    title: str  # Language-specific title (from title_multilang)
+    content: str  # Language-specific content (from content_multilang)
+    excerpt: Optional[str]  # Language-specific excerpt (from excerpt_multilang)
+    title_multilang: Optional[dict] = Field(None, description="Multi-language titles")
+    content_multilang: Optional[dict] = Field(
+        None, description="Multi-language content"
+    )
+    excerpt_multilang: Optional[dict] = Field(
+        None, description="Multi-language excerpts"
+    )
+    available_languages: List[str] = Field(
+        default_factory=list, description="Available languages"
+    )
     source_type: ContentSourceType
     created_by: str
     author_name: str

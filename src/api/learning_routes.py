@@ -481,6 +481,7 @@ async def delete_topic(topic_id: str, current_user: dict = Depends(get_current_u
 @router.get("/topics/{topic_id}/knowledge", response_model=dict)
 async def list_knowledge_articles(
     topic_id: str,
+    language: str = Query("vi", description="Language code (vi/en/ja)"),
     source_type: Optional[ContentSourceType] = Query(
         None, description="Filter by source"
     ),
@@ -493,6 +494,7 @@ async def list_knowledge_articles(
     """
     Get knowledge articles in a topic (public endpoint)
 
+    - **language**: Content language (vi/en/ja)
     - **source_type**: Filter by wordai_team/community
     - **difficulty**: Filter by beginner/intermediate/advanced
     - **page**: Page number
@@ -516,15 +518,44 @@ async def list_knowledge_articles(
         skip = (page - 1) * limit
         articles = list(
             db.knowledge_articles.find(
-                query, {"_id": 0, "content": 0}  # Exclude full content in list view
+                query,
+                {
+                    "_id": 0,
+                    "content": 0,
+                    "content_multilang": 0,
+                },  # Exclude full content in list view
             )
             .sort("created_at", -1)
             .skip(skip)
             .limit(limit)
         )
 
-        # Add comment counts
+        # Extract language-specific fields and add comment counts
         for article in articles:
+            # Extract title in requested language (fallback to 'vi' or first available)
+            title_multilang = article.get("title_multilang", {})
+            if title_multilang:
+                article["title"] = (
+                    title_multilang.get(language)
+                    or title_multilang.get("vi")
+                    or next(iter(title_multilang.values()), article.get("title", ""))
+                )
+                article["available_languages"] = list(title_multilang.keys())
+            else:
+                article["available_languages"] = ["vi"]  # Legacy articles
+
+            # Extract excerpt in requested language
+            excerpt_multilang = article.get("excerpt_multilang", {})
+            if excerpt_multilang:
+                article["excerpt"] = (
+                    excerpt_multilang.get(language)
+                    or excerpt_multilang.get("vi")
+                    or next(
+                        iter(excerpt_multilang.values()), article.get("excerpt", "")
+                    )
+                )
+
+            # Add comment count
             article["comment_count"] = db.learning_comments.count_documents(
                 {"content_type": "knowledge", "content_id": article["id"]}
             )
@@ -546,11 +577,14 @@ async def list_knowledge_articles(
 
 
 @router.get("/knowledge/{article_id}", response_model=dict)
-async def get_knowledge_article(article_id: str):
+async def get_knowledge_article(
+    article_id: str,
+    language: str = Query("vi", description="Language code (vi/en/ja)"),
+):
     """
     Get knowledge article details (public endpoint)
 
-    Includes full content and increments view count
+    Includes full content in requested language and increments view count
     """
     try:
         db_manager = DBManager()
@@ -564,6 +598,35 @@ async def get_knowledge_article(article_id: str):
         if not article:
             raise HTTPException(
                 status_code=404, detail=f"Article '{article_id}' not found"
+            )
+
+        # Extract language-specific content
+        title_multilang = article.get("title_multilang", {})
+        content_multilang = article.get("content_multilang", {})
+        excerpt_multilang = article.get("excerpt_multilang", {})
+
+        if title_multilang:
+            article["title"] = (
+                title_multilang.get(language)
+                or title_multilang.get("vi")
+                or next(iter(title_multilang.values()), article.get("title", ""))
+            )
+            article["available_languages"] = list(title_multilang.keys())
+        else:
+            article["available_languages"] = ["vi"]  # Legacy articles
+
+        if content_multilang:
+            article["content"] = (
+                content_multilang.get(language)
+                or content_multilang.get("vi")
+                or next(iter(content_multilang.values()), article.get("content", ""))
+            )
+
+        if excerpt_multilang:
+            article["excerpt"] = (
+                excerpt_multilang.get(language)
+                or excerpt_multilang.get("vi")
+                or next(iter(excerpt_multilang.values()), article.get("excerpt", ""))
             )
 
         # Increment view count
@@ -620,15 +683,27 @@ async def create_knowledge_article(
 
         article_id = str(uuid.uuid4())
 
+        # Get language from request (default to 'vi')
+        language = getattr(request, "language", "vi")
+
+        # Prepare multilang dictionaries
+        title_multilang = {language: request.title}
+        content_multilang = {language: request.content}
+        excerpt_multilang = {language: request.excerpt or request.content[:200]}
+
         # Create article
         now = datetime.utcnow()
         article = {
             "id": article_id,
             "topic_id": topic_id,
             "category_id": topic["category_id"],
-            "title": request.title,
-            "content": request.content,
+            "title": request.title,  # Default language title for backward compatibility
+            "content": request.content,  # Default language content for backward compatibility
             "excerpt": request.excerpt or request.content[:200],
+            "title_multilang": title_multilang,
+            "content_multilang": content_multilang,
+            "excerpt_multilang": excerpt_multilang,
+            "available_languages": [language],
             "source_type": source_type.value,
             "created_by": current_user["uid"],
             "author_name": current_user.get(
@@ -702,12 +777,71 @@ async def update_knowledge_article(
 
         # Build update data
         update_data = {}
+        language_update = None
+
         for field, value in request.dict(exclude_unset=True).items():
             if value is not None:
-                if isinstance(value, ContentDifficulty):
+                if field == "language":
+                    language_update = value
+                elif field in ["title", "content", "excerpt"]:
+                    # Will handle multilang updates separately
+                    continue
+                elif isinstance(value, ContentDifficulty):
                     update_data[field] = value.value
                 else:
                     update_data[field] = value
+
+        # Handle multilingual updates
+        if language_update:
+            # Get current multilang fields
+            title_multilang = article.get("title_multilang", {})
+            content_multilang = article.get("content_multilang", {})
+            excerpt_multilang = article.get("excerpt_multilang", {})
+
+            # Update specific language
+            if request.title:
+                title_multilang[language_update] = request.title
+                update_data["title_multilang"] = title_multilang
+                update_data["title"] = (
+                    request.title
+                )  # Update default for backward compatibility
+
+            if request.content:
+                content_multilang[language_update] = request.content
+                update_data["content_multilang"] = content_multilang
+                update_data["content"] = (
+                    request.content
+                )  # Update default for backward compatibility
+
+            if request.excerpt:
+                excerpt_multilang[language_update] = request.excerpt
+                update_data["excerpt_multilang"] = excerpt_multilang
+                update_data["excerpt"] = (
+                    request.excerpt
+                )  # Update default for backward compatibility
+
+            # Update available languages
+            available_languages = list(set(title_multilang.keys()))
+            update_data["available_languages"] = available_languages
+        else:
+            # Legacy update without language specified - update default language (vi)
+            if request.title:
+                title_multilang = article.get("title_multilang", {})
+                title_multilang["vi"] = request.title
+                update_data["title"] = request.title
+                update_data["title_multilang"] = title_multilang
+
+            if request.content:
+                content_multilang = article.get("content_multilang", {})
+                content_multilang["vi"] = request.content
+                update_data["content"] = request.content
+                update_data["content_multilang"] = content_multilang
+
+            if request.excerpt:
+                excerpt_multilang = article.get("excerpt_multilang", {})
+                excerpt_multilang["vi"] = request.excerpt
+                update_data["excerpt"] = request.excerpt
+                update_data["excerpt_multilang"] = excerpt_multilang
 
         if update_data:
             update_data["updated_at"] = datetime.utcnow()
