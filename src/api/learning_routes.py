@@ -77,7 +77,7 @@ async def list_categories():
         # Get topic counts for each category
         for category in categories:
             topic_count = db.learning_topics.count_documents(
-                {"category_id": category["id"], "is_active": True}
+                {"category_id": category["id"], "is_published": True}
             )
             category["topic_count"] = topic_count
 
@@ -276,7 +276,7 @@ async def list_topics(
         db = db_manager.db
 
         # Build query
-        query = {"category_id": category_id, "is_active": True}
+        query = {"category_id": category_id, "is_published": True}
         if level:
             query["level"] = level.value
         if grade:
