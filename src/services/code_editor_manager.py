@@ -603,17 +603,10 @@ class CodeEditorManager:
         }
 
     async def get_template(self, template_id: str) -> dict:
-        """Get template details"""
-        # Try to find by UUID string ID first (Learning System templates)
+        """Get template details (UUID only)"""
         template = self.db.code_templates.find_one(
             {"id": template_id, "is_published": True}
         )
-
-        # Fallback to ObjectId (_id) for old templates
-        if not template and ObjectId.is_valid(template_id):
-            template = self.db.code_templates.find_one(
-                {"_id": ObjectId(template_id), "is_active": True}
-            )
 
         if not template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -630,17 +623,10 @@ class CodeEditorManager:
         file_name: str,
         folder_id: Optional[str] = None,
     ) -> dict:
-        """Create file from template"""
-        # Try to find by UUID string ID first (Learning System templates)
+        """Create file from template (UUID only)"""
         template = self.db.code_templates.find_one(
             {"id": template_id, "is_published": True}
         )
-
-        # Fallback to ObjectId (_id) for old templates
-        if not template and ObjectId.is_valid(template_id):
-            template = self.db.code_templates.find_one(
-                {"_id": ObjectId(template_id), "is_active": True}
-            )
 
         if not template:
             raise HTTPException(status_code=404, detail="Template not found")
@@ -658,17 +644,10 @@ class CodeEditorManager:
         )
 
         # Increment template usage count
-        # Update by UUID string ID if it exists, otherwise by ObjectId
-        if "id" in template and template["id"]:
-            self.db.code_templates.update_one(
-                {"id": template_id},
-                {"$inc": {"metadata.usage_count": 1}},
-            )
-        else:
-            self.db.code_templates.update_one(
-                {"_id": ObjectId(template_id)},
-                {"$inc": {"metadata.usage_count": 1}},
-            )
+        self.db.code_templates.update_one(
+            {"id": template_id},
+            {"$inc": {"metadata.usage_count": 1}},
+        )
 
         logger.info(
             f"✅ User {user_id} used template '{template['title']}' → file '{file_name}'"
@@ -815,15 +794,11 @@ class CodeEditorManager:
     def _format_template_response(
         self, template_doc: dict, include_code: bool = False
     ) -> dict:
-        """Format template document for response"""
-        # Use UUID string ID if exists (Learning System), otherwise ObjectId
-        template_id = template_doc.get("id") or str(template_doc["_id"])
-
+        """Format template document for response (UUID only)"""
         response = {
-            "id": template_id,
+            "id": template_doc["id"],  # UUID only (all templates migrated)
             "title": template_doc["title"],
-            "category": template_doc.get("category")
-            or template_doc.get("topic_id"),  # Support both fields
+            "category": template_doc.get("topic_id"),  # Use topic_id
             "programming_language": template_doc.get("programming_language", "python"),
             "difficulty": template_doc.get("difficulty", "beginner"),
             "description": template_doc.get("description", ""),

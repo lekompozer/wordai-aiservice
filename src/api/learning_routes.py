@@ -944,17 +944,8 @@ async def list_topic_templates(
         db_manager = DBManager()
         db = db_manager.db
 
-        # Build query (support both old and new schema)
-        query = {
-            "$or": [
-                {"topic_id": topic_id},  # New schema
-                {"category": topic_id},  # Old schema
-            ],
-            "$or": [
-                {"is_published": True},  # New schema
-                {"is_active": True},  # Old schema
-            ],
-        }
+        # Build query (NEW schema only)
+        query = {"topic_id": topic_id, "is_published": True}
         if source_type:
             query["source_type"] = source_type.value
         if difficulty:
@@ -969,16 +960,13 @@ async def list_topic_templates(
             db.code_templates.find(query).sort("created_at", -1).skip(skip).limit(limit)
         )
 
-        # Format templates (convert ObjectId to string, normalize fields)
+        # Format templates
         templates = []
         for template in raw_templates:
-            # Use UUID if exists, otherwise ObjectId
-            template_id = template.get("id") or str(template["_id"])
-
             formatted = {
-                "id": template_id,
-                "topic_id": template.get("topic_id") or template.get("category"),
-                "category_id": template.get("category_id") or template.get("category"),
+                "id": template["id"],  # UUID only (all templates migrated)
+                "topic_id": template["topic_id"],
+                "category_id": template.get("category_id", "python"),
                 "title": template.get("title", ""),
                 "programming_language": template.get("programming_language", "python"),
                 "code": template.get("code", ""),
@@ -990,7 +978,7 @@ async def list_topic_templates(
                 "author_name": template.get("author_name", "WordAI Team"),
                 "metadata": template.get("metadata", {}),
                 "like_count": template.get("like_count", 0),
-                "is_published": template.get("is_published") or template.get("is_active", True),
+                "is_published": template.get("is_published", True),
                 "is_featured": template.get("is_featured", False),
                 "created_at": template.get("created_at"),
                 "updated_at": template.get("updated_at"),
@@ -998,7 +986,7 @@ async def list_topic_templates(
 
             # Add comment count
             formatted["comment_count"] = db.learning_comments.count_documents(
-                {"content_type": "template", "content_id": template_id}
+                {"content_type": "template", "content_id": template["id"]}
             )
 
             templates.append(formatted)
