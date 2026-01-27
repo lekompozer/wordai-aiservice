@@ -151,7 +151,6 @@ class LearningTopicResponse(BaseModel):
 class KnowledgeArticleCreate(BaseModel):
     """Create knowledge article request"""
 
-    topic_id: str = Field(..., description="Parent topic ID")
     language: str = Field("vi", description="Content language code (vi/en/ja)")
     title: str = Field(..., min_length=1, max_length=300, description="Article title")
     content: str = Field(..., min_length=1, description="Article content (Markdown)")
