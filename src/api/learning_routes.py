@@ -944,8 +944,17 @@ async def list_topic_templates(
         db_manager = DBManager()
         db = db_manager.db
 
-        # Build query
-        query = {"topic_id": topic_id, "is_published": True}
+        # Build query (support both old and new schema)
+        query = {
+            "$or": [
+                {"topic_id": topic_id},  # New schema
+                {"category": topic_id},  # Old schema
+            ],
+            "$or": [
+                {"is_published": True},  # New schema
+                {"is_active": True},  # Old schema
+            ],
+        }
         if source_type:
             query["source_type"] = source_type.value
         if difficulty:
@@ -956,21 +965,43 @@ async def list_topic_templates(
 
         # Get templates
         skip = (page - 1) * limit
-        templates = list(
-            db.code_templates.find(query, {"_id": 0})
-            .sort("created_at", -1)
-            .skip(skip)
-            .limit(limit)
+        raw_templates = list(
+            db.code_templates.find(query).sort("created_at", -1).skip(skip).limit(limit)
         )
 
-        # Add comment counts
-        for template in templates:
-            template["comment_count"] = db.learning_comments.count_documents(
-                {
-                    "content_type": "template",
-                    "content_id": template.get("id", str(template.get("_id"))),
-                }
+        # Format templates (convert ObjectId to string, normalize fields)
+        templates = []
+        for template in raw_templates:
+            # Use UUID if exists, otherwise ObjectId
+            template_id = template.get("id") or str(template["_id"])
+
+            formatted = {
+                "id": template_id,
+                "topic_id": template.get("topic_id") or template.get("category"),
+                "category_id": template.get("category_id") or template.get("category"),
+                "title": template.get("title", ""),
+                "programming_language": template.get("programming_language", "python"),
+                "code": template.get("code", ""),
+                "description": template.get("description", ""),
+                "difficulty": template.get("difficulty", "beginner"),
+                "tags": template.get("tags", []),
+                "source_type": template.get("source_type", "wordai_team"),
+                "created_by": template.get("created_by", ""),
+                "author_name": template.get("author_name", "WordAI Team"),
+                "metadata": template.get("metadata", {}),
+                "like_count": template.get("like_count", 0),
+                "is_published": template.get("is_published") or template.get("is_active", True),
+                "is_featured": template.get("is_featured", False),
+                "created_at": template.get("created_at"),
+                "updated_at": template.get("updated_at"),
+            }
+
+            # Add comment count
+            formatted["comment_count"] = db.learning_comments.count_documents(
+                {"content_type": "template", "content_id": template_id}
             )
+
+            templates.append(formatted)
 
         return {
             "success": True,
