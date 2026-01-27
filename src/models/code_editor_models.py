@@ -152,7 +152,9 @@ class UpdateFileRequest(BaseModel):
 class UseTemplateRequest(BaseModel):
     """Request to create file from template"""
 
-    file_name: str = Field(..., min_length=1, max_length=255, description="New file name")
+    file_name: str = Field(
+        ..., min_length=1, max_length=255, description="New file name"
+    )
     folder_id: Optional[str] = Field(None, description="Target folder ID")
 
     @validator("file_name")
@@ -508,20 +510,25 @@ class RevokeShareResponse(BaseModel):
     success: bool = True
     message: str
 
+
 # ==================== NOTE MODELS ====================
 
 
 class CreateNoteRequest(BaseModel):
-    \"\"\"Request to create a note for a file\"\"\"
+    """Request to create a note for a file"""
 
-    content: str = Field(..., min_length=1, max_length=5000, description=\"Note content\")
-    color: NoteColor = Field(default=NoteColor.YELLOW, description=\"Note highlight color\")
-    line_number: Optional[int] = Field(None, ge=1, description=\"Line number to attach note to\")
-    is_pinned: bool = Field(default=False, description=\"Pin note to top\")
+    content: str = Field(..., min_length=1, max_length=5000, description="Note content")
+    color: NoteColor = Field(
+        default=NoteColor.YELLOW, description="Note highlight color"
+    )
+    line_number: Optional[int] = Field(
+        None, ge=1, description="Line number to attach note to"
+    )
+    is_pinned: bool = Field(default=False, description="Pin note to top")
 
 
 class UpdateNoteRequest(BaseModel):
-    \"\"\"Request to update a note (all fields optional)\"\"\"
+    """Request to update a note (all fields optional)"""
 
     content: Optional[str] = Field(None, min_length=1, max_length=5000)
     color: Optional[NoteColor] = None
@@ -530,7 +537,7 @@ class UpdateNoteRequest(BaseModel):
 
 
 class NoteResponse(BaseModel):
-    \"\"\"Note response\"\"\"
+    """Note response"""
 
     id: str
     file_id: str
@@ -541,6 +548,7 @@ class NoteResponse(BaseModel):
     is_pinned: bool
     created_at: datetime
     updated_at: datetime
+
 
 # ==================== ANALYTICS MODELS ====================
 
