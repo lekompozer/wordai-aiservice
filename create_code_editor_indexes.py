@@ -210,6 +210,23 @@ def create_code_editor_indexes():
     )
     print("  ✅ user_id + achievement_type (UNIQUE)")
 
+    # ==================== CODE FILE NOTES ====================
+    print("\n📝 Creating code_file_notes indexes...")
+
+    # File's notes (sorted by pinned + created_at)
+    db.code_file_notes.create_index(
+        [("file_id", 1), ("user_id", 1), ("is_pinned", -1), ("created_at", -1)]
+    )
+    print("  ✅ file_id + user_id + is_pinned + created_at")
+
+    # User's notes
+    db.code_file_notes.create_index([("user_id", 1), ("created_at", -1)])
+    print("  ✅ user_id + created_at")
+
+    # Line number search
+    db.code_file_notes.create_index([("file_id", 1), ("line_number", 1)])
+    print("  ✅ file_id + line_number")
+
     print("\n✅ All Code Editor indexes created successfully!")
     print("\n📋 Summary:")
     print("  - code_files: 8 indexes")
@@ -222,7 +239,8 @@ def create_code_editor_indexes():
     print("  - code_shares: 4 indexes")
     print("  - code_analytics: 3 indexes")
     print("  - user_achievements: 3 indexes")
-    print("  Total: 40 indexes\n")
+    print("  - code_file_notes: 3 indexes")
+    print("  Total: 43 indexes\n")
 
 
 if __name__ == "__main__":

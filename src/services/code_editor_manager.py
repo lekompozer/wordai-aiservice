@@ -813,3 +813,166 @@ class CodeEditorManager:
             "description": category_doc.get("description", ""),
             "order": category_doc.get("order", 0),
         }
+
+    # ==================== FILE NOTES ====================
+
+    async def create_note(
+        self,
+        file_id: str,
+        user_id: str,
+        content: str,
+        color: str = "yellow",
+        line_number: Optional[int] = None,
+        is_pinned: bool = False,
+    ) -> dict:
+        """Create a note for a file"""
+        now = datetime.now(timezone.utc)
+
+        # Verify file exists and user owns it
+        file_doc = self.db.code_files.find_one(
+            {"_id": ObjectId(file_id), "user_id": user_id, "deleted_at": None}
+        )
+        if not file_doc:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Create note document
+        note_doc = {
+            "file_id": ObjectId(file_id),
+            "user_id": user_id,
+            "content": content,
+            "color": color,
+            "line_number": line_number,
+            "is_pinned": is_pinned,
+            "created_at": now,
+            "updated_at": now,
+        }
+
+        result = self.db.code_file_notes.insert_one(note_doc)
+        note_doc["_id"] = result.inserted_id
+
+        logger.info(f"✅ Created note for file {file_id}, user {user_id}")
+
+        return {
+            "success": True,
+            "note": self._format_note_response(note_doc),
+        }
+
+    async def get_file_notes(self, file_id: str, user_id: str) -> dict:
+        """Get all notes for a file"""
+        # Verify file exists and user owns it
+        file_doc = self.db.code_files.find_one(
+            {"_id": ObjectId(file_id), "user_id": user_id, "deleted_at": None}
+        )
+        if not file_doc:
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Get notes (pinned first, then by creation date)
+        notes_cursor = self.db.code_file_notes.find(
+            {"file_id": ObjectId(file_id), "user_id": user_id}
+        ).sort([("is_pinned", -1), ("created_at", -1)])
+
+        notes = [self._format_note_response(note) for note in notes_cursor]
+
+        return {
+            "success": True,
+            "notes": notes,
+            "total": len(notes),
+        }
+
+    async def get_note(self, note_id: str, user_id: str) -> dict:
+        """Get a specific note"""
+        note_doc = self.db.code_file_notes.find_one(
+            {"_id": ObjectId(note_id), "user_id": user_id}
+        )
+        if not note_doc:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        return {
+            "success": True,
+            "note": self._format_note_response(note_doc),
+        }
+
+    async def update_note(
+        self,
+        note_id: str,
+        user_id: str,
+        content: Optional[str] = None,
+        color: Optional[str] = None,
+        line_number: Optional[int] = None,
+        is_pinned: Optional[bool] = None,
+    ) -> dict:
+        """Update a note"""
+        # Verify note exists and user owns it
+        note_doc = self.db.code_file_notes.find_one(
+            {"_id": ObjectId(note_id), "user_id": user_id}
+        )
+        if not note_doc:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        # Build update dict
+        update_dict = {"updated_at": datetime.now(timezone.utc)}
+        if content is not None:
+            update_dict["content"] = content
+        if color is not None:
+            update_dict["color"] = color
+        if line_number is not None:
+            update_dict["line_number"] = line_number
+        if is_pinned is not None:
+            update_dict["is_pinned"] = is_pinned
+
+        # Update note
+        self.db.code_file_notes.update_one(
+            {"_id": ObjectId(note_id)}, {"$set": update_dict}
+        )
+
+        # Get updated note
+        updated_note = self.db.code_file_notes.find_one({"_id": ObjectId(note_id)})
+
+        logger.info(f"✅ Updated note {note_id}")
+
+        return {
+            "success": True,
+            "note": self._format_note_response(updated_note),
+        }
+
+    async def delete_note(self, note_id: str, user_id: str) -> dict:
+        """Delete a note"""
+        # Verify note exists and user owns it
+        note_doc = self.db.code_file_notes.find_one(
+            {"_id": ObjectId(note_id), "user_id": user_id}
+        )
+        if not note_doc:
+            raise HTTPException(status_code=404, detail="Note not found")
+
+        # Delete note
+        self.db.code_file_notes.delete_one({"_id": ObjectId(note_id)})
+
+        logger.info(f"✅ Deleted note {note_id}")
+
+        return {
+            "success": True,
+            "message": "Note deleted successfully",
+            "note_id": note_id,
+        }
+
+    def _format_note_response(self, note_doc: dict) -> dict:
+        """Format note document for response"""
+        return {
+            "id": str(note_doc["_id"]),
+            "file_id": str(note_doc["file_id"]),
+            "user_id": note_doc["user_id"],
+            "content": note_doc["content"],
+            "color": note_doc.get("color", "yellow"),
+            "line_number": note_doc.get("line_number"),
+            "is_pinned": note_doc.get("is_pinned", False),
+            "created_at": (
+                note_doc["created_at"].isoformat()
+                if note_doc.get("created_at")
+                else None
+            ),
+            "updated_at": (
+                note_doc["updated_at"].isoformat()
+                if note_doc.get("updated_at")
+                else None
+            ),
+        }

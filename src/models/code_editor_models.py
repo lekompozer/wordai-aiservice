@@ -71,6 +71,18 @@ class ShareAccessLevel(str, Enum):
     CAN_EDIT = "can_edit"
 
 
+class NoteColor(str, Enum):
+    """Note highlight colors"""
+
+    YELLOW = "yellow"
+    GREEN = "green"
+    BLUE = "blue"
+    RED = "red"
+    PURPLE = "purple"
+    ORANGE = "orange"
+    GRAY = "gray"
+
+
 # ==================== FILE MODELS ====================
 
 
@@ -134,6 +146,24 @@ class UpdateFileRequest(BaseModel):
                 raise ValueError(
                     "Invalid file name. Must end with .py, .js, .html, .css, or .sql"
                 )
+        return v
+
+
+class UseTemplateRequest(BaseModel):
+    """Request to create file from template"""
+
+    file_name: str = Field(..., min_length=1, max_length=255, description="New file name")
+    folder_id: Optional[str] = Field(None, description="Target folder ID")
+
+    @validator("file_name")
+    def validate_file_name(cls, v):
+        """Validate file name format"""
+        import re
+
+        if not re.match(r"^[\w\-. ]+\.(py|js|html|css|sql)$", v):
+            raise ValueError(
+                "Invalid file name. Must end with .py, .js, .html, .css, or .sql"
+            )
         return v
 
 
@@ -478,6 +508,39 @@ class RevokeShareResponse(BaseModel):
     success: bool = True
     message: str
 
+# ==================== NOTE MODELS ====================
+
+
+class CreateNoteRequest(BaseModel):
+    \"\"\"Request to create a note for a file\"\"\"
+
+    content: str = Field(..., min_length=1, max_length=5000, description=\"Note content\")
+    color: NoteColor = Field(default=NoteColor.YELLOW, description=\"Note highlight color\")
+    line_number: Optional[int] = Field(None, ge=1, description=\"Line number to attach note to\")
+    is_pinned: bool = Field(default=False, description=\"Pin note to top\")
+
+
+class UpdateNoteRequest(BaseModel):
+    \"\"\"Request to update a note (all fields optional)\"\"\"
+
+    content: Optional[str] = Field(None, min_length=1, max_length=5000)
+    color: Optional[NoteColor] = None
+    line_number: Optional[int] = Field(None, ge=1)
+    is_pinned: Optional[bool] = None
+
+
+class NoteResponse(BaseModel):
+    \"\"\"Note response\"\"\"
+
+    id: str
+    file_id: str
+    user_id: str
+    content: str
+    color: NoteColor
+    line_number: Optional[int] = None
+    is_pinned: bool
+    created_at: datetime
+    updated_at: datetime
 
 # ==================== ANALYTICS MODELS ====================
 

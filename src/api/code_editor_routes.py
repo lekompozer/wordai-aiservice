@@ -12,6 +12,7 @@ from src.services.code_editor_manager import CodeEditorManager
 from src.models.code_editor_models import (
     CreateFileRequest,
     UpdateFileRequest,
+    UseTemplateRequest,
     FileResponse,
     ListFilesResponse,
     DeleteFileResponse,
@@ -21,6 +22,9 @@ from src.models.code_editor_models import (
     FolderResponse,
     ListFoldersResponse,
     DeleteFolderResponse,
+    CreateNoteRequest,
+    UpdateNoteRequest,
+    NoteResponse,
     CodeLanguage,
     FileSortBy,
     SortOrder,
@@ -372,8 +376,7 @@ async def get_template(
 @router.post("/templates/{template_id}/use", response_model=dict)
 async def use_template(
     template_id: str,
-    file_name: str = Query(..., description="New file name"),
-    folder_id: Optional[str] = Query(None, description="Target folder ID"),
+    request: UseTemplateRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -390,8 +393,8 @@ async def use_template(
     result = await manager.use_template(
         template_id=template_id,
         user_id=user_id,
-        file_name=file_name,
-        folder_id=folder_id,
+        file_name=request.file_name,
+        folder_id=request.folder_id,
     )
 
     return result
@@ -421,6 +424,120 @@ async def grade_sql_exercise(
         exercise_id=exercise_id,
         user_id=user_id,
         code=code,
+    )
+
+    return result
+
+
+# ==================== FILE NOTES ====================
+
+
+@router.post("/files/{file_id}/notes", response_model=dict)
+async def create_note(
+    file_id: str,
+    request: CreateNoteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Create a note for a code file
+
+    - **file_id**: Target file ID
+    - **content**: Note content (max 5000 chars)
+    - **color**: Highlight color (default: yellow)
+    - **line_number**: Optional line number to attach note to
+    - **is_pinned**: Pin note to top (default: false)
+    """
+    user_id = current_user["uid"]
+    manager = CodeEditorManager()
+
+    result = await manager.create_note(
+        file_id=file_id,
+        user_id=user_id,
+        content=request.content,
+        color=request.color,
+        line_number=request.line_number,
+        is_pinned=request.is_pinned,
+    )
+
+    return result
+
+
+@router.get("/files/{file_id}/notes", response_model=dict)
+async def get_file_notes(
+    file_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Get all notes for a file
+
+    Returns list of notes sorted by pinned first, then by creation date
+    """
+    user_id = current_user["uid"]
+    manager = CodeEditorManager()
+
+    result = await manager.get_file_notes(
+        file_id=file_id,
+        user_id=user_id,
+    )
+
+    return result
+
+
+@router.get("/notes/{note_id}", response_model=dict)
+async def get_note(
+    note_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Get a specific note by ID"""
+    user_id = current_user["uid"]
+    manager = CodeEditorManager()
+
+    result = await manager.get_note(
+        note_id=note_id,
+        user_id=user_id,
+    )
+
+    return result
+
+
+@router.put("/notes/{note_id}", response_model=dict)
+async def update_note(
+    note_id: str,
+    request: UpdateNoteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Update a note
+
+    All fields optional - only provided fields will be updated
+    """
+    user_id = current_user["uid"]
+    manager = CodeEditorManager()
+
+    result = await manager.update_note(
+        note_id=note_id,
+        user_id=user_id,
+        content=request.content,
+        color=request.color,
+        line_number=request.line_number,
+        is_pinned=request.is_pinned,
+    )
+
+    return result
+
+
+@router.delete("/notes/{note_id}", response_model=dict)
+async def delete_note(
+    note_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a note"""
+    user_id = current_user["uid"]
+    manager = CodeEditorManager()
+
+    result = await manager.delete_note(
+        note_id=note_id,
+        user_id=user_id,
     )
 
     return result
