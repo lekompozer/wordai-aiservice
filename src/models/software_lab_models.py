@@ -178,7 +178,7 @@ class TemplateListItem(BaseModel):
     id: str
     name: str
     description: str
-    thumbnail_url: str
+    thumbnail_url: Optional[str] = None
     category: LabCategory
     difficulty: LabDifficulty
     tags: List[str]
