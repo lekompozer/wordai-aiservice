@@ -93,10 +93,13 @@ class LabFileSave(BaseModel):
 class CreateProjectRequest(BaseModel):
     """Create new project from template"""
 
-    name: str = Field(..., min_length=1, max_length=100)
-    template: str = Field(..., min_length=1, max_length=50)
+    name: str = Field(..., min_length=1, max_length=100, alias="project_name")
+    template: str = Field(..., min_length=1, max_length=50, alias="template_id")
     description: Optional[str] = Field(None, max_length=500)
     tags: Optional[List[str]] = Field(None, max_items=10)
+
+    class Config:
+        populate_by_name = True  # Accept both field name and alias
 
 
 class UpdateProjectRequest(BaseModel):
