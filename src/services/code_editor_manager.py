@@ -795,8 +795,18 @@ class CodeEditorManager:
         self, template_doc: dict, include_code: bool = False
     ) -> dict:
         """Format template document for response (UUID only)"""
+        # Convert id to string (handle both string UUID and Binary UUID)
+        template_id = template_doc["id"]
+        if isinstance(template_id, bytes):
+            # Binary UUID from old migration - convert to string
+            import uuid
+
+            template_id = str(uuid.UUID(bytes=template_id))
+        elif not isinstance(template_id, str):
+            template_id = str(template_id)
+
         response = {
-            "id": template_doc["id"],  # UUID only (all templates migrated)
+            "id": template_id,  # Always string UUID
             "title": template_doc["title"],
             "category": template_doc.get("topic_id"),  # Use topic_id
             "programming_language": template_doc.get("programming_language", "python"),

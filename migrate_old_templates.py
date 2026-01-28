@@ -23,7 +23,7 @@ def migrate_old_templates():
 
     migrated = 0
     for template in old_templates:
-        # Generate UUID
+        # Generate UUID STRING (not Binary)
         template_id = str(uuid.uuid4())
 
         # Extract category_id from category/topic_id pattern
@@ -31,9 +31,9 @@ def migrate_old_templates():
         category = template.get("category", "")
         category_id = category.split("-")[0] if category else "python"
 
-        # Prepare update
+        # Prepare update - ensure id is STRING
         update_fields = {
-            "id": template_id,
+            "id": template_id,  # STRING UUID, not Binary
             "topic_id": category,  # Old `category` becomes `topic_id`
             "category_id": category_id,
             "is_published": template.get("is_active", True),

@@ -963,8 +963,18 @@ async def list_topic_templates(
         # Format templates
         templates = []
         for template in raw_templates:
+            # Convert id to string (handle both string UUID and Binary UUID)
+            template_id = template["id"]
+            if isinstance(template_id, bytes):
+                # Binary UUID from old migration - convert to string
+                import uuid
+
+                template_id = str(uuid.UUID(bytes=template_id))
+            elif not isinstance(template_id, str):
+                template_id = str(template_id)
+
             formatted = {
-                "id": template["id"],  # UUID only (all templates migrated)
+                "id": template_id,  # Always string UUID
                 "topic_id": template["topic_id"],
                 "category_id": template.get("category_id", "python"),
                 "title": template.get("title", ""),
