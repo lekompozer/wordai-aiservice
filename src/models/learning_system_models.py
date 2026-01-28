@@ -114,6 +114,20 @@ class LearningTopicCreate(BaseModel):
         None, description="Grade level (for student topics)"
     )
     order: int = Field(default=0, description="Display order within category")
+    icon: Optional[str] = Field(None, max_length=10, description="Topic icon emoji")
+    color: Optional[str] = Field(None, max_length=20, description="Topic color (hex)")
+    estimated_hours: Optional[int] = Field(
+        None, ge=0, description="Estimated learning hours"
+    )
+    prerequisites: Optional[List[str]] = Field(
+        default_factory=list, description="Required topic IDs"
+    )
+    learning_outcomes: Optional[List[str]] = Field(
+        default_factory=list, description="What students will learn"
+    )
+    metadata: Optional[dict] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
 
 class LearningTopicUpdate(BaseModel):
@@ -124,7 +138,13 @@ class LearningTopicUpdate(BaseModel):
     level: Optional[TopicLevel] = None
     grade: Optional[GradeLevel] = None
     order: Optional[int] = None
-    is_active: Optional[bool] = None
+    icon: Optional[str] = Field(None, max_length=10)
+    color: Optional[str] = Field(None, max_length=20)
+    estimated_hours: Optional[int] = Field(None, ge=0)
+    prerequisites: Optional[List[str]] = None
+    learning_outcomes: Optional[List[str]] = None
+    metadata: Optional[dict] = None
+    is_published: Optional[bool] = None
 
 
 class LearningTopicResponse(BaseModel):

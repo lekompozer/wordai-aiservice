@@ -350,7 +350,13 @@ async def create_topic(
             "level": request.level.value,
             "grade": request.grade.value if request.grade else None,
             "order": request.order,
-            "is_active": True,
+            "icon": request.icon,
+            "color": request.color,
+            "estimated_hours": request.estimated_hours,
+            "prerequisites": request.prerequisites or [],
+            "learning_outcomes": request.learning_outcomes or [],
+            "metadata": request.metadata or {},
+            "is_published": True,  # New topics are published by default
             "created_at": now,
             "updated_at": now,
         }
