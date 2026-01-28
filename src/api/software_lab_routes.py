@@ -1247,8 +1247,7 @@ async def import_project(
 
 @router.post("/admin/templates", response_model=TemplateCreatedResponse)
 async def create_template(
-    request: CreateTemplateRequest,
-    admin_user: dict = Depends(check_admin_access)
+    request: CreateTemplateRequest, admin_user: dict = Depends(check_admin_access)
 ):
     """
     Admin: Create new template
@@ -1261,8 +1260,7 @@ async def create_template(
     existing = db.software_lab_templates.find_one({"id": request.id})
     if existing:
         raise HTTPException(
-            status_code=409,
-            detail=f"Template with ID '{request.id}' already exists"
+            status_code=409, detail=f"Template with ID '{request.id}' already exists"
         )
 
     now = datetime.utcnow()
@@ -1278,7 +1276,7 @@ async def create_template(
         "guide_steps": request.guide_steps,
         "tags": request.tags,
         "created_at": now,
-        "updated_at": now
+        "updated_at": now,
     }
 
     db.software_lab_templates.insert_one(template_doc)
@@ -1295,12 +1293,12 @@ async def create_template(
         thumbnail_url=template_doc.get("thumbnail_url"),
         guide_steps=template_doc["guide_steps"],
         tags=template_doc["tags"],
-        files=[]
+        files=[],
     )
 
     return TemplateCreatedResponse(
         message=f"Template '{request.name}' created successfully",
-        template=template_detail
+        template=template_detail,
     )
 
 
@@ -1308,7 +1306,7 @@ async def create_template(
 async def update_template(
     template_id: str,
     request: UpdateTemplateRequest,
-    admin_user: dict = Depends(check_admin_access)
+    admin_user: dict = Depends(check_admin_access),
 ):
     """
     Admin: Update template metadata
@@ -1320,7 +1318,9 @@ async def update_template(
     # Check if template exists
     template = db.software_lab_templates.find_one({"id": template_id})
     if not template:
-        raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Template '{template_id}' not found"
+        )
 
     # Build update fields
     update_fields = {"updated_at": datetime.utcnow()}
@@ -1345,23 +1345,22 @@ async def update_template(
         update_fields["tags"] = request.tags
 
     # Update template
-    db.software_lab_templates.update_one(
-        {"id": template_id},
-        {"$set": update_fields}
-    )
+    db.software_lab_templates.update_one({"id": template_id}, {"$set": update_fields})
 
     # Get updated template
     updated_template = db.software_lab_templates.find_one({"id": template_id})
 
     # Get template files
-    template_files = list(db.software_lab_template_files.find({"template_id": template_id}))
+    template_files = list(
+        db.software_lab_template_files.find({"template_id": template_id})
+    )
     files_list = [
         TemplateFile(
             path=f["path"],
             name=f["name"],
             type=f["type"],
             language=f["language"],
-            content=f.get("content")
+            content=f.get("content"),
         )
         for f in template_files
     ]
@@ -1377,19 +1376,18 @@ async def update_template(
         thumbnail_url=updated_template.get("thumbnail_url"),
         guide_steps=updated_template["guide_steps"],
         tags=updated_template.get("tags", []),
-        files=files_list
+        files=files_list,
     )
 
     return TemplateCreatedResponse(
         message=f"Template '{template_id}' updated successfully",
-        template=template_detail
+        template=template_detail,
     )
 
 
 @router.delete("/admin/templates/{template_id}")
 async def delete_template(
-    template_id: str,
-    admin_user: dict = Depends(check_admin_access)
+    template_id: str, admin_user: dict = Depends(check_admin_access)
 ):
     """
     Admin: Delete template
@@ -1401,10 +1399,14 @@ async def delete_template(
     # Check if template exists
     template = db.software_lab_templates.find_one({"id": template_id})
     if not template:
-        raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Template '{template_id}' not found"
+        )
 
     # Delete template files first
-    files_result = db.software_lab_template_files.delete_many({"template_id": template_id})
+    files_result = db.software_lab_template_files.delete_many(
+        {"template_id": template_id}
+    )
 
     # Delete template
     db.software_lab_templates.delete_one({"id": template_id})
@@ -1414,11 +1416,13 @@ async def delete_template(
     )
 
 
-@router.post("/admin/templates/{template_id}/files", response_model=TemplateFileCreatedResponse)
+@router.post(
+    "/admin/templates/{template_id}/files", response_model=TemplateFileCreatedResponse
+)
 async def create_template_file(
     template_id: str,
     request: CreateTemplateFileRequest,
-    admin_user: dict = Depends(check_admin_access)
+    admin_user: dict = Depends(check_admin_access),
 ):
     """
     Admin: Add file to template
@@ -1430,17 +1434,18 @@ async def create_template_file(
     # Check if template exists
     template = db.software_lab_templates.find_one({"id": template_id})
     if not template:
-        raise HTTPException(status_code=404, detail=f"Template '{template_id}' not found")
+        raise HTTPException(
+            status_code=404, detail=f"Template '{template_id}' not found"
+        )
 
     # Check if file already exists
-    existing_file = db.software_lab_template_files.find_one({
-        "template_id": template_id,
-        "path": request.path
-    })
+    existing_file = db.software_lab_template_files.find_one(
+        {"template_id": template_id, "path": request.path}
+    )
     if existing_file:
         raise HTTPException(
             status_code=409,
-            detail=f"File '{request.path}' already exists in template '{template_id}'"
+            detail=f"File '{request.path}' already exists in template '{template_id}'",
         )
 
     # Create file
@@ -1455,7 +1460,7 @@ async def create_template_file(
         "type": request.type.value,
         "language": request.language,
         "content": request.content,
-        "created_at": now
+        "created_at": now,
     }
 
     db.software_lab_template_files.insert_one(file_doc)
@@ -1465,21 +1470,24 @@ async def create_template_file(
         name=file_doc["name"],
         type=file_doc["type"],
         language=file_doc["language"],
-        content=file_doc.get("content")
+        content=file_doc.get("content"),
     )
 
     return TemplateFileCreatedResponse(
         message=f"File '{request.path}' added to template '{template_id}'",
-        file=template_file
+        file=template_file,
     )
 
 
-@router.put("/admin/templates/{template_id}/files/{file_id}", response_model=TemplateFileCreatedResponse)
+@router.put(
+    "/admin/templates/{template_id}/files/{file_id}",
+    response_model=TemplateFileCreatedResponse,
+)
 async def update_template_file(
     template_id: str,
     file_id: str,
     request: UpdateTemplateFileRequest,
-    admin_user: dict = Depends(check_admin_access)
+    admin_user: dict = Depends(check_admin_access),
 ):
     """
     Admin: Update template file
@@ -1489,14 +1497,13 @@ async def update_template_file(
     db = db_manager.db
 
     # Check if template file exists
-    template_file = db.software_lab_template_files.find_one({
-        "id": file_id,
-        "template_id": template_id
-    })
+    template_file = db.software_lab_template_files.find_one(
+        {"id": file_id, "template_id": template_id}
+    )
     if not template_file:
         raise HTTPException(
             status_code=404,
-            detail=f"File '{file_id}' not found in template '{template_id}'"
+            detail=f"File '{file_id}' not found in template '{template_id}'",
         )
 
     # Build update fields
@@ -1504,15 +1511,13 @@ async def update_template_file(
 
     if request.path is not None:
         # Check if new path already exists
-        existing = db.software_lab_template_files.find_one({
-            "template_id": template_id,
-            "path": request.path,
-            "id": {"$ne": file_id}
-        })
+        existing = db.software_lab_template_files.find_one(
+            {"template_id": template_id, "path": request.path, "id": {"$ne": file_id}}
+        )
         if existing:
             raise HTTPException(
                 status_code=409,
-                detail=f"File with path '{request.path}' already exists"
+                detail=f"File with path '{request.path}' already exists",
             )
         update_fields["path"] = request.path
 
@@ -1524,10 +1529,7 @@ async def update_template_file(
         update_fields["content"] = request.content
 
     # Update file
-    db.software_lab_template_files.update_one(
-        {"id": file_id},
-        {"$set": update_fields}
-    )
+    db.software_lab_template_files.update_one({"id": file_id}, {"$set": update_fields})
 
     # Get updated file
     updated_file = db.software_lab_template_files.find_one({"id": file_id})
@@ -1537,20 +1539,17 @@ async def update_template_file(
         name=updated_file["name"],
         type=updated_file["type"],
         language=updated_file["language"],
-        content=updated_file.get("content")
+        content=updated_file.get("content"),
     )
 
     return TemplateFileCreatedResponse(
-        message=f"Template file updated successfully",
-        file=template_file_response
+        message=f"Template file updated successfully", file=template_file_response
     )
 
 
 @router.delete("/admin/templates/{template_id}/files/{file_id}")
 async def delete_template_file(
-    template_id: str,
-    file_id: str,
-    admin_user: dict = Depends(check_admin_access)
+    template_id: str, file_id: str, admin_user: dict = Depends(check_admin_access)
 ):
     """
     Admin: Delete template file
@@ -1560,14 +1559,13 @@ async def delete_template_file(
     db = db_manager.db
 
     # Check if template file exists
-    template_file = db.software_lab_template_files.find_one({
-        "id": file_id,
-        "template_id": template_id
-    })
+    template_file = db.software_lab_template_files.find_one(
+        {"id": file_id, "template_id": template_id}
+    )
     if not template_file:
         raise HTTPException(
             status_code=404,
-            detail=f"File '{file_id}' not found in template '{template_id}'"
+            detail=f"File '{file_id}' not found in template '{template_id}'",
         )
 
     # Delete file
@@ -1576,11 +1574,3 @@ async def delete_template_file(
     return SuccessResponse(
         message=f"Template file '{template_file['path']}' deleted successfully"
     )
-            )
-
-    except zipfile.BadZipFile:
-        raise HTTPException(400, "Invalid ZIP file")
-    except KeyError:
-        raise HTTPException(400, "Invalid project ZIP (missing project.json)")
-    except Exception as e:
-        raise HTTPException(500, f"Import failed: {str(e)}")

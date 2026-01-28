@@ -5,11 +5,11 @@ Code files are stored in MongoDB as text.
 """
 
 import io
+import os
 import boto3
 from typing import Optional, BinaryIO
 from pathlib import Path
 import mimetypes
-from config import get_r2_config
 
 
 class SoftwareLabStorage:
@@ -83,18 +83,28 @@ class SoftwareLabStorage:
 
     def __init__(self):
         """Initialize R2 client"""
-        r2_config = get_r2_config()
+        # Get R2 config from environment variables
+        endpoint_url = os.getenv("R2_ENDPOINT")
+        access_key_id = os.getenv("R2_ACCESS_KEY_ID")
+        secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY")
+        bucket_name = os.getenv("R2_BUCKET_NAME", "wordai-documents")
+        
+        # Validate required env vars
+        if not all([endpoint_url, access_key_id, secret_access_key]):
+            raise ValueError(
+                "Missing R2 credentials. Check R2_ENDPOINT, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY"
+            )
 
         self.s3_client = boto3.client(
             "s3",
-            endpoint_url=r2_config["endpoint_url"],
-            aws_access_key_id=r2_config["access_key_id"],
-            aws_secret_access_key=r2_config["secret_access_key"],
+            endpoint_url=endpoint_url,
+            aws_access_key_id=access_key_id,
+            aws_secret_access_key=secret_access_key,
             region_name="auto",
         )
 
-        self.bucket_name = r2_config["bucket_name"]
-        self.public_url = r2_config["public_url"]
+        self.bucket_name = bucket_name
+        self.public_url = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
 
     def should_store_in_r2(self, file_path: str) -> bool:
         """
