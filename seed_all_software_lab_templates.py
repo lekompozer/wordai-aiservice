@@ -31,6 +31,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 60,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Set up the basic HTML structure with number buttons and operators",
                 "Style the calculator with CSS Grid for a clean layout",
@@ -50,6 +51,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 90,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Create the UI with input field and task list container",
                 "Implement task creation and rendering",
@@ -69,6 +71,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 120,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Design the transaction form with income/expense toggle",
                 "Build the transaction list with category filters",
@@ -90,6 +93,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 150,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Create student form with validation (name, ID, grade, major)",
                 "Build student table with edit/delete actions",
@@ -110,6 +114,7 @@ def seed_all_templates():
             "language": "html",
             "estimated_time_minutes": 90,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Build HTML structure with semantic tags (header, main, footer)",
                 "Create hero section with call-to-action button",
@@ -130,6 +135,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 180,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Create blog post structure (title, content, author, date)",
                 "Build post list with category filters",
@@ -151,6 +157,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 120,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Set up canvas and grid system",
                 "Implement snake movement with arrow keys",
@@ -171,6 +178,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 180,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Create canvas game loop with requestAnimationFrame",
                 "Implement bird physics (gravity, jump)",
@@ -191,6 +199,7 @@ def seed_all_templates():
             "language": "javascript",
             "estimated_time_minutes": 90,
             "thumbnail_url": None,
+            "is_active": True,
             "guide_steps": [
                 "Create card grid with HTML/CSS",
                 "Implement card flip animation",
