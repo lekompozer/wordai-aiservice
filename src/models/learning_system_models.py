@@ -20,18 +20,21 @@ class ContentSourceType(str, Enum):
 
 
 class TopicLevel(str, Enum):
-    """Learning level for topics"""
+    """Learning level/difficulty for topics"""
 
-    STUDENT = "student"  # For students (Grade 10, 11, 12)
-    PROFESSIONAL = "professional"  # For real-world practice
+    BEGINNER = "beginner"  # Người mới bắt đầu
+    INTERMEDIATE = "intermediate"  # Trung cấp
+    ADVANCED = "advanced"  # Nâng cao
+    EXPERT = "expert"  # Chuyên gia
+    PRACTICAL = "practical"  # Thực hành/Thực chiến
 
 
 class GradeLevel(str, Enum):
-    """Grade levels for student topics"""
+    """Grade/audience levels"""
 
-    GRADE_10 = "10"
-    GRADE_11 = "11"
-    GRADE_12 = "12"
+    HIGHSCHOOL = "highschool"  # Học sinh THPT (Lớp 10-12)
+    UNIVERSITY = "university"  # Sinh viên đại học
+    PROFESSIONAL = "professional"  # Chuyên nghiệp
 
 
 class ContentDifficulty(str, Enum):
