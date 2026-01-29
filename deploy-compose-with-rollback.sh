@@ -34,9 +34,9 @@ echo "✅ Using Docker Compose command: $DOCKER_COMPOSE_CMD"
 APP_NAME="wordai-aiservice"
 DOCKER_COMPOSE_FILE="docker-compose.yml"
 SERVICE_NAME="ai-chatbot-rag"
-HEALTH_CHECK_DELAY=90 # Seconds to wait before checking health
-MAX_HEALTH_RETRIES=3  # Number of health check attempts
-HEALTH_CHECK_INTERVAL=15 # Seconds between health check retries
+HEALTH_CHECK_DELAY=150 # Seconds to wait before checking health (14 workers need time to load models)
+MAX_HEALTH_RETRIES=5  # Number of health check attempts
+HEALTH_CHECK_INTERVAL=20 # Seconds between health check retries
 DOCKER_HUB_USERNAME="${DOCKER_HUB_USERNAME:-lekompozer}"
 NETWORK_NAME="ai-chatbot-network"
 
