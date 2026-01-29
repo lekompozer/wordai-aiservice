@@ -45,7 +45,7 @@ async def start_generate_code(
     Returns job_id for status polling.
     Cost: 2 points
     """
-    user_id = user["user_id"]
+    user_id = user["uid"]
     points_service = get_points_service()
 
     # Check and deduct points using points_service
@@ -152,7 +152,7 @@ async def start_explain_code(
     Returns annotated code with inline comments.
     Cost: 2 points
     """
-    user_id = user["user_id"]
+    user_id = user["uid"]
     points_service = get_points_service()
 
     # Check and deduct points using points_service
@@ -253,7 +253,7 @@ async def start_transform_code(
     Refactor, optimize, convert, fix, or add features.
     Cost: 2 points
     """
-    user_id = user["user_id"]
+    user_id = user["uid"]
     points_service = get_points_service()
 
     # Check and deduct points using points_service
@@ -355,7 +355,7 @@ async def start_analyze_architecture(
     Generates complete system architecture from requirements.
     Cost: 2 points
     """
-    user_id = user["user_id"]
+    user_id = user["uid"]
     points_service = get_points_service()
 
     # Check and deduct points using points_service
@@ -456,7 +456,7 @@ async def start_scaffold_project(
     Generates complete project structure from architecture.
     Cost: 2 points
     """
-    user_id = user["user_id"]
+    user_id = user["uid"]
     points_service = get_points_service()
 
     # Check and deduct points using points_service
