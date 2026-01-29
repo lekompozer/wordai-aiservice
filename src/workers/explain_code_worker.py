@@ -227,7 +227,9 @@ class ExplainCodeWorker:
                 "tokens_total": tokens["total"],
                 "created_at": datetime.utcnow(),
             }
-            await db.software_lab_ai_interactions.insert_one(interaction)
+            await asyncio.to_thread(
+                db.software_lab_ai_interactions.insert_one, interaction
+            )
 
             # Update job status to completed
             await set_job_status(
