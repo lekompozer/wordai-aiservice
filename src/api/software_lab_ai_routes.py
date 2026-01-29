@@ -121,7 +121,7 @@ async def get_generate_code_status(job_id: str, user: dict = Depends(get_current
         raise HTTPException(status_code=404, detail="Job not found")
 
     # Check ownership
-    if job.get("user_id") != user["user_id"]:
+    if job.get("user_id") != user["uid"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     return GenerateCodeResponse(
@@ -157,7 +157,7 @@ async def start_explain_code(
 
     # Check and deduct points using points_service
     try:
-        await points_service.deduct_points(
+        transaction = await points_service.deduct_points(
             user_id=user_id,
             amount=POINTS_COST_AI_CODE,
             service="ai_code_explain",
@@ -204,7 +204,7 @@ async def start_explain_code(
         job_id=job_id,
         status="pending",
         points_deducted=2,
-        new_balance=balance,
+        new_balance=transaction.balance_after,
     )
 
 
@@ -220,7 +220,7 @@ async def get_explain_code_status(job_id: str, user: dict = Depends(get_current_
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if job.get("user_id") != user["user_id"]:
+    if job.get("user_id") != user["uid"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     return ExplainCodeResponse(
@@ -258,7 +258,7 @@ async def start_transform_code(
 
     # Check and deduct points using points_service
     try:
-        await points_service.deduct_points(
+        transaction = await points_service.deduct_points(
             user_id=user_id,
             amount=POINTS_COST_AI_CODE,
             service="ai_code_transform",
@@ -306,7 +306,7 @@ async def start_transform_code(
         job_id=job_id,
         status="pending",
         points_deducted=2,
-        new_balance=balance,
+        new_balance=transaction.balance_after,
     )
 
 
@@ -324,7 +324,7 @@ async def get_transform_code_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if job.get("user_id") != user["user_id"]:
+    if job.get("user_id") != user["uid"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     return TransformCodeResponse(
@@ -360,7 +360,7 @@ async def start_analyze_architecture(
 
     # Check and deduct points using points_service
     try:
-        await points_service.deduct_points(
+        transaction = await points_service.deduct_points(
             user_id=user_id,
             amount=POINTS_COST_AI_CODE,
             service="ai_architecture_analyze",
@@ -406,7 +406,7 @@ async def start_analyze_architecture(
         job_id=job_id,
         status="pending",
         points_deducted=2,
-        new_balance=balance,
+        new_balance=transaction.balance_after,
     )
 
 
@@ -426,7 +426,7 @@ async def get_analyze_architecture_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if job.get("user_id") != user["user_id"]:
+    if job.get("user_id") != user["uid"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     return AnalyzeArchitectureResponse(
@@ -461,7 +461,7 @@ async def start_scaffold_project(
 
     # Check and deduct points using points_service
     try:
-        await points_service.deduct_points(
+        transaction = await points_service.deduct_points(
             user_id=user_id,
             amount=POINTS_COST_AI_CODE,
             service="ai_scaffold_project",
@@ -508,7 +508,7 @@ async def start_scaffold_project(
         job_id=job_id,
         status="pending",
         points_deducted=2,
-        new_balance=balance,
+        new_balance=transaction.balance_after,
     )
 
 
@@ -526,7 +526,7 @@ async def get_scaffold_project_status(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    if job.get("user_id") != user["user_id"]:
+    if job.get("user_id") != user["uid"]:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     return ScaffoldProjectResponse(
