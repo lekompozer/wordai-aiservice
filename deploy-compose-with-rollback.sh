@@ -184,6 +184,7 @@ echo "🩺 Performing health checks..."
 echo "   Initial delay: ${HEALTH_CHECK_DELAY}s"
 echo "   Max retries: $MAX_HEALTH_RETRIES"
 echo "   Interval: ${HEALTH_CHECK_INTERVAL}s"
+echo "   Checking: Main app + 14 workers"
 
 sleep $HEALTH_CHECK_DELAY
 
@@ -223,9 +224,34 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
 
     # Check HTTP health endpoint
     if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
-        echo "✅ Health endpoint responding"
-        HEALTH_CHECK_PASSED=true
-        break
+        echo "✅ Main app health endpoint responding"
+
+        # Check all workers are running
+        echo "🔍 Checking workers status..."
+        WORKERS=("generate-code-worker" "explain-code-worker" "transform-code-worker" "analyze-architecture-worker" "scaffold-project-worker" "slide-format-worker" "test-generation-worker" "lyria-music-worker" "slide-narration-audio-worker" "slide-narration-subtitle-worker" "slide-generation-worker" "chapter-translation-worker" "video-export-worker" "ai-editor-worker")
+
+        ALL_WORKERS_OK=true
+        for worker in "${WORKERS[@]}"; do
+            if docker ps --format '{{.Names}}' | grep -q "^${worker}$"; then
+                echo "   ✅ $worker"
+            else
+                echo "   ❌ $worker NOT RUNNING"
+                ALL_WORKERS_OK=false
+            fi
+        done
+
+        if [ "$ALL_WORKERS_OK" = true ]; then
+            echo "✅ All 14 workers healthy"
+            HEALTH_CHECK_PASSED=true
+            break
+        else
+            echo "⚠️  Some workers not running, retrying..."
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; then
+                echo "⏳ Waiting ${HEALTH_CHECK_INTERVAL}s before retry..."
+                sleep $HEALTH_CHECK_INTERVAL
+            fi
+        fi
     else
         echo "⚠️  Health endpoint not responding yet"
         RETRY_COUNT=$((RETRY_COUNT + 1))

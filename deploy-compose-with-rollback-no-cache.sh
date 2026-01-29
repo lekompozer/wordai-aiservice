@@ -198,69 +198,13 @@ docker exec mongodb mongosh admin \
 
 echo "✅ MongoDB user check completed"
 
-# --- 5c. RUN E2EE MIGRATION SCRIPT (IF NEEDED) ---
-echo ""
-echo "🔐 Checking E2EE keys migration status..."
-
-# Check if migration is needed (using admin auth for reliability)
-MIGRATION_NEEDED=$(docker exec mongodb mongosh "$MONGODB_NAME" \
-  --username "$MONGODB_ROOT_USERNAME" \
-  --password "$MONGODB_ROOT_PASSWORD" \
-  --authenticationDatabase admin \
-  --quiet \
-  --eval "db.users.countDocuments({publicKey: {\$exists: true}, e2eeKeysMigrated: {\$ne: true}})" 2>/dev/null || echo "0")
-
-if [ "$MIGRATION_NEEDED" -gt 0 ]; then
-    echo "⚠️  Found $MIGRATION_NEEDED users with old E2EE keys (24-word system)"
-    echo "🚀 Running migration to 12-word recovery system..."
-    echo ""
-    echo "📋 Migration will:"
-    echo "   • Create backup of all E2EE keys"
-    echo "   • Clear old keys (24-word system)"
-    echo "   • Mark secret documents as unreadable"
-    echo "   • Set migration flags for tracking"
-    echo ""
-
-    # Run migration script inside container with production environment
-    # Script will auto-confirm in non-interactive mode (no stdin input needed)
-    docker exec -e ENV=production $SERVICE_NAME python3 migrate_to_12_word_recovery.py
-
-    MIGRATION_EXIT_CODE=$?
-
-    if [ $MIGRATION_EXIT_CODE -eq 0 ]; then
-        echo ""
-        echo "✅ E2EE keys migration completed successfully"
-        echo ""
-        echo "📂 Backup files created inside container:"
-        docker exec $SERVICE_NAME ls -lh e2ee_keys_backup_*.json 2>/dev/null || echo "   (No backup files found)"
-        echo ""
-        echo "💡 To retrieve backup files:"
-        echo "   docker cp $SERVICE_NAME:/app/e2ee_keys_backup_production_*.json ./backups/"
-        echo ""
-    else
-        echo ""
-        echo "⚠️  Migration script exited with code: $MIGRATION_EXIT_CODE"
-        echo "   Continuing deployment anyway..."
-        echo ""
-        echo "🔧 Troubleshooting:"
-        echo "   • Check migration logs: docker exec $SERVICE_NAME cat migration_log_*.json"
-        echo "   • Run manually: docker exec -it $SERVICE_NAME python3 migrate_to_12_word_recovery.py"
-        echo "   • Check MongoDB connection from container"
-        echo ""
-    fi
-else
-    echo "✅ No E2EE migration needed"
-    echo "   Reason: No users with old keys found"
-    echo "   • Users already migrated: $(docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_ROOT_USERNAME" --password "$MONGODB_ROOT_PASSWORD" --authenticationDatabase admin --quiet --eval "db.users.countDocuments({e2eeKeysMigrated: true})" 2>/dev/null || echo "N/A")"
-    echo "   • Users with keys: $(docker exec mongodb mongosh "$MONGODB_NAME" --username "$MONGODB_ROOT_USERNAME" --password "$MONGODB_ROOT_PASSWORD" --authenticationDatabase admin --quiet --eval "db.users.countDocuments({publicKey: {\$exists: true}})" 2>/dev/null || echo "N/A")"
-fi
-
 # --- 6. HEALTH CHECK WITH RETRY ---
 echo ""
 echo "🩺 Performing health checks..."
 echo "   Initial delay: ${HEALTH_CHECK_DELAY}s"
 echo "   Max retries: $MAX_HEALTH_RETRIES"
 echo "   Interval: ${HEALTH_CHECK_INTERVAL}s"
+echo "   Checking: Main app + 14 workers"
 
 sleep $HEALTH_CHECK_DELAY
 
@@ -300,9 +244,34 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
 
     # Check HTTP health endpoint
     if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
-        echo "✅ Health endpoint responding"
-        HEALTH_CHECK_PASSED=true
-        break
+        echo "✅ Main app health endpoint responding"
+
+        # Check all workers are running
+        echo "🔍 Checking workers status..."
+        WORKERS=("generate-code-worker" "explain-code-worker" "transform-code-worker" "analyze-architecture-worker" "scaffold-project-worker" "slide-format-worker" "test-generation-worker" "lyria-music-worker" "slide-narration-audio-worker" "slide-narration-subtitle-worker" "slide-generation-worker" "chapter-translation-worker" "video-export-worker" "ai-editor-worker")
+
+        ALL_WORKERS_OK=true
+        for worker in "${WORKERS[@]}"; do
+            if docker ps --format '{{.Names}}' | grep -q "^${worker}$"; then
+                echo "   ✅ $worker"
+            else
+                echo "   ❌ $worker NOT RUNNING"
+                ALL_WORKERS_OK=false
+            fi
+        done
+
+        if [ "$ALL_WORKERS_OK" = true ]; then
+            echo "✅ All 14 workers healthy"
+            HEALTH_CHECK_PASSED=true
+            break
+        else
+            echo "⚠️  Some workers not running, retrying..."
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; then
+                echo "⏳ Waiting ${HEALTH_CHECK_INTERVAL}s before retry..."
+                sleep $HEALTH_CHECK_INTERVAL
+            fi
+        fi
     else
         echo "⚠️  Health endpoint not responding yet"
         RETRY_COUNT=$((RETRY_COUNT + 1))
