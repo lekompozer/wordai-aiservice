@@ -111,36 +111,39 @@ class GeminiAIWorker:
                 await asyncio.sleep(5)
 
     # Import methods from original workers
-    from src.workers.analyze_architecture_worker import AnalyzeArchitectureWorker
-    from src.workers.scaffold_project_worker import ScaffoldProjectWorker
-
-    # Copy _handle_job methods
     async def _handle_architecture_job(self, job: dict):
-        """Handle architecture analysis job (copied from AnalyzeArchitectureWorker)"""
-        # Use original logic
+        """Handle architecture analysis job using original worker logic"""
         from src.workers.analyze_architecture_worker import AnalyzeArchitectureWorker
 
-        temp_worker = AnalyzeArchitectureWorker.__new__(AnalyzeArchitectureWorker)
-        temp_worker.queue_manager = self.architecture_queue
-        temp_worker.vertex_ai = self.vertex_ai
-        temp_worker.points_service = self.points_service
-        temp_worker.db_manager = self.db_manager
-        temp_worker.worker_id = self.worker_id
+        # Create instance with same config
+        arch_worker = AnalyzeArchitectureWorker(
+            worker_id=self.worker_id, redis_url=self.redis_url
+        )
+        # Replace queue manager with our architecture queue
+        arch_worker.queue_manager = self.architecture_queue
+        arch_worker.vertex_ai = self.vertex_ai
+        arch_worker.points_service = self.points_service
+        arch_worker.db_manager = self.db_manager
 
-        await temp_worker._handle_job(job)
+        # Process task
+        await arch_worker._process_task(job)
 
     async def _handle_scaffold_job(self, job: dict):
-        """Handle scaffolding job (copied from ScaffoldProjectWorker)"""
+        """Handle scaffolding job using original worker logic"""
         from src.workers.scaffold_project_worker import ScaffoldProjectWorker
 
-        temp_worker = ScaffoldProjectWorker.__new__(ScaffoldProjectWorker)
-        temp_worker.queue_manager = self.scaffold_queue
-        temp_worker.vertex_ai = self.vertex_ai
-        temp_worker.points_service = self.points_service
-        temp_worker.db_manager = self.db_manager
-        temp_worker.worker_id = self.worker_id
+        # Create instance with same config
+        scaffold_worker = ScaffoldProjectWorker(
+            worker_id=self.worker_id, redis_url=self.redis_url
+        )
+        # Replace queue manager with our scaffold queue
+        scaffold_worker.queue_manager = self.scaffold_queue
+        scaffold_worker.vertex_ai = self.vertex_ai
+        scaffold_worker.points_service = self.points_service
+        scaffold_worker.db_manager = self.db_manager
 
-        await temp_worker._handle_job(job)
+        # Process task
+        await scaffold_worker._process_task(job)
 
     async def stop(self):
         """Stop worker gracefully"""
@@ -157,18 +160,23 @@ def signal_handler(signum, frame):
     raise KeyboardInterrupt
 
 
+async def main():
+    """Main async entry point"""
+    worker = GeminiAIWorker()
+
+    try:
+        await worker.initialize()
+        await worker.start()
+    except KeyboardInterrupt:
+        logger.info("⚠️  Shutdown signal received")
+        await worker.stop()
+    except Exception as e:
+        logger.error(f"❌ Worker fatal error: {e}", exc_info=True)
+        await worker.stop()
+
+
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
 
-    worker = GeminiAIWorker()
-
-    try:
-        asyncio.run(worker.initialize())
-        asyncio.run(worker.start())
-    except KeyboardInterrupt:
-        logger.info("⚠️  Shutdown signal received")
-        asyncio.run(worker.stop())
-    except Exception as e:
-        logger.error(f"❌ Worker fatal error: {e}", exc_info=True)
-        asyncio.run(worker.stop())
+    asyncio.run(main())
