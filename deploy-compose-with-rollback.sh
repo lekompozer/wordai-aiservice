@@ -184,7 +184,7 @@ echo "🩺 Performing health checks..."
 echo "   Initial delay: ${HEALTH_CHECK_DELAY}s"
 echo "   Max retries: $MAX_HEALTH_RETRIES"
 echo "   Interval: ${HEALTH_CHECK_INTERVAL}s"
-echo "   Checking: Main app + 14 workers"
+echo "   Checking: Main app + 13 workers"
 
 sleep $HEALTH_CHECK_DELAY
 
@@ -228,7 +228,7 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
 
         # Check all workers are running
         echo "🔍 Checking workers status..."
-        WORKERS=("generate-code-worker" "explain-code-worker" "transform-code-worker" "analyze-architecture-worker" "scaffold-project-worker" "slide-format-worker" "test-generation-worker" "lyria-music-worker" "slide-narration-audio-worker" "slide-narration-subtitle-worker" "slide-generation-worker" "chapter-translation-worker" "video-export-worker" "ai-editor-worker")
+        WORKERS=("generate-code-worker" "explain-code-worker" "transform-code-worker" "gemini-ai-worker" "slide-format-worker" "test-generation-worker" "lyria-music-worker" "slide-narration-audio-worker" "slide-narration-subtitle-worker" "slide-generation-worker" "chapter-translation-worker" "video-export-worker" "ai-editor-worker")
 
         ALL_WORKERS_OK=true
         for worker in "${WORKERS[@]}"; do

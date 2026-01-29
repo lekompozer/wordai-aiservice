@@ -543,53 +543,13 @@ services:
       retries: 3
       start_period: 10s
 
-  # Analyze Architecture Worker - Generates system diagrams & docs
-  analyze-architecture-worker:
-    container_name: analyze-architecture-worker
+  # Gemini AI Worker - Combined Architecture Analysis + Project Scaffolding (using Gemini 3 Pro)
+  gemini-ai-worker:
+    container_name: gemini-ai-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     env_file:
       - .env
-    command: python -m src.workers.analyze_architecture_worker
-    volumes:
-      - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
-      - VERTEX_AI_REGION=asia-southeast1
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 2G
-          cpus: "1"
-    healthcheck:
-      test: [ "CMD", "python", "-c", "import sys; sys.exit(0)" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-
-  # Scaffold Project Worker - Generates complete project structure
-  scaffold-project-worker:
-    container_name: scaffold-project-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    env_file:
-      - .env
-    command: python -m src.workers.scaffold_project_worker
+    command: python -m src.workers.gemini_ai_worker
     volumes:
       - ./logs:/app/logs
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
