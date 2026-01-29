@@ -7,8 +7,6 @@ import os
 import logging
 import json
 from typing import Dict, Any, Optional, List
-import vertexai
-from vertexai.generative_models import GenerativeModel, GenerationConfig
 from anthropic import AnthropicVertex
 
 logger = logging.getLogger("chatbot")
@@ -22,16 +20,13 @@ class VertexAIService:
         self.project_id = os.getenv("GCP_PROJECT_ID", "wordai-6779e")
         self.location = os.getenv("GCP_REGION", "asia-southeast1")
 
-        # Initialize Vertex AI
-        vertexai.init(project=self.project_id, location=self.location)
-
         # Model configurations
         self.claude_model_name = "claude-sonnet-4-5@20250929"
         self.gemini_model_name = "gemini-3-pro-preview"
 
         # Initialize clients
         self._init_claude_client()
-        self._init_gemini_model()
+        self._init_gemini_client()
 
         logger.info(f"✅ Vertex AI Service initialized")
         logger.info(f"   📍 Project: {self.project_id}, Region: {self.location}")
@@ -49,14 +44,20 @@ class VertexAIService:
             logger.error(f"❌ Failed to initialize Claude client: {e}")
             self.claude_client = None
 
-    def _init_gemini_model(self):
-        """Initialize Gemini model"""
+    def _init_gemini_client(self):
+        """Initialize Gemini client using google-genai"""
         try:
-            self.gemini_model = GenerativeModel(self.gemini_model_name)
-            logger.info(f"✅ Gemini 3 Pro model initialized")
+            from google import genai
+
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise ValueError("GEMINI_API_KEY not found in environment")
+
+            self.gemini_client = genai.Client(api_key=api_key)
+            logger.info(f"✅ Gemini 3 Pro client initialized")
         except Exception as e:
-            logger.error(f"❌ Failed to initialize Gemini model: {e}")
-            self.gemini_model = None
+            logger.error(f"❌ Failed to initialize Gemini client: {e}")
+            self.gemini_client = None
 
     # ========================================================================
     # Claude 4.5 Sonnet Methods (for Generate, Explain, Transform)
@@ -144,7 +145,7 @@ class VertexAIService:
         response_schema: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Call Gemini 3 Pro via Vertex AI
+        Call Gemini 3 Pro using google-genai client
 
         Args:
             prompt: Combined system + user prompt
@@ -163,27 +164,33 @@ class VertexAIService:
                 "model": str
             }
         """
-        if not self.gemini_model:
-            raise Exception("Gemini model not initialized")
+        if not self.gemini_client:
+            raise Exception("Gemini client not initialized")
 
         try:
+            from google.genai import types as genai_types
+
             logger.info(f"🤖 Calling Gemini 3 Pro...")
             logger.info(f"   📊 Max tokens: {max_tokens}, Temperature: {temperature}")
 
-            # Generation config
-            generation_config = GenerationConfig(
-                max_output_tokens=max_tokens,
-                temperature=temperature,
-            )
+            # Build generation config
+            config_params = {
+                "max_output_tokens": max_tokens,
+                "temperature": temperature,
+            }
 
             # Add response schema if provided (for structured output)
             if response_schema:
-                generation_config.response_mime_type = "application/json"
-                generation_config.response_schema = response_schema
+                config_params["response_mime_type"] = "application/json"
+                config_params["response_schema"] = response_schema
+
+            generation_config = genai_types.GenerateContentConfig(**config_params)
 
             # Call Gemini
-            response = self.gemini_model.generate_content(
-                prompt, generation_config=generation_config
+            response = self.gemini_client.models.generate_content(
+                model=self.gemini_model_name,
+                contents=prompt,
+                config=generation_config,
             )
 
             # Extract response
@@ -198,11 +205,23 @@ class VertexAIService:
                         "⚠️ Failed to parse Gemini JSON response, returning as string"
                     )
 
-            # Token usage (Gemini provides this in metadata)
+            # Token usage
             tokens = {
-                "input": response.usage_metadata.prompt_token_count,
-                "output": response.usage_metadata.candidates_token_count,
-                "total": response.usage_metadata.total_token_count,
+                "input": (
+                    response.usage_metadata.prompt_token_count
+                    if response.usage_metadata
+                    else 0
+                ),
+                "output": (
+                    response.usage_metadata.candidates_token_count
+                    if response.usage_metadata
+                    else 0
+                ),
+                "total": (
+                    response.usage_metadata.total_token_count
+                    if response.usage_metadata
+                    else 0
+                ),
             }
 
             logger.info(f"✅ Gemini response received")
