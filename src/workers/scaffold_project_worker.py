@@ -128,8 +128,9 @@ class ScaffoldProjectWorker:
             db = self.db_manager.db
 
             # Get architecture
-            architecture = await db.software_lab_architectures.find_one(
-                {"architecture_id": architecture_id}
+            architecture = await asyncio.to_thread(
+                db.software_lab_architectures.find_one,
+                {"architecture_id": architecture_id},
             )
             if not architecture:
                 raise Exception(f"Architecture {architecture_id} not found")
@@ -194,10 +195,11 @@ class ScaffoldProjectWorker:
                     }
 
                     # Insert or update
-                    await db.software_lab_files.update_one(
+                    await asyncio.to_thread(
+                        db.software_lab_files.update_one,
                         {"project_id": project_id, "path": file_path},
                         {"$set": file_record},
-                        upsert=True,
+                        True,  # upsert
                     )
 
                     files_created.append(
@@ -215,7 +217,8 @@ class ScaffoldProjectWorker:
                 )
 
             # Update architecture record
-            await db.software_lab_architectures.update_one(
+            await asyncio.to_thread(
+                db.software_lab_architectures.update_one,
                 {"architecture_id": architecture_id},
                 {
                     "$set": {

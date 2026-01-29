@@ -168,16 +168,18 @@ class ExplainCodeWorker:
                 started_at=datetime.utcnow().isoformat(),
             )
 
-            # Get file from MongoDB
+            # Get file from MongoDB (sync call wrapped in async)
             db = self.db_manager.db
-            file = await db.software_lab_files.find_one({"file_id": file_id})
+            file = await asyncio.to_thread(
+                db.software_lab_files.find_one, {"file_id": file_id}
+            )
 
             if not file:
                 raise Exception(f"File {file_id} not found")
 
-            # Get architecture if exists
-            architecture = await db.software_lab_architectures.find_one(
-                {"project_id": project_id}
+            # Get architecture if exists (sync call wrapped in async)
+            architecture = await asyncio.to_thread(
+                db.software_lab_architectures.find_one, {"project_id": project_id}
             )
 
             # Get code to explain

@@ -164,7 +164,9 @@ class AnalyzeArchitectureWorker:
                 "created_at": datetime.utcnow(),
                 "updated_at": datetime.utcnow(),
             }
-            await db.software_lab_architectures.insert_one(architecture_record)
+            await asyncio.to_thread(
+                db.software_lab_architectures.insert_one, architecture_record
+            )
 
             # Update job status
             await set_job_status(

@@ -125,7 +125,9 @@ class TransformCodeWorker:
             )
 
             db = self.db_manager.db
-            file = await db.software_lab_files.find_one({"file_id": file_id})
+            file = await asyncio.to_thread(
+                db.software_lab_files.find_one, {"file_id": file_id}
+            )
             if not file:
                 raise Exception(f"File {file_id} not found")
 
@@ -192,7 +194,9 @@ Transform this code: {instruction}
                 "tokens_total": tokens["total"],
                 "created_at": datetime.utcnow(),
             }
-            await db.software_lab_ai_interactions.insert_one(interaction)
+            await asyncio.to_thread(
+                db.software_lab_ai_interactions.insert_one, interaction
+            )
 
             await set_job_status(
                 redis_client=self.queue_manager.redis_client,

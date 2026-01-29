@@ -168,10 +168,10 @@ class GenerateCodeWorker:
                 started_at=datetime.utcnow().isoformat(),
             )
 
-            # Get project and files from MongoDB
+            # Get project and files from MongoDB (sync calls wrapped in async)
             db = self.db_manager.db
-            project = await db.software_lab_projects.find_one(
-                {"project_id": project_id}
+            project = await asyncio.to_thread(
+                db.software_lab_projects.find_one, {"project_id": project_id}
             )
 
             if not project:
@@ -181,19 +181,17 @@ class GenerateCodeWorker:
             context_files = []
             if job.get("context_file_ids"):
                 file_ids = job["context_file_ids"]
-                files = await db.software_lab_files.find(
-                    {"file_id": {"$in": file_ids}}
-                ).to_list(length=None)
+                cursor = db.software_lab_files.find({"file_id": {"$in": file_ids}})
+                files = await asyncio.to_thread(list, cursor)
                 context_files = files
             elif job.get("include_all_files"):
-                files = await db.software_lab_files.find(
-                    {"project_id": project_id}
-                ).to_list(length=None)
+                cursor = db.software_lab_files.find({"project_id": project_id})
+                files = await asyncio.to_thread(list, cursor)
                 context_files = files
 
             # Get architecture if exists
-            architecture = await db.software_lab_architectures.find_one(
-                {"project_id": project_id}
+            architecture = await asyncio.to_thread(
+                db.software_lab_architectures.find_one, {"project_id": project_id}
             )
 
             # Build prompts
@@ -235,7 +233,9 @@ class GenerateCodeWorker:
                 "tokens_total": tokens["total"],
                 "created_at": datetime.utcnow(),
             }
-            await db.software_lab_ai_interactions.insert_one(interaction)
+            await asyncio.to_thread(
+                db.software_lab_ai_interactions.insert_one, interaction
+            )
 
             # Update job status to completed
             await set_job_status(
