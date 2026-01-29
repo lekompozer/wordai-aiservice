@@ -98,13 +98,14 @@ class VertexAIService:
             logger.info(f"🤖 Calling Claude 4.5 Sonnet...")
             logger.info(f"   📊 Max tokens: {max_tokens}, Temperature: {temperature}")
 
-            # Call Claude via Vertex AI
+            # Call Claude via Vertex AI (with extended timeout for long operations)
             response = self.claude_client.messages.create(
                 model=self.claude_model_name,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 system=system_prompt,
                 messages=[{"role": "user", "content": user_prompt}],
+                timeout=600.0,  # 10 minutes timeout
             )
 
             # Extract response

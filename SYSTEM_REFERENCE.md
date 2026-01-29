@@ -3388,7 +3388,157 @@ curl http://localhost:8000/health
 
 ---
 
-## 📞 Key Commands Cheat Sheet
+## � Software Lab - Database Schema
+
+### Collections
+
+**software_lab_projects**
+- Primary key: `project_id` (string, format: `proj_{12-char-hex}`)
+- Schema:
+```javascript
+{
+  project_id: "proj_abc123def456",
+  user_id: "firebase_uid",
+  name: "Project Name",
+  template: "template_id",
+  description: "Project description",
+  tags: ["tag1", "tag2"],
+  is_public: false,
+  file_count: 3,
+  total_lines: 150,
+  languages: ["javascript", "html", "css"],
+  created_at: ISODate(),
+  updated_at: ISODate()
+}
+```
+
+**software_lab_files**
+- Primary key: `file_id` (string, format: `file_{12-char-hex}`)
+- Schema:
+```javascript
+{
+  file_id: "file_abc123def456",
+  project_id: "proj_abc123def456",
+  path: "src/index.js",
+  content: "// Code content stored in MongoDB",
+  url: null,  // R2 URL for binary files
+  language: "javascript",
+  type: "file",  // or "folder"
+  size_bytes: 1234,
+  created_at: ISODate(),
+  updated_at: ISODate()
+}
+```
+
+**software_lab_templates**
+- Primary key: `id` (string, templates use "id" not "template_id")
+- Schema:
+```javascript
+{
+  id: "snake_game",
+  name: "Snake Game",
+  description: "Classic snake game template",
+  icon: "🐍",
+  category: "game",
+  tags: ["game", "javascript"],
+  file_count: 3,
+  total_lines: 250,
+  languages: ["javascript", "html", "css"],
+  preview_url: "https://...",
+  difficulty: "beginner",
+  is_featured: true,
+  created_at: ISODate(),
+  updated_at: ISODate()
+}
+```
+
+**software_lab_template_files**
+- Schema:
+```javascript
+{
+  id: "file_template_123",  // Template files use "id"
+  template_id: "snake_game",
+  path: "index.html",
+  content: "<!DOCTYPE html>...",
+  language: "html",
+  type: "file",
+  created_at: ISODate()
+}
+```
+
+**software_lab_progress**
+- Tracks user progress through template guides
+- Schema:
+```javascript
+{
+  id: "progress_abc123",
+  user_id: "firebase_uid",
+  project_id: "proj_abc123def456",
+  template_id: "snake_game",
+  completed_steps: 2,
+  total_steps: 5,
+  time_spent_seconds: 1200,
+  last_accessed_at: ISODate(),
+  created_at: ISODate()
+}
+```
+
+### Critical Pattern: Field Naming
+
+**⚠️ IMPORTANT:** API routes and workers use different field names:
+
+**Projects:**
+- Database field: `project_id`
+- API response field: `id` (mapped in Pydantic models)
+- Workers query: `{"project_id": project_id}`
+
+**Files:**
+- Database field: `file_id`
+- API response field: `id` (mapped in Pydantic models)
+- Workers query: `{"file_id": file_id}`
+
+**Templates (Exception):**
+- Database field: `id` (templates keep "id")
+- API response field: `id`
+- Query: `{"id": template_id}`
+
+**Example Queries:**
+
+```javascript
+// Find project
+db.software_lab_projects.findOne({project_id: "proj_abc123"})
+
+// Find files in project
+db.software_lab_files.find({project_id: "proj_abc123"})
+
+// Find specific file
+db.software_lab_files.findOne({file_id: "file_abc123", project_id: "proj_abc123"})
+
+// Find template
+db.software_lab_templates.findOne({id: "snake_game"})
+
+// Find template files
+db.software_lab_template_files.find({template_id: "snake_game"})
+
+// Delete project and all files
+db.software_lab_files.deleteMany({project_id: "proj_abc123"})
+db.software_lab_progress.deleteMany({project_id: "proj_abc123"})
+db.software_lab_projects.deleteOne({project_id: "proj_abc123"})
+```
+
+**Common Mistakes:**
+- ❌ `db.software_lab_projects.findOne({id: project_id})` → Returns null
+- ✅ `db.software_lab_projects.findOne({project_id: project_id})` → Correct
+
+- ❌ `db.software_lab_files.findOne({id: file_id})` → Returns null
+- ✅ `db.software_lab_files.findOne({file_id: file_id})` → Correct
+
+- ❌ `db.software_lab_templates.findOne({template_id: "snake_game"})` → Returns null
+- ✅ `db.software_lab_templates.findOne({id: "snake_game"})` → Correct
+
+---
+
+## �📞 Key Commands Cheat Sheet
 
 ```bash
 # Quick health check
