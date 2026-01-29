@@ -72,10 +72,13 @@ class LabFile(BaseModel):
 class LabFileCreate(BaseModel):
     """Create new file in project"""
 
-    path: str = Field(..., min_length=1, max_length=500)
+    path: str = Field(..., min_length=1, max_length=500, alias="file_path")
     type: FileType = FileType.FILE
     content: Optional[str] = None  # For text files
     language: Optional[str] = None  # Auto-detect if not provided
+
+    class Config:
+        populate_by_name = True  # Accept both 'path' and 'file_path'
 
 
 class LabFileSave(BaseModel):

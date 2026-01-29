@@ -88,7 +88,7 @@ class SoftwareLabStorage:
         access_key_id = os.getenv("R2_ACCESS_KEY_ID")
         secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY")
         bucket_name = os.getenv("R2_BUCKET_NAME", "wordai-documents")
-        
+
         # Validate required env vars
         if not all([endpoint_url, access_key_id, secret_access_key]):
             raise ValueError(
