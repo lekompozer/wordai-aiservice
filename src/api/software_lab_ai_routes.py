@@ -65,9 +65,6 @@ async def start_generate_code(
                 detail=f"Insufficient points. Required: {POINTS_COST_AI_CODE}, Available: {balance['points_remaining']}",
             )
         raise HTTPException(status_code=500, detail=str(e))
-                "current_balance": balance,
-            },
-        )
 
     # Create job
     job_id = f"gen_{uuid.uuid4().hex[:12]}"
