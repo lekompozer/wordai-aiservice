@@ -123,7 +123,7 @@ async def create_project(
     now = datetime.utcnow()
 
     project_doc = {
-        "id": project_id,
+        "project_id": project_id,  # Changed from "id" to match workers
         "user_id": current_user["uid"],
         "name": request.name,
         "template": request.template,
@@ -152,7 +152,7 @@ async def create_project(
         file_id = f"file_{uuid4().hex[:12]}"
 
         file_doc = {
-            "id": file_id,
+            "file_id": file_id,  # Changed from "id" to match workers
             "project_id": project_id,
             "path": template_file["path"],
             "content": template_file["content"],  # Code stored in MongoDB
@@ -185,7 +185,7 @@ async def create_project(
 
     # 4. Update project metadata
     db.software_lab_projects.update_one(
-        {"id": project_id},
+        {"project_id": project_id},
         {
             "$set": {
                 "file_count": len(files_result),
@@ -272,7 +272,7 @@ async def list_projects(
     for project in projects_cursor:
         projects.append(
             ProjectListItem(
-                id=project["id"],
+                id=project["project_id"],
                 name=project["name"],
                 template=project["template"],
                 description=project.get("description", ""),
@@ -300,7 +300,7 @@ async def get_project(project_id: str, current_user: dict = Depends(get_current_
 
     # Get project
     project = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not project:
@@ -316,7 +316,7 @@ async def get_project(project_id: str, current_user: dict = Depends(get_current_
     for file_doc in files_cursor:
         files_result.append(
             LabFile(
-                id=file_doc["id"],
+                id=file_doc["file_id"],
                 path=file_doc["path"],
                 content=file_doc.get("content"),  # Code files
                 url=file_doc.get("url"),  # Binary files
@@ -333,7 +333,7 @@ async def get_project(project_id: str, current_user: dict = Depends(get_current_
         languages.add(file_doc["language"])
 
     return ProjectDetail(
-        id=project["id"],
+        id=project["project_id"],
         name=project["name"],
         template=project["template"],
         description=project.get("description", ""),
@@ -363,7 +363,7 @@ async def update_project(
 
     # Verify ownership
     project = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not project:
@@ -382,13 +382,15 @@ async def update_project(
         update_fields["thumbnail_url"] = request.thumbnail_url
 
     # Update
-    db.software_lab_projects.update_one({"id": project_id}, {"$set": update_fields})
+    db.software_lab_projects.update_one(
+        {"project_id": project_id}, {"$set": update_fields}
+    )
 
     # Get updated project
-    updated = db.software_lab_projects.find_one({"id": project_id})
+    updated = db.software_lab_projects.find_one({"project_id": project_id})
 
     return {
-        "id": updated["id"],
+        "id": updated["project_id"],
         "name": updated["name"],
         "description": updated.get("description", ""),
         "updated_at": updated["updated_at"].isoformat(),
@@ -409,7 +411,7 @@ async def delete_project(
 
     # Verify ownership
     project = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not project:
@@ -422,7 +424,7 @@ async def delete_project(
     db.software_lab_files.delete_many({"project_id": project_id})
     db.software_lab_snapshots.delete_many({"project_id": project_id})
     db.software_lab_progress.delete_many({"project_id": project_id})
-    db.software_lab_projects.delete_one({"id": project_id})
+    db.software_lab_projects.delete_one({"project_id": project_id})
 
     return SuccessResponse(
         success=True, message=f"Project '{project['name']}' deleted successfully"
@@ -443,7 +445,7 @@ async def clone_project(
 
     # Get original project
     original = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not original:
@@ -455,7 +457,7 @@ async def clone_project(
     now = datetime.utcnow()
 
     new_project_doc = {
-        "id": new_project_id,
+        "project_id": new_project_id,
         "user_id": current_user["uid"],
         "name": new_name,
         "template": original["template"],
@@ -480,7 +482,7 @@ async def clone_project(
         new_file_id = f"file_{uuid4().hex[:12]}"
 
         new_file_doc = {
-            "id": new_file_id,
+            "file_id": new_file_id,
             "project_id": new_project_id,
             "path": file_doc["path"],
             "content": file_doc.get("content"),
@@ -670,7 +672,7 @@ async def get_file_tree(
     for file_doc in files_cursor:
         files.append(
             LabFile(
-                id=file_doc["id"],
+                id=file_doc["file_id"],
                 path=file_doc["path"],
                 content=None,  # Not included
                 url=file_doc.get("url"),
@@ -698,20 +700,22 @@ async def get_file_content(
 
     # Verify project ownership
     project = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not project:
         raise HTTPException(404, "Project not found")
 
     # Get file
-    file_doc = db.software_lab_files.find_one({"id": file_id, "project_id": project_id})
+    file_doc = db.software_lab_files.find_one(
+        {"file_id": file_id, "project_id": project_id}
+    )
 
     if not file_doc:
         raise HTTPException(404, "File not found")
 
     return FileContentResponse(
-        id=file_doc["id"],
+        id=file_doc["file_id"],
         path=file_doc["path"],
         content=file_doc.get("content"),  # Code files
         url=file_doc.get("url"),  # Binary files
@@ -736,7 +740,7 @@ async def create_file(
 
     # Verify ownership
     project = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not project:
@@ -759,7 +763,7 @@ async def create_file(
     now = datetime.utcnow()
 
     file_doc = {
-        "id": file_id,
+        "file_id": file_id,
         "project_id": project_id,
         "path": request.path,
         "content": content if request.type == FileType.FILE else None,
@@ -775,7 +779,8 @@ async def create_file(
 
     # Update project
     db.software_lab_projects.update_one(
-        {"id": project_id}, {"$set": {"updated_at": now}, "$inc": {"file_count": 1}}
+        {"project_id": project_id},
+        {"$set": {"updated_at": now}, "$inc": {"file_count": 1}},
     )
 
     return CreateFileResponse(
@@ -808,14 +813,16 @@ async def save_file(
 
     # Verify ownership
     project = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not project:
         raise HTTPException(404, "Project not found")
 
     # Get file
-    file_doc = db.software_lab_files.find_one({"id": file_id, "project_id": project_id})
+    file_doc = db.software_lab_files.find_one(
+        {"file_id": file_id, "project_id": project_id}
+    )
 
     if not file_doc:
         raise HTTPException(404, "File not found")
@@ -834,7 +841,7 @@ async def save_file(
     now = datetime.utcnow()
 
     db.software_lab_files.update_one(
-        {"id": file_id},
+        {"file_id": file_id},
         {
             "$set": {
                 "content": request.content,
@@ -846,7 +853,7 @@ async def save_file(
 
     # Update project timestamp
     db.software_lab_projects.update_one(
-        {"id": project_id}, {"$set": {"updated_at": now}}
+        {"project_id": project_id}, {"$set": {"updated_at": now}}
     )
 
     return SaveFileResponse(
@@ -870,14 +877,16 @@ async def delete_file(
 
     # Verify ownership
     project = db.software_lab_projects.find_one(
-        {"id": project_id, "user_id": current_user["uid"]}
+        {"project_id": project_id, "user_id": current_user["uid"]}
     )
 
     if not project:
         raise HTTPException(404, "Project not found")
 
     # Get file
-    file_doc = db.software_lab_files.find_one({"id": file_id, "project_id": project_id})
+    file_doc = db.software_lab_files.find_one(
+        {"file_id": file_id, "project_id": project_id}
+    )
 
     if not file_doc:
         raise HTTPException(404, "File not found")
@@ -907,12 +916,12 @@ async def delete_file(
         deleted_count = result.deleted_count
 
     # Delete the file/folder itself
-    db.software_lab_files.delete_one({"id": file_id})
+    db.software_lab_files.delete_one({"file_id": file_id})
     deleted_count += 1
 
     # Update project file count
     db.software_lab_projects.update_one(
-        {"id": project_id},
+        {"project_id": project_id},
         {
             "$inc": {"file_count": -deleted_count},
             "$set": {"updated_at": datetime.utcnow()},
