@@ -1931,7 +1931,9 @@ async def update_page_background(
 )
 async def upload_images_for_chapter(
     book_id: str,
-    file: List[UploadFile] = File(..., description="Image file(s) to upload - can be single or multiple"),
+    file: List[UploadFile] = File(
+        ..., description="Image file(s) to upload - can be single or multiple"
+    ),
     chapter_id: Optional[str] = None,
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -1942,7 +1944,7 @@ async def upload_images_for_chapter(
 
     try:
         user_id = current_user["uid"]
-        
+
         # Support both single file and multiple files
         files = file if isinstance(file, list) else [file]
 
