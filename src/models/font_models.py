@@ -14,6 +14,7 @@ class FontFormat(str, Enum):
     """Supported font formats"""
 
     TTF = "ttf"
+    OTF = "otf"
     WOFF = "woff"
     WOFF2 = "woff2"
 

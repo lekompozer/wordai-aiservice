@@ -35,16 +35,18 @@ class FontUploadService:
     # Allowed MIME types
     ALLOWED_MIME_TYPES = {
         "font/ttf": FontFormat.TTF,
+        "font/otf": FontFormat.OTF,
         "font/woff": FontFormat.WOFF,
         "font/woff2": FontFormat.WOFF2,
         "application/x-font-ttf": FontFormat.TTF,
+        "application/x-font-otf": FontFormat.OTF,
         "application/x-font-woff": FontFormat.WOFF,
         "application/font-woff": FontFormat.WOFF,
         "application/font-woff2": FontFormat.WOFF2,
     }
 
     # Allowed file extensions
-    ALLOWED_EXTENSIONS = {".ttf", ".woff", ".woff2"}
+    ALLOWED_EXTENSIONS = {".ttf", ".otf", ".woff", ".woff2"}
 
     def __init__(self):
         """Initialize font upload service"""
@@ -123,6 +125,7 @@ class FontUploadService:
         # Determine format from extension
         format_map = {
             ".ttf": FontFormat.TTF,
+            ".otf": FontFormat.OTF,
             ".woff": FontFormat.WOFF,
             ".woff2": FontFormat.WOFF2,
         }

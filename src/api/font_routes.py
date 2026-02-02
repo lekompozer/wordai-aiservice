@@ -26,6 +26,99 @@ from src.models.font_models import (
     FontFaceResponse,
 )
 
+# System default fonts (Google Fonts + Apple San Francisco Pro)
+SYSTEM_DEFAULT_FONTS = [
+    # Sans-serif fonts
+    {
+        "font_name": "San Francisco Pro",
+        "font_family": "sans-serif",
+        "description": "Apple's system font - clean and modern",
+        "google_fonts_family": None,  # Not on Google Fonts (system font)
+        "is_system": True,
+        "css_family": "-apple-system, BlinkMacSystemFont, 'San Francisco', 'SF Pro Display', 'SF Pro Text'",
+    },
+    {
+        "font_name": "Inter",
+        "font_family": "sans-serif",
+        "description": "Modern and highly legible sans-serif",
+        "google_fonts_family": "Inter",
+        "is_system": False,
+    },
+    {
+        "font_name": "Roboto",
+        "font_family": "sans-serif",
+        "description": "Google's signature sans-serif font",
+        "google_fonts_family": "Roboto",
+        "is_system": False,
+    },
+    {
+        "font_name": "Open Sans",
+        "font_family": "sans-serif",
+        "description": "Clean and friendly sans-serif",
+        "google_fonts_family": "Open+Sans",
+        "is_system": False,
+    },
+    {
+        "font_name": "Lato",
+        "font_family": "sans-serif",
+        "description": "Warm and stable sans-serif",
+        "google_fonts_family": "Lato",
+        "is_system": False,
+    },
+    # Serif fonts
+    {
+        "font_name": "Merriweather",
+        "font_family": "serif",
+        "description": "Classic serif designed for screens",
+        "google_fonts_family": "Merriweather",
+        "is_system": False,
+    },
+    {
+        "font_name": "Lora",
+        "font_family": "serif",
+        "description": "Elegant and readable serif",
+        "google_fonts_family": "Lora",
+        "is_system": False,
+    },
+    {
+        "font_name": "Playfair Display",
+        "font_family": "serif",
+        "description": "High-contrast serif for titles",
+        "google_fonts_family": "Playfair+Display",
+        "is_system": False,
+    },
+    # Monospace fonts
+    {
+        "font_name": "Roboto Mono",
+        "font_family": "monospace",
+        "description": "Google's monospace font",
+        "google_fonts_family": "Roboto+Mono",
+        "is_system": False,
+    },
+    {
+        "font_name": "Source Code Pro",
+        "font_family": "monospace",
+        "description": "Adobe's coding font",
+        "google_fonts_family": "Source+Code+Pro",
+        "is_system": False,
+    },
+    # Vietnamese fonts
+    {
+        "font_name": "Noto Sans",
+        "font_family": "sans-serif",
+        "description": "Google's font with excellent Vietnamese support",
+        "google_fonts_family": "Noto+Sans",
+        "is_system": False,
+    },
+    {
+        "font_name": "Noto Serif",
+        "font_family": "serif",
+        "description": "Serif variant with Vietnamese support",
+        "google_fonts_family": "Noto+Serif",
+        "is_system": False,
+    },
+]
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/fonts", tags=["fonts"])
@@ -46,7 +139,7 @@ def get_font_service() -> FontUploadService:
 async def upload_font(
     file: UploadFile = File(
         ...,
-        description="Font file (TTF/WOFF/WOFF2, max 5MB)",
+        description="Font file (TTF/OTF/WOFF/WOFF2, max 5MB)",
     ),
     font_name: str = Form(
         ...,
@@ -70,7 +163,7 @@ async def upload_font(
     Upload a custom font for use in documents.
 
     **Requirements:**
-    - File format: TTF, WOFF, or WOFF2
+    - File format: TTF, OTF, WOFF, or WOFF2
     - Maximum file size: 5MB
     - Font name must be unique for the user
 
@@ -143,6 +236,33 @@ async def list_fonts(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list fonts: {str(e)}",
         )
+
+
+@router.get(
+    "/system-defaults",
+    summary="Get system default fonts",
+    description="Get list of built-in system fonts (Google Fonts + Apple San Francisco Pro)",
+)
+async def get_system_default_fonts():
+    """
+    Get list of system default fonts available without upload.
+    
+    **Returns:**
+    - List of default fonts including:
+      - San Francisco Pro (Apple system font)
+      - Google Fonts (Inter, Roboto, etc.)
+      - Vietnamese-optimized fonts (Noto Sans/Serif)
+    
+    **Usage:**
+    - Use `google_fonts_family` to construct Google Fonts CDN URL
+    - Use `css_family` for direct CSS font-family value
+    - System fonts (is_system=true) work on Apple devices without loading
+    """
+    return {
+        "fonts": SYSTEM_DEFAULT_FONTS,
+        "total": len(SYSTEM_DEFAULT_FONTS),
+        "google_fonts_base_url": "https://fonts.googleapis.com/css2?family=",
+    }
 
 
 @router.delete(
