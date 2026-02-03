@@ -25,6 +25,14 @@ router.post(
     asyncHandler(paymentController.createPointsPurchase)
 );
 
+// Create book purchase - REQUIRES AUTHENTICATION
+router.post(
+    '/checkout/books',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    validateBody(schemas.bookPurchase),
+    asyncHandler(paymentController.createBookPurchase)
+);
+
 // Get payment status
 router.get(
     '/status/:order_invoice_number',

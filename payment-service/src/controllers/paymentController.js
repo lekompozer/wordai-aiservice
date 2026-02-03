@@ -383,9 +383,99 @@ async function createPointsPurchase(req, res) {
     }
 }
 
+/**
+ * Create Book Purchase Checkout
+ * REQUIRES AUTHENTICATION - user_id extracted from Firebase token
+ */
+async function createBookPurchase(req, res) {
+    // Get authenticated user from Firebase token
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const user_id = authenticatedUser.uid;
+    const user_email = authenticatedUser.email;
+    const user_name = authenticatedUser.name || authenticatedUser.email?.split('@')[0];
+
+    const { order_id } = req.body;
+
+    if (!order_id || !order_id.startsWith('BOOK-')) {
+        throw new AppError('Invalid book order ID', 400);
+    }
+
+    try {
+        const db = getDb();
+        const bookOrdersCollection = db.collection('book_cash_orders');
+
+        // Get order from book_cash_orders
+        const order = await bookOrdersCollection.findOne({ order_id });
+
+        if (!order) {
+            throw new AppError('Order not found', 404);
+        }
+
+        // Verify order belongs to authenticated user
+        if (order.user_id !== user_id) {
+            throw new AppError('Unauthorized - Order does not belong to you', 403);
+        }
+
+        // Check order status
+        if (order.status !== 'pending') {
+            throw new AppError(`Order already ${order.status}`, 400);
+        }
+
+        // Check expiry
+        if (order.expires_at && new Date(order.expires_at) < new Date()) {
+            throw new AppError('Order expired', 400);
+        }
+
+        logger.info(`Creating book checkout: ${order_id} - Book: ${order.book_id}, Amount: ${order.price_vnd} VND`);
+
+        // Prepare form fields for SePay checkout
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: order.price_vnd.toString(),
+            currency: 'VND',
+            order_invoice_number: order_id,  // Use BOOK-xxx format for webhook detection
+            order_description: `Mua sách: ${order.book_id} (${order.purchase_type})`,
+            customer_id: user_id,
+            success_url: `https://wordai.pro/payment/success`,
+            error_url: `https://wordai.pro/payment/error`,
+            cancel_url: `https://wordai.pro/payment/cancel`,
+        };
+
+        // Generate signature
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
+
+        logger.info(`✅ Generated book checkout: ${order_id}`);
+
+        // Return form fields for frontend
+        res.status(201).json({
+            success: true,
+            data: {
+                order_id: order_id,
+                book_id: order.book_id,
+                purchase_type: order.purchase_type,
+                checkout_url: config.sepay.checkoutUrl,
+                form_fields: formFields,
+                amount: order.price_vnd,
+                payment_type: 'book_purchase',
+            },
+        });
+    } catch (error) {
+        logger.error(`Book purchase checkout error: ${error.message}`);
+        throw error;
+    }
+}
+
 module.exports = {
     createCheckout,
     createPointsPurchase,
+    createBookPurchase,
     getPaymentStatus,
     getUserPayments,
 };

@@ -39,6 +39,11 @@ const schemas = {
         points: Joi.string().valid('50', '100', '200').required(),
     }),
 
+    // Book purchase request
+    bookPurchase: Joi.object({
+        order_id: Joi.string().pattern(/^BOOK-/).required(),
+    }),
+
     // Webhook payload (basic validation, SePay signature will be verified separately)
     webhook: Joi.object().unknown(true),
 };
