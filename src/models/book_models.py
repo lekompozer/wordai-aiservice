@@ -624,7 +624,7 @@ class PurchaseType(str, Enum):
     """Types of book purchases"""
 
     ONE_TIME = "one_time"  # One-time view access
-    FOREVER = "forever"  # Permanent view access
+    FOREVER = "lifetime"  # Permanent view access
     PDF_DOWNLOAD = "pdf_download"  # PDF download
 
 
