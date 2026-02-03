@@ -246,13 +246,13 @@ async def list_fonts(
 async def get_system_default_fonts():
     """
     Get list of system default fonts available without upload.
-    
+
     **Returns:**
     - List of default fonts including:
       - San Francisco Pro (Apple system font)
       - Google Fonts (Inter, Roboto, etc.)
       - Vietnamese-optimized fonts (Noto Sans/Serif)
-    
+
     **Usage:**
     - Use `google_fonts_family` to construct Google Fonts CDN URL
     - Use `css_family` for direct CSS font-family value

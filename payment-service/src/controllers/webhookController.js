@@ -57,10 +57,17 @@ async function handleWebhook(req, res) {
 
         logger.info(`Processing IPN: ${notification_type} for order ${order_invoice_number}`);
 
-        // Get payment from database
+        // Get database
         const db = getDb();
-        const paymentsCollection = db.collection('payments');
 
+        // Check if this is a book order (format: BOOK-{timestamp}-{user_short})
+        if (order_invoice_number.startsWith('BOOK-')) {
+            logger.info(`📚 Detected book order: ${order_invoice_number}`);
+            return await handleBookOrderWebhook(db, payload, res);
+        }
+
+        // Regular payment (subscription or points)
+        const paymentsCollection = db.collection('payments');
         const payment = await paymentsCollection.findOne({ order_invoice_number });
 
         if (!payment) {
@@ -267,6 +274,141 @@ async function handleWebhook(req, res) {
         return res.status(200).json({
             success: false,
             error: error.message,
+        });
+    }
+}
+
+/**
+ * Handle book order webhook (for QR payments)
+ * Book orders have format: BOOK-{timestamp}-{user_short}
+ */
+async function handleBookOrderWebhook(db, payload, res) {
+    try {
+        const { notification_type, order, transaction } = payload;
+        const order_id = order.order_invoice_number;
+
+        logger.info(`📚 Processing book order webhook: ${order_id}`);
+
+        // Get book order
+        const bookOrdersCollection = db.collection('book_cash_orders');
+        const bookOrder = await bookOrdersCollection.findOne({ order_id });
+
+        if (!bookOrder) {
+            logger.error(`Book order not found: ${order_id}`);
+            return res.status(200).json({
+                success: false,
+                error: 'Book order not found'
+            });
+        }
+
+        // Check if already completed
+        if (bookOrder.status === 'completed' && bookOrder.access_granted) {
+            logger.info(`Book order already completed: ${order_id}`);
+            return res.status(200).json({
+                success: true,
+                message: 'Already processed'
+            });
+        }
+
+        // Handle ORDER_PAID notification
+        if (notification_type === 'ORDER_PAID') {
+            logger.info(`💰 Book order paid: ${order_id}`);
+
+            // Update order to completed
+            await bookOrdersCollection.updateOne(
+                { order_id },
+                {
+                    $set: {
+                        status: 'completed',
+                        transaction_id: transaction?.transaction_id || null,
+                        paid_at: new Date(),
+                        webhook_payload: payload,
+                        updated_at: new Date()
+                    }
+                }
+            );
+
+            logger.info(`✅ Book order marked as completed: ${order_id}`);
+
+            // Call Python service to grant access
+            try {
+                logger.info(`🔓 Calling Python service to grant access...`);
+
+                const grantResponse = await axios.post(
+                    `${config.pythonService.url}/api/v1/books/grant-access-from-order`,
+                    { order_id },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Service-Secret': config.security.apiSecretKey
+                        },
+                        timeout: config.pythonService.timeout
+                    }
+                );
+
+                logger.info(`🎉 Access granted successfully: ${JSON.stringify(grantResponse.data)}`);
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'Book order processed and access granted',
+                    data: grantResponse.data
+                });
+
+            } catch (error) {
+                logger.error(`❌ Failed to grant access: ${error.message}`);
+
+                if (error.response) {
+                    logger.error(`Python service error: ${JSON.stringify(error.response.data)}`);
+                }
+
+                // Update order with error
+                await bookOrdersCollection.updateOne(
+                    { order_id },
+                    {
+                        $set: {
+                            access_granted: false,
+                            grant_error: error.message,
+                            grant_error_details: error.response?.data || null,
+                            updated_at: new Date()
+                        }
+                    }
+                );
+
+                // Still return success to SePay (we can retry granting access manually)
+                return res.status(200).json({
+                    success: true,
+                    message: 'Book order completed, access grant pending retry'
+                });
+            }
+
+        } else {
+            // Other notification types
+            logger.info(`ℹ️  Book order notification: ${notification_type}`);
+
+            await bookOrdersCollection.updateOne(
+                { order_id },
+                {
+                    $set: {
+                        webhook_payload: payload,
+                        webhook_received_at: new Date(),
+                        updated_at: new Date()
+                    }
+                }
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Book order webhook received'
+            });
+        }
+
+    } catch (error) {
+        logger.error(`❌ Book order webhook error: ${error.message}`);
+
+        // Always return 200 to prevent SePay retries
+        return res.status(200).json({
+            success: false,
+            error: error.message
         });
     }
 }

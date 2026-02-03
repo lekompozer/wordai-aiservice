@@ -249,6 +249,9 @@ from src.api.test_cover_ai_routes import router as test_cover_ai_router
 # ✅ ADDED: Test Evaluation AI - AI-powered evaluation of test results
 from src.api.test_evaluation_routes import router as test_evaluation_router
 
+# ✅ ADDED: Book Payment API - QR payment system for book purchases (Phase 1)
+from src.api.book_payment_routes import router as book_payment_router
+
 # ✅ ADDED: Book Background API - AI-powered A4 backgrounds for books and chapters
 from src.api.book_background_routes import router as book_background_router
 from src.api.book_background_routes import (
@@ -1199,6 +1202,13 @@ def create_app() -> FastAPI:
     app.include_router(
         test_evaluation_router,
         tags=["AI Test Evaluation", "Feedback"],
+    )
+
+    # ✅ NEW: Book Payment API - QR payment system (Phase 1: QR Payment)
+    # Contains routes for QR order creation, status check, access granting
+    app.include_router(
+        book_payment_router,
+        tags=["Book Payment", "QR Payment", "VietQR"],
     )
 
     # ✅ NEW: Book Background API - AI-powered A4 backgrounds for books and chapters
