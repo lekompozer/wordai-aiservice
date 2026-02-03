@@ -579,7 +579,7 @@ async def purchase_book(
                 {
                     "user_id": user_id,
                     "book_id": book_id,
-                    "purchase_type": PurchaseType.FOREVER,
+                    "purchase_type": PurchaseType.FOREVER.value,
                 }
             )
             if existing_purchase:
@@ -644,8 +644,9 @@ async def purchase_book(
             "purchase_id": purchase_id,
             "user_id": user_id,
             "book_id": book_id,
-            "purchase_type": purchase_type,
+            "purchase_type": purchase_type.value,
             "points_spent": points_cost,
+            "payment_method": "POINTS",
             "access_expires_at": access_expires_at,
             "purchased_at": purchase_time,
         }
@@ -799,7 +800,7 @@ async def check_book_access(
                 {
                     "user_id": user_id,
                     "book_id": book_id,
-                    "purchase_type": PurchaseType.FOREVER,
+                    "purchase_type": PurchaseType.FOREVER.value,
                 }
             )
 
@@ -809,7 +810,7 @@ async def check_book_access(
                     {
                         "user_id": user_id,
                         "book_id": book_id,
-                        "purchase_type": PurchaseType.PDF_DOWNLOAD,
+                        "purchase_type": PurchaseType.PDF_DOWNLOAD.value,
                     }
                 )
 
@@ -831,7 +832,7 @@ async def check_book_access(
                 {
                     "user_id": user_id,
                     "book_id": book_id,
-                    "purchase_type": PurchaseType.ONE_TIME,
+                    "purchase_type": PurchaseType.ONE_TIME.value,
                 }
             )
 
