@@ -312,6 +312,10 @@ class ChapterCreate(BaseModel):
         default=False,
         description="Allow free preview on Community Books (no purchase required)",
     )
+    summary: Optional[Dict[str, str]] = Field(
+        None,
+        description="Multi-language chapter summary: {lang_code: summary_text} (e.g., {'en': '...', 'vi': '...'})",
+    )
 
     # Content fields (for inline chapters)
     content_source: Optional[str] = Field(
@@ -350,6 +354,10 @@ class ChapterUpdate(BaseModel):
     is_published: Optional[bool] = None
     is_preview_free: Optional[bool] = Field(
         None, description="Allow free preview on Community Books"
+    )
+    summary: Optional[Dict[str, str]] = Field(
+        None,
+        description="Multi-language chapter summary: {lang_code: summary_text} (e.g., {'en': '...', 'vi': '...'})",
     )
 
 
@@ -455,6 +463,10 @@ class ChapterResponse(BaseModel):
     is_published: bool
     is_preview_free: bool = Field(
         default=False, description="Free preview on Community Books"
+    )
+    summary: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Multi-language chapter summary: {lang_code: summary_text}",
     )
 
     # Background Configuration (NEW)
@@ -565,6 +577,17 @@ class TogglePreviewRequest(BaseModel):
 
     is_preview_free: bool = Field(
         description="Set to true to allow free preview on Community Books"
+    )
+
+
+class ChapterSummaryUpdate(BaseModel):
+    """Request to update chapter summary for a specific language"""
+
+    language: str = Field(
+        ..., min_length=2, max_length=5, description="Language code (e.g., 'en', 'vi')"
+    )
+    summary: str = Field(
+        ..., min_length=1, max_length=1000, description="Summary text for the chapter"
     )
 
 

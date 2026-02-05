@@ -33,6 +33,7 @@ from src.models.book_chapter_models import (
     ChapterReorderBulk,
     ChapterBulkUpdate,
     TogglePreviewRequest,
+    ChapterSummaryUpdate,
     # Phase 2: Multi-format content
     ChapterCreatePDFPages,
     ChapterCreateImagePages,
@@ -360,6 +361,22 @@ async def get_chapter_tree(
                             "description", chapter.get("description")
                         )
 
+                    # Translate summary if available
+                    chapter_summary = chapter.get("summary", {})
+                    if (
+                        isinstance(chapter_summary, dict)
+                        and language in chapter_summary
+                    ):
+                        chapter["current_summary"] = chapter_summary[language]
+                    elif (
+                        isinstance(chapter_summary, dict)
+                        and default_language in chapter_summary
+                    ):
+                        # Fallback to default language summary
+                        chapter["current_summary"] = chapter_summary[default_language]
+                    else:
+                        chapter["current_summary"] = None
+
                     # Recursively translate children
                     if "children" in chapter and chapter["children"]:
                         chapter["children"] = translate_chapters_recursive(
@@ -370,6 +387,26 @@ async def get_chapter_tree(
                 return translated_list
 
             chapters = translate_chapters_recursive(chapters)
+        else:
+            # No language specified, use default language summary if available
+            def add_current_summary(chapter_list):
+                """Add current_summary field based on default language"""
+                for chapter in chapter_list:
+                    chapter_summary = chapter.get("summary", {})
+                    if (
+                        isinstance(chapter_summary, dict)
+                        and default_language in chapter_summary
+                    ):
+                        chapter["current_summary"] = chapter_summary[default_language]
+                    else:
+                        chapter["current_summary"] = None
+
+                    # Recursively add to children
+                    if "children" in chapter and chapter["children"]:
+                        add_current_summary(chapter["children"])
+                return chapter_list
+
+            chapters = add_current_summary(chapters)
 
         # Count total chapters
         total = chapter_manager.count_chapters(book_id)
@@ -780,6 +817,210 @@ async def toggle_chapter_preview(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to toggle chapter preview",
+        )
+
+
+@router.put(
+    "/{book_id}/chapters/{chapter_id}/summary",
+    response_model=ChapterResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Update chapter summary (multi-language)",
+)
+async def update_chapter_summary(
+    book_id: str,
+    chapter_id: str,
+    summary_data: ChapterSummaryUpdate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Update Chapter Summary for Specific Language**
+
+    Allows book owner to add/update chapter summary for preview page.
+    Supports multi-language summaries (stored as {lang_code: summary_text}).
+
+    **Authentication:** Required (Owner only)
+
+    **Use Cases:**
+    - Add Vietnamese summary for chapter preview
+    - Add English summary for international readers
+    - Update existing summary text
+
+    **Path Parameters:**
+    - `book_id`: Book ID
+    - `chapter_id`: Chapter ID
+
+    **Request Body:**
+    - `language`: Language code (e.g., 'en', 'vi', 'zh')
+    - `summary`: Summary text (1-1000 characters)
+
+    **Returns:**
+    - 200: Updated chapter with new summary
+    - 403: User is not book owner
+    - 404: Book or chapter not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        if book["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only book owner can update chapter summary",
+            )
+
+        # Verify chapter belongs to book
+        chapter = chapter_manager.get_chapter(chapter_id)
+
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chapter not found",
+            )
+
+        if chapter["book_id"] != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chapter does not belong to this book",
+            )
+
+        # Get existing summary dict or create new one
+        existing_summary = chapter.get("summary", {})
+
+        # Update summary for the specified language
+        existing_summary[summary_data.language] = summary_data.summary
+
+        # Update chapter with new summary dict
+        update_data = ChapterUpdate(summary=existing_summary)
+        updated_chapter = chapter_manager.update_chapter(chapter_id, update_data)
+
+        if not updated_chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Failed to update chapter summary",
+            )
+
+        logger.info(
+            f"📝 User {user_id} updated summary for chapter {chapter_id} (lang: {summary_data.language})"
+        )
+
+        return updated_chapter
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to update chapter summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update chapter summary",
+        )
+
+
+@router.delete(
+    "/{book_id}/chapters/{chapter_id}/summary/{language}",
+    response_model=ChapterResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Delete chapter summary for specific language",
+)
+async def delete_chapter_summary(
+    book_id: str,
+    chapter_id: str,
+    language: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Delete Chapter Summary for Specific Language**
+
+    Removes summary text for a specific language from chapter.
+
+    **Authentication:** Required (Owner only)
+
+    **Path Parameters:**
+    - `book_id`: Book ID
+    - `chapter_id`: Chapter ID
+    - `language`: Language code to remove (e.g., 'en', 'vi')
+
+    **Returns:**
+    - 200: Updated chapter without the specified summary
+    - 403: User is not book owner
+    - 404: Book, chapter, or summary not found
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Verify book ownership
+        book = book_manager.get_book(book_id)
+
+        if not book:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Book not found",
+            )
+
+        if book["user_id"] != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only book owner can delete chapter summary",
+            )
+
+        # Verify chapter belongs to book
+        chapter = chapter_manager.get_chapter(chapter_id)
+
+        if not chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Chapter not found",
+            )
+
+        if chapter["book_id"] != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Chapter does not belong to this book",
+            )
+
+        # Get existing summary dict
+        existing_summary = chapter.get("summary", {})
+
+        # Check if language exists
+        if language not in existing_summary:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Summary for language '{language}' not found",
+            )
+
+        # Remove summary for the specified language
+        del existing_summary[language]
+
+        # Update chapter with modified summary dict
+        update_data = ChapterUpdate(summary=existing_summary)
+        updated_chapter = chapter_manager.update_chapter(chapter_id, update_data)
+
+        if not updated_chapter:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Failed to delete chapter summary",
+            )
+
+        logger.info(
+            f"🗑️ User {user_id} deleted summary for chapter {chapter_id} (lang: {language})"
+        )
+
+        return updated_chapter
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to delete chapter summary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete chapter summary",
         )
 
 
