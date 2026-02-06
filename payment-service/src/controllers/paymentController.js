@@ -150,9 +150,9 @@ async function createCheckout(req, res) {
             order_invoice_number: orderInvoiceNumber,
             order_description: `WordAI ${plan.toUpperCase()} - ${durationMonths} tháng`,
             customer_id: user_id,
-            success_url: `https://wordai.pro/payment/success`,
-            error_url: `https://wordai.pro/payment/error`,
-            cancel_url: `https://wordai.pro/payment/cancel`,
+            success_url: `https://wordai.pro/usage`,
+            error_url: `https://wordai.pro/usage`,
+            cancel_url: `https://wordai.pro/usage`,
         };
 
         // Generate signature
@@ -354,9 +354,9 @@ async function createPointsPurchase(req, res) {
             order_invoice_number: orderInvoiceNumber,
             order_description: `Mua ${points} điểm WordAI`,
             customer_id: user_id,
-            success_url: `https://wordai.pro/payment/success`,
-            error_url: `https://wordai.pro/payment/error`,
-            cancel_url: `https://wordai.pro/payment/cancel`,
+            success_url: `https://wordai.pro/usage`,
+            error_url: `https://wordai.pro/usage`,
+            cancel_url: `https://wordai.pro/usage`,
         };
 
         // Generate signature
