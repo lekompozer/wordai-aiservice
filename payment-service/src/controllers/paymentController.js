@@ -399,7 +399,7 @@ async function createBookPurchase(req, res) {
     const user_email = authenticatedUser.email;
     const user_name = authenticatedUser.name || authenticatedUser.email?.split('@')[0];
 
-    const { order_id } = req.body;
+    const { order_id, return_url } = req.body;
 
     if (!order_id || !order_id.startsWith('BOOK-')) {
         throw new AppError('Invalid book order ID', 400);
@@ -433,6 +433,11 @@ async function createBookPurchase(req, res) {
 
         logger.info(`Creating book checkout: ${order_id} - Book: ${order.book_id}, Amount: ${order.price_vnd} VND`);
 
+        // Use provided return_url or default to payment result pages
+        const defaultSuccessUrl = `https://wordai.pro/payment/success`;
+        const defaultErrorUrl = `https://wordai.pro/payment/error`;
+        const defaultCancelUrl = `https://wordai.pro/payment/cancel`;
+
         // Prepare form fields for SePay checkout
         const formFields = {
             merchant: config.sepay.merchantId,
@@ -443,9 +448,9 @@ async function createBookPurchase(req, res) {
             order_invoice_number: order_id,  // Use BOOK-xxx format for webhook detection
             order_description: `Mua sách: ${order.book_id} (${order.purchase_type})`,
             customer_id: user_id,
-            success_url: `https://wordai.pro/payment/success`,
-            error_url: `https://wordai.pro/payment/error`,
-            cancel_url: `https://wordai.pro/payment/cancel`,
+            success_url: return_url || defaultSuccessUrl,
+            error_url: return_url || defaultErrorUrl,
+            cancel_url: return_url || defaultCancelUrl,
         };
 
         // Generate signature

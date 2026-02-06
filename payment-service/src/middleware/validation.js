@@ -42,6 +42,7 @@ const schemas = {
     // Book purchase request
     bookPurchase: Joi.object({
         order_id: Joi.string().pattern(/^BOOK-/).required(),
+        return_url: Joi.string().uri().optional(), // Optional return URL for redirect after payment
     }),
 
     // Webhook payload (basic validation, SePay signature will be verified separately)
