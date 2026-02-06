@@ -502,9 +502,21 @@ async def get_chapter(
                 detail="Authentication required for this book",
             )
 
+        # Get chapter first to check is_preview_free
+        chapter = chapter_manager.get_chapter(chapter_id)
+
+        if not chapter or chapter.get("book_id") != book_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Chapter not found in book {book_id}",
+            )
+
+        # Check if chapter is preview-free (public preview)
+        is_preview_free = chapter.get("is_preview_free", False)
+
         # Determine access level
         is_owner = False
-        has_access = is_public
+        has_access = is_public or is_preview_free  # Allow access if book is public OR chapter is preview-free
 
         if current_user:
             user_id = current_user["uid"]
@@ -512,7 +524,8 @@ async def get_chapter(
 
             if is_owner:
                 has_access = True
-            elif not is_public:
+            elif not is_public and not is_preview_free:
+                # Private book and not preview chapter - check purchase/permission
                 has_permission = permission_manager.check_permission(
                     book_id=book_id, user_id=user_id
                 )
@@ -521,16 +534,7 @@ async def get_chapter(
         if not has_access:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="You don't have access to this book",
-            )
-
-        # Get chapter (inline mode: content in chapter, document mode: load from document)
-        chapter = chapter_manager.get_chapter(chapter_id)
-
-        if not chapter or chapter.get("book_id") != book_id:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Chapter not found in book {book_id}",
+                detail="You don't have access to this chapter. Purchase the book or check if it's a free preview.",
             )
 
         # If content_source='document', load content from document
