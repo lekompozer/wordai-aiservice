@@ -469,7 +469,9 @@ class GuideBookBookPermissionManager:
             if purchase.get("purchase_type") == "one_time":
                 expires_at = purchase.get("access_expires_at")
                 if expires_at and expires_at > datetime.utcnow():
-                    return True
+                    return True  # Still valid
+                else:
+                    return False  # Expired or no expiry date set
             else:
                 # Forever access
                 return True
