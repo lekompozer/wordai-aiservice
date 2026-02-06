@@ -17,7 +17,7 @@ import logging
 import uuid
 
 from src.database.db_manager import DBManager
-from src.middleware.firebase_auth import get_current_user
+from src.middleware.firebase_auth import get_current_user, get_current_user_optional
 from src.middleware.query_protection import protect_query
 from src.models.book_review_models import (
     BookReviewCreate,
@@ -304,7 +304,7 @@ async def list_book_reviews(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     sort: str = Query("likes", description="Sort by: likes, newest, rating"),
-    user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
     **List reviews for a book**
