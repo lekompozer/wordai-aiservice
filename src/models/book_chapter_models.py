@@ -347,7 +347,7 @@ class ChapterUpdate(BaseModel):
         None, max_length=200, description="Chapter URL slug (will be auto-normalized)"
     )
     description: Optional[str] = Field(
-        None, max_length=5000, description="Chapter description (for SEO and preview)"
+        None, max_length=10000, description="Chapter description (for SEO and preview)"
     )
     parent_id: Optional[str] = None
     order_index: Optional[int] = Field(None, ge=0)
@@ -587,7 +587,7 @@ class ChapterSummaryUpdate(BaseModel):
         ..., min_length=2, max_length=5, description="Language code (e.g., 'en', 'vi')"
     )
     summary: str = Field(
-        ..., min_length=1, max_length=1000, description="Summary text for the chapter"
+        ..., min_length=1, max_length=5000, description="Summary text for the chapter"
     )
 
 

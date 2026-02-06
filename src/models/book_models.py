@@ -43,8 +43,8 @@ class CommunityConfig(BaseModel):
     tags: List[str] = Field(default_factory=list, description="Tags for search")
     short_description: Optional[str] = Field(
         None,
-        max_length=5000,
-        description="Short description for community (max 5000 chars)",
+        max_length=10000,
+        description="Short description for community (max 10000 chars)",
     )
     difficulty_level: Optional[str] = Field(
         None, description="beginner|intermediate|advanced|expert"
@@ -82,7 +82,7 @@ class BookCreate(BaseModel):
 
     title: str = Field(..., min_length=1, max_length=200, description="Guide title")
     description: Optional[str] = Field(
-        None, max_length=5000, description="Guide description"
+        None, max_length=10000, description="Guide description"
     )
     slug: str = Field(
         ..., min_length=1, max_length=100, description="URL-friendly slug"
@@ -131,7 +131,9 @@ class BookUpdate(BaseModel):
     """Request model to update guide"""
 
     title: Optional[str] = Field(None, min_length=1, max_length=200)
-    description: Optional[str] = Field(None, max_length=5000)  # Increased to 5000 chars
+    description: Optional[str] = Field(
+        None, max_length=10000
+    )  # Increased to 10000 chars
     visibility: Optional[BookVisibility] = None
     is_published: Optional[bool] = None
 
@@ -295,10 +297,10 @@ class CommunityPublishRequest(BaseModel):
     )
     description: Optional[str] = Field(
         None,
-        max_length=5000,
+        max_length=10000,
         description="Full book description (long form). If not provided, keeps existing book description.",
     )
-    short_description: str = Field(..., min_length=10, max_length=5000)
+    short_description: str = Field(..., min_length=10, max_length=10000)
     cover_image_url: Optional[str] = Field(None, description="Cover image URL")
 
     @model_validator(mode="before")

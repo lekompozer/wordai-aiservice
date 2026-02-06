@@ -516,7 +516,9 @@ async def get_chapter(
 
         # Determine access level
         is_owner = False
-        has_access = is_public or is_preview_free  # Allow access if book is public OR chapter is preview-free
+        has_access = (
+            is_public or is_preview_free
+        )  # Allow access if book is public OR chapter is preview-free
 
         if current_user:
             user_id = current_user["uid"]
@@ -855,7 +857,7 @@ async def update_chapter_summary(
 
     **Request Body:**
     - `language`: Language code (e.g., 'en', 'vi', 'zh')
-    - `summary`: Summary text (1-1000 characters)
+    - `summary`: Summary text (1-5000 characters)
 
     **Returns:**
     - 200: Updated chapter with new summary
