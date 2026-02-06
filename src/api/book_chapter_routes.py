@@ -21,7 +21,7 @@ import re
 import unicodedata
 
 # Authentication
-from src.middleware.firebase_auth import get_current_user
+from src.middleware.firebase_auth import get_current_user, get_current_user_optional
 
 # Models
 from src.models.book_chapter_models import (
@@ -235,7 +235,7 @@ async def get_chapter_tree(
     include_unpublished: bool = Query(
         False, description="Include unpublished chapters (owner only)"
     ),
-    current_user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    current_user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
     Get hierarchical tree structure of all chapters in a book
@@ -377,6 +377,16 @@ async def get_chapter_tree(
                     else:
                         chapter["current_summary"] = None
 
+                    # Add summary metadata
+                    if chapter["current_summary"]:
+                        chapter["has_current_summary"] = True
+                        chapter["current_summary_length"] = len(
+                            chapter["current_summary"]
+                        )
+                    else:
+                        chapter["has_current_summary"] = False
+                        chapter["current_summary_length"] = 0
+
                     # Recursively translate children
                     if "children" in chapter and chapter["children"]:
                         chapter["children"] = translate_chapters_recursive(
@@ -400,6 +410,16 @@ async def get_chapter_tree(
                         chapter["current_summary"] = chapter_summary[default_language]
                     else:
                         chapter["current_summary"] = None
+
+                    # Add summary metadata
+                    if chapter["current_summary"]:
+                        chapter["has_current_summary"] = True
+                        chapter["current_summary_length"] = len(
+                            chapter["current_summary"]
+                        )
+                    else:
+                        chapter["has_current_summary"] = False
+                        chapter["current_summary_length"] = 0
 
                     # Recursively add to children
                     if "children" in chapter and chapter["children"]:
