@@ -55,9 +55,10 @@ class CloudflareImagesService:
             logger.error(f"❌ {error_msg}")
             raise ValueError(error_msg)
 
-        # API base URL
+        # API base URL (Cloudflare Images Upload API)
+        # Docs: https://developers.cloudflare.com/images/upload-images/upload-via-url/
         self.api_base_url = (
-            f"https://api.cloudflare.com/v1/accounts/{self.account_id}/images/v1"
+            f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}/images/v1"
         )
 
         logger.info(
