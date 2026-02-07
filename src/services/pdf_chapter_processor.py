@@ -7,6 +7,7 @@ Phase 1: PDF Pages Support
 
 import os
 import io
+import gc
 import logging
 import tempfile
 from typing import List, Dict, Any, Tuple, Optional
@@ -125,6 +126,9 @@ class PDFChapterProcessor:
                 del images
                 del background_urls
 
+                # Force garbage collection to free memory immediately
+                gc.collect()
+
                 # Progress callback
                 if progress_callback:
                     await progress_callback(batch_end, total_pages)
@@ -240,10 +244,15 @@ class PDFChapterProcessor:
                         f"{img.width}×{img.height}px"
                     )
 
-                    # Clear pixmap memory
-                    pix = None
+                    # Clear pixmap memory immediately
+                    del pix
+                    del img_data
 
                 doc.close()
+
+                # Force GC after extracting batch
+                gc.collect()
+
                 return images
 
             except ImportError:
@@ -326,8 +335,13 @@ class PDFChapterProcessor:
 
                 urls.append(cdn_url)
 
-                # Clear buffer
+                # Clear buffer immediately to free memory
                 buffer.close()
+                del buffer
+                del image_bytes
+
+            # Force GC after uploading batch
+            gc.collect()
 
             return urls
 
