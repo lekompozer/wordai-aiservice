@@ -440,7 +440,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G # Reduced from 3G - RAM optimization (8GB server total)
+          memory: 2G # Increased from 1G - PDF processing needs 2GB for large files (200+ pages)
           cpus: "2" # More CPU for image conversion
     healthcheck:
       test: [ "CMD-SHELL", "ps aux | grep 'pdf_chapter_worker' | grep -v grep || exit 1" ]
