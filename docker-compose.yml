@@ -186,6 +186,11 @@ services:
         limits:
           memory: 1G
           cpus: "1"
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'ai_editor_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # Slide Format Worker - AI slide layout optimization
@@ -218,6 +223,11 @@ services:
         limits:
           memory: 1G
           cpus: "1"
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'slide_format_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # Chapter Translation Worker - Book chapter translation
@@ -250,6 +260,11 @@ services:
         limits:
           memory: 1G
           cpus: "1"
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'chapter_translation_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # Test Generation Worker - AI test generation (listening, grammar, vocab)
@@ -290,6 +305,11 @@ services:
         limits:
           memory: 2G
           cpus: "1"
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'test_generation_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # Slide Generation Worker - AI slide creation from analysis
@@ -332,6 +352,11 @@ services:
         limits:
           memory: 2G
           cpus: "1"
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'slide_generation_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # Slide Narration Subtitle Worker - AI subtitle generation
@@ -370,6 +395,11 @@ services:
         limits:
           memory: 2G
           cpus: "1"
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'slide_narration_subtitle_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # PDF Chapter Worker - Convert large PDF files to book chapters
@@ -504,11 +534,10 @@ services:
           memory: 2G
           cpus: "1"
     healthcheck:
-      test: [ "CMD", "python", "-c", "import sys; sys.exit(0)" ]
+      test: [ "CMD-SHELL", "ps aux | grep 'generate_code_worker' | grep -v grep || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
 
   # Explain Code Worker - Adds inline educational comments
   explain-code-worker:
@@ -544,11 +573,10 @@ services:
           memory: 2G
           cpus: "1"
     healthcheck:
-      test: [ "CMD", "python", "-c", "import sys; sys.exit(0)" ]
+      test: [ "CMD-SHELL", "ps aux | grep 'explain_code_worker' | grep -v grep || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
 
   # Transform Code Worker - Refactor/optimize/convert code
   transform-code-worker:
@@ -584,11 +612,10 @@ services:
           memory: 2G
           cpus: "1"
     healthcheck:
-      test: [ "CMD", "python", "-c", "import sys; sys.exit(0)" ]
+      test: [ "CMD-SHELL", "ps aux | grep 'transform_code_worker' | grep -v grep || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
 
   # Gemini AI Worker - Combined Architecture Analysis + Project Scaffolding (using Gemini 3 Pro)
   gemini-ai-worker:
@@ -624,11 +651,10 @@ services:
           memory: 2G
           cpus: "1"
     healthcheck:
-      test: [ "CMD", "python", "-c", "import sys; sys.exit(0)" ]
+      test: [ "CMD-SHELL", "ps aux | grep 'gemini_ai_worker' | grep -v grep || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
 
   # ============================================================================
   # Slide Narration Audio Worker - TTS audio generation
@@ -672,6 +698,11 @@ services:
         limits:
           memory: 2G
           cpus: "1"
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'slide_narration_audio_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # MongoDB with Authentication (matching deploy-manual.sh)
