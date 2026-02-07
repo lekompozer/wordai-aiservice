@@ -1,0 +1,108 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Development
+.env
+development.env
+*.local
+
+# Logs
+logs/
+*.log
+server.log
+debug_*/
+
+# Testing
+tests/
+test_outputs/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Temp files
+uploads/
+generated_documents/
+check/
+debug_chat_responses/
+debug_extraction_results/
+temp/
+tmp/
+
+# Database
+*.db
+*.sqlite
+dump.rdb
+
+# Node modules (payment-service will have its own .dockerignore)
+payment-service/node_modules/
+payment-service/.env
+payment-service/logs/
+
+# Migrations (already in DB)
+migrations/
+
+# Scripts (not needed in container)
+scripts/
+deploy*.sh
+setup*.py
+seed*.py
+migrate*.py
+create_*_indexes.py
+fix_*.py
+check_*.py
+explore_*.py
+generate_*.py
+register_*.py
+rename_*.py
+show_*.py
+start_*.sh
+restart*.sh
+quick-*.sh
+run_*.sh
+demo_*.sh
+
+# Large reference files
+SYSTEM_REFERENCE.md
+REDIS_STATUS_PATTERN.md
+QUESTION_TYPES_JSON_SCHEMA.md
+
+# Credentials (should use env vars)
+firebase-credentials.json
+
+# Templates (already uploaded)
+templates/
