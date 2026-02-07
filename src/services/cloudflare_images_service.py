@@ -101,63 +101,90 @@ class CloudflareImagesService:
         if not self.enabled:
             raise ValueError("Cloudflare Images is not enabled")
 
-        try:
-            # Prepare multipart form data
-            files = {"file": ("image.webp", BytesIO(image_bytes), "image/webp")}
+        # Retry logic for network errors
+        max_retries = 3
+        retry_delay = 2  # seconds
 
-            data = {}
-            if image_id:
-                data["id"] = image_id
-            if metadata:
-                # Metadata must be a valid JSON string
-                import json
+        for attempt in range(max_retries):
+            try:
+                # Prepare multipart form data
+                files = {"file": ("image.webp", BytesIO(image_bytes), "image/webp")}
 
-                data["metadata"] = json.dumps(metadata)
-            if require_signed_urls:
-                data["requireSignedURLs"] = "true"
+                data = {}
+                if image_id:
+                    data["id"] = image_id
+                if metadata:
+                    # Metadata must be a valid JSON string
+                    import json
 
-            # Upload via API
-            headers = {"Authorization": f"Bearer {self.api_token}"}
+                    data["metadata"] = json.dumps(metadata)
+                if require_signed_urls:
+                    data["requireSignedURLs"] = "true"
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    self.api_base_url, headers=headers, files=files, data=data
-                )
+                # Upload via API
+                headers = {"Authorization": f"Bearer {self.api_token}"}
 
-                if response.status_code != 200:
-                    error_detail = response.json() if response.text else "Unknown error"
-                    raise Exception(
-                        f"Cloudflare Images upload failed: {response.status_code} - {error_detail}"
+                async with httpx.AsyncClient(timeout=180.0) as client:
+                    response = await client.post(
+                        self.api_base_url, headers=headers, files=files, data=data
                     )
 
-                result = response.json()
+                    if response.status_code != 200:
+                        error_detail = (
+                            response.json() if response.text else "Unknown error"
+                        )
+                        raise Exception(
+                            f"Cloudflare Images upload failed: {response.status_code} - {error_detail}"
+                        )
 
-                if not result.get("success"):
-                    errors = result.get("errors", [])
-                    raise Exception(f"Upload failed: {errors}")
+                    result = response.json()
 
-                # Extract image data
-                image_data = result["result"]
-                image_id = image_data["id"]
+                    if not result.get("success"):
+                        errors = result.get("errors", [])
+                        raise Exception(f"Upload failed: {errors}")
 
-                # Build public URL (using 'public' variant by default)
-                public_url = f"{self.delivery_url}/{image_id}/public"
+                    # Extract image data
+                    image_data = result["result"]
+                    image_id = image_data["id"]
 
-                logger.info(f"✅ Uploaded to Cloudflare Images: {image_id}")
-                logger.info(f"   URL: {public_url}")
+                    # Build public URL (using 'public' variant by default)
+                    public_url = f"{self.delivery_url}/{image_id}/public"
 
-                return {
-                    "id": image_id,
-                    "filename": image_data.get("filename", ""),
-                    "uploaded": image_data.get("uploaded", ""),
-                    "requireSignedURLs": image_data.get("requireSignedURLs", False),
-                    "variants": image_data.get("variants", []),
-                    "public_url": public_url,
-                }
+                    logger.info(f"✅ Uploaded to Cloudflare Images: {image_id}")
+                    logger.info(f"   URL: {public_url}")
 
-        except Exception as e:
-            logger.error(f"❌ Failed to upload to Cloudflare Images: {e}")
-            raise
+                    return {
+                        "id": image_id,
+                        "filename": image_data.get("filename", ""),
+                        "uploaded": image_data.get("uploaded", ""),
+                        "requireSignedURLs": image_data.get("requireSignedURLs", False),
+                        "variants": image_data.get("variants", []),
+                        "public_url": public_url,
+                    }
+
+            except (httpx.ReadError, httpx.TimeoutException, httpx.ConnectError) as e:
+                # Network errors - retry
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"⚠️  Upload attempt {attempt + 1} failed: {e}. Retrying in {retry_delay}s..."
+                    )
+                    import asyncio
+
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                    continue
+                else:
+                    logger.error(
+                        f"❌ Failed to upload after {max_retries} attempts: {e}"
+                    )
+                    raise
+            except Exception as e:
+                # Other errors - don't retry
+                logger.error(f"❌ Failed to upload to Cloudflare Images: {e}")
+                raise
+
+        # Should never reach here due to raise in except blocks
+        raise Exception("Upload failed: max retries exceeded")
 
     async def delete_image(self, image_id: str) -> bool:
         """

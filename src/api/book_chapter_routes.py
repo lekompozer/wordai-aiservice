@@ -2009,13 +2009,13 @@ async def get_pdf_chapter_job_status(
         # Convert ObjectId and datetime to JSON-serializable format
         if "_id" in job:
             del job["_id"]
-        if "created_at" in job:
+        if "created_at" in job and job["created_at"]:
             job["created_at"] = job["created_at"].isoformat()
-        if "updated_at" in job:
+        if "updated_at" in job and job["updated_at"]:
             job["updated_at"] = job["updated_at"].isoformat()
-        if "completed_at" in job:
+        if "completed_at" in job and job["completed_at"]:
             job["completed_at"] = job["completed_at"].isoformat()
-        if "failed_at" in job:
+        if "failed_at" in job and job["failed_at"]:
             job["failed_at"] = job["failed_at"].isoformat()
 
         return job
