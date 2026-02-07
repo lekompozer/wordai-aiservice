@@ -109,9 +109,10 @@ class CloudflareImagesService:
             if image_id:
                 data["id"] = image_id
             if metadata:
-                # Metadata format: key1=value1,key2=value2
-                metadata_str = ",".join(f"{k}={v}" for k, v in metadata.items())
-                data["metadata"] = metadata_str
+                # Metadata must be a valid JSON string
+                import json
+
+                data["metadata"] = json.dumps(metadata)
             if require_signed_urls:
                 data["requireSignedURLs"] = "true"
 
