@@ -101,11 +101,27 @@ class PDFChapterWorker:
             )
             logger.info("✅ Connected to R2 Storage")
 
+            # Cloudflare Images (optional)
+            cf_images = None
+            try:
+                from src.services.cloudflare_images_service import (
+                    get_cloudflare_images_service,
+                )
+
+                cf_images = get_cloudflare_images_service()
+                if cf_images.enabled:
+                    logger.info("✅ Cloudflare Images service enabled")
+                else:
+                    logger.info("ℹ️ Cloudflare Images disabled, using R2 Storage")
+            except Exception as e:
+                logger.warning(f"⚠️ Cloudflare Images not available: {e}")
+
             # PDF Processor
             self.pdf_processor = PDFChapterProcessor(
                 s3_client=self.s3_client,
                 r2_bucket=os.getenv("R2_BUCKET_NAME", "wordai"),
                 cdn_base_url=os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro"),
+                cloudflare_images_service=cf_images,
             )
             logger.info("✅ PDF Processor initialized")
 

@@ -9,7 +9,7 @@ import os
 import io
 import logging
 import tempfile
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 from PIL import Image
 
 logger = logging.getLogger("chatbot")
@@ -18,18 +18,38 @@ logger = logging.getLogger("chatbot")
 class PDFChapterProcessor:
     """Process PDF files into chapter pages with A4 backgrounds"""
 
-    def __init__(self, s3_client, r2_bucket: str, cdn_base_url: str):
+    def __init__(
+        self,
+        s3_client,
+        r2_bucket: str,
+        cdn_base_url: str,
+        cloudflare_images_service=None,
+    ):
         """
         Initialize PDF processor
 
         Args:
-            s3_client: Boto3 S3 client for R2 uploads
-            r2_bucket: R2 bucket name
-            cdn_base_url: CDN base URL (e.g., https://cdn.wordai.com)
+            s3_client: Boto3 S3 client for R2 uploads (fallback)
+            r2_bucket: R2 bucket name (fallback)
+            cdn_base_url: CDN base URL (fallback)
+            cloudflare_images_service: Cloudflare Images service (preferred)
         """
         self.s3_client = s3_client
         self.r2_bucket = r2_bucket
         self.cdn_base_url = cdn_base_url
+        self.cf_images = cloudflare_images_service
+
+        # Check if Cloudflare Images is enabled
+        self.use_cf_images = (
+            self.cf_images is not None
+            and hasattr(self.cf_images, "enabled")
+            and self.cf_images.enabled
+        )
+
+        if self.use_cf_images:
+            logger.info("✅ PDF Processor using Cloudflare Images (auto-optimized)")
+        else:
+            logger.info("ℹ️ PDF Processor using R2 Storage (manual optimization)")
 
     async def process_pdf_to_pages(
         self,
@@ -163,7 +183,7 @@ class PDFChapterProcessor:
         self, images: List[Image.Image], user_id: str, chapter_id: str
     ) -> List[str]:
         """
-        Upload page images to R2 CDN
+        Upload page images to Cloudflare Images (preferred) or R2 (fallback)
 
         Args:
             images: List of PIL Images
@@ -177,29 +197,45 @@ class PDFChapterProcessor:
 
         try:
             for idx, image in enumerate(images, 1):
-                # R2 path: studyhub/chapters/{chapter_id}/page-{idx}.webp
-                object_key = f"studyhub/chapters/{chapter_id}/page-{idx}.webp"
-
                 # Convert PIL Image to bytes (WebP format - 25-35% smaller than PNG/JPEG)
                 buffer = io.BytesIO()
                 image.save(buffer, format="WEBP", quality=85, method=4)
                 buffer.seek(0)
+                image_bytes = buffer.getvalue()
 
-                # Upload to R2
-                self.s3_client.upload_fileobj(
-                    buffer,
-                    self.r2_bucket,
-                    object_key,
-                    ExtraArgs={"ContentType": "image/webp"},
-                )
+                if self.use_cf_images:
+                    # Upload to Cloudflare Images (auto-optimized)
+                    image_id = f"{chapter_id}-page-{idx}"
+                    result = await self.cf_images.upload_image(
+                        image_bytes=image_bytes,
+                        image_id=image_id,
+                        metadata={
+                            "user_id": user_id,
+                            "chapter_id": chapter_id,
+                            "page_number": str(idx),
+                            "type": "chapter_page",
+                        },
+                    )
+                    cdn_url = result["public_url"]
+                    logger.info(f"  ✅ Page {idx} → Cloudflare Images: {cdn_url}")
+                else:
+                    # Fallback to R2 Storage
+                    object_key = f"studyhub/chapters/{chapter_id}/page-{idx}.webp"
+                    buffer.seek(0)
+                    self.s3_client.upload_fileobj(
+                        buffer,
+                        self.r2_bucket,
+                        object_key,
+                        ExtraArgs={"ContentType": "image/webp"},
+                    )
+                    cdn_url = f"{self.cdn_base_url}/{object_key}"
+                    logger.info(f"  ✅ Page {idx} → R2: {cdn_url}")
 
-                # Generate CDN URL
-                cdn_url = f"{self.cdn_base_url}/{object_key}"
                 urls.append(cdn_url)
 
-                logger.info(f"  ✅ Uploaded page {idx}: {cdn_url}")
-
-            logger.info(f"✅ Uploaded {len(urls)} page images to R2")
+            logger.info(
+                f"✅ Uploaded {len(urls)} pages to {'Cloudflare Images' if self.use_cf_images else 'R2'}"
+            )
             return urls
 
         except Exception as e:
