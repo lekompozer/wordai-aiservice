@@ -396,6 +396,11 @@ services:
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
       - R2_BUCKET_NAME=${R2_BUCKET_NAME:-wordai}
       - R2_PUBLIC_URL=${R2_PUBLIC_URL:-https://static.wordai.pro}
+      - CLOUDFLARE_IMAGES_ENABLED=${CLOUDFLARE_IMAGES_ENABLED:-false}
+      - CLOUDFLARE_IMAGES_ACCOUNT_ID=${CLOUDFLARE_IMAGES_ACCOUNT_ID:-}
+      - CLOUDFLARE_IMAGES_API_TOKEN=${CLOUDFLARE_IMAGES_API_TOKEN:-}
+      - CLOUDFLARE_IMAGES_ACCOUNT_HASH=${CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
+      - CLOUDFLARE_IMAGES_DELIVERY_URL=${CLOUDFLARE_IMAGES_DELIVERY_URL:-}
     depends_on:
       - redis-server
       - mongodb
@@ -407,6 +412,11 @@ services:
         limits:
           memory: 3G # More RAM for PDF processing
           cpus: "2" # More CPU for image conversion
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'pdf_chapter_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ============================================================================
   # Lyria Music Generation Worker - AI music from text prompts
