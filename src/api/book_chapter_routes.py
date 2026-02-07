@@ -2009,7 +2009,7 @@ async def get_pdf_chapter_job_status(
         # Convert ObjectId and datetime to JSON-serializable format
         if "_id" in job:
             del job["_id"]
-        
+
         # Safely convert datetime fields to ISO format (only if they exist and are datetime objects)
         datetime_fields = ["created_at", "updated_at", "completed_at", "failed_at"]
         for field in datetime_fields:
