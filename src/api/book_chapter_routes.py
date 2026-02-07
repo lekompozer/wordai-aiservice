@@ -1908,7 +1908,7 @@ async def create_chapter_from_pdf(
 
         job_id = str(uuid.uuid4())
 
-        # Enqueue job to Redis
+        # Create job data
         job_data = {
             "job_id": job_id,
             "user_id": user_id,
@@ -1922,26 +1922,26 @@ async def create_chapter_from_pdf(
             "is_preview_free": request.is_preview_free,
         }
 
-        # Get Redis client from queue manager
-        from src.queue.queue_manager import set_job_status
+        # Save job to MongoDB (instead of Redis)
+        db.pdf_chapter_jobs.insert_one(
+            {
+                "job_id": job_id,
+                "user_id": user_id,
+                "status": "pending",
+                "progress": 0,
+                "message": "PDF chapter creation job enqueued",
+                "created_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+        )
+
+        # Push job to Redis queue
         import redis.asyncio as aioredis
 
         redis_client = aioredis.from_url(
             os.getenv("REDIS_URL", "redis://redis-server:6379"),
             decode_responses=True,
         )
-
-        # Set initial job status
-        await set_job_status(
-            redis_client=redis_client,
-            job_id=job_id,
-            status="pending",
-            user_id=user_id,
-            progress=0,
-            message="PDF chapter creation job enqueued",
-        )
-
-        # Push job to queue
         await redis_client.lpush("pdf_chapter_queue", str(job_data))
 
         logger.info(f"✅ [API] Enqueued job {job_id} for PDF chapter creation")
@@ -1950,7 +1950,7 @@ async def create_chapter_from_pdf(
             "success": True,
             "job_id": job_id,
             "status": "pending",
-            "message": "PDF chapter creation job enqueued. Poll /api/v1/jobs/{job_id} for status.",
+            "message": "PDF chapter creation job enqueued. Poll /api/v1/books/jobs/{job_id} for status (30 min timeout recommended).",
         }
 
     except HTTPException:
@@ -1976,6 +1976,8 @@ async def get_pdf_chapter_job_status(
 
     **Authentication:** Required (Job owner only)
 
+    **Polling:** Frontend should poll every 2-3 seconds with 30 minute timeout
+
     **Response:**
     - status: "pending" | "processing" | "completed" | "failed"
     - progress: 0-100%
@@ -1988,16 +1990,8 @@ async def get_pdf_chapter_job_status(
     try:
         user_id = current_user["uid"]
 
-        # Get job status from Redis
-        from src.queue.queue_manager import get_job_status
-        import redis.asyncio as aioredis
-
-        redis_client = aioredis.from_url(
-            os.getenv("REDIS_URL", "redis://redis-server:6379"),
-            decode_responses=True,
-        )
-
-        job = await get_job_status(redis_client, job_id)
+        # Get job status from MongoDB
+        job = db.pdf_chapter_jobs.find_one({"job_id": job_id})
 
         if not job:
             raise HTTPException(
@@ -2011,6 +2005,18 @@ async def get_pdf_chapter_job_status(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to this job",
             )
+
+        # Convert ObjectId and datetime to JSON-serializable format
+        if "_id" in job:
+            del job["_id"]
+        if "created_at" in job:
+            job["created_at"] = job["created_at"].isoformat()
+        if "updated_at" in job:
+            job["updated_at"] = job["updated_at"].isoformat()
+        if "completed_at" in job:
+            job["completed_at"] = job["completed_at"].isoformat()
+        if "failed_at" in job:
+            job["failed_at"] = job["failed_at"].isoformat()
 
         return job
 

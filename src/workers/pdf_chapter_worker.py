@@ -154,14 +154,22 @@ class PDFChapterWorker:
             logger.info(f"📄 [JOB {job_id}] Processing PDF chapter")
             logger.info(f"   Book: {book_id}, File: {file_id}")
 
-            # Update job status: processing
-            await set_job_status(
-                redis_client=self.redis_client,
-                job_id=job_id,
-                status="processing",
-                user_id=user_id,
-                progress=0,
-                message="Starting PDF processing...",
+            # Update job status: processing (MongoDB)
+            self.db.pdf_chapter_jobs.update_one(
+                {"job_id": job_id},
+                {
+                    "$set": {
+                        "status": "processing",
+                        "user_id": user_id,
+                        "progress": 0,
+                        "message": "Starting PDF processing...",
+                        "updated_at": datetime.utcnow(),
+                    },
+                    "$setOnInsert": {
+                        "created_at": datetime.utcnow(),
+                    },
+                },
+                upsert=True,
             )
 
             # 1. Get PDF file from database
@@ -179,13 +187,17 @@ class PDFChapterWorker:
             ):
                 raise ValueError(f"File must be PDF (got: {file_type})")
 
-            # Update progress: 10%
-            await set_job_status(
-                redis_client=self.redis_client,
-                job_id=job_id,
-                status="processing",
-                progress=10,
-                message=f"Downloading PDF: {file_doc.get('filename')}",
+            # Update progress: 10% (MongoDB)
+            self.db.pdf_chapter_jobs.update_one(
+                {"job_id": job_id},
+                {
+                    "$set": {
+                        "status": "processing",
+                        "progress": 10,
+                        "message": f"Downloading PDF: {file_doc.get('filename')}",
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
             )
 
             # 2. Download PDF from R2
@@ -207,13 +219,17 @@ class PDFChapterWorker:
                 )
 
             try:
-                # Update progress: 30%
-                await set_job_status(
-                    redis_client=self.redis_client,
-                    job_id=job_id,
-                    status="processing",
-                    progress=30,
-                    message="Extracting pages from PDF...",
+                # Update progress: 30% (MongoDB)
+                self.db.pdf_chapter_jobs.update_one(
+                    {"job_id": job_id},
+                    {
+                        "$set": {
+                            "status": "processing",
+                            "progress": 30,
+                            "message": "Extracting pages from PDF...",
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
                 )
 
                 # 3. Process PDF to pages with progress callback
@@ -223,12 +239,16 @@ class PDFChapterWorker:
                 async def update_progress(current_page, total_pages):
                     # Map 30-70% progress to page extraction (40% range)
                     progress = 30 + int((current_page / total_pages) * 40)
-                    await set_job_status(
-                        redis_client=self.redis_client,
-                        job_id=job_id,
-                        status="processing",
-                        progress=progress,
-                        message=f"Processed {current_page}/{total_pages} pages...",
+                    self.db.pdf_chapter_jobs.update_one(
+                        {"job_id": job_id},
+                        {
+                            "$set": {
+                                "status": "processing",
+                                "progress": progress,
+                                "message": f"Processed {current_page}/{total_pages} pages...",
+                                "updated_at": datetime.utcnow(),
+                            }
+                        },
                     )
 
                 result = await self.pdf_processor.process_pdf_to_pages(
@@ -242,13 +262,17 @@ class PDFChapterWorker:
 
                 logger.info(f"✅ PDF processed: {result['total_pages']} pages")
 
-                # Update progress: 70%
-                await set_job_status(
-                    redis_client=self.redis_client,
-                    job_id=job_id,
-                    status="processing",
-                    progress=70,
-                    message=f"Processed {result['total_pages']} pages. Creating chapter...",
+                # Update progress: 70% (MongoDB)
+                self.db.pdf_chapter_jobs.update_one(
+                    {"job_id": job_id},
+                    {
+                        "$set": {
+                            "status": "processing",
+                            "progress": 70,
+                            "message": f"Processed {result['total_pages']} pages. Creating chapter...",
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
                 )
 
                 # 4. Create chapter document
@@ -304,16 +328,21 @@ class PDFChapterWorker:
                     },
                 )
 
-                # Update job status: completed
-                await set_job_status(
-                    redis_client=self.redis_client,
-                    job_id=job_id,
-                    status="completed",
-                    progress=100,
-                    message=f"Chapter created successfully with {result['total_pages']} pages",
-                    result={
-                        "chapter_id": chapter_id,
-                        "total_pages": result["total_pages"],
+                # Update job status: completed (MongoDB)
+                self.db.pdf_chapter_jobs.update_one(
+                    {"job_id": job_id},
+                    {
+                        "$set": {
+                            "status": "completed",
+                            "progress": 100,
+                            "message": f"Chapter created successfully with {result['total_pages']} pages",
+                            "result": {
+                                "chapter_id": chapter_id,
+                                "total_pages": result["total_pages"],
+                            },
+                            "updated_at": datetime.utcnow(),
+                            "completed_at": datetime.utcnow(),
+                        }
                     },
                 )
 
@@ -328,13 +357,18 @@ class PDFChapterWorker:
         except Exception as e:
             logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
 
-            # Update job status: failed
-            await set_job_status(
-                redis_client=self.redis_client,
-                job_id=job_id,
-                status="failed",
-                error=str(e),
-                message=f"PDF processing failed: {str(e)}",
+            # Update job status: failed (MongoDB)
+            self.db.pdf_chapter_jobs.update_one(
+                {"job_id": job_id},
+                {
+                    "$set": {
+                        "status": "failed",
+                        "error": str(e),
+                        "message": f"PDF processing failed: {str(e)}",
+                        "updated_at": datetime.utcnow(),
+                        "failed_at": datetime.utcnow(),
+                    }
+                },
             )
 
     async def run(self):
