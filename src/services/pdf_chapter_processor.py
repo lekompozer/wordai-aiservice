@@ -177,12 +177,12 @@ class PDFChapterProcessor:
 
         try:
             for idx, image in enumerate(images, 1):
-                # R2 path: studyhub/chapters/{chapter_id}/page-{idx}.png
-                object_key = f"studyhub/chapters/{chapter_id}/page-{idx}.png"
+                # R2 path: studyhub/chapters/{chapter_id}/page-{idx}.webp
+                object_key = f"studyhub/chapters/{chapter_id}/page-{idx}.webp"
 
-                # Convert PIL Image to bytes (PNG format)
+                # Convert PIL Image to bytes (WebP format - 25-35% smaller than PNG/JPEG)
                 buffer = io.BytesIO()
-                image.save(buffer, format="PNG", optimize=True)
+                image.save(buffer, format="WEBP", quality=85, method=4)
                 buffer.seek(0)
 
                 # Upload to R2
@@ -190,7 +190,7 @@ class PDFChapterProcessor:
                     buffer,
                     self.r2_bucket,
                     object_key,
-                    ExtraArgs={"ContentType": "image/png"},
+                    ExtraArgs={"ContentType": "image/webp"},
                 )
 
                 # Generate CDN URL
