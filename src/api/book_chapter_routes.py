@@ -1924,9 +1924,9 @@ async def create_chapter_from_pdf(
 
         # Get Redis client from queue manager
         from src.queue.queue_manager import set_job_status
-        import redis
+        import redis.asyncio as aioredis
 
-        redis_client = redis.from_url(
+        redis_client = aioredis.from_url(
             os.getenv("REDIS_URL", "redis://redis-server:6379"),
             decode_responses=True,
         )
@@ -1942,7 +1942,7 @@ async def create_chapter_from_pdf(
         )
 
         # Push job to queue
-        redis_client.lpush("pdf_chapter_queue", str(job_data))
+        await redis_client.lpush("pdf_chapter_queue", str(job_data))
 
         logger.info(f"✅ [API] Enqueued job {job_id} for PDF chapter creation")
 
@@ -1990,9 +1990,9 @@ async def get_pdf_chapter_job_status(
 
         # Get job status from Redis
         from src.queue.queue_manager import get_job_status
-        import redis
+        import redis.asyncio as aioredis
 
-        redis_client = redis.from_url(
+        redis_client = aioredis.from_url(
             os.getenv("REDIS_URL", "redis://redis-server:6379"),
             decode_responses=True,
         )

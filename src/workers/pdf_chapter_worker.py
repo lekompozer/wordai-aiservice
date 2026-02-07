@@ -82,13 +82,13 @@ class PDFChapterWorker:
             self.db = self.db_manager.db
             logger.info("✅ Connected to MongoDB")
 
-            # Redis
-            import redis
+            # Redis (async version)
+            import redis.asyncio as aioredis
 
-            self.redis_client = redis.from_url(
+            self.redis_client = aioredis.from_url(
                 self.redis_url, decode_responses=True, socket_timeout=10
             )
-            self.redis_client.ping()
+            await self.redis_client.ping()
             logger.info("✅ Connected to Redis")
 
             # S3/R2 Client
@@ -317,7 +317,7 @@ class PDFChapterWorker:
             while self.running:
                 try:
                     # Get job from Redis queue (blocking pop with timeout)
-                    result = self.redis_client.brpop(
+                    result = await self.redis_client.brpop(
                         self.queue_name, timeout=self.poll_interval
                     )
 
