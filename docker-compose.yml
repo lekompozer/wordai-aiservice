@@ -372,6 +372,43 @@ services:
           cpus: "1"
 
   # ============================================================================
+  # PDF Chapter Worker - Convert large PDF files to book chapters
+  # ============================================================================
+  pdf-chapter-worker:
+    container_name: pdf-chapter-worker
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    env_file:
+      - .env
+    command: python -m src.workers.pdf_chapter_worker
+    volumes:
+      - ./logs:/app/logs
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - REDIS_URL=redis://redis-server:6379
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-wordai}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-https://static.wordai.pro}
+    depends_on:
+      - redis-server
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
+    deploy:
+      resources:
+        limits:
+          memory: 3G # More RAM for PDF processing
+          cpus: "2" # More CPU for image conversion
+
+  # ============================================================================
   # Lyria Music Generation Worker - AI music from text prompts
   # ============================================================================
   lyria-music-worker:

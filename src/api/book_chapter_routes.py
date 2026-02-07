@@ -3,6 +3,7 @@ Online Book Chapter Management API Routes
 Handles chapter operations: create, read, update, delete, reorder, and bulk updates.
 """
 
+import os
 from fastapi import (
     APIRouter,
     Depends,
@@ -1821,7 +1822,7 @@ async def bulk_update_chapters(
 @router.post(
     "/{book_id}/chapters/from-pdf",
     response_model=Dict[str, Any],
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_chapter_from_pdf(
     book_id: str,
@@ -1829,19 +1830,19 @@ async def create_chapter_from_pdf(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Create chapter from existing PDF file (pdf_pages mode)
+    Create chapter from existing PDF file (pdf_pages mode) - ASYNC JOB
 
     **Authentication:** Required (Owner only)
 
-    **Flow:**
-    1. Validate PDF file exists in studyhub_files
-    2. Download PDF from R2
-    3. Extract pages → Convert to PNG images
-    4. Upload page images to R2
-    5. Create chapter with pages array
+    **Flow (Async):**
+    1. Validate user owns book and PDF file exists
+    2. Enqueue job to PDF Chapter Worker
+    3. Return job_id immediately (no timeout for large PDFs)
+    4. Worker processes: Download PDF → Extract pages → Upload images → Create chapter
+    5. Poll job status using GET /api/v1/jobs/{job_id}
 
     **Request Body:**
-    - file_id: Existing PDF file ID from studyhub_files [REQUIRED]
+    - file_id: Existing PDF file ID from user_files [REQUIRED]
     - title: Chapter title [REQUIRED]
     - slug: URL slug (auto-generated if not provided)
     - parent_id: Parent chapter ID for nesting
@@ -1850,11 +1851,18 @@ async def create_chapter_from_pdf(
     - is_preview_free: Allow free preview (default: false)
 
     **Returns:**
-    - 201: Chapter created with pages array
+    - 202 Accepted: Job enqueued successfully
+      - job_id: Unique job ID for status polling
+      - status: "pending"
+      - message: "PDF chapter creation job enqueued"
     - 400: PDF file not found or invalid
     - 403: User is not the book owner
     - 404: Book not found
-    - 500: PDF processing failed
+
+    **Job Status Polling:**
+    - GET /api/v1/jobs/{job_id}
+    - Status values: "pending" → "processing" → "completed" | "failed"
+    - Progress: 0-100%
     """
     try:
         user_id = current_user["uid"]
@@ -1873,43 +1881,146 @@ async def create_chapter_from_pdf(
                 detail="Only book owner can create chapters",
             )
 
+        # Verify PDF file exists
+        file_doc = db.user_files.find_one(
+            {"file_id": request.file_id, "user_id": user_id, "is_deleted": False}
+        )
+        if not file_doc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"PDF file not found: {request.file_id}",
+            )
+
+        # Verify file type
+        file_type = file_doc.get("file_type", "")
+        if not file_type.lower().endswith(".pdf") and file_type != "application/pdf":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"File must be PDF (got: {file_type})",
+            )
+
         logger.info(
-            f"📄 [API] Creating PDF chapter in book {book_id} from file {request.file_id}"
+            f"📄 [API] Enqueuing PDF chapter job: {request.file_id} → {book_id}"
         )
 
-        # Create chapter from PDF
-        chapter = await chapter_manager.create_chapter_from_pdf(
-            book_id=book_id,
+        # Generate job_id
+        import uuid
+
+        job_id = str(uuid.uuid4())
+
+        # Enqueue job to Redis
+        job_data = {
+            "job_id": job_id,
+            "user_id": user_id,
+            "book_id": book_id,
+            "file_id": request.file_id,
+            "title": request.title,
+            "slug": request.slug,
+            "order_index": request.order_index,
+            "parent_id": request.parent_id,
+            "is_published": request.is_published,
+            "is_preview_free": request.is_preview_free,
+        }
+
+        # Get Redis client from queue manager
+        from src.queue.queue_manager import set_job_status
+        import redis
+
+        redis_client = redis.from_url(
+            os.getenv("REDIS_URL", "redis://redis-server:6379"),
+            decode_responses=True,
+        )
+
+        # Set initial job status
+        await set_job_status(
+            redis_client=redis_client,
+            job_id=job_id,
+            status="pending",
             user_id=user_id,
-            file_id=request.file_id,
-            title=request.title,
-            slug=request.slug,
-            order_index=request.order_index,
-            parent_id=request.parent_id,
-            is_published=request.is_published,
-            is_preview_free=request.is_preview_free,
+            progress=0,
+            message="PDF chapter creation job enqueued",
         )
 
-        logger.info(
-            f"✅ [API] Created PDF chapter {chapter['chapter_id']} with {chapter['total_pages']} pages"
-        )
+        # Push job to queue
+        redis_client.lpush("pdf_chapter_queue", str(job_data))
+
+        logger.info(f"✅ [API] Enqueued job {job_id} for PDF chapter creation")
 
         return {
             "success": True,
-            "chapter": chapter,
-            "message": f"Chapter created from PDF with {chapter['total_pages']} pages",
+            "job_id": job_id,
+            "status": "pending",
+            "message": "PDF chapter creation job enqueued. Poll /api/v1/jobs/{job_id} for status.",
         }
 
-    except ValueError as e:
-        logger.error(f"❌ Validation error: {e}")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Failed to create PDF chapter: {e}", exc_info=True)
+        logger.error(f"❌ Failed to enqueue PDF chapter job: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create PDF chapter: {str(e)}",
+            detail=f"Failed to enqueue PDF chapter job: {str(e)}",
+        )
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=Dict[str, Any],
+)
+async def get_pdf_chapter_job_status(
+    job_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Get PDF chapter creation job status
+
+    **Authentication:** Required (Job owner only)
+
+    **Response:**
+    - status: "pending" | "processing" | "completed" | "failed"
+    - progress: 0-100%
+    - message: Status message
+    - result: Chapter data (when completed)
+      - chapter_id: Created chapter ID
+      - total_pages: Number of pages
+    - error: Error message (when failed)
+    """
+    try:
+        user_id = current_user["uid"]
+
+        # Get job status from Redis
+        from src.queue.queue_manager import get_job_status
+        import redis
+
+        redis_client = redis.from_url(
+            os.getenv("REDIS_URL", "redis://redis-server:6379"),
+            decode_responses=True,
+        )
+
+        job = await get_job_status(redis_client, job_id)
+
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job {job_id} not found",
+            )
+
+        # Verify job ownership
+        if job.get("user_id") != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied to this job",
+            )
+
+        return job
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to get job status: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get job status: {str(e)}",
         )
 
 
