@@ -184,7 +184,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Reduced from 1G - RAM optimization
+          memory: 2G # Increased from 1G - PDF processing needs more RAM for large files
           cpus: "1"
     healthcheck:
       test: [ "CMD-SHELL", "ps aux | grep 'ai_editor_worker' | grep -v grep || exit 1" ]
