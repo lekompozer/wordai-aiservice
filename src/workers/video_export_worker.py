@@ -259,7 +259,7 @@ class VideoExportWorker:
 
                     # Create slide directory
                     slide_dir = output_dir / f"slide_{slide_idx:03d}"
-                    slide_dir.mkdir(exist_ok=True)
+                    slide_dir.mkdir(parents=True, exist_ok=True)
 
                     frames = []
                     start_time = asyncio.get_event_loop().time()

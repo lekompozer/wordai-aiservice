@@ -123,8 +123,9 @@ class DocumentGenerationService:
         self.ai_client = get_ai_client()
         self.template_dir = Path("templates/documents")
         self.output_dir = Path("generated_documents")
-        self.template_dir.mkdir(exist_ok=True)
-        self.output_dir.mkdir(exist_ok=True)
+        # Ensure parent directories are created as well
+        self.template_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         # Initialize Jinja2 environment
         self.jinja_env = jinja2.Environment(

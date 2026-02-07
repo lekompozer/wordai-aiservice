@@ -300,7 +300,7 @@ async def upload_template_file(
 
         # Save file
         template_dir = Path("templates/documents")
-        template_dir.mkdir(exist_ok=True)
+        template_dir.mkdir(parents=True, exist_ok=True)
 
         file_path = template_dir / f"{template_id}_{file.filename}"
 
@@ -346,11 +346,11 @@ async def health_check():
 
         # Test template directory
         template_dir = Path("templates/documents")
-        template_dir.mkdir(exist_ok=True)
+        template_dir.mkdir(parents=True, exist_ok=True)
 
         # Test output directory
         output_dir = Path("generated_documents")
-        output_dir.mkdir(exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         return {
             "status": "healthy",
