@@ -216,13 +216,28 @@ class PDFChapterWorker:
                     message="Extracting pages from PDF...",
                 )
 
-                # 3. Process PDF to pages
+                # 3. Process PDF to pages with progress callback
                 chapter_id = str(uuid.uuid4())
+
+                # Progress callback to update job status during batch processing
+                async def update_progress(current_page, total_pages):
+                    # Map 30-70% progress to page extraction (40% range)
+                    progress = 30 + int((current_page / total_pages) * 40)
+                    await set_job_status(
+                        redis_client=self.redis_client,
+                        job_id=job_id,
+                        status="processing",
+                        progress=progress,
+                        message=f"Processed {current_page}/{total_pages} pages...",
+                    )
+
                 result = await self.pdf_processor.process_pdf_to_pages(
                     pdf_path=temp_pdf_path,
                     user_id=user_id,
                     chapter_id=chapter_id,
                     dpi=150,  # A4 @ 150 DPI = 1240×1754px
+                    batch_size=10,  # Process 10 pages at a time
+                    progress_callback=update_progress,
                 )
 
                 logger.info(f"✅ PDF processed: {result['total_pages']} pages")

@@ -57,15 +57,20 @@ class PDFChapterProcessor:
         user_id: str,
         chapter_id: str,
         dpi: int = 150,  # A4 quality: 1240×1754 pixels
+        batch_size: int = 10,  # Process 10 pages at a time to avoid RAM spike
+        progress_callback=None,  # Callback for progress updates
     ) -> Dict[str, Any]:
         """
         Convert PDF to pages array with background images
+        Processes in batches to avoid memory issues with large PDFs
 
         Args:
             pdf_path: Local path to PDF file
             user_id: User ID for R2 path organization
             chapter_id: Chapter ID for R2 path organization
             dpi: Resolution for rendering (150 DPI = A4 quality)
+            batch_size: Number of pages to process at once (default 10)
+            progress_callback: Optional callback(current, total) for progress
 
         Returns:
             {
@@ -77,16 +82,74 @@ class PDFChapterProcessor:
         try:
             logger.info(f"📄 [PDF_PROCESSOR] Processing PDF: {pdf_path}")
             logger.info(f"   User: {user_id}, Chapter: {chapter_id}, DPI: {dpi}")
+            logger.info(f"   Batch size: {batch_size} pages")
 
-            # 1. Extract PDF pages to images (PyMuPDF)
-            images = await self._extract_pdf_pages(pdf_path, dpi)
-            logger.info(f"✅ Extracted {len(images)} pages from PDF")
+            # Get total pages count first
+            total_pages = await self._get_pdf_page_count(pdf_path)
+            logger.info(f"📊 Total pages: {total_pages}")
 
-            # 2. Upload images to R2 with chapter-specific path
-            background_urls = await self._upload_page_images(
-                images, user_id, chapter_id
+            pages = []
+
+            # Process in batches
+            for batch_start in range(0, total_pages, batch_size):
+                batch_end = min(batch_start + batch_size, total_pages)
+                logger.info(
+                    f"📦 Processing batch: pages {batch_start + 1}-{batch_end}/{total_pages}"
+                )
+
+                # Extract batch of pages
+                images = await self._extract_pdf_pages_batch(
+                    pdf_path, dpi, batch_start, batch_end
+                )
+                logger.info(f"✅ Extracted {len(images)} pages from batch")
+
+                # Upload batch
+                background_urls = await self._upload_page_images(
+                    images, user_id, chapter_id, batch_start + 1
+                )
+
+                # Build pages array for this batch
+                for idx, (image, bg_url) in enumerate(zip(images, background_urls)):
+                    page_number = batch_start + idx + 1
+                    pages.append(
+                        {
+                            "page_number": page_number,
+                            "background_url": bg_url,
+                            "width": image.width,
+                            "height": image.height,
+                            "elements": [],
+                        }
+                    )
+
+                # Clear batch from memory
+                del images
+                del background_urls
+
+                # Progress callback
+                if progress_callback:
+                    await progress_callback(batch_end, total_pages)
+
+                logger.info(
+                    f"✅ Batch {batch_start + 1}-{batch_end} completed and freed from memory"
+                )
+
+            result = {
+                "pages": pages,
+                "total_pages": len(pages),
+                "original_file_name": os.path.basename(pdf_path),
+            }
+
+            logger.info(
+                f"✅ [PDF_PROCESSOR] Successfully processed PDF: "
+                f"{result['total_pages']} pages, "
+                f"dimensions: {pages[0]['width']}×{pages[0]['height']}"
             )
-            logger.info(f"✅ Uploaded {len(background_urls)} page images to R2")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"❌ [PDF_PROCESSOR] Failed to process PDF: {e}")
+            raise
 
             # 3. Build pages array
             pages = []
@@ -119,33 +182,51 @@ class PDFChapterProcessor:
             logger.error(f"❌ [PDF_PROCESSOR] Failed to process PDF: {e}")
             raise
 
-    async def _extract_pdf_pages(self, pdf_path: str, dpi: int) -> List[Image.Image]:
+    async def _get_pdf_page_count(self, pdf_path: str) -> int:
+        """Get total page count without loading pages"""
+        try:
+            import fitz
+
+            doc = fitz.open(pdf_path)
+            count = len(doc)
+            doc.close()
+            return count
+        except ImportError:
+            # Fallback for pdf2image
+            from pdf2image import pdfinfo_from_path
+
+            info = pdfinfo_from_path(pdf_path)
+            return info["Pages"]
+
+    async def _extract_pdf_pages_batch(
+        self, pdf_path: str, dpi: int, start_page: int, end_page: int
+    ) -> List[Image.Image]:
         """
-        Extract PDF pages to PIL Images using PyMuPDF
+        Extract a batch of PDF pages to PIL Images using PyMuPDF
+        Pages are 0-indexed internally
 
         Args:
             pdf_path: Local path to PDF file
             dpi: Resolution for rendering
+            start_page: Start page index (0-based)
+            end_page: End page index (0-based, exclusive)
 
         Returns:
-            List of PIL Image objects (one per page)
+            List of PIL Image objects for the batch
         """
         try:
             # Try PyMuPDF first (faster, better quality)
             try:
                 import fitz  # PyMuPDF
 
-                logger.info(f"📄 Using PyMuPDF to extract pages (dpi={dpi})")
-
                 doc = fitz.open(pdf_path)
                 images = []
 
                 # Calculate zoom factor for desired DPI
-                # PyMuPDF default is 72 DPI, so zoom = target_dpi/72
                 zoom = dpi / 72
                 mat = fitz.Matrix(zoom, zoom)
 
-                for page_num in range(len(doc)):
+                for page_num in range(start_page, end_page):
                     page = doc.load_page(page_num)
                     pix = page.get_pixmap(matrix=mat)
 
@@ -159,8 +240,10 @@ class PDFChapterProcessor:
                         f"{img.width}×{img.height}px"
                     )
 
+                    # Clear pixmap memory
+                    pix = None
+
                 doc.close()
-                logger.info(f"✅ Extracted {len(images)} pages using PyMuPDF")
                 return images
 
             except ImportError:
@@ -169,18 +252,25 @@ class PDFChapterProcessor:
                 # Fallback to pdf2image (requires poppler)
                 from pdf2image import convert_from_path
 
-                logger.info(f"📄 Using pdf2image to extract pages (dpi={dpi})")
-
-                images = convert_from_path(pdf_path, dpi=dpi)
-                logger.info(f"✅ Extracted {len(images)} pages using pdf2image")
+                # pdf2image uses 1-based page numbers
+                images = convert_from_path(
+                    pdf_path,
+                    dpi=dpi,
+                    first_page=start_page + 1,
+                    last_page=end_page,
+                )
                 return images
 
         except Exception as e:
-            logger.error(f"❌ Failed to extract PDF pages: {e}")
+            logger.error(f"❌ Failed to extract PDF batch: {e}")
             raise
 
     async def _upload_page_images(
-        self, images: List[Image.Image], user_id: str, chapter_id: str
+        self,
+        images: List[Image.Image],
+        user_id: str,
+        chapter_id: str,
+        start_page_number: int = 1,
     ) -> List[str]:
         """
         Upload page images to Cloudflare Images (preferred) or R2 (fallback)
@@ -189,6 +279,7 @@ class PDFChapterProcessor:
             images: List of PIL Images
             user_id: User ID for path organization
             chapter_id: Chapter ID for path organization
+            start_page_number: Starting page number for this batch
 
         Returns:
             List of CDN URLs for uploaded images
@@ -196,7 +287,9 @@ class PDFChapterProcessor:
         urls = []
 
         try:
-            for idx, image in enumerate(images, 1):
+            for idx, image in enumerate(images):
+                page_num = start_page_number + idx
+
                 # Convert PIL Image to bytes (WebP format - 25-35% smaller than PNG/JPEG)
                 buffer = io.BytesIO()
                 image.save(buffer, format="WEBP", quality=85, method=4)
@@ -205,22 +298,22 @@ class PDFChapterProcessor:
 
                 if self.use_cf_images:
                     # Upload to Cloudflare Images (auto-optimized)
-                    image_id = f"{chapter_id}-page-{idx}"
+                    image_id = f"{chapter_id}-page-{page_num}"
                     result = await self.cf_images.upload_image(
                         image_bytes=image_bytes,
                         image_id=image_id,
                         metadata={
                             "user_id": user_id,
                             "chapter_id": chapter_id,
-                            "page_number": str(idx),
+                            "page_number": str(page_num),
                             "type": "chapter_page",
                         },
                     )
                     cdn_url = result["public_url"]
-                    logger.info(f"  ✅ Page {idx} → Cloudflare Images: {cdn_url}")
+                    logger.info(f"  ✅ Uploaded page {page_num} → Cloudflare Images")
                 else:
                     # Fallback to R2 Storage
-                    object_key = f"studyhub/chapters/{chapter_id}/page-{idx}.webp"
+                    object_key = f"studyhub/chapters/{chapter_id}/page-{page_num}.webp"
                     buffer.seek(0)
                     self.s3_client.upload_fileobj(
                         buffer,
@@ -229,13 +322,13 @@ class PDFChapterProcessor:
                         ExtraArgs={"ContentType": "image/webp"},
                     )
                     cdn_url = f"{self.cdn_base_url}/{object_key}"
-                    logger.info(f"  ✅ Page {idx} → R2: {cdn_url}")
+                    logger.info(f"  ✅ Uploaded page {page_num} → R2")
 
                 urls.append(cdn_url)
 
-            logger.info(
-                f"✅ Uploaded {len(urls)} pages to {'Cloudflare Images' if self.use_cf_images else 'R2'}"
-            )
+                # Clear buffer
+                buffer.close()
+
             return urls
 
         except Exception as e:
