@@ -445,8 +445,9 @@ services:
     healthcheck:
       test: [ "CMD-SHELL", "ps aux | grep 'src.workers.pdf_chapter_worker' | grep -v grep || exit 1" ]
       interval: 30s
-      timeout: 10s
+      timeout: 30s # Increased from 10s - ps aux can be slow during heavy PDF processing
       retries: 3
+      start_period: 60s # Give worker time to initialize
 
   # ============================================================================
   # Lyria Music Generation Worker - AI music from text prompts
