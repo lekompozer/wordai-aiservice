@@ -103,7 +103,7 @@ class CloudflareImagesService:
 
         try:
             # Prepare multipart form data
-            files = {"file": ("image", BytesIO(image_bytes), "image/jpeg")}
+            files = {"file": ("image.webp", BytesIO(image_bytes), "image/webp")}
 
             data = {}
             if image_id:
