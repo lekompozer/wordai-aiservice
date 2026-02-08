@@ -1989,7 +1989,7 @@ async def get_pdf_chapter_job_status(
     """
     try:
         user_id = current_user["uid"]
-        
+
         logger.info(f"📊 [JOB STATUS] Polling job: {job_id} (user: {user_id})")
 
         # Get job status from MongoDB with projection to minimize data transfer
@@ -2008,7 +2008,7 @@ async def get_pdf_chapter_job_status(
                 "updated_at": 1,
                 "completed_at": 1,
                 "failed_at": 1,
-            }
+            },
         )
 
         if not job:
@@ -2035,7 +2035,9 @@ async def get_pdf_chapter_job_status(
                     job[field] = job[field].isoformat()
                 # If it's already a string, leave it as is
 
-        logger.info(f"✅ [JOB STATUS] {job_id}: {job.get('status')} ({job.get('progress', 0)}%)")
+        logger.info(
+            f"✅ [JOB STATUS] {job_id}: {job.get('status')} ({job.get('progress', 0)}%)"
+        )
         return job
 
     except HTTPException:

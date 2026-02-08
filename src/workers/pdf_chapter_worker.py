@@ -154,6 +154,18 @@ class PDFChapterWorker:
             logger.info(f"📄 [JOB {job_id}] Processing PDF chapter")
             logger.info(f"   Book: {book_id}, File: {file_id}")
 
+            # Log system resources at start
+            try:
+                import psutil
+
+                process = psutil.Process()
+                mem_info = process.memory_info()
+                logger.info(
+                    f"🧠 [JOB {job_id}] Initial memory: {mem_info.rss / 1024 / 1024:.1f} MB"
+                )
+            except Exception as e:
+                logger.warning(f"Could not get memory info: {e}")
+
             # Update job status: processing (MongoDB)
             self.db.pdf_chapter_jobs.update_one(
                 {"job_id": job_id},
@@ -348,14 +360,50 @@ class PDFChapterWorker:
 
                 logger.info(f"✅ [JOB {job_id}] Completed successfully")
 
+                # Log final memory usage
+                try:
+                    import psutil
+
+                    process = psutil.Process()
+                    mem_info = process.memory_info()
+                    logger.info(
+                        f"🧠 [JOB {job_id}] Final memory: {mem_info.rss / 1024 / 1024:.1f} MB"
+                    )
+                except Exception:
+                    pass
+
             finally:
                 # Cleanup temp file
                 if os.path.exists(temp_pdf_path):
                     os.remove(temp_pdf_path)
                     logger.info(f"🗑️ Cleaned up temp PDF file")
 
+        except MemoryError as e:
+            logger.error(f"💥 [JOB {job_id}] OUT OF MEMORY: {e}", exc_info=True)
+
+            # Update job status: failed (MongoDB)
+            self.db.pdf_chapter_jobs.update_one(
+                {"job_id": job_id},
+                {
+                    "$set": {
+                        "status": "failed",
+                        "error": f"Out of memory: {str(e)}",
+                        "message": f"PDF processing failed: Out of memory. Try splitting the PDF into smaller files.",
+                        "updated_at": datetime.utcnow(),
+                        "failed_at": datetime.utcnow(),
+                    }
+                },
+            )
+
+            # Force exit to trigger worker restart with clean memory
+            logger.critical(f"💀 [JOB {job_id}] Worker exiting due to memory error")
+            import sys
+
+            sys.exit(1)
+
         except Exception as e:
-            logger.error(f"❌ [JOB {job_id}] Failed: {e}", exc_info=True)
+            error_type = type(e).__name__
+            logger.error(f"❌ [JOB {job_id}] Failed ({error_type}): {e}", exc_info=True)
 
             # Update job status: failed (MongoDB)
             self.db.pdf_chapter_jobs.update_one(

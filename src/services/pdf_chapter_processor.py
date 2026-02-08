@@ -8,12 +8,25 @@ Phase 1: PDF Pages Support
 import os
 import io
 import gc
+import psutil
 import logging
 import tempfile
 from typing import List, Dict, Any, Tuple, Optional
 from PIL import Image
 
 logger = logging.getLogger("chatbot")
+
+
+def log_memory_usage(prefix: str = ""):
+    """Log current memory usage"""
+    try:
+        process = psutil.Process()
+        mem_info = process.memory_info()
+        mem_mb = mem_info.rss / 1024 / 1024
+        mem_percent = process.memory_percent()
+        logger.info(f"🧠 {prefix}Memory: {mem_mb:.1f} MB ({mem_percent:.1f}%)")
+    except Exception as e:
+        logger.warning(f"Could not get memory info: {e}")
 
 
 class PDFChapterProcessor:
@@ -88,6 +101,7 @@ class PDFChapterProcessor:
             # Get total pages count first
             total_pages = await self._get_pdf_page_count(pdf_path)
             logger.info(f"📊 Total pages: {total_pages}")
+            log_memory_usage("[BEFORE PROCESSING] ")
 
             pages = []
 
@@ -97,17 +111,20 @@ class PDFChapterProcessor:
                 logger.info(
                     f"📦 Processing batch: pages {batch_start + 1}-{batch_end}/{total_pages}"
                 )
+                log_memory_usage(f"[BATCH {batch_start + 1}-{batch_end} START] ")
 
                 # Extract batch of pages
                 images = await self._extract_pdf_pages_batch(
                     pdf_path, dpi, batch_start, batch_end
                 )
                 logger.info(f"✅ Extracted {len(images)} pages from batch")
+                log_memory_usage(f"[AFTER EXTRACT] ")
 
                 # Upload batch
                 background_urls = await self._upload_page_images(
                     images, user_id, chapter_id, batch_start + 1
                 )
+                log_memory_usage(f"[AFTER UPLOAD] ")
 
                 # Build pages array for this batch
                 for idx, (image, bg_url) in enumerate(zip(images, background_urls)):
@@ -123,11 +140,17 @@ class PDFChapterProcessor:
                     )
 
                 # Clear batch from memory
+                logger.info(
+                    f"🗑️ Clearing batch {batch_start + 1}-{batch_end} from memory..."
+                )
                 del images
                 del background_urls
 
                 # Force garbage collection to free memory immediately
-                gc.collect()
+                logger.info("♻️ Running garbage collection...")
+                collected = gc.collect()
+                logger.info(f"✅ GC collected {collected} objects")
+                log_memory_usage(f"[AFTER GC] ")
 
                 # Progress callback
                 if progress_callback:
