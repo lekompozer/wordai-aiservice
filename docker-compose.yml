@@ -452,171 +452,174 @@ services:
   # ============================================================================
   # Lyria Music Generation Worker - AI music from text prompts
   # ============================================================================
-  lyria-music-worker:
-    container_name: lyria-music-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    env_file:
-      - .env
-    command: python -m src.workers.lyria_worker
-    volumes:
-      - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      # Mount Vertex AI credentials for Lyria API
-      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
-      - VERTEX_AI_REGION=asia-southeast1
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
-      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
-      - R2_ENDPOINT=${R2_ENDPOINT}
-      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Reduced from 2G - RAM optimization
-          cpus: "1"
-    healthcheck:
-      test: [ "CMD", "python", "-c", "import sys; sys.exit(0)" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+  # ============================================================================
+  # Lyria Music Worker - AI Music Generation (TEMPORARILY DISABLED)
+  # ============================================================================
+  # lyria-music-worker:
+  #   container_name: lyria-music-worker
+  #   image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+  #   env_file:
+  #     - .env
+  #   command: python -m src.workers.lyria_worker
+  #   volumes:
+  #     - ./logs:/app/logs
+  #     - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+  #     # Mount Vertex AI credentials for Lyria API
+  #     - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
+  #   environment:
+  #     - TZ=Asia/Ho_Chi_Minh
+  #     - PYTHONPATH=/app
+  #     - PYTHONUNBUFFERED=1
+  #     - ENVIRONMENT=${ENVIRONMENT:-production}
+  #     - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
+  #     - VERTEX_AI_REGION=asia-southeast1
+  #     - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+  #     - REDIS_URL=redis://redis-server:6379
+  #     - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+  #     - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+  #     - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+  #     - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+  #     - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+  #     - R2_ENDPOINT=${R2_ENDPOINT}
+  #     - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+  #   depends_on:
+  #     - redis-server
+  #     - mongodb
+  #   restart: unless-stopped
+  #   networks:
+  #     - ai-chatbot-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 512M # Reduced from 2G - RAM optimization
+  #         cpus: "1"
+  #   healthcheck:
+  #     test: [ "CMD", "python", "-c", "import sys; sys.exit(0)" ]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 10s
 
   # ============================================================================
-  # Software Lab AI Workers - Code assistant features
+  # Software Lab AI Workers - Code assistant features (TEMPORARILY DISABLED)
   # ============================================================================
 
   # Generate Code Worker - Creates complete code from natural language
-  generate-code-worker:
-    container_name: generate-code-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    env_file:
-      - .env
-    command: python -m src.workers.generate_code_worker
-    volumes:
-      - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
-      - VERTEX_AI_REGION=asia-southeast1
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Reduced from 2G - RAM optimization
-          cpus: "1"
-    healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'generate_code_worker' | grep -v grep || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # generate-code-worker:
+  #   container_name: generate-code-worker
+  #   image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+  #   env_file:
+  #     - .env
+  #   command: python -m src.workers.generate_code_worker
+  #   volumes:
+  #     - ./logs:/app/logs
+  #     - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+  #     - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
+  #   environment:
+  #     - TZ=Asia/Ho_Chi_Minh
+  #     - PYTHONPATH=/app
+  #     - PYTHONUNBUFFERED=1
+  #     - ENVIRONMENT=${ENVIRONMENT:-production}
+  #     - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
+  #     - VERTEX_AI_REGION=asia-southeast1
+  #     - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+  #     - REDIS_URL=redis://redis-server:6379
+  #     - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+  #     - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+  #   depends_on:
+  #     - redis-server
+  #     - mongodb
+  #   restart: unless-stopped
+  #   networks:
+  #     - ai-chatbot-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 512M # Reduced from 2G - RAM optimization
+  #         cpus: "1"
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "ps aux | grep 'generate_code_worker' | grep -v grep || exit 1" ]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # Explain Code Worker - Adds inline educational comments
-  explain-code-worker:
-    container_name: explain-code-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    env_file:
-      - .env
-    command: python -m src.workers.explain_code_worker
-    volumes:
-      - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
-      - VERTEX_AI_REGION=asia-southeast1
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Reduced from 2G - RAM optimization
-          cpus: "1"
-    healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'explain_code_worker' | grep -v grep || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # explain-code-worker:
+  #   container_name: explain-code-worker
+  #   image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+  #   env_file:
+  #     - .env
+  #   command: python -m src.workers.explain_code_worker
+  #   volumes:
+  #     - ./logs:/app/logs
+  #     - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+  #     - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
+  #   environment:
+  #     - TZ=Asia/Ho_Chi_Minh
+  #     - PYTHONPATH=/app
+  #     - PYTHONUNBUFFERED=1
+  #     - ENVIRONMENT=${ENVIRONMENT:-production}
+  #     - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
+  #     - VERTEX_AI_REGION=asia-southeast1
+  #     - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+  #     - REDIS_URL=redis://redis-server:6379
+  #     - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+  #     - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+  #   depends_on:
+  #     - redis-server
+  #     - mongodb
+  #   restart: unless-stopped
+  #   networks:
+  #     - ai-chatbot-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 512M # Reduced from 2G - RAM optimization
+  #         cpus: "1"
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "ps aux | grep 'explain_code_worker' | grep -v grep || exit 1" ]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # Transform Code Worker - Refactor/optimize/convert code
-  transform-code-worker:
-    container_name: transform-code-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    env_file:
-      - .env
-    command: python -m src.workers.transform_code_worker
-    volumes:
-      - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
-      - VERTEX_AI_REGION=asia-southeast1
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Reduced from 2G - RAM optimization
-          cpus: "1"
-    healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'transform_code_worker' | grep -v grep || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  # transform-code-worker:
+  #   container_name: transform-code-worker
+  #   image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+  #   env_file:
+  #     - .env
+  #   command: python -m src.workers.transform_code_worker
+  #   volumes:
+  #     - ./logs:/app/logs
+  #     - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+  #     - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
+  #   environment:
+  #     - TZ=Asia/Ho_Chi_Minh
+  #     - PYTHONPATH=/app
+  #     - PYTHONUNBUFFERED=1
+  #     - ENVIRONMENT=${ENVIRONMENT:-production}
+  #     - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
+  #     - VERTEX_AI_REGION=asia-southeast1
+  #     - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
+  #     - REDIS_URL=redis://redis-server:6379
+  #     - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+  #     - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+  #   depends_on:
+  #     - redis-server
+  #     - mongodb
+  #   restart: unless-stopped
+  #   networks:
+  #     - ai-chatbot-network
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 512M # Reduced from 2G - RAM optimization
+  #         cpus: "1"
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "ps aux | grep 'transform_code_worker' | grep -v grep || exit 1" ]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
 
   # Gemini AI Worker - Combined Architecture Analysis + Project Scaffolding (using Gemini 3 Pro)
   gemini-ai-worker:
