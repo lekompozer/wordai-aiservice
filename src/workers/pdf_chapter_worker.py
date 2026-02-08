@@ -292,9 +292,11 @@ class PDFChapterWorker:
                 slug = job_data.get("slug")
 
                 # Generate unique slug
-                from src.services.book_chapter_manager import BookChapterManager
+                from src.services.book_chapter_manager import (
+                    GuideBookBookChapterManager,
+                )
 
-                chapter_manager = BookChapterManager(self.db_manager)
+                chapter_manager = GuideBookBookChapterManager(self.db_manager)
 
                 base_slug = slug or chapter_manager._generate_slug(title)
                 unique_slug = chapter_manager._generate_unique_slug(book_id, base_slug)
