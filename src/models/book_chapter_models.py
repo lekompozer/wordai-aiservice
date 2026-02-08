@@ -171,7 +171,7 @@ class ChapterCreatePDFPages(BaseModel):
     )
     content_mode: str = Field(
         default="pdf_pages",
-        description="Content mode: 'pdf_pages' (convert to images) or 'pdf_file' (keep original PDF)"
+        description="Content mode: 'pdf_pages' (convert to images) or 'pdf_file' (keep original PDF)",
     )
     parent_id: Optional[str] = Field(None, description="Parent chapter ID for nesting")
     order_index: int = Field(

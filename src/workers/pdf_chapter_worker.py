@@ -227,7 +227,9 @@ class PDFChapterWorker:
                 if not r2_key:
                     raise ValueError("PDF file has no R2 key")
 
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                with tempfile.NamedTemporaryFile(
+                    delete=False, suffix=".pdf"
+                ) as tmp_file:
                     temp_pdf_path = tmp_file.name
 
                     file_obj = self.s3_client.get_object(
@@ -264,7 +266,11 @@ class PDFChapterWorker:
                         "$set": {
                             "status": "processing",
                             "progress": 30,
-                            "message": "Processing PDF..." if content_mode == "pdf_file" else "Extracting pages from PDF...",
+                            "message": (
+                                "Processing PDF..."
+                                if content_mode == "pdf_file"
+                                else "Extracting pages from PDF..."
+                            ),
                             "updated_at": datetime.utcnow(),
                         }
                     },
@@ -281,16 +287,16 @@ class PDFChapterWorker:
                         # Fallback: construct URL from R2
                         r2_key = file_doc.get("r2_key")
                         public_url = f"{os.getenv('R2_PUBLIC_URL', 'https://static.wordai.pro')}/{r2_key}"
-                    
+
                     logger.info(f"✅ Using original PDF: {public_url}")
 
                     # Get file size (already uploaded)
                     file_size = file_doc.get("file_size", 0)
-                    
+
                     result = {
                         "pdf_url": public_url,
                         "file_size": file_size,
-                        "content_mode": "pdf_file"
+                        "content_mode": "pdf_file",
                     }
 
                     # Update progress to 70%
@@ -325,15 +331,17 @@ class PDFChapterWorker:
                         )
 
                     result = await self.pdf_processor.process_pdf_to_pages(
-                    pdf_path=temp_pdf_path,
-                    user_id=user_id,
-                    chapter_id=chapter_id,
-                    dpi=150,  # A4 @ 150 DPI = 1240×1754px
-                    batch_size=10,  # Process 10 pages at a time
-                    progress_callback=update_progress,
-                )
+                        pdf_path=temp_pdf_path,
+                        user_id=user_id,
+                        chapter_id=chapter_id,
+                        dpi=150,  # A4 @ 150 DPI = 1240×1754px
+                        batch_size=10,  # Process 10 pages at a time
+                        progress_callback=update_progress,
+                    )
 
-                logger.info(f"✅ PDF processed: {result.get('total_pages', 'N/A')} pages")
+                logger.info(
+                    f"✅ PDF processed: {result.get('total_pages', 'N/A')} pages"
+                )
 
                 # Update progress: 70% (MongoDB)
                 self.db.pdf_chapter_jobs.update_one(
@@ -383,15 +391,19 @@ class PDFChapterWorker:
 
                 # Add mode-specific fields
                 if content_mode == "pdf_file":
-                    chapter_doc.update({
-                        "pdf_url": result["pdf_url"],
-                        "file_size": result["file_size"],
-                    })
+                    chapter_doc.update(
+                        {
+                            "pdf_url": result["pdf_url"],
+                            "file_size": result["file_size"],
+                        }
+                    )
                 else:
-                    chapter_doc.update({
-                        "pages": result["pages"],
-                        "total_pages": result["total_pages"],
-                    })
+                    chapter_doc.update(
+                        {
+                            "pages": result["pages"],
+                            "total_pages": result["total_pages"],
+                        }
+                    )
 
                 # Insert chapter
                 self.db.book_chapters.insert_one(chapter_doc)
@@ -420,7 +432,7 @@ class PDFChapterWorker:
                     if content_mode == "pdf_pages"
                     else "Chapter created with original PDF file"
                 )
-                
+
                 job_result = {
                     "chapter_id": chapter_id,
                 }
