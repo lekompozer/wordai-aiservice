@@ -208,7 +208,7 @@ async function pollJobStatus(jobId) {
     }
 
     const job = await response.json();
-    
+
     // Update UI with progress
     updateProgress(job.progress, job.message);
 
@@ -248,11 +248,11 @@ async function pollJobStatus(jobId) {
 
 ### Vấn đề hiện tại
 ```
-Access to fetch at 'https://ai.wordai.pro/api/v1/books/jobs/...' 
-from origin 'https://wordai.pro' has been blocked by CORS policy: 
+Access to fetch at 'https://ai.wordai.pro/api/v1/books/jobs/...'
+from origin 'https://wordai.pro' has been blocked by CORS policy:
 No 'Access-Control-Allow-Origin' header is present on the requested resource.
 
-GET https://ai.wordai.pro/api/v1/books/jobs/... 
+GET https://ai.wordai.pro/api/v1/books/jobs/...
 net::ERR_FAILED 502 (Bad Gateway)
 ```
 
@@ -315,21 +315,21 @@ workers = cpu_count() * 2 + 1  # e.g., 9 workers on 4-core server
   user_id: "17BeaeikPBQYk8OWeDUkqm0Ov8e2",
   book_id: "book_19127824bb26",
   file_id: "file_122e249f76bf",
-  
+
   // Job state
   status: "pending" | "processing" | "completed" | "failed",
   progress: 45, // 0-100
   message: "Processed 120/283 pages...",
-  
+
   // Result (when completed)
   result: {
     chapter_id: "3939f17c-a8ea-4000-be89-9e7e6f5ca4e9",
     total_pages: 283
   },
-  
+
   // Error (when failed)
   error: "Out of memory",
-  
+
   // Timestamps
   created_at: ISODate("2026-02-08T00:10:28.325Z"),
   updated_at: ISODate("2026-02-08T00:12:15.456Z"),
