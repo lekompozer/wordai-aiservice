@@ -1989,11 +1989,30 @@ async def get_pdf_chapter_job_status(
     """
     try:
         user_id = current_user["uid"]
+        
+        logger.info(f"📊 [JOB STATUS] Polling job: {job_id} (user: {user_id})")
 
-        # Get job status from MongoDB
-        job = db.pdf_chapter_jobs.find_one({"job_id": job_id})
+        # Get job status from MongoDB with projection to minimize data transfer
+        job = db.pdf_chapter_jobs.find_one(
+            {"job_id": job_id},
+            {
+                "_id": 0,  # Exclude _id from result
+                "job_id": 1,
+                "user_id": 1,
+                "status": 1,
+                "progress": 1,
+                "message": 1,
+                "result": 1,
+                "error": 1,
+                "created_at": 1,
+                "updated_at": 1,
+                "completed_at": 1,
+                "failed_at": 1,
+            }
+        )
 
         if not job:
+            logger.warning(f"⚠️ [JOB STATUS] Job not found: {job_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Job {job_id} not found",
@@ -2001,14 +2020,11 @@ async def get_pdf_chapter_job_status(
 
         # Verify job ownership
         if job.get("user_id") != user_id:
+            logger.warning(f"⚠️ [JOB STATUS] Access denied: {job_id} (wrong user)")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied to this job",
             )
-
-        # Convert ObjectId and datetime to JSON-serializable format
-        if "_id" in job:
-            del job["_id"]
 
         # Safely convert datetime fields to ISO format (only if they exist and are datetime objects)
         datetime_fields = ["created_at", "updated_at", "completed_at", "failed_at"]
@@ -2019,6 +2035,7 @@ async def get_pdf_chapter_job_status(
                     job[field] = job[field].isoformat()
                 # If it's already a string, leave it as is
 
+        logger.info(f"✅ [JOB STATUS] {job_id}: {job.get('status')} ({job.get('progress', 0)}%)")
         return job
 
     except HTTPException:
