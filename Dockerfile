@@ -18,6 +18,7 @@ RUN apt-get update && apt-get install -y \
     libffi-dev \
     shared-mime-info \
     ffmpeg \
+    calibre \
     # Playwright/Chromium dependencies (comprehensive list)
     wget \
     ca-certificates \
