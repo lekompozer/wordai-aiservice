@@ -101,9 +101,9 @@ class CloudflareImagesService:
         if not self.enabled:
             raise ValueError("Cloudflare Images is not enabled")
 
-        # Retry logic for network errors
-        max_retries = 3
-        retry_delay = 2  # seconds
+        # Retry logic for network errors and Cloudflare server errors (5xx)
+        max_retries = 5  # Increased from 3 for storage errors
+        retry_delay = 3  # Increased from 2 for server recovery time
 
         for attempt in range(max_retries):
             try:
@@ -129,15 +129,36 @@ class CloudflareImagesService:
                         self.api_base_url, headers=headers, files=files, data=data
                     )
 
+                    result = (
+                        response.json()
+                        if response.text
+                        else {"success": False, "errors": []}
+                    )
+
+                    # Check for Cloudflare storage errors (code 5540, 5400, etc.) - SHOULD RETRY
+                    if response.status_code in [500, 502, 503, 504]:
+                        error_detail = result
+                        error_msg = f"Cloudflare server error: {response.status_code} - {error_detail}"
+
+                        # Retry on server errors
+                        if attempt < max_retries - 1:
+                            logger.warning(
+                                f"⚠️  Upload attempt {attempt + 1} failed: {error_msg}. Retrying in {retry_delay}s..."
+                            )
+                            import asyncio
+
+                            await asyncio.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
+                        else:
+                            raise Exception(error_msg)
+
+                    # Check for other HTTP errors (4xx) - DON'T RETRY
                     if response.status_code != 200:
-                        error_detail = (
-                            response.json() if response.text else "Unknown error"
-                        )
+                        error_detail = result
                         raise Exception(
                             f"Cloudflare Images upload failed: {response.status_code} - {error_detail}"
                         )
-
-                    result = response.json()
 
                     if not result.get("success"):
                         errors = result.get("errors", [])

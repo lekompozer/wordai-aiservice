@@ -139,17 +139,29 @@ class PDFChapterProcessor:
                         }
                     )
 
-                # Clear batch from memory
+                # Clear batch from memory - CRITICAL: Close PIL Images first!
                 logger.info(
                     f"🗑️ Clearing batch {batch_start + 1}-{batch_end} from memory..."
                 )
+
+                # Close each PIL Image to free buffers
+                for img in images:
+                    try:
+                        img.close()
+                    except Exception:
+                        pass  # Ignore close errors
+
+                # Delete variables explicitly
                 del images
                 del background_urls
 
-                # Force garbage collection to free memory immediately
-                logger.info("♻️ Running garbage collection...")
-                collected = gc.collect()
-                logger.info(f"✅ GC collected {collected} objects")
+                # Force garbage collection TWICE for better cleanup
+                logger.info("♻️ Running aggressive garbage collection...")
+                collected_gen0 = gc.collect(0)  # Young generation
+                collected_full = gc.collect()  # Full collection
+                logger.info(
+                    f"✅ GC collected {collected_gen0 + collected_full} objects (gen0={collected_gen0}, full={collected_full})"
+                )
                 log_memory_usage(f"[AFTER GC] ")
 
                 # Progress callback
@@ -267,14 +279,13 @@ class PDFChapterProcessor:
                         f"{img.width}×{img.height}px"
                     )
 
-                    # Clear pixmap memory immediately
+                    # Clear pixmap and buffer memory immediately after conversion
                     del pix
                     del img_data
+                    # Note: Don't close 'img' here - it's needed for upload
 
                 doc.close()
-
-                # Force GC after extracting batch
-                gc.collect()
+                del doc  # Explicitly delete document reference
 
                 return images
 
