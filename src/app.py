@@ -293,6 +293,9 @@ from src.api.book_review_routes import router as book_review_router
 # ✅ ADDED: Community Books API - Public browsing and discovery
 from src.api.community_routes import router as community_router
 
+# ✅ ADDED: Book Categories API - Categories tree and books by category
+from src.api.book_category_routes import router as book_category_router
+
 # ✅ ADDED: Image Generation API - AI-powered image generation using Gemini 2.5 Flash Image
 from src.api.image_generation_routes import router as image_generation_router
 from src.api.image_generation_phase2_routes import (
@@ -1296,6 +1299,13 @@ def create_app() -> FastAPI:
         community_router,
         prefix="/api/v1",
         tags=["Community Books", "Public Discovery"],
+    )
+
+    # ✅ NEW: Book Categories API - Categories tree and books by category
+    app.include_router(
+        book_category_router,
+        prefix="/api/v1",
+        tags=["Book Categories", "Public Discovery"],
     )
 
     # ✅ ADDED: Internal CORS management for chat-plugin

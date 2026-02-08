@@ -161,25 +161,22 @@ class TestBookCrawler:
                     author_text = text.replace("Tác giả:", "").strip()
                     break
 
-            # Extract cover image - first img in .col-xs-12.col-sm-4
+            # Extract cover image - prioritize /images/thumbnail/ (actual book cover)
             cover_url = None
-            cover_img = page.query_selector(
-                ".col-xs-12.col-sm-4 img[src*='wp-content/uploads']"
-            )
-            if cover_img:
-                cover_url = cover_img.get_attribute("src")
 
-            # Fallback: any image with wp-content/uploads
+            # Method 1: Find image with /images/thumbnail/ in src (BEST - actual cover)
+            thumbnail_img = page.query_selector("img[src*='/images/thumbnail/']")
+            if thumbnail_img:
+                cover_url = thumbnail_img.get_attribute("src")
+
+            # Method 2: Fallback to .col-xs-12.col-sm-4 area
             if not cover_url:
-                all_imgs = page.query_selector_all("img[src*='wp-content/uploads']")
-                for img in all_imgs:
-                    src = img.get_attribute("src")
-                    # Skip ads/banners
-                    if src and not any(
-                        x in src.lower() for x in ["banner", "ads", "voucher", ".gif"]
-                    ):
+                cover_img = page.query_selector(".col-xs-12.col-sm-4 img")
+                if cover_img:
+                    src = cover_img.get_attribute("src")
+                    # Only accept if it's from /images/thumbnail/ (not ads)
+                    if src and "/images/thumbnail/" in src:
                         cover_url = src
-                        break
 
             # Extract description from .content_p.content_p_al
             description_parts = []
