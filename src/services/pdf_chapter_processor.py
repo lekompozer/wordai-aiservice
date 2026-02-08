@@ -333,9 +333,10 @@ class PDFChapterProcessor:
             for idx, image in enumerate(images):
                 page_num = start_page_number + idx
 
-                # Convert PIL Image to bytes (WebP format - 25-35% smaller than PNG/JPEG)
+                # Convert PIL Image to bytes (WebP format)
+                # Quality 95: Near-lossless, sharp text, still 15-25% smaller than PNG
                 buffer = io.BytesIO()
-                image.save(buffer, format="WEBP", quality=85, method=4)
+                image.save(buffer, format="WEBP", quality=95, method=4)
                 buffer.seek(0)
                 image_bytes = buffer.getvalue()
 
