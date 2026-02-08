@@ -54,6 +54,7 @@ class PDFChapterWorker:
         redis_url: Optional[str] = None,
         queue_name: str = "pdf_chapter_queue",
         poll_interval: float = 2.0,
+        max_concurrent_jobs: int = 3,  # Process up to 3 PDFs simultaneously
     ):
         self.worker_id = worker_id or f"pdf_worker_{int(time.time())}_{os.getpid()}"
         self.redis_url = redis_url or os.getenv(
@@ -61,7 +62,9 @@ class PDFChapterWorker:
         )
         self.queue_name = queue_name
         self.poll_interval = poll_interval
+        self.max_concurrent_jobs = max_concurrent_jobs
         self.running = False
+        self.active_jobs: set = set()  # Track active job_ids for concurrency control
 
         # Initialize components
         self.db_manager = None
@@ -73,6 +76,7 @@ class PDFChapterWorker:
         logger.info(f"🔧 PDF Chapter Worker {self.worker_id} initialized")
         logger.info(f"   📡 Redis: {self.redis_url}")
         logger.info(f"   📦 Queue: {self.queue_name}")
+        logger.info(f"   🔄 Max concurrent jobs: {self.max_concurrent_jobs}")
 
     async def initialize(self):
         """Initialize worker components"""
@@ -422,16 +426,27 @@ class PDFChapterWorker:
             )
 
     async def run(self):
-        """Main worker loop"""
+        """Main worker loop with concurrent job processing"""
         self.running = True
         logger.info(f"🚀 Worker {self.worker_id} started")
+        logger.info(f"   🔄 Max concurrent jobs: {self.max_concurrent_jobs}")
 
         try:
             await self.initialize()
 
             while self.running:
                 try:
-                    # Get job from Redis queue (blocking pop with timeout)
+                    # Wait if we're at max concurrent jobs
+                    while len(self.active_jobs) >= self.max_concurrent_jobs:
+                        await asyncio.sleep(0.5)  # Check every 500ms
+                        # Clean up completed tasks
+                        self.active_jobs = {
+                            job_id
+                            for job_id in self.active_jobs
+                            if job_id in self.active_jobs
+                        }
+
+                    # Get job from Redis queue (non-blocking with timeout)
                     result = await self.redis_client.brpop(
                         self.queue_name, timeout=self.poll_interval
                     )
@@ -439,9 +454,29 @@ class PDFChapterWorker:
                     if result:
                         queue_name, job_json = result
                         job_data = eval(job_json)  # Convert string to dict
+                        job_id = job_data.get("job_id")
 
-                        logger.info(f"📥 Got job: {job_data.get('job_id')}")
-                        await self.process_job(job_data)
+                        logger.info(
+                            f"📥 Got job: {job_id} (active: {len(self.active_jobs)}/{self.max_concurrent_jobs})"
+                        )
+
+                        # Add to active jobs
+                        self.active_jobs.add(job_id)
+
+                        # Process job in background (non-blocking)
+                        async def process_and_cleanup(job_data):
+                            try:
+                                await self.process_job(job_data)
+                            finally:
+                                # Remove from active jobs when done
+                                job_id = job_data.get("job_id")
+                                self.active_jobs.discard(job_id)
+                                logger.info(
+                                    f"✅ Job {job_id} completed. Active jobs: {len(self.active_jobs)}/{self.max_concurrent_jobs}"
+                                )
+
+                        # Create background task (don't await)
+                        asyncio.create_task(process_and_cleanup(job_data))
 
                 except KeyboardInterrupt:
                     logger.info("⚠️ Received shutdown signal")
@@ -451,6 +486,14 @@ class PDFChapterWorker:
                     await asyncio.sleep(1)
 
         finally:
+            # Wait for active jobs to complete
+            if self.active_jobs:
+                logger.info(
+                    f"⏳ Waiting for {len(self.active_jobs)} active jobs to complete..."
+                )
+                while self.active_jobs:
+                    await asyncio.sleep(1)
+
             logger.info(f"🛑 Worker {self.worker_id} stopped")
 
     def stop(self):
