@@ -300,7 +300,7 @@ class PDFChapterWorker:
                     GuideBookBookChapterManager,
                 )
 
-                chapter_manager = GuideBookBookChapterManager(self.db_manager)
+                chapter_manager = GuideBookBookChapterManager(self.db)
 
                 base_slug = slug or chapter_manager._generate_slug(title)
                 unique_slug = chapter_manager._generate_unique_slug(book_id, base_slug)
