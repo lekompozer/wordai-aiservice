@@ -537,7 +537,7 @@ class ChapterResponse(BaseModel):
     # Content mode and pages (for pdf_pages/image_pages types)
     content_mode: Optional[str] = Field(
         default=None,
-        description="Content rendering mode: inline, document, pdf_pages, image_pages",
+        description="Content rendering mode: inline, document, pdf_pages, image_pages, pdf_file",
     )
     pages: Optional[List[Dict[str, Any]]] = Field(
         default=None,
@@ -546,6 +546,10 @@ class ChapterResponse(BaseModel):
     total_pages: Optional[int] = Field(
         default=None,
         description="Total number of pages for pdf_pages/image_pages",
+    )
+    pdf_url: Optional[str] = Field(
+        default=None,
+        description="PDF file URL for pdf_file content mode (R2 storage URL)",
     )
 
 
