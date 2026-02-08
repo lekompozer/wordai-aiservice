@@ -118,3 +118,9 @@ json-repair==0.28.4  # Repair malformed JSON from LLM responses
 google-genai==1.47.0  # Gemini 3 Pro Image support
 docx2txt==0.9
 yt-dlp>=2024.0.0
+
+# Book crawler dependencies
+selenium==4.15.0  # Web scraping
+webdriver-manager==4.0.1  # Auto ChromeDriver management
+gdown==5.2.0  # Google Drive downloads
+Unidecode==1.3.8  # Text normalization for slugs
