@@ -184,7 +184,7 @@ echo "🩺 Performing health checks..."
 echo "   Initial delay: ${HEALTH_CHECK_DELAY}s"
 echo "   Max retries: $MAX_HEALTH_RETRIES"
 echo "   Interval: ${HEALTH_CHECK_INTERVAL}s"
-echo "   Checking: Main app + 13 workers"
+echo "   Checking: Main app + 10 workers (4 disabled)"
 
 sleep $HEALTH_CHECK_DELAY
 
@@ -226,9 +226,10 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
     if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
         echo "✅ Main app health endpoint responding"
 
-        # Check all workers are running
+        # Check all workers are running (excluding commented-out workers)
         echo "🔍 Checking workers status..."
-        WORKERS=("generate-code-worker" "explain-code-worker" "transform-code-worker" "gemini-ai-worker" "slide-format-worker" "test-generation-worker" "lyria-music-worker" "slide-narration-audio-worker" "slide-narration-subtitle-worker" "slide-generation-worker" "chapter-translation-worker" "video-export-worker" "ai-editor-worker")
+        # Note: lyria-music-worker, generate-code-worker, explain-code-worker, transform-code-worker are temporarily disabled
+        WORKERS=("gemini-ai-worker" "slide-format-worker" "test-generation-worker" "slide-narration-audio-worker" "slide-narration-subtitle-worker" "slide-generation-worker" "chapter-translation-worker" "video-export-worker" "ai-editor-worker" "pdf-chapter-worker")
 
         ALL_WORKERS_OK=true
         for worker in "${WORKERS[@]}"; do
@@ -241,7 +242,7 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
         done
 
         if [ "$ALL_WORKERS_OK" = true ]; then
-            echo "✅ All 14 workers healthy"
+            echo "✅ All 10 workers healthy (4 workers disabled to reduce resource usage)"
             HEALTH_CHECK_PASSED=true
             break
         else
