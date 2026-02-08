@@ -62,12 +62,15 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements.txt trước để tận dụng Docker cache
 COPY requirements.txt .
 
-# Cài đặt các thư viện Python chính trước
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Cài đặt các thư viện Python chính với cache mount
+# BuildKit cache mount: pip cache được persist giữa các builds
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --upgrade pip && \
+    pip install -r requirements.txt
 
 # Cài đặt cerebras riêng để tránh anyio conflict
-RUN pip install --no-cache-dir cerebras-cloud-sdk==1.29.0
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install cerebras-cloud-sdk==1.29.0
 
 # Install Playwright browsers (Chromium only, deps already installed above)
 RUN playwright install chromium
