@@ -160,7 +160,7 @@ class MangaMetadata(BaseModel):
 
 
 class ChapterCreatePDFPages(BaseModel):
-    """Create chapter from PDF file (pdf_pages mode)"""
+    """Create chapter from PDF file"""
 
     file_id: str = Field(..., description="Existing PDF file ID from studyhub_files")
     title: str = Field(..., min_length=1, max_length=200, description="Chapter title")
@@ -168,6 +168,10 @@ class ChapterCreatePDFPages(BaseModel):
         None,
         max_length=200,
         description="Chapter URL slug (auto-generated if not provided)",
+    )
+    content_mode: str = Field(
+        default="pdf_pages",
+        description="Content mode: 'pdf_pages' (convert to images) or 'pdf_file' (keep original PDF)"
     )
     parent_id: Optional[str] = Field(None, description="Parent chapter ID for nesting")
     order_index: int = Field(

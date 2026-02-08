@@ -1830,20 +1830,27 @@ async def create_chapter_from_pdf(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """
-    Create chapter from existing PDF file (pdf_pages mode) - ASYNC JOB
+    Create chapter from existing PDF file - ASYNC JOB
 
     **Authentication:** Required (Owner only)
+
+    **Content Modes:**
+    - pdf_pages: Convert PDF to images (editable, heavier ~180KB/page, default)
+    - pdf_file: Keep original PDF (non-editable, lighter, text-only PDFs)
 
     **Flow (Async):**
     1. Validate user owns book and PDF file exists
     2. Enqueue job to PDF Chapter Worker
     3. Return job_id immediately (no timeout for large PDFs)
-    4. Worker processes: Download PDF → Extract pages → Upload images → Create chapter
+    4. Worker processes:
+       - pdf_pages: Download PDF → Extract pages → Upload images → Create chapter
+       - pdf_file: Upload original PDF → Create chapter with PDF URL
     5. Poll job status using GET /api/v1/jobs/{job_id}
 
     **Request Body:**
     - file_id: Existing PDF file ID from user_files [REQUIRED]
     - title: Chapter title [REQUIRED]
+    - content_mode: "pdf_pages" or "pdf_file" (default: "pdf_pages")
     - slug: URL slug (auto-generated if not provided)
     - parent_id: Parent chapter ID for nesting
     - order_index: Display order (default: 0)
@@ -1916,6 +1923,7 @@ async def create_chapter_from_pdf(
             "file_id": request.file_id,
             "title": request.title,
             "slug": request.slug,
+            "content_mode": request.content_mode,  # pdf_pages or pdf_file
             "order_index": request.order_index,
             "parent_id": request.parent_id,
             "is_published": request.is_published,

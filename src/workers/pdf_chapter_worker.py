@@ -203,35 +203,57 @@ class PDFChapterWorker:
             ):
                 raise ValueError(f"File must be PDF (got: {file_type})")
 
-            # Update progress: 10% (MongoDB)
-            self.db.pdf_chapter_jobs.update_one(
-                {"job_id": job_id},
-                {
-                    "$set": {
-                        "status": "processing",
-                        "progress": 10,
-                        "message": f"Downloading PDF: {file_doc.get('filename')}",
-                        "updated_at": datetime.utcnow(),
-                    }
-                },
-            )
+            # Get content mode from job data (default: pdf_pages)
+            content_mode = job_data.get("content_mode", "pdf_pages")
+            logger.info(f"📄 Content mode: {content_mode}")
 
-            # 2. Download PDF from R2
-            r2_key = file_doc.get("r2_key")
-            if not r2_key:
-                raise ValueError("PDF file has no R2 key")
-
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
-                temp_pdf_path = tmp_file.name
-
-                file_obj = self.s3_client.get_object(
-                    Bucket=os.getenv("R2_BUCKET_NAME", "wordai"), Key=r2_key
+            # 2. Download PDF from R2 (only for pdf_pages mode)
+            temp_pdf_path = None
+            if content_mode == "pdf_pages":
+                # Update progress: 10% (MongoDB)
+                self.db.pdf_chapter_jobs.update_one(
+                    {"job_id": job_id},
+                    {
+                        "$set": {
+                            "status": "processing",
+                            "progress": 10,
+                            "message": f"Downloading PDF: {file_doc.get('filename')}",
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
                 )
-                file_content = file_obj["Body"].read()
-                tmp_file.write(file_content)
 
-                logger.info(
-                    f"✅ Downloaded {len(file_content)} bytes to {temp_pdf_path}"
+                r2_key = file_doc.get("r2_key")
+                if not r2_key:
+                    raise ValueError("PDF file has no R2 key")
+
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+                    temp_pdf_path = tmp_file.name
+
+                    file_obj = self.s3_client.get_object(
+                        Bucket=os.getenv("R2_BUCKET_NAME", "wordai"), Key=r2_key
+                    )
+                    file_content = file_obj["Body"].read()
+                    tmp_file.write(file_content)
+
+                    logger.info(
+                        f"✅ Downloaded {len(file_content)} bytes to {temp_pdf_path}"
+                    )
+            else:
+                # pdf_file mode: Skip download
+                logger.info(f"⏭️ Skipping download for pdf_file mode")
+
+                # Update progress: 10% (MongoDB)
+                self.db.pdf_chapter_jobs.update_one(
+                    {"job_id": job_id},
+                    {
+                        "$set": {
+                            "status": "processing",
+                            "progress": 10,
+                            "message": "Using original PDF file...",
+                            "updated_at": datetime.utcnow(),
+                        }
+                    },
                 )
 
             try:
@@ -242,32 +264,67 @@ class PDFChapterWorker:
                         "$set": {
                             "status": "processing",
                             "progress": 30,
-                            "message": "Extracting pages from PDF...",
+                            "message": "Processing PDF..." if content_mode == "pdf_file" else "Extracting pages from PDF...",
                             "updated_at": datetime.utcnow(),
                         }
                     },
                 )
 
-                # 3. Process PDF to pages with progress callback
+                # 3. Process based on content mode
                 chapter_id = str(uuid.uuid4())
 
-                # Progress callback to update job status during batch processing
-                async def update_progress(current_page, total_pages):
-                    # Map 30-70% progress to page extraction (40% range)
-                    progress = 30 + int((current_page / total_pages) * 40)
+                if content_mode == "pdf_file":
+                    # Mode 1: Keep original PDF (no conversion)
+                    # Get public URL directly from file_doc
+                    public_url = file_doc.get("public_url")
+                    if not public_url:
+                        # Fallback: construct URL from R2
+                        r2_key = file_doc.get("r2_key")
+                        public_url = f"{os.getenv('R2_PUBLIC_URL', 'https://static.wordai.pro')}/{r2_key}"
+                    
+                    logger.info(f"✅ Using original PDF: {public_url}")
+
+                    # Get file size (already uploaded)
+                    file_size = file_doc.get("file_size", 0)
+                    
+                    result = {
+                        "pdf_url": public_url,
+                        "file_size": file_size,
+                        "content_mode": "pdf_file"
+                    }
+
+                    # Update progress to 70%
                     self.db.pdf_chapter_jobs.update_one(
                         {"job_id": job_id},
                         {
                             "$set": {
                                 "status": "processing",
-                                "progress": progress,
-                                "message": f"Processed {current_page}/{total_pages} pages...",
+                                "progress": 70,
+                                "message": "PDF ready. Creating chapter...",
                                 "updated_at": datetime.utcnow(),
                             }
                         },
                     )
 
-                result = await self.pdf_processor.process_pdf_to_pages(
+                else:
+                    # Mode 2: Convert to images (existing logic)
+                    # Progress callback to update job status during batch processing
+                    async def update_progress(current_page, total_pages):
+                        # Map 30-70% progress to page extraction (40% range)
+                        progress = 30 + int((current_page / total_pages) * 40)
+                        self.db.pdf_chapter_jobs.update_one(
+                            {"job_id": job_id},
+                            {
+                                "$set": {
+                                    "status": "processing",
+                                    "progress": progress,
+                                    "message": f"Processed {current_page}/{total_pages} pages...",
+                                    "updated_at": datetime.utcnow(),
+                                }
+                            },
+                        )
+
+                    result = await self.pdf_processor.process_pdf_to_pages(
                     pdf_path=temp_pdf_path,
                     user_id=user_id,
                     chapter_id=chapter_id,
@@ -276,7 +333,7 @@ class PDFChapterWorker:
                     progress_callback=update_progress,
                 )
 
-                logger.info(f"✅ PDF processed: {result['total_pages']} pages")
+                logger.info(f"✅ PDF processed: {result.get('total_pages', 'N/A')} pages")
 
                 # Update progress: 70% (MongoDB)
                 self.db.pdf_chapter_jobs.update_one(
@@ -285,7 +342,7 @@ class PDFChapterWorker:
                         "$set": {
                             "status": "processing",
                             "progress": 70,
-                            "message": f"Processed {result['total_pages']} pages. Creating chapter...",
+                            "message": f"Processed {result.get('total_pages', 'PDF file')}. Creating chapter...",
                             "updated_at": datetime.utcnow(),
                         }
                     },
@@ -305,6 +362,7 @@ class PDFChapterWorker:
                 base_slug = slug or chapter_manager._generate_slug(title)
                 unique_slug = chapter_manager._generate_unique_slug(book_id, base_slug)
 
+                # Build chapter document based on content mode
                 chapter_doc = {
                     "_id": chapter_id,
                     "chapter_id": chapter_id,
@@ -315,15 +373,25 @@ class PDFChapterWorker:
                     "order_index": job_data.get("order_index", 0),
                     "parent_id": job_data.get("parent_id"),
                     "depth": 0,  # Calculate if needed
-                    "content_mode": "pdf_pages",
-                    "pages": result["pages"],
-                    "total_pages": result["total_pages"],
+                    "content_mode": content_mode,
                     "source_file_id": file_id,
                     "is_published": job_data.get("is_published", True),
                     "is_preview_free": job_data.get("is_preview_free", False),
                     "created_at": datetime.utcnow(),
                     "updated_at": datetime.utcnow(),
                 }
+
+                # Add mode-specific fields
+                if content_mode == "pdf_file":
+                    chapter_doc.update({
+                        "pdf_url": result["pdf_url"],
+                        "file_size": result["file_size"],
+                    })
+                else:
+                    chapter_doc.update({
+                        "pages": result["pages"],
+                        "total_pages": result["total_pages"],
+                    })
 
                 # Insert chapter
                 self.db.book_chapters.insert_one(chapter_doc)
@@ -347,17 +415,29 @@ class PDFChapterWorker:
                 )
 
                 # Update job status: completed (MongoDB)
+                success_message = (
+                    f"Chapter created with {result['total_pages']} pages"
+                    if content_mode == "pdf_pages"
+                    else "Chapter created with original PDF file"
+                )
+                
+                job_result = {
+                    "chapter_id": chapter_id,
+                }
+                if content_mode == "pdf_pages":
+                    job_result["total_pages"] = result["total_pages"]
+                else:
+                    job_result["pdf_url"] = result["pdf_url"]
+                    job_result["file_size"] = result["file_size"]
+
                 self.db.pdf_chapter_jobs.update_one(
                     {"job_id": job_id},
                     {
                         "$set": {
                             "status": "completed",
                             "progress": 100,
-                            "message": f"Chapter created successfully with {result['total_pages']} pages",
-                            "result": {
-                                "chapter_id": chapter_id,
-                                "total_pages": result["total_pages"],
-                            },
+                            "message": success_message,
+                            "result": job_result,
                             "updated_at": datetime.utcnow(),
                             "completed_at": datetime.utcnow(),
                         }
@@ -379,8 +459,8 @@ class PDFChapterWorker:
                     pass
 
             finally:
-                # Cleanup temp file
-                if os.path.exists(temp_pdf_path):
+                # Cleanup temp file if downloaded
+                if temp_pdf_path and os.path.exists(temp_pdf_path):
                     os.remove(temp_pdf_path)
                     logger.info(f"🗑️ Cleaned up temp PDF file")
 
