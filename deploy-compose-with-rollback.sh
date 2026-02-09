@@ -243,6 +243,16 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
 
         if [ "$ALL_WORKERS_OK" = true ]; then
             echo "✅ All 10 workers healthy (4 workers disabled to reduce resource usage)"
+
+            # Clear Redis cache to remove stale cached data after deployment
+            echo ""
+            echo "🧹 Clearing Redis cache (removes old cached responses)..."
+            if docker exec redis-community-book redis-cli FLUSHALL >/dev/null 2>&1; then
+                echo "✅ Redis cache cleared successfully"
+            else
+                echo "⚠️  Failed to clear Redis cache (non-critical)"
+            fi
+
             HEALTH_CHECK_PASSED=true
             break
         else
