@@ -278,6 +278,66 @@ async def warmup_trending_today():
         return None
 
 
+async def warmup_featured_week():
+    """
+    Warmup: Featured books of the week (3 books)
+    Cache key: books:featured:week
+    TTL: 30 minutes
+    """
+    logger.info("🔥 Warming up: Featured books (week)...")
+
+    try:
+        from src.api.community_routes import get_featured_books_week
+
+        result = await get_featured_books_week()
+        logger.info(f"✅ Featured week cached: {result.total} books")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Failed to warmup featured week: {e}")
+        return None
+
+
+async def warmup_featured_authors():
+    """
+    Warmup: Featured authors (10 authors)
+    Cache key: authors:featured
+    TTL: 30 minutes
+    """
+    logger.info("🔥 Warming up: Featured authors...")
+
+    try:
+        from src.api.community_routes import get_featured_authors
+
+        result = await get_featured_authors()
+        logger.info(f"✅ Featured authors cached: {result.total} authors")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Failed to warmup featured authors: {e}")
+        return None
+
+
+async def warmup_popular_tags():
+    """
+    Warmup: Popular tags (25 tags)
+    Cache key: tags:popular
+    TTL: 30 minutes
+    """
+    logger.info("🔥 Warming up: Popular tags...")
+
+    try:
+        from src.api.community_routes import get_popular_tags
+
+        result = await get_popular_tags()
+        logger.info(f"✅ Popular tags cached: {result.total} tags")
+        return result
+
+    except Exception as e:
+        logger.error(f"❌ Failed to warmup popular tags: {e}")
+        return None
+
+
 async def run_cache_warmup():
     """
     Run all cache warmup tasks
@@ -294,6 +354,9 @@ async def run_cache_warmup():
     await warmup_category_tree()
     await warmup_top_books_per_category()
     await warmup_trending_today()
+    await warmup_featured_week()
+    await warmup_featured_authors()
+    await warmup_popular_tags()
 
     # Show cache info
     info = await cache.get_info()

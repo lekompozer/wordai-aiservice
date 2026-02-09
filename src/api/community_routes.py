@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
 from src.database.db_manager import DBManager
 from src.middleware.query_protection import protect_query
+from src.cache.redis_client import get_cache_client
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/community", tags=["Community Books"])
@@ -15,6 +16,9 @@ router = APIRouter(prefix="/community", tags=["Community Books"])
 # Initialize DB connection
 db_manager = DBManager()
 db = db_manager.db
+
+# Initialize cache client
+cache_client = get_cache_client()
 
 
 # ============================================================================
@@ -304,6 +308,12 @@ async def get_featured_authors():
     **Public endpoint** - No authentication required
     """
     try:
+        # Check cache first
+        cache_key = "authors:featured"
+        cached = await cache_client.get(cache_key)
+        if cached:
+            return FeaturedAuthorsResponse(**cached)
+
         featured_authors = []
         used_author_ids = set()
 
@@ -565,10 +575,16 @@ async def get_featured_authors():
                         used_author_ids.add(author_id)
                         view_authors_added += 1
 
-        return FeaturedAuthorsResponse(
+        result = FeaturedAuthorsResponse(
             authors=featured_authors,
             total=len(featured_authors),
         )
+
+        # Cache for 30 minutes
+        cache_data = result.dict()
+        await cache_client.set(cache_key, cache_data, ttl=1800)
+
+        return result
 
     except Exception as e:
         raise HTTPException(
@@ -838,6 +854,12 @@ async def get_featured_books_week():
     **Public endpoint** - No authentication required
     """
     try:
+        # Check cache first
+        cache_key = "books:featured:week"
+        cached = await cache_client.get(cache_key)
+        if cached:
+            return FeaturedBooksResponse(**cached)
+
         from datetime import timedelta
 
         # Get date range for last 7 days
@@ -1030,10 +1052,16 @@ async def get_featured_books_week():
             used_book_ids.add(book_id)
             break  # Only need 1 book
 
-        return FeaturedBooksResponse(
+        result = FeaturedBooksResponse(
             books=featured_books,
             total=len(featured_books),
         )
+
+        # Cache for 30 minutes
+        cache_data = result.dict()
+        await cache_client.set(cache_key, cache_data, ttl=1800)
+
+        return result
 
     except Exception as e:
         raise HTTPException(
@@ -1059,9 +1087,16 @@ async def get_trending_books_today():
     Returns books with highest view count today.
     Includes full book details: cover, authors, chapters, stats.
 
+    **CACHED:** 15 minutes TTL for near real-time data.
+
     **Public endpoint** - No authentication required
     """
     try:
+        # Check cache first
+        cache_key = "books:trending:today"
+        cached = await cache_client.get(cache_key)
+        if cached:
+            return TrendingBooksResponse(**cached)
         # Get today's date range (00:00 - 23:59 UTC)
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1156,10 +1191,16 @@ async def get_trending_books_today():
                 )
             )
 
-        return TrendingBooksResponse(
+        result = TrendingBooksResponse(
             books=trending_books,
             total=len(trending_books),
         )
+
+        # Cache for 15 minutes
+        cache_data = result.dict()
+        await cache_client.set(cache_key, cache_data, ttl=900)
+
+        return result
 
     except Exception as e:
         raise HTTPException(
@@ -1187,6 +1228,12 @@ async def get_popular_tags():
     **Public endpoint** - No authentication required
     """
     try:
+        # Check cache first
+        cache_key = "tags:popular"
+        cached = await cache_client.get(cache_key)
+        if cached:
+            return PopularTagsResponse(**cached)
+
         # Aggregate tags from all public books
         pipeline = [
             {
@@ -1216,13 +1263,145 @@ async def get_popular_tags():
             for item in results
         ]
 
-        return PopularTagsResponse(
+        result = PopularTagsResponse(
             tags=tags,
             total=len(tags),
         )
+
+        # Cache for 30 minutes
+        cache_data = result.dict()
+        await cache_client.set(cache_key, cache_data, ttl=1800)
+
+        return result
 
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get popular tags: {str(e)}",
+        )
+
+
+# ============================================================================
+# BOOKS BY TAG
+# ============================================================================
+
+
+@router.get(
+    "/books/by-tag/{tag}",
+    response_model=CommunityBooksResponse,
+    summary="Get books by specific tag",
+)
+async def get_books_by_tag(
+    tag: str,
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    sort_by: str = Query(
+        "updated",
+        description="Sort by: updated, views, rating, newest",
+    ),
+):
+    """
+    **Get all books with a specific tag**
+
+    When user clicks a tag, this endpoint shows all books with that tag.
+
+    **Sort Options:**
+    - `updated`: Latest chapter update (default)
+    - `views`: Most viewed
+    - `rating`: Highest rated
+    - `newest`: Recently published
+
+    **Public endpoint** - No authentication required
+    """
+    try:
+        # Build query
+        query = {
+            "community_config.is_public": True,
+            "community_config.tags": tag,
+            "deleted_at": None,
+        }
+
+        # Sort mapping
+        sort_map = {
+            "updated": ("community_config.last_chapter_updated_at", -1),
+            "views": ("community_config.total_views", -1),
+            "rating": ("community_config.average_rating", -1),
+            "newest": ("community_config.published_at", -1),
+        }
+
+        sort_field, sort_order = sort_map.get(sort_by, sort_map["updated"])
+
+        # Get total count
+        total = db.online_books.count_documents(query)
+
+        # Get books
+        books_cursor = (
+            db.online_books.find(query)
+            .sort(sort_field, sort_order)
+            .skip(skip)
+            .limit(limit)
+        )
+
+        books = []
+        for book in books_cursor:
+            community_config = book.get("community_config", {})
+
+            # Get author names
+            author_ids = book.get("authors", [])
+            author_names = []
+            for author_id in author_ids:
+                author = db.book_authors.find_one({"author_id": author_id.lower()})
+                if author:
+                    author_names.append(author.get("name", author_id))
+                else:
+                    author_names.append(author_id)
+
+            # Get 2 most recent chapters
+            recent_chapters = []
+            chapters_cursor = (
+                db.book_chapters.find({"book_id": book["book_id"], "deleted_at": None})
+                .sort("updated_at", -1)
+                .limit(2)
+            )
+            for chapter in chapters_cursor:
+                recent_chapters.append(
+                    RecentChapterItem(
+                        chapter_id=chapter["chapter_id"],
+                        title=chapter["title"],
+                        updated_at=chapter["updated_at"],
+                    )
+                )
+
+            books.append(
+                CommunityBookItem(
+                    book_id=book["book_id"],
+                    title=book["title"],
+                    slug=book["slug"],
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
+                    authors=author_ids,
+                    author_names=author_names,
+                    category=community_config.get("category"),
+                    tags=community_config.get("tags", []),
+                    total_views=community_config.get("total_views", 0),
+                    average_rating=community_config.get("average_rating", 0.0),
+                    total_chapters=db.book_chapters.count_documents(
+                        {"book_id": book["book_id"], "deleted_at": None}
+                    ),
+                    last_updated=community_config.get("last_chapter_updated_at"),
+                    recent_chapters=recent_chapters,
+                )
+            )
+
+        return CommunityBooksResponse(
+            books=books,
+            total=total,
+            skip=skip,
+            limit=limit,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get books by tag: {str(e)}",
         )
