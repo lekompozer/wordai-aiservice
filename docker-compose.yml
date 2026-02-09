@@ -143,8 +143,12 @@ services:
       # Other settings
       - DATA_DIR=/app/data
     depends_on:
-      - mongodb
-      - redis-server
+      mongodb:
+        condition: service_healthy
+      redis-server:
+        condition: service_healthy
+      redis-community-book:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - ai-chatbot-network
