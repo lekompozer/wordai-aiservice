@@ -143,12 +143,9 @@ services:
       # Other settings
       - DATA_DIR=/app/data
     depends_on:
-      mongodb:
-        condition: service_healthy
-      redis-server:
-        condition: service_healthy
-      redis-community-book:
-        condition: service_healthy
+      - mongodb
+      - redis-server
+      - redis-community-book
     restart: unless-stopped
     networks:
       - ai-chatbot-network
@@ -736,6 +733,12 @@ services:
     restart: unless-stopped
     networks:
       - ai-chatbot-network
+    healthcheck:
+      test: [ "CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   # ============================================================================
   # Redis with Production Configuration (matching deploy-manual.sh)
