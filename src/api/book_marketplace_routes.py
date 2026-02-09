@@ -52,6 +52,7 @@ book_manager = UserBookManager(db)
 async def list_my_published_books(
     skip: int = Query(0, ge=0, description="Pagination offset"),
     limit: int = Query(20, ge=1, le=100, description="Results per page"),
+    search: Optional[str] = Query(None, description="Search by title or description"),
     category: Optional[str] = Query(None, description="Filter by category"),
     sort_by: str = Query(
         "published_at", description="Sort by: published_at | revenue | views | rating"
@@ -72,6 +73,7 @@ async def list_my_published_books(
     **Query Parameters:**
     - `skip`: Pagination offset (default: 0)
     - `limit`: Results per page (default: 20, max: 100)
+    - `search`: Search by title or description (case-insensitive)
     - `category`: Filter by category
     - `sort_by`: Sort field (published_at | revenue | views | rating)
     - `sort_order`: Sort direction (asc | desc)
@@ -88,6 +90,13 @@ async def list_my_published_books(
             # NOTE: No is_deleted filter! Trashed published books still show here
             "community_config.is_public": True,
         }
+
+        # Search by title or description
+        if search:
+            query["$or"] = [
+                {"title": {"$regex": search, "$options": "i"}},
+                {"description": {"$regex": search, "$options": "i"}},
+            ]
 
         # Filter by category
         if category:
@@ -168,7 +177,7 @@ async def list_my_published_books(
 
         logger.info(
             f"📊 User {user_id} listed {len(books)}/{total} published books "
-            f"(category={category}, sort={sort_by})"
+            f"(search={search}, category={category}, sort={sort_by})"
         )
 
         return MyPublishedBooksListResponse(

@@ -1288,6 +1288,77 @@ async def get_popular_tags():
         )
 
 
+@router.get(
+    "/tags/search",
+    response_model=PopularTagsResponse,
+    summary="Search tags by name",
+)
+async def search_tags(
+    q: str = Query(..., min_length=1, description="Search query"),
+    limit: int = Query(25, ge=1, le=100, description="Max results"),
+):
+    """
+    **Search tags by name (case-insensitive partial match)**
+
+    Find tags matching the search query, ordered by book count
+
+    **Public endpoint** - No authentication required
+
+    **Query Parameters:**
+    - `q`: Search query (minimum 1 character)
+    - `limit`: Max results to return (default: 25, max: 100)
+
+    **Examples:**
+    - `GET /community/tags/search?q=python` - Find tags containing "python"
+    - `GET /community/tags/search?q=tut&limit=10` - Find tags containing "tut"
+    """
+    try:
+        # Aggregate tags matching search query
+        pipeline = [
+            {
+                "$match": {
+                    "community_config.is_public": True,
+                    "deleted_at": None,
+                }
+            },
+            {"$unwind": "$community_config.tags"},
+            {"$match": {"community_config.tags": {"$regex": q, "$options": "i"}}},
+            {
+                "$group": {
+                    "_id": "$community_config.tags",
+                    "books_count": {"$sum": 1},
+                }
+            },
+            {"$sort": {"books_count": -1}},
+            {"$limit": limit},
+        ]
+
+        results = list(db.online_books.aggregate(pipeline))
+
+        tags = [
+            PopularTagItem(
+                tag=item["_id"],
+                books_count=item["books_count"],
+            )
+            for item in results
+        ]
+
+        result = PopularTagsResponse(
+            tags=tags,
+            total=len(tags),
+        )
+
+        logger.info(f"🔍 Tag search: '{q}' returned {len(tags)} results")
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to search tags: {str(e)}",
+        )
+
+
 # ============================================================================
 # BOOKS BY TAG
 # ============================================================================

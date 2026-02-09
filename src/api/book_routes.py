@@ -404,6 +404,7 @@ async def list_guides(
         None, description="Filter by publish status (true for community books)"
     ),
     search: Optional[str] = Query(None, description="Search by title or description"),
+    category: Optional[str] = Query(None, description="Filter by category"),
     tags: Optional[str] = Query(
         None, description="Filter by tags (comma-separated, e.g., 'python,tutorial')"
     ),
@@ -434,6 +435,7 @@ async def list_guides(
     - `GET /books?visibility=public` - Only public books
     - `GET /books?is_published=true` - Only community marketplace books
     - `GET /books?search=python` - Search for "python"
+    - `GET /books?category=technology` - Filter by category
     - `GET /books?tags=tutorial,beginner` - Books with these tags
     - `GET /books?sort_by=view_count&sort_order=desc` - Most viewed first
 
@@ -447,7 +449,7 @@ async def list_guides(
         logger.info(
             f"🔍 DEBUG list_guides - User: {user_id}, "
             f"is_published={is_published}, visibility={visibility}, "
-            f"search={search}, tags={tags}"
+            f"search={search}, category={category}, tags={tags}"
         )
 
         # Build query
@@ -463,6 +465,10 @@ async def list_guides(
         # Filter by publish status
         if is_published is not None:
             query["community_config.is_public"] = is_published
+
+        # Filter by category
+        if category:
+            query["community_config.category"] = category
 
         # Search in title and description
         if search:
@@ -531,7 +537,8 @@ async def list_guides(
 
         logger.info(
             f"📚 User {user_id} listed {len(guides)}/{total} guides "
-            f"(filters: visibility={visibility}, is_published={is_published}, search={search}, tags={tags})"
+            f"(filters: visibility={visibility}, is_published={is_published}, "
+            f"search={search}, category={category}, tags={tags})"
         )
 
         return {
