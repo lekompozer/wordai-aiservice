@@ -3,6 +3,7 @@ Community Books Routes
 Public endpoints for browsing community books
 """
 
+import logging
 from fastapi import APIRouter, Query, HTTPException, status
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone, timedelta
@@ -13,25 +14,14 @@ from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/community", tags=["Community Books"])
 
+logger = logging.getLogger("chatbot")
+
 # Initialize DB connection
 db_manager = DBManager()
 db = db_manager.db
 
 # Initialize cache client
 cache_client = get_cache_client()
-
-
-# ============================================================================
-# RESPONSE MODELS
-# ============================================================================
-
-
-class RecentChapterItem(BaseModel):
-    """Recent chapter summary"""
-
-    chapter_id: str
-    title: str
-    updated_at: datetime
 
 
 # ============================================================================
@@ -1096,7 +1086,16 @@ async def get_trending_books_today():
         cache_key = "books:trending:today"
         cached = await cache_client.get(cache_key)
         if cached:
+            # If cache exists but empty, fallback to featured week
+            if cached.get("total", 0) == 0:
+                logger.info("📊 Trending today is empty, falling back to featured week")
+                featured_cache = await cache_client.get("books:featured:week")
+                if featured_cache and featured_cache.get("total", 0) > 0:
+                    books = featured_cache.get("books", [])[:5]
+                    return TrendingBooksResponse(books=books, total=len(books))
+
             return TrendingBooksResponse(**cached)
+
         # Get today's date range (00:00 - 23:59 UTC)
         now = datetime.now(timezone.utc)
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -1199,6 +1198,14 @@ async def get_trending_books_today():
         # Cache for 15 minutes
         cache_data = result.dict()
         await cache_client.set(cache_key, cache_data, ttl=900)
+
+        # If no trending books today, return featured week instead
+        if len(trending_books) == 0:
+            logger.info("📊 No trending books today, returning featured week")
+            featured_cache = await cache_client.get("books:featured:week")
+            if featured_cache and featured_cache.get("total", 0) > 0:
+                books = featured_cache.get("books", [])[:5]
+                return TrendingBooksResponse(books=books, total=len(books))
 
         return result
 
