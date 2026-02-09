@@ -604,6 +604,16 @@ async def publish_book_to_community(
         # Add book to author's published books list
         author_manager.add_book_to_author(author_id, book_id)
 
+        # Invalidate categories cache to refresh book counts
+        try:
+            from src.cache.redis_client import get_cache_client
+
+            cache_client = get_cache_client()
+            await cache_client.delete("categories:tree:all")
+            logger.info("🗑️ Invalidated categories cache after publishing book")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to invalidate categories cache: {e}")
+
         logger.info(
             f"✅ User {user_id} published book {book_id} to community by author {author_id}"
         )
@@ -668,6 +678,16 @@ async def unpublish_book_from_community(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Failed to unpublish book from community",
             )
+
+        # Invalidate categories cache to refresh book counts
+        try:
+            from src.cache.redis_client import get_cache_client
+
+            cache_client = get_cache_client()
+            await cache_client.delete("categories:tree:all")
+            logger.info("🗑️ Invalidated categories cache after unpublishing book")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to invalidate categories cache: {e}")
 
         logger.info(f"✅ User {user_id} unpublished book from community: {book_id}")
         return BookResponse(**updated_book)

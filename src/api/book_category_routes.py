@@ -193,14 +193,14 @@ async def get_all_categories():
             total_books=total_books_all,
         )
 
-        # Cache for 10 minutes
+        # Cache for 15 minutes
         cache_data = {
             "categories": [cat.dict() for cat in categories],
             "total_parents": result.total_parents,
             "total_children": result.total_children,
             "total_books": result.total_books,
         }
-        await cache_client.set(cache_key, cache_data, ttl=600)
+        await cache_client.set(cache_key, cache_data, ttl=900)
 
         return result
 
