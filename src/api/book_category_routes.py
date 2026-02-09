@@ -7,6 +7,7 @@ from fastapi import APIRouter, Query, HTTPException, status, Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from src.database.db_manager import DBManager
+from src.cache.redis_client import get_cache_client
 from src.constants.book_categories import (
     PARENT_CATEGORIES,
     CHILD_CATEGORIES,
@@ -20,6 +21,9 @@ router = APIRouter(prefix="/book-categories", tags=["Book Categories"])
 # Initialize DB connection
 db_manager = DBManager()
 db = db_manager.db
+
+# Initialize cache client
+cache_client = get_cache_client()
 
 
 # ============================================================================
@@ -105,9 +109,26 @@ async def get_all_categories():
     - Book count for each category
 
     **Public endpoint** - No authentication required
+    **Cached:** 10 minutes (Redis)
     """
     try:
-        # Get category tree
+        # Try cache first
+        cache_key = "categories:tree:all"
+        cached_data = await cache_client.get(cache_key)
+
+        if cached_data:
+            # Return cached data as Pydantic models
+            categories = [
+                ParentCategoryItem(**cat) for cat in cached_data["categories"]
+            ]
+            return CategoriesResponse(
+                categories=categories,
+                total_parents=cached_data["total_parents"],
+                total_children=cached_data["total_children"],
+                total_books=cached_data["total_books"],
+            )
+
+        # Cache miss - compute from database
         tree = get_categories_tree()
 
         categories = []
@@ -159,12 +180,23 @@ async def get_all_categories():
         # Sort by order
         categories.sort(key=lambda x: x.order)
 
-        return CategoriesResponse(
+        result = CategoriesResponse(
             categories=categories,
             total_parents=len(PARENT_CATEGORIES),
             total_children=len(CHILD_CATEGORIES),
             total_books=total_books_all,
         )
+
+        # Cache for 10 minutes
+        cache_data = {
+            "categories": [cat.dict() for cat in categories],
+            "total_parents": result.total_parents,
+            "total_children": result.total_children,
+            "total_books": result.total_books,
+        }
+        await cache_client.set(cache_key, cache_data, ttl=600)
+
+        return result
 
     except Exception as e:
         raise HTTPException(

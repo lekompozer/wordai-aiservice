@@ -129,16 +129,16 @@ CHILD_CATEGORIES = [
         "parent": "technology",
         "slug": "cong-nghe-thong-tin",
     },
-    # Health (2 children)
+    # Health (1 child)
     {"name": "Y Học - Sức Khỏe", "parent": "health", "slug": "y-hoc-suc-khoe"},
-    {"name": "Tử Vi - Phong Thủy", "parent": "health", "slug": "tu-vi-phong-thuy"},
-    # Lifestyle (2 children)
+    # Lifestyle (3 children)
     {"name": "Ẩm thực - Nấu ăn", "parent": "lifestyle", "slug": "am-thuc-nau-an"},
     {
         "name": "Thể Thao - Nghệ Thuật",
         "parent": "lifestyle",
         "slug": "the-thao-nghe-thuat",
     },
+    {"name": "Tử Vi - Phong Thủy", "parent": "lifestyle", "slug": "tu-vi-phong-thuy"},
     # Entertainment (4 children)
     {
         "name": "Truyện Cười - Tiếu Lâm",
@@ -223,26 +223,64 @@ CHILD_CATEGORIES = [
 
 NHASACHMIENPHI_TO_WORDAI = {
     # nhasachmienphi slug → WordAI child category name
-    "van-hoc-viet-nam": "Văn Học Việt Nam",
+    # Business (3 categories)
     "kinh-te-quan-ly": "Kinh Tế - Quản Lý",
-    "ky-nang-song": "Tâm Lý - Kỹ Năng Sống",
     "marketing-ban-hang": "Marketing - Bán hàng",
+    "tam-ly-ky-nang-song": "Tâm Lý - Kỹ Năng Sống",
+    "ky-nang-song": "Tâm Lý - Kỹ Năng Sống",
     "khoi-nghiep-khoi-nghiep": "Kinh Tế - Quản Lý",  # Map to Business
     "tai-chinh-ca-nhan": "Kinh Tế - Quản Lý",  # Map to Business
     "tam-ly-hoc": "Tâm Lý - Kỹ Năng Sống",
     "nuoi-day-con": "Tâm Lý - Kỹ Năng Sống",
-    "suc-khoe-gioi-tinh": "Y Học - Sức Khỏe",
-    "thieu-nhi": "Truyên Teen - Tuổi Học Trò",
+    # Education (5 categories)
     "hoc-ngoai-ngu": "Học Ngoại Ngữ",
-    "cong-nghe-thong-tin": "Công Nghệ Thông Tin",
     "khoa-hoc-ky-thuat": "Khoa Học - Kỹ Thuật",
-    "lich-su": "Lịch Sử - Chính Trị",
+    "sach-giao-khoa": "Sách Giáo Khoa",
+    "kien-truc-xay-dung": "Kiến Trúc - Xây Dựng",
+    "nong-lam-ngu": "Nông - Lâm - Ngư",
+    "triet-hoc": "Triết Học",
+    "thu-vien-phap-luat": "Thư Viện Pháp Luật",
     "phap-luat": "Thư Viện Pháp Luật",
-    "ton-giao-tam-linh": "Văn Hóa - Tôn Giáo",
-    "nghe-thuat": "Thể Thao - Nghệ Thuật",
-    "du-lich": "Phiêu Lưu - Mạo Hiểm",
+    # Technology (1 category)
+    "cong-nghe-thong-tin": "Công Nghệ Thông Tin",
+    # Health (1 category)
+    "y-hoc-suc-khoe": "Y Học - Sức Khỏe",
+    "suc-khoe-gioi-tinh": "Y Học - Sức Khỏe",
+    # Lifestyle (3 categories)
+    "am-thuc-nau-an": "Ẩm thực - Nấu ăn",
     "am-thuc": "Ẩm thực - Nấu ăn",
+    "the-thao-nghe-thuat": "Thể Thao - Nghệ Thuật",
     "the-thao": "Thể Thao - Nghệ Thuật",
+    "nghe-thuat": "Thể Thao - Nghệ Thuật",
+    "tu-vi-phong-thuy": "Tử Vi - Phong Thủy",
+    # Entertainment (4 categories)
+    "truyen-cuoi-tieu-lam": "Truyện Cười - Tiếu Lâm",
+    "phieu-luu-mao-hiem": "Phiêu Lưu - Mạo Hiểm",
+    "du-lich": "Phiêu Lưu - Mạo Hiểm",
+    "trinh-tham-hinh-su": "Trinh Thám - Hình Sự",
+    "truyen-ma-truyen-kinh-di": "Truyện Ma - Truyện Kinh Dị",
+    # Literature & Art (8 categories)
+    "van-hoc-viet-nam": "Văn Học Việt Nam",
+    "tieu-thuyet-phuong-tay": "Tiểu Thuyết Phương Tây",
+    "tieu-thuyet-trung-quoc": "Tiểu Thuyết Trung Quốc",
+    "truyen-ngan-ngon-tinh": "Truyện Ngắn - Ngôn Tình",
+    "kiem-hiep-tien-hiep": "Kiếm Hiệp - Tiên Hiệp",
+    "hoi-ky-tuy-but": "Hồi Ký - Tuỳ Bút",
+    "tho-hay": "Thơ Hay",
+    "van-hoa-ton-giao": "Văn Hóa - Tôn Giáo",
+    "ton-giao-tam-linh": "Văn Hóa - Tôn Giáo",
+    # Children Stories (3 categories)
+    "co-tich-than-thoai": "Cổ Tích - Thần Thoại",
+    "truyen-teen-tuoi-hoc-tro": "Truyên Teen - Tuổi Học Trò",
+    "thieu-nhi": "Truyên Teen - Tuổi Học Trò",
+    "huyen-bi-gia-tuong": "Huyền bí - Giả Tưởng",
+    # Comics (1 category)
+    "truyen-tranh": "Truyện Tranh",
+    # Audiobooks (1 category)
+    "sach-noi-mien-phi": "Sách nói miễn phí",
+    # Other (1 category)
+    "lich-su-chinh-tri": "Lịch Sử - Chính Trị",
+    "lich-su": "Lịch Sử - Chính Trị",
 }
 
 # ============================================================================

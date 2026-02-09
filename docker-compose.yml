@@ -127,6 +127,11 @@ services:
       - REDIS_HOST=redis-server
       - REDIS_PORT=6379
 
+      # Redis Cache for Community Books
+      - REDIS_CACHE_URL=redis://redis-community-book:6379
+      - REDIS_CACHE_HOST=redis-community-book
+      - REDIS_CACHE_PORT=6379
+
       # MongoDB Configuration (with authentication)
       - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
       - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
@@ -731,6 +736,7 @@ services:
   # ============================================================================
   # Redis with Production Configuration (matching deploy-manual.sh)
   # Container name: redis-server (not "redis"!)
+  # Used for: Job queue (test generation, slide narration, etc.)
   # ============================================================================
   redis-server:
     container_name: redis-server
@@ -749,6 +755,34 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ============================================================================
+  # Redis Community Books Cache
+  # Separate container for caching community books data
+  # ============================================================================
+  redis-community-book:
+    container_name: redis-community-book
+    image: redis:7-alpine
+    ports:
+      - "6380:6379" # External port 6380, internal 6379
+    restart: unless-stopped
+    command: >
+      redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru --save "" --appendonly no --tcp-keepalive 300 --timeout 0 --protected-mode no --bind 0.0.0.0
+    networks:
+      - ai-chatbot-network
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.5'
+        reservations:
+          memory: 256M
+          cpus: '0.25'
 
   # ============================================================================
   # Payment Service (Node.js) - SePay Integration

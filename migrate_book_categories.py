@@ -57,12 +57,15 @@ def migrate_categories():
             print(f"[{idx}/{total_books}] {title}")
             print(f"  Old category: {old_category}")
 
-            # Skip if already has parent_category (already migrated)
-            if community_config.get("parent_category"):
-                print(f"  ✅ Already migrated - skipped")
+            # Skip if already has correct parent_category (not "other")
+            current_parent = community_config.get("parent_category")
+            if current_parent and current_parent != "other":
+                print(f"  ✅ Already migrated correctly - skipped")
                 stats["skipped"] += 1
                 print()
                 continue
+            elif current_parent == "other":
+                print(f"  ⚠️  Has wrong parent_category='other', will fix...")
 
             # Try to determine correct category
             new_child_category = None
@@ -70,12 +73,9 @@ def migrate_categories():
 
             # Case 1: Has source_category in metadata (from recent crawls)
             source_category = book.get("metadata", {}).get("source_category")
-            if source_category:
-                # If it's already a proper child name, use it
-                new_child_category = source_category
-                new_parent_category = get_parent_category(source_category)
-            # Case 2: Has old category value
-            elif old_category:
+
+            # Case 2: Check old category value (prioritize this)
+            if old_category:
                 # Try to map it
                 if old_category in [
                     "Kinh tế - Quản lý",
@@ -139,6 +139,11 @@ def migrate_categories():
                     # Default to Khác
                     new_child_category = "Lịch Sử - Chính Trị"
                     new_parent_category = "other"
+            # Case 3: Use source_category if no old_category
+            elif source_category:
+                # If it's already a proper child name, use it
+                new_child_category = source_category
+                new_parent_category = get_parent_category(source_category)
             else:
                 # No category info - default
                 new_child_category = "Lịch Sử - Chính Trị"

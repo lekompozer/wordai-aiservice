@@ -381,6 +381,17 @@ async def lifespan(app: FastAPI):
         # ✅ Start background workers
         await start_background_workers()
 
+        # ✅ Warmup Redis cache for community books
+        try:
+            from src.cache.cache_warmup import run_cache_warmup
+
+            logger = logging.getLogger("chatbot")
+            logger.info("🔥 Starting cache warmup...")
+            await run_cache_warmup()
+        except Exception as e:
+            logger = logging.getLogger("chatbot")
+            logger.warning(f"⚠️ Cache warmup failed (non-critical): {e}")
+
         # ✅ Log registered routes for debugging
         logger = logging.getLogger("chatbot")
         logger.info("=" * 80)
