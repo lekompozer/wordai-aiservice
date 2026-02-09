@@ -131,7 +131,7 @@ CHILD_CATEGORIES = [
     },
     # Health (1 child)
     {"name": "Y Học - Sức Khỏe", "parent": "health", "slug": "y-hoc-suc-khoe"},
-    # Lifestyle (3 children)
+    # Lifestyle (4 children)
     {"name": "Ẩm thực - Nấu ăn", "parent": "lifestyle", "slug": "am-thuc-nau-an"},
     {
         "name": "Thể Thao - Nghệ Thuật",
@@ -139,6 +139,11 @@ CHILD_CATEGORIES = [
         "slug": "the-thao-nghe-thuat",
     },
     {"name": "Tử Vi - Phong Thủy", "parent": "lifestyle", "slug": "tu-vi-phong-thuy"},
+    {
+        "name": "Văn Hóa - Tôn Giáo",
+        "parent": "lifestyle",
+        "slug": "van-hoa-ton-giao",
+    },
     # Entertainment (4 children)
     {
         "name": "Truyện Cười - Tiếu Lâm",
@@ -160,7 +165,7 @@ CHILD_CATEGORIES = [
         "parent": "entertainment",
         "slug": "truyen-ma-truyen-kinh-di",
     },
-    # Literature & Art (8 children)
+    # Literature & Art (7 children)
     {
         "name": "Văn Học Việt Nam",
         "parent": "literature-art",
@@ -188,11 +193,6 @@ CHILD_CATEGORIES = [
     },
     {"name": "Hồi Ký - Tuỳ Bút", "parent": "literature-art", "slug": "hoi-ky-tuy-but"},
     {"name": "Thơ Hay", "parent": "literature-art", "slug": "tho-hay"},
-    {
-        "name": "Văn Hóa - Tôn Giáo",
-        "parent": "literature-art",
-        "slug": "van-hoa-ton-giao",
-    },
     # Children Stories (3 children)
     {
         "name": "Cổ Tích - Thần Thoại",
