@@ -67,13 +67,19 @@ class BookItem(BaseModel):
     book_id: str
     title: str
     slug: str
+    description: Optional[str] = None
     cover_url: Optional[str] = None
     authors: List[str] = []
     author_names: List[str] = []
     child_category: str
     parent_category: str
+    tags: List[str] = []
+    difficulty_level: Optional[str] = None
     total_views: int = 0
+    total_chapters: int = 0
+    total_purchases: int = 0
     average_rating: float = 0.0
+    rating_count: int = 0
     access_points: Dict[str, int] = {}  # one_time, forever
     published_at: Optional[datetime] = None
 
@@ -287,19 +293,30 @@ async def get_books_by_parent_category(
                 else:
                     author_names.append(author_id)
 
+            # Count chapters
+            chapter_count = db.book_chapters.count_documents(
+                {"book_id": book["book_id"], "deleted_at": None}
+            )
+
             books.append(
                 BookItem(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
+                    description=book.get("description"),
                     cover_url=community_config.get("cover_image_url")
                     or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     child_category=community_config.get("category", "Khác"),
                     parent_category=community_config.get("parent_category", "other"),
+                    tags=community_config.get("tags", []),
+                    difficulty_level=community_config.get("difficulty_level"),
                     total_views=community_config.get("total_views", 0),
+                    total_chapters=chapter_count,
+                    total_purchases=community_config.get("total_purchases", 0),
                     average_rating=community_config.get("average_rating", 0.0),
+                    rating_count=community_config.get("rating_count", 0),
                     access_points={
                         "one_time": access_config.get("one_time_view_points", 0),
                         "forever": access_config.get("forever_view_points", 0),
@@ -394,19 +411,30 @@ async def get_top_books_by_parent_category(
                 else:
                     author_names.append(author_id)
 
+            # Count chapters
+            chapter_count = db.book_chapters.count_documents(
+                {"book_id": book["book_id"], "deleted_at": None}
+            )
+
             books.append(
                 BookItem(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
+                    description=book.get("description"),
                     cover_url=community_config.get("cover_image_url")
                     or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     child_category=community_config.get("category", "Khác"),
                     parent_category=community_config.get("parent_category", "other"),
+                    tags=community_config.get("tags", []),
+                    difficulty_level=community_config.get("difficulty_level"),
                     total_views=community_config.get("total_views", 0),
+                    total_chapters=chapter_count,
+                    total_purchases=community_config.get("total_purchases", 0),
                     average_rating=community_config.get("average_rating", 0.0),
+                    rating_count=community_config.get("rating_count", 0),
                     access_points={
                         "one_time": access_config.get("one_time_view_points", 0),
                         "forever": access_config.get("forever_view_points", 0),
@@ -513,19 +541,30 @@ async def get_books_by_child_category(
                 else:
                     author_names.append(author_id)
 
+            # Count chapters
+            chapter_count = db.book_chapters.count_documents(
+                {"book_id": book["book_id"], "deleted_at": None}
+            )
+
             books.append(
                 BookItem(
                     book_id=book["book_id"],
                     title=book["title"],
                     slug=book["slug"],
+                    description=book.get("description"),
                     cover_url=community_config.get("cover_image_url")
                     or book.get("cover_image_url"),
                     authors=author_ids,
                     author_names=author_names,
                     child_category=child["name"],
                     parent_category=child["parent"],
+                    tags=community_config.get("tags", []),
+                    difficulty_level=community_config.get("difficulty_level"),
                     total_views=community_config.get("total_views", 0),
+                    total_chapters=chapter_count,
+                    total_purchases=community_config.get("total_purchases", 0),
                     average_rating=community_config.get("average_rating", 0.0),
+                    rating_count=community_config.get("rating_count", 0),
                     access_points={
                         "one_time": access_config.get("one_time_view_points", 0),
                         "forever": access_config.get("forever_view_points", 0),
