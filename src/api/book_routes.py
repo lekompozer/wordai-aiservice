@@ -92,6 +92,9 @@ from src.services.document_manager import DocumentManager
 # Database
 from src.database.db_manager import DBManager
 
+# Constants
+from src.constants.book_categories import PARENT_CATEGORIES, CHILD_CATEGORIES
+
 logger = logging.getLogger("chatbot")
 
 router = APIRouter(prefix="/api/v1/books", tags=["Online Books"])
@@ -466,9 +469,27 @@ async def list_guides(
         if is_published is not None:
             query["community_config.is_public"] = is_published
 
-        # Filter by category
+        # Filter by category (support both parent ID and child category name)
         if category:
-            query["community_config.category"] = category
+            # Check if category is a parent ID
+            parent_match = next(
+                (p for p in PARENT_CATEGORIES if p["id"] == category), None
+            )
+            if parent_match:
+                # Get all child categories under this parent
+                child_names = [
+                    child["name"]
+                    for child in CHILD_CATEGORIES
+                    if child["parent"] == category
+                ]
+                if child_names:
+                    query["community_config.category"] = {"$in": child_names}
+                else:
+                    # No children, match nothing
+                    query["community_config.category"] = {"$in": []}
+            else:
+                # Assume it's a child category name, match exact
+                query["community_config.category"] = category
 
         # Search in title and description
         if search:
