@@ -15,6 +15,8 @@ from src.database.db_manager import DBManager
 from src.constants.book_categories import (
     map_nhasachmienphi_category,
     get_parent_category,
+    NHASACHMIENPHI_TO_WORDAI,
+    CHILD_CATEGORIES,
 )
 
 
@@ -71,79 +73,56 @@ def migrate_categories():
             new_child_category = None
             new_parent_category = None
 
-            # Case 1: Has source_category in metadata (from recent crawls)
+            # Get source category from metadata
             source_category = book.get("metadata", {}).get("source_category")
 
-            # Case 2: Check old category value (prioritize this)
+            # Strategy:
+            # 1. If old_category is a slug (has dashes) → Use map_nhasachmienphi_category
+            # 2. If old_category is a child category name → Look up parent
+            # 3. If source_category exists → Use map_nhasachmienphi_category
+            # 4. Default to "Lịch Sử - Chính Trị" (other)
+
             if old_category:
-                # Try to map it
-                if old_category in [
-                    "Kinh tế - Quản lý",
-                    "Kinh Tế - Quản Lý",
-                ]:
-                    new_child_category = "Kinh Tế - Quản Lý"
-                    new_parent_category = "business"
-                elif old_category == "Văn học Việt Nam":
-                    new_child_category = "Văn Học Việt Nam"
-                    new_parent_category = "literature-art"
-                elif old_category == "Tâm Lý - Kỹ Năng Sống":
-                    new_child_category = "Tâm Lý - Kỹ Năng Sống"
-                    new_parent_category = "business"
-                elif old_category == "Marketing - Bán hàng":
-                    new_child_category = "Marketing - Bán hàng"
-                    new_parent_category = "business"
-                elif old_category == "Công Nghệ Thông Tin":
-                    new_child_category = "Công Nghệ Thông Tin"
-                    new_parent_category = "technology"
-                elif old_category == "Y Học - Sức Khỏe":
-                    new_child_category = "Y Học - Sức Khỏe"
-                    new_parent_category = "health"
-                elif old_category == "Học Ngoại Ngữ":
-                    new_child_category = "Học Ngoại Ngữ"
-                    new_parent_category = "education"
-                elif old_category == "Khoa Học - Kỹ Thuật":
-                    new_child_category = "Khoa Học - Kỹ Thuật"
-                    new_parent_category = "education"
-                elif old_category == "Lịch Sử - Chính Trị":
-                    new_child_category = "Lịch Sử - Chính Trị"
-                    new_parent_category = "other"
-                elif old_category == "Văn Hóa - Tôn Giáo":
-                    new_child_category = "Văn Hóa - Tôn Giáo"
-                    new_parent_category = "literature-art"
-                elif old_category == "Thể Thao - Nghệ Thuật":
-                    new_child_category = "Thể Thao - Nghệ Thuật"
-                    new_parent_category = "lifestyle"
-                elif old_category == "Ẩm thực - Nấu ăn":
-                    new_child_category = "Ẩm thực - Nấu ăn"
-                    new_parent_category = "lifestyle"
-                # Old slug formats
-                elif old_category == "kinh-te-quan-ly":
-                    new_child_category = "Kinh Tế - Quản Lý"
-                    new_parent_category = "business"
-                elif old_category == "business":
-                    new_child_category = "Kinh Tế - Quản Lý"
-                    new_parent_category = "business"
-                elif old_category == "technology":
-                    new_child_category = "Công Nghệ Thông Tin"
-                    new_parent_category = "technology"
-                elif old_category == "education":
-                    new_child_category = "Học Ngoại Ngữ"
-                    new_parent_category = "education"
-                elif old_category == "literature-art":
-                    new_child_category = "Văn Học Việt Nam"
-                    new_parent_category = "literature-art"
-                elif old_category == "entertainment":
-                    new_child_category = "Phiêu Lưu - Mạo Hiểm"
-                    new_parent_category = "entertainment"
+                # Check if it's a slug format (e.g., "kinh-te-quan-ly")
+                if "-" in old_category and old_category in NHASACHMIENPHI_TO_WORDAI:
+                    # Map slug to child category name
+                    new_child_category, new_parent_category = (
+                        map_nhasachmienphi_category(old_category)
+                    )
                 else:
-                    # Default to Khác
-                    new_child_category = "Lịch Sử - Chính Trị"
-                    new_parent_category = "other"
-            # Case 3: Use source_category if no old_category
+                    # It's already a child category name, look up parent
+                    found = False
+                    for child in CHILD_CATEGORIES:
+                        if child["name"] == old_category:
+                            new_child_category = old_category
+                            new_parent_category = child["parent"]
+                            found = True
+                            break
+
+                    if not found:
+                        # Try case-insensitive match
+                        for child in CHILD_CATEGORIES:
+                            if child["name"].lower() == old_category.lower():
+                                new_child_category = child["name"]
+                                new_parent_category = child["parent"]
+                                found = True
+                                break
+
+                    if not found:
+                        # Category not recognized, keep as-is but set parent to other
+                        new_child_category = old_category
+                        new_parent_category = "other"
+
             elif source_category:
-                # If it's already a proper child name, use it
-                new_child_category = source_category
-                new_parent_category = get_parent_category(source_category)
+                # Try to map source_category
+                if source_category in NHASACHMIENPHI_TO_WORDAI:
+                    new_child_category, new_parent_category = (
+                        map_nhasachmienphi_category(source_category)
+                    )
+                else:
+                    # If it's already a proper child name, use it
+                    new_child_category = source_category
+                    new_parent_category = get_parent_category(source_category)
             else:
                 # No category info - default
                 new_child_category = "Lịch Sử - Chính Trị"

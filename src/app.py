@@ -608,6 +608,19 @@ async def start_background_workers():
 
         print("✅ USDT Payment Verification Worker started (checking every 30s)")
 
+        # ===== START COMMUNITY CACHE UPDATER WORKER =====
+        print("📚 Starting Community Cache Updater Worker...")
+        from src.workers.community_cache_updater import community_cache_updater_worker
+
+        # Create cache updater task
+        cache_updater_task = asyncio.create_task(community_cache_updater_worker())
+        background_workers["community_cache_updater"] = {
+            "worker": None,  # Worker manages itself
+            "task": cache_updater_task,
+        }
+
+        print("✅ Community Cache Updater Worker started (updating every 30 min)")
+
         print("")
         print("🎉 All workers started successfully!")
         print("📋 Worker Architecture:")

@@ -327,6 +327,119 @@ async def get_books_by_parent_category(
 
 
 @router.get(
+    "/parent/{parent_id}/top",
+    response_model=CategoryBooksResponse,
+    summary="Get top 5 books by parent category (CACHED)",
+)
+async def get_top_books_by_parent_category(
+    parent_id: str = Path(..., description="Parent category ID (e.g. 'business')"),
+):
+    """
+    **Get TOP 5 books in a parent category**
+
+    Returns most viewed books across all child categories.
+
+    **CACHED:** 30 minutes TTL for performance.
+
+    **Public endpoint** - No authentication required
+    """
+    try:
+        # Check cache first
+        cache_key = f"books:top:category:{parent_id}"
+        cached = await cache_client.get(cache_key)
+        if cached:
+            return CategoryBooksResponse(**cached)
+
+        # Find parent category
+        parent = next(
+            (cat for cat in PARENT_CATEGORIES if cat["id"] == parent_id), None
+        )
+        if not parent:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Parent category '{parent_id}' not found",
+            )
+
+        # Get all child categories under this parent
+        child_names = [
+            child["name"] for child in CHILD_CATEGORIES if child["parent"] == parent_id
+        ]
+
+        # Build query
+        query = {
+            "community_config.category": {"$in": child_names},
+            "community_config.is_public": True,
+            "deleted_at": None,
+        }
+
+        # Get top 5 by views
+        books_cursor = (
+            db.online_books.find(query)
+            .sort("community_config.total_views", -1)
+            .limit(5)
+        )
+
+        books = []
+        for book in books_cursor:
+            community_config = book.get("community_config", {})
+            access_config = book.get("access_config", {})
+
+            # Get author names
+            author_ids = book.get("authors", [])
+            author_names = []
+            for author_id in author_ids:
+                author = db.book_authors.find_one({"author_id": author_id.lower()})
+                if author:
+                    author_names.append(author.get("name", author_id))
+                else:
+                    author_names.append(author_id)
+
+            books.append(
+                BookItem(
+                    book_id=book["book_id"],
+                    title=book["title"],
+                    slug=book["slug"],
+                    cover_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
+                    authors=author_ids,
+                    author_names=author_names,
+                    child_category=community_config.get("category", "Khác"),
+                    parent_category=community_config.get("parent_category", "other"),
+                    total_views=community_config.get("total_views", 0),
+                    average_rating=community_config.get("average_rating", 0.0),
+                    access_points={
+                        "one_time": access_config.get("one_time_view_points", 0),
+                        "forever": access_config.get("forever_view_points", 0),
+                    },
+                    published_at=community_config.get("published_at"),
+                )
+            )
+
+        result = CategoryBooksResponse(
+            books=books,
+            category_name=parent["name_vi"],
+            category_type="parent",
+            total=len(books),
+            skip=0,
+            limit=5,
+        )
+
+        # Cache for 30 minutes
+        cache_data = result.dict()
+        await cache_client.set(cache_key, cache_data, ttl=1800)
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get top books: {str(e)}",
+        )
+
+
+@router.get(
     "/child/{child_slug}",
     response_model=CategoryBooksResponse,
     summary="Get books by child category",
