@@ -609,9 +609,15 @@ async def get_chapter(
         )
 
         # DEBUG: Log epub_url presence
-        logger.info(f"🔍 Chapter {chapter_id} epub_url: {chapter.get('epub_url', 'MISSING')}")
-        logger.info(f"🔍 Chapter {chapter_id} pdf_url: {chapter.get('pdf_url', 'MISSING')}")
-        logger.info(f"🔍 Chapter {chapter_id} content_mode: {chapter.get('content_mode', 'MISSING')}")
+        logger.info(
+            f"🔍 Chapter {chapter_id} epub_url: {chapter.get('epub_url', 'MISSING')}"
+        )
+        logger.info(
+            f"🔍 Chapter {chapter_id} pdf_url: {chapter.get('pdf_url', 'MISSING')}"
+        )
+        logger.info(
+            f"🔍 Chapter {chapter_id} content_mode: {chapter.get('content_mode', 'MISSING')}"
+        )
 
         return chapter
 

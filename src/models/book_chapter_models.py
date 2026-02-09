@@ -551,6 +551,22 @@ class ChapterResponse(BaseModel):
         default=None,
         description="PDF file URL for pdf_file content mode (R2 storage URL)",
     )
+    epub_url: Optional[str] = Field(
+        default=None,
+        description="EPUB file URL for epub_file content mode (converted from MOBI, R2 storage URL)",
+    )
+    original_mobi_url: Optional[str] = Field(
+        default=None,
+        description="Original MOBI file URL before conversion to EPUB",
+    )
+    chapter_type: Optional[str] = Field(
+        default=None,
+        description="Chapter type: epub, pdf, etc.",
+    )
+    converted_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp when MOBI was converted to EPUB",
+    )
 
 
 class ChapterTreeNode(BaseModel):
