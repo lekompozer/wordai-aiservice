@@ -1,14 +1,16 @@
 """
 Background Worker: Community Books Cache Updater
-Updates community books cache periodically (every 30 minutes)
+Updates community books cache periodically (every 8 minutes)
 
 This worker pre-computes expensive database queries and stores them in Redis:
-- Category tree with book counts (33 child categories)
-- Top 5 books per parent category (11 caches)
-- Trending today (5 books)
-- Featured week (3 books)
-- Featured authors (10 authors)
-- Popular tags (25 tags)
+- Category tree with book counts (10 min TTL) → needs refresh every 8 min
+- Top 5 books per parent category (30 min TTL, 11 caches)
+- Trending today (15 min TTL) → needs refresh every 8 min
+- Featured week (30 min TTL)
+- Featured authors (30 min TTL)
+- Popular tags (30 min TTL)
+
+Worker runs every 8 minutes to ensure cache never expires before refresh.
 """
 
 import asyncio
@@ -30,7 +32,7 @@ logger = logging.getLogger("chatbot")
 async def update_community_cache():
     """
     Update all community books caches
-    Runs every 30 minutes
+    Runs every 8 minutes (less than shortest TTL of 10 min)
     """
     logger.info("🔄 [Community Cache Updater] Starting cache update...")
     start_time = datetime.now()
@@ -57,16 +59,17 @@ async def update_community_cache():
 
 async def community_cache_updater_worker():
     """
-    Background worker that updates community cache every 30 minutes
+    Background worker that updates community cache every 8 minutes
+    Runs more frequently than shortest TTL (10 min) to prevent cache misses
     """
-    logger.info("🚀 [Community Cache Updater] Worker started (30 min interval)")
+    logger.info("🚀 [Community Cache Updater] Worker started (8 min interval)")
 
     while True:
         try:
             await update_community_cache()
 
-            # Sleep for 30 minutes
-            await asyncio.sleep(1800)  # 30 minutes
+            # Sleep for 8 minutes (less than shortest TTL of 10 min)
+            await asyncio.sleep(480)  # 8 minutes
 
         except asyncio.CancelledError:
             logger.info("🛑 [Community Cache Updater] Worker stopped")

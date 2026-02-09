@@ -619,7 +619,7 @@ async def start_background_workers():
             "task": cache_updater_task,
         }
 
-        print("✅ Community Cache Updater Worker started (updating every 30 min)")
+        print("✅ Community Cache Updater Worker started (updating every 8 min)")
 
         print("")
         print("🎉 All workers started successfully!")
