@@ -153,7 +153,8 @@ async def list_my_published_books(
                     category=community_config.get("category"),
                     tags=community_config.get("tags", []),
                     difficulty_level=community_config.get("difficulty_level"),
-                    cover_image_url=community_config.get("cover_image_url"),
+                    cover_image_url=community_config.get("cover_image_url")
+                    or book.get("cover_image_url"),
                     access_config=access_config if access_config else None,
                     stats={
                         "total_one_time_purchases": stats.get("one_time_purchases", 0),
@@ -475,7 +476,9 @@ async def list_my_purchases(
 
                 book_title = book["title"]
                 book_slug = book["slug"]
-                book_cover = book.get("cover_image_url")
+                book_cover = book.get("community_config", {}).get(
+                    "cover_image_url"
+                ) or book.get("cover_image_url")
 
             items.append(
                 MyPurchaseItem(
