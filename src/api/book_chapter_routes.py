@@ -608,6 +608,11 @@ async def get_chapter(
             f"accessed chapter {chapter_id} in language {current_language}"
         )
 
+        # DEBUG: Log epub_url presence
+        logger.info(f"🔍 Chapter {chapter_id} epub_url: {chapter.get('epub_url', 'MISSING')}")
+        logger.info(f"🔍 Chapter {chapter_id} pdf_url: {chapter.get('pdf_url', 'MISSING')}")
+        logger.info(f"🔍 Chapter {chapter_id} content_mode: {chapter.get('content_mode', 'MISSING')}")
+
         return chapter
 
     except HTTPException:
