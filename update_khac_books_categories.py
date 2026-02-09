@@ -29,7 +29,7 @@ def main():
             book_id = ObjectId(book["_id"]["$oid"])
         else:
             book_id = ObjectId(book["_id"])
-        
+
         new_category = book["new_category"]
         new_parent = book["new_parent"]
 

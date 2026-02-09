@@ -2,6 +2,7 @@
 Create MongoDB Indexes for Community Books Performance
 Run this script once to create necessary indexes
 """
+
 from src.database.db_manager import DBManager
 
 
