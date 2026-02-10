@@ -215,16 +215,19 @@ class LoidichCrawler:
             logger.error(f"  Error getting URLs from page {page}: {e}")
             return []
 
-    async def crawl_category(self, category_name: str, category_url: str):
+    async def crawl_category(
+        self, category_name: str, category_url: str, max_pages: int = 775
+    ):
         """Crawl all songs in a category"""
         logger.info(f"📂 Category: {category_name}")
         logger.info(f"   URL: {category_url}")
+        logger.info(f"   Max pages: {max_pages}")
 
         page = 1
         category_total = 0
         batch = []
 
-        while True:
+        while page <= max_pages:
             # Get song URLs from page
             song_urls = await self.get_song_urls_from_page(category_url, page)
 
@@ -232,7 +235,7 @@ class LoidichCrawler:
                 logger.info(f"   Page {page}: No more songs, stopping")
                 break
 
-            logger.info(f"   Page {page}: Found {len(song_urls)} songs")
+            logger.info(f"   Page {page}/{max_pages}: Found {len(song_urls)} songs")
             self.stats["total_found"] += len(song_urls)
 
             # Process each song
@@ -290,12 +293,9 @@ class LoidichCrawler:
         logger.info("")
 
         # Define categories to crawl
+        # Note: loidichvn.com uses /new for all songs (no separate categories)
         categories = [
-            ("US-UK", f"{self.CATEGORY_URL}/us-uk"),
-            ("Vpop", f"{self.CATEGORY_URL}/vpop"),
-            ("Kpop", f"{self.CATEGORY_URL}/kpop"),
-            ("Nhạc Hoa", f"{self.CATEGORY_URL}/nhac-hoa"),
-            # Add more categories as needed
+            ("All Songs", f"{self.BASE_URL}/new"),
         ]
 
         # Crawl each category
