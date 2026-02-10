@@ -23,6 +23,7 @@ import logging
 from datetime import datetime
 from typing import List, Dict, Any
 import re
+import json
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -49,7 +50,6 @@ class LoidichCrawler:
     """Full crawler for loidichvn.com"""
 
     BASE_URL = "https://loidichvn.com"
-    CATEGORY_URL = f"{BASE_URL}/category"
     REQUEST_DELAY = 1  # seconds between requests
     BATCH_SIZE = 100  # songs per batch insert
     MAX_RETRIES = 3
@@ -87,26 +87,21 @@ class LoidichCrawler:
                 logger.error(f"  Failed after {self.MAX_RETRIES} retries: {url}")
                 raise
 
-    def extract_youtube_id(self, youtube_url: str) -> str:
-        """Extract YouTube video ID from URL"""
-        if not youtube_url:
+    def clean_lyrics(self, html_content: str) -> str:
+        """Clean lyrics HTML to plain text"""
+        if not html_content:
             return ""
 
-        # Pattern: youtube.com/watch?v=VIDEO_ID or youtu.be/VIDEO_ID
-        patterns = [
-            r"(?:youtube\.com/watch\?v=|youtu\.be/)([a-zA-Z0-9_-]{11})",
-            r"youtube\.com/embed/([a-zA-Z0-9_-]{11})",
-        ]
-
-        for pattern in patterns:
-            match = re.search(pattern, youtube_url)
-            if match:
-                return match.group(1)
-
-        return ""
+        # Replace <br> with newlines
+        cleaned = re.sub(r"<br\s*/?>", "\n", html_content)
+        # Remove all HTML tags
+        cleaned = re.sub(r"<[^>]+>", "", cleaned)
+        # Clean up multiple newlines
+        cleaned = re.sub(r"\n\s*\n", "\n\n", cleaned)
+        return cleaned.strip()
 
     async def extract_song_data(self, song_url: str) -> Dict[str, Any]:
-        """Extract song data from song page"""
+        """Extract song data from song page - MATCHES test_loidich_2pages_db.py"""
         try:
             html = await self.fetch_page(song_url)
             soup = BeautifulSoup(html, "html.parser")
@@ -117,43 +112,41 @@ class LoidichCrawler:
                 logger.error(f"  No __NEXT_DATA__ found: {song_url}")
                 return None
 
-            import json
-
             data = json.loads(script_tag.string)
 
-            # Navigate to song data
+            # Navigate to song data - use "song" not "songDetail"
             props = data.get("props", {})
             page_props = props.get("pageProps", {})
-            song_detail = page_props.get("songDetail", {})
+            song = page_props.get("song", {})
 
-            if not song_detail:
-                logger.error(f"  No songDetail in data: {song_url}")
+            if not song:
+                logger.error(f"  No song in data: {song_url}")
                 return None
 
-            # Extract fields
-            song_id = song_detail.get("Id", "")
-            title = song_detail.get("Title", "")
+            # Extract fields - EXACT same as test crawler
+            song_id = song.get("Id", "")
+            title = song.get("SongName", "")
 
             # Artist from ArtistModel
-            artist_model = song_detail.get("ArtistModel", {})
-            artist = artist_model.get("ArtistName", "") if artist_model else ""
+            artist_model = song.get("ArtistModel", {})
+            artist = artist_model.get("ArtistName", "")
 
             # Category from CategoryModel
-            category_model = song_detail.get("CategoryModel", {})
-            category = category_model.get("CategoryName", "") if category_model else ""
+            category_model = song.get("CategoryModel", {})
+            category = category_model.get("CategoryName", "")
 
-            # Lyrics
-            english_lyrics = song_detail.get("Lyric", "")
-            vietnamese_lyrics = song_detail.get("MeanLyric", "")
+            # Clean lyrics - remove HTML tags
+            english_lyrics = self.clean_lyrics(song.get("LyricAnh", ""))
+            vietnamese_lyrics = self.clean_lyrics(song.get("LyricVietNam", ""))
 
-            # YouTube
-            youtube_url = song_detail.get("Youtube", "")
-            youtube_id = self.extract_youtube_id(youtube_url)
+            # YouTube - use YoutubeId field
+            youtube_id = song.get("YoutubeId", "")
+            youtube_url = f"https://youtu.be/{youtube_id}" if youtube_id else ""
 
-            # View count
-            view_count = song_detail.get("ViewCount", 0)
+            # View count - use SongCount not ViewCount
+            view_count = song.get("SongCount", 0)
 
-            # Word count (rough estimate)
+            # Word count
             word_count = len(english_lyrics.split()) if english_lyrics else 0
 
             return {
@@ -192,21 +185,19 @@ class LoidichCrawler:
             if not script_tag:
                 return []
 
-            import json
-
             data = json.loads(script_tag.string)
 
-            # Navigate to song list
+            # Navigate to song list - use "songs" and "SongHeader" (same as test crawler)
             props = data.get("props", {})
             page_props = props.get("pageProps", {})
-            song_list = page_props.get("SongList", [])
+            songs = page_props.get("songs", [])
 
             # Extract URLs
             urls = []
-            for song in song_list:
-                url_slug = song.get("Url", "")
-                if url_slug:
-                    full_url = f"{self.BASE_URL}{url_slug}"
+            for song in songs:
+                song_header = song.get("SongHeader", "")
+                if song_header:
+                    full_url = f"{self.BASE_URL}/{song_header}.song"
                     urls.append(full_url)
 
             return urls
