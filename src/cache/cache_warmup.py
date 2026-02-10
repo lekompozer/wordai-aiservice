@@ -190,10 +190,19 @@ async def warmup_top_books_per_category():
 
                 # Cache for 30 minutes
                 cache_key = f"books:top:category:{parent_id}"
+
+                # Get parent category name
+                parent = next(
+                    (cat for cat in PARENT_CATEGORIES if cat["id"] == parent_id), None
+                )
+
                 result = {
                     "books": books,
-                    "category_name": parent_id,
+                    "category_name": parent["name_vi"] if parent else parent_id,
+                    "category_type": "parent",
                     "total": len(books),
+                    "skip": 0,
+                    "limit": 5,
                 }
 
                 await cache.set(cache_key, result, ttl=1800)
