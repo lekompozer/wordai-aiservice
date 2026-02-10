@@ -264,12 +264,30 @@ async def warmup_trending_today():
 
             if book:
                 community_config = book.get("community_config", {})
+
+                # Get author info
+                author_ids = book.get("authors", [])
+                author_names = []
+                for author_id in author_ids:
+                    author = db.book_authors.find_one({"author_id": author_id.lower()})
+                    if author:
+                        author_names.append(author.get("name", author_id))
+                    else:
+                        author_names.append(author_id)
+
                 books.append(
                     {
                         "book_id": book["book_id"],
                         "title": book["title"],
                         "slug": book["slug"],
+                        "cover_url": community_config.get("cover_image_url")
+                        or book.get("cover_image_url"),
+                        "authors": author_ids,
+                        "author_names": author_names,
+                        "child_category": community_config.get("category"),
+                        "parent_category": community_config.get("parent_category"),
                         "total_views": community_config.get("total_views", 0),
+                        "average_rating": community_config.get("average_rating", 0.0),
                         "views_today": item["views_today"],
                     }
                 )
