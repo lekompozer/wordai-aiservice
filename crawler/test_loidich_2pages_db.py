@@ -147,8 +147,8 @@ class LoidichTestCrawler:
 
     async def get_song_urls_from_page(self, category_url: str, page: int) -> List[str]:
         """Get all song URLs from a category page"""
-        # Page 1: /new, Page 2+: /new/page/2
-        url = f"{category_url}/page/{page}" if page > 1 else category_url
+        # All pages use /page/X format
+        url = f"{category_url}/page/{page}"
 
         try:
             html = await self.fetch_page(url)

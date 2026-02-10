@@ -182,8 +182,8 @@ class LoidichCrawler:
     async def get_song_urls_from_page(self, category_url: str, page: int) -> List[str]:
         """Get all song URLs from a category page"""
         try:
-            # Page 1: /category, Page 2+: /category/page/2
-            url = f"{category_url}/page/{page}" if page > 1 else category_url
+            # All pages use /page/X format
+            url = f"{category_url}/page/{page}"
             html = await self.fetch_page(url)
             soup = BeautifulSoup(html, "html.parser")
 
