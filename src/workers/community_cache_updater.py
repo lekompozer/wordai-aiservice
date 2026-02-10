@@ -79,3 +79,7 @@ async def community_cache_updater_worker():
                 f"❌ [Community Cache Updater] Worker error (retrying in 5 min): {e}"
             )
             await asyncio.sleep(300)  # Retry after 5 minutes
+
+
+if __name__ == "__main__":
+    asyncio.run(community_cache_updater_worker())
