@@ -213,8 +213,10 @@ services:
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=${ENVIRONMENT:-production}
       - REDIS_URL=redis://redis-community-book:6379
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
     depends_on:
       - redis-community-book
+      - mongodb
     restart: unless-stopped
     networks:
       - ai-chatbot-network
