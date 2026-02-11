@@ -20,6 +20,8 @@ from typing import List, Optional
 from datetime import datetime, date
 import uuid
 import random
+import json
+import redis
 
 from src.database.db_manager import DBManager
 from src.models.song_models import (
@@ -55,6 +57,12 @@ def get_db():
     """Get database connection."""
     db_manager = DBManager()
     return db_manager.db
+
+
+# Dependency: Get Redis client
+def get_redis():
+    """Get Redis client for caching."""
+    return redis.Redis(host="redis-server", port=6379, db=0, decode_responses=True)
 
 
 # Dependency: Check premium status
@@ -332,12 +340,14 @@ async def get_hot_songs(
     skip: int = 0,
     limit: int = 20,
     db=Depends(get_db),
+    redis_client=Depends(get_redis),
 ):
     """
     Get trending songs sorted by view count (most played).
 
     Perfect for "Hot Songs" section showing most popular songs.
     Supports pagination for infinite scroll.
+    **Cached for 30 minutes** for better performance.
 
     - **skip**: Number of songs to skip (default: 0)
     - **limit**: Number of songs to return (default: 20, max: 100)
@@ -346,6 +356,16 @@ async def get_hot_songs(
     """
     if limit > 100:
         limit = 100
+
+    # Try cache first (key includes skip/limit for pagination)
+    cache_key = f"hot_songs:{skip}:{limit}"
+    try:
+        cached = redis_client.get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            return BrowseSongsResponse(**data)
+    except Exception as e:
+        print(f"Cache read error: {e}")
 
     song_lyrics_col = db["song_lyrics"]
     song_gaps_col = db["song_gaps"]
@@ -383,12 +403,20 @@ async def get_hot_songs(
     # Get total count
     total = song_lyrics_col.count_documents({})
 
-    return BrowseSongsResponse(
+    response = BrowseSongsResponse(
         songs=songs,
         total=total,
         page=(skip // limit) + 1,
         limit=limit,
     )
+
+    # Cache for 30 minutes (1800 seconds)
+    try:
+        redis_client.setex(cache_key, 1800, json.dumps(response.model_dump()))
+    except Exception as e:
+        print(f"Cache write error: {e}")
+
+    return response
 
 
 @router.get("/recent/played", response_model=BrowseSongsResponse)
@@ -396,12 +424,14 @@ async def get_recent_songs(
     skip: int = 0,
     limit: int = 20,
     db=Depends(get_db),
+    redis_client=Depends(get_redis),
 ):
     """
     Get recently played songs sorted by last update time.
 
     Perfect for "Recently Played" section showing newest activity.
     Supports pagination for infinite scroll.
+    **Cached for 5 minutes** for better performance.
 
     - **skip**: Number of songs to skip (default: 0)
     - **limit**: Number of songs to return (default: 20, max: 100)
@@ -410,6 +440,16 @@ async def get_recent_songs(
     """
     if limit > 100:
         limit = 100
+
+    # Try cache first (key includes skip/limit for pagination)
+    cache_key = f"recent_songs:{skip}:{limit}"
+    try:
+        cached = redis_client.get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            return BrowseSongsResponse(**data)
+    except Exception as e:
+        print(f"Cache read error: {e}")
 
     song_lyrics_col = db["song_lyrics"]
     song_gaps_col = db["song_gaps"]
@@ -447,12 +487,20 @@ async def get_recent_songs(
     # Get total count
     total = song_lyrics_col.count_documents({})
 
-    return BrowseSongsResponse(
+    response = BrowseSongsResponse(
         songs=songs,
         total=total,
         page=(skip // limit) + 1,
         limit=limit,
     )
+
+    # Cache for 5 minutes (300 seconds) - shorter than hot songs since it updates more frequently
+    try:
+        redis_client.setex(cache_key, 300, json.dumps(response.model_dump()))
+    except Exception as e:
+        print(f"Cache write error: {e}")
+
+    return response
 
 
 @router.get("/{song_id}", response_model=SongDetailResponse)
