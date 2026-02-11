@@ -785,6 +785,7 @@ async def submit_answers(
         AttemptAnswer(
             gap_index=ans["gap_index"],
             user_answer=ans["user_answer"],
+            correct_answer=ans["correct_answer"],  # NEW: Include correct answer
             is_correct=ans["is_correct"],
         )
         for ans in graded_answers
@@ -846,7 +847,7 @@ async def submit_answers(
         correct_count=correct_count,
         total_gaps=total_gaps,
         is_completed=is_completed,
-        graded_answers=graded_answers,
+        answers=attempt_answers,  # NEW: Return detailed answers
         best_score=(
             max(existing_progress.get("best_score", 0), score)
             if existing_progress

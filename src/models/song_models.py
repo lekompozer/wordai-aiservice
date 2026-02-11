@@ -192,6 +192,9 @@ class AttemptAnswer(BaseModel):
 
     gap_index: int = Field(..., description="Gap index (0-based)")
     user_answer: str = Field(..., description="User's answer")
+    correct_answer: str = Field(
+        ..., description="Correct answer"
+    )  # NEW: For showing in results
     is_correct: bool = Field(..., description="Is answer correct?")
 
 
@@ -448,9 +451,9 @@ class SubmitAnswersResponse(BaseModel):
     total_gaps: int
     is_completed: bool
     best_score: float
-    graded_answers: List[
-        dict
-    ]  # List of {gap_id, correct_answer, user_answer, is_correct}
+    answers: List[
+        AttemptAnswer
+    ]  # Chi tiết từng gap (gap_index, user_answer, correct_answer, is_correct)
 
 
 class RecentActivity(BaseModel):
