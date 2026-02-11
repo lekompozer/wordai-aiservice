@@ -29,7 +29,7 @@ def get_db():
 async def get_subscription_plans():
     """
     Get all available subscription plans
-    
+
     No authentication required - public endpoint
     """
     return {"plans": [plan.model_dump() for plan in SUBSCRIPTION_PLANS.values()]}
@@ -42,22 +42,22 @@ async def get_my_subscription(
 ):
     """
     Get current user's subscription status
-    
+
     Returns:
     - is_premium: boolean
     - subscription: subscription details if active, else null
     """
     user_id = current_user["uid"]
-    
+
     subscription_service = get_song_subscription_service(db)
     subscription = await subscription_service.get_subscription(user_id)
-    
+
     if not subscription:
         return SubscriptionStatusResponse(is_premium=False, subscription=None)
-    
+
     # Calculate days remaining
     days_remaining = (subscription["end_date"] - subscription["start_date"]).days
-    
+
     subscription_info = {
         "plan_type": subscription["plan_type"],
         "status": subscription["status"],
@@ -67,7 +67,7 @@ async def get_my_subscription(
         "price_paid": subscription["price_paid"],
         "auto_renew": subscription.get("auto_renew", False),
     }
-    
+
     return SubscriptionStatusResponse(is_premium=True, subscription=subscription_info)
 
 
@@ -78,17 +78,17 @@ async def cancel_subscription(
 ):
     """
     Cancel subscription
-    
+
     User keeps access until end_date, but won't auto-renew
     """
     user_id = current_user["uid"]
-    
+
     subscription_service = get_song_subscription_service(db)
     subscription = await subscription_service.cancel_subscription(user_id)
-    
+
     if not subscription:
         raise HTTPException(status_code=404, detail="No active subscription found")
-    
+
     return {
         "message": f"Subscription cancelled. You still have access until {subscription['end_date'].strftime('%Y-%m-%d')}",
         "subscription": {

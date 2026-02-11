@@ -1053,7 +1053,7 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Song Learning API - English learning through music (Phase 3-5 complete)
     app.include_router(song_learning_router, tags=["Song Learning"])
-    
+
     # ✅ ADDED: Song Subscription API - Premium subscription for unlimited songs
     app.include_router(song_subscription_router, tags=["Song Subscription"])
 

@@ -23,7 +23,11 @@ class SongSubscriptionService:
     async def get_subscription(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Get user's active subscription"""
         subscription = self.subscriptions.find_one(
-            {"user_id": user_id, "status": "active", "end_date": {"$gt": datetime.utcnow()}}
+            {
+                "user_id": user_id,
+                "status": "active",
+                "end_date": {"$gt": datetime.utcnow()},
+            }
         )
         return subscription
 
@@ -43,7 +47,7 @@ class SongSubscriptionService:
         order_invoice_number: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create new subscription after successful payment"""
-        
+
         start_date = datetime.utcnow()
         end_date = start_date + timedelta(days=30 * duration_months)
 
@@ -70,7 +74,7 @@ class SongSubscriptionService:
             logger.info(f"🔄 Extending existing subscription for user {user_id}")
             # Extend from current end_date
             new_end_date = existing["end_date"] + timedelta(days=30 * duration_months)
-            
+
             self.subscriptions.update_one(
                 {"_id": existing["_id"]},
                 {
@@ -81,7 +85,7 @@ class SongSubscriptionService:
                     }
                 },
             )
-            
+
             existing["end_date"] = new_end_date
             return existing
 
@@ -97,7 +101,7 @@ class SongSubscriptionService:
 
     async def cancel_subscription(self, user_id: str) -> Optional[Dict[str, Any]]:
         """Cancel subscription (keeps access until end_date)"""
-        
+
         subscription = await self.get_subscription(user_id)
         if not subscription:
             return None
@@ -124,7 +128,7 @@ class SongSubscriptionService:
 
     async def check_and_expire_subscriptions(self):
         """Cron job: Mark expired subscriptions as expired"""
-        
+
         result = self.subscriptions.update_many(
             {"status": "active", "end_date": {"$lt": datetime.utcnow()}},
             {"$set": {"status": "expired", "updated_at": datetime.utcnow()}},

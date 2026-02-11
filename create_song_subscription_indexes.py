@@ -30,7 +30,9 @@ def create_song_subscription_indexes():
 
     # Index: order_invoice_number (unique, for payment tracking)
     subscription_col.create_index("order_invoice_number", unique=True, sparse=True)
-    logger.info("✅ Created index: user_song_subscription.order_invoice_number (unique)")
+    logger.info(
+        "✅ Created index: user_song_subscription.order_invoice_number (unique)"
+    )
 
     logger.info("✅ All Song Subscription indexes created successfully")
 
