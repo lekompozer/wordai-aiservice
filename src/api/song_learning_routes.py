@@ -236,6 +236,134 @@ async def get_artists_list(db=Depends(get_db)):
     }
 
 
+@router.get("/hot/trending", response_model=BrowseSongsResponse)
+async def get_hot_songs(
+    skip: int = 0,
+    limit: int = 20,
+    db=Depends(get_db),
+):
+    """
+    Get trending songs sorted by view count (most played).
+
+    Perfect for "Hot Songs" section showing most popular songs.
+    Supports pagination for infinite scroll.
+
+    - **skip**: Number of songs to skip (default: 0)
+    - **limit**: Number of songs to return (default: 20, max: 100)
+
+    Returns: Songs sorted by view_count DESC
+    """
+    if limit > 100:
+        limit = 100
+
+    song_lyrics_col = db["song_lyrics"]
+    song_gaps_col = db["song_gaps"]
+
+    # Get hot songs sorted by view count
+    cursor = (
+        song_lyrics_col.find(
+            {}, {"_id": 0, "english_lyrics": 0, "vietnamese_lyrics": 0}
+        )
+        .sort("view_count", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+
+    songs = []
+    for song in cursor:
+        # Get available difficulties
+        difficulties = song_gaps_col.distinct(
+            "difficulty", {"song_id": song["song_id"]}
+        )
+
+        songs.append(
+            SongBrowseItem(
+                song_id=song["song_id"],
+                title=song.get("title", "Unknown"),
+                artist=song.get("artist", "Unknown"),
+                category=song.get("category", "Unknown"),
+                youtube_id=song.get("youtube_id", ""),
+                difficulties_available=difficulties,
+                word_count=song.get("word_count", 0),
+                view_count=song.get("view_count", 0),
+            )
+        )
+
+    # Get total count
+    total = song_lyrics_col.count_documents({})
+
+    return BrowseSongsResponse(
+        songs=songs,
+        total=total,
+        page=(skip // limit) + 1,
+        limit=limit,
+    )
+
+
+@router.get("/recent/played", response_model=BrowseSongsResponse)
+async def get_recent_songs(
+    skip: int = 0,
+    limit: int = 20,
+    db=Depends(get_db),
+):
+    """
+    Get recently played songs sorted by last update time.
+
+    Perfect for "Recently Played" section showing newest activity.
+    Supports pagination for infinite scroll.
+
+    - **skip**: Number of songs to skip (default: 0)
+    - **limit**: Number of songs to return (default: 20, max: 100)
+
+    Returns: Songs sorted by updated_at DESC (most recently played first)
+    """
+    if limit > 100:
+        limit = 100
+
+    song_lyrics_col = db["song_lyrics"]
+    song_gaps_col = db["song_gaps"]
+
+    # Get recent songs sorted by updated_at
+    cursor = (
+        song_lyrics_col.find(
+            {}, {"_id": 0, "english_lyrics": 0, "vietnamese_lyrics": 0}
+        )
+        .sort("updated_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+
+    songs = []
+    for song in cursor:
+        # Get available difficulties
+        difficulties = song_gaps_col.distinct(
+            "difficulty", {"song_id": song["song_id"]}
+        )
+
+        songs.append(
+            SongBrowseItem(
+                song_id=song["song_id"],
+                title=song.get("title", "Unknown"),
+                artist=song.get("artist", "Unknown"),
+                category=song.get("category", "Unknown"),
+                youtube_id=song.get("youtube_id", ""),
+                difficulties_available=difficulties,
+                word_count=song.get("word_count", 0),
+                view_count=song.get("view_count", 0),
+            )
+        )
+
+    # Get total count
+    total = song_lyrics_col.count_documents({})
+
+    return BrowseSongsResponse(
+        songs=songs,
+        total=total,
+        page=(skip // limit) + 1,
+        limit=limit,
+    )
+
+
 @router.get("/{song_id}", response_model=SongDetailResponse)
 async def get_song_detail(song_id: str, db=Depends(get_db)):
     """
