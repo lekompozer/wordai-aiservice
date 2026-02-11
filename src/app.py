@@ -204,6 +204,9 @@ from src.api.code_editor_routes import router as code_editor_router
 # ✅ ADDED: Learning System API - Categories, Topics, Knowledge, Community
 from src.api.learning_routes import router as learning_router
 
+# ✅ ADDED: Song Learning API - English learning through song lyrics with gap-fill exercises
+from src.api.song_learning_routes import router as song_learning_router
+
 # ✅ ADDED: Software Lab API - Projects, Templates, Files, Sync
 from src.api.software_lab_routes import router as software_lab_router
 
@@ -1044,6 +1047,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Learning System API - Categories, Topics, Knowledge, Community
     app.include_router(learning_router, tags=["Learning System"])
+
+    # ✅ ADDED: Song Learning API - English learning through music (Phase 3-5 complete)
+    app.include_router(song_learning_router, prefix="/api/v1", tags=["Song Learning"])
 
     # ✅ ADDED: Software Lab API - Projects, Templates, Files, Sync, Export/Import (19 endpoints)
     app.include_router(software_lab_router, prefix="/api", tags=["Software Lab"])
