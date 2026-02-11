@@ -42,9 +42,7 @@ from src.models.song_models import (
     UserDailyFreeSongs,
     LearningAttempt,
 )
-from src.auth.dependencies import (
-    get_current_user,
-)  # Assuming auth is already implemented
+from src.middleware.firebase_auth import get_current_user
 
 
 router = APIRouter(prefix="/api/v1/songs", tags=["Song Learning"])
