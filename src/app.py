@@ -1049,7 +1049,7 @@ def create_app() -> FastAPI:
     app.include_router(learning_router, tags=["Learning System"])
 
     # ✅ ADDED: Song Learning API - English learning through music (Phase 3-5 complete)
-    app.include_router(song_learning_router, prefix="/api/v1", tags=["Song Learning"])
+    app.include_router(song_learning_router, tags=["Song Learning"])
 
     # ✅ ADDED: Software Lab API - Projects, Templates, Files, Sync, Export/Import (19 endpoints)
     app.include_router(software_lab_router, prefix="/api", tags=["Software Lab"])
