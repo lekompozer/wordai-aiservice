@@ -349,6 +349,7 @@ class SongDetailResponse(BaseModel):
     view_count: int
     word_count: int
     difficulties_available: List[DifficultyLevel]
+    has_gaps: bool  # Whether gaps have been generated for this song
 
 
 class StartSessionRequest(BaseModel):
@@ -418,11 +419,15 @@ class StartSessionResponse(BaseModel):
 
     session_id: str
     song_id: str
+    title: str
+    artist: str
     difficulty: DifficultyLevel
     gaps: List[GapItem]
     lyrics_with_gaps: str
-    total_gaps: int
-    message: str
+    gap_count: int
+    youtube_url: Optional[str] = None
+    is_premium: bool
+    remaining_free_songs: int  # -1 for unlimited
 
 
 class SubmitAnswersResponse(BaseModel):
@@ -434,20 +439,9 @@ class SubmitAnswersResponse(BaseModel):
     total_gaps: int
     is_completed: bool
     best_score: float
-    message: str
-    correct_answers: List[dict]  # List of {gap_id, correct_answer, user_answer, is_correct}
-
-
-class ProgressStats(BaseModel):
-    """User progress statistics"""
-
-    total_attempts: int
-    total_completed: int
-    total_time_spent: int
-    songs_played_today: int
-    daily_limit_reached: bool
-    is_premium: bool
-    completion_rate: float  # percentage
+    graded_answers: List[
+        dict
+    ]  # List of {gap_id, correct_answer, user_answer, is_correct}
 
 
 class RecentActivity(BaseModel):
@@ -458,13 +452,20 @@ class RecentActivity(BaseModel):
     artist: str
     difficulty: DifficultyLevel
     best_score: float
-    attempts: int
-    last_played: datetime
+    is_completed: bool
+    last_attempt_at: datetime
 
 
 class UserProgressResponse(BaseModel):
     """User progress response"""
 
     user_id: str
-    stats: ProgressStats
-    recent_songs: List[RecentActivity]
+    total_songs_played: int
+    total_attempts: int
+    completed_songs: dict  # {difficulty: count}
+    average_score: float
+    is_premium: bool
+    songs_played_today: int
+    remaining_free_songs: int
+    subscription: Optional[dict] = None  # Subscription details if premium
+    recent_activity: List[RecentActivity]

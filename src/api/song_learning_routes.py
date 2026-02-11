@@ -41,6 +41,8 @@ from src.models.song_models import (
     UserSongProgress,
     UserDailyFreeSongs,
     LearningAttempt,
+    AttemptAnswer,
+    SongListItem,
 )
 from src.middleware.firebase_auth import get_current_user
 
@@ -141,9 +143,10 @@ async def browse_songs(
 
     # Get songs
     song_lyrics_col = db["song_lyrics"]
+    song_gaps_col = db["song_gaps"]
 
     total = song_lyrics_col.count_documents(query)
-    songs = list(
+    songs_raw = list(
         song_lyrics_col.find(
             query,
             {
@@ -161,7 +164,19 @@ async def browse_songs(
         .limit(limit)
     )
 
-    return BrowseSongsResponse(songs=songs, total=total, skip=skip, limit=limit)
+    # Add difficulties_available for each song
+    songs = []
+    for song in songs_raw:
+        # Get available difficulties from song_gaps
+        difficulties = song_gaps_col.distinct(
+            "difficulty", {"song_id": song["song_id"]}
+        )
+        song["difficulties_available"] = difficulties if difficulties else []
+        songs.append(song)
+
+    page = (skip // limit) + 1 if limit > 0 else 1
+
+    return BrowseSongsResponse(songs=songs, total=total, page=page, limit=limit)
 
 
 @router.get("/{song_id}", response_model=SongDetailResponse)
@@ -398,23 +413,28 @@ async def submit_answers(
         gap["position"]: gap["correct_answer"] for gap in gaps_doc["gaps"]
     }
 
-    # Grade answers
+    # Grade answers - convert list to lookup
+    user_answers_map = {ans.gap_index: ans.user_answer for ans in request.answers}
+
     total_gaps = len(correct_answers)
     correct_count = 0
-    graded_answers = {}
+    graded_answers = []
 
     for position, correct_answer in correct_answers.items():
-        user_answer = request.answers.get(position, "").strip().lower()
+        user_answer = user_answers_map.get(position, "").strip().lower()
         is_correct = user_answer == correct_answer.lower()
 
         if is_correct:
             correct_count += 1
 
-        graded_answers[position] = {
-            "user_answer": user_answer,
-            "correct_answer": correct_answer,
-            "is_correct": is_correct,
-        }
+        graded_answers.append(
+            {
+                "gap_index": position,
+                "user_answer": user_answer,
+                "correct_answer": correct_answer,
+                "is_correct": is_correct,
+            }
+        )
 
     # Calculate score
     score = round((correct_count / total_gaps) * 100, 2)
@@ -423,11 +443,23 @@ async def submit_answers(
     # Update user progress
     progress_col = db["user_song_progress"]
 
-    # Create attempt record
+    # Create attempt record with graded answers
+    attempt_answers = [
+        AttemptAnswer(
+            gap_index=ans["gap_index"],
+            user_answer=ans["user_answer"],
+            is_correct=ans["is_correct"],
+        )
+        for ans in graded_answers
+    ]
+
     attempt = LearningAttempt(
         attempt_number=0,  # Will be updated below
         score=score,
-        answers=request.answers,
+        correct_count=correct_count,
+        total_gaps=total_gaps,
+        time_spent_seconds=request.time_spent_seconds,
+        answers=attempt_answers,
         completed_at=datetime.utcnow(),
     )
 
