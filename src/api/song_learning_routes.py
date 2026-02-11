@@ -111,6 +111,8 @@ async def check_daily_limit(user_id: str, db) -> dict:
 async def browse_songs(
     category: Optional[str] = None,
     search: Optional[str] = None,
+    first_letter: Optional[str] = None,
+    artist: Optional[str] = None,
     skip: int = 0,
     limit: int = 20,
     db=Depends(get_db),
@@ -121,6 +123,8 @@ async def browse_songs(
     Query params:
     - category: Filter by category name
     - search: Search in title or artist
+    - first_letter: Filter by first letter (A-Z) or # for numbers
+    - artist: Filter by exact artist name
     - skip: Pagination offset
     - limit: Number of results (max 100)
 
@@ -134,6 +138,17 @@ async def browse_songs(
 
     if category:
         query["category"] = {"$regex": category, "$options": "i"}
+
+    if artist:
+        query["artist"] = {"$regex": f"^{artist}$", "$options": "i"}
+
+    if first_letter:
+        if first_letter == "#":
+            # Filter songs starting with numbers
+            query["title"] = {"$regex": "^[0-9]", "$options": "i"}
+        else:
+            # Filter songs starting with specific letter
+            query["title"] = {"$regex": f"^{first_letter}", "$options": "i"}
 
     if search:
         query["$or"] = [
@@ -177,6 +192,48 @@ async def browse_songs(
     page = (skip // limit) + 1 if limit > 0 else 1
 
     return BrowseSongsResponse(songs=songs, total=total, page=page, limit=limit)
+
+
+@router.get("/artists/list")
+async def get_artists_list(db=Depends(get_db)):
+    """
+    Get list of all artists with song counts.
+
+    Returns: List of artists sorted alphabetically with song counts
+    """
+    song_lyrics_col = db["song_lyrics"]
+
+    # Aggregate to get unique artists with counts
+    pipeline = [
+        {"$group": {"_id": "$artist", "song_count": {"$sum": 1}}},
+        {"$sort": {"_id": 1}},  # Sort alphabetically
+        {"$project": {"artist": "$_id", "song_count": 1, "_id": 0}},
+    ]
+
+    artists = list(song_lyrics_col.aggregate(pipeline))
+
+    # Group by first letter
+    artists_by_letter = {}
+    for artist_doc in artists:
+        artist = artist_doc["artist"]
+        first_char = artist[0].upper() if artist else "#"
+
+        # If starts with number, group under #
+        if first_char.isdigit():
+            first_char = "#"
+        elif not first_char.isalpha():
+            first_char = "#"
+
+        if first_char not in artists_by_letter:
+            artists_by_letter[first_char] = []
+
+        artists_by_letter[first_char].append(artist_doc)
+
+    return {
+        "total_artists": len(artists),
+        "artists": artists,
+        "artists_by_letter": artists_by_letter,
+    }
 
 
 @router.get("/{song_id}", response_model=SongDetailResponse)
@@ -383,7 +440,7 @@ async def start_learning_session(
         gap_count=gaps_doc["gap_count"],
         youtube_url=song.get("youtube_url"),
         is_premium=limit_info["is_premium"],
-        remaining_free_songs=remaining_free,
+        remaining_free_songs=limit_info["remaining_free"],
     )
 
 
@@ -455,8 +512,44 @@ async def submit_answers(
     score = round((correct_count / total_gaps) * 100, 2)
     is_completed = score >= 80.0
 
-    # Update user progress
+    # Check if this is first attempt for this song (for daily limit)
     progress_col = db["user_song_progress"]
+    existing_progress = progress_col.find_one(
+        {"user_id": user_id, "song_id": song_id, "difficulty": request.difficulty.value}
+    )
+
+    is_first_attempt = existing_progress is None
+
+    # If first attempt, check and update daily limit
+    if is_first_attempt:
+        limit_info = await check_daily_limit(user_id, db)
+
+        if not limit_info["can_play"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Daily limit reached. You've played {limit_info['songs_played_today']}/5 free songs today. Subscribe for unlimited access!",
+            )
+
+        # Update daily free songs if not premium
+        if not limit_info["is_premium"]:
+            daily_col = db["user_daily_free_songs"]
+            today = date.today().isoformat()
+
+            daily_col.update_one(
+                {"user_id": user_id, "date": today},
+                {
+                    "$setOnInsert": {
+                        "record_id": str(uuid.uuid4()),
+                        "user_id": user_id,
+                        "date": today,
+                        "created_at": datetime.utcnow(),
+                    },
+                    "$addToSet": {  # Only add if not already present
+                        "songs_played": song_id
+                    },
+                },
+                upsert=True,
+            )
 
     # Create attempt record with graded answers
     attempt_answers = [
@@ -478,11 +571,7 @@ async def submit_answers(
         completed_at=datetime.utcnow(),
     )
 
-    # Get existing progress
-    existing_progress = progress_col.find_one(
-        {"user_id": user_id, "song_id": song_id, "difficulty": request.difficulty.value}
-    )
-
+    # Update or create progress (existing_progress already fetched above)
     if existing_progress:
         # Update existing progress
         attempt.attempt_number = len(existing_progress.get("attempts", [])) + 1

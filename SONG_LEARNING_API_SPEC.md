@@ -41,8 +41,10 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 {
   category?: string;        // "pop", "rock", "ballad", etc.
   search_query?: string;    // Search by title or artist
+  first_letter?: string;    // Filter by first letter: A-Z or # (numbers)
+  artist?: string;          // Filter by artist name (exact match)
   skip?: number;            // Pagination offset (default: 0)
-  limit?: number;           // Page size (default: 20, max: 50)
+  limit?: number;           // Page size (default: 20, max: 100)
 }
 ```
 
@@ -69,7 +71,41 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 
 ---
 
-### 2. Get Song Details
+### 2. Get Artists List
+**GET** `/api/v1/songs/artists/list`
+
+**Description:**
+Get complete list of all artists with song counts, grouped by first letter for easy browsing.
+
+**Response:**
+```typescript
+{
+  total_artists: number;    // Total unique artists
+  artists: [                // All artists sorted alphabetically
+    {
+      artist: string;       // "The Beatles"
+      song_count: number;   // 45
+    }
+  ],
+  artists_by_letter: {      // Artists grouped by first letter
+    "A": [
+      { artist: "ABBA", song_count: 12 },
+      { artist: "Adele", song_count: 8 }
+    ],
+    "B": [
+      { artist: "The Beatles", song_count: 45 },
+      { artist: "Bon Jovi", song_count: 23 }
+    ],
+    "#": [                  // Artists starting with numbers or symbols
+      { artist: "50 Cent", song_count: 15 }
+    ]
+  }
+}
+```
+
+---
+
+### 3. Get Song Details
 **GET** `/api/v1/songs/{song_id}`
 
 **Response:**
@@ -91,7 +127,7 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 
 ---
 
-### 3. Get Random Song
+### 4. Get Random Song
 **GET** `/api/v1/songs/random/pick`
 
 **Query Parameters:**
@@ -118,7 +154,7 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 
 ---
 
-### 4. Start Learning Session
+### 5. Start Learning Session
 **POST** `/api/v1/songs/{song_id}/start`
 
 **Request Body:**
@@ -162,7 +198,7 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 
 ---
 
-### 5. Submit Answers
+### 6. Submit Answers
 **POST** `/api/v1/songs/{song_id}/submit`
 
 **Request Body:**
@@ -203,7 +239,7 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 
 ---
 
-### 6. Get User Progress
+### 7. Get User Progress
 **GET** `/api/v1/songs/users/me/progress`
 
 **Response:**
