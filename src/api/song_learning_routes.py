@@ -195,11 +195,16 @@ async def get_song_detail(song_id: str, db=Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Song {song_id} not found"
         )
 
-    # Check if gaps exist for this song
+    # Get available difficulties and check if gaps exist
     song_gaps_col = db["song_gaps"]
-    has_gaps = song_gaps_col.count_documents({"song_id": song_id}) > 0
+    difficulties = song_gaps_col.distinct("difficulty", {"song_id": song_id})
+    has_gaps = len(difficulties) > 0
 
-    return SongDetailResponse(**song, has_gaps=has_gaps)
+    return SongDetailResponse(
+        **song,
+        difficulties_available=difficulties if difficulties else [],
+        has_gaps=has_gaps,
+    )
 
 
 @router.get("/random/pick", response_model=RandomSongResponse)

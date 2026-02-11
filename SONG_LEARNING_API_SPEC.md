@@ -1,7 +1,7 @@
 # Song Learning API - Technical Specification
 
 **Version:** 1.0
-**Base URL:** `https://api.wordai.pro/api/v1/songs`
+**Base URL:** `https://ai.wordai.pro/api/v1/songs`
 **Authentication:** Firebase JWT Token (via `Authorization: Bearer <token>`)
 
 ---
