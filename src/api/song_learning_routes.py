@@ -368,7 +368,7 @@ async def get_hot_songs(
         )
 
         songs.append(
-            SongBrowseItem(
+            SongListItem(
                 song_id=song["song_id"],
                 title=song.get("title", "Unknown"),
                 artist=song.get("artist", "Unknown"),
@@ -432,7 +432,7 @@ async def get_recent_songs(
         )
 
         songs.append(
-            SongBrowseItem(
+            SongListItem(
                 song_id=song["song_id"],
                 title=song.get("title", "Unknown"),
                 artist=song.get("artist", "Unknown"),
