@@ -76,6 +76,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Install Playwright browsers (Chromium only, deps already installed above)
 RUN playwright install chromium
 
+# Install spaCy English model for gap generation
+RUN python -m spacy download en_core_web_sm
+
 # Copy toàn bộ code
 COPY . .
 
