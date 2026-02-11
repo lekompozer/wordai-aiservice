@@ -312,7 +312,7 @@ async def start_learning_session(
     - Premium users: Unlimited
     - Updates user_daily_free_songs collection
     """
-    user_id = current_user["user_id"]
+    user_id = current_user["uid"]
 
     # Check daily limit
     limit_info = await check_daily_limit(user_id, db)
@@ -409,7 +409,7 @@ async def submit_answers(
     - Completed: Score ≥ 80%
     - Updates user_song_progress collection
     """
-    user_id = current_user["user_id"]
+    user_id = current_user["uid"]
 
     # Get gaps for validation
     song_gaps_col = db["song_gaps"]
@@ -552,7 +552,7 @@ async def get_user_progress(
     - Recent activity
     - Subscription status
     """
-    user_id = current_user["user_id"]
+    user_id = current_user["uid"]
 
     progress_col = db["user_song_progress"]
 

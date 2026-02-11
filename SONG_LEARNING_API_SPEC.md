@@ -109,8 +109,10 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
   title: string;
   artist: string;
   category: string;
-  difficulty: string;     // Selected difficulty
+  youtube_id: string;
   youtube_url: string;
+  word_count: number;
+  difficulty: string;     // Selected difficulty (or default "easy")
 }
 ```
 
@@ -131,6 +133,8 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 {
   session_id: string;         // UUID for this session
   song_id: string;
+  title: string;
+  artist: string;
   difficulty: string;
   gaps: [
     {
@@ -144,8 +148,10 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
     }
   ],
   lyrics_with_gaps: string;   // Lyrics with "___" placeholders
-  total_gaps: number;         // 8-20 depending on difficulty
-  message: string;            // "Started easy session for 'Imagine'"
+  gap_count: number;          // 8-20 depending on difficulty
+  youtube_url: string;        // YouTube URL for playback
+  is_premium: boolean;        // User premium status
+  remaining_free_songs: number; // -1 for unlimited, 0-5 for free users
 }
 ```
 
@@ -166,8 +172,9 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
   difficulty: string;
   answers: [
     {
-      gap_id: string;
+      gap_index: number;      // Gap position (0-indexed)
       user_answer: string;    // User's answer (lowercased, trimmed)
+      is_correct: boolean;    // Pre-validated (optional, will be rechecked)
     }
   ],
   time_spent_seconds: number; // Time spent on this attempt
@@ -183,10 +190,9 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
   total_gaps: number;
   is_completed: boolean;      // true if score >= 80
   best_score: number;         // Best score for this song+difficulty
-  message: string;            // "Great job! You scored 85%"
-  correct_answers: [
+  graded_answers: [
     {
-      gap_id: string;
+      gap_index: number;
       correct_answer: string;
       user_answer: string;
       is_correct: boolean;
@@ -198,30 +204,38 @@ Song Learning API cho phép người dùng học tiếng Anh qua lời bài hát
 ---
 
 ### 6. Get User Progress
-**GET** `/api/v1/users/me/progress`
+**GET** `/api/v1/songs/users/me/progress`
 
 **Response:**
 ```typescript
 {
   user_id: string;
-  stats: {
-    total_attempts: number;       // Total attempts across all songs
-    total_completed: number;      // Songs with score >= 80%
-    total_time_spent: number;     // Total seconds
-    songs_played_today: number;   // 0-5 for free, unlimited for premium
-    daily_limit_reached: boolean; // true if hit 5/day limit
-    is_premium: boolean;          // Active subscription status
-    completion_rate: number;      // % of attempted songs completed
-  },
-  recent_songs: [
+  total_songs_played: number;     // Unique songs attempted
+  total_attempts: number;         // Total attempts across all songs
+  completed_songs: {              // Completed songs by difficulty
+    easy: number;
+    medium: number;
+    hard: number;
+  };
+  average_score: number;          // Average score across all attempts
+  is_premium: boolean;            // Active subscription status
+  songs_played_today: number;     // 0-5 for free, unlimited for premium
+  remaining_free_songs: number;   // 0-5 for free, -1 for premium
+  subscription: {                 // Only if premium
+    plan_type: string;            // "monthly" | "6_months" | "yearly"
+    start_date: string;           // ISO 8601
+    end_date: string;             // ISO 8601
+    price_paid: number;           // VND
+  } | null;
+  recent_activity: [
     {
       song_id: string;
       title: string;
       artist: string;
       difficulty: string;
       best_score: number;         // Best score (0-100)
-      attempts: number;           // Number of attempts
-      last_played: string;        // ISO 8601 timestamp
+      is_completed: boolean;      // Score >= 80%
+      last_attempt_at: string;    // ISO 8601 timestamp
     }
   ]
 }
@@ -257,9 +271,9 @@ enum Difficulty {
 ```
 
 ### Subscription Status
-Check via **GET** `/api/v1/users/me/progress`
+Check via **GET** `/api/v1/songs/users/me/progress`
 - `is_premium: true` → Unlimited access
-- `is_premium: false` → 5 songs/day limit
+- `is_premium: false` → 5 songs/day limit (check `remaining_free_songs`)
 
 ---
 
@@ -330,21 +344,24 @@ Check via **GET** `/api/v1/users/me/progress`
 ### Premium Check
 ```javascript
 async function canPlaySong(userId) {
-  const progress = await fetch('/api/v1/users/me/progress');
+  const progress = await fetch('/api/v1/songs/users/me/progress');
   const data = await progress.json();
 
-  if (data.stats.is_premium) {
+  if (data.is_premium) {
     return { allowed: true };
   }
 
-  if (data.stats.songs_played_today >= 5) {
+  if (data.songs_played_today >= 5) {
     return {
       allowed: false,
       message: "Daily limit reached. Upgrade to Premium!"
     };
   }
 
-  return { allowed: true, remaining: 5 - data.stats.songs_played_today };
+  return {
+    allowed: true,
+    remaining: data.remaining_free_songs
+  };
 }
 ```
 
