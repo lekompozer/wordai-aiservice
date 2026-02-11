@@ -2,8 +2,9 @@
 Song Learning Subscription API Routes
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Dict, Any
+import httpx
 
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import require_auth
@@ -97,3 +98,86 @@ async def cancel_subscription(
             "cancelled_at": subscription["cancelled_at"].isoformat(),
         },
     }
+
+
+# Payment routes - different prefix for frontend compatibility
+payment_router = APIRouter(
+    prefix="/api/v1/payments/song-learning", tags=["Song Payments"]
+)
+
+
+@payment_router.post("/checkout")
+async def create_checkout(
+    request: Request,
+    current_user: Dict[str, Any] = Depends(require_auth),
+):
+    """
+    Create payment checkout session for song learning subscription
+
+    Proxies request to payment service.
+
+    Request body:
+    {
+        "plan_id": "monthly" | "6_months" | "yearly",
+        "duration_months": 1 | 6 | 12,
+        "amount": 29000 | 150000 | 250000
+    }
+    """
+    user_id = current_user["uid"]
+
+    try:
+        # Get request body
+        body = await request.json()
+
+        # Validate plan_id
+        plan_id = body.get("plan_id")
+        if plan_id not in SUBSCRIPTION_PLANS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid plan_id. Must be one of: {list(SUBSCRIPTION_PLANS.keys())}",
+            )
+
+        # Get Firebase token from request headers
+        auth_header = request.headers.get("Authorization", "")
+        firebase_token = (
+            auth_header.replace("Bearer ", "")
+            if auth_header.startswith("Bearer ")
+            else ""
+        )
+
+        if not firebase_token:
+            raise HTTPException(status_code=401, detail="Missing Firebase token")
+
+        # Forward request to payment service
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            payment_response = await client.post(
+                "http://payment-service:3000/api/payment/checkout",
+                json=body,
+                headers={
+                    "Authorization": f"Bearer {firebase_token}",
+                    "Content-Type": "application/json",
+                },
+            )
+
+            if payment_response.status_code != 200:
+                logger.error(
+                    f"Payment service error: {payment_response.status_code} - {payment_response.text}"
+                )
+                raise HTTPException(
+                    status_code=payment_response.status_code,
+                    detail=f"Payment service error: {payment_response.text}",
+                )
+
+            return payment_response.json()
+
+    except httpx.TimeoutException:
+        logger.error("Payment service timeout")
+        raise HTTPException(status_code=504, detail="Payment service timeout")
+    except httpx.RequestError as e:
+        logger.error(f"Payment service request error: {e}")
+        raise HTTPException(status_code=503, detail="Payment service unavailable")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Checkout error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
