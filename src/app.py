@@ -210,6 +210,11 @@ from src.api.song_learning_routes import router as song_learning_router
 # ✅ ADDED: Song Subscription API - Premium subscription for unlimited songs
 from src.api.song_subscription_routes import router as song_subscription_router
 
+# ✅ ADDED: Song Subscription Activation - Payment webhook handler
+from src.api.song_subscription_activation_routes import (
+    router as song_subscription_activation_router,
+)
+
 # ✅ ADDED: Software Lab API - Projects, Templates, Files, Sync
 from src.api.software_lab_routes import router as software_lab_router
 
@@ -1056,6 +1061,11 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Song Subscription API - Premium subscription for unlimited songs
     app.include_router(song_subscription_router, tags=["Song Subscription"])
+
+    # ✅ ADDED: Song Subscription Activation - Payment webhook handler
+    app.include_router(
+        song_subscription_activation_router, tags=["Song Subscription Activation"]
+    )
 
     # ✅ ADDED: Software Lab API - Projects, Templates, Files, Sync, Export/Import (19 endpoints)
     app.include_router(software_lab_router, prefix="/api", tags=["Software Lab"])

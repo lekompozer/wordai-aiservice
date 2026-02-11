@@ -177,17 +177,37 @@ async function handleWebhook(req, res) {
                 try {
                     logger.info(`Activating subscription for user: ${payment.user_id}`);
 
-                    const activationResponse = await axios.post(
-                        `${config.pythonService.url}/api/v1/subscriptions/activate`,
-                        {
+                    // Check if this is song learning payment
+                    const isSongLearning = payment.plan_type === 'song_learning';
+                    const activationUrl = isSongLearning
+                        ? `${config.pythonService.url}/api/v1/songs/subscription/activate`
+                        : `${config.pythonService.url}/api/v1/subscriptions/activate`;
+
+                    const activationPayload = isSongLearning
+                        ? {
                             user_id: payment.user_id,
-                            plan: payment.plan,
+                            plan_id: payment.plan_id, // monthly, 6_months, yearly
                             duration_months: payment.duration_months,
                             payment_id: payment._id.toString(),
                             order_invoice_number,
                             payment_method: 'SEPAY_BANK_TRANSFER',
                             amount: payment.price,
-                        },
+                        }
+                        : {
+                            user_id: payment.user_id,
+                            plan: payment.plan, // premium, pro, vip
+                            duration_months: payment.duration_months,
+                            payment_id: payment._id.toString(),
+                            order_invoice_number,
+                            payment_method: 'SEPAY_BANK_TRANSFER',
+                            amount: payment.price,
+                        };
+
+                    logger.info(`Calling ${activationUrl} with payload:`, activationPayload);
+
+                    const activationResponse = await axios.post(
+                        activationUrl,
+                        activationPayload,
                         {
                             headers: {
                                 'Content-Type': 'application/json',

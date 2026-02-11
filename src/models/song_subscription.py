@@ -90,6 +90,26 @@ class MoMoIPNRequest(BaseModel):
     signature: str
 
 
+class ActivateSongSubscriptionRequest(BaseModel):
+    """Request to activate song learning subscription after payment"""
+
+    user_id: str = Field(..., description="Firebase UID")
+    plan_id: str = Field(..., description="monthly, 6_months, yearly")
+    duration_months: int = Field(..., description="Subscription duration")
+    payment_id: str = Field(..., description="MongoDB payment _id")
+    order_invoice_number: str = Field(..., description="Unique order invoice")
+    payment_method: str = Field(..., description="SEPAY_BANK_TRANSFER")
+    amount: int = Field(..., description="Amount paid in VND")
+
+
+class ActivateSongSubscriptionResponse(BaseModel):
+    """Response after activating song subscription"""
+
+    subscription_id: str = Field(..., description="MongoDB subscription _id")
+    expires_at: datetime = Field(..., description="Subscription expiration")
+    message: str = Field(default="Song subscription activated successfully")
+
+
 # Plan configurations
 SUBSCRIPTION_PLANS = {
     "monthly": SubscriptionPlan(
