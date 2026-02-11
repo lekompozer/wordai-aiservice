@@ -36,6 +36,7 @@ class POSTag(str, Enum):
     VERB = "VERB"
     ADJ = "ADJ"
     ADV = "ADV"
+    PROPN = "PROPN"  # Proper noun (names, places)
 
 
 class SubscriptionPlan(str, Enum):
@@ -155,11 +156,11 @@ class SongGaps(BaseModel):
     difficulty: DifficultyLevel = Field(..., description="Difficulty level")
 
     # Gap data
-    gaps: List[GapItem] = Field(..., max_length=10, description="Max 10 gaps")
+    gaps: List[GapItem] = Field(..., max_length=20, description="Max 20 gaps")
 
     # Display data
     lyrics_with_gaps: str = Field(..., description="Lyrics with ___ placeholders")
-    gap_count: int = Field(..., ge=1, le=10, description="Number of gaps (max 10)")
+    gap_count: int = Field(..., ge=1, le=20, description="Number of gaps (max 20)")
 
     # Statistics
     avg_difficulty_score: float = Field(default=0.0, description="Average difficulty")

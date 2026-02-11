@@ -1,0 +1,876 @@
+2026-02-11 12:21:35,129 - chatbot - INFO - ✅ Using MONGODB_URI from environment
+2026-02-11 12:21:35,148 - chatbot - INFO - ✅ MongoDB connection successful using authenticated URI
+2026-02-11 12:21:35,152 - chatbot - INFO - Connected to MongoDB with enhanced schema: ai_service_db
+📊 Exporting 20 gap samples...
+✅ Exported to gap_samples_20.json
+📊 Total samples: 20
+
+📈 By difficulty:
+   easy: 6 samples
+   hard: 7 samples
+   medium: 7 samples
+
+🔍 Preview (first sample):
+{
+  "song_id": "10772",
+  "song_title": "Never Took The Time",
+  "artist": "Akon",
+  "difficulty": "easy",
+  "gap_count": 5,
+  "avg_difficulty_score": 3.21,
+  "gaps": [
+    {
+      "line_number": 7,
+      "word_index": 6,
+      "original_word": "know",
+      "lemma": "know",
+      "pos_tag": "VERB",
+      "difficulty_score": 2.38,
+      "char_count": 4,
+      "is_end_of_line": false
+    },
+    {
+      "line_number": 14,
+      "word_index": 2,
+      "original_word": "look",
+      "lemma": "look",
+      "pos_tag": "VERB",
+      "difficulty_score": 2.74,
+      "char_count": 4,
+      "is_end_of_line": false
+    },
+    {
+      "line_number": 19,
+      "word_index": 1,
+      "original_word": "chorus",
+      "lemma": "chorus",
+      "pos_tag": "PROPN",
+      "difficulty_score": 5.12,
+      "char_count": 6,
+      "is_end_of_line": false
+    }
+  ],
+  "lyrics_with_gaps_preview": "A moment ago it seemed\n\nIt was yesterday\n\nYou were here with me\n\nAnd everything seems to be the same\n\nWhat am i supposed to do with all these empty rooms\n\nSit here in solitude with the smell of your perfume\n\nChorus\n\nYou never took the time to ___me\n\nYou never took the time to understand\n\nYou never t..."
+}
+[
+  {
+    "song_id": "10772",
+    "song_title": "Never Took The Time",
+    "artist": "Akon",
+    "difficulty": "easy",
+    "gap_count": 5,
+    "avg_difficulty_score": 3.21,
+    "gaps": [
+      {
+        "line_number": 7,
+        "word_index": 6,
+        "original_word": "know",
+        "lemma": "know",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.38,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 14,
+        "word_index": 2,
+        "original_word": "look",
+        "lemma": "look",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.74,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 19,
+        "word_index": 1,
+        "original_word": "chorus",
+        "lemma": "chorus",
+        "pos_tag": "PROPN",
+        "difficulty_score": 5.12,
+        "char_count": 6,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "A moment ago it seemed\n\nIt was yesterday\n\nYou were here with me\n\nAnd everything seems to be the same\n\nWhat am i supposed to do with all these empty rooms\n\nSit here in solitude with the smell of your perfume\n\nChorus\n\nYou never took the time to ___me\n\nYou never took the time to understand\n\nYou never t..."
+  },
+  {
+    "song_id": "10262",
+    "song_title": "Somewhere, Someday",
+    "artist": "N'sync",
+    "difficulty": "easy",
+    "gap_count": 5,
+    "avg_difficulty_score": 4.28,
+    "gaps": [
+      {
+        "line_number": 8,
+        "word_index": 1,
+        "original_word": "chrous",
+        "lemma": "chrous",
+        "pos_tag": "PROPN",
+        "difficulty_score": 10.0,
+        "char_count": 6,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 15,
+        "word_index": 0,
+        "original_word": "let",
+        "lemma": "let",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.0,
+        "char_count": 3,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 21,
+        "word_index": 6,
+        "original_word": "better",
+        "lemma": "well",
+        "pos_tag": "ADJ",
+        "difficulty_score": 2.8,
+        "char_count": 6,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "When clouds above you\n\nStart to pour\n\nAnd all your doubts\n\nBreak like a storm\n\nAnd you don't know\n\nWhat you already know\n\nLet me help you find\n\nWhat you've been searching for\n\n*___:\n\n(Somewhere)\n\nSomewhere there's a fields and a river\n\n(Somewhere)\n\nYou can let your soul run free\n\n(Someday)\n\nSomeday ..."
+  },
+  {
+    "song_id": "17009",
+    "song_title": "The Air That I Breath",
+    "artist": "Maroon 5",
+    "difficulty": "easy",
+    "gap_count": 5,
+    "avg_difficulty_score": 2.84,
+    "gaps": [
+      {
+        "line_number": 13,
+        "word_index": 1,
+        "original_word": "things",
+        "lemma": "thing",
+        "pos_tag": "NOUN",
+        "difficulty_score": 2.82,
+        "char_count": 6,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 23,
+        "word_index": 1,
+        "original_word": "made",
+        "lemma": "make",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.6,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 34,
+        "word_index": 1,
+        "original_word": "saying",
+        "lemma": "say",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.29,
+        "char_count": 6,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "People never change,\n\nThey seem to stay the same.\n\nThey wear different clothes,\n\nBut play the same games.\n\nMany different ways\n\nTo say the same thing.\n\nSearchin for the right words,\n\nThe ones that would make you stay.\n\nExchanging the way things were\n\nFor they way that they should be,\n\nYeah.\n\nAnd cho..."
+  },
+  {
+    "song_id": "73368",
+    "song_title": "The River (Ft. Alan Walker)",
+    "artist": "Axel Johansson",
+    "difficulty": "easy",
+    "gap_count": 5,
+    "avg_difficulty_score": 3.32,
+    "gaps": [
+      {
+        "line_number": 6,
+        "word_index": 0,
+        "original_word": "feel",
+        "lemma": "feel",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.91,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 12,
+        "word_index": 2,
+        "original_word": "stay",
+        "lemma": "stay",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.34,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 18,
+        "word_index": 5,
+        "original_word": "low",
+        "lemma": "low",
+        "pos_tag": "ADJ",
+        "difficulty_score": 3.34,
+        "char_count": 3,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "You can kill the lights\n\nYou can draw the blinds\n\nMy heart's shackled down\n\nBound to your bed\n\nCan you stay a while?\n\nKeep me by your side\n\n___my scattered heart\n\nFix me I said\n\nWe could lay here underneath the river\n\nIf you stay\n\nIf you stay\n\nWe could sleep here underneath the river\n\nIf you ___\n\nIf..."
+  },
+  {
+    "song_id": "15136",
+    "song_title": "Doin' Dirt",
+    "artist": "Maroon 5",
+    "difficulty": "easy",
+    "gap_count": 5,
+    "avg_difficulty_score": 2.85,
+    "gaps": [
+      {
+        "line_number": 6,
+        "word_index": 3,
+        "original_word": "like",
+        "lemma": "like",
+        "pos_tag": "VERB",
+        "difficulty_score": 1.99,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 13,
+        "word_index": 3,
+        "original_word": "say",
+        "lemma": "say",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.64,
+        "char_count": 3,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 19,
+        "word_index": 7,
+        "original_word": "dark",
+        "lemma": "dark",
+        "pos_tag": "NOUN",
+        "difficulty_score": 3.7,
+        "char_count": 4,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "Oh, yeah, oh yeah\n\nHey you, don't wanna love you on the telephone\n\nYou're hanging up and now I'm all alone\n\nBaby you got me doing dirt, doing dirt, doing dirt\n\nAnd now I wanna find you but you're off the run\n\nMy heart's exploding like a burning sun\n\nI know you ___it when it hurts, when it hurts, whe..."
+  },
+  {
+    "song_id": "3934",
+    "song_title": "Today Is Gonna Be A Great Day (Phineas &amp; Ferb Theme Song)",
+    "artist": "Danny Jacob",
+    "difficulty": "easy",
+    "gap_count": 5,
+    "avg_difficulty_score": 4.7,
+    "gaps": [
+      {
+        "line_number": 3,
+        "word_index": 3,
+        "original_word": "good",
+        "lemma": "good",
+        "pos_tag": "ADJ",
+        "difficulty_score": 2.35,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 7,
+        "word_index": 4,
+        "original_word": "eiffel",
+        "lemma": "eiffel",
+        "pos_tag": "PROPN",
+        "difficulty_score": 5.96,
+        "char_count": 6,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 12,
+        "word_index": 2,
+        "original_word": "frankenstein",
+        "lemma": "frankenstein",
+        "pos_tag": "PROPN",
+        "difficulty_score": 5.84,
+        "char_count": 12,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "There's 104 days in summer vacation\n\nAnd school comes along just to end it\n\nSo the annual problem for our generation\n\nIs finding a ___way to spend it\n\nLike maybe!\n\nBuilding a rocket\n\nOr fighting a mummy\n\nOr climbing up the ___Tower\n\nDiscovering something that doesn't exist \n\nOr giving a monkey a sho..."
+  },
+  {
+    "song_id": "15136",
+    "song_title": "Doin' Dirt",
+    "artist": "Maroon 5",
+    "difficulty": "hard",
+    "gap_count": 10,
+    "avg_difficulty_score": 3.57,
+    "gaps": [
+      {
+        "line_number": 3,
+        "word_index": 8,
+        "original_word": "dirt",
+        "lemma": "dirt",
+        "pos_tag": "NOUN",
+        "difficulty_score": 4.7,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 6,
+        "word_index": 15,
+        "original_word": "hurts",
+        "lemma": "hurt",
+        "pos_tag": "VERB",
+        "difficulty_score": 4.62,
+        "char_count": 5,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 10,
+        "word_index": 4,
+        "original_word": "touch",
+        "lemma": "touch",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.86,
+        "char_count": 5,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "Oh, yeah, oh yeah\n\nHey you, don't wanna love you on the telephone\n\nYou're hanging up and now I'm all alone\n\nBaby you got me doing dirt, doing ___, doing dirt\n\nAnd now I wanna find you but you're off the run\n\nMy heart's exploding like a burning sun\n\nI know you like it when it hurts, when it hurts, wh..."
+  },
+  {
+    "song_id": "73368",
+    "song_title": "The River (Ft. Alan Walker)",
+    "artist": "Axel Johansson",
+    "difficulty": "hard",
+    "gap_count": 10,
+    "avg_difficulty_score": 3.57,
+    "gaps": [
+      {
+        "line_number": 3,
+        "word_index": 0,
+        "original_word": "bound",
+        "lemma": "bind",
+        "pos_tag": "VERB",
+        "difficulty_score": 4.42,
+        "char_count": 5,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 6,
+        "word_index": 3,
+        "original_word": "heart",
+        "lemma": "heart",
+        "pos_tag": "NOUN",
+        "difficulty_score": 3.36,
+        "char_count": 5,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 10,
+        "word_index": 2,
+        "original_word": "stay",
+        "lemma": "stay",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.34,
+        "char_count": 4,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "You can kill the lights\n\nYou can draw the blinds\n\nMy heart's shackled down\n\n___to your bed\n\nCan you stay a while?\n\nKeep me by your side\n\nFeel my scattered ___\n\nFix me I said\n\nWe could lay here underneath the river\n\nIf you stay\n\nIf you ___\n\nWe could sleep here underneath the river\n\nIf you stay\n\nIf yo..."
+  },
+  {
+    "song_id": "10676",
+    "song_title": "When I Cry (The Dog Of Flanders OST)",
+    "artist": "Dianne Reeves",
+    "difficulty": "hard",
+    "gap_count": 10,
+    "avg_difficulty_score": 4.23,
+    "gaps": [
+      {
+        "line_number": 5,
+        "word_index": 2,
+        "original_word": "remember",
+        "lemma": "remember",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.28,
+        "char_count": 8,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 9,
+        "word_index": 2,
+        "original_word": "dream",
+        "lemma": "dream",
+        "pos_tag": "NOUN",
+        "difficulty_score": 3.86,
+        "char_count": 5,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 12,
+        "word_index": 8,
+        "original_word": "doorstep",
+        "lemma": "doorstep",
+        "pos_tag": "NOUN",
+        "difficulty_score": 5.62,
+        "char_count": 8,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "When I Cry\n\nI am awaken without reason\n\nIt's that restless kind of season\n\nI hear the thunder, I hear the raindrops\n\nThen I see rainbows, a rainbow of you\n\nI can ___, just like that summer\n\nThe summer when I found a friend in you\n\nWhen I cry, I call out your name\n\nI can recall all of our childhood\n\n..."
+  },
+  {
+    "song_id": "1739",
+    "song_title": "When You Look Me In The Eyes",
+    "artist": "Jonas Brothers",
+    "difficulty": "hard",
+    "gap_count": 10,
+    "avg_difficulty_score": 3.31,
+    "gaps": [
+      {
+        "line_number": 4,
+        "word_index": 7,
+        "original_word": "own",
+        "lemma": "own",
+        "pos_tag": "ADJ",
+        "difficulty_score": 2.82,
+        "char_count": 3,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 8,
+        "word_index": 1,
+        "original_word": "tell",
+        "lemma": "tell",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.09,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 12,
+        "word_index": 3,
+        "original_word": "glimpse",
+        "lemma": "glimpse",
+        "pos_tag": "NOUN",
+        "difficulty_score": 5.24,
+        "char_count": 7,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "When you look me in the eyes\n\nIf the heart is always searching,\n\nCan you ever find a home?\n\nI've been looking for that someone,\n\nI'll never make it on my ___.\n\nDreams can't take the place of loving you,\n\nThere's gotta be a million reasons why it's true\n\nWhen you look me in the eyes,\n\nAnd ___me that ..."
+  },
+  {
+    "song_id": "10262",
+    "song_title": "Somewhere, Someday",
+    "artist": "N'sync",
+    "difficulty": "hard",
+    "gap_count": 10,
+    "avg_difficulty_score": 3.58,
+    "gaps": [
+      {
+        "line_number": 4,
+        "word_index": 4,
+        "original_word": "know",
+        "lemma": "know",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.38,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 7,
+        "word_index": 4,
+        "original_word": "searching",
+        "lemma": "search",
+        "pos_tag": "VERB",
+        "difficulty_score": 4.55,
+        "char_count": 9,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 12,
+        "word_index": 4,
+        "original_word": "soul",
+        "lemma": "soul",
+        "pos_tag": "NOUN",
+        "difficulty_score": 3.99,
+        "char_count": 4,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "When clouds above you\n\nStart to pour\n\nAnd all your doubts\n\nBreak like a storm\n\nAnd you don't ___\n\nWhat you already know\n\nLet me help you find\n\nWhat you've been ___for\n\n*CHROUS:\n\n(Somewhere)\n\nSomewhere there's a fields and a river\n\n(Somewhere)\n\nYou can let your ___run free\n\n(Someday)\n\nSomeday let me ..."
+  },
+  {
+    "song_id": "19465",
+    "song_title": "Fool In Love",
+    "artist": "Rihanna",
+    "difficulty": "hard",
+    "gap_count": 10,
+    "avg_difficulty_score": 4.32,
+    "gaps": [
+      {
+        "line_number": 3,
+        "word_index": 1,
+        "original_word": "adores",
+        "lemma": "adore",
+        "pos_tag": "VERB",
+        "difficulty_score": 6.35,
+        "char_count": 6,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 6,
+        "word_index": 4,
+        "original_word": "flawless",
+        "lemma": "flawless",
+        "pos_tag": "ADJ",
+        "difficulty_score": 5.5,
+        "char_count": 8,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 9,
+        "word_index": 6,
+        "original_word": "hole",
+        "lemma": "hole",
+        "pos_tag": "NOUN",
+        "difficulty_score": 4.17,
+        "char_count": 4,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "Mama, I found a man\n\nWho loves me and understands\n\nPapa, he's quite a man\n\nHe ___me, he's my biggest fan\n\nAnd don't get me wrong,\n\nI know he's not perfect in your eyes\n\nBut somehow he's ___in mine\n\nAnd you may tell me to run, run now\n\nBut I can't do that\n\nWe're too far down the ___\n\nHe's got a hold ..."
+  },
+  {
+    "song_id": "42328",
+    "song_title": "Make You Believe",
+    "artist": "Lucy Hale",
+    "difficulty": "hard",
+    "gap_count": 10,
+    "avg_difficulty_score": 3.47,
+    "gaps": [
+      {
+        "line_number": 6,
+        "word_index": 3,
+        "original_word": "illusion",
+        "lemma": "illusion",
+        "pos_tag": "NOUN",
+        "difficulty_score": 5.08,
+        "char_count": 8,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 13,
+        "word_index": 5,
+        "original_word": "want",
+        "lemma": "want",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.45,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 20,
+        "word_index": 3,
+        "original_word": "night",
+        "lemma": "night",
+        "pos_tag": "NOUN",
+        "difficulty_score": 2.99,
+        "char_count": 5,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "Plug in the mic, open the curtain\n\nTurn on the lights, I'm through rehearsing\n\nThe feeling ignites, I'm in control\n\nThe crowds in the palm of my hands\n\nAll my fans stand\n\nWhat is the truth?\n\nWhat's an ___?\n\nYou're searching for proof\n\nBut are you certain?\n\nWhatever you see is what you get\n\nIf words ..."
+  },
+  {
+    "song_id": "3934",
+    "song_title": "Today Is Gonna Be A Great Day (Phineas &amp; Ferb Theme Song)",
+    "artist": "Danny Jacob",
+    "difficulty": "medium",
+    "gap_count": 7,
+    "avg_difficulty_score": 4.39,
+    "gaps": [
+      {
+        "line_number": 2,
+        "word_index": 2,
+        "original_word": "annual",
+        "lemma": "annual",
+        "pos_tag": "ADJ",
+        "difficulty_score": 3.82,
+        "char_count": 6,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 5,
+        "word_index": 0,
+        "original_word": "building",
+        "lemma": "build",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.39,
+        "char_count": 8,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 8,
+        "word_index": 0,
+        "original_word": "discovering",
+        "lemma": "discover",
+        "pos_tag": "VERB",
+        "difficulty_score": 5.22,
+        "char_count": 11,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "There's 104 days in summer vacation\n\nAnd school comes along just to end it\n\nSo the ___problem for our generation\n\nIs finding a good way to spend it\n\nLike maybe!\n\n___a rocket\n\nOr fighting a mummy\n\nOr climbing up the Eiffel Tower\n\n___something that doesn't exist \n\nOr giving a monkey a shower\n\nSurfing ..."
+  },
+  {
+    "song_id": "20572",
+    "song_title": "Christmas Tree (ft. Space Cowboy)",
+    "artist": "Lady Gaga",
+    "difficulty": "medium",
+    "gap_count": 7,
+    "avg_difficulty_score": 3.23,
+    "gaps": [
+      {
+        "line_number": 6,
+        "word_index": 4,
+        "original_word": "wanna",
+        "lemma": "wanna",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.7,
+        "char_count": 5,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 9,
+        "word_index": 9,
+        "original_word": "let",
+        "lemma": "let",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.0,
+        "char_count": 3,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 15,
+        "word_index": 2,
+        "original_word": "tree",
+        "lemma": "tree",
+        "pos_tag": "NOUN",
+        "difficulty_score": 3.94,
+        "char_count": 4,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "Ra pa pam pam\n\nRa pa pam pam\n\nRa pa pam pam\n\nRa pa pam pam\n\nLight me up, put me on top, let's falalalalalalala\n\nLight me up, put me on top, let's falalalalalalala\n\nThe only place you ___be is underneath my Christmas tree\n\nThe only place you wanna be is underneath my Christmas tree\n\nLight me up, put ..."
+  },
+  {
+    "song_id": "10772",
+    "song_title": "Never Took The Time",
+    "artist": "Akon",
+    "difficulty": "medium",
+    "gap_count": 7,
+    "avg_difficulty_score": 2.89,
+    "gaps": [
+      {
+        "line_number": 5,
+        "word_index": 6,
+        "original_word": "smell",
+        "lemma": "smell",
+        "pos_tag": "NOUN",
+        "difficulty_score": 4.39,
+        "char_count": 5,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 11,
+        "word_index": 0,
+        "original_word": "said",
+        "lemma": "say",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.49,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 14,
+        "word_index": 17,
+        "original_word": "leave",
+        "lemma": "leave",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.33,
+        "char_count": 5,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "A moment ago it seemed\n\nIt was yesterday\n\nYou were here with me\n\nAnd everything seems to be the same\n\nWhat am i supposed to do with all these empty rooms\n\nSit here in solitude with the ___of your perfume\n\nChorus\n\nYou never took the time to know me\n\nYou never took the time to understand\n\nYou never to..."
+  },
+  {
+    "song_id": "1739",
+    "song_title": "When You Look Me In The Eyes",
+    "artist": "Jonas Brothers",
+    "difficulty": "medium",
+    "gap_count": 7,
+    "avg_difficulty_score": 3.75,
+    "gaps": [
+      {
+        "line_number": 5,
+        "word_index": 7,
+        "original_word": "loving",
+        "lemma": "love",
+        "pos_tag": "VERB",
+        "difficulty_score": 4.41,
+        "char_count": 6,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 11,
+        "word_index": 6,
+        "original_word": "eyes",
+        "lemma": "eye",
+        "pos_tag": "NOUN",
+        "difficulty_score": 3.49,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 18,
+        "word_index": 2,
+        "original_word": "best",
+        "lemma": "good",
+        "pos_tag": "ADJ",
+        "difficulty_score": 2.7,
+        "char_count": 4,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "When you look me in the eyes\n\nIf the heart is always searching,\n\nCan you ever find a home?\n\nI've been looking for that someone,\n\nI'll never make it on my own.\n\nDreams can't take the place of ___you,\n\nThere's gotta be a million reasons why it's true\n\nWhen you look me in the eyes,\n\nAnd tell me that yo..."
+  },
+  {
+    "song_id": "19465",
+    "song_title": "Fool In Love",
+    "artist": "Rihanna",
+    "difficulty": "medium",
+    "gap_count": 7,
+    "avg_difficulty_score": 3.32,
+    "gaps": [
+      {
+        "line_number": 4,
+        "word_index": 5,
+        "original_word": "wrong",
+        "lemma": "wrong",
+        "pos_tag": "ADJ",
+        "difficulty_score": 3.26,
+        "char_count": 5,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 7,
+        "word_index": 8,
+        "original_word": "run",
+        "lemma": "run",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.14,
+        "char_count": 3,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 12,
+        "word_index": 5,
+        "original_word": "love",
+        "lemma": "love",
+        "pos_tag": "NOUN",
+        "difficulty_score": 2.72,
+        "char_count": 4,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "Mama, I found a man\n\nWho loves me and understands\n\nPapa, he's quite a man\n\nHe adores me, he's my biggest fan\n\nAnd don't get me ___,\n\nI know he's not perfect in your eyes\n\nBut somehow he's flawless in mine\n\nAnd you may tell me to run, ___now\n\nBut I can't do that\n\nWe're too far down the hole\n\nHe's got..."
+  },
+  {
+    "song_id": "42328",
+    "song_title": "Make You Believe",
+    "artist": "Lucy Hale",
+    "difficulty": "medium",
+    "gap_count": 7,
+    "avg_difficulty_score": 3.12,
+    "gaps": [
+      {
+        "line_number": 9,
+        "word_index": 2,
+        "original_word": "see",
+        "lemma": "see",
+        "pos_tag": "VERB",
+        "difficulty_score": 2.38,
+        "char_count": 3,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 18,
+        "word_index": 4,
+        "original_word": "believe",
+        "lemma": "believe",
+        "pos_tag": "VERB",
+        "difficulty_score": 3.11,
+        "char_count": 7,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 27,
+        "word_index": 6,
+        "original_word": "nodding",
+        "lemma": "nod",
+        "pos_tag": "VERB",
+        "difficulty_score": 6.01,
+        "char_count": 7,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "Plug in the mic, open the curtain\n\nTurn on the lights, I'm through rehearsing\n\nThe feeling ignites, I'm in control\n\nThe crowds in the palm of my hands\n\nAll my fans stand\n\nWhat is the truth?\n\nWhat's an illusion?\n\nYou're searching for proof\n\nBut are you certain?\n\nWhatever you ___is what you get\n\nIf wo..."
+  },
+  {
+    "song_id": "73372",
+    "song_title": "Strawberries &amp; Cigarettes (Love, Simon Original Soundtrack)",
+    "artist": "Troye Sivan",
+    "difficulty": "medium",
+    "gap_count": 7,
+    "avg_difficulty_score": 4.07,
+    "gaps": [
+      {
+        "line_number": 7,
+        "word_index": 2,
+        "original_word": "sat",
+        "lemma": "sit",
+        "pos_tag": "VERB",
+        "difficulty_score": 4.2,
+        "char_count": 3,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 14,
+        "word_index": 8,
+        "original_word": "fool",
+        "lemma": "fool",
+        "pos_tag": "NOUN",
+        "difficulty_score": 4.64,
+        "char_count": 4,
+        "is_end_of_line": false
+      },
+      {
+        "line_number": 22,
+        "word_index": 2,
+        "original_word": "night",
+        "lemma": "night",
+        "pos_tag": "NOUN",
+        "difficulty_score": 2.99,
+        "char_count": 5,
+        "is_end_of_line": false
+      }
+    ],
+    "lyrics_with_gaps_preview": "[Verse 1]\n\nRemember when we first met?\n\nYou said “light my cigarette”\n\nSo I lied to my mom and dad\n\nAnd jumped the fence and I ran\n\nBut we couldn’t go very far\n\n‘Cause you locked your keys in your car\n\nSo you ___and stared at my lips\n\nAnd I could already feel your kiss\n\n[Chorus]\n\nLong nights, daydre..."
+  }
+]
