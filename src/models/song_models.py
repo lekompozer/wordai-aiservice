@@ -370,3 +370,101 @@ class CreateSubscriptionRequest(BaseModel):
     """Request to create subscription"""
 
     plan_type: SubscriptionPlan
+
+
+# ============================================================================
+# API RESPONSE MODELS
+# ============================================================================
+
+
+class BrowseSongsRequest(BaseModel):
+    """Request model for browsing songs"""
+
+    category: Optional[str] = None
+    search_query: Optional[str] = None
+    skip: int = 0
+    limit: int = 20
+
+
+class BrowseSongsResponse(BaseModel):
+    """Response model for browsing songs"""
+
+    songs: List[SongListItem]
+    total: int
+    page: int
+    limit: int
+
+
+class RandomSongRequest(BaseModel):
+    """Request model for random song"""
+
+    difficulty: Optional[DifficultyLevel] = None
+    category: Optional[str] = None
+
+
+class RandomSongResponse(BaseModel):
+    """Response model for random song"""
+
+    song_id: str
+    title: str
+    artist: str
+    category: str
+    difficulty: DifficultyLevel
+    youtube_url: str
+
+
+class StartSessionResponse(BaseModel):
+    """Response model for starting session"""
+
+    session_id: str
+    song_id: str
+    difficulty: DifficultyLevel
+    gaps: List[GapItem]
+    lyrics_with_gaps: str
+    total_gaps: int
+    message: str
+
+
+class SubmitAnswersResponse(BaseModel):
+    """Response model for submitting answers"""
+
+    session_id: str
+    score: float
+    correct_count: int
+    total_gaps: int
+    is_completed: bool
+    best_score: float
+    message: str
+    correct_answers: List[dict]  # List of {gap_id, correct_answer, user_answer, is_correct}
+
+
+class ProgressStats(BaseModel):
+    """User progress statistics"""
+
+    total_attempts: int
+    total_completed: int
+    total_time_spent: int
+    songs_played_today: int
+    daily_limit_reached: bool
+    is_premium: bool
+    completion_rate: float  # percentage
+
+
+class RecentActivity(BaseModel):
+    """Recent learning activity"""
+
+    song_id: str
+    title: str
+    artist: str
+    difficulty: DifficultyLevel
+    best_score: float
+    attempts: int
+    last_played: datetime
+
+
+class UserProgressResponse(BaseModel):
+    """User progress response"""
+
+    user_id: str
+    stats: ProgressStats
+    recent_songs: List[RecentActivity]
