@@ -708,9 +708,10 @@ async def submit_answers(
             detail=f"No {request.difficulty.value} difficulty gaps found for song {song_id}",
         )
 
-    # Build correct answers map
+    # Build correct answers map - use original_word as correct answer
+    # Gap index is 0-based position in gaps array
     correct_answers = {
-        gap["position"]: gap["correct_answer"] for gap in gaps_doc["gaps"]
+        i: gap["original_word"] for i, gap in enumerate(gaps_doc["gaps"])
     }
 
     # Grade answers - convert list to lookup
@@ -720,8 +721,8 @@ async def submit_answers(
     correct_count = 0
     graded_answers = []
 
-    for position, correct_answer in correct_answers.items():
-        user_answer = user_answers_map.get(position, "").strip().lower()
+    for gap_index, correct_answer in correct_answers.items():
+        user_answer = user_answers_map.get(gap_index, "").strip().lower()
         is_correct = user_answer == correct_answer.lower()
 
         if is_correct:
@@ -729,7 +730,7 @@ async def submit_answers(
 
         graded_answers.append(
             {
-                "gap_index": position,
+                "gap_index": gap_index,
                 "user_answer": user_answer,
                 "correct_answer": correct_answer,
                 "is_correct": is_correct,
