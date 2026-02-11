@@ -358,12 +358,19 @@ class StartSessionRequest(BaseModel):
     difficulty: DifficultyLevel
 
 
+class UserAnswer(BaseModel):
+    """User's answer for a gap (for submission)"""
+
+    gap_index: int = Field(..., description="Gap index (0-based)")
+    user_answer: str = Field(..., description="User's answer")
+
+
 class SubmitAnswersRequest(BaseModel):
     """Request to submit answers"""
 
     session_id: str
     difficulty: DifficultyLevel
-    answers: List[AttemptAnswer]
+    answers: List[UserAnswer]  # Changed from AttemptAnswer
     time_spent_seconds: int
 
 
