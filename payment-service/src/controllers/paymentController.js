@@ -255,9 +255,9 @@ async function createSongLearningCheckout(req, res) {
             order_invoice_number: orderInvoiceNumber,
             order_description: `WordAI Song Learning - ${planNames[plan_id]}`,
             customer_id: user_id,
-            success_url: `https://wordai.pro/song-learning`,
-            error_url: `https://wordai.pro/song-learning`,
-            cancel_url: `https://wordai.pro/song-learning`,
+            success_url: `https://wordai.pro/ai-tools/listen-learn?tab=songs`,
+            error_url: `https://wordai.pro/ai-tools/listen-learn?tab=songs`,
+            cancel_url: `https://wordai.pro/ai-tools/listen-learn?tab=songs`,
         };
 
         // Generate signature
