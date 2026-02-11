@@ -150,34 +150,56 @@ async def browse_songs(
             # Filter songs starting with specific letter
             query["title"] = {"$regex": f"^{first_letter}", "$options": "i"}
 
-    if search:
-        query["$or"] = [
-            {"title": {"$regex": search, "$options": "i"}},
-            {"artist": {"$regex": search, "$options": "i"}},
-        ]
-
     # Get songs
     song_lyrics_col = db["song_lyrics"]
     song_gaps_col = db["song_gaps"]
 
-    total = song_lyrics_col.count_documents(query)
-    songs_raw = list(
-        song_lyrics_col.find(
-            query,
-            {
-                "song_id": 1,
-                "title": 1,
-                "artist": 1,
-                "category": 1,
-                "youtube_id": 1,
-                "view_count": 1,
-                "word_count": 1,
-                "_id": 0,
-            },
+    # Use text search if searching (MUCH faster than regex)
+    if search:
+        # Text search on title and artist (uses text index)
+        query["$text"] = {"$search": search}
+
+        # Get results with text score for relevance sorting
+        total = song_lyrics_col.count_documents(query)
+        songs_raw = list(
+            song_lyrics_col.find(
+                query,
+                {
+                    "song_id": 1,
+                    "title": 1,
+                    "artist": 1,
+                    "category": 1,
+                    "youtube_id": 1,
+                    "view_count": 1,
+                    "word_count": 1,
+                    "score": {"$meta": "textScore"},  # Relevance score
+                    "_id": 0,
+                },
+            )
+            .sort([("score", {"$meta": "textScore"})])  # Sort by relevance
+            .skip(skip)
+            .limit(limit)
         )
-        .skip(skip)
-        .limit(limit)
-    )
+    else:
+        # Regular query (no search term)
+        total = song_lyrics_col.count_documents(query)
+        songs_raw = list(
+            song_lyrics_col.find(
+                query,
+                {
+                    "song_id": 1,
+                    "title": 1,
+                    "artist": 1,
+                    "category": 1,
+                    "youtube_id": 1,
+                    "view_count": 1,
+                    "word_count": 1,
+                    "_id": 0,
+                },
+            )
+            .skip(skip)
+            .limit(limit)
+        )
 
     # Add difficulties_available for each song
     songs = []
@@ -234,6 +256,75 @@ async def get_artists_list(db=Depends(get_db)):
         "artists": artists,
         "artists_by_letter": artists_by_letter,
     }
+
+
+@router.get("/artists/{artist_name}/songs", response_model=BrowseSongsResponse)
+async def get_songs_by_artist(
+    artist_name: str,
+    skip: int = 0,
+    limit: int = 20,
+    db=Depends(get_db),
+):
+    """
+    Get all songs by a specific artist.
+
+    Perfect for artist detail page showing all their songs.
+
+    Args:
+        artist_name: Artist name (case-insensitive)
+        skip: Pagination offset
+        limit: Number of results (max 100)
+
+    Returns: List of songs by the artist
+    """
+    # Validate limit
+    limit = min(limit, 100)
+
+    song_lyrics_col = db["song_lyrics"]
+    song_gaps_col = db["song_gaps"]
+
+    # Case-insensitive exact match on artist
+    query = {"artist": {"$regex": f"^{artist_name}$", "$options": "i"}}
+
+    total = song_lyrics_col.count_documents(query)
+
+    if total == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Artist '{artist_name}' not found",
+        )
+
+    songs_raw = list(
+        song_lyrics_col.find(
+            query,
+            {
+                "song_id": 1,
+                "title": 1,
+                "artist": 1,
+                "category": 1,
+                "youtube_id": 1,
+                "view_count": 1,
+                "word_count": 1,
+                "_id": 0,
+            },
+        )
+        .sort([("view_count", -1)])  # Sort by popularity
+        .skip(skip)
+        .limit(limit)
+    )
+
+    # Add difficulties_available for each song
+    songs = []
+    for song in songs_raw:
+        difficulties = song_gaps_col.distinct(
+            "difficulty", {"song_id": song["song_id"]}
+        )
+        song["difficulties_available"] = difficulties if difficulties else []
+        songs.append(song)
+
+    page = (skip // limit) + 1 if limit > 0 else 1
+
+    return BrowseSongsResponse(songs=songs, total=total, page=page, limit=limit)
 
 
 @router.get("/hot/trending", response_model=BrowseSongsResponse)
@@ -481,7 +572,6 @@ async def get_random_song(
 async def start_learning_session(
     song_id: str,
     request: StartSessionRequest,
-    current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
 ):
     """
@@ -493,21 +583,10 @@ async def start_learning_session(
     Returns: Song gaps (exercise) and session info
 
     Business rules:
-    - Free users: Max 5 songs/day
-    - Premium users: Unlimited
-    - Updates user_daily_free_songs collection
+    - NO AUTH REQUIRED - Free to preview/start
+    - Daily limit only checked on SUBMIT, not on start
+    - Users can start unlimited times to see gaps
     """
-    user_id = current_user["uid"]
-
-    # Check daily limit
-    limit_info = await check_daily_limit(user_id, db)
-
-    if not limit_info["can_play"]:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Daily limit reached. You've played {limit_info['songs_played_today']}/5 free songs today. Subscribe for unlimited access!",
-        )
-
     # Get song
     song_lyrics_col = db["song_lyrics"]
     song = song_lyrics_col.find_one({"song_id": song_id})
@@ -529,34 +608,7 @@ async def start_learning_session(
             detail=f"No {request.difficulty.value} difficulty gaps found for song {song_id}",
         )
 
-    # Update daily free songs (if not premium)
-    if not limit_info["is_premium"]:
-        daily_col = db["user_daily_free_songs"]
-        today = date.today().isoformat()
-
-        # Upsert: Add song_id to songs_played array
-        daily_col.update_one(
-            {"user_id": user_id, "date": today},
-            {
-                "$setOnInsert": {
-                    "record_id": str(uuid.uuid4()),
-                    "user_id": user_id,
-                    "date": today,
-                    "created_at": datetime.utcnow(),
-                },
-                "$addToSet": {  # Only add if not already present
-                    "songs_played": song_id
-                },
-            },
-            upsert=True,
-        )
-
-        # Recalculate remaining
-        remaining_free = limit_info["remaining_free"] - 1
-    else:
-        remaining_free = -1  # Unlimited
-
-    # Return session data
+    # Return session data (NO limit check, NO database update)
     return StartSessionResponse(
         session_id=str(uuid.uuid4()),  # Generate session ID for tracking
         song_id=song_id,
@@ -567,8 +619,8 @@ async def start_learning_session(
         lyrics_with_gaps=gaps_doc["lyrics_with_gaps"],
         gap_count=gaps_doc["gap_count"],
         youtube_url=song.get("youtube_url"),
-        is_premium=limit_info["is_premium"],
-        remaining_free_songs=limit_info["remaining_free"],
+        is_premium=False,  # Will be checked on submit
+        remaining_free_songs=-1,  # Will be calculated on submit
     )
 
 
