@@ -45,6 +45,13 @@ const schemas = {
         return_url: Joi.string().uri().optional(), // Optional return URL for redirect after payment
     }),
 
+    // Song learning subscription (NEW)
+    songLearningCheckout: Joi.object({
+        plan_id: Joi.string().valid('monthly', '6_months', 'yearly').required(),
+        duration_months: Joi.number().valid(1, 6, 12).required(),
+        amount: Joi.number().valid(29000, 150000, 250000).required(),
+    }),
+
     // Webhook payload (basic validation, SePay signature will be verified separately)
     webhook: Joi.object().unknown(true),
 };

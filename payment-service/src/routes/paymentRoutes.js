@@ -33,6 +33,14 @@ router.post(
     asyncHandler(paymentController.createBookPurchase)
 );
 
+// Create song learning subscription - REQUIRES AUTHENTICATION (NEW)
+router.post(
+    '/song-learning/checkout',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    validateBody(schemas.songLearningCheckout),
+    asyncHandler(paymentController.createSongLearningCheckout)
+);
+
 // Get payment status
 router.get(
     '/status/:order_invoice_number',

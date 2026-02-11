@@ -33,6 +33,13 @@ const POINTS_PRICING = {
     '200': 180000,  // 200 điểm = 180,000 VND
 };
 
+// Song Learning subscription pricing (NEW)
+const SONG_LEARNING_PRICING = {
+    'monthly': { duration_months: 1, amount: 29000 },
+    '6_months': { duration_months: 6, amount: 150000 },
+    'yearly': { duration_months: 12, amount: 250000 },
+};
+
 /**
  * Generate order invoice number
  * Format: WA-{timestamp}-{user_short}
@@ -176,6 +183,97 @@ async function createCheckout(req, res) {
         });
     } catch (error) {
         logger.error(`Checkout error: ${error.message}`);
+        throw error;
+    }
+}
+
+/**
+ * Create Song Learning subscription checkout
+ * REQUIRES AUTHENTICATION
+ */
+async function createSongLearningCheckout(req, res) {
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const user_id = authenticatedUser.uid;
+    const user_email = authenticatedUser.email;
+    const user_name = authenticatedUser.name || authenticatedUser.email?.split('@')[0];
+
+    const { plan_id, duration_months, amount } = req.body;
+
+    try {
+        // Validate plan
+        const planConfig = SONG_LEARNING_PRICING[plan_id];
+        if (!planConfig || planConfig.amount !== amount || planConfig.duration_months !== duration_months) {
+            throw new AppError('Invalid plan configuration', 400);
+        }
+
+        // Generate order invoice number
+        const orderInvoiceNumber = generateOrderInvoiceNumber(user_id);
+
+        // Create payment record
+        const db = getDb();
+        const paymentsCollection = db.collection('payments');
+
+        const paymentDoc = {
+            user_id,
+            order_invoice_number: orderInvoiceNumber,
+            plan_type: 'song_learning',
+            plan_id,
+            duration_months,
+            price: amount,
+            status: 'pending',
+            payment_method: 'SEPAY_BANK_TRANSFER',
+            user_email: user_email || null,
+            user_name: user_name || null,
+            sepay_transaction_id: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+        };
+
+        const result = await paymentsCollection.insertOne(paymentDoc);
+        const paymentId = result.insertedId.toString();
+
+        logger.info(`Created song learning payment: ${paymentId} for user: ${user_id} (${user_email})`);
+
+        // Prepare SePay form fields
+        const planNames = {
+            'monthly': '1 tháng',
+            '6_months': '6 tháng',
+            'yearly': '1 năm',
+        };
+
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: amount.toString(),
+            currency: 'VND',
+            order_invoice_number: orderInvoiceNumber,
+            order_description: `WordAI Song Learning - ${planNames[plan_id]}`,
+            customer_id: user_id,
+            success_url: `https://wordai.pro/song-learning`,
+            error_url: `https://wordai.pro/song-learning`,
+            cancel_url: `https://wordai.pro/song-learning`,
+        };
+
+        // Generate signature
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
+
+        logger.info(`Generated song learning checkout for order: ${orderInvoiceNumber}`);
+
+        // Return payment URL and order number
+        res.status(201).json({
+            payment_url: config.sepay.checkoutUrl,
+            order_invoice_number: orderInvoiceNumber,
+            payment_id: paymentId,
+            form_fields: formFields,
+        });
+    } catch (error) {
+        logger.error(`Song learning checkout error: ${error.message}`);
         throw error;
     }
 }
@@ -481,6 +579,7 @@ module.exports = {
     createCheckout,
     createPointsPurchase,
     createBookPurchase,
+    createSongLearningCheckout,
     getPaymentStatus,
     getUserPayments,
 };
