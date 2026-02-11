@@ -274,7 +274,17 @@ async def get_random_song(
             detail="No songs found matching criteria",
         )
 
-    return RandomSongResponse(**result[0])
+    song = result[0]
+
+    # Construct youtube_url from youtube_id
+    youtube_url = f"https://www.youtube.com/watch?v={song['youtube_id']}"
+
+    # Use requested difficulty or default to easy
+    selected_difficulty = difficulty if difficulty else DifficultyLevel.EASY
+
+    return RandomSongResponse(
+        **song, youtube_url=youtube_url, difficulty=selected_difficulty
+    )
 
 
 @router.post("/{song_id}/start", response_model=StartSessionResponse)

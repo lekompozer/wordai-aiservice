@@ -410,8 +410,10 @@ class RandomSongResponse(BaseModel):
     title: str
     artist: str
     category: str
-    difficulty: DifficultyLevel
+    youtube_id: str
     youtube_url: str
+    word_count: int
+    difficulty: DifficultyLevel
 
 
 class StartSessionResponse(BaseModel):
