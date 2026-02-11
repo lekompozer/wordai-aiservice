@@ -40,7 +40,7 @@ from src.models.song_models import (
     SongGaps,
     UserSongProgress,
     UserDailyFreeSongs,
-    AttemptHistory,
+    LearningAttempt,
 )
 from src.auth.dependencies import (
     get_current_user,
@@ -426,7 +426,7 @@ async def submit_answers(
     progress_col = db["user_song_progress"]
 
     # Create attempt record
-    attempt = AttemptHistory(
+    attempt = LearningAttempt(
         attempt_number=0,  # Will be updated below
         score=score,
         answers=request.answers,
