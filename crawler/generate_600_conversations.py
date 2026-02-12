@@ -290,7 +290,7 @@ async def main():
     print()
 
     # Parse file
-    file_path = "docs/wordai/Learn English With Songs/Topic Conversation"
+    file_path = "docs/wordai/Learn English With Songs/Topic Conversation.md"
     print(f"📖 Parsing: {file_path}")
     conversations = parse_600_conversations(file_path)
     print(f"✅ Parsed {len(conversations)} conversations")
