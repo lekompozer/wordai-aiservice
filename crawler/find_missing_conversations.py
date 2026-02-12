@@ -24,14 +24,8 @@ def main():
     # Find missing conversations
     missing = []
     for i, conv in enumerate(conversations, 1):
-        topic_slug = (
-            conv["topic_en"]
-            .lower()
-            .replace(" & ", "_")
-            .replace(" ", "_")
-            .replace("&", "")
-        )
-        conv_id = f"conv_{conv['level'].value}_{topic_slug}_{conv['topic_number']:02d}_{i:03d}"
+        # Use topic_slug from parsed data (already computed correctly)
+        conv_id = f"conv_{conv['level'].value}_{conv['topic_slug']}_{conv['topic_number']:02d}_{i:03d}"
 
         if conv_id not in existing_ids:
             missing.append(
