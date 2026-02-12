@@ -516,6 +516,325 @@ async def get_recent_songs(
     return response
 
 
+# ============================================================================
+# PLAYLIST MANAGEMENT ENDPOINTS
+# ============================================================================
+
+
+@router.get("/playlists", response_model=List[PlaylistListResponse])
+async def get_user_playlists(
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get all playlists for current user.
+
+    Returns: List of user's playlists with song counts
+    """
+    user_id = current_user["uid"]
+    playlists_col = db["user_song_playlists"]
+
+    playlists = list(
+        playlists_col.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1)
+    )
+
+    # Transform to response format with song counts
+    result = []
+    for playlist in playlists:
+        result.append(
+            PlaylistListResponse(
+                playlist_id=playlist["playlist_id"],
+                name=playlist["name"],
+                description=playlist.get("description"),
+                song_count=len(playlist.get("song_ids", [])),
+                is_public=playlist.get("is_public", False),
+                created_at=playlist["created_at"],
+                updated_at=playlist["updated_at"],
+            )
+        )
+
+    return result
+
+
+@router.post("/playlists", response_model=PlaylistResponse, status_code=201)
+async def create_playlist(
+    request: CreatePlaylistRequest,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Create new playlist for current user.
+
+    Request body:
+    - name: Playlist name (required, 1-100 chars)
+    - description: Optional description (max 500 chars)
+    - is_public: Make playlist public? (default: false)
+
+    Returns: Created playlist
+    """
+    user_id = current_user["uid"]
+    playlists_col = db["user_song_playlists"]
+
+    # Create playlist
+    playlist_id = str(uuid.uuid4())
+    now = datetime.utcnow()
+
+    new_playlist = UserPlaylist(
+        playlist_id=playlist_id,
+        user_id=user_id,
+        name=request.name,
+        description=request.description,
+        song_ids=[],
+        is_public=request.is_public,
+        created_at=now,
+        updated_at=now,
+    )
+
+    playlists_col.insert_one(new_playlist.model_dump())
+
+    return PlaylistResponse(
+        playlist_id=playlist_id,
+        user_id=user_id,
+        name=request.name,
+        description=request.description,
+        songs=[],
+        song_count=0,
+        is_public=request.is_public,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+@router.get("/playlists/{playlist_id}", response_model=PlaylistResponse)
+async def get_playlist(
+    playlist_id: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get playlist details with full song information.
+
+    Returns: Playlist with complete song details
+    """
+    user_id = current_user["uid"]
+    playlists_col = db["user_song_playlists"]
+    song_lyrics_col = db["song_lyrics"]
+    song_gaps_col = db["song_gaps"]
+
+    # Get playlist
+    playlist = playlists_col.find_one({"playlist_id": playlist_id}, {"_id": 0})
+
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found",
+        )
+
+    # Check ownership (or public)
+    if playlist["user_id"] != user_id and not playlist.get("is_public", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to view this playlist",
+        )
+
+    # Get song details
+    song_ids = playlist.get("song_ids", [])
+    songs = []
+
+    if song_ids:
+        songs_raw = list(
+            song_lyrics_col.find(
+                {"song_id": {"$in": song_ids}},
+                {
+                    "song_id": 1,
+                    "title": 1,
+                    "artist": 1,
+                    "category": 1,
+                    "youtube_id": 1,
+                    "view_count": 1,
+                    "word_count": 1,
+                    "_id": 0,
+                },
+            )
+        )
+
+        # Add difficulties for each song
+        for song in songs_raw:
+            difficulties = song_gaps_col.distinct(
+                "difficulty", {"song_id": song["song_id"]}
+            )
+            song["difficulties_available"] = difficulties if difficulties else []
+            songs.append(SongListItem(**song))
+
+    return PlaylistResponse(
+        playlist_id=playlist["playlist_id"],
+        user_id=playlist["user_id"],
+        name=playlist["name"],
+        description=playlist.get("description"),
+        songs=songs,
+        song_count=len(songs),
+        is_public=playlist.get("is_public", False),
+        created_at=playlist["created_at"],
+        updated_at=playlist["updated_at"],
+    )
+
+
+@router.put("/playlists/{playlist_id}", response_model=PlaylistResponse)
+async def update_playlist(
+    playlist_id: str,
+    request: UpdatePlaylistRequest,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Update playlist name, description, or visibility.
+
+    Request body:
+    - name: New playlist name (optional)
+    - description: New description (optional)
+    - is_public: Change visibility (optional)
+
+    Returns: Updated playlist
+    """
+    user_id = current_user["uid"]
+    playlists_col = db["user_song_playlists"]
+
+    # Get playlist
+    playlist = playlists_col.find_one(
+        {"playlist_id": playlist_id, "user_id": user_id}, {"_id": 0}
+    )
+
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found",
+        )
+
+    # Build update fields
+    update_fields = {"updated_at": datetime.utcnow()}
+
+    if request.name is not None:
+        update_fields["name"] = request.name
+    if request.description is not None:
+        update_fields["description"] = request.description
+    if request.is_public is not None:
+        update_fields["is_public"] = request.is_public
+
+    # Update playlist
+    playlists_col.update_one({"playlist_id": playlist_id}, {"$set": update_fields})
+
+    # Get updated playlist (with song details)
+    return await get_playlist(playlist_id, current_user, db)
+
+
+@router.delete("/playlists/{playlist_id}", status_code=204)
+async def delete_playlist(
+    playlist_id: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Delete a playlist.
+    """
+    user_id = current_user["uid"]
+    playlists_col = db["user_song_playlists"]
+
+    # Delete playlist (must match user_id)
+    result = playlists_col.delete_one({"playlist_id": playlist_id, "user_id": user_id})
+
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found or you don't have permission to delete it",
+        )
+
+    return None
+
+
+@router.post("/playlists/{playlist_id}/songs", response_model=PlaylistResponse)
+async def add_song_to_playlist(
+    playlist_id: str,
+    request: AddSongToPlaylistRequest,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Add a song to a playlist.
+    """
+    user_id = current_user["uid"]
+    playlists_col = db["user_song_playlists"]
+
+    # Get playlist
+    playlist = playlists_col.find_one(
+        {"playlist_id": playlist_id, "user_id": user_id}, {"_id": 0}
+    )
+
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found",
+        )
+
+    # Verify song exists
+    song_lyrics_col = db["song_lyrics"]
+    song = song_lyrics_col.find_one({"song_id": request.song_id})
+
+    if not song:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Song not found",
+        )
+
+    # Add song if not already in playlist
+    playlists_col.update_one(
+        {"playlist_id": playlist_id},
+        {
+            "$addToSet": {"song_ids": request.song_id},
+            "$set": {"updated_at": datetime.utcnow()},
+        },
+    )
+
+    return await get_playlist(playlist_id, current_user, db)
+
+
+@router.delete(
+    "/playlists/{playlist_id}/songs/{song_id}", response_model=PlaylistResponse
+)
+async def remove_song_from_playlist(
+    playlist_id: str,
+    song_id: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Remove a song from a playlist.
+    """
+    user_id = current_user["uid"]
+    playlists_col = db["user_song_playlists"]
+
+    # Get playlist
+    playlist = playlists_col.find_one(
+        {"playlist_id": playlist_id, "user_id": user_id}, {"_id": 0}
+    )
+
+    if not playlist:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Playlist not found",
+        )
+
+    # Remove song
+    playlists_col.update_one(
+        {"playlist_id": playlist_id},
+        {
+            "$pull": {"song_ids": song_id},
+            "$set": {"updated_at": datetime.utcnow()},
+        },
+    )
+
+    return await get_playlist(playlist_id, current_user, db)
+
+
 @router.get("/{song_id}", response_model=SongDetailResponse)
 async def get_song_detail(song_id: str, db=Depends(get_db)):
     """
@@ -981,342 +1300,6 @@ async def get_user_progress(
         subscription=subscription_info,
         recent_activity=recent_activity,
     )
-
-
-# ============================================================================
-# PLAYLIST MANAGEMENT ENDPOINTS
-# ============================================================================
-
-
-@router.get("/playlists", response_model=List[PlaylistListResponse])
-async def get_user_playlists(
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Get all playlists for current user.
-
-    Returns: List of user's playlists with song counts
-    """
-    user_id = current_user["uid"]
-    playlists_col = db["user_song_playlists"]
-
-    playlists = list(
-        playlists_col.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1)
-    )
-
-    # Transform to response format with song counts
-    result = []
-    for playlist in playlists:
-        result.append(
-            PlaylistListResponse(
-                playlist_id=playlist["playlist_id"],
-                name=playlist["name"],
-                description=playlist.get("description"),
-                song_count=len(playlist.get("song_ids", [])),
-                is_public=playlist.get("is_public", False),
-                created_at=playlist["created_at"],
-                updated_at=playlist["updated_at"],
-            )
-        )
-
-    return result
-
-
-@router.post("/playlists", response_model=PlaylistResponse, status_code=201)
-async def create_playlist(
-    request: CreatePlaylistRequest,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Create new playlist for current user.
-
-    Request body:
-    - name: Playlist name (required, 1-100 chars)
-    - description: Optional description (max 500 chars)
-    - is_public: Make playlist public? (default: false)
-
-    Returns: Created playlist
-    """
-    user_id = current_user["uid"]
-    playlists_col = db["user_song_playlists"]
-
-    # Create playlist
-    playlist_id = str(uuid.uuid4())
-    now = datetime.utcnow()
-
-    new_playlist = UserPlaylist(
-        playlist_id=playlist_id,
-        user_id=user_id,
-        name=request.name,
-        description=request.description,
-        song_ids=[],
-        is_public=request.is_public,
-        created_at=now,
-        updated_at=now,
-    )
-
-    playlists_col.insert_one(new_playlist.model_dump())
-
-    return PlaylistResponse(
-        playlist_id=playlist_id,
-        user_id=user_id,
-        name=request.name,
-        description=request.description,
-        songs=[],
-        song_count=0,
-        is_public=request.is_public,
-        created_at=now,
-        updated_at=now,
-    )
-
-
-@router.get("/playlists/{playlist_id}", response_model=PlaylistResponse)
-async def get_playlist(
-    playlist_id: str,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Get playlist details with full song information.
-
-    Returns: Playlist with complete song details
-    """
-    user_id = current_user["uid"]
-    playlists_col = db["user_song_playlists"]
-    song_lyrics_col = db["song_lyrics"]
-    song_gaps_col = db["song_gaps"]
-
-    # Get playlist
-    playlist = playlists_col.find_one({"playlist_id": playlist_id}, {"_id": 0})
-
-    if not playlist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Playlist not found",
-        )
-
-    # Check ownership (or public)
-    if playlist["user_id"] != user_id and not playlist.get("is_public", False):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view this playlist",
-        )
-
-    # Get song details
-    song_ids = playlist.get("song_ids", [])
-    songs = []
-
-    if song_ids:
-        songs_raw = list(
-            song_lyrics_col.find(
-                {"song_id": {"$in": song_ids}},
-                {
-                    "song_id": 1,
-                    "title": 1,
-                    "artist": 1,
-                    "category": 1,
-                    "youtube_id": 1,
-                    "view_count": 1,
-                    "word_count": 1,
-                    "_id": 0,
-                },
-            )
-        )
-
-        # Add difficulties for each song
-        for song in songs_raw:
-            difficulties = song_gaps_col.distinct(
-                "difficulty", {"song_id": song["song_id"]}
-            )
-            song["difficulties_available"] = difficulties if difficulties else []
-            songs.append(SongListItem(**song))
-
-    return PlaylistResponse(
-        playlist_id=playlist["playlist_id"],
-        user_id=playlist["user_id"],
-        name=playlist["name"],
-        description=playlist.get("description"),
-        songs=songs,
-        song_count=len(songs),
-        is_public=playlist.get("is_public", False),
-        created_at=playlist["created_at"],
-        updated_at=playlist["updated_at"],
-    )
-
-
-@router.put("/playlists/{playlist_id}", response_model=PlaylistResponse)
-async def update_playlist(
-    playlist_id: str,
-    request: UpdatePlaylistRequest,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Update playlist name, description, or visibility.
-
-    Request body:
-    - name: New playlist name (optional)
-    - description: New description (optional)
-    - is_public: Change visibility (optional)
-
-    Returns: Updated playlist
-    """
-    user_id = current_user["uid"]
-    playlists_col = db["user_song_playlists"]
-
-    # Get playlist
-    playlist = playlists_col.find_one(
-        {"playlist_id": playlist_id, "user_id": user_id}, {"_id": 0}
-    )
-
-    if not playlist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Playlist not found",
-        )
-
-    # Build update fields
-    update_fields = {"updated_at": datetime.utcnow()}
-
-    if request.name is not None:
-        update_fields["name"] = request.name
-    if request.description is not None:
-        update_fields["description"] = request.description
-    if request.is_public is not None:
-        update_fields["is_public"] = request.is_public
-
-    # Update playlist
-    playlists_col.update_one({"playlist_id": playlist_id}, {"$set": update_fields})
-
-    # Get updated playlist (with song details)
-    return await get_playlist(playlist_id, current_user, db)
-
-
-@router.delete("/playlists/{playlist_id}", status_code=204)
-async def delete_playlist(
-    playlist_id: str,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Delete playlist.
-
-    Returns: 204 No Content
-    """
-    user_id = current_user["uid"]
-    playlists_col = db["user_song_playlists"]
-
-    result = playlists_col.delete_one({"playlist_id": playlist_id, "user_id": user_id})
-
-    if result.deleted_count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Playlist not found",
-        )
-
-    return None
-
-
-@router.post("/playlists/{playlist_id}/songs", response_model=PlaylistResponse)
-async def add_song_to_playlist(
-    playlist_id: str,
-    request: AddSongToPlaylistRequest,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Add song to playlist.
-
-    Request body:
-    - song_id: Song ID to add
-
-    Returns: Updated playlist
-    """
-    user_id = current_user["uid"]
-    playlists_col = db["user_song_playlists"]
-    song_lyrics_col = db["song_lyrics"]
-
-    # Check if song exists
-    song = song_lyrics_col.find_one({"song_id": request.song_id})
-    if not song:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Song {request.song_id} not found",
-        )
-
-    # Get playlist
-    playlist = playlists_col.find_one(
-        {"playlist_id": playlist_id, "user_id": user_id}, {"_id": 0}
-    )
-
-    if not playlist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Playlist not found",
-        )
-
-    # Check if song already in playlist
-    song_ids = playlist.get("song_ids", [])
-    if request.song_id in song_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Song already in playlist",
-        )
-
-    # Add song to playlist
-    playlists_col.update_one(
-        {"playlist_id": playlist_id},
-        {
-            "$push": {"song_ids": request.song_id},
-            "$set": {"updated_at": datetime.utcnow()},
-        },
-    )
-
-    # Return updated playlist
-    return await get_playlist(playlist_id, current_user, db)
-
-
-@router.delete(
-    "/playlists/{playlist_id}/songs/{song_id}", response_model=PlaylistResponse
-)
-async def remove_song_from_playlist(
-    playlist_id: str,
-    song_id: str,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Remove song from playlist.
-
-    Returns: Updated playlist
-    """
-    user_id = current_user["uid"]
-    playlists_col = db["user_song_playlists"]
-
-    # Get playlist
-    playlist = playlists_col.find_one(
-        {"playlist_id": playlist_id, "user_id": user_id}, {"_id": 0}
-    )
-
-    if not playlist:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Playlist not found",
-        )
-
-    # Remove song from playlist
-    playlists_col.update_one(
-        {"playlist_id": playlist_id},
-        {
-            "$pull": {"song_ids": song_id},
-            "$set": {"updated_at": datetime.utcnow()},
-        },
-    )
-
-    # Return updated playlist
-    return await get_playlist(playlist_id, current_user, db)
 
 
 # ============================================================================
