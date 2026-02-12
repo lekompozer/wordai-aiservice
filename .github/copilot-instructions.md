@@ -162,7 +162,64 @@ KEYS "job:*"
 
    - ❌ **Don't return generic "not found" without context**
 
-4. **Deployment:**
+4. **FastAPI Route Order (CRITICAL - Fix for 404 Conflicts):**
+
+   **Problem Pattern:**
+   ```python
+   # ❌ WRONG ORDER - Causes 404 on /playlists
+   @router.get("/{song_id}")  # Generic route catches everything first!
+   async def get_song(song_id: str):
+       return {"song_id": song_id}  # "playlists" becomes song_id
+
+   @router.get("/playlists")  # Never reached - caught by above route
+   async def get_playlists():
+       return []
+   ```
+
+   **Result:** GET `/playlists` → Returns `{"song_id": "playlists"}` instead of calling the playlists endpoint
+
+   **Solution Pattern:**
+   ```python
+   # ✅ CORRECT ORDER - Specific routes BEFORE generic routes
+   @router.get("/playlists")  # Specific route first
+   async def get_playlists():
+       return []
+
+   @router.get("/favorites")  # Another specific route
+   async def get_favorites():
+       return []
+
+   @router.get("/{song_id}")  # Generic route LAST
+   async def get_song(song_id: str):
+       return {"song_id": song_id}
+   ```
+
+   **Route Order Checklist:**
+   - ✅ Static paths (exact strings) MUST come before path parameters
+   - ✅ `/playlists`, `/favorites`, `/search` → BEFORE `/{song_id}`
+   - ✅ More specific patterns before less specific: `/{song_id}/comments` → BEFORE `/{song_id}`
+   - ❌ Path parameters like `/{id}`, `/{song_id}` act as catch-all - put them LAST
+   - ❌ Moving generic routes up causes 404 on specific endpoints
+
+   **When Adding New Routes:**
+   1. Check existing routes for path parameters (`/{variable}`)
+   2. Place new static routes ABOVE all path parameter routes
+   3. Test both the new route AND existing routes after reordering
+   4. Deploy and verify in production
+
+   **Real Example (Fixed):**
+   ```python
+   # Playlist Management - Line 520 (BEFORE generic routes)
+   @router.get("/playlists")
+   @router.post("/playlists")
+   @router.put("/playlists/{playlist_id}")
+   @router.delete("/playlists/{playlist_id}")
+
+   # Generic Song Routes - Line 600+ (AFTER specific routes)
+   @router.get("/{song_id}")  # Matches anything not caught above
+   ```
+
+5. **Deployment:**
    - ✅ ALWAYS deploy after adding new routes
    - ✅ Test endpoint after deployment: `curl http://localhost:8000/api/v1/...`
    - ❌ Don't assume routes work without testing
