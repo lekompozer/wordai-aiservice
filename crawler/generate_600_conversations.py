@@ -31,7 +31,9 @@ from src.database.db_manager import DBManager
 from src.models.conversation_models import ConversationLevel
 
 
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-d04b95eeae094da2ba4b69eb62c5e1bd")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+if not DEEPSEEK_API_KEY:
+    raise ValueError("DEEPSEEK_API_KEY environment variable is required")
 
 LEVEL_CONFIG = {
     ConversationLevel.BEGINNER: {
@@ -200,29 +202,44 @@ Generate now (output pure JSON array only):"""
     return prompt
 
 
-async def generate_batch(batch: List[Dict]) -> List[Dict]:
-    """Generate 3 conversations in one API call"""
+async def generate_batch(batch: List[Dict], max_retries: int = 3) -> List[Dict]:
+    """Generate 3 conversations in one API call with retry"""
 
     client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
     prompt = build_batch_prompt(batch)
 
-    response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.7,
-        max_tokens=8000,
-    )
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=8000,
+            )
 
-    content = response.choices[0].message.content
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from API")
 
-    # Clean markdown
-    if content.startswith("```"):
-        lines = content.split("\n")
-        lines = [l for l in lines if not l.strip().startswith("```")]
-        content = "\n".join(lines)
+            # Clean markdown
+            if content.startswith("```"):
+                lines = content.split("\n")
+                lines = [l for l in lines if not l.strip().startswith("```")]
+                content = "\n".join(lines)
 
-    data = json.loads(content)
-    return data
+            data = json.loads(content)
+            return data
+
+        except (json.JSONDecodeError, ValueError) as e:
+            if attempt < max_retries - 1:
+                print(f"  ⚠️ JSON error (attempt {attempt + 1}/{max_retries}): {e}")
+                await asyncio.sleep(2)
+                continue
+            else:
+                raise  # Re-raise on last attempt
+
+    # Fallback (should never reach here)
+    raise RuntimeError("Max retries exceeded")
 
 
 def save_conversation(

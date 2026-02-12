@@ -35,7 +35,9 @@ from src.models.conversation_models import (
 # CONFIGURATION
 # ============================================================================
 
-DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "sk-d04b95eeae094da2ba4b69eb62c5e1bd")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+if not DEEPSEEK_API_KEY:
+    raise ValueError("DEEPSEEK_API_KEY environment variable is required")
 
 # Test topics (3 topics)
 TEST_TOPICS = [
