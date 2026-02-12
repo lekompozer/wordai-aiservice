@@ -119,6 +119,7 @@ async def check_daily_limit(user_id: str, db) -> dict:
 async def browse_songs(
     category: Optional[str] = None,
     search: Optional[str] = None,
+    search_query: Optional[str] = None,  # Support frontend's parameter name
     first_letter: Optional[str] = None,
     artist: Optional[str] = None,
     skip: int = 0,
@@ -130,7 +131,8 @@ async def browse_songs(
 
     Query params:
     - category: Filter by category name
-    - search: Search in title or artist
+    - search: Search in title or artist (alias: search_query)
+    - search_query: Alternative name for search parameter
     - first_letter: Filter by first letter (A-Z) or # for numbers
     - artist: Filter by exact artist name
     - skip: Pagination offset
@@ -140,6 +142,9 @@ async def browse_songs(
     """
     # Validate limit
     limit = min(limit, 100)
+    
+    # Support both 'search' and 'search_query' parameter names
+    search_term = search or search_query
 
     # Build query
     query = {}
@@ -163,9 +168,9 @@ async def browse_songs(
     song_gaps_col = db["song_gaps"]
 
     # Use text search if searching (MUCH faster than regex)
-    if search:
+    if search_term:
         # Text search on title and artist (uses text index)
-        query["$text"] = {"$search": search}
+        query["$text"] = {"$search": search_term}
 
         # Get results with text score for relevance sorting
         total = song_lyrics_col.count_documents(query)
