@@ -225,13 +225,16 @@ async def generate_batch(batch: List[Dict]) -> List[Dict]:
     return data
 
 
-def save_conversation(conv_def: Dict, generated: Dict, db_manager: DBManager) -> str:
+def save_conversation(
+    conv_def: Dict, generated: Dict, db_manager: DBManager, conv_index: int
+) -> str:
     """Save one conversation to MongoDB"""
 
     level = conv_def["level"]
     config = LEVEL_CONFIG[level]
 
-    conversation_id = f"conv_{level.value}_{conv_def['topic_slug']}_{conv_def['topic_number']:02d}_{len(generated['dialogue']):02d}"
+    # Use conversation index to ensure unique IDs (001-020 for each topic)
+    conversation_id = f"conv_{level.value}_{conv_def['topic_slug']}_{conv_def['topic_number']:02d}_{conv_index:03d}"
 
     full_text_en = " ".join([t["text_en"] for t in generated["dialogue"]])
     full_text_vi = " ".join([t["text_vi"] for t in generated["dialogue"]])
@@ -320,6 +323,7 @@ async def main():
 
     success = 0
     failed = 0
+    conv_index = 1  # Track global conversation index
 
     for i, batch in enumerate(batches, 1):
         print(f"[{i}/{total_batches}] Batch {i}: {len(batch)} conversations")
@@ -330,9 +334,10 @@ async def main():
 
             # Save each
             for conv_def, generated in zip(batch, generated_list):
-                conv_id = save_conversation(conv_def, generated, db_manager)
+                conv_id = save_conversation(conv_def, generated, db_manager, conv_index)
                 print(f"  ✅ {conv_id}")
                 success += 1
+                conv_index += 1  # Increment for next conversation
 
             print()
 
