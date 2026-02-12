@@ -150,7 +150,7 @@ async def browse_songs(
     """
     # Validate limit
     limit = min(limit, 100)
-    
+
     # Support both 'search' and 'search_query' parameter names
     search_term = search or search_query
 
@@ -1002,9 +1002,7 @@ async def get_user_playlists(
     playlists_col = db["user_song_playlists"]
 
     playlists = list(
-        playlists_col.find({"user_id": user_id}, {"_id": 0}).sort(
-            "created_at", -1
-        )
+        playlists_col.find({"user_id": user_id}, {"_id": 0}).sort("created_at", -1)
     )
 
     # Transform to response format with song counts
@@ -1091,9 +1089,7 @@ async def get_playlist(
     song_gaps_col = db["song_gaps"]
 
     # Get playlist
-    playlist = playlists_col.find_one(
-        {"playlist_id": playlist_id}, {"_id": 0}
-    )
+    playlist = playlists_col.find_one({"playlist_id": playlist_id}, {"_id": 0})
 
     if not playlist:
         raise HTTPException(
@@ -1192,9 +1188,7 @@ async def update_playlist(
         update_fields["is_public"] = request.is_public
 
     # Update playlist
-    playlists_col.update_one(
-        {"playlist_id": playlist_id}, {"$set": update_fields}
-    )
+    playlists_col.update_one({"playlist_id": playlist_id}, {"$set": update_fields})
 
     # Get updated playlist (with song details)
     return await get_playlist(playlist_id, current_user, db)
@@ -1214,9 +1208,7 @@ async def delete_playlist(
     user_id = current_user["uid"]
     playlists_col = db["user_song_playlists"]
 
-    result = playlists_col.delete_one(
-        {"playlist_id": playlist_id, "user_id": user_id}
-    )
+    result = playlists_col.delete_one({"playlist_id": playlist_id, "user_id": user_id})
 
     if result.deleted_count == 0:
         raise HTTPException(
@@ -1336,18 +1328,18 @@ async def remove_song_from_playlist(
 async def verify_admin(current_user: dict = Depends(get_current_user)):
     """
     Verify user is admin (tienhoi.lh@gmail.com).
-    
+
     Raises 403 if not admin.
     """
     admin_email = "tienhoi.lh@gmail.com"
     user_email = current_user.get("email", "")
-    
+
     if user_email != admin_email:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
         )
-    
+
     return current_user
 
 
@@ -1359,15 +1351,15 @@ async def admin_create_song(
 ):
     """
     [ADMIN ONLY] Create new song in database.
-    
+
     Admin: tienhoi.lh@gmail.com
-    
+
     Request body: Full song information (see AdminCreateSongRequest schema)
-    
+
     Returns: Created song details
     """
     song_lyrics_col = db["song_lyrics"]
-    
+
     # Check if song_id already exists
     existing = song_lyrics_col.find_one({"song_id": request.song_id})
     if existing:
@@ -1375,7 +1367,7 @@ async def admin_create_song(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Song with ID {request.song_id} already exists",
         )
-    
+
     # Create song
     now = datetime.utcnow()
     new_song = SongLyrics(
@@ -1396,9 +1388,9 @@ async def admin_create_song(
         created_at=now,
         updated_at=now,
     )
-    
+
     song_lyrics_col.insert_one(new_song.model_dump())
-    
+
     return SongDetailResponse(
         **new_song.model_dump(),
         difficulties_available=[],
@@ -1414,26 +1406,26 @@ async def admin_get_song(
 ):
     """
     [ADMIN ONLY] Get full song details including all fields.
-    
+
     Admin: tienhoi.lh@gmail.com
-    
+
     Returns: Complete song information for editing
     """
     song_lyrics_col = db["song_lyrics"]
     song_gaps_col = db["song_gaps"]
-    
+
     song = song_lyrics_col.find_one({"song_id": song_id}, {"_id": 0})
-    
+
     if not song:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Song {song_id} not found",
         )
-    
+
     # Get available difficulties
     difficulties = song_gaps_col.distinct("difficulty", {"song_id": song_id})
     has_gaps = len(difficulties) > 0
-    
+
     return SongDetailResponse(
         **song,
         difficulties_available=difficulties if difficulties else [],
@@ -1450,15 +1442,15 @@ async def admin_update_song(
 ):
     """
     [ADMIN ONLY] Update song information.
-    
+
     Admin: tienhoi.lh@gmail.com
-    
+
     Request body: Fields to update (all optional)
-    
+
     Returns: Updated song details
     """
     song_lyrics_col = db["song_lyrics"]
-    
+
     # Check if song exists
     song = song_lyrics_col.find_one({"song_id": song_id})
     if not song:
@@ -1466,10 +1458,10 @@ async def admin_update_song(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Song {song_id} not found",
         )
-    
+
     # Build update fields
     update_fields = {"updated_at": datetime.utcnow()}
-    
+
     if request.title is not None:
         update_fields["title"] = request.title
     if request.artist is not None:
@@ -1492,13 +1484,10 @@ async def admin_update_song(
         update_fields["word_count"] = request.word_count
     if request.has_profanity is not None:
         update_fields["has_profanity"] = request.has_profanity
-    
+
     # Update song
-    song_lyrics_col.update_one(
-        {"song_id": song_id},
-        {"$set": update_fields}
-    )
-    
+    song_lyrics_col.update_one({"song_id": song_id}, {"$set": update_fields})
+
     # Return updated song
     return await admin_get_song(song_id, current_user, db)
 
@@ -1511,40 +1500,35 @@ async def admin_delete_song(
 ):
     """
     [ADMIN ONLY] Delete song from database.
-    
+
     Admin: tienhoi.lh@gmail.com
-    
+
     Also deletes:
     - All gap exercises for this song
     - User progress for this song
     - Song from all playlists
-    
+
     Returns: 204 No Content
     """
     song_lyrics_col = db["song_lyrics"]
     song_gaps_col = db["song_gaps"]
     progress_col = db["user_song_progress"]
     playlists_col = db["user_song_playlists"]
-    
+
     # Delete song
     result = song_lyrics_col.delete_one({"song_id": song_id})
-    
+
     if result.deleted_count == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Song {song_id} not found",
         )
-    
+
     # Delete related data
     song_gaps_col.delete_many({"song_id": song_id})
     progress_col.delete_many({"song_id": song_id})
-    
+
     # Remove from all playlists
-    playlists_col.update_many(
-        {"song_ids": song_id},
-        {"$pull": {"song_ids": song_id}}
-    )
-    
+    playlists_col.update_many({"song_ids": song_id}, {"$pull": {"song_ids": song_id}})
+
     return None
-
-

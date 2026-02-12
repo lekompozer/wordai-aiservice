@@ -1,7 +1,7 @@
 # Song Learning API - Technical Specifications
 
-**Last Updated:** February 12, 2026  
-**API Version:** v1  
+**Last Updated:** February 12, 2026
+**API Version:** v1
 **Base URL:** `https://wordai.pro/api/v1/songs`
 
 ---
@@ -655,4 +655,3 @@ When implemented, will return:
 For API questions or issues:
 - **Admin:** tienhoi.lh@gmail.com
 - **API Docs:** https://wordai.pro/api/v1/docs (Swagger UI)
-

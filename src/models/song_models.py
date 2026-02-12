@@ -501,7 +501,7 @@ class UserPlaylist(BaseModel):
     description: Optional[str] = Field(None, description="Playlist description")
     song_ids: List[str] = Field(default=[], description="List of song IDs in playlist")
     is_public: bool = Field(default=False, description="Is playlist public?")
-    
+
     # Timestamps
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -586,16 +586,16 @@ class AdminCreateSongRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     artist: str = Field(..., min_length=1, max_length=200)
     category: str = Field(default="Uncategorized", max_length=100)
-    
+
     english_lyrics: str = Field(..., min_length=1, description="English lyrics")
     vietnamese_lyrics: str = Field(..., min_length=1, description="Vietnamese lyrics")
-    
+
     youtube_url: str = Field(..., description="YouTube URL")
     youtube_id: str = Field(..., description="YouTube video ID")
-    
+
     view_count: int = Field(default=0, ge=0)
     source_url: str = Field(..., description="Source URL")
-    
+
     word_count: int = Field(default=0, ge=0)
     has_profanity: bool = Field(default=False)
 
@@ -606,16 +606,15 @@ class AdminUpdateSongRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=200)
     artist: Optional[str] = Field(None, min_length=1, max_length=200)
     category: Optional[str] = Field(None, max_length=100)
-    
+
     english_lyrics: Optional[str] = Field(None, min_length=1)
     vietnamese_lyrics: Optional[str] = Field(None, min_length=1)
-    
+
     youtube_url: Optional[str] = None
     youtube_id: Optional[str] = None
-    
+
     view_count: Optional[int] = Field(None, ge=0)
     source_url: Optional[str] = None
-    
+
     word_count: Optional[int] = Field(None, ge=0)
     has_profanity: Optional[bool] = None
-
