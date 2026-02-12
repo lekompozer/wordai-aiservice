@@ -481,3 +481,141 @@ class UserProgressResponse(BaseModel):
     remaining_free_songs: int
     subscription: Optional[dict] = None  # Subscription details if premium
     recent_activity: List[RecentActivity]
+
+
+# ============================================================================
+# COLLECTION: user_song_playlists
+# ============================================================================
+
+
+class UserPlaylist(BaseModel):
+    """
+    User's custom song playlist
+
+    Collection: user_song_playlists
+    """
+
+    playlist_id: str = Field(..., description="Unique playlist ID (UUID)")
+    user_id: str = Field(..., description="Firebase user ID")
+    name: str = Field(..., description="Playlist name (max 100 chars)")
+    description: Optional[str] = Field(None, description="Playlist description")
+    song_ids: List[str] = Field(default=[], description="List of song IDs in playlist")
+    is_public: bool = Field(default=False, description="Is playlist public?")
+    
+    # Timestamps
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "playlist_id": "550e8400-e29b-41d4-a716-446655440000",
+                "user_id": "firebase_user_123",
+                "name": "My Favorite Love Songs",
+                "description": "Romantic songs for learning English",
+                "song_ids": ["63053", "63097", "63007"],
+                "is_public": False,
+                "created_at": "2026-02-12T10:00:00Z",
+                "updated_at": "2026-02-12T10:00:00Z",
+            }
+        }
+
+
+# ============================================================================
+# REQUEST/RESPONSE MODELS - PLAYLISTS
+# ============================================================================
+
+
+class CreatePlaylistRequest(BaseModel):
+    """Request to create new playlist"""
+
+    name: str = Field(..., min_length=1, max_length=100, description="Playlist name")
+    description: Optional[str] = Field(None, max_length=500, description="Description")
+    is_public: bool = Field(default=False, description="Make playlist public?")
+
+
+class UpdatePlaylistRequest(BaseModel):
+    """Request to update playlist"""
+
+    name: Optional[str] = Field(None, min_length=1, max_length=100)
+    description: Optional[str] = Field(None, max_length=500)
+    is_public: Optional[bool] = None
+
+
+class AddSongToPlaylistRequest(BaseModel):
+    """Request to add song to playlist"""
+
+    song_id: str = Field(..., description="Song ID to add")
+
+
+class PlaylistResponse(BaseModel):
+    """Playlist response with song details"""
+
+    playlist_id: str
+    user_id: str
+    name: str
+    description: Optional[str]
+    songs: List[SongListItem]  # Full song details
+    song_count: int
+    is_public: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class PlaylistListResponse(BaseModel):
+    """List of playlists (minimal info)"""
+
+    playlist_id: str
+    name: str
+    description: Optional[str]
+    song_count: int
+    is_public: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+# ============================================================================
+# REQUEST/RESPONSE MODELS - ADMIN SONG MANAGEMENT
+# ============================================================================
+
+
+class AdminCreateSongRequest(BaseModel):
+    """Admin request to create new song"""
+
+    song_id: str = Field(..., description="Unique song ID")
+    title: str = Field(..., min_length=1, max_length=200)
+    artist: str = Field(..., min_length=1, max_length=200)
+    category: str = Field(default="Uncategorized", max_length=100)
+    
+    english_lyrics: str = Field(..., min_length=1, description="English lyrics")
+    vietnamese_lyrics: str = Field(..., min_length=1, description="Vietnamese lyrics")
+    
+    youtube_url: str = Field(..., description="YouTube URL")
+    youtube_id: str = Field(..., description="YouTube video ID")
+    
+    view_count: int = Field(default=0, ge=0)
+    source_url: str = Field(..., description="Source URL")
+    
+    word_count: int = Field(default=0, ge=0)
+    has_profanity: bool = Field(default=False)
+
+
+class AdminUpdateSongRequest(BaseModel):
+    """Admin request to update song"""
+
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    artist: Optional[str] = Field(None, min_length=1, max_length=200)
+    category: Optional[str] = Field(None, max_length=100)
+    
+    english_lyrics: Optional[str] = Field(None, min_length=1)
+    vietnamese_lyrics: Optional[str] = Field(None, min_length=1)
+    
+    youtube_url: Optional[str] = None
+    youtube_id: Optional[str] = None
+    
+    view_count: Optional[int] = Field(None, ge=0)
+    source_url: Optional[str] = None
+    
+    word_count: Optional[int] = Field(None, ge=0)
+    has_profanity: Optional[bool] = None
+
