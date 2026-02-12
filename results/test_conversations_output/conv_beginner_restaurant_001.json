@@ -1,0 +1,133 @@
+{
+  "title_en": "Ordering Food at Restaurant",
+  "title_vi": "Gọi món ăn ở nhà hàng",
+  "situation": "A customer visits a restaurant and orders food with a waitress.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Hello. Can I see the menu?",
+      "text_vi": "Xin chào. Tôi có thể xem thực đơn được không?",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Yes, here you are.",
+      "text_vi": "Vâng, của anh đây.",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Thank you. I would like chicken soup.",
+      "text_vi": "Cảm ơn. Tôi muốn súp gà.",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Okay. Would you like some water?",
+      "text_vi": "Được ạ. Anh có muốn uống nước không?",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Yes, please. One glass of water.",
+      "text_vi": "Có, làm ơn. Một ly nước.",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Okay. Your food will be ready soon.",
+      "text_vi": "Vâng. Đồ ăn của anh sẽ sẵn sàng sớm.",
+      "order": 6
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "menu",
+      "definition_en": "A list of food and drinks available at a restaurant",
+      "definition_vi": "Danh sách các món ăn và đồ uống có sẵn tại nhà hàng",
+      "example": "Can I see the menu?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "would like",
+      "definition_en": "A polite way to say you want something",
+      "definition_vi": "Cách nói lịch sự để diễn tả bạn muốn cái gì đó",
+      "example": "I would like chicken soup.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "chicken soup",
+      "definition_en": "A soup made with chicken and vegetables",
+      "definition_vi": "Món súp làm từ thịt gà và rau củ",
+      "example": "I would like chicken soup.",
+      "pos_tag": "NOUN PHRASE"
+    },
+    {
+      "word": "water",
+      "definition_en": "A clear liquid for drinking",
+      "definition_vi": "Chất lỏng trong suốt để uống",
+      "example": "Would you like some water?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "glass",
+      "definition_en": "A container for drinking",
+      "definition_vi": "Đồ đựng để uống",
+      "example": "One glass of water.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "ready",
+      "definition_en": "Prepared and available to use or eat",
+      "definition_vi": "Đã chuẩn bị sẵn sàng để sử dụng hoặc ăn",
+      "example": "Your food will be ready soon.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "soon",
+      "definition_en": "In a short time from now",
+      "definition_vi": "Trong một khoảng thời gian ngắn từ bây giờ",
+      "example": "Your food will be ready soon.",
+      "pos_tag": "ADV"
+    },
+    {
+      "word": "thank you",
+      "definition_en": "A polite expression of gratitude",
+      "definition_vi": "Cách diễn đạt lịch sự để cảm ơn",
+      "example": "Thank you. I would like chicken soup.",
+      "pos_tag": "PHRASE"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "Can I + verb?",
+      "explanation_en": "Used to ask for permission or make a polite request",
+      "explanation_vi": "Được sử dụng để xin phép hoặc đưa ra yêu cầu lịch sự",
+      "example": "Can I see the menu?"
+    },
+    {
+      "pattern": "I would like + noun",
+      "explanation_en": "A polite way to express what you want to order or have",
+      "explanation_vi": "Cách nói lịch sự để diễn tả bạn muốn gọi món gì hoặc có cái gì",
+      "example": "I would like chicken soup."
+    },
+    {
+      "pattern": "Would you like + noun?",
+      "explanation_en": "A polite question to offer something to someone",
+      "explanation_vi": "Câu hỏi lịch sự để đề nghị cái gì đó cho ai",
+      "example": "Would you like some water?"
+    },
+    {
+      "pattern": "will be + adjective",
+      "explanation_en": "Used to talk about future states or conditions",
+      "explanation_vi": "Được sử dụng để nói về trạng thái hoặc điều kiện trong tương lai",
+      "example": "Your food will be ready soon."
+    }
+  ]
+}

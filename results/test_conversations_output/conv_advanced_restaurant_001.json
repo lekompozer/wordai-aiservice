@@ -1,0 +1,243 @@
+{
+  "title_en": "Fine Dining Experience",
+  "title_vi": "Trải Nghiệm Ẩm Thực Cao Cấp",
+  "situation": "A customer (A) is dining at an upscale restaurant and is discussing the menu and wine pairing with the sommelier (B).",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I must commend you on your extensive wine list. I'm particularly intrigued by the Burgundy selection.",
+      "text_vi": "Tôi phải khen ngợi danh sách rượu vang phong phú của nhà hàng. Tôi đặc biệt bị thu hút bởi các loại rượu vùng Burgundy.",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Thank you, sir. We've curated it meticulously. For your seared foie gras, I'd recommend a Sauternes to complement its richness.",
+      "text_vi": "Cảm ơn ngài. Chúng tôi đã lựa chọn nó một cách tỉ mỉ. Với món gan ngỗng áp chảo của ngài, tôi đề xuất một chai Sauternes để làm nổi bật vị béo ngậy của nó.",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "An astute suggestion. However, I'm leaning towards something with more acidity to cut through the fat.",
+      "text_vi": "Một đề xuất sắc sảo. Tuy nhiên, tôi đang nghiêng về một loại có nhiều độ axit hơn để cân bằng vị béo.",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "In that case, a German Riesling Spätlese would be impeccable. Its vibrant acidity and subtle sweetness create a perfect counterpoint.",
+      "text_vi": "Trong trường hợp đó, một chai Riesling Spätlese của Đức sẽ là hoàn hảo. Độ axit sắc sảo và vị ngọt tinh tế của nó tạo nên một sự tương phản hoàn hảo.",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Splendid. Let's proceed with that. Regarding the Wagyu beef, is it dry-aged?",
+      "text_vi": "Tuyệt vời. Hãy chọn loại đó. Về món thịt bò Wagyu, nó có được ủ khô không?",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Indeed, it's dry-aged for 45 days, which intensifies the flavor and tenderizes the meat considerably.",
+      "text_vi": "Đúng vậy, nó được ủ khô trong 45 ngày, điều này làm sâu sắc thêm hương vị và làm thịt mềm đi đáng kể.",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I presume it would pair exquisitely with a full-bodied Bordeaux.",
+      "text_vi": "Tôi cho rằng nó sẽ kết hợp một cách tuyệt hảo với một chai Bordeaux đậm đà.",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Your presumption is accurate. The 2015 Château Margaux would be a sublime choice, provided you don't mind the indulgence.",
+      "text_vi": "Suy đoán của ngài rất chính xác. Chai Château Margaux năm 2015 sẽ là một lựa chọn tuyệt vời, nếu ngài không ngại sự xa xỉ.",
+      "order": 8
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Not at all. Let's make it a memorable gastronomic journey. Could you also elucidate the provenance of the truffles in the risotto?",
+      "text_vi": "Hoàn toàn không ngại. Hãy biến đây thành một hành trình ẩm thực đáng nhớ. Cô cũng có thể giải thích rõ nguồn gốc của nấm truffle trong món risotto được không?",
+      "order": 9
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Certainly. They're Alba white truffles, harvested in Piedmont this season. Their aroma is quite pungent and distinctive.",
+      "text_vi": "Chắc chắn rồi. Chúng là nấm truffle trắng Alba, được thu hoạch ở Piedmont trong mùa này. Hương thơm của chúng khá hăng và đặc trưng.",
+      "order": 10
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I'm thoroughly impressed by your expertise. Please convey my compliments to the chef for such a meticulously crafted menu.",
+      "text_vi": "Tôi hoàn toàn bị ấn tượng bởi sự am hiểu của cô. Xin hãy chuyển lời khen của tôi tới đầu bếp vì một thực đơn được xây dựng hết sức tỉ mỉ.",
+      "order": 11
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "I shall do so promptly. Your selections demonstrate a sophisticated palate. Shall I place the order now?",
+      "text_vi": "Tôi sẽ làm vậy ngay. Những lựa chọn của ngài thể hiện một khẩu vị tinh tế. Tôi có nên gọi món ngay bây giờ không?",
+      "order": 12
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "By all means. I'm anticipating an epicurean delight.",
+      "text_vi": "Tất nhiên rồi. Tôi đang mong đợi một niềm vui ẩm thực.",
+      "order": 13
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "commend",
+      "definition_en": "To praise formally or officially.",
+      "definition_vi": "Khen ngợi một cách chính thức.",
+      "example": "I must commend you on your extensive wine list.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "intrigued",
+      "definition_en": "Very interested in something because it is unusual or mysterious.",
+      "definition_vi": "Rất hứng thú vì điều gì đó khác thường hoặc bí ẩn.",
+      "example": "I'm particularly intrigued by the Burgundy selection.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "curated",
+      "definition_en": "Carefully selected and organized.",
+      "definition_vi": "Được lựa chọn và sắp xếp cẩn thận.",
+      "example": "We've curated it meticulously.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "astute",
+      "definition_en": "Having an ability to accurately assess situations or people; shrewd.",
+      "definition_vi": "Có khả năng đánh giá tình huống hoặc con người một cách chính xác; sắc sảo.",
+      "example": "An astute suggestion.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "impeccable",
+      "definition_en": "Flawless; without any errors or faults.",
+      "definition_vi": "Hoàn hảo; không có lỗi hay sai sót.",
+      "example": "a German Riesling Spätlese would be impeccable.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "counterpoint",
+      "definition_en": "A contrasting element or theme.",
+      "definition_vi": "Một yếu tố hoặc chủ đề tương phản.",
+      "example": "create a perfect counterpoint.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "tenderizes",
+      "definition_en": "Makes meat softer and easier to chew or cut.",
+      "definition_vi": "Làm cho thịt mềm hơn và dễ nhai hoặc cắt hơn.",
+      "example": "tenderizes the meat considerably.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "exquisitely",
+      "definition_en": "In a manner that is extremely beautiful, delicate, or finely made.",
+      "definition_vi": "Một cách cực kỳ đẹp, tinh tế hoặc được làm tỉ mỉ.",
+      "example": "pair exquisitely with a full-bodied Bordeaux.",
+      "pos_tag": "ADV"
+    },
+    {
+      "word": "sublime",
+      "definition_en": "Of such excellence, grandeur, or beauty as to inspire great admiration or awe.",
+      "definition_vi": "Xuất sắc, tráng lệ, hoặc đẹp đến mức gây cảm hứng ngưỡng mộ hoặc kinh ngạc.",
+      "example": "would be a sublime choice",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "elucidate",
+      "definition_en": "To make something clear; to explain.",
+      "definition_vi": "Làm cho điều gì đó rõ ràng; giải thích.",
+      "example": "Could you also elucidate the provenance of the truffles",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "provenance",
+      "definition_en": "The place of origin or earliest known history of something.",
+      "definition_vi": "Nơi xuất xứ hoặc lịch sử được biết đến sớm nhất của một thứ gì đó.",
+      "example": "elucidate the provenance of the truffles",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "pungent",
+      "definition_en": "Having a sharply strong taste or smell.",
+      "definition_vi": "Có mùi vị mạnh và sắc.",
+      "example": "Their aroma is quite pungent and distinctive.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "meticulously",
+      "definition_en": "In a way that shows great attention to detail; very thoroughly.",
+      "definition_vi": "Một cách thể hiện sự chú ý lớn đến chi tiết; rất kỹ lưỡng.",
+      "example": "such a meticulously crafted menu.",
+      "pos_tag": "ADV"
+    },
+    {
+      "word": "sophisticated palate",
+      "definition_en": "The ability to appreciate and distinguish complex flavors in food and drink.",
+      "definition_vi": "Khả năng thưởng thức và phân biệt các hương vị phức tạp trong đồ ăn thức uống.",
+      "example": "Your selections demonstrate a sophisticated palate.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "epicurean",
+      "definition_en": "Devoted to the pursuit of sensual pleasure, especially fine food and drink.",
+      "definition_vi": "Theo đuổi sự khoái lạc về giác quan, đặc biệt là đồ ăn thức uống cao cấp.",
+      "example": "I'm anticipating an epicurean delight.",
+      "pos_tag": "ADJ"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "I must + verb (commend)...",
+      "explanation_en": "Used to express a strong obligation or necessity, often in formal praise or acknowledgment.",
+      "explanation_vi": "Được dùng để diễn tả một nghĩa vụ hoặc sự cần thiết mạnh mẽ, thường trong lời khen hoặc sự công nhận trang trọng.",
+      "example": "I must commend you on your extensive wine list."
+    },
+    {
+      "pattern": "I'm leaning towards + noun phrase",
+      "explanation_en": "Used to express a tentative preference or inclination toward a particular choice.",
+      "explanation_vi": "Được dùng để diễn tả sự ưu tiên hoặc thiên hướng tạm thời đối với một lựa chọn cụ thể.",
+      "example": "I'm leaning towards something with more acidity"
+    },
+    {
+      "pattern": "In that case, + suggestion/statement",
+      "explanation_en": "Used to introduce a logical conclusion, suggestion, or action based on previous information.",
+      "explanation_vi": "Được dùng để đưa ra một kết luận, đề xuất, hoặc hành động logic dựa trên thông tin trước đó.",
+      "example": "In that case, a German Riesling Spätlese would be impeccable."
+    },
+    {
+      "pattern": "I presume + clause (it would pair...)",
+      "explanation_en": "Used to state something one believes to be true based on probability or reasonable assumption, often in a formal context.",
+      "explanation_vi": "Được dùng để nói điều mà người nói tin là đúng dựa trên xác suất hoặc giả định hợp lý, thường trong ngữ cảnh trang trọng.",
+      "example": "I presume it would pair exquisitely with a full-bodied Bordeaux."
+    },
+    {
+      "pattern": "provided (that) + clause (you don't mind...)",
+      "explanation_en": "Used to introduce a condition that must be met for the main statement to be true or applicable.",
+      "explanation_vi": "Được dùng để đưa ra một điều kiện phải được đáp ứng để câu chính đúng hoặc có thể áp dụng.",
+      "example": "The 2015 Château Margaux would be a sublime choice, provided you don't mind the indulgence."
+    },
+    {
+      "pattern": "By all means. (as a response)",
+      "explanation_en": "A polite and emphatic way to give permission or encouragement; 'certainly' or 'of course'.",
+      "explanation_vi": "Một cách lịch sự và nhấn mạnh để cho phép hoặc khuyến khích; 'chắc chắn rồi' hoặc 'tất nhiên'.",
+      "example": "By all means. I'm anticipating an epicurean delight."
+    }
+  ]
+}

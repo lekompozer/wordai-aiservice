@@ -1,0 +1,154 @@
+{
+  "title_en": "At the Train Station",
+  "title_vi": "Ở Ga Tàu",
+  "situation": "A traveler is at a train station ticket counter, asking for information about a train to Da Nang.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Hello. Is there a train to Da Nang?",
+      "text_vi": "Xin chào. Có chuyến tàu nào đi Đà Nẵng không?",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Yes. There is a train at 10 AM.",
+      "text_vi": "Có. Có một chuyến tàu lúc 10 giờ sáng.",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "How much is a ticket?",
+      "text_vi": "Một vé giá bao nhiêu?",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "It is 300,000 dong.",
+      "text_vi": "Giá là 300,000 đồng.",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I want one ticket, please.",
+      "text_vi": "Tôi muốn một vé, làm ơn.",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Here is your ticket. The train is on platform 2.",
+      "text_vi": "Đây là vé của anh. Tàu ở sân ga số 2.",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Thank you very much.",
+      "text_vi": "Cảm ơn rất nhiều.",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "You're welcome. Have a good trip!",
+      "text_vi": "Không có gì. Chúc anh có một chuyến đi tốt đẹp!",
+      "order": 8
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "train",
+      "definition_en": "A vehicle that runs on rails and carries passengers or goods.",
+      "definition_vi": "Một phương tiện chạy trên đường ray và chở hành khách hoặc hàng hóa.",
+      "example": "Is there a train to Da Nang?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "ticket",
+      "definition_en": "A piece of paper or card that gives the holder a right to enter, travel, or participate.",
+      "definition_vi": "Một mảnh giấy hoặc thẻ cho người giữ quyền vào cửa, đi lại hoặc tham gia.",
+      "example": "How much is a ticket?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "platform",
+      "definition_en": "A raised level surface, especially one from which passengers board a train.",
+      "definition_vi": "Một bề mặt được nâng cao, đặc biệt là nơi hành khách lên tàu.",
+      "example": "The train is on platform 2.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "trip",
+      "definition_en": "A journey or excursion, especially for pleasure.",
+      "definition_vi": "Một cuộc hành trình hoặc chuyến đi, đặc biệt là để giải trí.",
+      "example": "Have a good trip!",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "want",
+      "definition_en": "To desire or wish for something.",
+      "definition_vi": "Mong muốn hoặc ước ao điều gì đó.",
+      "example": "I want one ticket, please.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "how much",
+      "definition_en": "Used to ask about the price or amount of something.",
+      "definition_vi": "Được dùng để hỏi về giá cả hoặc số lượng của một thứ gì đó.",
+      "example": "How much is a ticket?",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "here is",
+      "definition_en": "A phrase used when giving something to someone.",
+      "definition_vi": "Một cụm từ được dùng khi đưa thứ gì đó cho ai.",
+      "example": "Here is your ticket.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "thank you",
+      "definition_en": "A polite expression used when acknowledging a gift, service, or compliment.",
+      "definition_vi": "Một cách diễn đạt lịch sự khi nhận quà, dịch vụ hoặc lời khen.",
+      "example": "Thank you very much.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "you're welcome",
+      "definition_en": "A polite response to an expression of thanks.",
+      "definition_vi": "Một câu đáp lại lịch sự cho lời cảm ơn.",
+      "example": "You're welcome.",
+      "pos_tag": "PHRASE"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "Is there a + [noun]?",
+      "explanation_en": "Used to ask if something exists in a particular place.",
+      "explanation_vi": "Được dùng để hỏi xem một thứ gì đó có tồn tại ở một nơi cụ thể không.",
+      "example": "Is there a train to Da Nang?"
+    },
+    {
+      "pattern": "How much is + [noun]?",
+      "explanation_en": "Used to ask about the price of a single item.",
+      "explanation_vi": "Được dùng để hỏi về giá của một món đồ.",
+      "example": "How much is a ticket?"
+    },
+    {
+      "pattern": "I want + [number] + [noun].",
+      "explanation_en": "Used to state a desire for a specific quantity of something.",
+      "explanation_vi": "Được dùng để nói lên mong muốn có một số lượng cụ thể của thứ gì đó.",
+      "example": "I want one ticket, please."
+    },
+    {
+      "pattern": "Here is + [possessive] + [noun].",
+      "explanation_en": "Used when handing an object to someone.",
+      "explanation_vi": "Được dùng khi đưa một vật cho ai đó.",
+      "example": "Here is your ticket."
+    }
+  ]
+}

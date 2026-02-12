@@ -1,0 +1,236 @@
+{
+  "title_en": "Planning an Ecotourism Adventure",
+  "title_vi": "Lên Kế Hoạch Cho Một Chuyến Phiêu Lưu Du Lịch Sinh Thái",
+  "situation": "A traveler (A) consults a specialized travel agent (B) about planning a sustainable, off-the-beaten-path trip to Southeast Asia.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I'm looking to plan a trip that goes beyond conventional tourism. I want something immersive that minimizes my environmental footprint.",
+      "text_vi": "Tôi đang muốn lên kế hoạch cho một chuyến đi vượt ra ngoài phạm vi du lịch thông thường. Tôi muốn một điều gì đó có tính đắm chìm và giảm thiểu dấu chân môi trường của tôi.",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Excellent. We specialize in curating sustainable itineraries. Are you particularly drawn to community-based tourism or pristine natural landscapes?",
+      "text_vi": "Tuyệt vời. Chúng tôi chuyên về việc tuyển chọn các hành trình bền vững. Anh có đặc biệt bị thu hút bởi loại hình du lịch cộng đồng hay những cảnh quan thiên nhiên nguyên sơ không?",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "A blend of both, ideally. I'd like to eschew overcrowded hotspots in favor of more authentic interactions.",
+      "text_vi": "Lý tưởng nhất là sự kết hợp của cả hai. Tôi muốn tránh những điểm nóng quá đông đúc để ưu tiên cho những tương tác chân thực hơn.",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "I have a compelling proposition. We work with a consortium in Northern Vietnam that focuses on biodiversity conservation and indigenous homestays.",
+      "text_vi": "Tôi có một đề xuất hấp dẫn. Chúng tôi hợp tác với một tập đoàn ở miền Bắc Việt Nam chuyên tập trung vào bảo tồn đa dạng sinh học và các hình thức lưu trú tại nhà dân bản địa.",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That sounds intriguing. However, I'm somewhat apprehensive about the logistical challenges of remote travel.",
+      "text_vi": "Nghe có vẻ thú vị. Tuy nhiên, tôi hơi lo ngại về những thách thức hậu cần của việc đi đến những vùng xa xôi.",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Your concerns are valid. We provide comprehensive pre-departure briefings and a dedicated local guide who is also an anthropologist.",
+      "text_vi": "Những lo ngại của anh là hợp lý. Chúng tôi cung cấp các buổi phổ biến thông tin toàn diện trước chuyến đi và một hướng dẫn viên địa phương chuyên trách, người cũng là một nhà nhân chủng học.",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Having an anthropologist as a guide would provide invaluable cultural context. What's the duration, and how strenuous is the trekking?",
+      "text_vi": "Có một nhà nhân chủng học làm hướng dẫn viên sẽ cung cấp bối cảnh văn hóa vô giá. Thời lượng là bao lâu, và việc đi bộ đường dài có vất vả thế nào?",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "The itinerary is a 12-day sojourn. The trekking is moderate but entails traversing some undulating terrain. We ensure acclimatization days.",
+      "text_vi": "Hành trình là một chuyến lưu trú 12 ngày. Việc đi bộ đường dài ở mức độ trung bình nhưng đòi hỏi phải vượt qua một số địa hình gợn sóng. Chúng tôi đảm bảo có những ngày để thích nghi.",
+      "order": 8
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "The philanthropic aspect is crucial for me. Can you elucidate how the tour fees are allocated to the local communities?",
+      "text_vi": "Khía cạnh nhân đạo là rất quan trọng đối với tôi. Cô có thể làm rõ cách các khoản phí tour được phân bổ cho cộng đồng địa phương không?",
+      "order": 9
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Absolutely. A substantial portion is channeled directly into a community fund, which is democratically managed for projects like reforestation and schooling.",
+      "text_vi": "Chắc chắn rồi. Một phần đáng kể được chuyển trực tiếp vào quỹ cộng đồng, quỹ này được quản lý một cách dân chủ cho các dự án như tái trồng rừng và giáo dục.",
+      "order": 10
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That's precisely the kind of transparency and impact I'm seeking. Let's proceed with drafting a preliminary itinerary.",
+      "text_vi": "Đó chính xác là loại hình minh bạch và tác động mà tôi đang tìm kiếm. Chúng ta hãy tiến hành soạn thảo một hành trình sơ bộ.",
+      "order": 11
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Splendid. I'll prepare a dossier with all the details, including the ethical guidelines for engagement with the indigenous groups.",
+      "text_vi": "Tuyệt vời. Tôi sẽ chuẩn bị một hồ sơ với tất cả chi tiết, bao gồm cả các hướng dẫn đạo đức cho việc tương tác với các nhóm bản địa.",
+      "order": 12
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "immersive",
+      "definition_en": "Providing a deep, engaging involvement or experience.",
+      "definition_vi": "Mang lại sự tham gia hoặc trải nghiệm sâu sắc, cuốn hút.",
+      "example": "I want something immersive that minimizes my environmental footprint.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "environmental footprint",
+      "definition_en": "The impact of a person or activity on the environment in terms of resource use and waste.",
+      "definition_vi": "Tác động của một người hoặc hoạt động lên môi trường về mặt sử dụng tài nguyên và chất thải.",
+      "example": "I want something immersive that minimizes my environmental footprint.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "curating",
+      "definition_en": "Selecting, organizing, and presenting content or items with care.",
+      "definition_vi": "Lựa chọn, tổ chức và trình bày nội dung hoặc các mục một cách cẩn thận.",
+      "example": "We specialize in curating sustainable itineraries.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "pristine",
+      "definition_en": "In its original condition; unspoiled.",
+      "definition_vi": "Trong tình trạng ban đầu; không bị hư hỏng.",
+      "example": "Are you particularly drawn to community-based tourism or pristine natural landscapes?",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "eschew",
+      "definition_en": "Deliberately avoid using; abstain from.",
+      "definition_vi": "Cố tình tránh sử dụng; kiêng cữ.",
+      "example": "I'd like to eschew overcrowded hotspots in favor of more authentic interactions.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "compelling",
+      "definition_en": "Evoking interest, attention, or admiration in a powerfully irresistible way.",
+      "definition_vi": "Gợi lên sự quan tâm, chú ý hoặc ngưỡng mộ một cách mạnh mẽ không thể cưỡng lại.",
+      "example": "I have a compelling proposition.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "consortium",
+      "definition_en": "An association, typically of several businesses, for a joint purpose.",
+      "definition_vi": "Một hiệp hội, thường là của một số doanh nghiệp, vì một mục đích chung.",
+      "example": "We work with a consortium in Northern Vietnam that focuses on biodiversity conservation...",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "biodiversity",
+      "definition_en": "The variety of plant and animal life in a particular habitat.",
+      "definition_vi": "Sự đa dạng của đời sống thực vật và động vật trong một môi trường sống cụ thể.",
+      "example": "...a consortium in Northern Vietnam that focuses on biodiversity conservation...",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "apprehensive",
+      "definition_en": "Anxious or fearful that something bad or unpleasant will happen.",
+      "definition_vi": "Lo lắng hoặc sợ hãi rằng điều gì đó xấu hoặc khó chịu sẽ xảy ra.",
+      "example": "However, I'm somewhat apprehensive about the logistical challenges of remote travel.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "logistical",
+      "definition_en": "Relating to the detailed organization and implementation of a complex operation.",
+      "definition_vi": "Liên quan đến việc tổ chức và thực hiện chi tiết một hoạt động phức tạp.",
+      "example": "However, I'm somewhat apprehensive about the logistical challenges of remote travel.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "sojourn",
+      "definition_en": "A temporary stay at a place.",
+      "definition_vi": "Một chuyến lưu trú tạm thời tại một nơi nào đó.",
+      "example": "The itinerary is a 12-day sojourn.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "traversing",
+      "definition_en": "Traveling across or through.",
+      "definition_vi": "Đi ngang qua hoặc xuyên qua.",
+      "example": "The trekking is moderate but entails traversing some undulating terrain.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "undulating",
+      "definition_en": "Having a smoothly rising and falling form or outline.",
+      "definition_vi": "Có hình dạng hoặc đường nét nhấp nhô một cách mượt mà.",
+      "example": "The trekking is moderate but entails traversing some undulating terrain.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "philanthropic",
+      "definition_en": "Seeking to promote the welfare of others, especially by donating money to good causes.",
+      "definition_vi": "Tìm cách thúc đẩy phúc lợi của người khác, đặc biệt bằng cách quyên góp tiền cho các mục đích tốt.",
+      "example": "The philanthropic aspect is crucial for me.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "elucidate",
+      "definition_en": "To make something clear; explain.",
+      "definition_vi": "Làm cho điều gì đó rõ ràng; giải thích.",
+      "example": "Can you elucidate how the tour fees are allocated to the local communities?",
+      "pos_tag": "VERB"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "I'm looking to + verb (infinitive)",
+      "explanation_en": "Used to express a desire or intention to do something in the near future.",
+      "explanation_vi": "Được sử dụng để diễn đạt mong muốn hoặc ý định làm điều gì đó trong tương lai gần.",
+      "example": "I'm looking to plan a trip that goes beyond conventional tourism."
+    },
+    {
+      "pattern": "Are you drawn to + noun/gerund?",
+      "explanation_en": "A question structure asking if someone is attracted to or interested in something.",
+      "explanation_vi": "Cấu trúc câu hỏi hỏi xem ai đó có bị thu hút hoặc quan tâm đến điều gì không.",
+      "example": "Are you particularly drawn to community-based tourism or pristine natural landscapes?"
+    },
+    {
+      "pattern": "I'd like to + verb (infinitive) + in favor of + noun/gerund",
+      "explanation_en": "Expresses a preference for one thing over another.",
+      "explanation_vi": "Diễn đạt sự ưa thích một thứ hơn một thứ khác.",
+      "example": "I'd like to eschew overcrowded hotspots in favor of more authentic interactions."
+    },
+    {
+      "pattern": "I'm somewhat apprehensive about + noun/gerund",
+      "explanation_en": "Used to express a degree of anxiety or concern regarding a specific issue.",
+      "explanation_vi": "Được sử dụng để diễn đạt mức độ lo lắng hoặc quan ngại về một vấn đề cụ thể.",
+      "example": "However, I'm somewhat apprehensive about the logistical challenges of remote travel."
+    },
+    {
+      "pattern": "The [noun] is [adjective] but entails + gerund",
+      "explanation_en": "Describes a characteristic that involves or necessitates a particular action.",
+      "explanation_vi": "Mô tả một đặc điểm có liên quan hoặc đòi hỏi một hành động cụ thể.",
+      "example": "The trekking is moderate but entails traversing some undulating terrain."
+    },
+    {
+      "pattern": "Can you elucidate + noun clause (how/what/why)?",
+      "explanation_en": "A polite request for a detailed explanation or clarification.",
+      "explanation_vi": "Một yêu cầu lịch sự để được giải thích hoặc làm rõ chi tiết.",
+      "example": "Can you elucidate how the tour fees are allocated to the local communities?"
+    }
+  ]
+}

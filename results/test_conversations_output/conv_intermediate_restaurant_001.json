@@ -1,0 +1,195 @@
+{
+  "title_en": "Dining Out Experience",
+  "title_vi": "Trải Nghiệm Ăn Nhà Hàng",
+  "situation": "A customer is dining at a restaurant and needs to communicate with the server about menu items, special requests, and payment.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Good evening. Could we possibly see the wine list before we order our main courses?",
+      "text_vi": "Chào buổi tối. Chúng tôi có thể xem danh sách rượu trước khi gọi món chính được không?",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Certainly, sir. Here's our extensive selection of wines. I'd particularly recommend the Australian Shiraz if you're having red meat.",
+      "text_vi": "Chắc chắn rồi, thưa ông. Đây là danh sách rượu phong phú của chúng tôi. Tôi đặc biệt giới thiệu rượu Shiraz Úc nếu ông định dùng thịt đỏ.",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That sounds perfect since I'm considering the grilled ribeye. However, I have a dietary restriction - could you ensure the steak is prepared without any butter?",
+      "text_vi": "Nghe có vẻ hoàn hảo vì tôi đang cân nhắc món sườn nướng. Tuy nhiên, tôi có hạn chế về ăn uống - bạn có thể đảm bảo bít tết được chế biến không có bơ không?",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Absolutely, we can accommodate that request. Would you prefer olive oil instead for cooking?",
+      "text_vi": "Chắc chắn rồi, chúng tôi có thể đáp ứng yêu cầu đó. Ông có muốn dùng dầu ô liu thay thế để nấu không?",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Yes, that would be preferable. Also, I noticed the menu mentions seasonal vegetables - could you specify what those include tonight?",
+      "text_vi": "Vâng, như vậy sẽ tốt hơn. Ngoài ra, tôi thấy thực đơn đề cập đến rau theo mùa - bạn có thể nói cụ thể tối nay gồm những gì không?",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Tonight's seasonal medley consists of roasted asparagus, sautéed wild mushrooms, and caramelized baby carrots.",
+      "text_vi": "Hỗn hợp theo mùa tối nay gồm măng tây nướng, nấm rừng xào và cà rốt non caramel.",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That sounds delightful. I'll have the ribeye medium-rare with those vegetables, and we'll take a bottle of the Shiraz you recommended.",
+      "text_vi": "Nghe thật hấp dẫn. Tôi sẽ dùng sườn nướng tái vừa với những loại rau đó, và chúng tôi sẽ lấy một chai Shiraz bạn giới thiệu.",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Excellent choice. Would you like me to bring the wine now so it can breathe before your meal arrives?",
+      "text_vi": "Lựa chọn tuyệt vời. Ông có muốn tôi mang rượu ra ngay để nó có thể 'thở' trước khi bữa ăn được phục vụ không?",
+      "order": 8
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Yes, please do. And could we possibly split the bill at the end? We're paying separately.",
+      "text_vi": "Vâng, làm ơn. Và chúng tôi có thể chia hóa đơn vào cuối được không? Chúng tôi thanh toán riêng.",
+      "order": 9
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Of course, we can arrange separate checks. I'll bring the wine immediately and put in your order.",
+      "text_vi": "Tất nhiên, chúng tôi có thể sắp xếp hóa đơn riêng. Tôi sẽ mang rượu ngay và ghi lại đơn đặt của ông.",
+      "order": 10
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "extensive selection",
+      "definition_en": "A wide variety or large range of choices",
+      "definition_vi": "Sự lựa chọn đa dạng hoặc phạm vi rộng",
+      "example": "Here's our extensive selection of wines.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "dietary restriction",
+      "definition_en": "Limitations on what someone can eat due to health, allergy, or preference",
+      "definition_vi": "Hạn chế về những gì ai đó có thể ăn do sức khỏe, dị ứng hoặc sở thích",
+      "example": "I have a dietary restriction - could you ensure the steak is prepared without any butter?",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "accommodate",
+      "definition_en": "To provide what is needed or wanted; to make suitable adjustments",
+      "definition_vi": "Cung cấp những gì cần thiết hoặc mong muốn; thực hiện điều chỉnh phù hợp",
+      "example": "Absolutely, we can accommodate that request.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "preferable",
+      "definition_en": "More desirable or suitable",
+      "definition_vi": "Đáng mong muốn hoặc phù hợp hơn",
+      "example": "Yes, that would be preferable.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "specify",
+      "definition_en": "To state clearly and in detail",
+      "definition_vi": "Nói rõ ràng và chi tiết",
+      "example": "Could you specify what those include tonight?",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "seasonal medley",
+      "definition_en": "A mixture of foods that are available during a particular season",
+      "definition_vi": "Hỗn hợp thực phẩm có sẵn trong một mùa cụ thể",
+      "example": "Tonight's seasonal medley consists of roasted asparagus, sautéed wild mushrooms, and caramelized baby carrots.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "consists of",
+      "definition_en": "To be composed or made up of",
+      "definition_vi": "Được cấu thành hoặc tạo nên từ",
+      "example": "Tonight's seasonal medley consists of roasted asparagus, sautéed wild mushrooms, and caramelized baby carrots.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "sautéed",
+      "definition_en": "Cooked quickly in a small amount of oil or fat",
+      "definition_vi": "Được nấu nhanh với một lượng nhỏ dầu hoặc mỡ",
+      "example": "sautéed wild mushrooms",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "delightful",
+      "definition_en": "Very pleasant, charming, or enjoyable",
+      "definition_vi": "Rất dễ chịu, quyến rũ hoặc thú vị",
+      "example": "That sounds delightful.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "medium-rare",
+      "definition_en": "Cooked so that the inside is red and warm",
+      "definition_vi": "Được nấu sao cho bên trong còn đỏ và ấm",
+      "example": "I'll have the ribeye medium-rare with those vegetables.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "breathe",
+      "definition_en": "To expose wine to air to improve its flavor",
+      "definition_vi": "Để rượu tiếp xúc với không khí để cải thiện hương vị",
+      "example": "Would you like me to bring the wine now so it can breathe before your meal arrives?",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "split the bill",
+      "definition_en": "To divide the total cost among multiple people",
+      "definition_vi": "Chia tổng chi phí giữa nhiều người",
+      "example": "And could we possibly split the bill at the end?",
+      "pos_tag": "PHRASE"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "Could we possibly + verb",
+      "explanation_en": "A polite way to make a request or ask for permission",
+      "explanation_vi": "Cách lịch sự để đưa ra yêu cầu hoặc xin phép",
+      "example": "Could we possibly see the wine list before we order our main courses?"
+    },
+    {
+      "pattern": "I'd recommend + noun/if clause",
+      "explanation_en": "Used to give suggestions or advice",
+      "explanation_vi": "Được sử dụng để đưa ra gợi ý hoặc lời khuyên",
+      "example": "I'd particularly recommend the Australian Shiraz if you're having red meat."
+    },
+    {
+      "pattern": "I have + noun + that/which clause",
+      "explanation_en": "Used to state a condition or circumstance",
+      "explanation_vi": "Được sử dụng để nêu lên một điều kiện hoặc hoàn cảnh",
+      "example": "I have a dietary restriction - could you ensure the steak is prepared without any butter?"
+    },
+    {
+      "pattern": "Would you prefer + noun/gerund",
+      "explanation_en": "Used to offer choices or alternatives",
+      "explanation_vi": "Được sử dụng để đưa ra lựa chọn hoặc phương án thay thế",
+      "example": "Would you prefer olive oil instead for cooking?"
+    },
+    {
+      "pattern": "I'll have + noun + with + noun",
+      "explanation_en": "Used to place an order or make a selection",
+      "explanation_vi": "Được sử dụng để đặt món hoặc lựa chọn",
+      "example": "I'll have the ribeye medium-rare with those vegetables."
+    }
+  ]
+}

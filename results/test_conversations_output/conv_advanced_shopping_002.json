@@ -1,0 +1,229 @@
+{
+  "title_en": "Negotiating a Bulk Purchase",
+  "title_vi": "Đàm phán mua hàng số lượng lớn",
+  "situation": "A business owner (A) is negotiating with a supplier (B) for a bulk purchase of office furniture for a new branch.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I'm inquiring about the ergonomic chairs we discussed last week. Before we proceed, I'd like to clarify the pricing structure for a bulk order of fifty units.",
+      "text_vi": "Tôi đang tìm hiểu về những chiếc ghế công thái học chúng ta đã thảo luận tuần trước. Trước khi tiến hành, tôi muốn làm rõ cơ cấu giá cho đơn hàng số lượng lớn năm mươi chiếc.",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Certainly. Our tiered pricing model offers a 15% discount on orders exceeding forty units. However, that's contingent upon a single delivery to one location.",
+      "text_vi": "Chắc chắn rồi. Mô hình giá phân tầng của chúng tôi giảm giá 15% cho các đơn hàng vượt quá bốn mươi chiếc. Tuy nhiên, điều đó phụ thuộc vào một lần giao hàng duy nhất đến một địa điểm.",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Understood. Would the discount be applicable if we were to stagger the delivery over two weeks? Our new office won't be fully ready until then.",
+      "text_vi": "Tôi hiểu. Liệu mức giảm giá có được áp dụng nếu chúng tôi trải đều việc giao hàng trong hai tuần không? Văn phòng mới của chúng tôi sẽ chưa sẵn sàng hoàn toàn cho đến lúc đó.",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_vi": "Tôi e là không. Điều khoản đó là bất di bất dịch để chúng tôi có thể tối ưu hóa hậu cần. Tuy nhiên, chúng tôi có thể cung cấp dịch vụ lưu kho miễn phí trong tối đa mười ngày.",
+      "text_en": "I'm afraid not. That clause is non-negotiable for us to optimize logistics. However, we could offer complimentary storage for up to ten days.",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That's a reasonable compromise. Regarding payment terms, is there any flexibility? We typically operate on net-60 terms for substantial capital expenditures.",
+      "text_vi": "Đó là một sự thỏa hiệp hợp lý. Về điều khoản thanh toán, có bất kỳ sự linh hoạt nào không? Chúng tôi thường hoạt động theo điều khoản thanh toán ròng trong 60 ngày cho các khoản chi tiêu vốn đáng kể.",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Our standard is net-30, but for established clients, we can sometimes make an exception. Have you considered the potential cost implications of delaying payment that long?",
+      "text_vi": "Tiêu chuẩn của chúng tôi là thanh toán ròng trong 30 ngày, nhưng đối với khách hàng thân thiết, đôi khi chúng tôi có thể tạo ngoại lệ. Anh đã xem xét các tác động chi phí tiềm ẩn của việc trì hoãn thanh toán lâu như vậy chưa?",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Our cash flow projections are quite robust. I'm more concerned with the warranty. Does it encompass accidental damage, or is it strictly for manufacturing defects?",
+      "text_vi": "Dự báo dòng tiền của chúng tôi khá mạnh mẽ. Tôi quan tâm hơn đến bảo hành. Nó có bao gồm thiệt hại do tai nạn không, hay chỉ nghiêm ngặt cho các lỗi sản xuất?",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "The standard warranty is indeed limited to defects. However, we can include an extended service plan that covers accidental damage for an additional 8% of the total invoice.",
+      "text_vi": "Bảo hành tiêu chuẩn thực sự chỉ giới hạn ở các lỗi. Tuy nhiên, chúng tôi có thể bao gồm một gói dịch vụ mở rộng chi trả cho thiệt hại do tai nạn với thêm 8% tổng hóa đơn.",
+      "order": 8
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Let's circle back to the core issue: the per-unit price. Given the size of this order and our potential for future business, can you sharpen your pencil a bit more?",
+      "text_vi": "Hãy quay lại vấn đề cốt lõi: giá trên mỗi chiếc. Xét quy mô đơn hàng này và tiềm năng kinh doanh trong tương lai của chúng tôi, cô có thể tính toán kỹ hơn một chút không?",
+      "order": 9
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "I'll need to consult with management, but I might be able to secure an additional 3% discount if you commit to the extended warranty. That would bring the total discount to 18%.",
+      "text_vi": "Tôi sẽ cần tham khảo ý kiến với ban quản lý, nhưng tôi có thể đảm bảo thêm 3% giảm giá nếu anh cam kết với bảo hành mở rộng. Điều đó sẽ đưa tổng mức giảm giá lên 18%.",
+      "order": 10
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That sounds promising. Could you draft a provisional agreement with those terms? I'd like to review it before we give our final assent.",
+      "text_vi": "Nghe có vẻ hứa hẹn. Cô có thể soạn thảo một thỏa thuận tạm thời với những điều khoản đó không? Tôi muốn xem xét nó trước khi chúng tôi đưa ra sự đồng ý cuối cùng.",
+      "order": 11
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Absolutely. I'll have it sent to you by end of day. To expedite the process, please ensure your procurement department has all the necessary documentation ready.",
+      "text_vi": "Chắc chắn rồi. Tôi sẽ gửi nó cho anh trước cuối ngày. Để đẩy nhanh quá trình, vui lòng đảm bảo bộ phận mua sắm của anh đã sẵn sàng tất cả tài liệu cần thiết.",
+      "order": 12
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "inquiring about",
+      "definition_en": "asking for information concerning something",
+      "definition_vi": "hỏi thông tin về việc gì đó",
+      "example": "I'm inquiring about the ergonomic chairs we discussed last week.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "pricing structure",
+      "definition_en": "the system or model used to set prices for goods or services",
+      "definition_vi": "cơ cấu hoặc mô hình được sử dụng để định giá hàng hóa hoặc dịch vụ",
+      "example": "I'd like to clarify the pricing structure for a bulk order.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "tiered pricing model",
+      "definition_en": "a pricing strategy where costs vary based on quantity or level of service",
+      "definition_vi": "chiến lược định giá trong đó chi phí thay đổi dựa trên số lượng hoặc cấp độ dịch vụ",
+      "example": "Our tiered pricing model offers a 15% discount on orders exceeding forty units.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "contingent upon",
+      "definition_en": "dependent on or conditioned by something else",
+      "definition_vi": "phụ thuộc vào hoặc bị quy định bởi điều gì khác",
+      "example": "However, that's contingent upon a single delivery to one location.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "stagger",
+      "definition_en": "to arrange events or payments so they do not occur at the same time",
+      "definition_vi": "sắp xếp các sự kiện hoặc khoản thanh toán để chúng không xảy ra cùng một lúc",
+      "example": "Would the discount be applicable if we were to stagger the delivery over two weeks?",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "non-negotiable",
+      "definition_en": "not open for discussion or modification; fixed",
+      "definition_vi": "không thể thảo luận hoặc thay đổi; cố định",
+      "example": "That clause is non-negotiable for us to optimize logistics.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "complimentary",
+      "definition_en": "provided free of charge as a courtesy",
+      "definition_vi": "được cung cấp miễn phí như một sự ưu đãi",
+      "example": "However, we could offer complimentary storage for up to ten days.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "capital expenditures",
+      "definition_en": "funds used by a company to acquire or upgrade physical assets",
+      "definition_vi": "nguồn vốn được công ty sử dụng để mua hoặc nâng cấp tài sản vật chất",
+      "example": "We typically operate on net-60 terms for substantial capital expenditures.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "cash flow projections",
+      "definition_en": "estimates of the amount of money expected to flow in and out of a business",
+      "definition_vi": "ước tính số tiền dự kiến sẽ chảy vào và ra khỏi một doanh nghiệp",
+      "example": "Our cash flow projections are quite robust.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "encompass",
+      "definition_en": "to include or contain something as part of a whole",
+      "definition_vi": "bao gồm hoặc chứa đựng điều gì đó như một phần của tổng thể",
+      "example": "Does it encompass accidental damage, or is it strictly for manufacturing defects?",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "circle back to",
+      "definition_en": "to return to a previous topic or issue for further discussion",
+      "definition_vi": "quay lại một chủ đề hoặc vấn đề trước đó để thảo luận thêm",
+      "example": "Let's circle back to the core issue: the per-unit price.",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "sharpen your pencil",
+      "definition_en": "(idiom) to recalculate or reduce a price or cost",
+      "definition_vi": "(thành ngữ) tính toán lại hoặc giảm giá hoặc chi phí",
+      "example": "Given the size of this order, can you sharpen your pencil a bit more?",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "provisional agreement",
+      "definition_en": "a temporary or preliminary agreement, subject to final approval",
+      "definition_vi": "một thỏa thuận tạm thời hoặc sơ bộ, tùy thuộc vào sự chấp thuận cuối cùng",
+      "example": "Could you draft a provisional agreement with those terms?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "expedite",
+      "definition_en": "to make an action or process happen sooner or be accomplished more quickly",
+      "definition_vi": "làm cho một hành động hoặc quá trình xảy ra sớm hơn hoặc hoàn thành nhanh hơn",
+      "example": "To expedite the process, please ensure your procurement department is ready.",
+      "pos_tag": "VERB"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "Before we proceed, I'd like to + verb phrase",
+      "explanation_en": "Used to introduce a preliminary action or clarification needed prior to moving forward with a main action.",
+      "explanation_vi": "Được sử dụng để giới thiệu một hành động sơ bộ hoặc sự làm rõ cần thiết trước khi tiến hành với hành động chính.",
+      "example": "Before we proceed, I'd like to clarify the pricing structure for a bulk order."
+    },
+    {
+      "pattern": "Would + subject + be + adjective/noun phrase + if + subject + were to + verb...?",
+      "explanation_en": "A formal conditional structure used to pose a hypothetical question about a future possibility.",
+      "explanation_vi": "Một cấu trúc điều kiện trang trọng được sử dụng để đặt một câu hỏi giả định về một khả năng trong tương lai.",
+      "example": "Would the discount be applicable if we were to stagger the delivery over two weeks?"
+    },
+    {
+      "pattern": "subject + is/are + more concerned with + noun phrase",
+      "explanation_en": "Used to shift focus or priority to a different, often more important, issue.",
+      "explanation_vi": "Được sử dụng để chuyển trọng tâm hoặc ưu tiên sang một vấn đề khác, thường quan trọng hơn.",
+      "example": "I'm more concerned with the warranty."
+    },
+    {
+      "pattern": "Given + noun phrase, + can/could + subject + verb...?",
+      "explanation_en": "Used to make a request or suggestion based on a specific circumstance or fact that has been presented.",
+      "explanation_vi": "Được sử dụng để đưa ra yêu cầu hoặc đề xuất dựa trên một hoàn cảnh hoặc sự thật cụ thể đã được trình bày.",
+      "example": "Given the size of this order and our potential for future business, can you sharpen your pencil a bit more?"
+    },
+    {
+      "pattern": "I'll need to + verb phrase, but I might be able to + verb phrase if + condition.",
+      "explanation_en": "A diplomatic structure used to indicate a necessary check (often with superiors) while offering a conditional possibility to move negotiations forward.",
+      "explanation_vi": "Một cấu trúc ngoại giao được sử dụng để chỉ ra một việc kiểm tra cần thiết (thường với cấp trên) trong khi đưa ra một khả năng có điều kiện để thúc đẩy đàm phán.",
+      "example": "I'll need to consult with management, but I might be able to secure an additional 3% discount if you commit to the extended warranty."
+    },
+    {
+      "pattern": "To + verb phrase (infinitive of purpose), + imperative sentence.",
+      "explanation_en": "Used to state the goal or purpose of an action, followed by an instruction or request to achieve that goal.",
+      "explanation_vi": "Được sử dụng để nêu mục tiêu hoặc mục đích của một hành động, theo sau là một chỉ dẫn hoặc yêu cầu để đạt được mục tiêu đó.",
+      "example": "To expedite the process, please ensure your procurement department has all the necessary documentation ready."
+    }
+  ]
+}

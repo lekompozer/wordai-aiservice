@@ -1,0 +1,161 @@
+{
+  "title_en": "Buying a T-Shirt",
+  "title_vi": "Mua Áo Thun",
+  "situation": "A customer is in a clothing store looking for a T-shirt. He asks the shop assistant for help.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Hello. Do you have T-shirts?",
+      "text_vi": "Xin chào. Cửa hàng có áo thun không?",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Yes, we do. They are over here.",
+      "text_vi": "Có chứ. Chúng ở đằng kia.",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I like this blue one. How much is it?",
+      "text_vi": "Tôi thích cái màu xanh này. Nó bao nhiêu tiền?",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "It is fifteen dollars.",
+      "text_vi": "Nó mười lăm đô la.",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That's good. Can I try it on?",
+      "text_vi": "Tốt quá. Tôi có thể mặc thử được không?",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Of course. The fitting room is there.",
+      "text_vi": "Tất nhiên rồi. Phòng thử đồ ở kia.",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Thank you. I will take it.",
+      "text_vi": "Cảm ơn. Tôi sẽ lấy nó.",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Great. Please pay at the counter.",
+      "text_vi": "Tuyệt vời. Vui lòng thanh toán ở quầy thu ngân.",
+      "order": 8
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "T-shirt",
+      "definition_en": "A casual shirt with short sleeves and no collar.",
+      "definition_vi": "Áo thun, áo phông.",
+      "example": "Do you have T-shirts?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "have",
+      "definition_en": "To own or possess something.",
+      "definition_vi": "Có, sở hữu.",
+      "example": "Do you have T-shirts?",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "like",
+      "definition_en": "To find something pleasant or enjoyable.",
+      "definition_vi": "Thích.",
+      "example": "I like this blue one.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "blue",
+      "definition_en": "The color of the clear sky.",
+      "definition_vi": "Màu xanh da trời.",
+      "example": "I like this blue one.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "how much",
+      "definition_en": "Used to ask about the price or cost of something.",
+      "definition_vi": "Bao nhiêu (dùng để hỏi giá).",
+      "example": "How much is it?",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "dollars",
+      "definition_en": "The unit of money used in the US and some other countries.",
+      "definition_vi": "Đô la (đơn vị tiền tệ).",
+      "example": "It is fifteen dollars.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "try on",
+      "definition_en": "To put on clothes to see if they fit or look good.",
+      "definition_vi": "Mặc thử (quần áo).",
+      "example": "Can I try it on?",
+      "pos_tag": "PHRASE"
+    },
+    {
+      "word": "fitting room",
+      "definition_en": "A small room in a shop where you can try on clothes.",
+      "definition_vi": "Phòng thử đồ.",
+      "example": "The fitting room is there.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "take",
+      "definition_en": "To decide to buy something.",
+      "definition_vi": "Lấy, quyết định mua.",
+      "example": "I will take it.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "pay",
+      "definition_en": "To give money for something you buy.",
+      "definition_vi": "Trả tiền, thanh toán.",
+      "example": "Please pay at the counter.",
+      "pos_tag": "VERB"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "Do you have + [noun]?",
+      "explanation_en": "A question pattern used to ask if a place or person possesses something.",
+      "explanation_vi": "Mẫu câu hỏi dùng để hỏi xem một nơi hoặc người có sở hữu thứ gì đó không.",
+      "example": "Do you have T-shirts?"
+    },
+    {
+      "pattern": "How much is + [noun/pronoun]?",
+      "explanation_en": "A question pattern used specifically to ask about the price of a singular item.",
+      "explanation_vi": "Mẫu câu hỏi dùng để hỏi giá của một món đồ số ít.",
+      "example": "How much is it?"
+    },
+    {
+      "pattern": "Can I + [verb phrase]?",
+      "explanation_en": "A polite question pattern used to ask for permission to do something.",
+      "explanation_vi": "Mẫu câu hỏi lịch sự dùng để xin phép làm việc gì đó.",
+      "example": "Can I try it on?"
+    },
+    {
+      "pattern": "I will + [verb] + [object].",
+      "explanation_en": "A simple future tense pattern used to state a decision or plan.",
+      "explanation_vi": "Mẫu câu thì tương lai đơn giản dùng để nói về một quyết định hoặc kế hoạch.",
+      "example": "I will take it."
+    }
+  ]
+}

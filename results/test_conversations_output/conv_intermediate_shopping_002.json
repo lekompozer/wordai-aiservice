@@ -1,0 +1,195 @@
+{
+  "title_en": "Finding the Perfect Gift",
+  "title_vi": "Tìm Món Quà Hoàn Hảo",
+  "situation": "A customer is in a boutique looking for a birthday gift for his sister. He asks the shop assistant for advice.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Excuse me, I'm looking for a birthday gift for my sister, but I'm feeling a bit overwhelmed by all these options.",
+      "text_vi": "Xin lỗi, tôi đang tìm một món quà sinh nhật cho em gái tôi, nhưng tôi cảm thấy hơi choáng ngợp trước tất cả những lựa chọn này.",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Of course, I'd be happy to assist you. Could you tell me a bit about her personal style or interests? That would help me narrow down the selection.",
+      "text_vi": "Tất nhiên rồi, tôi rất vui được hỗ trợ anh. Anh có thể cho tôi biết một chút về phong cách cá nhân hoặc sở thích của cô ấy không? Điều đó sẽ giúp tôi thu hẹp việc lựa chọn.",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "She's quite fashionable and tends to prefer minimalist accessories over anything too flashy.",
+      "text_vi": "Cô ấy khá thời trang và có xu hướng thích các phụ kiện tối giản hơn là những thứ quá hào nhoáng.",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "In that case, I'd recommend browsing this section. We have some elegant silk scarves and delicate silver jewelry that might be suitable.",
+      "text_vi": "Trong trường hợp đó, tôi đề xuất anh xem qua khu vực này. Chúng tôi có một số khăn choàng lụa thanh lịch và trang sức bạc tinh xảo có thể phù hợp.",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "This necklace is beautiful. However, I'm concerned about the price tag. Do you offer any discounts or promotions at the moment?",
+      "text_vi": "Chiếc vòng cổ này thật đẹp. Tuy nhiên, tôi hơi lo ngại về mức giá. Hiện tại cửa hàng có đang áp dụng bất kỳ chương trình giảm giá hay khuyến mãi nào không?",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "We are actually running a seasonal promotion. If you spend over fifty dollars, you'll receive a ten percent discount on your total purchase.",
+      "text_vi": "Thực ra chúng tôi đang có một chương trình khuyến mãi theo mùa. Nếu anh chi tiêu trên năm mươi đô la, anh sẽ được giảm giá mười phần trăm trên tổng hóa đơn.",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That's a reasonable offer. I think I'll take the necklace, and perhaps I should also consider getting this matching bracelet to qualify for the discount.",
+      "text_vi": "Đó là một ưu đãi hợp lý. Tôi nghĩ tôi sẽ lấy chiếc vòng cổ này, và có lẽ tôi cũng nên cân nhắc mua thêm chiếc vòng tay phối hợp này để đủ điều kiện nhận giảm giá.",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "That's an excellent idea! They complement each other perfectly. Would you like them gift-wrapped? We provide complimentary gift wrapping for all jewelry items.",
+      "text_vi": "Đó là một ý tưởng tuyệt vời! Chúng bổ sung cho nhau một cách hoàn hảo. Anh có muốn gói quà không? Chúng tôi cung cấp dịch vụ gói quà miễn phí cho tất cả các mặt hàng trang sức.",
+      "order": 8
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Yes, please. That would be very convenient. I assume you accept credit cards as well as cash?",
+      "text_vi": "Vâng, làm ơn. Điều đó sẽ rất tiện lợi. Tôi cho rằng cửa hàng chấp nhận thẻ tín dụng cũng như tiền mặt?",
+      "order": 9
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Absolutely. You can pay by either method. I'll ring these up for you at the counter and have them wrapped beautifully.",
+      "text_vi": "Chắc chắn rồi. Anh có thể thanh toán bằng một trong hai phương thức. Tôi sẽ tính tiền những món này cho anh ở quầy và gói chúng thật đẹp.",
+      "order": 10
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "overwhelmed",
+      "definition_en": "Feeling buried or unable to cope with a large amount of something.",
+      "definition_vi": "Cảm thấy bị chôn vùi hoặc không thể đối phó với một lượng lớn thứ gì đó.",
+      "example": "I'm feeling a bit overwhelmed by all these options.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "assist",
+      "definition_en": "To help someone.",
+      "definition_vi": "Giúp đỡ ai đó.",
+      "example": "I'd be happy to assist you.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "narrow down",
+      "definition_en": "To reduce the number of possibilities or choices.",
+      "definition_vi": "Giảm số lượng khả năng hoặc lựa chọn.",
+      "example": "That would help me narrow down the selection.",
+      "pos_tag": "PHRASAL_VERB"
+    },
+    {
+      "word": "minimalist",
+      "definition_en": "Involving the simplest and fewest elements; very plain and simple.",
+      "definition_vi": "Liên quan đến những yếu tố đơn giản và ít nhất; rất đơn giản và mộc mạc.",
+      "example": "She... tends to prefer minimalist accessories.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "flashy",
+      "definition_en": "Showy, bright, or ostentatious in a way that attracts attention.",
+      "definition_vi": "Hào nhoáng, sặc sỡ, hoặc phô trương một cách thu hút sự chú ý.",
+      "example": "...over anything too flashy.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "elegant",
+      "definition_en": "Graceful and stylish in appearance or manner.",
+      "definition_vi": "Thanh lịch và phong cách về ngoại hình hoặc cách thức.",
+      "example": "We have some elegant silk scarves...",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "delicate",
+      "definition_en": "Very fine in texture or structure; easily broken or damaged.",
+      "definition_vi": "Rất mịn về kết cấu hoặc cấu trúc; dễ vỡ hoặc hư hỏng.",
+      "example": "...and delicate silver jewelry...",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "price tag",
+      "definition_en": "A label showing the price of an item for sale.",
+      "definition_vi": "Nhãn hiển thị giá của một mặt hàng đang bán.",
+      "example": "I'm concerned about the price tag.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "seasonal promotion",
+      "definition_en": "A temporary sales campaign or discount offered during a specific time of year.",
+      "definition_vi": "Một chiến dịch bán hàng tạm thời hoặc giảm giá được áp dụng trong một thời điểm cụ thể trong năm.",
+      "example": "We are actually running a seasonal promotion.",
+      "pos_tag": "NOUN_PHRASE"
+    },
+    {
+      "word": "complement",
+      "definition_en": "To add to something in a way that enhances or improves it.",
+      "definition_vi": "Thêm vào thứ gì đó theo cách làm tăng cường hoặc cải thiện nó.",
+      "example": "They complement each other perfectly.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "complimentary",
+      "definition_en": "Given or supplied free of charge.",
+      "definition_vi": "Được tặng hoặc cung cấp miễn phí.",
+      "example": "We provide complimentary gift wrapping...",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "ring up",
+      "definition_en": "To record the sale of an item on a cash register.",
+      "definition_vi": "Ghi lại việc bán một mặt hàng trên máy tính tiền.",
+      "example": "I'll ring these up for you at the counter...",
+      "pos_tag": "PHRASAL_VERB"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "I'm looking for + [noun phrase]",
+      "explanation_en": "Used to express that you are trying to find a specific item or person.",
+      "explanation_vi": "Được sử dụng để diễn tả rằng bạn đang cố gắng tìm một món đồ hoặc một người cụ thể.",
+      "example": "I'm looking for a birthday gift for my sister..."
+    },
+    {
+      "pattern": "Could you tell me + [question clause]?",
+      "explanation_en": "A polite way to ask for information.",
+      "explanation_vi": "Một cách lịch sự để hỏi thông tin.",
+      "example": "Could you tell me a bit about her personal style or interests?"
+    },
+    {
+      "pattern": "I'd recommend + [gerund/noun phrase]",
+      "explanation_en": "Used to give a suggestion or advice.",
+      "explanation_vi": "Được sử dụng để đưa ra gợi ý hoặc lời khuyên.",
+      "example": "I'd recommend browsing this section."
+    },
+    {
+      "pattern": "I'm concerned about + [noun phrase]",
+      "explanation_en": "Used to express worry or anxiety regarding a specific issue.",
+      "explanation_vi": "Được sử dụng để bày tỏ sự lo lắng về một vấn đề cụ thể.",
+      "example": "I'm concerned about the price tag."
+    },
+    {
+      "pattern": "Would you like + [noun phrase/infinitive]?",
+      "explanation_en": "A polite way to offer something or inquire about someone's preference.",
+      "explanation_vi": "Một cách lịch sự để đề nghị điều gì đó hoặc hỏi về sở thích của ai đó.",
+      "example": "Would you like them gift-wrapped?"
+    }
+  ]
+}

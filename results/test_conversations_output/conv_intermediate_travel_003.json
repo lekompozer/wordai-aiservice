@@ -1,0 +1,188 @@
+{
+  "title_en": "Planning a Trip Abroad",
+  "title_vi": "Lên Kế Hoạch Cho Chuyến Đi Nước Ngoài",
+  "situation": "Alex is discussing his upcoming trip to Japan with his travel agent, Ms. Tanaka, to finalize arrangements and get advice.",
+  "dialogue": [
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I'm really looking forward to my trip to Japan next month, but I'm feeling a bit overwhelmed by all the logistics.",
+      "text_vi": "Tôi thực sự rất mong chờ chuyến đi Nhật Bản vào tháng tới, nhưng tôi cảm thấy hơi choáng ngợp bởi tất cả các vấn đề hậu cần.",
+      "order": 1
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "That's completely understandable. International travel can be daunting. Have you secured your accommodation and transportation passes yet?",
+      "text_vi": "Điều đó hoàn toàn dễ hiểu. Du lịch quốc tế có thể rất đáng sợ. Anh đã đảm bảo chỗ ở và các loại vé phương tiện công cộng chưa?",
+      "order": 2
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I've booked a hotel in Tokyo for the first week, but I'm considering venturing into more rural areas afterwards. Do you have any recommendations?",
+      "text_vi": "Tôi đã đặt một khách sạn ở Tokyo cho tuần đầu tiên, nhưng sau đó tôi đang cân nhắc việc mạo hiểm đến các vùng nông thôn hơn. Cô có đề xuất gì không?",
+      "order": 3
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Absolutely. I'd suggest exploring the Japanese Alps or the historic villages in Shirakawa-go. They offer a more authentic cultural experience.",
+      "text_vi": "Chắc chắn rồi. Tôi đề xuất nên khám phá dãy Alps Nhật Bản hoặc các ngôi làng lịch sử ở Shirakawa-go. Chúng mang đến trải nghiệm văn hóa chân thực hơn.",
+      "order": 4
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That sounds perfect. Regarding transportation, would it be more economical to purchase a Japan Rail Pass in advance?",
+      "text_vi": "Nghe có vẻ hoàn hảo. Về phương tiện di chuyển, liệu mua Japan Rail Pass trước có tiết kiệm hơn không?",
+      "order": 5
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "For extensive travel, it's undoubtedly the most cost-effective option. However, you must purchase it before you arrive, as it's not available domestically.",
+      "text_vi": "Đối với việc di chuyển nhiều, đó chắc chắn là lựa chọn tiết kiệm chi phí nhất. Tuy nhiên, anh phải mua nó trước khi đến, vì nó không có bán trong nước.",
+      "order": 6
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "I see. Another concern is communication. My Japanese is quite rudimentary. Will that be a significant barrier?",
+      "text_vi": "Tôi hiểu rồi. Một mối lo ngại khác là giao tiếp. Tiếng Nhật của tôi khá sơ đẳng. Liệu điều đó có phải là rào cản lớn không?",
+      "order": 7
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "In major cities, you'll manage with English and translation apps. In remote regions, it's advisable to learn a few essential phrases and carry a phrasebook.",
+      "text_vi": "Ở các thành phố lớn, anh sẽ xoay sở được với tiếng Anh và các ứng dụng dịch thuật. Ở các vùng xa xôi, nên học một vài cụm từ thiết yếu và mang theo sổ tay cụm từ.",
+      "order": 8
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "That's reassuring. I'll make sure to do that. Finally, is there any particular etiquette I should be mindful of to avoid causing offense?",
+      "text_vi": "Điều đó thật an tâm. Tôi sẽ đảm bảo làm điều đó. Cuối cùng, có quy tắc ứng xử cụ thể nào tôi nên lưu ý để tránh gây mất lòng không?",
+      "order": 9
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Yes, cultural sensitivity is crucial. For instance, you should always remove your shoes when entering someone's home and be punctual for all appointments.",
+      "text_vi": "Có, sự nhạy cảm văn hóa là rất quan trọng. Ví dụ, anh nên luôn cởi giày khi vào nhà ai đó và đúng giờ cho tất cả các cuộc hẹn.",
+      "order": 10
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "overwhelmed",
+      "definition_en": "Feeling buried or defeated by too many things to handle.",
+      "definition_vi": "Cảm thấy bị chôn vùi hoặc bị đánh bại bởi quá nhiều thứ phải xử lý.",
+      "example": "I'm feeling a bit overwhelmed by all the logistics.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "logistics",
+      "definition_en": "The detailed organization and implementation of a complex operation.",
+      "definition_vi": "Việc tổ chức và thực hiện chi tiết một hoạt động phức tạp.",
+      "example": "I'm feeling a bit overwhelmed by all the logistics.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "daunting",
+      "definition_en": "Seeming difficult to deal with in anticipation; intimidating.",
+      "definition_vi": "Có vẻ khó khăn để đối phó khi nghĩ tới; đáng sợ.",
+      "example": "International travel can be daunting.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "venturing",
+      "definition_en": "Daring to go somewhere or do something that may be dangerous or unpleasant.",
+      "definition_vi": "Mạo hiểm đi đến đâu đó hoặc làm điều gì đó có thể nguy hiểm hoặc khó chịu.",
+      "example": "I'm considering venturing into more rural areas afterwards.",
+      "pos_tag": "VERB"
+    },
+    {
+      "word": "authentic",
+      "definition_en": "Of undisputed origin; genuine, representing one's true nature or beliefs.",
+      "definition_vi": "Có nguồn gốc không thể chối cãi; chân thật, đại diện cho bản chất hoặc niềm tin thật sự.",
+      "example": "They offer a more authentic cultural experience.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "economical",
+      "definition_en": "Giving good value or return in relation to the money, time, or effort spent.",
+      "definition_vi": "Mang lại giá trị hoặc lợi ích tốt so với số tiền, thời gian hoặc công sức bỏ ra.",
+      "example": "Would it be more economical to purchase a Japan Rail Pass in advance?",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "cost-effective",
+      "definition_en": "Effective or productive in relation to its cost.",
+      "definition_vi": "Hiệu quả hoặc năng suất so với chi phí của nó.",
+      "example": "It's undoubtedly the most cost-effective option.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "rudimentary",
+      "definition_en": "Involving or limited to basic principles; at a very basic level.",
+      "definition_vi": "Liên quan hoặc giới hạn ở các nguyên tắc cơ bản; ở mức độ rất cơ bản.",
+      "example": "My Japanese is quite rudimentary.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "barrier",
+      "definition_en": "A circumstance or obstacle that prevents communication or progress.",
+      "definition_vi": "Một hoàn cảnh hoặc chướng ngại vật ngăn cản giao tiếp hoặc tiến triển.",
+      "example": "Will that be a significant barrier?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "punctual",
+      "definition_en": "Happening or doing something at the agreed or proper time.",
+      "definition_vi": "Xảy ra hoặc làm điều gì đó vào thời gian đã thỏa thuận hoặc thích hợp.",
+      "example": "Be punctual for all appointments.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "cultural sensitivity",
+      "definition_en": "The awareness and respect for cultural differences and similarities.",
+      "definition_vi": "Nhận thức và tôn trọng sự khác biệt và tương đồng văn hóa.",
+      "example": "Cultural sensitivity is crucial.",
+      "pos_tag": "PHRASE"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "I'm considering + [verb-ing]",
+      "explanation_en": "Used to express that you are thinking about doing something, often before making a decision.",
+      "explanation_vi": "Được dùng để diễn đạt rằng bạn đang suy nghĩ về việc làm gì đó, thường là trước khi đưa ra quyết định.",
+      "example": "I'm considering venturing into more rural areas afterwards."
+    },
+    {
+      "pattern": "Would it be + [comparative adjective] + to + [verb]?",
+      "explanation_en": "A polite and indirect way to ask for advice or compare options regarding an action.",
+      "explanation_vi": "Cách hỏi lịch sự và gián tiếp để xin lời khuyên hoặc so sánh các lựa chọn về một hành động.",
+      "example": "Would it be more economical to purchase a Japan Rail Pass in advance?"
+    },
+    {
+      "pattern": "[Subject] must + [base verb]",
+      "explanation_en": "Used to express a strong necessity or obligation, often based on rules or requirements.",
+      "explanation_vi": "Được dùng để diễn đạt sự cần thiết hoặc nghĩa vụ mạnh mẽ, thường dựa trên quy tắc hoặc yêu cầu.",
+      "example": "You must purchase it before you arrive."
+    },
+    {
+      "pattern": "It's advisable to + [base verb]",
+      "explanation_en": "Used to give a recommendation or suggest a wise course of action.",
+      "explanation_vi": "Được dùng để đưa ra lời khuyên hoặc đề xuất một hành động khôn ngoan.",
+      "example": "In remote regions, it's advisable to learn a few essential phrases."
+    },
+    {
+      "pattern": "[Subject] should + [base verb]",
+      "explanation_en": "Used to give advice or make a recommendation about what is good or right to do.",
+      "explanation_vi": "Được dùng để đưa ra lời khuyên hoặc đề xuất về điều gì là tốt hoặc đúng nên làm.",
+      "example": "You should always remove your shoes when entering someone's home."
+    }
+  ]
+}

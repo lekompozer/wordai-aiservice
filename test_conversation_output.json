@@ -1,0 +1,175 @@
+{
+  "title_en": "Ordering Lunch at a Restaurant",
+  "title_vi": "Gọi Món Trưa tại Nhà Hàng",
+  "situation": "A male customer (A) enters a restaurant and is greeted by a female waiter (B). He wants to order lunch.",
+  "dialogue": [
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Hello! Welcome. Table for one?",
+      "text_vi": "Xin chào! Chào mừng. Một người ạ?",
+      "order": 1
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Yes, please. Can I sit here?",
+      "text_vi": "Vâng, làm ơn. Tôi ngồi đây được không?",
+      "order": 2
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Of course. Here is the menu.",
+      "text_vi": "Tất nhiên rồi. Đây là thực đơn.",
+      "order": 3
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Thank you. I would like chicken soup and rice.",
+      "text_vi": "Cảm ơn. Tôi muốn súp gà và cơm.",
+      "order": 4
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Good choice. Would you like a drink?",
+      "text_vi": "Lựa chọn tốt đấy. Anh có muốn đồ uống không?",
+      "order": 5
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Yes. One orange juice, please.",
+      "text_vi": "Có. Một nước cam, làm ơn.",
+      "order": 6
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Okay. Your food will be ready soon.",
+      "text_vi": "Vâng. Đồ ăn của anh sẽ sẵn sàng sớm.",
+      "order": 7
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Great. Can I have the bill later?",
+      "text_vi": "Tuyệt. Tôi có thể lấy hóa đơn sau được không?",
+      "order": 8
+    },
+    {
+      "speaker": "B",
+      "gender": "female",
+      "text_en": "Sure. I will bring it after you eat.",
+      "text_vi": "Chắc chắn rồi. Tôi sẽ mang nó ra sau khi anh ăn xong.",
+      "order": 9
+    },
+    {
+      "speaker": "A",
+      "gender": "male",
+      "text_en": "Thank you very much.",
+      "text_vi": "Cảm ơn rất nhiều.",
+      "order": 10
+    }
+  ],
+  "vocabulary": [
+    {
+      "word": "menu",
+      "definition_en": "A list of food and drinks available at a restaurant.",
+      "definition_vi": "Danh sách đồ ăn và thức uống có sẵn tại nhà hàng.",
+      "example": "Here is the menu.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "soup",
+      "definition_en": "A liquid food made by cooking meat, vegetables, etc. in water.",
+      "definition_vi": "Món ăn dạng lỏng được nấu từ thịt, rau củ, v.v. trong nước.",
+      "example": "I would like chicken soup.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "rice",
+      "definition_en": "Small white or brown grains from a plant, used as food.",
+      "definition_vi": "Những hạt nhỏ màu trắng hoặc nâu từ một loại cây, dùng làm thức ăn.",
+      "example": "I would like chicken soup and rice.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "drink",
+      "definition_en": "A liquid that you can swallow, like water, juice, or soda.",
+      "definition_vi": "Chất lỏng bạn có thể uống, như nước, nước ép, hay nước ngọt.",
+      "example": "Would you like a drink?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "juice",
+      "definition_en": "The liquid from fruits or vegetables.",
+      "definition_vi": "Chất lỏng từ trái cây hoặc rau củ.",
+      "example": "One orange juice, please.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "bill",
+      "definition_en": "A piece of paper that shows how much money you must pay.",
+      "definition_vi": "Một tờ giấy cho biết số tiền bạn phải trả.",
+      "example": "Can I have the bill later?",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "would like",
+      "definition_en": "A polite way to say 'want'.",
+      "definition_vi": "Cách nói lịch sự của 'muốn'.",
+      "example": "I would like chicken soup.",
+      "pos_tag": "VERB PHRASE"
+    },
+    {
+      "word": "ready",
+      "definition_en": "Prepared and available to be used or eaten.",
+      "definition_vi": "Đã được chuẩn bị và sẵn sàng để dùng hoặc ăn.",
+      "example": "Your food will be ready soon.",
+      "pos_tag": "ADJ"
+    },
+    {
+      "word": "choice",
+      "definition_en": "The act of selecting something.",
+      "definition_vi": "Hành động lựa chọn một thứ gì đó.",
+      "example": "Good choice.",
+      "pos_tag": "NOUN"
+    },
+    {
+      "word": "welcome",
+      "definition_en": "A friendly greeting to someone who has arrived.",
+      "definition_vi": "Lời chào thân thiện với người vừa đến.",
+      "example": "Hello! Welcome.",
+      "pos_tag": "EXCLAMATION/VERB"
+    }
+  ],
+  "grammar_points": [
+    {
+      "pattern": "Can I + verb...?",
+      "explanation_en": "Used to ask for permission or to make a polite request.",
+      "explanation_vi": "Được dùng để xin phép hoặc đưa ra một yêu cầu lịch sự.",
+      "example": "Can I sit here? Can I have the bill later?"
+    },
+    {
+      "pattern": "I would like + noun.",
+      "explanation_en": "A polite way to state what you want to order or receive.",
+      "explanation_vi": "Cách lịch sự để nói bạn muốn gọi món hoặc nhận thứ gì.",
+      "example": "I would like chicken soup and rice."
+    },
+    {
+      "pattern": "Would you like + noun?",
+      "explanation_en": "A polite question to offer something to someone.",
+      "explanation_vi": "Câu hỏi lịch sự để đề nghị, mời ai đó thứ gì.",
+      "example": "Would you like a drink?"
+    },
+    {
+      "pattern": "Table for + number?",
+      "explanation_en": "A common question in restaurants to ask about the number of people.",
+      "explanation_vi": "Câu hỏi phổ biến trong nhà hàng để hỏi về số lượng người.",
+      "example": "Table for one?"
+    }
+  ]
+}
