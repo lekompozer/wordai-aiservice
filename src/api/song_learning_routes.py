@@ -1388,11 +1388,11 @@ async def admin_get_song(
     db=Depends(get_db),
 ):
     """
-    [ADMIN ONLY] Get full song details including all fields.
+    [ADMIN ONLY] Get full song details including lyrics_with_gaps.
 
     Admin: tienhoi.lh@gmail.com
 
-    Returns: Complete song information for editing
+    Returns: Complete song information with lyrics_with_gaps from song_gaps collection
     """
     song_lyrics_col = db["song_lyrics"]
     song_gaps_col = db["song_gaps"]
@@ -1405,9 +1405,18 @@ async def admin_get_song(
             detail=f"Song {song_id} not found",
         )
 
-    # Get available difficulties
+    # Get available difficulties and lyrics_with_gaps
     difficulties = song_gaps_col.distinct("difficulty", {"song_id": song_id})
     has_gaps = len(difficulties) > 0
+
+    # Get lyrics_with_gaps from first available difficulty (usually 'easy')
+    gap_doc = song_gaps_col.find_one(
+        {"song_id": song_id}, {"lyrics_with_gaps": 1, "_id": 0}
+    )
+
+    # Replace english_lyrics with lyrics_with_gaps for admin editing
+    if gap_doc and "lyrics_with_gaps" in gap_doc:
+        song["english_lyrics"] = gap_doc["lyrics_with_gaps"]
 
     return SongDetailResponse(
         **song,
@@ -1430,9 +1439,12 @@ async def admin_update_song(
 
     Request body: Fields to update (all optional)
 
+    IMPORTANT: english_lyrics updates lyrics_with_gaps in song_gaps collection
+
     Returns: Updated song details
     """
     song_lyrics_col = db["song_lyrics"]
+    song_gaps_col = db["song_gaps"]
 
     # Check if song exists
     song = song_lyrics_col.find_one({"song_id": song_id})
@@ -1442,7 +1454,7 @@ async def admin_update_song(
             detail=f"Song {song_id} not found",
         )
 
-    # Build update fields
+    # Build update fields for song_lyrics
     update_fields = {"updated_at": datetime.utcnow()}
 
     if request.title is not None:
@@ -1451,8 +1463,6 @@ async def admin_update_song(
         update_fields["artist"] = request.artist
     if request.category is not None:
         update_fields["category"] = request.category
-    if request.english_lyrics is not None:
-        update_fields["english_lyrics"] = request.english_lyrics
     if request.vietnamese_lyrics is not None:
         update_fields["vietnamese_lyrics"] = request.vietnamese_lyrics
     if request.youtube_url is not None:
@@ -1468,8 +1478,20 @@ async def admin_update_song(
     if request.has_profanity is not None:
         update_fields["has_profanity"] = request.has_profanity
 
-    # Update song
+    # Update song_lyrics collection
     song_lyrics_col.update_one({"song_id": song_id}, {"$set": update_fields})
+
+    # Update lyrics_with_gaps in song_gaps collection (for ALL difficulties)
+    if request.english_lyrics is not None:
+        song_gaps_col.update_many(
+            {"song_id": song_id},
+            {
+                "$set": {
+                    "lyrics_with_gaps": request.english_lyrics,
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
 
     # Return updated song
     return await admin_get_song(song_id, current_user, db)
