@@ -841,6 +841,16 @@ async def submit_answers(
 
         progress_col.insert_one(new_progress.model_dump())
 
+    # Update song statistics (view_count and updated_at)
+    song_lyrics_col = db["song_lyrics"]
+    song_lyrics_col.update_one(
+        {"song_id": song_id},
+        {
+            "$inc": {"view_count": 1},  # Increment view count
+            "$set": {"updated_at": datetime.utcnow()},  # Update timestamp
+        },
+    )
+
     return SubmitAnswersResponse(
         session_id=request.session_id,
         score=score,
