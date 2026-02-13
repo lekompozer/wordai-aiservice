@@ -242,16 +242,15 @@ async def generate_batch(batch: List[Dict], max_retries: int = 3) -> List[Dict]:
     raise RuntimeError("Max retries exceeded")
 
 
-def save_conversation(
-    conv_def: Dict, generated: Dict, db_manager: DBManager, conv_index: int
-) -> str:
-    """Save one conversation to MongoDB"""
+def save_conversation(conv_def: Dict, generated: Dict, db_manager: DBManager) -> str:
+    """Save conversation and vocabulary to MongoDB"""
 
     level = conv_def["level"]
     config = LEVEL_CONFIG[level]
 
-    # Use conversation index to ensure unique IDs (001-020 for each topic)
-    conversation_id = f"conv_{level.value}_{conv_def['topic_slug']}_{conv_def['topic_number']:02d}_{conv_index:03d}"
+    # CRITICAL: Use conversation_index from parsed file (1-20 for each topic), NOT global counter!
+    conversation_index = conv_def["conversation_index"]
+    conversation_id = f"conv_{level.value}_{conv_def['topic_slug']}_{conv_def['topic_number']:02d}_{conversation_index:03d}"
 
     full_text_en = " ".join([t["text_en"] for t in generated["dialogue"]])
     full_text_vi = " ".join([t["text_vi"] for t in generated["dialogue"]])
@@ -340,7 +339,6 @@ async def main():
 
     success = 0
     failed = 0
-    conv_index = 1  # Track global conversation index
 
     for i, batch in enumerate(batches, 1):
         print(f"[{i}/{total_batches}] Batch {i}: {len(batch)} conversations")
@@ -349,12 +347,11 @@ async def main():
             # Generate
             generated_list = await generate_batch(batch)
 
-            # Save each
+            # Save each (use conversation_index from parsed data, NOT global counter)
             for conv_def, generated in zip(batch, generated_list):
-                conv_id = save_conversation(conv_def, generated, db_manager, conv_index)
+                conv_id = save_conversation(conv_def, generated, db_manager)
                 print(f"  ✅ {conv_id}")
                 success += 1
-                conv_index += 1  # Increment for next conversation
 
             print()
 

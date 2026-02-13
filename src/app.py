@@ -207,6 +207,9 @@ from src.api.learning_routes import router as learning_router
 # ✅ ADDED: Song Learning API - English learning through song lyrics with gap-fill exercises
 from src.api.song_learning_routes import router as song_learning_router
 
+# ✅ ADDED: Conversation Learning API - English learning through conversations with gap-fill exercises
+from src.api.conversation_learning_routes import router as conversation_learning_router
+
 # ✅ ADDED: Song Subscription API - Premium subscription for unlimited songs
 from src.api.song_subscription_routes import router as song_subscription_router
 
@@ -1058,6 +1061,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Song Learning API - English learning through music (Phase 3-5 complete)
     app.include_router(song_learning_router, tags=["Song Learning"])
+
+    # ✅ ADDED: Conversation Learning API - English learning through conversations
+    app.include_router(conversation_learning_router, tags=["Conversation Learning"])
 
     # ✅ ADDED: Song Subscription API - Premium subscription for unlimited songs
     app.include_router(song_subscription_router, tags=["Song Subscription"])

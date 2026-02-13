@@ -21,6 +21,7 @@ Gender mapping:
 import sys
 import asyncio
 import argparse
+import random
 from typing import List, Dict
 from datetime import datetime
 
@@ -136,51 +137,71 @@ async def select_voices_by_gender(
     """
     Select voices based on gender in speaker roles
 
-    IMPORTANT: Use 5 voices per gender for variety (prevents duplicates)
-    - Male voices: Puck, Charon, Fenrir, Kore, Aoede (first 5 MALE voices)
-    - Female voices: Kore, Leda, Aoede, Nereid, Clio (first 5 FEMALE voices)
-    - Random rotation ensures different voice pairs for same-gender conversations
+    CRITICAL: Ensure different voices for same-gender conversations
+    - Male-Female: Random 1 male + 1 female from pool of 5 each
+    - Male-Male: Random 2 DIFFERENT males from pool of 5
+    - Female-Female: Random 2 DIFFERENT females from pool of 5
+
+    Random selection ensures variety across conversations
     """
 
     available_voices = await tts_service.get_available_voices("en")
     male_voices = [v for v in available_voices if v.get("gender") == "MALE"][
         :5
-    ]  # Use only 5
+    ]  # Top 5
     female_voices = [v for v in available_voices if v.get("gender") == "FEMALE"][
         :5
-    ]  # Use only 5
+    ]  # Top 5
 
+    # Count how many male/female speakers needed
+    num_male = sum(
+        1
+        for role in speaker_roles
+        if "male" in role.lower() and "female" not in role.lower()
+    )
+    num_female = sum(1 for role in speaker_roles if "female" in role.lower())
+
+    # Randomly select required number of voices (ensuring uniqueness for same-gender)
+    selected_male_voices = (
+        random.sample(male_voices, min(num_male, len(male_voices)))
+        if num_male > 0 and male_voices
+        else []
+    )
+    selected_female_voices = (
+        random.sample(female_voices, min(num_female, len(female_voices)))
+        if num_female > 0 and female_voices
+        else []
+    )
+
+    # Build final voice list matching speaker_roles order
     selected_voices = []
-    male_count = 0  # Track how many male voices selected
-    female_count = 0  # Track how many female voices selected
+    male_idx = 0
+    female_idx = 0
 
     for role in speaker_roles:
         role_lower = role.lower()
 
         if "male" in role_lower and "female" not in role_lower:
-            # Male speaker - use different voice for each male (Puck, Charon, Fenrir...)
-            if male_voices:
-                voice = male_voices[male_count % len(male_voices)]
-                selected_voices.append(voice["name"])
-                male_count += 1
+            # Male speaker
+            if male_idx < len(selected_male_voices):
+                selected_voices.append(selected_male_voices[male_idx]["name"])
+                male_idx += 1
             else:
                 selected_voices.append("Puck")  # Fallback
+
         elif "female" in role_lower:
-            # Female speaker - use different voice for each female (Kore, Leda, Aoede...)
-            if female_voices:
-                voice = female_voices[female_count % len(female_voices)]
-                selected_voices.append(voice["name"])
-                female_count += 1
+            # Female speaker
+            if female_idx < len(selected_female_voices):
+                selected_voices.append(selected_female_voices[female_idx]["name"])
+                female_idx += 1
             else:
                 selected_voices.append("Kore")  # Fallback
         else:
-            # Unknown - alternate
-            if len(selected_voices) % 2 == 0 and male_voices:
-                voice = male_voices[0]
-                selected_voices.append(voice["name"])
+            # Unknown - randomly pick
+            if random.choice([True, False]) and male_voices:
+                selected_voices.append(random.choice(male_voices)["name"])
             elif female_voices:
-                voice = female_voices[0]
-                selected_voices.append(voice["name"])
+                selected_voices.append(random.choice(female_voices)["name"])
             else:
                 selected_voices.append("Puck")
 

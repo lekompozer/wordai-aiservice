@@ -1,0 +1,1381 @@
+================================================================================
+DATABASE CONVERSATION LIBRARY - CURRENT STATE
+================================================================================
+
+📊 TOTAL: 576 conversations | 🎵 With audio: 456 | 🔇 Without audio: 120
+
+📁 Topics found in database: 24
+   Topic numbers: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24]
+
+
+================================================================================
+TOPIC 1: GREETINGS_INTRODUCTIONS
+================================================================================
+Total: 20 conversations
+🎵 With audio: 20 | 🔇 Without audio: 0
+
+  [ 1] 001 | 🎵 | Hello, How Are You?
+       └─ Xin chào, Bạn khỏe không?
+  [ 2] 002 | 🎵 | Nice to Meet You
+       └─ Rất vui được gặp bạn
+  [ 3] 003 | 🎵 | Introducing Yourself
+       └─ Tự giới thiệu bản thân
+  [ 4] 004 | 🎵 | Introducing a Friend
+       └─ Giới thiệu Bạn
+  [ 5] 005 | 🎵 | Meeting a Neighbor
+       └─ Gặp Hàng xóm
+  [ 6] 006 | 🎵 | Saying Goodbye
+       └─ Chào tạm biệt
+  [ 7] 007 | 🎵 | Catching Up with an Old Friend
+       └─ Trò chuyện với Bạn Cũ
+  [ 8] 008 | 🎵 | First Day at Work
+       └─ Ngày Đầu Đi Làm
+  [ 9] 009 | 🎵 | Meeting the Boss
+       └─ Gặp Mặt Sếp
+  [10] 010 | 🎵 | Talking About Your Hometown
+       └─ Nói Về Quê Hương Của Bạn
+  [11] 011 | 🎵 | What Do You Do?
+       └─ Bạn Làm Nghề Gì?
+  [12] 012 | 🎵 | How Was Your Weekend?
+       └─ Cuối Tuần Của Bạn Thế Nào?
+  [13] 013 | 🎵 | Asking About Someone’s Family
+       └─ Hỏi thăm về gia đình của ai đó
+  [14] 014 | 🎵 | Introducing Your Spouse
+       └─ Giới thiệu vợ/chồng của bạn
+  [15] 015 | 🎵 | Talking About Age
+       └─ Nói về tuổi tác
+  [16] 016 | 🎵 | Talking About Nationality
+       └─ Nói về Quốc tịch
+  [17] 017 | 🎵 | Saying Hello on the Phone
+       └─ Chào hỏi qua Điện thoại
+  [18] 018 | 🎵 | Greeting a Customer
+       └─ Chào hỏi Khách hàng
+  [19] 019 | 🎵 | Formal vs Informal Greetings
+       └─ Chào hỏi Trang trọng và Thân mật
+  [20] 020 | 🎵 | Ending a Conversation Politely
+       └─ Kết thúc Cuộc trò chuyện một cách Lịch sự
+
+
+================================================================================
+TOPIC 2: DAILY_ROUTINES
+================================================================================
+Total: 20 conversations
+🎵 With audio: 20 | 🔇 Without audio: 0
+
+  [ 1] 021 | 🎵 | Waking Up Early
+       └─ Thức dậy Sớm
+  [ 2] 022 | 🎵 | A Busy Day at the Office
+       └─ Một Ngày Bận Rộn Ở Văn Phòng
+  [ 3] 023 | 🎵 | Lunch Break Chat
+       └─ Trò Chuyện Giờ Nghỉ Trưa
+  [ 4] 024 | 🎵 | Afternoon Meetings
+       └─ Những Cuộc Họp Buổi Chiều
+  [ 5] 025 | 🎵 | Picking Up Kids from School
+       └─ Đón con tan học
+  [ 6] 026 | 🎵 | Cooking Dinner
+       └─ Nấu bữa tối
+  [ 7] 027 | 🎵 | Watching TV After Work
+       └─ Xem TV sau giờ làm
+  [ 8] 028 | 🎵 | Weekend Plans
+       └─ Kế hoạch cuối tuần
+  [ 9] 029 | 🎵 | Doing Chores
+       └─ Làm việc nhà
+  [10] 030 | 🎵 | Grocery Shopping
+       └─ Đi chợ mua đồ ăn
+  [11] 031 | 🎵 | Evening Walk
+       └─ Đi dạo buổi tối
+  [12] 032 | 🎵 | Reading Before Bed
+       └─ Đọc sách trước khi ngủ
+  [13] 033 | 🎵 | Going to Sleep
+       └─ Đi ngủ
+  [14] 034 | 🎵 | Working from Home
+       └─ Làm Việc Tại Nhà
+  [15] 035 | 🎵 | A Rainy Day Routine
+       └─ Thói Quen Vào Một Ngày Mưa
+  [16] 036 | 🎵 | Preparing for a Trip
+       └─ Chuẩn Bị Cho Một Chuyến Đi
+  [17] 037 | 🎵 | A Relaxing Sunday
+       └─ Một Ngày Chủ Nhật Thư Giãn
+  [18] 038 | 🎵 | A Rainy Day Routine
+       └─ Thói quen trong một ngày mưa
+  [19] 039 | 🎵 | Preparing for a Trip
+       └─ Chuẩn bị cho một chuyến đi
+  [20] 040 | 🎵 | A Relaxing Sunday
+       └─ Một ngày Chủ nhật thư giãn
+
+
+================================================================================
+TOPIC 3: FAMILY_RELATIONSHIPS
+================================================================================
+Total: 23 conversations
+🎵 With audio: 23 | 🔇 Without audio: 0
+
+  [ 1] 038 | 🎵 | Talking About Parents
+       └─ Nói Về Bố Mẹ
+  [ 2] 039 | 🎵 | Brothers and Sisters
+       └─ Anh Chị Em
+  [ 3] 040 | 🎵 | Visiting Grandparents
+       └─ Đi thăm ông bà
+  [ 4] 041 | 🎵 | Family Dinner
+       └─ Bữa tối gia đình
+  [ 5] 042 | 🎵 | Talking About Your Children
+       └─ Nói chuyện về con cái
+  [ 6] 043 | 🎵 | Wedding Plans
+       └─ Kế Hoạch Đám Cưới
+  [ 7] 044 | 🎵 | Anniversary Celebration
+       └─ Kỷ Niệm Ngày Cưới
+  [ 8] 045 | 🎵 | Moving in Together
+       └─ Chuyển Đến Ở Cùng Nhau
+  [ 9] 046 | 🎵 | Adoption Story
+       └─ Câu Chuyện Nhận Con Nuôi
+  [10] 047 | 🎵 | Family Vacation
+       └─ Kỳ Nghỉ Gia Đình
+  [11] 048 | 🎵 | Dealing with a Misunderstanding
+       └─ Giải Quyết Hiểu Lầm
+  [12] 049 | 🎵 | Asking for Parental Advice
+       └─ Xin lời khuyên từ bố mẹ
+  [13] 050 | 🎵 | Introducing Your Partner
+       └─ Giới thiệu bạn đời của bạn
+  [14] 051 | 🎵 | Breakup Conversation
+       └─ Cuộc trò chuyện chia tay
+  [15] 052 | 🎵 | Making Up After an Argument
+       └─ Làm Lành Sau Khi Cãi Nhau
+  [16] 053 | 🎵 | Talking About In-Laws
+       └─ Nói Chuyện Về Bố Mẹ Chồng/Vợ
+  [17] 054 | 🎵 | Family Traditions
+       └─ Những Truyền Thống Gia Đình
+  [18] 055 | 🎵 | Birth of a Baby
+       └─ Em Bé Chào Đời
+  [19] 056 | 🎵 | Funeral and Condolences
+       └─ Tang Lễ và Lời Chia Buồn
+  [20] 057 | 🎵 | Family Reunion
+       └─ Họp Mặt Gia Đình
+  [21] 058 | 🎵 | Birth of a Baby
+       └─ Em Bé Chào Đời
+  [22] 059 | 🎵 | Funeral and Condolences
+       └─ Tang Lễ và Lời Chia Buồn
+  [23] 060 | 🎵 | Family Reunion
+       └─ Họp Mặt Gia Đình
+
+
+================================================================================
+TOPIC 4: FOOD_DRINKS
+================================================================================
+Total: 23 conversations
+🎵 With audio: 23 | 🔇 Without audio: 0
+
+  [ 1] 058 | 🎵 | Making a Reservation
+       └─ Đặt bàn trước
+  [ 2] 059 | 🎵 | Ordering Fast Food
+       └─ Gọi đồ ăn nhanh
+  [ 3] 060 | 🎵 | Asking for the Menu
+       └─ Yêu cầu xem thực đơn
+  [ 4] 061 | 🎵 | Complimenting the Chef
+       └─ Khen đầu bếp
+  [ 5] 062 | 🎵 | Asking for the Bill
+       └─ Gọi tính tiền
+  [ 6] 063 | 🎵 | Talking About Allergies
+       └─ Nói về Dị ứng
+  [ 7] 064 | 🎵 | Vegetarian Options
+       └─ Các Lựa Chọn Ăn Chay
+  [ 8] 065 | 🎵 | Trying Local Food
+       └─ Thử Đồ Ăn Địa Phương
+  [ 9] 066 | 🎵 | Cooking Together
+       └─ Cùng Nhau Nấu Ăn
+  [10] 067 | 🎵 | Grocery Shopping List
+       └─ Danh Sách Đi Chợ
+  [11] 068 | 🎵 | Expiration Date Check
+       └─ Kiểm Tra Hạn Sử Dụng
+  [12] 069 | 🎵 | Baking a Cake
+       └─ Làm Bánh Ngọt
+  [13] 070 | 🎵 | Wine Tasting
+       └─ Thưởng thức rượu vang
+  [14] 071 | 🎵 | Street Food Adventure
+       └─ Chuyến phiêu lưu ẩm thực đường phố
+  [15] 072 | 🎵 | Late Night Snack
+       └─ Bữa ăn đêm muộn
+  [16] 073 | 🎵 | Dieting and Healthy Eating
+       └─ Ăn kiêng và Ăn uống Lành mạnh
+  [17] 074 | 🎵 | Celebrating with Champagne
+       └─ Ăn mừng với Sâm panh
+  [18] 075 | 🎵 | Baking a Cake
+       └─ Làm Bánh Ngọt
+  [19] 076 | 🎵 | Wine Tasting
+       └─ Thưởng Thức Rượu Vang
+  [20] 077 | 🎵 | Street Food Adventure
+       └─ Khám Phá Ẩm Thực Đường Phố
+  [21] 078 | 🎵 | Late Night Snack
+       └─ Ăn Khuya
+  [22] 079 | 🎵 | Dieting and Healthy Eating
+       └─ Ăn Kiêng và Ăn Uống Lành Mạnh
+  [23] 080 | 🎵 | Celebrating with Champagne
+       └─ Ăn Mừng Với Sâm-panh
+
+
+================================================================================
+TOPIC 5: SHOPPING
+================================================================================
+Total: 26 conversations
+🎵 With audio: 26 | 🔇 Without audio: 0
+
+  [ 1] 075 | 🎵 | At the Supermarket
+       └─ Ở Siêu thị
+  [ 2] 076 | 🎵 | Buying Clothes
+       └─ Mua Quần Áo
+  [ 3] 077 | 🎵 | Trying on Shoes
+       └─ Thử Giày
+  [ 4] 078 | 🎵 | Asking for a Discount
+       └─ Hỏi Giảm Giá
+  [ 5] 079 | 🎵 | Paying by Credit Card
+       └─ Thanh toán bằng thẻ tín dụng
+  [ 6] 080 | 🎵 | Returning an Item
+       └─ Trả lại hàng
+  [ 7] 081 | 🎵 | Exchanging a Gift
+       └─ Đổi quà
+  [ 8] 082 | 🎵 | At the Electronics Store
+       └─ Ở Cửa Hàng Điện Tử
+  [ 9] 083 | 🎵 | Buying a Phone
+       └─ Mua Điện Thoại
+  [10] 084 | 🎵 | Shopping for Furniture
+       └─ Mua Sắm Đồ Nội Thất
+  [11] 085 | 🎵 | At the Pharmacy
+       └─ Tại Hiệu Thuốc
+  [12] 086 | 🎵 | Buying Flowers
+       └─ Mua Hoa
+  [13] 087 | 🎵 | Gift Wrapping Service
+       └─ Dịch Vụ Gói Quà
+  [14] 088 | 🎵 | Black Friday Madness
+       └─ Cơn Sốt Black Friday
+  [15] 089 | 🎵 | Online Shopping Delivery
+       └─ Giao Hàng Mua Sắm Trực Tuyến
+  [16] 090 | 🎵 | At the Bookstore
+       └─ Ở Hiệu Sách
+  [17] 091 | 🎵 | Buying Cosmetics
+       └─ Mua Mỹ Phẩm
+  [18] 092 | 🎵 | Flea Market Bargaining
+       └─ Mặc Cả Ở Chợ Trời
+  [19] 093 | 🎵 | Shopping for a Wedding Gift
+       └─ Mua Quà Cưới
+  [20] 094 | 🎵 | Receiving a Refund
+       └─ Nhận Tiền Hoàn Lại
+  [21] 095 | 🎵 | Online Shopping Delivery
+       └─ Giao Hàng Mua Sắm Trực Tuyến
+  [22] 096 | 🎵 | At the Bookstore
+       └─ Ở Hiệu Sách
+  [23] 097 | 🎵 | Buying Cosmetics
+       └─ Mua Mỹ Phẩm
+  [24] 098 | 🎵 | Flea Market Bargaining
+       └─ Mặc cả ở Chợ Trời
+  [25] 099 | 🎵 | Shopping for a Wedding Gift
+       └─ Mua Quà Cưới
+  [26] 100 | 🎵 | Receiving a Refund
+       └─ Nhận Lại Tiền Hoàn
+
+
+================================================================================
+TOPIC 6: WEATHER_SEASONS
+================================================================================
+Total: 26 conversations
+🎵 With audio: 26 | 🔇 Without audio: 0
+
+  [ 1] 095 | 🎵 | A Sunny Day
+       └─ Một Ngày Nắng Đẹp
+  [ 2] 096 | 🎵 | Talking About Rain
+       └─ Nói Chuyện Về Trời Mưa
+  [ 3] 097 | 🎵 | Winter is Coming
+       └─ Mùa Đông Sắp Đến
+  [ 4] 098 | 🎵 | Hot Summer Weather
+       └─ Thời Tiết Mùa Hè Nóng Bức
+  [ 5] 099 | 🎵 | Planning a Picnic
+       └─ Lên Kế Hoạch Cho Một Buổi Dã Ngoại
+  [ 6] 100 | 🎵 | Thunderstorm Alert
+       └─ Cảnh Báo Mưa Dông
+  [ 7] 101 | 🎵 | Snow Day!
+       └─ Ngày Tuyết Rơi!
+  [ 8] 102 | 🎵 | Autumn Leaves
+       └─ Lá Mùa Thu
+  [ 9] 103 | 🎵 | What’s the Forecast?
+       └─ Dự báo thời tiết thế nào?
+  [10] 104 | 🎵 | Too Cold to Go Out
+       └─ Lạnh Quá Không Ra Ngoài Được
+  [11] 105 | 🎵 | Beach Weather
+       └─ Thời Tiết Đi Biển
+  [12] 106 | 🎵 | Packing for a Trip
+       └─ Chuẩn bị đồ cho chuyến đi
+  [13] 107 | 🎵 | Flooding in the City
+       └─ Ngập lụt trong thành phố
+  [14] 108 | 🎵 | Drought and Heatwave
+       └─ Hạn hán và Đợt nóng
+  [15] 109 | 🎵 | Climate Change Talk
+       └─ Nói về Biến đổi Khí hậu
+  [16] 110 | 🎵 | Favorite Season
+       └─ Mùa Yêu Thích
+  [17] 111 | 🎵 | Seasonal Allergies
+       └─ Dị ứng Theo Mùa
+  [18] 112 | 🎵 | Typhoon Warning
+       └─ Cảnh báo Bão
+  [19] 113 | 🎵 | Beautiful Sunset
+       └─ Hoàng hôn Tuyệt đẹp
+  [20] 114 | 🎵 | Starry Night
+       └─ Đêm Đầy Sao
+  [21] 115 | 🎵 | Climate Change Talk
+       └─ Nói Chuyện Về Biến Đổi Khí Hậu
+  [22] 116 | 🎵 | Favorite Season
+       └─ Mùa Yêu Thích
+  [23] 117 | 🎵 | Seasonal Allergies
+       └─ Dị Ứng Theo Mùa
+  [24] 118 | 🎵 | Typhoon Warning
+       └─ Cảnh báo Bão
+  [25] 119 | 🎵 | Beautiful Sunset
+       └─ Hoàng hôn Tuyệt đẹp
+  [26] 120 | 🎵 | Starry Night
+       └─ Đêm Đầy Sao
+
+
+================================================================================
+TOPIC 7: HOME_ACCOMMODATION
+================================================================================
+Total: 26 conversations
+🎵 With audio: 26 | 🔇 Without audio: 0
+
+  [ 1] 115 | 🎵 | Renting an Apartment
+       └─ Thuê Căn Hộ
+  [ 2] 116 | 🎵 | Buying a House
+       └─ Mua Nhà
+  [ 3] 117 | 🎵 | Talking to a Landlord
+       └─ Nói Chuyện Với Chủ Nhà
+  [ 4] 118 | 🎵 | Fixing a Leaky Faucet
+       └─ Sửa Vòi Nước Bị Rò Rỉ
+  [ 5] 119 | 🎵 | Decorating the Living Room
+       └─ Trang Trí Phòng Khách
+  [ 6] 120 | 🎵 | Moving Day
+       └─ Ngày Chuyển Nhà
+  [ 7] 121 | 🎵 | Roommate Wanted
+       └─ Tìm Bạn Ở Ghép
+  [ 8] 122 | 🎵 | Paying the Rent
+       └─ Thanh Toán Tiền Thuê
+  [ 9] 123 | 🎵 | Setting Up Wi-Fi
+       └─ Lắp Đặt Wi-Fi
+  [10] 124 | 🎵 | Complaining About Noise
+       └─ Phàn nàn về tiếng ồn
+  [11] 125 | 🎵 | Lost Keys
+       └─ Làm mất chìa khóa
+  [12] 126 | 🎵 | Housewarming Party
+       └─ Tiệc tân gia
+  [13] 127 | 🎵 | Cleaning the House
+       └─ Dọn dẹp nhà cửa
+  [14] 128 | 🎵 | Gardening Tips
+       └─ Mẹo làm vườn
+  [15] 129 | 🎵 | Pet in the House
+       └─ Thú cưng trong nhà
+  [16] 130 | 🎵 | Smart Home Devices
+       └─ Thiết Bị Nhà Thông Minh
+  [17] 131 | 🎵 | Safety and Security
+       └─ An Toàn và An Ninh
+  [18] 132 | 🎵 | Selling a Property
+       └─ Bán Bất Động Sản
+  [19] 133 | 🎵 | Visiting a Showroom
+       └─ Tham Quan Căn Hộ Mẫu
+  [20] 134 | 🎵 | Dream Home Talk
+       └─ Nói Chuyện Về Ngôi Nhà Mơ Ước
+  [21] 135 | 🎵 | Pet in the House
+       └─ Thú cưng trong nhà
+  [22] 136 | 🎵 | Smart Home Devices
+       └─ Thiết bị nhà thông minh
+  [23] 137 | 🎵 | Safety and Security
+       └─ An toàn và An ninh
+  [24] 138 | 🎵 | Selling a Property
+       └─ Bán Nhà
+  [25] 139 | 🎵 | Visiting a Showroom
+       └─ Thăm Phòng Trưng Bày
+  [26] 140 | 🎵 | Dream Home Talk
+       └─ Nói Chuyện Về Ngôi Nhà Mơ Ước
+
+
+================================================================================
+TOPIC 8: TRANSPORTATION
+================================================================================
+Total: 26 conversations
+🎵 With audio: 26 | 🔇 Without audio: 0
+
+  [ 1] 135 | 🎵 | Taking a Bus
+       └─ Đi Xe Buýt
+  [ 2] 136 | 🎵 | Buying a Train Ticket
+       └─ Mua Vé Tàu Hỏa
+  [ 3] 137 | 🎵 | Calling a Taxi
+       └─ Gọi Taxi
+  [ 4] 138 | 🎵 | Using Grab/Uber
+       └─ Sử Dụng Grab/Uber
+  [ 5] 139 | 🎵 | Subway Map
+       └─ Bản Đồ Tàu Điện Ngầm
+  [ 6] 140 | 🎵 | Traffic Jam
+       └─ Kẹt Xe
+  [ 7] 141 | 🎵 | Flat Tire on the Road
+       └─ Xe Bị Xịt Lốp Trên Đường
+  [ 8] 142 | 🎵 | Renting a Car
+       └─ Thuê Xe Ô Tô
+  [ 9] 143 | 🎵 | Buying a Used Car
+       └─ Mua Xe Ô Tô Đã Qua Sử Dụng
+  [10] 144 | 🎵 | At the Gas Station
+       └─ Tại Trạm Xăng
+  [11] 145 | 🎵 | Bicycle Commuting
+       └─ Đi Làm Bằng Xe Đạp
+  [12] 146 | 🎵 | Walking Directions
+       └─ Chỉ Đường Đi Bộ
+  [13] 147 | 🎵 | Flight Check-in
+       └─ Làm Thủ Tục Chuyến Bay
+  [14] 148 | 🎵 | Boarding the Plane
+       └─ Lên Máy Bay
+  [15] 149 | 🎵 | Lost Luggage
+       └─ Hành Lý Thất Lạc
+  [16] 150 | 🎵 | Delay Announcement
+       └─ Thông Báo Trễ Chuyến
+  [17] 151 | 🎵 | First Class vs Economy
+       └─ Hạng Nhất và Hạng Phổ Thông
+  [18] 152 | 🎵 | Airport Pickup
+       └─ Đón ở Sân bay
+  [19] 153 | 🎵 | Driving Test
+       └─ Bài Thi Lái Xe
+  [20] 154 | 🎵 | Parking Problems
+       └─ Vấn đề đỗ xe
+  [21] 155 | 🎵 | Lost Luggage
+       └─ Hành Lý Thất Lạc
+  [22] 156 | 🎵 | Delay Announcement
+       └─ Thông Báo Chuyến Bay Trễ
+  [23] 157 | 🎵 | First Class vs Economy
+       └─ Hạng Nhất và Hạng Phổ Thông
+  [24] 158 | 🎵 | Airport Pickup
+       └─ Đón ở Sân bay
+  [25] 159 | 🎵 | Driving Test
+       └─ Bài Thi Lái Xe
+  [26] 160 | 🎵 | Parking Problems
+       └─ Vấn đề Đỗ Xe
+
+
+================================================================================
+TOPIC 9: HEALTH_BODY
+================================================================================
+Total: 26 conversations
+🎵 With audio: 26 | 🔇 Without audio: 0
+
+  [ 1] 155 | 🎵 | Making a Doctor’s Appointment
+       └─ Đặt lịch hẹn bác sĩ
+  [ 2] 156 | 🎵 | Describing Symptoms
+       └─ Miêu tả triệu chứng
+  [ 3] 157 | 🎵 | At the Pharmacy
+       └─ Tại Hiệu Thuốc
+  [ 4] 158 | 🎵 | Dental Check-up
+       └─ Khám Răng
+  [ 5] 159 | 🎵 | Flu Season
+       └─ Mùa Cúm
+  [ 6] 160 | 🎵 | Talking About Exercise
+       └─ Nói về Việc Tập Thể Dục
+  [ 7] 161 | 🎵 | Gym Membership
+       └─ Thành Viên Phòng Tập
+  [ 8] 162 | 🎵 | Yoga Class
+       └─ Lớp Học Yoga
+  [ 9] 163 | 🎵 | Healthy Eating Habits
+       └─ Thói quen ăn uống lành mạnh
+  [10] 164 | 🎵 | Sleep Problems
+       └─ Vấn đề về giấc ngủ
+  [11] 165 | 🎵 | Feeling Stressed
+       └─ Cảm thấy căng thẳng
+  [12] 166 | 🎵 | Mental Health Talk
+       └─ Trò chuyện về Sức khỏe Tinh thần
+  [13] 167 | 🎵 | Visiting a Relative in Hospital
+       └─ Thăm Người thân trong Bệnh viện
+  [14] 168 | 🎵 | Pregnancy Check-up
+       └─ Khám thai Định kỳ
+  [15] 169 | 🎵 | Eye Exam
+       └─ Khám Mắt
+  [16] 170 | 🎵 | Getting a Vaccination
+       └─ Tiêm Vắc-xin
+  [17] 171 | 🎵 | Allergy Attack
+       └─ Cơn Dị Ứng
+  [18] 172 | 🎵 | Sprained Ankle
+       └─ Bong Gân Mắt Cá Chân
+  [19] 173 | 🎵 | Calling an Ambulance
+       └─ Gọi Xe Cứu Thương
+  [20] 174 | 🎵 | Recovery After Surgery
+       └─ Hồi Phục Sau Phẫu Thuật
+  [21] 175 | 🎵 | Eye Exam
+       └─ Khám Mắt
+  [22] 176 | 🎵 | Getting a Vaccination
+       └─ Tiêm Vắc-xin
+  [23] 177 | 🎵 | Allergy Attack
+       └─ Cơn Dị Ứng
+  [24] 178 | 🎵 | Sprained Ankle
+       └─ Bong Gân Mắt Cá Chân
+  [25] 179 | 🎵 | Calling an Ambulance
+       └─ Gọi Xe Cứu Thương
+  [26] 180 | 🎵 | Recovery After Surgery
+       └─ Hồi Phục Sau Phẫu Thuật
+
+
+================================================================================
+TOPIC 10: HOBBIES_INTERESTS
+================================================================================
+Total: 26 conversations
+🎵 With audio: 26 | 🔇 Without audio: 0
+
+  [ 1] 175 | 🎵 | Talking About Music
+       └─ Nói Chuyện Về Âm Nhạc
+  [ 2] 176 | 🎵 | Learning an Instrument
+       └─ Học Chơi Nhạc Cụ
+  [ 3] 177 | 🎵 | Photography Hobby
+       └─ Sở Thích Nhiếp Ảnh
+  [ 4] 178 | 🎵 | Reading Books
+       └─ Đọc Sách
+  [ 5] 179 | 🎵 | Watching Movies
+       └─ Xem Phim
+  [ 6] 180 | 🎵 | Binge-Watching Series
+       └─ Xem Phim Dài Tập Một Mạch
+  [ 7] 181 | 🎵 | Playing Video Games
+       └─ Chơi Trò Chơi Điện Tử
+  [ 8] 182 | 🎵 | Gardening
+       └─ Làm Vườn
+  [ 9] 183 | 🎵 | Cooking as a Hobby
+       └─ Nấu Ăn Như Một Sở Thích
+  [10] 184 | 🎵 | Collecting Stamps
+       └─ Sưu Tầm Tem
+  [11] 185 | 🎵 | Dancing Class
+       └─ Lớp Học Khiêu Vũ
+  [12] 186 | 🎵 | Karaoke Night
+       └─ Đêm Hát Karaoke
+  [13] 187 | 🎵 | Writing a Blog
+       └─ Viết Blog
+  [14] 188 | 🎵 | DIY Projects
+       └─ Dự Án Tự Làm
+  [15] 189 | 🎵 | Board Game Night
+       └─ Tối Chơi Board Game
+  [16] 190 | 🎵 | Bird Watching
+       └─ Quan sát Chim
+  [17] 191 | 🎵 | Starting a New Hobby
+       └─ Bắt đầu một Sở thích Mới
+  [18] 192 | 🎵 | Fishing Trip
+       └─ Chuyến Đi Câu Cá
+  [19] 193 | 🎵 | Collecting Stamps
+       └─ Sưu Tầm Tem
+  [20] 194 | 🎵 | Dancing Class
+       └─ Lớp Học Khiêu Vũ
+  [21] 195 | 🎵 | Karaoke Night
+       └─ Đêm Hát Karaoke
+  [22] 196 | 🎵 | Writing a Blog
+       └─ Viết Blog
+  [23] 197 | 🎵 | DIY Projects
+       └─ Dự Án Tự Làm
+  [24] 198 | 🎵 | Board Game Night
+       └─ Buổi Tối Chơi Board Game
+  [25] 199 | 🎵 | Bird Watching
+       └─ Quan Sát Chim
+  [26] 200 | 🎵 | Starting a New Hobby
+       └─ Bắt Đầu Một Sở Thích Mới
+
+
+================================================================================
+TOPIC 11: WORK_OFFICE
+================================================================================
+Total: 29 conversations
+🎵 With audio: 29 | 🔇 Without audio: 0
+
+  [ 1] 192 | 🎵 | Job Interview
+       └─ Phỏng vấn Xin việc
+  [ 2] 193 | 🎵 | First Day at Work
+       └─ Ngày Đầu Đi Làm
+  [ 3] 194 | 🎵 | Talking to Your Boss
+       └─ Nói Chuyện Với Sếp
+  [ 4] 195 | 🎵 | Team Meeting
+       └─ Cuộc Họp Nhóm
+  [ 5] 196 | 🎵 | Project Presentation
+       └─ Thuyết trình Dự án
+  [ 6] 197 | 🎵 | Asking for a Raise
+       └─ Đề nghị Tăng lương
+  [ 7] 198 | 🎵 | Requesting Leave
+       └─ Xin nghỉ phép
+  [ 8] 199 | 🎵 | Resignation Letter
+       └─ Thư Xin Thôi Việc
+  [ 9] 200 | 🎵 | Work Deadline Pressure
+       └─ Áp Lực Deadline Công Việc
+  [10] 201 | 🎵 | Colleague Conflict
+       └─ Mâu Thuẫn Đồng Nghiệp
+  [11] 202 | 🎵 | Office Gossip
+       └─ Tin Đồn Văn Phòng
+  [12] 203 | 🎵 | Company Party
+       └─ Tiệc Công Ty
+  [13] 204 | 🎵 | Business Lunch
+       └─ Bữa Trưa Công Việc
+  [14] 205 | 🎵 | Working Overtime
+       └─ Làm Thêm Giờ
+  [15] 206 | 🎵 | Performance Review
+       └─ Đánh Giá Hiệu Suất
+  [16] 207 | 🎵 | Mentoring a Junior
+       └─ Hướng Dẫn Nhân Viên Mới
+  [17] 208 | 🎵 | Internship Experience
+       └─ Kinh Nghiệm Thực Tập
+  [18] 209 | 🎵 | Remote Work Setup
+       └─ Thiết Lập Làm Việc Từ Xa
+  [19] 210 | 🎵 | Office Relocation
+       └─ Di Dời Văn Phòng
+  [20] 211 | 🎵 | Retirement Party
+       └─ Tiệc Chia Tay Nghỉ Hưu
+  [21] 212 | 🎵 | Company Party
+       └─ Tiệc Công Ty
+  [22] 213 | 🎵 | Business Lunch
+       └─ Bữa Trưa Công Việc
+  [23] 214 | 🎵 | Working Overtime
+       └─ Làm Thêm Giờ
+  [24] 215 | 🎵 | Performance Review
+       └─ Buổi Đánh Giá Hiệu Suất
+  [25] 216 | 🎵 | Mentoring a Junior
+       └─ Hướng Dẫn Nhân Viên Mới
+  [26] 217 | 🎵 | Internship Experience
+       └─ Kinh Nghiệm Thực Tập
+  [27] 218 | 🎵 | Remote Work Setup
+       └─ Thiết Lập Làm Việc Từ Xa
+  [28] 219 | 🎵 | Office Relocation
+       └─ Di Dời Văn Phòng
+  [29] 220 | 🎵 | Retirement Party
+       └─ Tiệc Mừng Nghỉ Hưu
+
+
+================================================================================
+TOPIC 12: TRAVEL_TOURISM
+================================================================================
+Total: 29 conversations
+🎵 With audio: 29 | 🔇 Without audio: 0
+
+  [ 1] 212 | 🎵 | Planning a Vacation
+       └─ Lên Kế Hoạch Cho Một Kỳ Nghỉ
+  [ 2] 213 | 🎵 | Booking a Hotel
+       └─ Đặt Phòng Khách Sạn
+  [ 3] 214 | 🎵 | Checking In
+       └─ Nhận Phòng
+  [ 4] 215 | 🎵 | Room Service
+       └─ Dịch Vụ Phòng
+  [ 5] 216 | 🎵 | Asking for Tourist Info
+       └─ Hỏi Thông Tin Du Lịch
+  [ 6] 217 | 🎵 | Lost in a City
+       └─ Lạc Đường Trong Thành Phố
+  [ 7] 218 | 🎵 | Taking Photos
+       └─ Chụp Ảnh
+  [ 8] 219 | 🎵 | Souvenir Shopping
+       └─ Mua Quà Lưu Niệm
+  [ 9] 220 | 🎵 | Trying Local Cuisine
+       └─ Thưởng Thức Ẩm Thực Địa Phương
+  [10] 221 | 🎵 | Exchanging Currency
+       └─ Đổi Tiền Tệ
+  [11] 222 | 🎵 | At the Airport
+       └─ Tại Sân Bay
+  [12] 223 | 🎵 | Renting a Motorbike
+       └─ Thuê Xe Máy
+  [13] 224 | 🎵 | Beach Holiday
+       └─ Kỳ Nghỉ Ở Biển
+  [14] 225 | 🎵 | Mountain Trekking
+       └─ Đi Bộ Đường Dài Trên Núi
+  [15] 226 | 🎵 | City Tour
+       └─ Tham Quan Thành Phố
+  [16] 227 | 🎵 | Museum Visit
+       └─ Tham Quan Bảo Tàng
+  [17] 228 | 🎵 | Cultural Etiquette
+       └─ Phép Lịch Sự Văn Hóa
+  [18] 229 | 🎵 | Travel Insurance
+       └─ Bảo Hiểm Du Lịch
+  [19] 230 | 🎵 | Emergency Abroad
+       └─ Tình Huống Khẩn Cấp Ở Nước Ngoài
+  [20] 231 | 🎵 | Sharing Travel Memories
+       └─ Chia Sẻ Kỷ Niệm Du Lịch
+  [21] 232 | 🎵 | Renting a Motorbike
+       └─ Thuê Xe Máy
+  [22] 233 | 🎵 | Beach Holiday
+       └─ Kỳ Nghỉ Biển
+  [23] 234 | 🎵 | Mountain Trekking
+       └─ Đi Bộ Đường Dài Trên Núi
+  [24] 235 | 🎵 | City Tour
+       └─ Tham Quan Thành Phố
+  [25] 236 | 🎵 | Museum Visit
+       └─ Thăm Bảo Tàng
+  [26] 237 | 🎵 | Cultural Etiquette
+       └─ Phép Lịch Sự Văn Hóa
+  [27] 238 | 🎵 | Travel Insurance
+       └─ Bảo Hiểm Du Lịch
+  [28] 239 | 🎵 | Emergency Abroad
+       └─ Tình Huống Khẩn Cấp Ở Nước Ngoài
+  [29] 240 | 🎵 | Sharing Travel Memories
+       └─ Chia Sẻ Kỷ Niệm Du Lịch
+
+
+================================================================================
+TOPIC 13: EDUCATION_LEARNING
+================================================================================
+Total: 29 conversations
+🎵 With audio: 14 | 🔇 Without audio: 15
+
+  [ 1] 232 | 🎵 | Choosing a University
+       └─ Lựa Chọn Trường Đại Học
+  [ 2] 233 | 🎵 | Applying for a Course
+       └─ Đăng Ký Một Khóa Học
+  [ 3] 234 | 🎵 | First Day at School
+       └─ Ngày Đầu Tiên Đi Học
+  [ 4] 235 | 🎵 | Talking to a Teacher
+       └─ Trò chuyện với Giáo viên
+  [ 5] 236 | 🎵 | Group Study
+       └─ Học Nhóm
+  [ 6] 237 | 🎵 | Homework Help
+       └─ Giúp đỡ Bài tập về nhà
+  [ 7] 238 | 🎵 | Exam Stress
+       └─ Áp Lực Thi Cử
+  [ 8] 239 | 🎵 | Cheating Scandal
+       └─ Vụ Bê Bối Gian Lận
+  [ 9] 240 | 🎵 | Graduation Day
+       └─ Ngày Tốt Nghiệp
+  [10] 241 | 🎵 | Studying Abroad
+       └─ Du học
+  [11] 242 | 🔇 | Online Learning
+       └─ Học trực tuyến
+  [12] 243 | 🔇 | Scholarship Application
+       └─ Đơn xin học bổng
+  [13] 244 | 🔇 | Dropping a Class
+       └─ Xin Thôi Học Một Môn
+  [14] 245 | 🔇 | Academic Advisor Meeting
+       └─ Cuộc Họp với Cố vấn Học tập
+  [15] 246 | 🔇 | Science Fair
+       └─ Hội chợ Khoa học
+  [16] 247 | 🔇 | Language Exchange
+       └─ Trao Đổi Ngôn Ngữ
+  [17] 248 | 🔇 | Library Rules
+       └─ Nội Quy Thư Viện
+  [18] 249 | 🔇 | Student Loan
+       └─ Khoản Vay Sinh Viên
+  [19] 250 | 🔇 | Studying Abroad
+       └─ Du học
+  [20] 251 | 🔇 | Online Learning
+       └─ Học trực tuyến
+  [21] 252 | 🔇 | Scholarship Application
+       └─ Đơn xin học bổng
+  [22] 253 | 🔇 | Dropping a Class
+       └─ Xin Thôi Học Một Môn
+  [23] 254 | 🔇 | Academic Advisor Meeting
+       └─ Buổi Gặp Cố Vấn Học Tập
+  [24] 255 | 🔇 | Science Fair
+       └─ Hội chợ Khoa học
+  [25] 256 | 🔇 | Language Exchange
+       └─ Trao đổi Ngôn ngữ
+  [26] 257 | 🎵 | Library Rules
+       └─ Nội quy Thư viện
+  [27] 258 | 🎵 | Student Loan
+       └─ Khoản vay Sinh viên
+  [28] 259 | 🎵 | Internship Opportunity
+       └─ Cơ Hội Thực Tập
+  [29] 260 | 🎵 | Alumni Network
+       └─ Mạng Lưới Cựu Sinh Viên
+
+
+================================================================================
+TOPIC 14: TECHNOLOGY_INTERNET
+================================================================================
+Total: 31 conversations
+🎵 With audio: 16 | 🔇 Without audio: 15
+
+  [ 1] 250 | 🔇 | Smartphone Comparison
+       └─ So Sánh Điện Thoại Thông Minh
+  [ 2] 251 | 🔇 | Social Media Addiction
+       └─ Nghiện Mạng Xã Hội
+  [ 3] 252 | 🔇 | Creating a Website
+       └─ Tạo Một Trang Web
+  [ 4] 253 | 🔇 | App Development Idea
+       └─ Ý tưởng Phát triển Ứng dụng
+  [ 5] 254 | 🔇 | Cybersecurity Tips
+       └─ Mẹo An ninh Mạng
+  [ 6] 255 | 🔇 | Email Phishing Scam
+       └─ Thư lừa đảo Giả mạo Email
+  [ 7] 256 | 🔇 | Cloud Storage
+       └─ Lưu Trữ Đám Mây
+  [ 8] 257 | 🎵 | Video Call Setup
+       └─ Thiết Lập Cuộc Gọi Video
+  [ 9] 258 | 🎵 | Gaming Setup
+       └─ Thiết Lập Chơi Game
+  [10] 259 | 🎵 | VR Experience
+       └─ Trải Nghiệm Thực Tế Ảo
+  [11] 260 | 🎵 | Drone Flying
+       └─ Bay Máy Bay Không Người Lái
+  [12] 261 | 🎵 | Smart Home
+       └─ Ngôi Nhà Thông Minh
+  [13] 262 | 🎵 | Electric Car
+       └─ Xe Ô Tô Điện
+  [14] 263 | 🔇 | AI in Daily Life
+       └─ Trí Tuệ Nhân Tạo Trong Cuộc Sống Hàng Ngày
+  [15] 264 | 🔇 | Cryptocurrency Talk
+       └─ Câu Chuyện Về Tiền Mã Hóa
+  [16] 265 | 🔇 | Dating App Experience
+       └─ Trải Nghiệm Ứng Dụng Hẹn Hò
+  [17] 266 | 🔇 | Online Privacy
+       └─ Quyền Riêng Tư Trực Tuyến
+  [18] 267 | 🔇 | Tech Support Call
+       └─ Cuộc Gọi Hỗ Trợ Kỹ Thuật
+  [19] 268 | 🔇 | Future of Technology
+       └─ Tương Lai Của Công Nghệ
+  [20] 269 | 🎵 | Video Call Setup
+       └─ Thiết Lập Cuộc Gọi Video
+  [21] 270 | 🎵 | Gaming Setup
+       └─ Thiết lập Máy chơi Game
+  [22] 271 | 🔇 | VR Experience
+       └─ Trải nghiệm Thực tế Ảo
+  [23] 272 | 🔇 | Drone Flying
+       └─ Điều khiển Máy bay Không người lái
+  [24] 273 | 🎵 | Smart Home
+       └─ Ngôi Nhà Thông Minh
+  [25] 274 | 🎵 | Electric Car
+       └─ Xe Ô Tô Điện
+  [26] 275 | 🎵 | AI in Daily Life
+       └─ Trí Tuệ Nhân Tạo Trong Cuộc Sống Hàng Ngày
+  [27] 276 | 🎵 | Cryptocurrency Talk
+       └─ Trò Chuyện Về Tiền Điện Tử
+  [28] 277 | 🎵 | Dating App Experience
+       └─ Trải Nghiệm Ứng Dụng Hẹn Hò
+  [29] 278 | 🎵 | Online Privacy
+       └─ Quyền Riêng Tư Trực Tuyến
+  [30] 279 | 🎵 | Tech Support Call
+       └─ Cuộc gọi Hỗ trợ Kỹ thuật
+  [31] 280 | 🎵 | Future of Technology
+       └─ Tương lai của Công nghệ
+
+
+================================================================================
+TOPIC 15: SOCIAL_ISSUES
+================================================================================
+Total: 32 conversations
+🎵 With audio: 18 | 🔇 Without audio: 14
+
+  [ 1] 269 | 🔇 | Gender Equality
+       └─ Bình Đẳng Giới
+  [ 2] 270 | 🎵 | Racial Discrimination
+       └─ Phân Biệt Chủng Tộc
+  [ 3] 271 | 🎵 | Climate Change Protest
+       └─ Biểu tình về Biến đổi Khí hậu
+  [ 4] 272 | 🎵 | Plastic Pollution
+       └─ Ô nhiễm Nhựa
+  [ 5] 273 | 🎵 | Animal Rights
+       └─ Quyền Động vật
+  [ 6] 274 | 🎵 | Poverty in the City
+       └─ Nghèo đói trong thành phố
+  [ 7] 275 | 🎵 | Homelessness
+       └─ Tình trạng vô gia cư
+  [ 8] 276 | 🎵 | Mental Health Awareness
+       └─ Nhận thức về Sức khỏe Tâm thần
+  [ 9] 277 | 🔇 | Bullying at School
+       └─ Bắt nạt học đường
+  [10] 278 | 🔇 | Age Discrimination
+       └─ Phân biệt tuổi tác
+  [11] 279 | 🔇 | LGBTQ+ Rights
+       └─ Quyền của cộng đồng LGBTQ+
+  [12] 280 | 🔇 | Freedom of Speech
+       └─ Tự Do Ngôn Luận
+  [13] 281 | 🔇 | Vaccine Debate
+       └─ Tranh Luận Về Vắc-xin
+  [14] 282 | 🔇 | Wealth Inequality
+       └─ Bất Bình Đẳng Thu Nhập
+  [15] 283 | 🔇 | Child Labor
+       └─ Lao động trẻ em
+  [16] 284 | 🔇 | Human Trafficking
+       └─ Buôn bán người
+  [17] 285 | 🔇 | Education for All
+       └─ Giáo dục cho mọi người
+  [18] 286 | 🔇 | Clean Water Crisis
+       └─ Cuộc Khủng Hoảng Nước Sạch
+  [19] 287 | 🎵 | Sustainable Living
+       └─ Lối Sống Bền Vững
+  [20] 288 | 🎵 | Volunteering for a Cause
+       └─ Tình Nguyện Vì Một Lý Tưởng
+  [21] 289 | 🔇 | Bullying at School
+       └─ Bắt nạt ở Trường học
+  [22] 290 | 🔇 | Age Discrimination
+       └─ Phân biệt tuổi tác
+  [23] 291 | 🔇 | LGBTQ+ Rights
+       └─ Quyền của cộng đồng LGBTQ+
+  [24] 292 | 🎵 | Freedom of Speech
+       └─ Tự do ngôn luận
+  [25] 293 | 🎵 | Vaccine Debate
+       └─ Tranh Luận về Vắc-xin
+  [26] 294 | 🎵 | Wealth Inequality
+       └─ Bất Bình Đẳng về Của Cải
+  [27] 295 | 🎵 | Child Labor
+       └─ Lao Động Trẻ Em
+  [28] 296 | 🎵 | Human Trafficking
+       └─ Buôn bán người
+  [29] 297 | 🎵 | Education for All
+       └─ Giáo dục cho mọi người
+  [30] 298 | 🎵 | Clean Water Crisis
+       └─ Khủng hoảng nước sạch
+  [31] 299 | 🎵 | Sustainable Living
+       └─ Sống Bền Vững
+  [32] 300 | 🎵 | Volunteering for a Cause
+       └─ Tình Nguyện Vì Một Lý Tưởng
+
+
+================================================================================
+TOPIC 16: ENTERTAINMENT_MEDIA
+================================================================================
+Total: 32 conversations
+🎵 With audio: 32 | 🔇 Without audio: 0
+
+  [ 1] 289 | 🎵 | Movie Night
+       └─ Tối Xem Phim
+  [ 2] 290 | 🎵 | Concert Tickets
+       └─ Vé Xem Hòa Nhạc
+  [ 3] 291 | 🎵 | Celebrity Gossip
+       └─ Tin Đồn Ngôi Sao
+  [ 4] 292 | 🎵 | Reviewing a Film
+       └─ Thảo luận về một bộ phim
+  [ 5] 293 | 🎵 | Netflix Recommendations
+       └─ Gợi ý xem phim trên Netflix
+  [ 6] 294 | 🎵 | Podcast Listening
+       └─ Nghe Podcast
+  [ 7] 295 | 🎵 | YouTube Creator
+       └─ Người Sáng Tạo YouTube
+  [ 8] 296 | 🎵 | Theater Play
+       └─ Vở Kịch Sân Khấu
+  [ 9] 297 | 🎵 | Music Festival
+       └─ Lễ Hội Âm Nhạc
+  [10] 298 | 🎵 | Award Show
+       └─ Lễ Trao Giải
+  [11] 299 | 🎵 | TV Show Finale
+       └─ Tập Cuối Phim Truyền Hình
+  [12] 300 | 🎵 | Comic Con
+       └─ Hội Chợ Truyện Tranh (Comic Con)
+  [13] 301 | 🎵 | Book Adaptation
+       └─ Chuyển thể sách
+  [14] 302 | 🎵 | Viral Video
+       └─ Video lan truyền
+  [15] 303 | 🎵 | Influencer Marketing
+       └─ Tiếp thị qua người có ảnh hưởng
+  [16] 304 | 🎵 | Cancel Culture
+       └─ Văn hóa tẩy chay
+  [17] 305 | 🎵 | Fan Theories
+       └─ Giả thuyết của người hâm mộ
+  [18] 306 | 🎵 | Reboot vs Original
+       └─ Phiên bản làm lại so với Bản gốc
+  [19] 307 | 🎵 | Streaming Wars
+       └─ Cuộc Chiến Các Nền Tảng Streaming
+  [20] 308 | 🎵 | Favorite Actor Interview
+       └─ Phỏng Vấn Diễn Viên Yêu Thích
+  [21] 309 | 🎵 | Music Festival
+       └─ Lễ Hội Âm Nhạc
+  [22] 310 | 🎵 | Award Show
+       └─ Lễ Trao Giải
+  [23] 311 | 🎵 | TV Show Finale
+       └─ Tập Cuối Phim Truyền Hình
+  [24] 312 | 🎵 | Comic Con
+       └─ Hội Chợ Truyện Tranh (Comic Con)
+  [25] 313 | 🎵 | Book Adaptation
+       └─ Chuyển Thể Sách
+  [26] 314 | 🎵 | Viral Video
+       └─ Video Viral
+  [27] 315 | 🎵 | Influencer Marketing
+       └─ Tiếp Thị Qua Người Có Ảnh Hưởng
+  [28] 316 | 🎵 | Cancel Culture
+       └─ Văn hóa tẩy chay
+  [29] 317 | 🎵 | Fan Theories
+       └─ Giả thuyết của người hâm mộ
+  [30] 318 | 🎵 | Reboot vs Original
+       └─ Phiên bản làm lại so với Bản gốc
+  [31] 319 | 🎵 | Streaming Wars
+       └─ Cuộc Chiến Các Nền Tảng Streaming
+  [32] 320 | 🎵 | Favorite Actor Interview
+       └─ Phỏng Vấn Diễn Viên Yêu Thích
+
+
+================================================================================
+TOPIC 17: SPORTS_FITNESS
+================================================================================
+Total: 32 conversations
+🎵 With audio: 32 | 🔇 Without audio: 0
+
+  [ 1] 309 | 🎵 | Joining a Gym
+       └─ Tham Gia Phòng Tập
+  [ 2] 310 | 🎵 | Running a Marathon
+       └─ Chạy Marathon
+  [ 3] 311 | 🎵 | Playing Football
+       └─ Chơi Bóng Đá
+  [ 4] 312 | 🎵 | Basketball Game
+       └─ Trận Đấu Bóng Rổ
+  [ 5] 313 | 🎵 | Tennis Match
+       └─ Trận Đấu Quần Vợt
+  [ 6] 314 | 🎵 | Swimming Lessons
+       └─ Buổi Học Bơi
+  [ 7] 315 | 🎵 | Yoga Retreat
+       └─ Kỳ Nghỉ Tĩnh Tâm Yoga
+  [ 8] 316 | 🎵 | Martial Arts Class
+       └─ Lớp Võ Thuật
+  [ 9] 317 | 🎵 | Cycling Club
+       └─ Câu Lạc Bộ Đạp Xe
+  [10] 318 | 🎵 | Hiking Group
+       └─ Nhóm Đi Bộ Đường Dài
+  [11] 319 | 🎵 | Watching the World Cup
+       └─ Cùng xem World Cup
+  [12] 320 | 🎵 | Olympic Highlights
+       └─ Những khoảnh khắc đáng nhớ Olympic
+  [13] 321 | 🎵 | Sports Injury
+       └─ Chấn thương thể thao
+  [14] 322 | 🎵 | Personal Trainer
+       └─ Huấn luyện viên cá nhân
+  [15] 323 | 🎵 | Nutrition Plan
+       └─ Kế hoạch Dinh dưỡng
+  [16] 324 | 🎵 | Supplements Debate
+       └─ Tranh luận về Thực phẩm Bổ sung
+  [17] 325 | 🎵 | Post-Workout Recovery
+       └─ Hồi Phục Sau Khi Tập
+  [18] 326 | 🎵 | Fitness App
+       └─ Ứng Dụng Thể Dục
+  [19] 327 | 🎵 | Competing in a Tournament
+       └─ Thi Đấu Trong Một Giải Đấu
+  [20] 328 | 🎵 | Becoming a Coach
+       └─ Trở thành Huấn luyện viên
+  [21] 329 | 🎵 | Cycling Club
+       └─ Câu Lạc Bộ Đạp Xe
+  [22] 330 | 🎵 | Hiking Group
+       └─ Nhóm Đi Bộ Đường Dài
+  [23] 331 | 🎵 | Watching the World Cup
+       └─ Xem World Cup
+  [24] 332 | 🎵 | Olympic Highlights
+       └─ Điểm Nhấn Thế Vận Hội
+  [25] 333 | 🎵 | Sports Injury
+       └─ Chấn thương thể thao
+  [26] 334 | 🎵 | Personal Trainer
+       └─ Huấn luyện viên cá nhân
+  [27] 335 | 🎵 | Nutrition Plan
+       └─ Kế hoạch dinh dưỡng
+  [28] 336 | 🎵 | Supplements Debate
+       └─ Tranh Luận về Thực phẩm Bổ sung
+  [29] 337 | 🎵 | Post-Workout Recovery
+       └─ Phục hồi Sau Khi Tập
+  [30] 338 | 🎵 | Fitness App
+       └─ Ứng Dụng Thể Hình
+  [31] 339 | 🎵 | Competing in a Tournament
+       └─ Tham Gia Một Giải Đấu
+  [32] 340 | 🎵 | Becoming a Coach
+       └─ Trở Thành Huấn Luyện Viên
+
+
+================================================================================
+TOPIC 18: FINANCE_MONEY
+================================================================================
+Total: 32 conversations
+🎵 With audio: 13 | 🔇 Without audio: 19
+
+  [ 1] 329 | 🎵 | Opening a Bank Account
+       └─ Mở Tài khoản Ngân hàng
+  [ 2] 330 | 🎵 | Credit Card Application
+       └─ Đăng ký Thẻ Tín dụng
+  [ 3] 331 | 🔇 | Saving Money Tips
+       └─ Mẹo Tiết Kiệm Tiền
+  [ 4] 332 | 🔇 | Investing in Stocks
+       └─ Đầu Tư Vào Cổ Phiếu
+  [ 5] 333 | 🔇 | Buying Insurance
+       └─ Mua Bảo Hiểm
+  [ 6] 334 | 🔇 | Budget Planning
+       └─ Lập Kế Hoạch Ngân Sách
+  [ 7] 335 | 🔇 | Paying Off Debt
+       └─ Trả Nợ
+  [ 8] 336 | 🔇 | Mortgage Application
+       └─ Đơn Xin Vay Thế Chấp
+  [ 9] 337 | 🔇 | Tax Filing
+       └─ Khai Thuế
+  [10] 338 | 🔇 | Lottery Win
+       └─ Trúng Số
+  [11] 339 | 🔇 | Side Hustle Ideas
+       └─ Ý Tưởng Làm Thêm
+  [12] 340 | 🔇 | Freelance Payment
+       └─ Thanh Toán Công Việc Tự Do
+  [13] 341 | 🔇 | Retirement Fund
+       └─ Quỹ Hưu Trí
+  [14] 342 | 🔇 | Scholarship for Kids
+       └─ Học Bổng Cho Con Cái
+  [15] 343 | 🔇 | Charity Donation
+       └─ Quyên góp từ thiện
+  [16] 344 | 🔇 | Loan Application
+       └─ Đơn xin vay vốn
+  [17] 345 | 🔇 | Financial Scam Alert
+       └─ Cảnh báo lừa đảo tài chính
+  [18] 346 | 🔇 | Buying Gold
+       └─ Mua Vàng
+  [19] 347 | 🎵 | Real Estate Investment
+       └─ Đầu Tư Bất Động Sản
+  [20] 348 | 🔇 | Teaching Kids About Money
+       └─ Dạy Trẻ Em Về Tiền Bạc
+  [21] 349 | 🎵 | Tax Filing
+       └─ Khai Thuế
+  [22] 350 | 🎵 | Lottery Win
+       └─ Trúng Số
+  [23] 351 | 🎵 | Side Hustle Ideas
+       └─ Ý Tưởng Làm Thêm
+  [24] 352 | 🎵 | Freelance Payment
+       └─ Thanh Toán Công Việc Tự Do
+  [25] 353 | 🎵 | Retirement Fund
+       └─ Quỹ Hưu Trí
+  [26] 354 | 🎵 | Scholarship for Kids
+       └─ Học Bổng Cho Con Cái
+  [27] 355 | 🎵 | Charity Donation
+       └─ Quyên Góp Từ Thiện
+  [28] 356 | 🎵 | Loan Application
+       └─ Đơn Xin Vay Vốn
+  [29] 357 | 🎵 | Financial Scam Alert
+       └─ Cảnh Báo Lừa Đảo Tài Chính
+  [30] 358 | 🔇 | Buying Gold
+       └─ Mua Vàng
+  [31] 359 | 🔇 | Real Estate Investment
+       └─ Đầu Tư Bất Động Sản
+  [32] 360 | 🎵 | Teaching Kids About Money
+       └─ Dạy Trẻ Về Tiền Bạc
+
+
+================================================================================
+TOPIC 19: EVENTS_CELEBRATIONS
+================================================================================
+Total: 32 conversations
+🎵 With audio: 8 | 🔇 Without audio: 24
+
+  [ 1] 349 | 🔇 | Birthday Party
+       └─ Tiệc Sinh Nhật
+  [ 2] 350 | 🔇 | Wedding Ceremony
+       └─ Lễ Cưới
+  [ 3] 351 | 🔇 | Anniversary Dinner
+       └─ Bữa Tối Kỷ Niệm
+  [ 4] 352 | 🔇 | New Year's Eve
+       └─ Đêm Giao Thừa
+  [ 5] 353 | 🔇 | Christmas Gathering
+       └─ Buổi Tụ Tập Giáng Sinh
+  [ 6] 354 | 🔇 | Halloween Costume
+       └─ Trang Phục Halloween
+  [ 7] 355 | 🔇 | Thanksgiving Dinner
+       └─ Bữa Tối Lễ Tạ Ơn
+  [ 8] 356 | 🔇 | Lunar New Year
+       └─ Tết Nguyên Đán
+  [ 9] 357 | 🎵 | Graduation Party
+       └─ Tiệc Tốt Nghiệp
+  [10] 358 | 🎵 | Baby Shower
+       └─ Tiệc mừng em bé sắp chào đời
+  [11] 359 | 🎵 | Engagement Party
+       └─ Tiệc đính hôn
+  [12] 360 | 🎵 | Farewell Party
+       └─ Tiệc chia tay
+  [13] 361 | 🎵 | Housewarming
+       └─ Tiệc Tân Gia
+  [14] 362 | 🎵 | Promotion Celebration
+       └─ Chúc Mừng Thăng Chức
+  [15] 363 | 🎵 | Festival Parade
+       └─ Diễu Hành Lễ Hội
+  [16] 364 | 🔇 | Religious Ceremony
+       └─ Nghi Lễ Tôn Giáo
+  [17] 365 | 🔇 | National Day
+       └─ Ngày Quốc Khánh
+  [18] 366 | 🔇 | Charity Gala
+       └─ Đêm Gala Từ Thiện
+  [19] 367 | 🔇 | Surprise Party
+       └─ Tiệc Bất Ngờ
+  [20] 368 | 🎵 | Funeral Wake
+       └─ Lễ Viếng Tang
+  [21] 369 | 🔇 | Graduation Party
+       └─ Tiệc Tốt Nghiệp
+  [22] 370 | 🔇 | Baby Shower
+       └─ Tiệc mừng em bé sắp chào đời
+  [23] 371 | 🔇 | Engagement Party
+       └─ Tiệc đính hôn
+  [24] 372 | 🔇 | Farewell Party
+       └─ Tiệc chia tay
+  [25] 373 | 🔇 | Housewarming
+       └─ Tiệc Tân Gia
+  [26] 374 | 🔇 | Promotion Celebration
+       └─ Tiệc Mừng Thăng Chức
+  [27] 375 | 🔇 | Festival Parade
+       └─ Diễu Hành Lễ Hội
+  [28] 376 | 🔇 | Religious Ceremony
+       └─ Nghi Lễ Tôn Giáo
+  [29] 377 | 🔇 | National Day
+       └─ Ngày Quốc Khánh
+  [30] 378 | 🔇 | Charity Gala
+       └─ Buổi Gala Từ Thiện
+  [31] 379 | 🔇 | Surprise Party
+       └─ Tiệc Bất Ngờ
+  [32] 380 | 🔇 | Funeral Wake
+       └─ Lễ Viếng Tang
+
+
+================================================================================
+TOPIC 20: EMERGENCY_SAFETY
+================================================================================
+Total: 32 conversations
+🎵 With audio: 14 | 🔇 Without audio: 18
+
+  [ 1] 369 | 🎵 | Calling 911
+       └─ Gọi Cấp Cứu 911
+  [ 2] 370 | 🎵 | Car Accident
+       └─ Tai Nạn Xe Hơi
+  [ 3] 371 | 🎵 | House Fire
+       └─ Hỏa Hoạn Nhà Ở
+  [ 4] 372 | 🎵 | Lost Child
+       └─ Trẻ Bị Lạc
+  [ 5] 373 | 🎵 | Mugging on the Street
+       └─ Bị Cướp Giật Trên Phố
+  [ 6] 374 | 🎵 | Natural Disaster
+       └─ Thảm Họa Thiên Nhiên
+  [ 7] 375 | 🔇 | Power Outage
+       └─ Mất Điện
+  [ 8] 376 | 🔇 | Food Poisoning
+       └─ Ngộ độc Thực phẩm
+  [ 9] 377 | 🔇 | Broken Elevator
+       └─ Thang Máy Hỏng
+  [10] 378 | 🔇 | Lost Passport
+       └─ Làm Mất Hộ Chiếu
+  [11] 379 | 🔇 | Wallet Stolen
+       └─ Ví Bị Mất Cắp
+  [12] 380 | 🔇 | Cyberbullying
+       └─ Bắt Nạt Trên Mạng
+  [13] 381 | 🎵 | Suspicious Package
+       └─ Gói Hàng Đáng Ngờ
+  [14] 382 | 🎵 | Earthquake Drill
+       └─ Diễn Tập Động Đất
+  [15] 383 | 🎵 | First Aid
+       └─ Sơ Cứu
+  [16] 384 | 🎵 | Hotel Emergency
+       └─ Tình Huống Khẩn Cấp Ở Khách Sạn
+  [17] 385 | 🎵 | Flight Cancellation
+       └─ Chuyến Bay Bị Hủy
+  [18] 386 | 🎵 | Scam Call
+       └─ Cuộc Gọi Lừa Đảo
+  [19] 387 | 🎵 | Helping a Stranger
+       └─ Giúp Đỡ Người Lạ
+  [20] 388 | 🎵 | CPR Training
+       └─ Buổi Tập Huấn Hồi Sức Tim Phổi
+  [21] 389 | 🔇 | Broken Elevator
+       └─ Thang Máy Hỏng
+  [22] 390 | 🔇 | Lost Passport
+       └─ Làm Mất Hộ Chiếu
+  [23] 391 | 🔇 | Wallet Stolen
+       └─ Ví Bị Mất Cắp
+  [24] 392 | 🔇 | Cyberbullying
+       └─ Bắt Nạt Trên Mạng
+  [25] 393 | 🔇 | Suspicious Package
+       └─ Gói Hàng Đáng Ngờ
+  [26] 394 | 🔇 | Earthquake Drill
+       └─ Diễn Tập Động Đất
+  [27] 395 | 🔇 | First Aid
+       └─ Sơ Cứu
+  [28] 396 | 🔇 | Hotel Emergency
+       └─ Tình Huống Khẩn Cấp Ở Khách Sạn
+  [29] 397 | 🔇 | Flight Cancellation
+       └─ Chuyến Bay Bị Hủy
+  [30] 398 | 🔇 | Scam Call
+       └─ Cuộc Gọi Lừa Đảo
+  [31] 399 | 🔇 | Helping a Stranger
+       └─ Giúp đỡ một người lạ
+  [32] 400 | 🔇 | CPR Training
+       └─ Đào tạo CPR
+
+
+================================================================================
+TOPIC 21: BUSINESS_ENTREPRENEURSHIP
+================================================================================
+Total: 3 conversations
+🎵 With audio: 3 | 🔇 Without audio: 0
+
+  [ 1] 389 | 🎵 | Pitching an Idea
+       └─ Trình Bày Ý Tưởng
+  [ 2] 390 | 🎵 | Finding Investors
+       └─ Tìm Kiếm Nhà Đầu Tư
+  [ 3] 401 | 🎵 | Pitching an Idea
+       └─ Trình bày ý tưởng
+
+
+================================================================================
+TOPIC 22: LAW_JUSTICE
+================================================================================
+Total: 12 conversations
+🎵 With audio: 0 | 🔇 Without audio: 12
+
+  [ 1] 423 | 🔇 | Police Interrogation
+       └─ Buổi Thẩm Vấn Của Cảnh Sát
+  [ 2] 424 | 🔇 | Court Trial
+       └─ Phiên Tòa Xét Xử
+  [ 3] 425 | 🔇 | Jury Duty
+       └─ Nghĩa Vụ Bồi Thẩm Đoàn
+  [ 4] 426 | 🔇 | Writing a Will
+       └─ Lập Di Chúc
+  [ 5] 427 | 🔇 | Divorce Proceedings
+       └─ Thủ Tục Ly Hôn
+  [ 6] 428 | 🔇 | Child Custody
+       └─ Quyền Nuôi Con
+  [ 7] 432 | 🔇 | Defamation Case
+       └─ Vụ Kiện Phỉ Báng
+  [ 8] 433 | 🔇 | Traffic Ticket
+       └─ Giấy Phạt Giao Thông
+  [ 9] 434 | 🔇 | DUI Charge
+       └─ Lời Buộc Tội Lái Xe Say Rượu
+  [10] 435 | 🔇 | Bail Hearing
+       └─ Phiên Tòa Xét Xin Bảo Lãnh
+  [11] 436 | 🔇 | Plea Bargain
+       └─ Thương Lượng Nhận Tội
+  [12] 437 | 🔇 | Prison Visit
+       └─ Cuộc Thăm Nuôi Trong Tù
+
+
+================================================================================
+TOPIC 23: SCIENCE_RESEARCH
+================================================================================
+Total: 6 conversations
+🎵 With audio: 3 | 🔇 Without audio: 3
+
+  [ 1] 391 | 🎵 | Publishing a Paper
+       └─ Công bố một bài báo
+  [ 2] 392 | 🎵 | Research Grant
+       └─ Tài trợ Nghiên cứu
+  [ 3] 393 | 🎵 | PhD Defense
+       └─ Bảo vệ Luận án Tiến sĩ
+  [ 4] 447 | 🔇 | Climate Model
+       └─ Mô Hình Khí Hậu
+  [ 5] 448 | 🔇 | Vaccine Development
+       └─ Phát Triển Vắc-xin
+  [ 6] 449 | 🔇 | Archaeology Dig
+       └─ Cuộc Khai Quật Khảo Cổ
+
+
+================================================================================
+TOPIC 24: MEDICINE_HEALTHCARE
+================================================================================
+Total: 3 conversations
+🎵 With audio: 3 | 🔇 Without audio: 0
+
+  [ 1] 394 | 🎵 | Medical Research
+       └─ Nghiên Cứu Y Khoa
+  [ 2] 395 | 🎵 | Public Health Policy
+       └─ Chính Sách Y Tế Công Cộng
+  [ 3] 396 | 🎵 | End-of-Life Decision
+       └─ Quyết Định Cuối Đời
+
+
+================================================================================
+SUMMARY BY TOPIC
+================================================================================
+  Topic  1 (greetings_introductions       ):  20 convs | 🎵  20 | 🔇   0
+  Topic  2 (daily_routines                ):  20 convs | 🎵  20 | 🔇   0
+  Topic  3 (family_relationships          ):  23 convs | 🎵  23 | 🔇   0
+  Topic  4 (food_drinks                   ):  23 convs | 🎵  23 | 🔇   0
+  Topic  5 (shopping                      ):  26 convs | 🎵  26 | 🔇   0
+  Topic  6 (weather_seasons               ):  26 convs | 🎵  26 | 🔇   0
+  Topic  7 (home_accommodation            ):  26 convs | 🎵  26 | 🔇   0
+  Topic  8 (transportation                ):  26 convs | 🎵  26 | 🔇   0
+  Topic  9 (health_body                   ):  26 convs | 🎵  26 | 🔇   0
+  Topic 10 (hobbies_interests             ):  26 convs | 🎵  26 | 🔇   0
+  Topic 11 (work_office                   ):  29 convs | 🎵  29 | 🔇   0
+  Topic 12 (travel_tourism                ):  29 convs | 🎵  29 | 🔇   0
+  Topic 13 (education_learning            ):  29 convs | 🎵  14 | 🔇  15
+  Topic 14 (technology_internet           ):  31 convs | 🎵  16 | 🔇  15
+  Topic 15 (social_issues                 ):  32 convs | 🎵  18 | 🔇  14
+  Topic 16 (entertainment_media           ):  32 convs | 🎵  32 | 🔇   0
+  Topic 17 (sports_fitness                ):  32 convs | 🎵  32 | 🔇   0
+  Topic 18 (finance_money                 ):  32 convs | 🎵  13 | 🔇  19
+  Topic 19 (events_celebrations           ):  32 convs | 🎵   8 | 🔇  24
+  Topic 20 (emergency_safety              ):  32 convs | 🎵  14 | 🔇  18
+  Topic 21 (business_entrepreneurship     ):   3 convs | 🎵   3 | 🔇   0
+  Topic 22 (law_justice                   ):  12 convs | 🎵   0 | 🔇  12
+  Topic 23 (science_research              ):   6 convs | 🎵   3 | 🔇   3
+  Topic 24 (medicine_healthcare           ):   3 convs | 🎵   3 | 🔇   0
