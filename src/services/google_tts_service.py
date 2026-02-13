@@ -31,22 +31,15 @@ class GoogleTTSService:
                 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
                 logger.info(f"📁 Using credentials file: {credentials_path}")
 
-        # Initialize Gemini client with Vertex AI (for single speaker)
+        # Initialize Gemini client with Vertex AI
         self.client = genai.Client(vertexai=True, project=project_id, location=location)
-
-        # Initialize Google AI client for multi-speaker (requires API key)
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if gemini_api_key:
-            self.ai_client = genai.Client(api_key=gemini_api_key)
-            logger.info("✅ Google AI client initialized for multi-speaker TTS")
-        else:
-            self.ai_client = None
-            logger.warning("⚠️ No GEMINI_API_KEY - multi-speaker TTS will be disabled")
 
         logger.info(
             f"✅ Gemini TTS initialized with Vertex AI (project={project_id}, location={location})"
         )
-        logger.info("   No API key limit - using Vertex AI project quota")
+        logger.info(
+            "   High quota - using Vertex AI project quota (not API key limited)"
+        )
 
         # Supported languages (24 languages from Gemini TTS)
         self.supported_languages = {
@@ -518,17 +511,14 @@ class GoogleTTSService:
                 f"🎙️ Generating multi-speaker audio: {len(speaker_roles)} speakers, {len(lines)} lines"
             )
 
-            # Use Google AI client for multi-speaker (Vertex AI doesn't support it)
-            if not self.ai_client:
-                raise ValueError(
-                    "Multi-speaker TTS requires Google AI API key. Set GEMINI_API_KEY environment variable."
-                )
+            # Use Vertex AI client (higher quota than Google AI API)
+            logger.info(f"Using Vertex AI for multi-speaker TTS (model: {model})")
 
             # Generate audio (run in thread pool to avoid blocking event loop)
             import asyncio
 
             response = await asyncio.to_thread(
-                self.ai_client.models.generate_content,
+                self.client.models.generate_content,  # Use Vertex AI client
                 model=model,
                 contents=prompt_text,
                 config=types.GenerateContentConfig(
