@@ -86,17 +86,24 @@ ssh root@104.248.147.155 "su - hoile -c 'COMMAND'"
 # Correct pattern - SSH into docker container
 ssh root@104.248.147.155 "docker exec ai-chatbot-rag curl -s http://localhost:8000/api/v1/ENDPOINT"
 
-# Example: Test conversation topics
+# Example: Test conversation topics (PUBLIC)
 ssh root@104.248.147.155 "docker exec ai-chatbot-rag curl -s http://localhost:8000/api/v1/conversations/topics | python3 -m json.tool"
 
-# Example: Test specific conversation
-ssh root@104.248.147.155 "docker exec ai-chatbot-rag curl -s http://localhost:8000/api/v1/conversations/conv_beginner_greetings_01_001"
+# Example: Test browse conversations (PUBLIC)
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag curl -s 'http://localhost:8000/api/v1/conversations/list?level=beginner&limit=5' | python3 -m json.tool"
+
+# Example: Test with authentication
+ssh root@104.248.147.155 'docker exec ai-chatbot-rag curl -s http://localhost:8000/api/v1/conversations/conv_beginner_greetings_01_001 -H "Authorization: Bearer YOUR_TOKEN"'
 ```
 
 **Why localhost only works:**
 - Nginx requires proper domain routing
 - External access needs Firebase authentication
 - Internal docker network uses localhost:8000
+
+**Public Endpoints (No auth required):**
+- `GET /api/v1/conversations/topics` - List all topics
+- `GET /api/v1/conversations/list` - Browse conversations
 
 ### 5. Production Deployment (MANDATORY)
 

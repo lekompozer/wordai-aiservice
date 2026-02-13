@@ -124,12 +124,12 @@ async def increment_daily_usage(user_id: str, conversation_id: str, db):
 # ============================================================================
 
 
-@router.get("/list")
+@router.get("/browse")
 async def browse_conversations(
     level: Optional[str] = None,
     topic: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 20,
+    page: int = 1,
+    page_size: int = 20,
     db=Depends(get_db),
 ):
     """
@@ -137,15 +137,19 @@ async def browse_conversations(
 
     Query Parameters:
     - level: "beginner" | "intermediate" | "advanced"
-    - topic: Topic slug (e.g., "greetings_introductions")
-    - skip: Pagination offset (default: 0)
-    - limit: Page size (default: 20, max: 100)
+    - topic: Topic slug (e.g., "work_office")
+    - page: Page number (default: 1)
+    - page_size: Items per page (default: 20, max: 100)
 
     Returns: List of conversations with metadata
     """
-    # Validate limit
-    if limit > 100:
-        limit = 100
+    # Validate page_size
+    if page_size > 100:
+        page_size = 100
+
+    # Convert page to skip
+    skip = (page - 1) * page_size
+    limit = page_size
 
     # Build filter
     filter_query = {}
@@ -282,12 +286,10 @@ async def get_topics_list(
 @router.get("/{conversation_id}")
 async def get_conversation_detail(
     conversation_id: str,
-    current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
 ):
     """
-    Get full conversation details including dialogue.
-
+    Get full conversation details including dialogue (PUBLIC - No authentication required)
     Returns: Complete conversation with all dialogue turns
     """
     conv_col = db["conversation_library"]
