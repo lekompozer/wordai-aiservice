@@ -571,7 +571,8 @@ class GoogleTTSService:
                 await asyncio.to_thread(creds.refresh, request)
                 token = creds.token
 
-                url = f"https://{self.location}-aiplatform.googleapis.com/v1beta1/projects/{self.project_id}/locations/{self.location}/endpoints/openapi/chat/completions/{model}:generateContent"
+                # Vertex AI Generative API endpoint
+                url = f"https://{self.location}-aiplatform.googleapis.com/v1/projects/{self.project_id}/locations/{self.location}/publishers/google/models/{model}:generateContent"
 
                 headers = {
                     "Authorization": f"Bearer {token}",
