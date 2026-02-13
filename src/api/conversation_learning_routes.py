@@ -130,11 +130,10 @@ async def browse_conversations(
     topic: Optional[str] = None,
     skip: int = 0,
     limit: int = 20,
-    current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
 ):
     """
-    Browse conversations with filters.
+    Browse conversations with filters (PUBLIC - No authentication required).
 
     Query Parameters:
     - level: "beginner" | "intermediate" | "advanced"
@@ -217,11 +216,10 @@ async def browse_conversations(
 
 @router.get("/topics")
 async def get_topics_list(
-    current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
 ):
     """
-    Get list of all topics grouped by level with conversation counts.
+    Get list of all topics grouped by level with conversation counts (PUBLIC - No authentication required).
 
     Returns: Topics grouped by beginner/intermediate/advanced
     """

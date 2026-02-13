@@ -72,6 +72,32 @@ ssh root@104.248.147.155 "su - hoile -c 'COMMAND'"
 
 **Working Directory:** `/home/hoile/wordai`
 
+**Production Domain:** `ai.wordai.pro` (NOT wordai.chat or direct IP)
+
+### 4.1. API Testing (CRITICAL)
+
+**NEVER test API using:**
+- ❌ Direct IP: `http://104.248.147.155/api/v1/...`
+- ❌ Wrong domain: `https://wordai.chat/api/v1/...`
+- ❌ External domain: `https://ai.wordai.pro/api/v1/...` (requires authentication)
+
+**ALWAYS test API using SSH + localhost:**
+```bash
+# Correct pattern - SSH into docker container
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag curl -s http://localhost:8000/api/v1/ENDPOINT"
+
+# Example: Test conversation topics
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag curl -s http://localhost:8000/api/v1/conversations/topics | python3 -m json.tool"
+
+# Example: Test specific conversation
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag curl -s http://localhost:8000/api/v1/conversations/conv_beginner_greetings_01_001"
+```
+
+**Why localhost only works:**
+- Nginx requires proper domain routing
+- External access needs Firebase authentication
+- Internal docker network uses localhost:8000
+
 ### 5. Production Deployment (MANDATORY)
 
 **MUST use this command for ALL deployments:**
