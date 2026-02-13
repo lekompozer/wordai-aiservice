@@ -43,7 +43,9 @@ class GoogleTTSService:
         self.location = location
 
         # Get credentials for REST API with proper scopes
-        self.credentials, _ = default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+        self.credentials, _ = default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
 
         logger.info(
             f"✅ Gemini TTS initialized with Vertex AI (project={project_id}, location={location})"
@@ -551,17 +553,23 @@ class GoogleTTSService:
             import asyncio
 
             async def call_vertex_api():
-                # Get access token
-                creds, _ = default()
-                if hasattr(creds, "token"):
-                    if not creds.valid:
-                        await asyncio.to_thread(creds.refresh, Request())
-                    token = creds.token
-                else:
-                    # For service account credentials
-                    request = Request()
-                    await asyncio.to_thread(creds.refresh, request)
-                    token = creds.token if hasattr(creds, "token") else str(creds)
+                # Get access token with proper scopes
+                from google.oauth2 import service_account
+
+                # Load service account and add scopes
+                creds_path = os.getenv(
+                    "GOOGLE_APPLICATION_CREDENTIALS",
+                    "/app/wordai-6779e-ed6189c466f1.json",
+                )
+                creds = service_account.Credentials.from_service_account_file(
+                    creds_path,
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+                )
+
+                # Get token
+                request = Request()
+                await asyncio.to_thread(creds.refresh, request)
+                token = creds.token
 
                 url = f"https://{self.location}-aiplatform.googleapis.com/v1beta1/projects/{self.project_id}/locations/{self.location}/endpoints/openapi/chat/completions/{model}:generateContent"
 
