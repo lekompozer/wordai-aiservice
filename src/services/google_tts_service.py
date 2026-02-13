@@ -6,10 +6,14 @@ Uses Vertex AI with google-genai SDK (Gemini TTS)
 import os
 import logging
 import struct
+import httpx
+import json
 from typing import Dict, List, Optional, Tuple
 from bs4 import BeautifulSoup
 from google import genai  # type: ignore
 from google.genai import types  # type: ignore
+from google.auth import default
+from google.auth.transport.requests import Request
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +38,21 @@ class GoogleTTSService:
         # Initialize Gemini client with Vertex AI
         self.client = genai.Client(vertexai=True, project=project_id, location=location)
 
+        # Store for REST API calls
+        self.project_id = project_id
+        self.location = location
+
+        # Get credentials for REST API
+        self.credentials, _ = default()
+        if not self.credentials.valid:
+            self.credentials.refresh(Request())
+
         logger.info(
             f"✅ Gemini TTS initialized with Vertex AI (project={project_id}, location={location})"
         )
-        logger.info("   Using Vertex AI for both single and multi-speaker TTS")
+        logger.info(
+            "   Using Vertex AI REST API for multi-speaker TTS (bypassing SDK limitation)"
+        )
         logger.info("   Model: gemini-2.5-pro-preview-tts (high quota)")
 
         # Supported languages (24 languages from Gemini TTS)
@@ -499,31 +514,79 @@ class GoogleTTSService:
                 )
             )
 
-            # Always use pro model for multi-speaker (required for Vertex AI)
+            # Always use pro model for multi-speaker
             model = "gemini-2.5-pro-preview-tts"
 
             logger.info(
                 f"🎙️ Generating multi-speaker audio: {len(speaker_roles)} speakers, {len(lines)} lines"
             )
-            logger.info(f"Using Vertex AI with model: {model}")
+            logger.info(f"Using Vertex AI REST API with model: {model}")
 
-            # Generate audio (run in thread pool to avoid blocking event loop)
+            # Build request payload for REST API
+            request_payload = {
+                "contents": [{"role": "user", "parts": [{"text": prompt_text}]}],
+                "generationConfig": {
+                    "responseModalities": ["AUDIO"],
+                    "speechConfig": {
+                        "multiSpeakerVoiceConfig": {
+                            "speakerVoiceConfigs": [
+                                {
+                                    "speaker": speaker_roles[i],
+                                    "voiceConfig": {
+                                        "prebuiltVoiceConfig": {
+                                            "voiceName": (
+                                                voice_names[i]
+                                                if i < len(voice_names)
+                                                else "Aoede"
+                                            )
+                                        }
+                                    },
+                                }
+                                for i in range(len(speaker_roles))
+                            ]
+                        }
+                    },
+                },
+            }
+
+            # Call Vertex AI REST API
             import asyncio
 
-            response = await asyncio.to_thread(
-                self.client.models.generate_content,  # Use Vertex AI client
-                model=model,
-                contents=prompt_text,
-                config=types.GenerateContentConfig(
-                    response_modalities=["AUDIO"],
-                    speech_config=speech_config,
-                ),
-            )
+            async def call_vertex_api():
+                # Get access token
+                creds, _ = default()
+                if hasattr(creds, "token"):
+                    if not creds.valid:
+                        await asyncio.to_thread(creds.refresh, Request())
+                    token = creds.token
+                else:
+                    # For service account credentials
+                    request = Request()
+                    await asyncio.to_thread(creds.refresh, request)
+                    token = creds.token if hasattr(creds, "token") else str(creds)
 
-            # Extract audio data
-            audio_data = response.candidates[0].content.parts[0].inline_data.data
+                url = f"https://{self.location}-aiplatform.googleapis.com/v1beta1/projects/{self.project_id}/locations/{self.location}/endpoints/openapi/chat/completions/{model}:generateContent"
 
-            # Check if audio_data is base64 string or bytes
+                headers = {
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                }
+
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.post(
+                        url, json=request_payload, headers=headers
+                    )
+                    response.raise_for_status()
+                    return response.json()
+
+            response_data = await call_vertex_api()
+
+            # Extract audio data from REST response
+            audio_data = response_data["candidates"][0]["content"]["parts"][0][
+                "inlineData"
+            ]["data"]
+
+            # Decode base64 if needed
             if isinstance(audio_data, str):
                 import base64
 
