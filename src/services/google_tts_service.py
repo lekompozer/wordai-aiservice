@@ -42,10 +42,8 @@ class GoogleTTSService:
         self.project_id = project_id
         self.location = location
 
-        # Get credentials for REST API
-        self.credentials, _ = default()
-        if not self.credentials.valid:
-            self.credentials.refresh(Request())
+        # Get credentials for REST API with proper scopes
+        self.credentials, _ = default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
 
         logger.info(
             f"✅ Gemini TTS initialized with Vertex AI (project={project_id}, location={location})"
