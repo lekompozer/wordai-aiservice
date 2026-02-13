@@ -319,11 +319,10 @@ async def get_conversation_detail(
 @router.get("/{conversation_id}/vocabulary")
 async def get_vocabulary_grammar(
     conversation_id: str,
-    current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
 ):
     """
-    Get vocabulary and grammar points extracted from the conversation.
+    Get vocabulary and grammar points extracted from the conversation (PUBLIC - No authentication required).
 
     Returns: Vocabulary items and grammar patterns
     """
@@ -370,10 +369,7 @@ async def get_all_gap_exercises(
     gaps_docs = list(gaps_col.find({"conversation_id": conversation_id}))
 
     # Organize by difficulty
-    result = {
-        "conversation_id": conversation_id,
-        "gaps": {}
-    }
+    result = {"conversation_id": conversation_id, "gaps": {}}
 
     for gaps_doc in gaps_docs:
         difficulty = gaps_doc.get("difficulty")
@@ -382,11 +378,7 @@ async def get_all_gap_exercises(
 
     # If no gaps found, return empty structure
     if not gaps_docs:
-        result["gaps"] = {
-            "easy": None,
-            "medium": None,
-            "hard": None
-        }
+        result["gaps"] = {"easy": None, "medium": None, "hard": None}
         result["message"] = "Gaps not generated yet. Please generate gaps first."
 
     return result
