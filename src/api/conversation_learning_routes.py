@@ -124,7 +124,7 @@ async def increment_daily_usage(user_id: str, conversation_id: str, db):
 # ============================================================================
 
 
-@router.get("/")
+@router.get("/list")
 async def browse_conversations(
     level: Optional[str] = None,
     topic: Optional[str] = None,
