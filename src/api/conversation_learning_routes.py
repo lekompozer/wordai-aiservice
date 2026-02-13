@@ -348,6 +348,50 @@ async def get_vocabulary_grammar(
 # ============================================================================
 
 
+@router.get("/{conversation_id}/gaps")
+async def get_all_gap_exercises(
+    conversation_id: str,
+    db=Depends(get_db),
+):
+    """
+    Get all gap-fill exercises (easy, medium, hard) for the conversation (PUBLIC - No authentication required).
+
+    Returns: All 3 difficulty levels with gaps and gap definitions
+    """
+    # Check conversation exists
+    conv_col = db["conversation_library"]
+    conversation = conv_col.find_one({"conversation_id": conversation_id})
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Get all gaps documents
+    gaps_col = db["conversation_gaps"]
+    gaps_docs = list(gaps_col.find({"conversation_id": conversation_id}))
+
+    # Organize by difficulty
+    result = {
+        "conversation_id": conversation_id,
+        "gaps": {}
+    }
+
+    for gaps_doc in gaps_docs:
+        difficulty = gaps_doc.get("difficulty")
+        gaps_doc.pop("_id", None)
+        result["gaps"][difficulty] = gaps_doc
+
+    # If no gaps found, return empty structure
+    if not gaps_docs:
+        result["gaps"] = {
+            "easy": None,
+            "medium": None,
+            "hard": None
+        }
+        result["message"] = "Gaps not generated yet. Please generate gaps first."
+
+    return result
+
+
 @router.get("/{conversation_id}/gaps/{difficulty}")
 async def get_gap_exercise(
     conversation_id: str,
