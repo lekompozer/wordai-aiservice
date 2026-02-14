@@ -2,14 +2,16 @@
 Conversation Learning API Routes - Core Learning Features
 
 Endpoints:
-1. GET /api/v1/conversations - Browse conversations with filters
+1. GET /api/v1/conversations/browse - Browse conversations with filters
 2. GET /api/v1/conversations/topics - Get topics list
 3. GET /api/v1/conversations/{conversation_id} - Get conversation details
 4. GET /api/v1/conversations/{conversation_id}/vocabulary - Get vocabulary & grammar
-5. GET /api/v1/conversations/{conversation_id}/gaps/{difficulty} - Get gap exercise
-6. POST /api/v1/conversations/{conversation_id}/gaps/{difficulty}/submit - Submit answers
-7. GET /api/v1/conversations/progress - Get user progress
-8. GET /api/v1/conversations/{conversation_id}/history - Get conversation history
+5. GET /api/v1/conversations/{conversation_id}/gaps - Get all gap exercises (3 levels)
+6. GET /api/v1/conversations/{conversation_id}/gaps/{difficulty} - Get single difficulty gap
+7. POST /api/v1/conversations/{conversation_id}/gaps/{difficulty}/submit - Submit answers
+8. GET /api/v1/conversations/progress - Get user progress
+9. GET /api/v1/conversations/{conversation_id}/history - Get single conversation history
+10. GET /api/v1/conversations/history - Get all learning history
 
 Business rules:
 - Free users: 5 conversations/day limit
@@ -887,7 +889,7 @@ async def get_conversation_history(
 # ============================================================================
 
 
-@router.get("/history/all")
+@router.get("/history")
 async def get_all_learning_history(
     level: Optional[str] = None,
     topic: Optional[str] = None,
