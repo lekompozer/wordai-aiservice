@@ -413,6 +413,10 @@ async def get_conversation_detail(
     # Remove MongoDB _id
     conversation.pop("_id", None)
 
+    # Convert ObjectId fields to string for JSON serialization
+    if conversation.get("online_test_id"):
+        conversation["online_test_id"] = str(conversation["online_test_id"])
+
     # Format audio info - build R2 URL from r2_key
     if conversation.get("audio_info"):
         audio_info = conversation["audio_info"]
