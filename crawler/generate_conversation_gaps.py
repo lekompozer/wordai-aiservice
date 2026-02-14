@@ -225,64 +225,70 @@ class ConversationGapGenerator:
 
         return "".join(result)
 
-    def create_dialogue_with_gaps(self, conversation: Dict, gaps: List[Dict], hint_type: str) -> List[Dict]:
+    def create_dialogue_with_gaps(
+        self, conversation: Dict, gaps: List[Dict], hint_type: str
+    ) -> List[Dict]:
         """Create dialogue turns with gaps embedded in each turn's text."""
         dialogue_with_gaps = []
-        
+
         # Get dialogue turns
         dialogue = conversation.get("dialogue", [])
-        
+
         # Build full text to track cumulative character positions
         full_text = self.extract_full_text(conversation)
         full_doc = self.nlp(full_text)
-        
+
         # Create gap lookup by actual word text and position
         gap_words = {}
         for g in gaps:
             gap_words[g["position"]] = {
                 "word": g["word"],
-                "hint": self.create_hint(g["word"], hint_type)
+                "hint": self.create_hint(g["word"], hint_type),
             }
-        
+
         # Process each dialogue turn
         token_offset = 0
-        
+
         for turn in dialogue:
             speaker = turn.get("speaker", "Unknown")
             original_text = turn.get("text_en", "").strip()  # Use text_en from database
-            
+
             if not original_text:
-                dialogue_with_gaps.append({
-                    "speaker": speaker,
-                    "text": original_text,
-                    "text_with_gaps": original_text
-                })
+                dialogue_with_gaps.append(
+                    {
+                        "speaker": speaker,
+                        "text": original_text,
+                        "text_with_gaps": original_text,
+                    }
+                )
                 continue
-            
+
             # Process this turn's tokens
             turn_doc = self.nlp(original_text)
-            
+
             # Build text with gaps for this turn
             result = []
             for i, token in enumerate(turn_doc):
                 global_pos = token_offset + i
-                
+
                 if global_pos in gap_words:
                     result.append(gap_words[global_pos]["hint"])
                 else:
                     result.append(token.text_with_ws)
-            
+
             text_with_gaps = "".join(result).strip()
-            
-            dialogue_with_gaps.append({
-                "speaker": speaker,
-                "text": original_text,
-                "text_with_gaps": text_with_gaps
-            })
-            
+
+            dialogue_with_gaps.append(
+                {
+                    "speaker": speaker,
+                    "text": original_text,
+                    "text_with_gaps": text_with_gaps,
+                }
+            )
+
             # Update offset for next turn
             token_offset += len(turn_doc)
-        
+
         return dialogue_with_gaps
 
     def generate_gaps_for_conversation(
@@ -330,7 +336,7 @@ class ConversationGapGenerator:
         text_with_gaps = self.create_text_with_gaps(
             full_text, gaps, config["hint_type"]
         )
-        
+
         # Create dialogue with gaps (structured by turns)
         dialogue_with_gaps = self.create_dialogue_with_gaps(
             conversation, gaps, config["hint_type"]

@@ -504,14 +504,14 @@ async def submit_gap_exercise(
     await increment_daily_usage(user_id, conversation_id, db)
 
     # Grade answers
-    gaps = gaps_doc["gaps"]
-    total_gaps = len(gaps)
+    gap_definitions = gaps_doc["gap_definitions"]  # Use gap_definitions field
+    total_gaps = len(gap_definitions)
     correct_count = 0
     incorrect_count = 0
     gap_results = []
     pos_stats = {}
 
-    for gap in gaps:
+    for gap in gap_definitions:
         gap_num = str(gap["gap_number"])
         correct_answer = gap["correct_answer"].lower().strip()
         user_answer = answers.get(gap_num, "").lower().strip()
