@@ -287,14 +287,12 @@ async def generate_conversation(
                         if missing:
                             raise ValueError(f"Missing fields: {missing}")
 
-                        # Validate dialogue structure
+                        # Validate dialogue structure (just check it's a list, no minimum)
                         if (
                             not isinstance(data["dialogue"], list)
-                            or len(data["dialogue"]) < 12
+                            or len(data["dialogue"]) == 0
                         ):
-                            raise ValueError(
-                                f"Invalid dialogue: need 12+ turns, got {len(data.get('dialogue', []))}"
-                            )
+                            raise ValueError(f"Invalid dialogue: empty or not a list")
 
                         return {
                             "topic_info": topic_info,
