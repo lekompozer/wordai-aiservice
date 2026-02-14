@@ -231,55 +231,58 @@ class ConversationGapGenerator:
         
         # Get dialogue turns
         dialogue = conversation.get("dialogue", [])
+        
+        # Build full text to track cumulative character positions
         full_text = self.extract_full_text(conversation)
+        full_doc = self.nlp(full_text)
         
-        # Process full text to get token positions
-        doc = self.nlp(full_text)
+        # Create gap lookup by actual word text and position
+        gap_words = {}
+        for g in gaps:
+            gap_words[g["position"]] = {
+                "word": g["word"],
+                "hint": self.create_hint(g["word"], hint_type)
+            }
         
-        # Create gap position lookup
-        gap_positions = {g["position"]: g for g in gaps}
-        
-        # Track current token position in full text
-        current_token_pos = 0
+        # Process each dialogue turn
+        token_offset = 0
         
         for turn in dialogue:
             speaker = turn.get("speaker", "Unknown")
-            text = turn.get("text", "")
+            original_text = turn.get("text", "")
             
-            # Process this turn's text
-            turn_doc = self.nlp(text)
-            turn_tokens_count = len([t for t in turn_doc if t.is_alpha or t.is_space or t.is_punct])
+            if not original_text:
+                dialogue_with_gaps.append({
+                    "speaker": speaker,
+                    "text": original_text,
+                    "text_with_gaps": original_text
+                })
+                token_offset += 1  # Account for empty turn
+                continue
             
-            # Find gaps within this turn's token range
-            turn_gap_positions = {}
-            for token_idx in range(current_token_pos, current_token_pos + turn_tokens_count):
-                if token_idx in gap_positions:
-                    # Map global position to local turn position
-                    local_pos = token_idx - current_token_pos
-                    turn_gap_positions[local_pos] = gap_positions[token_idx]
+            # Process this turn's tokens
+            turn_doc = self.nlp(original_text)
             
-            # Create text with gaps for this turn
-            if turn_gap_positions:
-                turn_result = []
-                for i, token in enumerate(turn_doc):
-                    if i in turn_gap_positions:
-                        gap = turn_gap_positions[i]
-                        hint = self.create_hint(gap["word"], hint_type)
-                        turn_result.append(hint)
-                    else:
-                        turn_result.append(token.text_with_ws)
-                turn_text_with_gaps = "".join(turn_result).strip()
-            else:
-                turn_text_with_gaps = text
+            # Build text with gaps for this turn
+            result = []
+            for i, token in enumerate(turn_doc):
+                global_pos = token_offset + i
+                
+                if global_pos in gap_words:
+                    result.append(gap_words[global_pos]["hint"])
+                else:
+                    result.append(token.text_with_ws)
+            
+            text_with_gaps = "".join(result).strip()
             
             dialogue_with_gaps.append({
                 "speaker": speaker,
-                "text": text,  # Original text
-                "text_with_gaps": turn_text_with_gaps  # Text with gaps
+                "text": original_text,
+                "text_with_gaps": text_with_gaps
             })
             
-            # Move token position forward
-            current_token_pos += turn_tokens_count
+            # Update offset for next turn
+            token_offset += len(turn_doc)
         
         return dialogue_with_gaps
 
