@@ -35,7 +35,9 @@ class ConversationGapGenerator:
             self.nlp = spacy.load("en_core_web_sm")
             print("✅ Loaded spaCy model: en_core_web_sm")
         except OSError:
-            print("❌ spaCy model not found. Run: python -m spacy download en_core_web_sm")
+            print(
+                "❌ spaCy model not found. Run: python -m spacy download en_core_web_sm"
+            )
             sys.exit(1)
 
         # Database
@@ -204,9 +206,7 @@ class ConversationGapGenerator:
 
         return selected[:target_count]
 
-    def create_text_with_gaps(
-        self, text: str, gaps: List[Dict], hint_type: str
-    ) -> str:
+    def create_text_with_gaps(self, text: str, gaps: List[Dict], hint_type: str) -> str:
         """Replace gap words with hints."""
         doc = self.nlp(text)
 
@@ -224,6 +224,64 @@ class ConversationGapGenerator:
                 result.append(token.text_with_ws)
 
         return "".join(result)
+
+    def create_dialogue_with_gaps(self, conversation: Dict, gaps: List[Dict], hint_type: str) -> List[Dict]:
+        """Create dialogue turns with gaps embedded in each turn's text."""
+        dialogue_with_gaps = []
+        
+        # Get dialogue turns
+        dialogue = conversation.get("dialogue", [])
+        full_text = self.extract_full_text(conversation)
+        
+        # Process full text to get token positions
+        doc = self.nlp(full_text)
+        
+        # Create gap position lookup
+        gap_positions = {g["position"]: g for g in gaps}
+        
+        # Track current token position in full text
+        current_token_pos = 0
+        
+        for turn in dialogue:
+            speaker = turn.get("speaker", "Unknown")
+            text = turn.get("text", "")
+            
+            # Process this turn's text
+            turn_doc = self.nlp(text)
+            turn_tokens_count = len([t for t in turn_doc if t.is_alpha or t.is_space or t.is_punct])
+            
+            # Find gaps within this turn's token range
+            turn_gap_positions = {}
+            for token_idx in range(current_token_pos, current_token_pos + turn_tokens_count):
+                if token_idx in gap_positions:
+                    # Map global position to local turn position
+                    local_pos = token_idx - current_token_pos
+                    turn_gap_positions[local_pos] = gap_positions[token_idx]
+            
+            # Create text with gaps for this turn
+            if turn_gap_positions:
+                turn_result = []
+                for i, token in enumerate(turn_doc):
+                    if i in turn_gap_positions:
+                        gap = turn_gap_positions[i]
+                        hint = self.create_hint(gap["word"], hint_type)
+                        turn_result.append(hint)
+                    else:
+                        turn_result.append(token.text_with_ws)
+                turn_text_with_gaps = "".join(turn_result).strip()
+            else:
+                turn_text_with_gaps = text
+            
+            dialogue_with_gaps.append({
+                "speaker": speaker,
+                "text": text,  # Original text
+                "text_with_gaps": turn_text_with_gaps  # Text with gaps
+            })
+            
+            # Move token position forward
+            current_token_pos += turn_tokens_count
+        
+        return dialogue_with_gaps
 
     def generate_gaps_for_conversation(
         self, conversation: Dict, difficulty: str
@@ -270,6 +328,11 @@ class ConversationGapGenerator:
         text_with_gaps = self.create_text_with_gaps(
             full_text, gaps, config["hint_type"]
         )
+        
+        # Create dialogue with gaps (structured by turns)
+        dialogue_with_gaps = self.create_dialogue_with_gaps(
+            conversation, gaps, config["hint_type"]
+        )
 
         # Create gap definitions
         gap_definitions = []
@@ -293,7 +356,8 @@ class ConversationGapGenerator:
             "gap_id": f"gap_{conversation['conversation_id']}_{difficulty}",
             "conversation_id": conversation["conversation_id"],
             "difficulty": difficulty,
-            "text_with_gaps": text_with_gaps,
+            "text_with_gaps": text_with_gaps,  # Full text with gaps (legacy)
+            "dialogue_with_gaps": dialogue_with_gaps,  # Structured dialogue turns
             "gap_definitions": gap_definitions,
             "gap_count": len(gap_definitions),
             "avg_difficulty_score": avg_difficulty,
@@ -354,9 +418,7 @@ async def main():
     print(f"📚 Existing gaps: {existing_gaps}")
 
     # Calculate how many conversations already have gaps
-    conversations_with_gaps = len(
-        generator.conv_gaps_col.distinct("conversation_id")
-    )
+    conversations_with_gaps = len(generator.conv_gaps_col.distinct("conversation_id"))
     need_generation = total_conversations - conversations_with_gaps
 
     print(f"🆕 Need generation: {need_generation} conversations")

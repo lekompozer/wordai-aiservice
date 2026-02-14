@@ -306,7 +306,7 @@ async def get_conversation_detail(
     if conversation.get("audio_info"):
         audio_info = conversation["audio_info"]
         audio_url = None
-        
+
         # Build R2 URL from r2_key (new format)
         if audio_info.get("r2_key"):
             audio_url = f"https://static.wordai.pro/{audio_info['r2_key']}"
@@ -315,7 +315,7 @@ async def get_conversation_detail(
             audio_url = audio_info["r2_url"]
         elif audio_info.get("url"):
             audio_url = audio_info["url"]
-            
+
         conversation["audio_url"] = audio_url
         conversation["has_audio"] = bool(audio_url)
 
