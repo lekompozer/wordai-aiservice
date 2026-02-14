@@ -84,7 +84,7 @@ async def main():
     db_manager = DBManager()
     db = db_manager.db
 
-    # Initialize TTS service
+    # Initialize TTS service (shared across workers)
     from src.services.google_tts_service import GoogleTTSService
 
     tts_service = GoogleTTSService()
@@ -99,11 +99,15 @@ async def main():
         )
     )
 
-    if not conversations:
+    conv_ids = [c["conversation_id"] for c in conversations]
+
+    if not conv_ids:
         print("✅ All conversations already have audio!")
         return
 
-    print(f"\n🎯 SEQUENTIAL GENERATION: {len(conversations)} conversations")
+    print(
+        f"\n🎯 Starting parallel generation: {len(conv_ids)} conversations with 5 workers"
+    )
     print("=" * 80)
 
     # Show distribution by topic
@@ -117,113 +121,57 @@ async def main():
         print(f"  {topic}: {topic_counts[topic]} conversations")
 
     print("\n" + "=" * 80)
-    print("⏱️  Starting sequential audio generation...\n")
+    print("⏱️  Starting audio generation...\n")
 
     start_time = time.time()
-    success_count = 0
-    failed_count = 0
-    failed_ids = []
 
-    # Process ONE BY ONE (no parallel)
-    for idx, conv in enumerate(conversations, 1):
-        conv_id = conv["conversation_id"]
-        
-        print(f"\n[{idx}/{len(conversations)}] Processing: {conv_id}")
-        
-        try:
-            # Get conversation dialogue
-            full_conv = db_manager.db.conversation_library.find_one(
-                {"conversation_id": conv_id}
-            )
-            if not full_conv or not full_conv.get("dialogue"):
-                print(f"⚠️  Skipping {conv_id}: No dialogue found")
-                failed_count += 1
-                failed_ids.append(conv_id)
-                continue
+    # Split into 5 batches
+    batch_size = len(conv_ids) // 5
+    batches = [
+        (
+            conv_ids[i * batch_size : (i + 1) * batch_size]
+            if i < 4
+            else conv_ids[i * batch_size :]
+        )
+        for i in range(5)
+    ]
 
-            dialogue = full_conv["dialogue"]
+    # Show batch sizes
+    for i, batch in enumerate(batches, 1):
+        print(f"Worker {i}: {len(batch)} conversations")
+    print("")
 
-            # Generate audio with retry (3 attempts)
-            audio_info = None
-            for attempt in range(3):
-                try:
-                    print(f"  🔄 Attempt {attempt + 1}/3...")
-                    audio_info = await generate_audio_for_conversation(
-                        conv_id, dialogue, tts_service, db_manager
-                    )
-                    if audio_info:
-                        break
-                    else:
-                        print(f"  ⚠️  Attempt {attempt + 1} returned None")
-                        if attempt < 2:
-                            await asyncio.sleep(15)  # Wait 15s before retry
-                except Exception as e:
-                    print(f"  ❌ Attempt {attempt + 1} error: {str(e)[:100]}")
-                    if attempt < 2:
-                        print(f"  ⏳ Waiting 15s before retry...")
-                        await asyncio.sleep(15)
-
-            if audio_info:
-                # Update DB with audio URL
-                db_manager.db.conversation_library.update_one(
-                    {"conversation_id": conv_id},
-                    {
-                        "$set": {
-                            "audio_url": audio_info["audio_url"],
-                            "audio_info": {
-                                "r2_key": audio_info["r2_key"],
-                                "library_file_id": audio_info.get("library_file_id"),
-                                "duration": audio_info["duration"],
-                                "format": audio_info["format"],
-                                "voices_used": audio_info["voices_used"],
-                                "generated_at": audio_info["generated_at"],
-                            },
-                        }
-                    },
-                )
-                success_count += 1
-                print(f"  ✅ Success ({success_count}/{len(conversations)})")
-            else:
-                failed_count += 1
-                failed_ids.append(conv_id)
-                print(f"  ❌ Failed after 3 attempts")
-
-        except Exception as e:
-            failed_count += 1
-            failed_ids.append(conv_id)
-            print(f"  ❌ Exception: {str(e)[:150]}")
-
-        # Show progress every 10
-        if idx % 10 == 0:
-            elapsed = time.time() - start_time
-            avg_time = elapsed / idx
-            remaining = (len(conversations) - idx) * avg_time
-            print(f"\n📊 Progress: {idx}/{len(conversations)} | Success: {success_count} | Failed: {failed_count}")
-            print(f"   Time: {elapsed/60:.1f}min elapsed, ~{remaining/60:.1f}min remaining\n")
+    # Run 5 workers in parallel (pass shared db_manager and tts_service)
+    tasks = [
+        generate_batch(batch, i + 1, db_manager, tts_service)
+        for i, batch in enumerate(batches)
+    ]
+    results = await asyncio.gather(*tasks)
 
     end_time = time.time()
     duration = end_time - start_time
 
     # Summary
     print("\n" + "=" * 80)
-    print("📊 FINAL SUMMARY:")
+    print("📊 SUMMARY:")
     print("=" * 80)
-    print(f"Total processed: {len(conversations)}")
-    print(f"Success: {success_count}")
-    print(f"Failed: {failed_count}")
-    
-    if failed_ids:
-        print(f"\nFailed IDs ({len(failed_ids)}):")
-        for fid in failed_ids[:10]:
-            print(f"  - {fid}")
-        if len(failed_ids) > 10:
-            print(f"  ... and {len(failed_ids) - 10} more")
 
-    print(f"\nDuration: {duration/60:.1f} minutes ({duration:.0f} seconds)")
+    total_success = sum(r[1] for r in results)
+    total_failed = sum(r[2] for r in results)
 
-    if success_count > 0:
-        avg_time = duration / success_count
-        print(f"Average time per successful audio: {avg_time:.1f} seconds")
+    for worker_id, success, failed, failed_ids in results:
+        print(f"Worker {worker_id}: {success} success, {failed} failed")
+        if failed_ids:
+            print(
+                f"  Failed IDs: {', '.join(failed_ids[:5])}{'...' if len(failed_ids) > 5 else ''}"
+            )
+
+    print(f"\nTOTAL: {total_success} success, {total_failed} failed")
+    print(f"Duration: {duration/60:.1f} minutes ({duration:.0f} seconds)")
+
+    if total_success > 0:
+        avg_time = duration / total_success
+        print(f"Average time per conversation: {avg_time:.1f} seconds")
 
     print("=" * 80)
 
