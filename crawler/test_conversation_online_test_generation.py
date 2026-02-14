@@ -37,9 +37,9 @@ client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1"
 
 # Test conversations (specific IDs to test)
 TEST_CONVERSATIONS = {
-    "beginner": "conv_beginner_greetings_01_001",  # "Hello, How Are You?"
-    "intermediate": "conv_intermediate_hobbies_11_001",  # First intermediate conversation
-    "advanced": "conv_advanced_business_21_001",  # First advanced conversation
+    "beginner": "conv_beginner_greetings_introductions_01_001",  # "Hello, How Are You?"
+    "intermediate": "conv_intermediate_work_office_11_001",  # "Job Interview"
+    "advanced": "conv_advanced_business_entrepreneurship_21_001",  # "Pitching an Idea"
 }
 
 # Level configuration
