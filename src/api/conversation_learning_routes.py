@@ -302,11 +302,13 @@ async def get_conversation_detail(
     # Remove MongoDB _id
     conversation.pop("_id", None)
 
-    # Format audio info
+    # Format audio info - check both r2_url and url fields
     if conversation.get("audio_info"):
         audio_info = conversation["audio_info"]
-        conversation["audio_url"] = audio_info.get("url")
-        conversation["has_audio"] = bool(audio_info.get("url"))
+        # Try r2_url first (new format), then url (old format)
+        audio_url = audio_info.get("r2_url") or audio_info.get("url")
+        conversation["audio_url"] = audio_url
+        conversation["has_audio"] = bool(audio_url)
 
     return conversation
 
