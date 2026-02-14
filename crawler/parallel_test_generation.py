@@ -696,14 +696,17 @@ async def process_conversation(
         title_en = conversation.get("title", {}).get("en", "Unknown")
 
         try:
+            # Get vocabulary data from conversation_vocabulary collection
+            vocab_data = db_manager.db.conversation_vocabulary.find_one(
+                {"conversation_id": conversation_id}
+            ) or {"vocabulary": [], "grammar_patterns": []}
+
             # Generate test questions
             questions = await generate_test_questions(
                 conversation_id=conversation_id,
+                conversation=conversation,
+                vocab_data=vocab_data,
                 level=level,
-                title=title_en,
-                dialogue=conversation.get("dialogue", []),
-                vocabulary=conversation.get("vocabulary", []),
-                grammar_patterns=conversation.get("grammar_patterns", []),
             )
 
             if not questions:
@@ -714,12 +717,16 @@ async def process_conversation(
                     "error": "No questions generated",
                 }
 
+            # Generate cover prompt
+            cover_prompt = generate_cover_image_prompt(title_en, level)
+
             # Save to database
             test_id, slug = await save_test_to_database(
-                conversation=conversation,
-                level=level,
+                conversation_id=conversation_id,
                 questions=questions,
-                db_manager=db_manager,
+                level=level,
+                conversation=conversation,
+                cover_prompt=cover_prompt,
             )
 
             # Generate cover (non-blocking)
