@@ -52,15 +52,17 @@ class ConversationGapGenerator:
         self.difficulty_configs = {
             "easy": {
                 "percentage": 0.15,  # 15% of words
-                "target_pos": {"NOUN"},  # Only common nouns (exclude PROPN like "Ben", "Anna")
+                "target_pos": {
+                    "NOUN"
+                },  # Only common nouns (exclude PROPN like "Ben", "Anna")
                 "min_zipf": 4.0,  # Common words only
-                "hint_type": "first_letter_count",  # "h____ (5)" for "hello"
+                "hint_type": "none",  # "_____" no hints
             },
             "medium": {
                 "percentage": 0.25,  # 25% of words
                 "target_pos": {"NOUN", "VERB", "ADJ"},
                 "min_zipf": 2.0,  # Moderate difficulty
-                "hint_type": "char_count",  # "_____ (5)"
+                "hint_type": "none",  # "_____" no hints
             },
             "hard": {
                 "percentage": 0.35,  # 35% of words
