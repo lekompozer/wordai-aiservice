@@ -19,14 +19,16 @@ import os
 import sys
 import json
 import asyncio
+import base64
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from openai import OpenAI
 from bson import ObjectId
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.database.db_manager import DBManager
+from src.services.gemini_test_cover_service import get_gemini_test_cover_service
 
 # DeepSeek API
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -37,9 +39,9 @@ client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1"
 
 # Test conversations (specific IDs to test)
 TEST_CONVERSATIONS = {
-    "beginner": "conv_beginner_greetings_introductions_01_001",  # "Hello, How Are You?"
-    "intermediate": "conv_intermediate_work_office_11_001",  # "Job Interview"
-    "advanced": "conv_advanced_business_entrepreneurship_21_001",  # "Pitching an Idea"
+    "beginner": "conv_beginner_daily_routines_02_001",  # Daily Routines
+    "intermediate": "conv_intermediate_education_learning_13_001",  # Education & Learning
+    "advanced": "conv_advanced_art_creativity_27_001",  # Art & Creativity
 }
 
 # Level configuration
@@ -605,6 +607,42 @@ async def save_test_to_database(
     return test_id, slug
 
 
+async def generate_and_upload_cover(
+    test_id: str, title: str, cover_prompt: str, gemini_service
+) -> Optional[str]:
+    """Generate cover image and upload to R2"""
+    try:
+        print(f"\n🎨 Generating cover image...")
+        print(f"   Prompt: {cover_prompt[:80]}...")
+
+        # Generate cover
+        result = await gemini_service.generate_test_cover(
+            title=title, description=cover_prompt, style="minimal, modern, educational"
+        )
+
+        # Decode base64
+        image_bytes = base64.b64decode(result["image_base64"])
+        print(f"✅ Image generated ({len(image_bytes)} bytes)")
+
+        # Upload to R2
+        filename = f"test_{test_id}_cover.png"
+        upload_result = await gemini_service.upload_cover_to_r2(
+            image_bytes=image_bytes, test_id=test_id, filename=filename
+        )
+
+        cover_url = upload_result["cover_url"]
+        print(f"☁️  Uploaded to R2: {cover_url}")
+
+        return cover_url
+
+    except Exception as e:
+        print(f"❌ Cover generation failed: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return None
+
+
 async def main():
     """Main test function"""
 
@@ -617,6 +655,15 @@ async def main():
 
     db_manager = DBManager()
     db = db_manager.db
+
+    # Initialize Gemini service for cover generation
+    try:
+        gemini_service = get_gemini_test_cover_service()
+        print("✅ Gemini service initialized")
+    except Exception as e:
+        print(f"❌ Gemini service initialization failed: {e}")
+        print("⚠️  Will skip cover generation")
+        gemini_service = None
 
     results = []
 
@@ -658,9 +705,32 @@ async def main():
                 conversation_id, questions, level, conv, cover_prompt
             )
 
-            print(f"\n✅ SUCCESS!")
+            print(f"\n✅ TEST SAVED!")
             print(f"   Test ID: {test_id}")
             print(f"   Slug: {slug}")
+
+            # Generate cover image
+            cover_url = None
+            if gemini_service:
+                cover_url = await generate_and_upload_cover(
+                    test_id, conv["title"]["en"], cover_prompt, gemini_service
+                )
+
+                if cover_url:
+                    # Update database with cover URL
+                    db.online_tests.update_one(
+                        {"_id": ObjectId(test_id)},
+                        {
+                            "$set": {
+                                "marketplace_config.cover_image_url": cover_url,
+                                "cover_image_url": cover_url,
+                                "marketplace_config.updated_at": datetime.utcnow(),
+                            }
+                        },
+                    )
+                    print(f"\n✅ Cover image updated in database")
+            else:
+                print(f"\n⚠️  Skipped cover generation (Gemini service not available)")
 
             results.append(
                 {
@@ -671,6 +741,7 @@ async def main():
                     "slug": slug,
                     "questions_count": len(questions),
                     "cover_prompt": cover_prompt,
+                    "cover_url": cover_url,
                 }
             )
 
@@ -690,7 +761,11 @@ async def main():
         print(f"   Test ID: {result['test_id']}")
         print(f"   Slug: {result['slug']}")
         print(f"   Questions: {result['questions_count']}")
-        print(f"   Cover: {result['cover_prompt'][:60]}...")
+        print(f"   Cover Prompt: {result['cover_prompt'][:60]}...")
+        if result.get('cover_url'):
+            print(f"   Cover URL: {result['cover_url']}")
+        else:
+            print(f"   Cover URL: ⚠️  Not generated")
 
     # Verification queries
     print("\n\n" + "=" * 80)
