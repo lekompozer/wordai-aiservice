@@ -281,7 +281,116 @@ async def get_topics_list(
 
 
 # ============================================================================
-# ENDPOINT 3: Get Conversation Detail
+# ENDPOINT 3: Get All Learning History (MUST BE BEFORE /{conversation_id})
+# ============================================================================
+
+
+@router.get("/history")
+async def get_all_learning_history(
+    level: Optional[str] = None,
+    topic: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 50,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get all conversations user has attempted with detailed stats.
+
+    Query Parameters:
+    - level: Filter by level
+    - topic: Filter by topic
+    - page: Page number (1-based)
+    - page_size: Items per page (max: 100)
+
+    Returns: Complete learning history with analytics
+    """
+    user_id = current_user["uid"]
+
+    if page_size > 100:
+        page_size = 100
+
+    skip = (page - 1) * page_size
+
+    # Get user's progress records
+    progress_col = db["user_conversation_progress"]
+    conv_col = db["conversation_library"]
+
+    # Build filter
+    progress_filter = {"user_id": user_id}
+
+    # Get all progress records
+    all_progress = list(progress_col.find(progress_filter))
+
+    # Get conversation details and filter
+    history = []
+    for prog in all_progress:
+        conv = conv_col.find_one({"conversation_id": prog["conversation_id"]})
+        if not conv:
+            continue
+
+        # Apply level/topic filters
+        if level and conv["level"] != level:
+            continue
+        if topic and conv["topic_slug"] != topic:
+            continue
+
+        # Calculate stats
+        best_scores = prog.get("best_scores", {})
+        highest_score = 0
+        completed_difficulties = []
+
+        for diff in ["easy", "medium", "hard"]:
+            if diff in best_scores:
+                score = best_scores[diff]["score"]
+                if score > highest_score:
+                    highest_score = score
+                if score >= 80:
+                    completed_difficulties.append(diff)
+
+        history.append(
+            {
+                "conversation_id": prog["conversation_id"],
+                "title": conv["title"],
+                "level": conv["level"],
+                "topic": conv["topic"],
+                "topic_slug": conv["topic_slug"],
+                "total_attempts": prog.get("total_attempts", 0),
+                "total_time_spent": prog.get("total_time_spent", 0),
+                "best_scores": best_scores,
+                "highest_score": highest_score,
+                "completed_difficulties": completed_difficulties,
+                "is_completed": prog.get("is_completed", False),
+                "first_attempt_at": (
+                    prog.get("first_attempt_at").isoformat()
+                    if prog.get("first_attempt_at")
+                    else None
+                ),
+                "last_attempt_at": (
+                    prog.get("last_attempt_at").isoformat()
+                    if prog.get("last_attempt_at")
+                    else None
+                ),
+            }
+        )
+
+    # Sort by last attempt (most recent first)
+    history.sort(key=lambda x: x["last_attempt_at"] or "", reverse=True)
+
+    # Paginate
+    total = len(history)
+    paginated = history[skip : skip + page_size]
+
+    return {
+        "history": paginated,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+# ============================================================================
+# ENDPOINT 4: Get Conversation Detail
 # ============================================================================
 
 
@@ -881,113 +990,6 @@ async def get_conversation_history(
         "best_scores": best_scores,
         "total_attempts": len(attempts),
         "total_time_spent": total_time_spent,
-    }
-
-
-# ============================================================================
-# ENDPOINT 9: Get All Learning History
-# ============================================================================
-
-
-@router.get("/history")
-async def get_all_learning_history(
-    level: Optional[str] = None,
-    topic: Optional[str] = None,
-    skip: int = 0,
-    limit: int = 50,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Get all conversations user has attempted with detailed stats.
-
-    Query Parameters:
-    - level: Filter by level
-    - topic: Filter by topic
-    - skip: Pagination offset
-    - limit: Page size (max: 100)
-
-    Returns: Complete learning history with analytics
-    """
-    user_id = current_user["uid"]
-
-    if limit > 100:
-        limit = 100
-
-    # Get user's progress records
-    progress_col = db["user_conversation_progress"]
-    conv_col = db["conversation_library"]
-
-    # Build filter
-    progress_filter = {"user_id": user_id}
-
-    # Get all progress records
-    all_progress = list(progress_col.find(progress_filter))
-
-    # Get conversation details and filter
-    history = []
-    for prog in all_progress:
-        conv = conv_col.find_one({"conversation_id": prog["conversation_id"]})
-        if not conv:
-            continue
-
-        # Apply level/topic filters
-        if level and conv["level"] != level:
-            continue
-        if topic and conv["topic_slug"] != topic:
-            continue
-
-        # Calculate stats
-        best_scores = prog.get("best_scores", {})
-        highest_score = 0
-        completed_difficulties = []
-
-        for diff in ["easy", "medium", "hard"]:
-            if diff in best_scores:
-                score = best_scores[diff]["score"]
-                if score > highest_score:
-                    highest_score = score
-                if score >= 80:
-                    completed_difficulties.append(diff)
-
-        history.append(
-            {
-                "conversation_id": prog["conversation_id"],
-                "title": conv["title"],
-                "level": conv["level"],
-                "topic": conv["topic"],
-                "topic_slug": conv["topic_slug"],
-                "total_attempts": prog.get("total_attempts", 0),
-                "total_time_spent": prog.get("total_time_spent", 0),
-                "best_scores": best_scores,
-                "highest_score": highest_score,
-                "completed_difficulties": completed_difficulties,
-                "is_completed": prog.get("is_completed", False),
-                "first_attempt_at": (
-                    prog.get("first_attempt_at").isoformat()
-                    if prog.get("first_attempt_at")
-                    else None
-                ),
-                "last_attempt_at": (
-                    prog.get("last_attempt_at").isoformat()
-                    if prog.get("last_attempt_at")
-                    else None
-                ),
-            }
-        )
-
-    # Sort by last attempt (most recent first)
-    history.sort(key=lambda x: x["last_attempt_at"] or "", reverse=True)
-
-    # Paginate
-    total = len(history)
-    paginated = history[skip : skip + limit]
-
-    return {
-        "history": paginated,
-        "total": total,
-        "page": skip // limit + 1,
-        "limit": limit,
     }
 
 
