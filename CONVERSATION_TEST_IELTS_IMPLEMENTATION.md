@@ -931,13 +931,39 @@ async def save_test_to_database(
 
 Before running full generation (1,739 conversations):
 
-- [ ] Test prompt với 1 beginner conversation
-- [ ] Test prompt với 1 intermediate conversation
-- [ ] Test prompt với 1 advanced conversation
-- [ ] Validate question count cho mỗi level
-- [ ] Validate tất cả question types schema
-- [ ] Check explanation format (EN | VI)
-- [ ] Verify correct_answers structure cho mỗi type
+- [x] **Test prompt với 1 beginner conversation** ✅ (Test ID: 69907a5e92fc303853dded75)
+  - 10 questions: 4 MCQ + 2 Matching + 2 Completion + 2 Sentence Completion
+  - Cover prompt: "Minimal abstract geometric shapes in soft blues and greens..."
+
+- [x] **Test prompt với 1 intermediate conversation** ✅ (Test ID: 69907b0a92fc303853dded77)
+  - 15 questions: 5 MCQ + 2 Matching + 3 Completion + 2 Sentence Completion + 3 Short Answer
+  - Cover prompt: "Modern abstract geometric background in warm oranges and yellows..."
+
+- [x] **Test prompt với 1 advanced conversation** ✅ (Test ID: 69907c5492fc303853dded79)
+  - 20 questions: 6 MCQ + 2 MCQ Multiple + 1 Matching + 2 Completion + 1 Sentence Completion + 2 Short Answer
+  - Cover prompt: "Minimal abstract geometric cover, deep purple and teal gradient..."
+
+- [x] **Validate question count cho mỗi level** ✅
+  - Beginner: 10 questions (correct)
+  - Intermediate: 15 questions (correct)
+  - Advanced: 20 questions (correct)
+
+- [x] **Validate tất cả question types schema** ✅
+  - MCQ: ✅ 4 options, correct_answers array
+  - MCQ Multiple: ✅ 6 options, multiple correct_answers
+  - Matching: ✅ left_items, right_options, correct_answers with left_key/right_key
+  - Completion: ✅ template, blanks, correct_answers with blank_key/answers
+  - Sentence Completion: ✅ sentences array with correct_answers
+  - Short Answer: ✅ correct_answers array
+
+- [x] **Check explanation format (EN | VI)** ✅
+  - All explanations follow "English | Vietnamese" format
+
+- [x] **Verify correct_answers structure cho mỗi type** ✅
+  - Matching: Uses left_key/right_key pairs
+  - Completion: Uses blank_key/answers structure
+  - All types validated successfully
+
 - [ ] Test với English teacher (native speaker review)
 - [ ] A/B test với 50 beta users
 - [ ] Monitor DeepSeek API error rate

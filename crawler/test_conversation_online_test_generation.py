@@ -480,15 +480,43 @@ async def save_test_to_database(
     db = db_manager.db
 
     title_en = conversation["title"]["en"]
-    topic_slug = conversation.get("topic", "unknown")
+    topic_dict = conversation.get("topic", {})
+    topic_slug = (
+        topic_dict.get("en", "unknown")
+        if isinstance(topic_dict, dict)
+        else str(topic_dict)
+    )
 
     # Generate slug
-    slug = f"test-{level}-{topic_slug}-{conversation_id.split('_')[-1]}"
+    slug = f"test-{level}-{topic_slug.lower().replace(' ', '-').replace('&', 'and')}-{conversation_id.split('_')[-1]}"
+
+    # Short description (160 chars max)
+    short_desc = (
+        f"Test your {level} English with {len(questions)} questions on {title_en}"
+    )
+    if len(short_desc) > 160:
+        short_desc = short_desc[:157] + "..."
+
+    # Full description
+    full_desc = f"Test your understanding of vocabulary and grammar from the conversation '{title_en}'. {LEVEL_CONFIG[level]['description']}"
+
+    # Meta description for SEO (160 chars max)
+    meta_desc = f"{level.capitalize()} English test: {title_en}. {len(questions)} IELTS-style questions. Free practice test."
+    if len(meta_desc) > 160:
+        meta_desc = meta_desc[:157] + "..."
+
+    # Difficulty mapping
+    difficulty_map = {
+        "beginner": "beginner",
+        "intermediate": "intermediate",
+        "advanced": "advanced",
+    }
 
     # Prepare test document
+    now = datetime.utcnow()
     test_doc = {
         "title": f"Vocabulary & Grammar Test: {title_en}",
-        "description": f"Test your understanding of vocabulary and grammar from the conversation '{title_en}'. {LEVEL_CONFIG[level]['description']}",
+        "description": full_desc,
         # Creator info
         "creator_id": "wordai_team",
         "creator_name": "WordAI Team",
@@ -501,7 +529,7 @@ async def save_test_to_database(
         "source_type": "conversation",
         "conversation_id": conversation_id,
         "conversation_level": level,
-        "conversation_topic": topic_slug,
+        "conversation_topic": topic_dict,
         # Test settings
         "time_limit_minutes": LEVEL_CONFIG[level]["time_limit"],
         "max_retries": 3,
@@ -509,20 +537,43 @@ async def save_test_to_database(
         "show_answers_timing": "immediate",
         # Questions
         "questions": questions,
-        # Marketplace
+        # Marketplace (COMPLETE config matching production tests)
         "marketplace_config": {
-            "is_published": False,
-            "price_points": 0,
+            "is_public": True,  # ⭐ Visible in community marketplace
+            "version": "v1",  # Version number
+            "title": f"Vocabulary & Grammar Test: {title_en}",
+            "description": full_desc,
+            "short_description": short_desc,
+            "cover_image_url": None,  # Will be generated later (use cover_image_prompt)
+            "price_points": 0,  # Free
             "category": "English Learning - Conversations",
-            "tags": f"{level},vocabulary,grammar,conversation,IELTS,test",
+            "tags": [
+                f"{level}",
+                "vocabulary",
+                "grammar",
+                "conversation",
+                "IELTS",
+                "test",
+            ],  # Array, not string
+            "difficulty_level": difficulty_map[level],
+            "published_at": now,  # Publication timestamp
+            "total_participants": 0,  # Stats (updated by system)
+            "total_earnings": 0,
+            "average_rating": 0,
+            "rating_count": 0,
+            "average_participant_score": 0,
+            "avg_rating": 0,  # Duplicate field (legacy compatibility)
+            "slug": slug,  # SEO-friendly URL
+            "meta_description": meta_desc,  # SEO meta tag
+            "updated_at": now,
         },
         # Cover image
         "cover_image_prompt": cover_prompt,
         "cover_image_url": None,  # Will be generated later
         # Timestamps
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-        "generated_at": datetime.utcnow(),
+        "created_at": now,
+        "updated_at": now,
+        "generated_at": now,
     }
 
     # Insert to database
