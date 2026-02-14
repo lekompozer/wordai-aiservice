@@ -268,7 +268,62 @@ Dialogue:
       "explanation": "The word 'greet' means to say hello or welcome someone. | Từ 'greet' có nghĩa là chào hỏi hoặc chào đón ai đó.",
       "max_points": 1
     }},
-    ... ({config['total_questions'] - 1} more questions with various types)
+    {{
+      "question_type": "matching",
+      "question_text": "Match the vocabulary words with their Vietnamese translations",
+      "instruction": "Write the correct letter A-E next to numbers 1-4",
+      "left_items": [
+        {{"key": "1", "text": "morning"}},
+        {{"key": "2", "text": "afternoon"}},
+        {{"key": "3", "text": "evening"}},
+        {{"key": "4", "text": "night"}}
+      ],
+      "right_options": [
+        {{"key": "A", "text": "buổi sáng"}},
+        {{"key": "B", "text": "buổi chiều"}},
+        {{"key": "C", "text": "buổi tối"}},
+        {{"key": "D", "text": "ban đêm"}},
+        {{"key": "E", "text": "trưa"}}
+      ],
+      "correct_answers": [
+        {{"left_key": "1", "right_key": "A"}},
+        {{"left_key": "2", "right_key": "B"}},
+        {{"left_key": "3", "right_key": "C"}},
+        {{"left_key": "4", "right_key": "D"}}
+      ],
+      "explanation": "These are time-of-day vocabulary words from the conversation. | Đây là từ vựng về các buổi trong ngày từ hội thoại.",
+      "max_points": 4
+    }},
+    {{
+      "question_type": "completion",
+      "question_text": "Complete the dialogue using grammar patterns from the conversation",
+      "instruction": "Write NO MORE THAN TWO WORDS for each answer",
+      "template": "A: Good morning! _____(1)_____ you doing today?\\nB: I _____(2)_____ doing great, thanks!\\nA: That's wonderful. _____(3)_____ meet you!",
+      "blanks": [
+        {{"key": "1", "position": "greeting question", "word_limit": 2}},
+        {{"key": "2", "position": "response", "word_limit": 2}},
+        {{"key": "3", "position": "closing", "word_limit": 2}}
+      ],
+      "correct_answers": [
+        {{"blank_key": "1", "answers": ["How are", "how are", "How're"]}},
+        {{"blank_key": "2", "answers": ["am", "AM", "'m"]}},
+        {{"blank_key": "3", "answers": ["Nice to", "nice to", "Pleased to"]}}
+      ],
+      "explanation": "This tests the present continuous greeting pattern 'How are you doing?' and present tense responses. | Kiểm tra mẫu câu chào hỏi thì hiện tại tiếp diễn và cách trả lời.",
+      "max_points": 3
+    }},
+    {{
+      "question_type": "sentence_completion",
+      "question_text": "Complete the sentences using words from the conversation",
+      "instruction": "Write NO MORE THAN ONE WORD for each answer",
+      "sentences": [
+        {{"key": "1", "template": "When you meet someone for the first time, you can say 'Nice to _____ you'.", "word_limit": 1, "correct_answers": ["meet", "MEET", "Meet"]}},
+        {{"key": "2", "template": "In the morning, we say 'Good _____' as a greeting.", "word_limit": 1, "correct_answers": ["morning", "MORNING", "Morning"]}}
+      ],
+      "explanation": "Common greeting expressions from the conversation. | Các cách chào hỏi phổ biến từ hội thoại.",
+      "max_points": 2
+    }},
+    ... (more questions following these formats to reach {config['total_questions']} total)
   ]
 }}
 
