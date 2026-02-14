@@ -243,12 +243,13 @@ async def generate_conversation(
     index: int,
     semaphore: asyncio.Semaphore,
 ) -> Dict:
-    """Generate one conversation with retry logic"""
+    """Generate one conversation with retry logic for network and parse errors"""
 
     async with semaphore:
         prompt = build_conversation_prompt(topic_info, title_en, index)
 
-        for attempt in range(3):
+        # Retry for network errors (3 attempts with exponential backoff)
+        for network_attempt in range(3):
             try:
                 response = await client.chat.completions.create(
                     model="deepseek-chat",
@@ -259,35 +260,81 @@ async def generate_conversation(
 
                 content = response.choices[0].message.content
                 if not content:
-                    raise ValueError("Empty response")
+                    raise ValueError("Empty response from API")
 
-                # Clean markdown
-                if content.startswith("```"):
-                    lines = content.split("\n")
-                    lines = [l for l in lines if not l.strip().startswith("```")]
-                    content = "\n".join(lines)
+                # Extract JSON from markdown (handle multiple code blocks)
+                json_content = content.strip()
+                if "```" in json_content:
+                    # Find JSON block
+                    parts = json_content.split("```")
+                    for part in parts:
+                        part = part.strip()
+                        if part.startswith("json"):
+                            part = part[4:].strip()
+                        if part.startswith("{") and part.endswith("}"):
+                            json_content = part
+                            break
 
-                data = json.loads(content)
+                # Retry JSON parsing (2 attempts)
+                parse_error = None
+                for parse_attempt in range(2):
+                    try:
+                        data = json.loads(json_content)
 
-                # Validate structure
-                if not all(
-                    k in data for k in ["dialogue", "vocabulary", "grammar_points"]
-                ):
-                    raise ValueError("Missing required fields")
+                        # Validate required fields
+                        required_fields = ["dialogue", "vocabulary", "grammar_points"]
+                        missing = [f for f in required_fields if f not in data]
+                        if missing:
+                            raise ValueError(f"Missing fields: {missing}")
 
-                return {
-                    "topic_info": topic_info,
-                    "title_en": title_en,
-                    "index": index,
-                    "data": data,
-                }
+                        # Validate dialogue structure
+                        if (
+                            not isinstance(data["dialogue"], list)
+                            or len(data["dialogue"]) < 12
+                        ):
+                            raise ValueError(
+                                f"Invalid dialogue: need 12+ turns, got {len(data.get('dialogue', []))}"
+                            )
 
-            except Exception as e:
-                if attempt < 2:
-                    await asyncio.sleep(2)
+                        return {
+                            "topic_info": topic_info,
+                            "title_en": title_en,
+                            "index": index,
+                            "data": data,
+                        }
+
+                    except json.JSONDecodeError as e:
+                        parse_error = f"JSON parse error: {e}"
+                        if parse_attempt < 1:
+                            # Try to fix common JSON issues
+                            json_content = json_content.replace("\n", " ").replace(
+                                "  ", " "
+                            )
+                            await asyncio.sleep(0.5)
+                            continue
+                        else:
+                            raise ValueError(parse_error)
+
+                # If we got here, parsing succeeded
+                break
+
+            except (ValueError, json.JSONDecodeError) as e:
+                # Parse errors - retry with longer delay
+                if network_attempt < 2:
+                    backoff = 3 * (network_attempt + 1)  # 3s, 6s
+                    await asyncio.sleep(backoff)
                     continue
                 else:
-                    raise Exception(f"Failed after 3 attempts: {e}")
+                    raise Exception(f"Parse failed after 3 attempts: {e}")
+
+            except Exception as e:
+                # Network/API errors - retry with exponential backoff
+                if network_attempt < 2:
+                    backoff = 2**network_attempt  # 1s, 2s, 4s
+                    await asyncio.sleep(backoff)
+                    continue
+                else:
+                    raise Exception(f"Network error after 3 attempts: {e}")
 
 
 def save_conversation(result: Dict, db_manager: DBManager) -> str:
@@ -371,7 +418,7 @@ async def main():
     # Build task list
     tasks = []
     client = AsyncOpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
-    semaphore = asyncio.Semaphore(10)  # Max 10 parallel requests
+    semaphore = asyncio.Semaphore(5)  # Max 5 parallel requests
 
     for topic in ADVANCED_TOPICS:
         current_count = db_manager.db.conversation_library.count_documents(
