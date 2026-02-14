@@ -39,7 +39,7 @@ client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com/v1"
 
 # Test conversations (specific IDs to test)
 TEST_CONVERSATIONS = {
-    "beginner": "conv_beginner_daily_routines_02_001",  # Daily Routines
+    "beginner": "conv_beginner_greetings_introductions_01_002",  # Nice to Meet You
     "intermediate": "conv_intermediate_education_learning_13_001",  # Education & Learning
     "advanced": "conv_advanced_art_creativity_27_001",  # Art & Creativity
 }
@@ -447,8 +447,7 @@ Requirements:
 - Aspect ratio: 16:9 (landscape)
 - Theme: English learning, vocabulary, grammar
 - Colors: {colors}
-- NO text in image (will be overlaid)
-- NO people (avoid copyright)
+- MUST include title text and "WordAI Team" on the cover
 - Abstract/geometric preferred
 
 Return ONLY the image prompt (max 200 chars), no explanation."""
@@ -626,11 +625,13 @@ async def generate_and_upload_cover(
 
         # Upload to R2
         filename = f"test_{test_id}_cover.png"
-        upload_result = await gemini_service.upload_cover_to_r2(
-            image_bytes=image_bytes, test_id=test_id, filename=filename
+        upload_result = await gemini_service.upload_to_r2(
+            image_bytes=image_bytes,
+            user_id="wordai_team",
+            filename=filename
         )
 
-        cover_url = upload_result["cover_url"]
+        cover_url = upload_result["file_url"]
         print(f"☁️  Uploaded to R2: {cover_url}")
 
         return cover_url
