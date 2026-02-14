@@ -579,7 +579,8 @@ class GoogleTTSService:
                     "Content-Type": "application/json",
                 }
 
-                async with httpx.AsyncClient(timeout=60.0) as client:
+                # Timeout 5 minutes (300s) - Vertex AI TTS can take 3-5 minutes per request
+                async with httpx.AsyncClient(timeout=300.0) as client:
                     response = await client.post(
                         url, json=request_payload, headers=headers
                     )
