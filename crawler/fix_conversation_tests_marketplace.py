@@ -25,22 +25,22 @@ for test in tests:
     title = test["title"]
     level = test["conversation_level"]
     num_questions = len(test.get("questions", []))
-    
+
     # Generate descriptions
     short_desc = f"Test your {level} English with {num_questions} questions on {title.replace('Vocabulary & Grammar Test: ', '')}"
     if len(short_desc) > 160:
         short_desc = short_desc[:157] + "..."
-    
+
     meta_desc = f"{level.capitalize()} English test: {title.replace('Vocabulary & Grammar Test: ', '')}. {num_questions} IELTS-style questions. Free practice test."
     if len(meta_desc) > 160:
         meta_desc = meta_desc[:157] + "..."
-    
+
     # Generate slug
     topic = test.get("conversation_topic", {})
     topic_text = topic.get("en", "unknown") if isinstance(topic, dict) else str(topic)
     conv_id = test["conversation_id"]
     slug = f"test-{level}-{topic_text.lower().replace(' ', '-').replace('&', 'and')}-{conv_id.split('_')[-1]}"
-    
+
     # Update marketplace_config
     now = datetime.utcnow()
     update_result = db.online_tests.update_one(
@@ -52,7 +52,14 @@ for test in tests:
                 "marketplace_config.description": test.get("description", ""),
                 "marketplace_config.short_description": short_desc,
                 "marketplace_config.difficulty_level": level,
-                "marketplace_config.tags": [level, "vocabulary", "grammar", "conversation", "IELTS", "test"],
+                "marketplace_config.tags": [
+                    level,
+                    "vocabulary",
+                    "grammar",
+                    "conversation",
+                    "IELTS",
+                    "test",
+                ],
                 "marketplace_config.published_at": test.get("created_at", now),
                 "marketplace_config.total_participants": 0,
                 "marketplace_config.total_earnings": 0,
@@ -66,7 +73,7 @@ for test in tests:
             }
         },
     )
-    
+
     print(f"✅ Updated: {title[:60]}")
     print(f"   Slug: {slug}")
     print(f"   Level: {level}")

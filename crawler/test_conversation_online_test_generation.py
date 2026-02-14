@@ -505,7 +505,7 @@ async def save_test_to_database(
     if len(meta_desc) > 160:
         meta_desc = meta_desc[:157] + "..."
 
-    # Difficulty mapping
+    # Difficulty mapping (matches production values)
     difficulty_map = {
         "beginner": "beginner",
         "intermediate": "intermediate",
@@ -533,7 +533,7 @@ async def save_test_to_database(
         # Test settings
         "time_limit_minutes": LEVEL_CONFIG[level]["time_limit"],
         "max_retries": 3,
-        "passing_score": 70,
+        "passing_score": 50,
         "show_answers_timing": "immediate",
         # Questions
         "questions": questions,
@@ -545,7 +545,7 @@ async def save_test_to_database(
             "description": full_desc,
             "short_description": short_desc,
             "cover_image_url": None,  # Will be generated later (use cover_image_prompt)
-            "price_points": 0,  # Free
+            "price_points": 1,  # 1 point per test
             "category": "English Learning - Conversations",
             "tags": [
                 f"{level}",
