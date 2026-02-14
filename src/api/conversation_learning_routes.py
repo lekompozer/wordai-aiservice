@@ -302,11 +302,20 @@ async def get_conversation_detail(
     # Remove MongoDB _id
     conversation.pop("_id", None)
 
-    # Format audio info - check both r2_url and url fields
+    # Format audio info - build R2 URL from r2_key
     if conversation.get("audio_info"):
         audio_info = conversation["audio_info"]
-        # Try r2_url first (new format), then url (old format)
-        audio_url = audio_info.get("r2_url") or audio_info.get("url")
+        audio_url = None
+        
+        # Build R2 URL from r2_key (new format)
+        if audio_info.get("r2_key"):
+            audio_url = f"https://static.wordai.pro/{audio_info['r2_key']}"
+        # Fallback to r2_url or url (legacy formats)
+        elif audio_info.get("r2_url"):
+            audio_url = audio_info["r2_url"]
+        elif audio_info.get("url"):
+            audio_url = audio_info["url"]
+            
         conversation["audio_url"] = audio_url
         conversation["has_audio"] = bool(audio_url)
 
