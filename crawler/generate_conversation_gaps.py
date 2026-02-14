@@ -249,7 +249,7 @@ class ConversationGapGenerator:
         
         for turn in dialogue:
             speaker = turn.get("speaker", "Unknown")
-            original_text = turn.get("text", "")
+            original_text = turn.get("text_en", "").strip()  # Use text_en from database
             
             if not original_text:
                 dialogue_with_gaps.append({
@@ -257,7 +257,6 @@ class ConversationGapGenerator:
                     "text": original_text,
                     "text_with_gaps": original_text
                 })
-                token_offset += 1  # Account for empty turn
                 continue
             
             # Process this turn's tokens
