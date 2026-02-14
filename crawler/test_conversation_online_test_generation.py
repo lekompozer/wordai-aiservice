@@ -28,7 +28,7 @@ from bson import ObjectId
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.database.db_manager import DBManager
-from src.services.gemini_test_cover_service import get_gemini_test_cover_service
+from src.services.xai_test_cover_service import get_xai_test_cover_service
 
 # DeepSeek API
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -662,15 +662,15 @@ async def save_test_to_database(
 
 
 async def generate_and_upload_cover(
-    test_id: str, title: str, cover_prompt: str, gemini_service
+    test_id: str, title: str, cover_prompt: str, xai_service
 ) -> Optional[str]:
-    """Generate cover image and upload to R2"""
+    """Generate cover image and upload to R2 using xAI Grok Imagine"""
     try:
-        print(f"\n🎨 Generating cover image...")
+        print(f"\n🎨 Generating cover image with xAI Grok Imagine...")
         print(f"   Prompt: {cover_prompt[:80]}...")
 
-        # Generate cover
-        result = await gemini_service.generate_test_cover(
+        # Generate cover with xAI Grok Imagine (1K resolution, 16:9)
+        result = await xai_service.generate_test_cover(
             title=title, description=cover_prompt, style="minimal, modern, educational"
         )
 
@@ -679,11 +679,9 @@ async def generate_and_upload_cover(
         print(f"✅ Image generated ({len(image_bytes)} bytes)")
 
         # Upload to R2
-        filename = f"test_{test_id}_cover.png"
-        upload_result = await gemini_service.upload_to_r2(
-            image_bytes=image_bytes,
-            user_id="wordai_team",
-            filename=filename
+        filename = f"test_{test_id}_cover.jpg"
+        upload_result = await xai_service.upload_to_r2(
+            image_bytes=image_bytes, user_id="wordai_team", filename=filename
         )
 
         cover_url = upload_result["file_url"]
@@ -712,14 +710,14 @@ async def main():
     db_manager = DBManager()
     db = db_manager.db
 
-    # Initialize Gemini service for cover generation
+    # Initialize xAI service for cover generation
     try:
-        gemini_service = get_gemini_test_cover_service()
-        print("✅ Gemini service initialized")
+        xai_service = get_xai_test_cover_service()
+        print("✅ xAI service initialized")
     except Exception as e:
-        print(f"❌ Gemini service initialization failed: {e}")
+        print(f"❌ xAI service initialization failed: {e}")
         print("⚠️  Will skip cover generation")
-        gemini_service = None
+        xai_service = None
 
     results = []
 
@@ -767,9 +765,9 @@ async def main():
 
             # Generate cover image
             cover_url = None
-            if gemini_service:
+            if xai_service:
                 cover_url = await generate_and_upload_cover(
-                    test_id, conv["title"]["en"], cover_prompt, gemini_service
+                    test_id, conv["title"]["en"], cover_prompt, xai_service
                 )
 
                 if cover_url:
@@ -818,7 +816,7 @@ async def main():
         print(f"   Slug: {result['slug']}")
         print(f"   Questions: {result['questions_count']}")
         print(f"   Cover Prompt: {result['cover_prompt'][:60]}...")
-        if result.get('cover_url'):
+        if result.get("cover_url"):
             print(f"   Cover URL: {result['cover_url']}")
         else:
             print(f"   Cover URL: ⚠️  Not generated")
