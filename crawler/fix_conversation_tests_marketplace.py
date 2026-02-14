@@ -47,6 +47,10 @@ for test in tests:
         {"_id": test_id},
         {
             "$set": {
+                # ✅ Root level fields (for endpoint compatibility)
+                "slug": slug,
+                "meta_description": meta_desc,
+                # Marketplace config
                 "marketplace_config.version": "v1",
                 "marketplace_config.title": title,
                 "marketplace_config.description": test.get("description", ""),

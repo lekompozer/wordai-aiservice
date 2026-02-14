@@ -512,11 +512,21 @@ async def save_test_to_database(
         "advanced": "advanced",
     }
 
+    # Add question_id and question_number to each question (for compatibility)
+    for idx, q in enumerate(questions, 1):
+        q["question_id"] = f"q{idx}"
+        q["question_number"] = idx
+        # Add empty questions array if not exists (old schema compatibility)
+        if "questions" not in q:
+            q["questions"] = []
+
     # Prepare test document
     now = datetime.utcnow()
     test_doc = {
         "title": f"Vocabulary & Grammar Test: {title_en}",
         "description": full_desc,
+        "slug": slug,  # ✅ Root level (for by-slug endpoint compatibility)
+        "meta_description": meta_desc,  # ✅ Root level SEO
         # Creator info
         "creator_id": "wordai_team",
         "creator_name": "WordAI Team",
