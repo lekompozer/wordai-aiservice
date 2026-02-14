@@ -52,7 +52,7 @@ class ConversationGapGenerator:
         self.difficulty_configs = {
             "easy": {
                 "percentage": 0.15,  # 15% of words
-                "target_pos": {"NOUN", "PROPN"},  # Nouns and proper nouns
+                "target_pos": {"NOUN"},  # Only common nouns (exclude PROPN like "Ben", "Anna")
                 "min_zipf": 4.0,  # Common words only
                 "hint_type": "first_letter_count",  # "h____ (5)" for "hello"
             },
@@ -272,7 +272,12 @@ class ConversationGapGenerator:
                 global_pos = token_offset + i
 
                 if global_pos in gap_words:
-                    result.append(gap_words[global_pos]["hint"])
+                    # Preserve whitespace after hint
+                    hint = gap_words[global_pos]["hint"]
+                    # Add trailing whitespace from original token
+                    if token.whitespace_:
+                        hint += token.whitespace_
+                    result.append(hint)
                 else:
                     result.append(token.text_with_ws)
 
