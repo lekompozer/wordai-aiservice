@@ -127,9 +127,7 @@ def format_grammar(grammar_points: List[Dict]) -> str:
     return "\n\n".join(lines)
 
 
-def build_test_prompt(
-    conversation: Dict, vocab_data: Dict, level: str
-) -> str:
+def build_test_prompt(conversation: Dict, vocab_data: Dict, level: str) -> str:
     """Build DeepSeek prompt with IELTS question types"""
 
     config = LEVEL_CONFIG[level]
@@ -144,20 +142,34 @@ def build_test_prompt(
     distribution_lines = []
     for q_type, count in config["distribution"].items():
         if q_type == "mcq":
-            distribution_lines.append(f"- {count} MCQ (single answer) - Vocabulary definitions")
+            distribution_lines.append(
+                f"- {count} MCQ (single answer) - Vocabulary definitions"
+            )
         elif q_type == "mcq_multiple":
-            distribution_lines.append(f"- {count} MCQ (multiple answers) - Grammar patterns (select all that apply)")
+            distribution_lines.append(
+                f"- {count} MCQ (multiple answers) - Grammar patterns (select all that apply)"
+            )
         elif q_type == "matching":
             if level == "beginner":
-                distribution_lines.append(f"- {count} Matching - Words → Vietnamese translations")
+                distribution_lines.append(
+                    f"- {count} Matching - Words → Vietnamese translations"
+                )
             else:
-                distribution_lines.append(f"- {count} Matching - Grammar patterns → Examples from conversation")
+                distribution_lines.append(
+                    f"- {count} Matching - Grammar patterns → Examples from conversation"
+                )
         elif q_type == "completion":
-            distribution_lines.append(f"- {count} Completion - Grammar fill-in-blanks (IELTS style)")
+            distribution_lines.append(
+                f"- {count} Completion - Grammar fill-in-blanks (IELTS style)"
+            )
         elif q_type == "sentence_completion":
-            distribution_lines.append(f"- {count} Sentence Completion - Vocabulary in context")
+            distribution_lines.append(
+                f"- {count} Sentence Completion - Vocabulary in context"
+            )
         elif q_type == "short_answer":
-            distribution_lines.append(f"- {count} Short Answer - Grammar transformation (1-3 words)")
+            distribution_lines.append(
+                f"- {count} Short Answer - Grammar transformation (1-3 words)"
+            )
     distribution_text = "\n".join(distribution_lines)
 
     prompt = f"""Generate an English vocabulary and grammar test for {level.upper()} level based on the conversation below.
@@ -189,7 +201,7 @@ Dialogue:
 
 **Question Type Usage Guidelines:**
 - **MCQ**: Use for vocabulary definitions, synonyms, word meanings
-- **Matching**: 
+- **Matching**:
   * Beginner: Match vocabulary words → Vietnamese translations
   * Intermediate/Advanced: Match grammar patterns → Examples from conversation
 - **Completion**: Use for GRAMMAR practice (fill blanks with correct grammar forms)
@@ -360,7 +372,9 @@ def validate_question_schema(question: Dict, index: int, level: str):
         assert "options" in question, f"Q{index}: Missing options"
         assert len(question["options"]) == 4, f"Q{index}: Must have 4 options"
         assert "correct_answers" in question, f"Q{index}: Missing correct_answers"
-        assert len(question["correct_answers"]) == 1, f"Q{index}: MCQ must have 1 answer"
+        assert (
+            len(question["correct_answers"]) == 1
+        ), f"Q{index}: MCQ must have 1 answer"
 
     elif q_type == "mcq_multiple":
         assert "options" in question, f"Q{index}: Missing options"
@@ -374,8 +388,8 @@ def validate_question_schema(question: Dict, index: int, level: str):
         assert "left_items" in question, f"Q{index}: Missing left_items"
         assert "right_options" in question, f"Q{index}: Missing right_options"
         assert "correct_answers" in question, f"Q{index}: Missing correct_answers"
-        assert (
-            len(question["right_options"]) > len(question["left_items"])
+        assert len(question["right_options"]) > len(
+            question["left_items"]
         ), f"Q{index}: Must have more options than items"
         for match in question["correct_answers"]:
             assert (
@@ -412,6 +426,14 @@ def validate_question_schema(question: Dict, index: int, level: str):
 async def generate_cover_image_prompt(title: str, level: str) -> str:
     """Generate cover image prompt using DeepSeek (minimal style, <200 chars)"""
 
+    # Level-specific color schemes
+    color_schemes = {
+        "beginner": "Soft blues and greens (calming)",
+        "intermediate": "Warm oranges and yellows (energetic)",
+        "advanced": "Deep purples and teals (sophisticated)",
+    }
+    colors = color_schemes[level]
+
     prompt = f"""Generate a SHORT image generation prompt (MAX 200 characters) for a test cover image.
 
 Test Title: "{title}"
@@ -422,11 +444,7 @@ Requirements:
 - Style: Minimal, clean, modern
 - Aspect ratio: 16:9 (landscape)
 - Theme: English learning, vocabulary, grammar
-- Colors: {
-    "beginner": "Soft blues and greens (calming)",
-    "intermediate": "Warm oranges and yellows (energetic)",
-    "advanced": "Deep purples and teals (sophisticated)"
-}[level]
+- Colors: {colors}
 - NO text in image (will be overlaid)
 - NO people (avoid copyright)
 - Abstract/geometric preferred
@@ -544,7 +562,9 @@ async def main():
     for level, conversation_id in TEST_CONVERSATIONS.items():
         try:
             # Get conversation
-            conv = db.conversation_library.find_one({"conversation_id": conversation_id})
+            conv = db.conversation_library.find_one(
+                {"conversation_id": conversation_id}
+            )
             if not conv:
                 print(f"\n❌ Conversation not found: {conversation_id}")
                 continue
@@ -568,9 +588,7 @@ async def main():
 
             # Generate cover image prompt
             print(f"\n🎨 Generating cover image prompt...")
-            cover_prompt = await generate_cover_image_prompt(
-                conv["title"]["en"], level
-            )
+            cover_prompt = await generate_cover_image_prompt(conv["title"]["en"], level)
             print(f"   Prompt: {cover_prompt}")
 
             # Save to database
