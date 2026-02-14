@@ -22,24 +22,21 @@ for test in tests:
     test_id = test["_id"]
     title = test["title"]
     questions = test.get("questions", [])
-    
+
     updated = False
-    
+
     for idx, q in enumerate(questions, 1):
         if "question_id" not in q:
             q["question_id"] = f"q{idx}"
             q["question_number"] = idx
             updated = True
-        
+
         if "questions" not in q:
             q["questions"] = []
             updated = True
-    
+
     if updated:
-        db.online_tests.update_one(
-            {"_id": test_id},
-            {"$set": {"questions": questions}}
-        )
+        db.online_tests.update_one({"_id": test_id}, {"$set": {"questions": questions}})
         print(f"✅ Updated: {title} ({len(questions)} questions)")
     else:
         print(f"⏭️  Skipped: {title} (already has question_id)")

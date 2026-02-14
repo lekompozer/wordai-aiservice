@@ -527,8 +527,8 @@ async def save_test_to_database(
         "description": full_desc,
         "slug": slug,  # ✅ Root level (for by-slug endpoint compatibility)
         "meta_description": meta_desc,  # ✅ Root level SEO
-        # Creator info
-        "creator_id": "wordai_team",
+        # Creator info (admin user tienhoi.lh@gmail.com)
+        "creator_id": "17BeaeikPBQYk8OWeDUkqm0Ov8e2",  # ✅ Firebase UID for /me/tests endpoint
         "creator_name": "WordAI Team",
         # Test configuration
         "test_type": "mcq",
