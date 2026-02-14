@@ -635,8 +635,12 @@ async def browse_marketplace(
             results.append(
                 {
                     "test_id": test_id_str,
-                    "slug": mc.get("slug") or test.get("slug"),  # ✅ SEO-friendly slug (prioritize marketplace_config)
-                    "meta_description": mc.get("meta_description") or test.get("meta_description"),  # ✅ SEO meta
+                    "slug": mc.get("slug")
+                    or test.get(
+                        "slug"
+                    ),  # ✅ SEO-friendly slug (prioritize marketplace_config)
+                    "meta_description": mc.get("meta_description")
+                    or test.get("meta_description"),  # ✅ SEO meta
                     "title": test.get("title", "Untitled"),
                     "description": mc.get("description", ""),
                     "short_description": mc.get("short_description", ""),

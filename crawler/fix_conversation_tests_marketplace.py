@@ -51,7 +51,8 @@ for test in tests:
                 "marketplace_config.title": title,
                 "marketplace_config.description": test.get("description", ""),
                 "marketplace_config.short_description": short_desc,
-                "marketplace_config.difficulty_level": level,
+                "marketplace_config.price_points": 1,  # ✅ 1 point per test
+                "marketplace_config.difficulty_level": level,  # ✅ beginner/intermediate/advanced (NOT easy/medium/hard)
                 "marketplace_config.tags": [
                     level,
                     "vocabulary",
