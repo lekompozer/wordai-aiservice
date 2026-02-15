@@ -390,376 +390,6 @@ async def get_all_learning_history(
 
 
 # ============================================================================
-# ENDPOINT 4: Get Conversation Detail
-# ============================================================================
-
-
-@router.get("/{conversation_id}")
-async def get_conversation_detail(
-    conversation_id: str,
-    db=Depends(get_db),
-):
-    """
-    Get full conversation details including dialogue (PUBLIC - No authentication required)
-    Returns: Complete conversation with all dialogue turns
-    """
-    conv_col = db["conversation_library"]
-
-    conversation = conv_col.find_one({"conversation_id": conversation_id})
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    # Remove MongoDB _id
-    conversation.pop("_id", None)
-
-    # Convert ObjectId fields to string for JSON serialization
-    if conversation.get("online_test_id"):
-        conversation["online_test_id"] = str(conversation["online_test_id"])
-
-    # Format audio info - build R2 URL from r2_key
-    if conversation.get("audio_info"):
-        audio_info = conversation["audio_info"]
-        audio_url = None
-
-        # Build R2 URL from r2_key (new format)
-        if audio_info.get("r2_key"):
-            audio_url = f"https://static.wordai.pro/{audio_info['r2_key']}"
-        # Fallback to r2_url or url (legacy formats)
-        elif audio_info.get("r2_url"):
-            audio_url = audio_info["r2_url"]
-        elif audio_info.get("url"):
-            audio_url = audio_info["url"]
-
-        conversation["audio_url"] = audio_url
-        conversation["has_audio"] = bool(audio_url)
-
-    return conversation
-
-
-# ============================================================================
-# ENDPOINT 4: Get Vocabulary & Grammar
-# ============================================================================
-
-
-@router.get("/{conversation_id}/vocabulary")
-async def get_vocabulary_grammar(
-    conversation_id: str,
-    db=Depends(get_db),
-):
-    """
-    Get vocabulary and grammar points extracted from the conversation (PUBLIC - No authentication required).
-
-    Returns: Vocabulary items and grammar patterns
-    """
-    vocab_col = db["conversation_vocabulary"]
-
-    vocab_doc = vocab_col.find_one({"conversation_id": conversation_id})
-
-    if not vocab_doc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Vocabulary not found for conversation: {conversation_id}",
-        )
-
-    # Remove MongoDB _id
-    vocab_doc.pop("_id", None)
-
-    return vocab_doc
-
-
-# ============================================================================
-# ENDPOINT 5: Get Gap Exercise
-# ============================================================================
-
-
-@router.get("/{conversation_id}/gaps")
-async def get_all_gap_exercises(
-    conversation_id: str,
-    db=Depends(get_db),
-):
-    """
-    Get all gap-fill exercises (easy, medium, hard) for the conversation (PUBLIC - No authentication required).
-
-    Returns: All 3 difficulty levels with gaps and gap definitions
-    """
-    # Check conversation exists
-    conv_col = db["conversation_library"]
-    conversation = conv_col.find_one({"conversation_id": conversation_id})
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    # Get all gaps documents
-    gaps_col = db["conversation_gaps"]
-    gaps_docs = list(gaps_col.find({"conversation_id": conversation_id}))
-
-    # Organize by difficulty
-    result = {"conversation_id": conversation_id, "gaps": {}}
-
-    for gaps_doc in gaps_docs:
-        difficulty = gaps_doc.get("difficulty")
-        gaps_doc.pop("_id", None)
-        result["gaps"][difficulty] = gaps_doc
-
-    # If no gaps found, return empty structure
-    if not gaps_docs:
-        result["gaps"] = {"easy": None, "medium": None, "hard": None}
-        result["message"] = "Gaps not generated yet. Please generate gaps first."
-
-    return result
-
-
-@router.get("/{conversation_id}/gaps/{difficulty}")
-async def get_gap_exercise(
-    conversation_id: str,
-    difficulty: str,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Get gap-fill exercise for the conversation at specified difficulty.
-
-    Path Parameters:
-    - difficulty: "easy" | "medium" | "hard"
-
-    Returns: Dialogue with gaps and gap definitions
-    """
-    # Validate difficulty
-    if difficulty not in ["easy", "medium", "hard"]:
-        raise HTTPException(
-            status_code=400, detail="Invalid difficulty. Must be: easy, medium, or hard"
-        )
-
-    # Check conversation exists
-    conv_col = db["conversation_library"]
-    conversation = conv_col.find_one({"conversation_id": conversation_id})
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    # Get gaps document
-    gaps_col = db["conversation_gaps"]
-    gaps_doc = gaps_col.find_one(
-        {"conversation_id": conversation_id, "difficulty": difficulty}
-    )
-
-    if not gaps_doc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Gaps not found for {conversation_id} at {difficulty} level. Please generate gaps first.",
-        )
-
-    # Remove MongoDB _id
-    gaps_doc.pop("_id", None)
-
-    return gaps_doc
-
-
-# ============================================================================
-# ENDPOINT 6: Submit Gap Exercise
-# ============================================================================
-
-
-@router.post("/{conversation_id}/gaps/{difficulty}/submit")
-async def submit_gap_exercise(
-    conversation_id: str,
-    difficulty: str,
-    request: Dict[str, Any],
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Submit gap exercise answers and get results.
-
-    Request Body:
-    {
-        "answers": {"1": "morning", "2": "are", ...},
-        "time_spent": 120  # seconds
-    }
-
-    Returns: Detailed results with score, accuracy, and feedback
-    """
-    user_id = current_user["uid"]
-
-    # Validate difficulty
-    if difficulty not in ["easy", "medium", "hard"]:
-        raise HTTPException(
-            status_code=400, detail="Invalid difficulty. Must be: easy, medium, or hard"
-        )
-
-    # Get request data
-    answers = request.get("answers", {})
-    time_spent = request.get("time_spent", 0)
-
-    if not answers:
-        raise HTTPException(status_code=400, detail="Missing required field: answers")
-
-    # Get gaps document
-    gaps_col = db["conversation_gaps"]
-    gaps_doc = gaps_col.find_one(
-        {"conversation_id": conversation_id, "difficulty": difficulty}
-    )
-
-    if not gaps_doc:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Gaps not found for {conversation_id} at {difficulty} level",
-        )
-
-    # Check daily limit
-    limit_info = await check_daily_limit(user_id, db)
-    if not limit_info["is_premium"] and limit_info["remaining_free"] == 0:
-        raise HTTPException(
-            status_code=403,
-            detail="Daily limit reached (5 conversations/day for free users). Upgrade to premium for unlimited access.",
-        )
-
-    # Increment daily usage
-    await increment_daily_usage(user_id, conversation_id, db)
-
-    # Grade answers
-    gap_definitions = gaps_doc["gap_definitions"]  # Use gap_definitions field
-    total_gaps = len(gap_definitions)
-    correct_count = 0
-    incorrect_count = 0
-    gap_results = []
-    pos_stats = {}
-
-    for gap in gap_definitions:
-        gap_num = str(gap["gap_number"])
-        correct_answer = gap["correct_answer"].lower().strip()
-        user_answer = answers.get(gap_num, "").lower().strip()
-        is_correct = user_answer == correct_answer
-
-        if is_correct:
-            correct_count += 1
-        else:
-            incorrect_count += 1
-
-        gap_results.append(
-            {
-                "gap_number": gap["gap_number"],
-                "correct_answer": gap["correct_answer"],
-                "user_answer": answers.get(gap_num, ""),
-                "is_correct": is_correct,
-                "pos_tag": gap["pos_tag"],
-            }
-        )
-
-        # POS statistics
-        pos = gap["pos_tag"]
-        if pos not in pos_stats:
-            pos_stats[pos] = {"correct": 0, "total": 0}
-        pos_stats[pos]["total"] += 1
-        if is_correct:
-            pos_stats[pos]["correct"] += 1
-
-    # Calculate score
-    score = round((correct_count / total_gaps) * 100, 1) if total_gaps > 0 else 0
-    is_passed = score >= 80
-
-    # Calculate POS accuracy
-    pos_accuracy = {}
-    for pos, stats in pos_stats.items():
-        pos_accuracy[pos.lower()] = {
-            "correct": stats["correct"],
-            "total": stats["total"],
-            "accuracy": round((stats["correct"] / stats["total"]) * 100, 1),
-        }
-
-    # Save attempt
-    attempt_id = str(uuid.uuid4())
-    attempt_doc = {
-        "attempt_id": attempt_id,
-        "user_id": user_id,
-        "conversation_id": conversation_id,
-        "difficulty": difficulty,
-        "answers": answers,
-        "total_gaps": total_gaps,
-        "correct_count": correct_count,
-        "incorrect_count": incorrect_count,
-        "score": score,
-        "is_passed": is_passed,
-        "gap_results": gap_results,
-        "pos_accuracy": pos_accuracy,
-        "time_spent": time_spent,
-        "completed_at": datetime.utcnow(),
-        "created_at": datetime.utcnow(),
-    }
-
-    attempts_col = db["conversation_attempts"]
-    attempts_col.insert_one(attempt_doc)
-
-    # Update user progress
-    progress_col = db["user_conversation_progress"]
-
-    # Check if this is best score for this difficulty
-    existing_progress = progress_col.find_one(
-        {"user_id": user_id, "conversation_id": conversation_id}
-    )
-
-    is_best_score = True
-    if existing_progress and existing_progress.get("best_scores"):
-        best_scores = existing_progress["best_scores"]
-        if difficulty in best_scores:
-            is_best_score = score > best_scores[difficulty]["score"]
-
-    # Update progress
-    update_data = {
-        "$inc": {"total_attempts": 1, "total_time_spent": time_spent},
-        "$set": {
-            "last_attempt_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-        },
-        "$setOnInsert": {
-            "user_id": user_id,
-            "conversation_id": conversation_id,
-            "first_attempt_at": datetime.utcnow(),
-        },
-    }
-
-    # Update best score if needed
-    if is_best_score:
-        update_data["$set"][f"best_scores.{difficulty}"] = {
-            "score": score,
-            "attempt_id": attempt_id,
-            "completed_at": datetime.utcnow(),
-        }
-
-    # Mark as completed if passed
-    if is_passed:
-        update_data["$set"]["is_completed"] = True
-        update_data["$addToSet"] = {"completed_difficulties": difficulty}
-
-    progress_col.update_one(
-        {"user_id": user_id, "conversation_id": conversation_id},
-        update_data,
-        upsert=True,
-    )
-
-    # Return results
-    return {
-        "total_gaps": total_gaps,
-        "correct_count": correct_count,
-        "incorrect_count": incorrect_count,
-        "score": score,
-        "is_passed": is_passed,
-        "gap_results": gap_results,
-        "pos_accuracy": pos_accuracy,
-        "attempt_saved": {
-            "attempt_id": attempt_id,
-            "conversation_id": conversation_id,
-            "difficulty": difficulty,
-            "score": score,
-            "time_spent": time_spent,
-            "completed_at": datetime.utcnow().isoformat(),
-            "is_best_score": is_best_score,
-        },
-    }
-
-
-# ============================================================================
 # ENDPOINT 7: Get User Progress
 # ============================================================================
 
@@ -920,84 +550,6 @@ async def get_user_progress(
 
 
 # ============================================================================
-# ENDPOINT 8: Get Conversation History
-# ============================================================================
-
-
-@router.get("/{conversation_id}/history")
-async def get_conversation_history(
-    conversation_id: str,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Get all attempts for a specific conversation by current user.
-
-    Returns: Attempt history and best scores
-    """
-    user_id = current_user["uid"]
-
-    # Check conversation exists
-    conv_col = db["conversation_library"]
-    conversation = conv_col.find_one({"conversation_id": conversation_id})
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    # Get all attempts
-    attempts_col = db["conversation_attempts"]
-    attempts_docs = list(
-        attempts_col.find(
-            {"user_id": user_id, "conversation_id": conversation_id}
-        ).sort("completed_at", -1)
-    )
-
-    attempts = []
-    for attempt in attempts_docs:
-        attempts.append(
-            {
-                "attempt_id": attempt["attempt_id"],
-                "difficulty": attempt["difficulty"],
-                "score": attempt["score"],
-                "correct_count": attempt["correct_count"],
-                "total_gaps": attempt["total_gaps"],
-                "time_spent": attempt["time_spent"],
-                "is_passed": attempt["is_passed"],
-                "completed_at": attempt["completed_at"].isoformat(),
-            }
-        )
-
-    # Get best scores
-    progress_col = db["user_conversation_progress"]
-    progress = progress_col.find_one(
-        {"user_id": user_id, "conversation_id": conversation_id}
-    )
-
-    best_scores = {"easy": None, "medium": None, "hard": None}
-    total_time_spent = 0
-
-    if progress:
-        total_time_spent = progress.get("total_time_spent", 0)
-        for difficulty in ["easy", "medium", "hard"]:
-            if difficulty in progress.get("best_scores", {}):
-                score_data = progress["best_scores"][difficulty]
-                best_scores[difficulty] = {
-                    "score": score_data["score"],
-                    "attempt_id": score_data["attempt_id"],
-                    "completed_at": score_data["completed_at"].isoformat(),
-                }
-
-    return {
-        "conversation_id": conversation_id,
-        "title": conversation["title"],
-        "attempts": attempts,
-        "best_scores": best_scores,
-        "total_attempts": len(attempts),
-        "total_time_spent": total_time_spent,
-    }
-
-
-# ============================================================================
 # ENDPOINT 10: Get Saved Conversations
 # ============================================================================
 
@@ -1075,117 +627,6 @@ async def get_saved_conversations(
         "total": total,
         "page": skip // limit + 1,
         "limit": limit,
-    }
-
-
-# ============================================================================
-# ENDPOINT 11: Save Conversation
-# ============================================================================
-
-
-@router.post("/{conversation_id}/save")
-async def save_conversation(
-    conversation_id: str,
-    request: Dict[str, Any] = {},
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Bookmark/save a conversation for later practice.
-
-    Request Body (all fields optional):
-    {
-        "notes": "Need to review this",  # Optional
-        "tags": ["difficult", "review"]   # Optional
-    }
-
-    Returns: Success message
-    """
-    user_id = current_user["uid"]
-
-    # Check conversation exists
-    conv_col = db["conversation_library"]
-    conversation = conv_col.find_one({"conversation_id": conversation_id})
-
-    if not conversation:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-
-    # Check if already saved
-    saved_col = db["user_conversation_saved"]
-    existing = saved_col.find_one(
-        {"user_id": user_id, "conversation_id": conversation_id}
-    )
-
-    if existing:
-        # Update notes/tags if provided
-        update_data = {"updated_at": datetime.utcnow()}
-        if "notes" in request:
-            update_data["notes"] = request["notes"]
-        if "tags" in request:
-            update_data["tags"] = request["tags"]
-
-        saved_col.update_one(
-            {"user_id": user_id, "conversation_id": conversation_id},
-            {"$set": update_data},
-        )
-
-        return {
-            "message": "Conversation updated in saved list",
-            "conversation_id": conversation_id,
-            "already_saved": True,
-        }
-
-    # Save new
-    saved_doc = {
-        "user_id": user_id,
-        "conversation_id": conversation_id,
-        "notes": request.get("notes"),
-        "tags": request.get("tags", []),
-        "saved_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    }
-
-    saved_col.insert_one(saved_doc)
-
-    return {
-        "message": "Conversation saved successfully",
-        "conversation_id": conversation_id,
-        "saved_at": saved_doc["saved_at"].isoformat(),
-    }
-
-
-# ============================================================================
-# ENDPOINT 12: Unsave Conversation
-# ============================================================================
-
-
-@router.delete("/{conversation_id}/save")
-async def unsave_conversation(
-    conversation_id: str,
-    current_user: dict = Depends(get_current_user),
-    db=Depends(get_db),
-):
-    """
-    Remove conversation from saved list.
-
-    Returns: Success message
-    """
-    user_id = current_user["uid"]
-
-    saved_col = db["user_conversation_saved"]
-
-    result = saved_col.delete_one(
-        {"user_id": user_id, "conversation_id": conversation_id}
-    )
-
-    if result.deleted_count == 0:
-        raise HTTPException(
-            status_code=404, detail="Conversation not found in saved list"
-        )
-
-    return {
-        "message": "Conversation removed from saved list",
-        "conversation_id": conversation_id,
     }
 
 
@@ -1657,3 +1098,572 @@ async def get_learning_path(
             },
         },
     }
+
+# ============================================================================
+# ENDPOINT 4: Get Conversation Detail
+# ============================================================================
+
+
+@router.get("/{conversation_id}")
+async def get_conversation_detail(
+    conversation_id: str,
+    db=Depends(get_db),
+):
+    """
+    Get full conversation details including dialogue (PUBLIC - No authentication required)
+    Returns: Complete conversation with all dialogue turns
+    """
+    conv_col = db["conversation_library"]
+
+    conversation = conv_col.find_one({"conversation_id": conversation_id})
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Remove MongoDB _id
+    conversation.pop("_id", None)
+
+    # Convert ObjectId fields to string for JSON serialization
+    if conversation.get("online_test_id"):
+        conversation["online_test_id"] = str(conversation["online_test_id"])
+
+    # Format audio info - build R2 URL from r2_key
+    if conversation.get("audio_info"):
+        audio_info = conversation["audio_info"]
+        audio_url = None
+
+        # Build R2 URL from r2_key (new format)
+        if audio_info.get("r2_key"):
+            audio_url = f"https://static.wordai.pro/{audio_info['r2_key']}"
+        # Fallback to r2_url or url (legacy formats)
+        elif audio_info.get("r2_url"):
+            audio_url = audio_info["r2_url"]
+        elif audio_info.get("url"):
+            audio_url = audio_info["url"]
+
+        conversation["audio_url"] = audio_url
+        conversation["has_audio"] = bool(audio_url)
+
+    return conversation
+
+
+# ============================================================================
+# ENDPOINT 4: Get Vocabulary & Grammar
+# ============================================================================
+
+
+@router.get("/{conversation_id}/vocabulary")
+async def get_vocabulary_grammar(
+    conversation_id: str,
+    db=Depends(get_db),
+):
+    """
+    Get vocabulary and grammar points extracted from the conversation (PUBLIC - No authentication required).
+
+    Returns: Vocabulary items and grammar patterns
+    """
+    vocab_col = db["conversation_vocabulary"]
+
+    vocab_doc = vocab_col.find_one({"conversation_id": conversation_id})
+
+    if not vocab_doc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Vocabulary not found for conversation: {conversation_id}",
+        )
+
+    # Remove MongoDB _id
+    vocab_doc.pop("_id", None)
+
+    return vocab_doc
+
+
+# ============================================================================
+# ENDPOINT 5: Get Gap Exercise
+# ============================================================================
+
+
+@router.get("/{conversation_id}/gaps")
+async def get_all_gap_exercises(
+    conversation_id: str,
+    db=Depends(get_db),
+):
+    """
+    Get all gap-fill exercises (easy, medium, hard) for the conversation (PUBLIC - No authentication required).
+
+    Returns: All 3 difficulty levels with gaps and gap definitions
+    """
+    # Check conversation exists
+    conv_col = db["conversation_library"]
+    conversation = conv_col.find_one({"conversation_id": conversation_id})
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Get all gaps documents
+    gaps_col = db["conversation_gaps"]
+    gaps_docs = list(gaps_col.find({"conversation_id": conversation_id}))
+
+    # Organize by difficulty
+    result = {"conversation_id": conversation_id, "gaps": {}}
+
+    for gaps_doc in gaps_docs:
+        difficulty = gaps_doc.get("difficulty")
+        gaps_doc.pop("_id", None)
+        result["gaps"][difficulty] = gaps_doc
+
+    # If no gaps found, return empty structure
+    if not gaps_docs:
+        result["gaps"] = {"easy": None, "medium": None, "hard": None}
+        result["message"] = "Gaps not generated yet. Please generate gaps first."
+
+    return result
+
+
+@router.get("/{conversation_id}/gaps/{difficulty}")
+async def get_gap_exercise(
+    conversation_id: str,
+    difficulty: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get gap-fill exercise for the conversation at specified difficulty.
+
+    Path Parameters:
+    - difficulty: "easy" | "medium" | "hard"
+
+    Returns: Dialogue with gaps and gap definitions
+    """
+    # Validate difficulty
+    if difficulty not in ["easy", "medium", "hard"]:
+        raise HTTPException(
+            status_code=400, detail="Invalid difficulty. Must be: easy, medium, or hard"
+        )
+
+    # Check conversation exists
+    conv_col = db["conversation_library"]
+    conversation = conv_col.find_one({"conversation_id": conversation_id})
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Get gaps document
+    gaps_col = db["conversation_gaps"]
+    gaps_doc = gaps_col.find_one(
+        {"conversation_id": conversation_id, "difficulty": difficulty}
+    )
+
+    if not gaps_doc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Gaps not found for {conversation_id} at {difficulty} level. Please generate gaps first.",
+        )
+
+    # Remove MongoDB _id
+    gaps_doc.pop("_id", None)
+
+    return gaps_doc
+
+
+# ============================================================================
+# ENDPOINT 6: Submit Gap Exercise
+# ============================================================================
+
+
+@router.post("/{conversation_id}/gaps/{difficulty}/submit")
+async def submit_gap_exercise(
+    conversation_id: str,
+    difficulty: str,
+    request: Dict[str, Any],
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Submit gap exercise answers and get results.
+
+    Request Body:
+    {
+        "answers": {"1": "morning", "2": "are", ...},
+        "time_spent": 120  # seconds
+    }
+
+    Returns: Detailed results with score, accuracy, and feedback
+    """
+    user_id = current_user["uid"]
+
+    # Validate difficulty
+    if difficulty not in ["easy", "medium", "hard"]:
+        raise HTTPException(
+            status_code=400, detail="Invalid difficulty. Must be: easy, medium, or hard"
+        )
+
+    # Get request data
+    answers = request.get("answers", {})
+    time_spent = request.get("time_spent", 0)
+
+    if not answers:
+        raise HTTPException(status_code=400, detail="Missing required field: answers")
+
+    # Get gaps document
+    gaps_col = db["conversation_gaps"]
+    gaps_doc = gaps_col.find_one(
+        {"conversation_id": conversation_id, "difficulty": difficulty}
+    )
+
+    if not gaps_doc:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Gaps not found for {conversation_id} at {difficulty} level",
+        )
+
+    # Check daily limit
+    limit_info = await check_daily_limit(user_id, db)
+    if not limit_info["is_premium"] and limit_info["remaining_free"] == 0:
+        raise HTTPException(
+            status_code=403,
+            detail="Daily limit reached (5 conversations/day for free users). Upgrade to premium for unlimited access.",
+        )
+
+    # Increment daily usage
+    await increment_daily_usage(user_id, conversation_id, db)
+
+    # Grade answers
+    gap_definitions = gaps_doc["gap_definitions"]  # Use gap_definitions field
+    total_gaps = len(gap_definitions)
+    correct_count = 0
+    incorrect_count = 0
+    gap_results = []
+    pos_stats = {}
+
+    for gap in gap_definitions:
+        gap_num = str(gap["gap_number"])
+        correct_answer = gap["correct_answer"].lower().strip()
+        user_answer = answers.get(gap_num, "").lower().strip()
+        is_correct = user_answer == correct_answer
+
+        if is_correct:
+            correct_count += 1
+        else:
+            incorrect_count += 1
+
+        gap_results.append(
+            {
+                "gap_number": gap["gap_number"],
+                "correct_answer": gap["correct_answer"],
+                "user_answer": answers.get(gap_num, ""),
+                "is_correct": is_correct,
+                "pos_tag": gap["pos_tag"],
+            }
+        )
+
+        # POS statistics
+        pos = gap["pos_tag"]
+        if pos not in pos_stats:
+            pos_stats[pos] = {"correct": 0, "total": 0}
+        pos_stats[pos]["total"] += 1
+        if is_correct:
+            pos_stats[pos]["correct"] += 1
+
+    # Calculate score
+    score = round((correct_count / total_gaps) * 100, 1) if total_gaps > 0 else 0
+    is_passed = score >= 80
+
+    # Calculate POS accuracy
+    pos_accuracy = {}
+    for pos, stats in pos_stats.items():
+        pos_accuracy[pos.lower()] = {
+            "correct": stats["correct"],
+            "total": stats["total"],
+            "accuracy": round((stats["correct"] / stats["total"]) * 100, 1),
+        }
+
+    # Save attempt
+    attempt_id = str(uuid.uuid4())
+    attempt_doc = {
+        "attempt_id": attempt_id,
+        "user_id": user_id,
+        "conversation_id": conversation_id,
+        "difficulty": difficulty,
+        "answers": answers,
+        "total_gaps": total_gaps,
+        "correct_count": correct_count,
+        "incorrect_count": incorrect_count,
+        "score": score,
+        "is_passed": is_passed,
+        "gap_results": gap_results,
+        "pos_accuracy": pos_accuracy,
+        "time_spent": time_spent,
+        "completed_at": datetime.utcnow(),
+        "created_at": datetime.utcnow(),
+    }
+
+    attempts_col = db["conversation_attempts"]
+    attempts_col.insert_one(attempt_doc)
+
+    # Update user progress
+    progress_col = db["user_conversation_progress"]
+
+    # Check if this is best score for this difficulty
+    existing_progress = progress_col.find_one(
+        {"user_id": user_id, "conversation_id": conversation_id}
+    )
+
+    is_best_score = True
+    if existing_progress and existing_progress.get("best_scores"):
+        best_scores = existing_progress["best_scores"]
+        if difficulty in best_scores:
+            is_best_score = score > best_scores[difficulty]["score"]
+
+    # Update progress
+    update_data = {
+        "$inc": {"total_attempts": 1, "total_time_spent": time_spent},
+        "$set": {
+            "last_attempt_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        },
+        "$setOnInsert": {
+            "user_id": user_id,
+            "conversation_id": conversation_id,
+            "first_attempt_at": datetime.utcnow(),
+        },
+    }
+
+    # Update best score if needed
+    if is_best_score:
+        update_data["$set"][f"best_scores.{difficulty}"] = {
+            "score": score,
+            "attempt_id": attempt_id,
+            "completed_at": datetime.utcnow(),
+        }
+
+    # Mark as completed if passed
+    if is_passed:
+        update_data["$set"]["is_completed"] = True
+        update_data["$addToSet"] = {"completed_difficulties": difficulty}
+
+    progress_col.update_one(
+        {"user_id": user_id, "conversation_id": conversation_id},
+        update_data,
+        upsert=True,
+    )
+
+    # Return results
+    return {
+        "total_gaps": total_gaps,
+        "correct_count": correct_count,
+        "incorrect_count": incorrect_count,
+        "score": score,
+        "is_passed": is_passed,
+        "gap_results": gap_results,
+        "pos_accuracy": pos_accuracy,
+        "attempt_saved": {
+            "attempt_id": attempt_id,
+            "conversation_id": conversation_id,
+            "difficulty": difficulty,
+            "score": score,
+            "time_spent": time_spent,
+            "completed_at": datetime.utcnow().isoformat(),
+            "is_best_score": is_best_score,
+        },
+    }
+
+
+
+
+# ============================================================================
+# ENDPOINT 8: Get Conversation History
+# ============================================================================
+
+
+@router.get("/{conversation_id}/history")
+async def get_conversation_history(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get all attempts for a specific conversation by current user.
+
+    Returns: Attempt history and best scores
+    """
+    user_id = current_user["uid"]
+
+    # Check conversation exists
+    conv_col = db["conversation_library"]
+    conversation = conv_col.find_one({"conversation_id": conversation_id})
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Get all attempts
+    attempts_col = db["conversation_attempts"]
+    attempts_docs = list(
+        attempts_col.find(
+            {"user_id": user_id, "conversation_id": conversation_id}
+        ).sort("completed_at", -1)
+    )
+
+    attempts = []
+    for attempt in attempts_docs:
+        attempts.append(
+            {
+                "attempt_id": attempt["attempt_id"],
+                "difficulty": attempt["difficulty"],
+                "score": attempt["score"],
+                "correct_count": attempt["correct_count"],
+                "total_gaps": attempt["total_gaps"],
+                "time_spent": attempt["time_spent"],
+                "is_passed": attempt["is_passed"],
+                "completed_at": attempt["completed_at"].isoformat(),
+            }
+        )
+
+    # Get best scores
+    progress_col = db["user_conversation_progress"]
+    progress = progress_col.find_one(
+        {"user_id": user_id, "conversation_id": conversation_id}
+    )
+
+    best_scores = {"easy": None, "medium": None, "hard": None}
+    total_time_spent = 0
+
+    if progress:
+        total_time_spent = progress.get("total_time_spent", 0)
+        for difficulty in ["easy", "medium", "hard"]:
+            if difficulty in progress.get("best_scores", {}):
+                score_data = progress["best_scores"][difficulty]
+                best_scores[difficulty] = {
+                    "score": score_data["score"],
+                    "attempt_id": score_data["attempt_id"],
+                    "completed_at": score_data["completed_at"].isoformat(),
+                }
+
+    return {
+        "conversation_id": conversation_id,
+        "title": conversation["title"],
+        "attempts": attempts,
+        "best_scores": best_scores,
+        "total_attempts": len(attempts),
+        "total_time_spent": total_time_spent,
+    }
+
+
+
+
+# ============================================================================
+# ENDPOINT 11: Save Conversation
+# ============================================================================
+
+
+@router.post("/{conversation_id}/save")
+async def save_conversation(
+    conversation_id: str,
+    request: Dict[str, Any] = {},
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Bookmark/save a conversation for later practice.
+
+    Request Body (all fields optional):
+    {
+        "notes": "Need to review this",  # Optional
+        "tags": ["difficult", "review"]   # Optional
+    }
+
+    Returns: Success message
+    """
+    user_id = current_user["uid"]
+
+    # Check conversation exists
+    conv_col = db["conversation_library"]
+    conversation = conv_col.find_one({"conversation_id": conversation_id})
+
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+
+    # Check if already saved
+    saved_col = db["user_conversation_saved"]
+    existing = saved_col.find_one(
+        {"user_id": user_id, "conversation_id": conversation_id}
+    )
+
+    if existing:
+        # Update notes/tags if provided
+        update_data = {"updated_at": datetime.utcnow()}
+        if "notes" in request:
+            update_data["notes"] = request["notes"]
+        if "tags" in request:
+            update_data["tags"] = request["tags"]
+
+        saved_col.update_one(
+            {"user_id": user_id, "conversation_id": conversation_id},
+            {"$set": update_data},
+        )
+
+        return {
+            "message": "Conversation updated in saved list",
+            "conversation_id": conversation_id,
+            "already_saved": True,
+        }
+
+    # Save new
+    saved_doc = {
+        "user_id": user_id,
+        "conversation_id": conversation_id,
+        "notes": request.get("notes"),
+        "tags": request.get("tags", []),
+        "saved_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+
+    saved_col.insert_one(saved_doc)
+
+    return {
+        "message": "Conversation saved successfully",
+        "conversation_id": conversation_id,
+        "saved_at": saved_doc["saved_at"].isoformat(),
+    }
+
+
+# ============================================================================
+# ENDPOINT 12: Unsave Conversation
+# ============================================================================
+
+
+@router.delete("/{conversation_id}/save")
+async def unsave_conversation(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Remove conversation from saved list.
+
+    Returns: Success message
+    """
+    user_id = current_user["uid"]
+
+    saved_col = db["user_conversation_saved"]
+
+    result = saved_col.delete_one(
+        {"user_id": user_id, "conversation_id": conversation_id}
+    )
+
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=404, detail="Conversation not found in saved list"
+        )
+
+    return {
+        "message": "Conversation removed from saved list",
+        "conversation_id": conversation_id,
+    }
+
+
+
+
+
+
+
