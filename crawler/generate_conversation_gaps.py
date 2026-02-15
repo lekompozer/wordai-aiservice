@@ -370,6 +370,7 @@ class ConversationGapGenerator:
         return {
             "gap_id": f"gap_{conversation['conversation_id']}_{difficulty}",
             "conversation_id": conversation["conversation_id"],
+            "level": conversation.get("level", "beginner"),  # Add level field
             "difficulty": difficulty,
             "text_with_gaps": text_with_gaps,  # Full text with gaps (legacy)
             "dialogue_with_gaps": dialogue_with_gaps,  # Structured dialogue turns
