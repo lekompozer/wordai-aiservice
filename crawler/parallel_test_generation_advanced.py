@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Parallel Test Generation: Generate Online Tests for ALL Intermediate Conversations
+Parallel Test Generation: Generate Online Tests for ALL Advanced Conversations
 
 Purpose:
-- Generate IELTS tests for all intermediate conversations
+- Generate IELTS tests for all advanced conversations
 - Parallel processing: 5 batches, each batch waits 5s
 - DeepSeek API for question generation
-- xAI Grok Imagine for cover images (non-blocking)
+- NO cover image generation (skip xAI to save credits)
 - Save to production database
 
 RUN:
-    python crawler/parallel_test_generation_intermediate.py
+    python crawler/parallel_test_generation_advanced.py
 
 PRODUCTION:
-    docker exec -d ai-chatbot-rag python crawler/parallel_test_generation_intermediate.py
+    docker exec -d ai-chatbot-rag python crawler/parallel_test_generation_advanced.py
 
 MONITOR:
     docker logs ai-chatbot-rag --tail 100 -f | grep "🎓\|✅\|❌"
@@ -32,7 +32,6 @@ from bson import ObjectId
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.database.db_manager import DBManager
-from src.services.xai_test_cover_service import get_xai_test_cover_service
 
 # DeepSeek API
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -62,10 +61,11 @@ LEVEL_CONFIG = {
         "total_questions": 15,
         "time_limit": 15,
         "distribution": {
-            "mcq": 6,  # Vocabulary nuances
+            "mcq": 5,  # Vocabulary nuances
             "matching": 3,  # Grammar patterns → Examples
             "completion": 3,  # Grammar structures
-            "sentence_completion": 3,  # Vocabulary usage
+            "sentence_completion": 2,  # Vocabulary usage
+            "short_answer": 2,  # Grammar transformation
         },
         "description": "Vocabulary nuances and complex grammar structures",
     },
@@ -73,12 +73,10 @@ LEVEL_CONFIG = {
         "total_questions": 20,
         "time_limit": 20,
         "distribution": {
-            "mcq": 6,  # Idiomatic expressions
-            "mcq_multiple": 2,  # Multiple correct grammar patterns
+            "mcq": 8,  # Idiomatic expressions & vocabulary nuances
             "matching": 4,  # Vocabulary register/formality
             "completion": 4,  # Advanced grammar contexts
-            "sentence_completion": 2,  # Complex vocabulary
-            "short_answer": 2,  # Discourse analysis
+            "sentence_completion": 4,  # Complex vocabulary in context
         },
         "description": "Advanced idiomatic expressions and sophisticated grammar",
     },
@@ -230,7 +228,7 @@ Dialogue:
    - sentences: [{{"key": "1", "template": "The word _____ means...", "word_limit": 1, "correct_answers": ["word"]}}, ...]
    - ⚠️ 1 sentence_completion object = 1 question
 
-**OUTPUT FORMAT (JSON only, no markdown):**
+**OUTPUT FORMAT (JSON only, no markdown):****
 {{
   "questions": [
     {{
@@ -669,7 +667,6 @@ async def process_conversation(
     conversation: Dict,
     level: str,
     db_manager: DBManager,
-    xai_service,
     semaphore: asyncio.Semaphore,
 ) -> Dict:
     """Process one conversation (with rate limiting)"""
@@ -711,30 +708,8 @@ async def process_conversation(
                 cover_prompt=cover_prompt,
             )
 
-            # Generate cover (non-blocking)
-            cover_url = None
-            if xai_service:
-                try:
-                    cover_prompt = generate_cover_image_prompt(level, title_en)
-                    cover_url = await generate_and_upload_cover(
-                        test_id=test_id,
-                        title=title_en,
-                        cover_prompt=cover_prompt,
-                        xai_service=xai_service,
-                    )
-
-                    if cover_url:
-                        db_manager.db.online_tests.update_one(
-                            {"_id": ObjectId(test_id)},
-                            {
-                                "$set": {
-                                    "marketplace_config.cover_image_url": cover_url,
-                                    "cover_image_url": cover_url,
-                                }
-                            },
-                        )
-                except Exception:
-                    pass  # Continue without cover
+            # Skip cover generation to save xAI credits
+            # Cover will be added manually later
 
             # Update conversation
             db_manager.db.conversation_library.update_one(
@@ -754,7 +729,6 @@ async def process_conversation(
                 "test_id": test_id,
                 "slug": slug,
                 "num_questions": len(questions),
-                "cover_url": cover_url,
                 "success": True,
             }
 
@@ -768,39 +742,32 @@ async def process_conversation(
 
 
 async def main():
-    """Generate tests for ALL intermediate conversations in parallel batches"""
+    """Generate tests for ALL advanced conversations in parallel batches"""
     print("=" * 80)
-    print("🎓 PARALLEL TEST GENERATION - INTERMEDIATE CONVERSATIONS")
+    print("🎓 PARALLEL TEST GENERATION - ADVANCED CONVERSATIONS")
     print("=" * 80)
     print(f"Batch Size: {BATCH_SIZE} conversations")
     print(f"Batch Delay: {BATCH_DELAY} seconds")
     print("Database: Production (ai_service_db)")
+    print("Cover Generation: DISABLED (save xAI credits)")
     print("=" * 80)
 
     # Connect to database
     db_manager = DBManager()
     print(f"✅ MongoDB: {db_manager.db.name}")
 
-    # Initialize xAI service
-    try:
-        xai_service = get_xai_test_cover_service()
-        print("✅ xAI service initialized")
-    except Exception as e:
-        print(f"⚠️  xAI service failed: {e}")
-        xai_service = None
-
-    # Get intermediate conversations WITHOUT tests
+    # Get advanced conversations WITHOUT tests
     conversations = list(
         db_manager.db.conversation_library.find(
             {
-                "level": "intermediate",
+                "level": "advanced",
                 "has_online_test": {"$ne": True},
             }
         ).sort("conversation_id", 1)
     )
 
     total = len(conversations)
-    print(f"📚 Found {total} intermediate conversations without tests")
+    print(f"📚 Found {total} advanced conversations without tests")
     print()
 
     if total == 0:
@@ -823,9 +790,7 @@ async def main():
         # Process batch in parallel
         tasks = [
             process_conversation(
-                conv, "intermediate", db_manager, xai_service, semaphore
-            )
-            for conv in batch
+                    conv, "advanced", db_manager, semaphore
         ]
 
         batch_results = await asyncio.gather(*tasks, return_exceptions=True)
