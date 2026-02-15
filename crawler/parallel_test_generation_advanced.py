@@ -789,8 +789,8 @@ async def main():
 
         # Process batch in parallel
         tasks = [
-            process_conversation(
-                    conv, "advanced", db_manager, semaphore
+            process_conversation(conv, "advanced", db_manager, semaphore)
+            for conv in batch
         ]
 
         batch_results = await asyncio.gather(*tasks, return_exceptions=True)
