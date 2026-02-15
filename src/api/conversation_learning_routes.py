@@ -1086,14 +1086,14 @@ async def get_saved_conversations(
 @router.post("/{conversation_id}/save")
 async def save_conversation(
     conversation_id: str,
-    request: Dict[str, Any],
+    request: Dict[str, Any] = {},
     current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
 ):
     """
     Bookmark/save a conversation for later practice.
 
-    Request Body:
+    Request Body (all fields optional):
     {
         "notes": "Need to review this",  # Optional
         "tags": ["difficult", "review"]   # Optional
