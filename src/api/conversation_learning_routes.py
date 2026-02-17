@@ -1099,6 +1099,7 @@ async def get_learning_path(
         },
     }
 
+
 # ============================================================================
 # ENDPOINT 4: Get Conversation Detail
 # ============================================================================
@@ -1469,8 +1470,6 @@ async def submit_gap_exercise(
     }
 
 
-
-
 # ============================================================================
 # ENDPOINT 8: Get Conversation History
 # ============================================================================
@@ -1547,8 +1546,6 @@ async def get_conversation_history(
         "total_attempts": len(attempts),
         "total_time_spent": total_time_spent,
     }
-
-
 
 
 # ============================================================================
@@ -1660,10 +1657,3 @@ async def unsave_conversation(
         "message": "Conversation removed from saved list",
         "conversation_id": conversation_id,
     }
-
-
-
-
-
-
-
