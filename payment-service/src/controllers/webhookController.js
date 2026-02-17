@@ -484,19 +484,41 @@ async function retryActivation(req, res) {
             throw new AppError('Subscription already activated', 400);
         }
 
-        logger.info(`Retrying activation for user: ${payment.user_id}`);
+        logger.info(`Retrying activation for user: ${payment.user_id}, plan_type: ${payment.plan_type}`);
+
+        // Determine activation endpoint based on plan_type
+        const activationUrl =
+            payment.plan_type === 'song_learning'
+                ? `${config.pythonService.url}/api/v1/songs/subscription/activate`
+                : `${config.pythonService.url}/api/v1/subscriptions/activate`;
+
+        // Build request payload based on plan_type
+        const activationPayload =
+            payment.plan_type === 'song_learning'
+                ? {
+                      user_id: payment.user_id,
+                      plan_id: payment.plan_id,
+                      duration_months: payment.duration_months,
+                      payment_id: payment._id.toString(),
+                      order_invoice_number,
+                      payment_method: 'SEPAY_BANK_TRANSFER',
+                      amount: payment.price,
+                  }
+                : {
+                      user_id: payment.user_id,
+                      plan: payment.plan,
+                      duration_months: payment.duration_months,
+                      payment_id: payment._id.toString(),
+                      order_invoice_number,
+                      payment_method: 'SEPAY_BANK_TRANSFER',
+                      amount: payment.price,
+                  };
+
+        logger.info(`Calling activation endpoint: ${activationUrl}`);
 
         const activationResponse = await axios.post(
-            `${config.pythonService.url}/api/v1/subscriptions/activate`,
-            {
-                user_id: payment.user_id,
-                plan: payment.plan,
-                duration_months: payment.duration_months,
-                payment_id: payment._id.toString(),
-                order_invoice_number,
-                payment_method: 'SEPAY_BANK_TRANSFER',
-                amount: payment.price,
-            },
+            activationUrl,
+            activationPayload,
             {
                 headers: {
                     'Content-Type': 'application/json',
