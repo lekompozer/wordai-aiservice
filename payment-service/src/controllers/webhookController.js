@@ -496,23 +496,23 @@ async function retryActivation(req, res) {
         const activationPayload =
             payment.plan_type === 'song_learning'
                 ? {
-                      user_id: payment.user_id,
-                      plan_id: payment.plan_id,
-                      duration_months: payment.duration_months,
-                      payment_id: payment._id.toString(),
-                      order_invoice_number,
-                      payment_method: 'SEPAY_BANK_TRANSFER',
-                      amount: payment.price,
-                  }
+                    user_id: payment.user_id,
+                    plan_id: payment.plan_id,
+                    duration_months: payment.duration_months,
+                    payment_id: payment._id.toString(),
+                    order_invoice_number,
+                    payment_method: 'SEPAY_BANK_TRANSFER',
+                    amount: payment.price,
+                }
                 : {
-                      user_id: payment.user_id,
-                      plan: payment.plan,
-                      duration_months: payment.duration_months,
-                      payment_id: payment._id.toString(),
-                      order_invoice_number,
-                      payment_method: 'SEPAY_BANK_TRANSFER',
-                      amount: payment.price,
-                  };
+                    user_id: payment.user_id,
+                    plan: payment.plan,
+                    duration_months: payment.duration_months,
+                    payment_id: payment._id.toString(),
+                    order_invoice_number,
+                    payment_method: 'SEPAY_BANK_TRANSFER',
+                    amount: payment.price,
+                };
 
         logger.info(`Calling activation endpoint: ${activationUrl}`);
 

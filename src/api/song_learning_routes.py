@@ -123,6 +123,95 @@ async def check_daily_limit(user_id: str, db) -> dict:
     }
 
 
+async def update_daily_streak(
+    user_id: str, score: float, activity_type: str, activity_id: str, db
+):
+    """
+    Update user's daily learning streak.
+
+    Args:
+        user_id: Firebase user ID
+        score: Score achieved (0-100)
+        activity_type: "conversation" or "song"
+        activity_id: conversation_id or song_id
+        db: Database connection
+
+    Rules:
+        - Only count if score >= 60% (passing grade)
+        - One learning activity per day maintains streak
+        - Multiple activities in same day don't increase streak
+        - Streak resets to 1 if previous day was missed
+    """
+    # Only count passing scores
+    if score < 60:
+        return
+
+    from datetime import timedelta
+
+    streak_col = db["user_learning_streak"]
+    today = date.today()
+    today_str = today.isoformat()
+
+    # Check if user already learned today
+    existing_today = streak_col.find_one({"user_id": user_id, "date": today_str})
+
+    if existing_today:
+        # Already learned today - just add this activity to the list
+        streak_col.update_one(
+            {"user_id": user_id, "date": today_str},
+            {
+                "$addToSet": {
+                    "activities": {
+                        "type": activity_type,
+                        "id": activity_id,
+                        "score": score,
+                        "completed_at": datetime.utcnow(),
+                    }
+                },
+                "$set": {"updated_at": datetime.utcnow()},
+            },
+        )
+        return
+
+    # Calculate current streak
+    yesterday = today - timedelta(days=1)
+    yesterday_str = yesterday.isoformat()
+
+    yesterday_record = streak_col.find_one({"user_id": user_id, "date": yesterday_str})
+
+    if yesterday_record:
+        # Continue streak from yesterday
+        current_streak = yesterday_record.get("current_streak", 1) + 1
+        longest_streak = yesterday_record.get("longest_streak", 1)
+        longest_streak = max(longest_streak, current_streak)
+    else:
+        # Check if there's any previous record to get longest_streak
+        latest_record = streak_col.find_one({"user_id": user_id}, sort=[("date", -1)])
+        current_streak = 1
+        longest_streak = latest_record.get("longest_streak", 1) if latest_record else 1
+
+    # Create today's record
+    streak_doc = {
+        "streak_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "date": today_str,
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+        "activities": [
+            {
+                "type": activity_type,
+                "id": activity_id,
+                "score": score,
+                "completed_at": datetime.utcnow(),
+            }
+        ],
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+    }
+
+    streak_col.insert_one(streak_doc)
+
+
 @router.get("/", response_model=BrowseSongsResponse)
 async def browse_songs(
     category: Optional[str] = None,
@@ -1183,6 +1272,15 @@ async def submit_answers(
         },
     )
 
+    # Update daily streak (if score >= 60%)
+    await update_daily_streak(
+        user_id=user_id,
+        score=score,
+        activity_type="song",
+        activity_id=song_id,
+        db=db,
+    )
+
     return SubmitAnswersResponse(
         session_id=request.session_id,
         score=score,
@@ -1300,6 +1398,139 @@ async def get_user_progress(
         subscription=subscription_info,
         recent_activity=recent_activity,
     )
+
+
+@router.get("/users/me/streak")
+async def get_daily_streak(
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get user's daily learning streak information.
+
+    Returns:
+    - current_streak: Current consecutive days with learning activity
+    - longest_streak: Best streak ever achieved
+    - today_learned: Whether user learned today
+    - today_activities: List of today's learning activities
+    - streak_status: Badge/title based on streak (e.g. "Week Warrior", "Monthly Master")
+    - last_7_days: Activity for last 7 days (for calendar view)
+    """
+    from datetime import timedelta
+
+    user_id = current_user["uid"]
+    streak_col = db["user_learning_streak"]
+    today = date.today()
+    today_str = today.isoformat()
+
+    # Get today's record
+    today_record = streak_col.find_one({"user_id": user_id, "date": today_str})
+
+    # Get latest record to find current streak
+    latest_record = streak_col.find_one({"user_id": user_id}, sort=[("date", -1)])
+
+    current_streak = 0
+    longest_streak = 0
+    today_learned = False
+    today_activities = []
+
+    if today_record:
+        current_streak = today_record.get("current_streak", 1)
+        longest_streak = today_record.get("longest_streak", 1)
+        today_learned = True
+        today_activities = today_record.get("activities", [])
+    elif latest_record:
+        # Check if latest record is yesterday
+        latest_date = latest_record.get("date")
+        yesterday = (today - timedelta(days=1)).isoformat()
+
+        if latest_date == yesterday:
+            # Streak is still alive (just haven't learned today yet)
+            current_streak = latest_record.get("current_streak", 1)
+        else:
+            # Streak broken
+            current_streak = 0
+
+        longest_streak = latest_record.get("longest_streak", 1)
+
+    # Determine streak status/badge
+    streak_status = {
+        "title": "New Learner",
+        "emoji": "",
+        "description": "Complete your first day of learning!",
+    }
+
+    if current_streak >= 100:
+        streak_status = {
+            "title": "Legend",
+            "emoji": "🔥🔥🔥🔥🔥🔥🔥",
+            "description": "100 day streak! You're unstoppable!",
+        }
+    elif current_streak >= 60:
+        streak_status = {
+            "title": "Unstoppable",
+            "emoji": "🔥🔥🔥🔥🔥🔥",
+            "description": "60 day streak! You're on fire!",
+        }
+    elif current_streak >= 30:
+        streak_status = {
+            "title": "Monthly Master",
+            "emoji": "🔥🔥🔥🔥🔥",
+            "description": "30 day streak! You're a master of consistency!",
+        }
+    elif current_streak >= 14:
+        streak_status = {
+            "title": "Fortnight Champion",
+            "emoji": "🔥🔥🔥🔥",
+            "description": "14 day streak! You're on a roll!",
+        }
+    elif current_streak >= 7:
+        streak_status = {
+            "title": "Week Warrior",
+            "emoji": "🔥🔥🔥",
+            "description": "7 day streak! Keep it up!",
+        }
+    elif current_streak >= 3:
+        streak_status = {
+            "title": "Building Momentum",
+            "emoji": "🔥🔥",
+            "description": "3 day streak! You're building a habit!",
+        }
+    elif current_streak >= 1:
+        streak_status = {
+            "title": "Getting Started",
+            "emoji": "🔥",
+            "description": "Great start! Come back tomorrow!",
+        }
+
+    # Get last 7 days activity (for calendar visualization)
+    last_7_days = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        day_str = day.isoformat()
+
+        day_record = streak_col.find_one({"user_id": user_id, "date": day_str})
+
+        last_7_days.append(
+            {
+                "date": day_str,
+                "day_of_week": day.strftime("%A"),
+                "learned": day_record is not None,
+                "activity_count": (
+                    len(day_record.get("activities", [])) if day_record else 0
+                ),
+            }
+        )
+
+    return {
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+        "today_learned": today_learned,
+        "today_activities": today_activities,
+        "streak_status": streak_status,
+        "last_7_days": last_7_days,
+        "note": "Complete at least 1 learning activity with score ≥60% per day to maintain streak",
+    }
 
 
 # ============================================================================
