@@ -210,6 +210,294 @@ async def update_daily_streak(
     streak_col.insert_one(streak_doc)
 
 
+async def calculate_xp_earned(
+    difficulty: str, score: float, is_first_attempt: bool, is_perfect_score: bool
+) -> int:
+    """
+    Calculate XP earned for completing a conversation.
+
+    Base XP:
+    - Easy: 5 XP
+    - Medium: 10 XP
+    - Hard: 15 XP
+
+    Bonuses:
+    - Score >= 80%: +3 XP
+    - Score >= 90%: +5 XP
+    - Score = 100%: +10 XP
+    - First attempt pass: +2 XP
+    - Daily streak: +2 XP (added separately)
+    """
+    base_xp = {"easy": 5, "medium": 10, "hard": 15}.get(difficulty, 5)
+    bonus_xp = 0
+
+    # Score bonuses
+    if is_perfect_score:
+        bonus_xp += 10
+    elif score >= 90:
+        bonus_xp += 5
+    elif score >= 80:
+        bonus_xp += 3
+
+    # First attempt bonus
+    if is_first_attempt and score >= 80:
+        bonus_xp += 2
+
+    return base_xp + bonus_xp
+
+
+async def update_user_xp(
+    user_id: str,
+    xp_earned: int,
+    reason: str,
+    conversation_id: str,
+    difficulty: str,
+    score: float,
+    db,
+):
+    """
+    Update user's XP and check for level up.
+
+    Returns: dict with xp info and level up status
+    """
+    xp_col = db["user_learning_xp"]
+
+    # Get or create user XP record
+    user_xp = xp_col.find_one({"user_id": user_id})
+
+    if not user_xp:
+        # Create new XP record
+        user_xp = {
+            "xp_id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "total_xp": 0,
+            "level": 1,
+            "level_name": "Novice",
+            "xp_history": [],
+            "created_at": datetime.utcnow(),
+            "updated_at": datetime.utcnow(),
+        }
+
+    # Add XP
+    old_xp = user_xp.get("total_xp", 0)
+    new_xp = old_xp + xp_earned
+    old_level = user_xp.get("level", 1)
+
+    # Determine new level
+    level_thresholds = [
+        (0, 1, "Novice"),
+        (50, 2, "Learner"),
+        (150, 3, "Practitioner"),
+        (300, 4, "Proficient"),
+        (500, 5, "Advanced"),
+        (800, 6, "Expert"),
+        (1200, 7, "Master"),
+        (2000, 8, "Legend"),
+    ]
+
+    new_level = 1
+    level_name = "Novice"
+    for threshold, level, name in level_thresholds:
+        if new_xp >= threshold:
+            new_level = level
+            level_name = name
+
+    # Add to history
+    xp_history_entry = {
+        "earned_xp": xp_earned,
+        "reason": reason,
+        "conversation_id": conversation_id,
+        "difficulty": difficulty,
+        "score": score,
+        "timestamp": datetime.utcnow(),
+    }
+
+    # Update database
+    xp_col.update_one(
+        {"user_id": user_id},
+        {
+            "$set": {
+                "total_xp": new_xp,
+                "level": new_level,
+                "level_name": level_name,
+                "updated_at": datetime.utcnow(),
+            },
+            "$push": {"xp_history": xp_history_entry},
+            "$setOnInsert": {
+                "xp_id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "created_at": datetime.utcnow(),
+            },
+        },
+        upsert=True,
+    )
+
+    leveled_up = new_level > old_level
+
+    return {
+        "xp_earned": xp_earned,
+        "total_xp": new_xp,
+        "level": new_level,
+        "level_name": level_name,
+        "leveled_up": leveled_up,
+        "old_level": old_level,
+    }
+
+
+async def check_and_award_achievements(
+    user_id: str,
+    conversation_id: str,
+    score: float,
+    difficulty: str,
+    db,
+):
+    """
+    Check for new achievements and award them.
+
+    Returns: List of newly earned achievements
+    """
+    achievements_col = db["user_learning_achievements"]
+    progress_col = db["user_conversation_progress"]
+    conv_col = db["conversation_library"]
+
+    newly_earned = []
+
+    # Get user's stats
+    total_completed = progress_col.count_documents(
+        {"user_id": user_id, "is_completed": True}
+    )
+
+    # Check completion milestones
+    completion_achievements = [
+        (1, "first_steps", "First Steps", "completion", 1),
+        (5, "getting_started", "Getting Started", "completion", 10),
+        (20, "dedicated_learner", "Dedicated Learner", "completion", 25),
+        (50, "consistent_practice", "Consistent Practice", "completion", 50),
+        (100, "century_club", "Century Club", "completion", 100),
+    ]
+
+    for threshold, ach_id, ach_name, ach_type, xp_bonus in completion_achievements:
+        if total_completed == threshold:
+            # Check if not already earned
+            existing = achievements_col.find_one(
+                {"user_id": user_id, "achievement_id": ach_id}
+            )
+
+            if not existing:
+                achievement_doc = {
+                    "user_achievement_id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "achievement_id": ach_id,
+                    "achievement_name": ach_name,
+                    "achievement_type": ach_type,
+                    "xp_bonus": xp_bonus,
+                    "earned_at": datetime.utcnow(),
+                }
+                achievements_col.insert_one(achievement_doc)
+                newly_earned.append(achievement_doc)
+
+                # Award bonus XP
+                await update_user_xp(
+                    user_id,
+                    xp_bonus,
+                    f"Achievement: {ach_name}",
+                    conversation_id,
+                    difficulty,
+                    score,
+                    db,
+                )
+
+    # Check for perfect score achievement
+    if score == 100:
+        existing = achievements_col.find_one(
+            {"user_id": user_id, "achievement_id": "perfect_score"}
+        )
+
+        if not existing:
+            achievement_doc = {
+                "user_achievement_id": str(uuid.uuid4()),
+                "user_id": user_id,
+                "achievement_id": "perfect_score",
+                "achievement_name": "Perfect Score",
+                "achievement_type": "performance",
+                "xp_bonus": 20,
+                "earned_at": datetime.utcnow(),
+            }
+            achievements_col.insert_one(achievement_doc)
+            newly_earned.append(achievement_doc)
+
+            await update_user_xp(
+                user_id,
+                20,
+                "Achievement: Perfect Score",
+                conversation_id,
+                difficulty,
+                score,
+                db,
+            )
+
+    # Check for topic mastery
+    conv = conv_col.find_one({"conversation_id": conversation_id})
+    if conv:
+        topic_number = conv["topic_number"]
+        level = conv["level"]
+
+        # Get all conversations in this topic
+        topic_convs = list(
+            conv_col.find(
+                {"topic_number": topic_number, "level": level}, {"conversation_id": 1}
+            )
+        )
+
+        topic_conv_ids = [c["conversation_id"] for c in topic_convs]
+
+        # Check if all completed
+        completed_in_topic = progress_col.count_documents(
+            {
+                "user_id": user_id,
+                "conversation_id": {"$in": topic_conv_ids},
+                "is_completed": True,
+            }
+        )
+
+        if completed_in_topic == len(topic_conv_ids):
+            ach_id = f"topic_{level}_{topic_number}_master"
+            existing = achievements_col.find_one(
+                {"user_id": user_id, "achievement_id": ach_id}
+            )
+
+            if not existing:
+                topic_name = conv["topic"]["en"]
+                achievement_doc = {
+                    "user_achievement_id": str(uuid.uuid4()),
+                    "user_id": user_id,
+                    "achievement_id": ach_id,
+                    "achievement_name": f"{topic_name} Master",
+                    "achievement_type": "topic_mastery",
+                    "xp_bonus": 50,
+                    "metadata": {
+                        "topic_number": topic_number,
+                        "level": level,
+                        "conversations_completed": len(topic_conv_ids),
+                    },
+                    "earned_at": datetime.utcnow(),
+                }
+                achievements_col.insert_one(achievement_doc)
+                newly_earned.append(achievement_doc)
+
+                await update_user_xp(
+                    user_id,
+                    50,
+                    f"Achievement: {topic_name} Master",
+                    conversation_id,
+                    difficulty,
+                    score,
+                    db,
+                )
+
+    return newly_earned
+
+
 # ============================================================================
 # ENDPOINT 1: Browse Conversations
 # ============================================================================
@@ -1328,6 +1616,272 @@ async def get_daily_streak(
 
 
 # ============================================================================
+# ENDPOINT: Get User XP
+# ============================================================================
+
+
+@router.get("/xp")
+async def get_user_xp(
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get user's XP (Experience Points) information.
+
+    Returns:
+    - total_xp: Total XP earned
+    - level: Current level (1-8)
+    - level_name: Level name (Novice, Learner, ... Legend)
+    - xp_to_next_level: XP needed to reach next level
+    - xp_progress_percentage: Progress to next level (%)
+    - recent_xp_history: Last 10 XP earnings
+    """
+    user_id = current_user["uid"]
+    xp_col = db["user_learning_xp"]
+
+    user_xp = xp_col.find_one({"user_id": user_id})
+
+    if not user_xp:
+        # New user - return default
+        return {
+            "total_xp": 0,
+            "level": 1,
+            "level_name": "Novice",
+            "xp_to_next_level": 50,
+            "xp_progress_percentage": 0,
+            "level_thresholds": [
+                {"level": 1, "name": "Novice", "min_xp": 0},
+                {"level": 2, "name": "Learner", "min_xp": 50},
+                {"level": 3, "name": "Practitioner", "min_xp": 150},
+                {"level": 4, "name": "Proficient", "min_xp": 300},
+                {"level": 5, "name": "Advanced", "min_xp": 500},
+                {"level": 6, "name": "Expert", "min_xp": 800},
+                {"level": 7, "name": "Master", "min_xp": 1200},
+                {"level": 8, "name": "Legend", "min_xp": 2000},
+            ],
+            "recent_xp_history": [],
+        }
+
+    total_xp = user_xp.get("total_xp", 0)
+    level = user_xp.get("level", 1)
+    level_name = user_xp.get("level_name", "Novice")
+
+    # Calculate XP to next level
+    level_thresholds = [
+        (0, 1, "Novice"),
+        (50, 2, "Learner"),
+        (150, 3, "Practitioner"),
+        (300, 4, "Proficient"),
+        (500, 5, "Advanced"),
+        (800, 6, "Expert"),
+        (1200, 7, "Master"),
+        (2000, 8, "Legend"),
+    ]
+
+    current_level_xp = 0
+    next_level_xp = None
+
+    for i, (threshold, lvl, name) in enumerate(level_thresholds):
+        if lvl == level:
+            current_level_xp = threshold
+            if i + 1 < len(level_thresholds):
+                next_level_xp = level_thresholds[i + 1][0]
+            break
+
+    if next_level_xp:
+        xp_to_next = next_level_xp - total_xp
+        xp_progress = total_xp - current_level_xp
+        xp_needed = next_level_xp - current_level_xp
+        progress_percentage = round((xp_progress / xp_needed) * 100, 1)
+    else:
+        # Max level
+        xp_to_next = 0
+        progress_percentage = 100
+
+    # Get recent XP history (last 10)
+    xp_history = user_xp.get("xp_history", [])
+    recent_history = sorted(
+        xp_history, key=lambda x: x.get("timestamp", datetime.min), reverse=True
+    )[:10]
+
+    # Format history for response
+    formatted_history = []
+    for entry in recent_history:
+        formatted_history.append(
+            {
+                "earned_xp": entry.get("earned_xp", 0),
+                "reason": entry.get("reason", ""),
+                "conversation_id": entry.get("conversation_id"),
+                "timestamp": (
+                    entry.get("timestamp").isoformat()
+                    if entry.get("timestamp")
+                    else None
+                ),
+            }
+        )
+
+    return {
+        "total_xp": total_xp,
+        "level": level,
+        "level_name": level_name,
+        "xp_to_next_level": xp_to_next if next_level_xp else 0,
+        "xp_progress_percentage": progress_percentage,
+        "level_thresholds": [
+            {"level": lvl, "name": name, "min_xp": threshold}
+            for threshold, lvl, name in level_thresholds
+        ],
+        "recent_xp_history": formatted_history,
+    }
+
+
+# ============================================================================
+# ENDPOINT: Get User Achievements
+# ============================================================================
+
+
+@router.get("/achievements")
+async def get_user_achievements(
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get user's earned achievements and available achievements.
+
+    Returns:
+    - total_achievements: Total earned
+    - total_xp_from_achievements: Total bonus XP from achievements
+    - earned: List of earned achievements
+    - progress: Progress toward unearned achievements
+    """
+    user_id = current_user["uid"]
+    achievements_col = db["user_learning_achievements"]
+    progress_col = db["user_conversation_progress"]
+    conv_col = db["conversation_library"]
+
+    # Get earned achievements
+    earned_achievements = list(
+        achievements_col.find({"user_id": user_id}).sort("earned_at", -1)
+    )
+
+    # Format earned achievements
+    formatted_earned = []
+    total_xp_bonus = 0
+
+    for ach in earned_achievements:
+        total_xp_bonus += ach.get("xp_bonus", 0)
+        formatted_earned.append(
+            {
+                "achievement_id": ach["achievement_id"],
+                "achievement_name": ach["achievement_name"],
+                "achievement_type": ach["achievement_type"],
+                "xp_bonus": ach.get("xp_bonus", 0),
+                "earned_at": ach["earned_at"].isoformat(),
+                "metadata": ach.get("metadata", {}),
+            }
+        )
+
+    # Calculate progress toward unearned achievements
+    total_completed = progress_col.count_documents(
+        {"user_id": user_id, "is_completed": True}
+    )
+
+    # Completion achievements progress
+    completion_achievements = [
+        {"id": "first_steps", "name": "First Steps", "threshold": 1, "xp": 1},
+        {"id": "getting_started", "name": "Getting Started", "threshold": 5, "xp": 10},
+        {
+            "id": "dedicated_learner",
+            "name": "Dedicated Learner",
+            "threshold": 20,
+            "xp": 25,
+        },
+        {
+            "id": "consistent_practice",
+            "name": "Consistent Practice",
+            "threshold": 50,
+            "xp": 50,
+        },
+        {"id": "century_club", "name": "Century Club", "threshold": 100, "xp": 100},
+    ]
+
+    progress_info = []
+    earned_ids = {ach["achievement_id"] for ach in earned_achievements}
+
+    for ach_def in completion_achievements:
+        if ach_def["id"] not in earned_ids:
+            progress_info.append(
+                {
+                    "achievement_id": ach_def["id"],
+                    "achievement_name": ach_def["name"],
+                    "achievement_type": "completion",
+                    "xp_bonus": ach_def["xp"],
+                    "current": total_completed,
+                    "required": ach_def["threshold"],
+                    "progress_percentage": min(
+                        round((total_completed / ach_def["threshold"]) * 100, 1), 100
+                    ),
+                }
+            )
+
+    # Topic mastery progress
+    # Get topics where user has some progress
+    user_convs = list(progress_col.find({"user_id": user_id, "is_completed": True}))
+    user_conv_ids = [p["conversation_id"] for p in user_convs]
+
+    if user_conv_ids:
+        # Group by topic
+        topics_progress = {}
+        for conv_id in user_conv_ids:
+            conv = conv_col.find_one({"conversation_id": conv_id})
+            if conv:
+                key = f"{conv['level']}_{conv['topic_number']}"
+                if key not in topics_progress:
+                    topics_progress[key] = {
+                        "level": conv["level"],
+                        "topic_number": conv["topic_number"],
+                        "topic_name": conv["topic"]["en"],
+                        "completed": 0,
+                        "total": 0,
+                    }
+                topics_progress[key]["completed"] += 1
+
+        # Get totals for each topic
+        for key, info in topics_progress.items():
+            total_in_topic = conv_col.count_documents(
+                {"level": info["level"], "topic_number": info["topic_number"]}
+            )
+            info["total"] = total_in_topic
+
+            # Check if achievement earned
+            ach_id = f"topic_{info['level']}_{info['topic_number']}_master"
+            if ach_id not in earned_ids and info["completed"] < info["total"]:
+                progress_info.append(
+                    {
+                        "achievement_id": ach_id,
+                        "achievement_name": f"{info['topic_name']} Master",
+                        "achievement_type": "topic_mastery",
+                        "xp_bonus": 50,
+                        "current": info["completed"],
+                        "required": info["total"],
+                        "progress_percentage": round(
+                            (info["completed"] / info["total"]) * 100, 1
+                        ),
+                        "metadata": {
+                            "topic_number": info["topic_number"],
+                            "level": info["level"],
+                        },
+                    }
+                )
+
+    return {
+        "total_achievements": len(earned_achievements),
+        "total_xp_from_achievements": total_xp_bonus,
+        "earned": formatted_earned,
+        "in_progress": progress_info,
+    }
+
+
+# ============================================================================
 # ENDPOINT 4: Get Conversation Detail
 # ============================================================================
 
@@ -1685,6 +2239,35 @@ async def submit_gap_exercise(
         db=db,
     )
 
+    # Calculate and award XP (if passed)
+    xp_info = None
+    newly_earned_achievements = []
+
+    if is_passed:
+        # Calculate XP earned
+        is_first_attempt = not existing_progress
+        is_perfect_score = score == 100.0
+
+        xp_earned = await calculate_xp_earned(
+            difficulty, score, is_first_attempt, is_perfect_score
+        )
+
+        # Update user XP
+        xp_info = await update_user_xp(
+            user_id,
+            xp_earned,
+            f"Completed {difficulty} conversation",
+            conversation_id,
+            difficulty,
+            score,
+            db,
+        )
+
+        # Check and award achievements
+        newly_earned_achievements = await check_and_award_achievements(
+            user_id, conversation_id, score, difficulty, db
+        )
+
     # Return results
     return {
         "total_gaps": total_gaps,
@@ -1703,6 +2286,16 @@ async def submit_gap_exercise(
             "completed_at": datetime.utcnow().isoformat(),
             "is_best_score": is_best_score,
         },
+        "xp_earned": xp_info if xp_info else None,
+        "achievements_earned": [
+            {
+                "achievement_id": ach["achievement_id"],
+                "achievement_name": ach["achievement_name"],
+                "achievement_type": ach["achievement_type"],
+                "xp_bonus": ach.get("xp_bonus", 0),
+            }
+            for ach in newly_earned_achievements
+        ],
     }
 
 
