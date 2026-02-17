@@ -152,7 +152,42 @@ HGETALL "job:{job_id}"
 KEYS "job:*"
 ```
 
-### 8. API Endpoint Development (CRITICAL - AVOID 404 ERRORS)
+### 8. Running One-Off Scripts (CRITICAL - No Rebuild Needed)
+
+**NEVER rebuild Docker just to run a script!**
+
+**Pattern: Copy script into running container and execute:**
+```bash
+# Copy script from host to container
+docker cp /home/hoile/wordai/script.py ai-chatbot-rag:/app/
+
+# Run script inside container
+docker exec ai-chatbot-rag python3 /app/script.py
+
+# Or do both in one command:
+docker cp /home/hoile/wordai/script.py ai-chatbot-rag:/app/ && \
+  docker exec ai-chatbot-rag python3 /app/script.py
+```
+
+**SSH Combined Command:**
+```bash
+ssh root@104.248.147.155 "docker cp /home/hoile/wordai/create_indexes.py ai-chatbot-rag:/app/ && docker exec ai-chatbot-rag python3 /app/create_indexes.py"
+```
+
+**When to use:**
+- ✅ Running index creation scripts
+- ✅ Database migration scripts  
+- ✅ One-time data fixes
+- ✅ Testing new utilities
+- ❌ Don't use for code changes to src/ (need full rebuild)
+
+**Why this works:**
+- Container has all Python packages installed
+- Has access to MongoDB/Redis
+- Loads environment variables from .env
+- No downtime, no rebuild time
+
+### 9. API Endpoint Development (CRITICAL - AVOID 404 ERRORS)
 
 **Common 404 Errors and How to Avoid:**
 
