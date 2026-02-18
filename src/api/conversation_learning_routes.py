@@ -23,6 +23,8 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 import uuid
+import json
+import redis
 
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
@@ -40,6 +42,15 @@ def get_db():
     """Get database connection."""
     db_manager = DBManager()
     return db_manager.db
+
+
+def get_redis():
+    """Get Redis client for caching."""
+    return redis.Redis(host="redis-server", port=6379, db=0, decode_responses=True)
+
+
+# Redis TTL constants
+STREAK_CACHE_TTL = 3600  # 1 hour - refresh after 1 hour or on each submit
 
 
 async def check_user_premium(user_id: str, db) -> bool:
@@ -122,92 +133,115 @@ async def increment_daily_usage(user_id: str, conversation_id: str, db):
 
 
 async def update_daily_streak(
-    user_id: str, score: float, activity_type: str, activity_id: str, db
+    user_id: str,
+    score: float,
+    activity_type: str,
+    activity_id: str,
+    db,
+    redis_client=None,
 ):
     """
     Update user's daily learning streak.
 
-    Args:
-        user_id: Firebase user ID
-        score: Score achieved (0-100)
-        activity_type: "conversation" or "song"
-        activity_id: conversation_id or song_id
-        db: Database connection
-
     Rules:
-        - Only count if score >= 60% (passing grade)
+        - Count any completed activity regardless of score
         - One learning activity per day maintains streak
         - Multiple activities in same day don't increase streak
         - Streak resets to 1 if previous day was missed
+        - Writes to MongoDB + invalidates Redis cache
     """
-    # Only count passing scores
-    if score < 60:
-        return
-
     from datetime import timedelta
 
     streak_col = db["user_learning_streak"]
     today = date.today()
     today_str = today.isoformat()
+    new_activity = {
+        "type": activity_type,
+        "id": activity_id,
+        "score": score,
+        "completed_at": datetime.utcnow(),
+    }
 
     # Check if user already learned today
     existing_today = streak_col.find_one({"user_id": user_id, "date": today_str})
 
     if existing_today:
-        # Already learned today - just add this activity to the list
+        # Already learned today - add activity, update cache
         streak_col.update_one(
             {"user_id": user_id, "date": today_str},
             {
-                "$addToSet": {
-                    "activities": {
-                        "type": activity_type,
-                        "id": activity_id,
-                        "score": score,
-                        "completed_at": datetime.utcnow(),
-                    }
-                },
+                "$addToSet": {"activities": new_activity},
                 "$set": {"updated_at": datetime.utcnow()},
             },
         )
+        # Update Redis cache: append the new activity
+        if redis_client:
+            try:
+                cache_key = f"streak:{user_id}"
+                cached = redis_client.get(cache_key)
+                if cached:
+                    data = json.loads(cached)
+                    act = dict(new_activity)
+                    act["completed_at"] = act["completed_at"].isoformat()
+                    data["today_activities"].append(act)
+                    data["today_learned"] = True
+                    redis_client.setex(cache_key, STREAK_CACHE_TTL, json.dumps(data))
+            except Exception:
+                pass
         return
 
-    # Calculate current streak
-    yesterday = today - timedelta(days=1)
-    yesterday_str = yesterday.isoformat()
+    # First activity today - calculate streak
+    yesterday_str = (today - timedelta(days=1)).isoformat()
 
+    # Single query: get yesterday + latest in one aggregation
+    pipeline = [
+        {"$match": {"user_id": user_id, "date": {"$in": [yesterday_str]}}},
+        {"$sort": {"date": -1}},
+        {"$limit": 1},
+    ]
     yesterday_record = streak_col.find_one({"user_id": user_id, "date": yesterday_str})
 
     if yesterday_record:
-        # Continue streak from yesterday
         current_streak = yesterday_record.get("current_streak", 1) + 1
-        longest_streak = yesterday_record.get("longest_streak", 1)
-        longest_streak = max(longest_streak, current_streak)
+        longest_streak = max(yesterday_record.get("longest_streak", 1), current_streak)
     else:
-        # Check if there's any previous record to get longest_streak
         latest_record = streak_col.find_one({"user_id": user_id}, sort=[("date", -1)])
         current_streak = 1
         longest_streak = latest_record.get("longest_streak", 1) if latest_record else 1
 
-    # Create today's record
     streak_doc = {
         "streak_id": str(uuid.uuid4()),
         "user_id": user_id,
         "date": today_str,
         "current_streak": current_streak,
         "longest_streak": longest_streak,
-        "activities": [
-            {
-                "type": activity_type,
-                "id": activity_id,
-                "score": score,
-                "completed_at": datetime.utcnow(),
-            }
-        ],
+        "activities": [new_activity],
         "created_at": datetime.utcnow(),
         "updated_at": datetime.utcnow(),
     }
-
     streak_col.insert_one(streak_doc)
+
+    # Write new cache
+    if redis_client:
+        try:
+            cache_key = f"streak:{user_id}"
+            cache_data = {
+                "current_streak": current_streak,
+                "longest_streak": longest_streak,
+                "today_learned": True,
+                "today_activities": [
+                    {
+                        "type": activity_type,
+                        "id": activity_id,
+                        "score": score,
+                        "completed_at": datetime.utcnow().isoformat(),
+                    }
+                ],
+                "cached_at": today_str,
+            }
+            redis_client.setex(cache_key, STREAK_CACHE_TTL, json.dumps(cache_data))
+        except Exception:
+            pass
 
 
 async def calculate_xp_earned(
@@ -1486,17 +1520,12 @@ async def get_learning_path(
 async def get_daily_streak(
     current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
+    redis_client=Depends(get_redis),
 ):
     """
     Get user's daily learning streak information.
-
-    Returns:
-    - current_streak: Current consecutive days with learning activity
-    - longest_streak: Best streak ever achieved
-    - today_learned: Whether user learned today
-    - today_activities: List of today's learning activities
-    - streak_status: Badge/title based on streak (e.g. "Week Warrior", "Monthly Master")
-    - last_7_days: Activity for last 7 days (for calendar view)
+    Uses Redis cache (TTL 1h). Falls back to MongoDB if cache miss.
+    Cache is invalidated/updated on every submit.
     """
     from datetime import timedelta
 
@@ -1505,43 +1534,108 @@ async def get_daily_streak(
     today = date.today()
     today_str = today.isoformat()
 
-    # Get today's record
-    today_record = streak_col.find_one({"user_id": user_id, "date": today_str})
-
-    # Get latest record to find current streak
-    latest_record = streak_col.find_one({"user_id": user_id}, sort=[("date", -1)])
-
     current_streak = 0
     longest_streak = 0
     today_learned = False
     today_activities = []
 
-    if today_record:
-        current_streak = today_record.get("current_streak", 1)
-        longest_streak = today_record.get("longest_streak", 1)
-        today_learned = True
-        today_activities = today_record.get("activities", [])
-    elif latest_record:
-        # Check if latest record is yesterday
-        latest_date = latest_record.get("date")
-        yesterday = (today - timedelta(days=1)).isoformat()
+    # ── 1. Try Redis cache first ──────────────────────────────────────────
+    cache_key = f"streak:{user_id}"
+    try:
+        cached = redis_client.get(cache_key)
+        if cached:
+            data = json.loads(cached)
+            # Cache is valid only if it was built today
+            if data.get("cached_at") == today_str:
+                current_streak = data.get("current_streak", 0)
+                longest_streak = data.get("longest_streak", 0)
+                today_learned = data.get("today_learned", False)
+                today_activities = data.get("today_activities", [])
+            else:
+                # Stale cache from a previous day - discard
+                redis_client.delete(cache_key)
+                cached = None
+    except Exception:
+        cached = None
 
-        if latest_date == yesterday:
-            # Streak is still alive (just haven't learned today yet)
-            current_streak = latest_record.get("current_streak", 1)
-        else:
-            # Streak broken
-            current_streak = 0
+    # ── 2. Cache miss → query MongoDB ────────────────────────────────────
+    if not cached:
+        today_record = streak_col.find_one({"user_id": user_id, "date": today_str})
+        latest_record = (
+            streak_col.find_one({"user_id": user_id}, sort=[("date", -1)])
+            if not today_record
+            else None
+        )
 
-        longest_streak = latest_record.get("longest_streak", 1)
+        if today_record:
+            current_streak = today_record.get("current_streak", 1)
+            longest_streak = today_record.get("longest_streak", 1)
+            today_learned = True
+            raw_activities = today_record.get("activities", [])
+            today_activities = [
+                {
+                    **a,
+                    "completed_at": (
+                        a["completed_at"].isoformat()
+                        if isinstance(a.get("completed_at"), datetime)
+                        else a.get("completed_at")
+                    ),
+                }
+                for a in raw_activities
+            ]
+        elif latest_record:
+            latest_date = latest_record.get("date")
+            yesterday = (today - timedelta(days=1)).isoformat()
+            current_streak = (
+                latest_record.get("current_streak", 1)
+                if latest_date == yesterday
+                else 0
+            )
+            longest_streak = latest_record.get("longest_streak", 1)
 
-    # Determine streak status/badge
+        # Write to cache
+        try:
+            cache_data = {
+                "current_streak": current_streak,
+                "longest_streak": longest_streak,
+                "today_learned": today_learned,
+                "today_activities": today_activities,
+                "cached_at": today_str,
+            }
+            redis_client.setex(cache_key, STREAK_CACHE_TTL, json.dumps(cache_data))
+        except Exception:
+            pass
+
+    # ── 3. Build last_7_days from MongoDB (single query) ─────────────────
+    seven_days_ago = (today - timedelta(days=6)).isoformat()
+    records_7d = {
+        r["date"]: r
+        for r in streak_col.find(
+            {"user_id": user_id, "date": {"$gte": seven_days_ago}},
+            {"date": 1, "activities": 1},
+        )
+    }
+
+    last_7_days = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        day_str = day.isoformat()
+        rec = records_7d.get(day_str)
+        last_7_days.append(
+            {
+                "date": day_str,
+                "day_of_week": day.strftime("%A"),
+                "learned": rec is not None,
+                "activity_count": len(rec.get("activities", [])) if rec else 0,
+            }
+        )
+
+    # ── 4. Streak badge ──────────────────────────────────────────────────
     streak_status = {
         "title": "New Learner",
         "emoji": "",
         "description": "Complete your first day of learning!",
     }
-
     if current_streak >= 100:
         streak_status = {
             "title": "Legend",
@@ -1558,13 +1652,13 @@ async def get_daily_streak(
         streak_status = {
             "title": "Monthly Master",
             "emoji": "🔥🔥🔥🔥🔥",
-            "description": "30 day streak! You're a master of consistency!",
+            "description": "30 day streak!",
         }
     elif current_streak >= 14:
         streak_status = {
             "title": "Fortnight Champion",
             "emoji": "🔥🔥🔥🔥",
-            "description": "14 day streak! You're on a roll!",
+            "description": "14 day streak!",
         }
     elif current_streak >= 7:
         streak_status = {
@@ -1576,7 +1670,7 @@ async def get_daily_streak(
         streak_status = {
             "title": "Building Momentum",
             "emoji": "🔥🔥",
-            "description": "3 day streak! You're building a habit!",
+            "description": "3 day streak!",
         }
     elif current_streak >= 1:
         streak_status = {
@@ -1585,25 +1679,6 @@ async def get_daily_streak(
             "description": "Great start! Come back tomorrow!",
         }
 
-    # Get last 7 days activity (for calendar visualization)
-    last_7_days = []
-    for i in range(6, -1, -1):
-        day = today - timedelta(days=i)
-        day_str = day.isoformat()
-
-        day_record = streak_col.find_one({"user_id": user_id, "date": day_str})
-
-        last_7_days.append(
-            {
-                "date": day_str,
-                "day_of_week": day.strftime("%A"),
-                "learned": day_record is not None,
-                "activity_count": (
-                    len(day_record.get("activities", [])) if day_record else 0
-                ),
-            }
-        )
-
     return {
         "current_streak": current_streak,
         "longest_streak": longest_streak,
@@ -1611,7 +1686,7 @@ async def get_daily_streak(
         "today_activities": today_activities,
         "streak_status": streak_status,
         "last_7_days": last_7_days,
-        "note": "Complete at least 1 learning activity with score ≥60% per day to maintain streak",
+        "note": "Complete at least 1 learning activity per day to maintain streak",
     }
 
 
@@ -2060,6 +2135,7 @@ async def submit_gap_exercise(
     request: Dict[str, Any],
     current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
+    redis_client=Depends(get_redis),
 ):
     """
     Submit gap exercise answers and get results.
@@ -2230,13 +2306,14 @@ async def submit_gap_exercise(
         upsert=True,
     )
 
-    # Update daily streak (if score >= 60%)
+    # Update daily streak (any completed activity counts)
     await update_daily_streak(
         user_id=user_id,
         score=score,
         activity_type="conversation",
         activity_id=conversation_id,
         db=db,
+        redis_client=redis_client,
     )
 
     # Calculate and award XP (if passed)
