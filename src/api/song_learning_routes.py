@@ -1304,6 +1304,7 @@ async def submit_answers(
             )
         except Exception as _e:
             import logging as _logging
+
             _logging.getLogger(__name__).warning(
                 f"learning_events push failed (song_submit): {_e}"
             )

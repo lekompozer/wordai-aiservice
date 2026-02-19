@@ -347,9 +347,7 @@ def _award_progression_achievement(
         difficulty,
         0,
     )
-    logger.info(
-        f"[progression_achievement] user={user_id} ach={ach_id} xp={xp_bonus}"
-    )
+    logger.info(f"[progression_achievement] user={user_id} ach={ach_id} xp={xp_bonus}")
 
 
 def _check_progression_level_up(
@@ -395,9 +393,7 @@ def _check_progression_level_up(
             {"user_id": user_id},
             {"$set": {"progression_level": new_level, "updated_at": datetime.utcnow()}},
         )
-        logger.info(
-            f"[progression_levelup] user={user_id} level {level}→{new_level}"
-        )
+        logger.info(f"[progression_levelup] user={user_id} level {level}→{new_level}")
 
         _award_progression_achievement(
             db, user_id, ach_id, ach_name, ach_xp, conversation_id, difficulty

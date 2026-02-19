@@ -2063,9 +2063,7 @@ async def get_user_achievements(
             if pa["id"] not in earned_ids:
                 _c = _prog_profile.get(pa["convs_key"], 0)
                 _s = _prog_profile.get(pa["songs_key"], 0)
-                _pct = round(
-                    min(_c / 100, 1.0) * 60 + min(_s / 10, 1.0) * 40, 1
-                )
+                _pct = round(min(_c / 100, 1.0) * 60 + min(_s / 10, 1.0) * 40, 1)
                 progress_info.append(
                     {
                         "achievement_id": pa["id"],
