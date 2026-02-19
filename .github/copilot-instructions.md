@@ -176,7 +176,7 @@ ssh root@104.248.147.155 "docker cp /home/hoile/wordai/create_indexes.py ai-chat
 
 **When to use:**
 - ✅ Running index creation scripts
-- ✅ Database migration scripts  
+- ✅ Database migration scripts
 - ✅ One-time data fixes
 - ✅ Testing new utilities
 - ❌ Don't use for code changes to src/ (need full rebuild)

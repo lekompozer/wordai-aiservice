@@ -1281,6 +1281,33 @@ async def submit_answers(
         db=db,
     )
 
+    # Phase 3: push song_completed event for progression tracking
+    if is_completed:
+        try:
+            _redis = redis.Redis(
+                host="redis-server", port=6379, db=0, decode_responses=True
+            )
+            _redis.lpush(
+                "learning_events",
+                json.dumps(
+                    {
+                        "event_id": str(uuid.uuid4()),
+                        "event_type": "song_completed",
+                        "user_id": user_id,
+                        "song_id": song_id,
+                        "difficulty": request.difficulty.value,
+                        "score": score,
+                        "is_first_attempt": is_first_attempt,
+                        "timestamp": datetime.utcnow().isoformat(),
+                    }
+                ),
+            )
+        except Exception as _e:
+            import logging as _logging
+            _logging.getLogger(__name__).warning(
+                f"learning_events push failed (song_submit): {_e}"
+            )
+
     return SubmitAnswersResponse(
         session_id=request.session_id,
         score=score,

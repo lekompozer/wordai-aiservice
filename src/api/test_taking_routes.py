@@ -4,12 +4,14 @@ Endpoints for accessing tests, starting, submitting, auto-save, and history
 """
 
 import asyncio
+import json
 import logging
 import os
 import uuid
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
 from bson import ObjectId
+import redis as _redis_sync
 
 from fastapi import (
     APIRouter,
@@ -1213,6 +1215,44 @@ async def submit_test(
 
         result = submissions_collection.insert_one(submission_doc)
         submission_id = str(result.inserted_id)
+
+        # ========== Phase 1: Push learning event if test is linked to conversation ==========
+        # learning_events_worker handles XP, streak, achievements, dual-part completion asynchronously
+        try:
+            conv_library = db["conversation_library"]
+            linked_conv = conv_library.find_one(
+                {"online_test_id": ObjectId(test_id)},
+                projection={"conversation_id": 1, "_id": 0},
+            )
+            if linked_conv and score_percentage is not None:
+                _redis = _redis_sync.Redis(
+                    host="redis-server", port=6379, db=0, decode_responses=True
+                )
+                _redis.lpush(
+                    "learning_events",
+                    json.dumps(
+                        {
+                            "event_id": str(uuid.uuid4()),
+                            "event_type": "test_submitted",
+                            "user_id": user_info["uid"],
+                            "conversation_id": linked_conv["conversation_id"],
+                            "test_id": test_id,
+                            "score": score_percentage,  # 0-100
+                            "correct": mcq_correct_count if has_mcq else 0,
+                            "total": len(auto_gradable_questions),
+                            "time_spent": time_taken_seconds,
+                            "is_first_attempt": attempt_number == 1,
+                            "grading_status": grading_status,
+                            "timestamp": datetime.utcnow().isoformat(),
+                        }
+                    ),
+                )
+                logger.info(
+                    f"📤 learning_events: test_submitted conv={linked_conv['conversation_id']} "
+                    f"user={user_info['uid']} score={score_percentage}"
+                )
+        except Exception as _le:
+            logger.warning(f"learning_events push failed (test_submit): {_le}")
 
         # ========== NEW: Add to grading queue if has essay questions ==========
         if has_essay:

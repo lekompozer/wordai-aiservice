@@ -24,10 +24,13 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 import uuid
 import json
+import logging
 import redis
 
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/api/v1/conversations", tags=["Conversation Learning"])
@@ -943,6 +946,38 @@ async def get_user_progress(
                     }
                 )
 
+    # Phase 1: dual-part completion stats
+    gap_only_completed = progress_col.count_documents(
+        {"user_id": user_id, "gap_completed": True, "test_completed": {"$ne": True}}
+    )
+    fully_completed = progress_col.count_documents(
+        {"user_id": user_id, "gap_completed": True, "test_completed": True}
+    )
+    # Completion by gap difficulty (only passed gaps)
+    completion_by_difficulty = {}
+    for diff in ["easy", "medium", "hard"]:
+        completion_by_difficulty[diff] = progress_col.count_documents(
+            {"user_id": user_id, "gap_completed": True, "gap_difficulty": diff}
+        )
+
+    # Phase 3: progression level data
+    _progression_names = {1: "Initiate", 2: "Scholar", 3: "Addict"}
+    _profile = db["user_learning_profile"].find_one({"user_id": user_id})
+    if _profile:
+        _prog_level = _profile.get("progression_level", 1)
+        progression_block = {
+            "level": _prog_level,
+            "level_name": _progression_names.get(_prog_level, "Initiate"),
+            "l1_completed": _profile.get("l1_completed", 0),
+            "l1_songs_completed": _profile.get("l1_songs_completed", 0),
+            "l2_completed": _profile.get("l2_completed", 0),
+            "l2_songs_completed": _profile.get("l2_songs_completed", 0),
+            "l3_completed": _profile.get("l3_completed", 0),
+            "l3_songs_completed": _profile.get("l3_songs_completed", 0),
+        }
+    else:
+        progression_block = None
+
     return {
         "total_conversations": total_conversations,
         "total_completed": completed,
@@ -957,6 +992,14 @@ async def get_user_progress(
         "by_level": by_level,
         "recent_attempts": recent_attempts,
         "best_scores": best_scores,
+        # Phase 1 dual-part stats
+        "dual_part": {
+            "fully_completed": fully_completed,  # gap + test both done
+            "gap_only_completed": gap_only_completed,  # gap done, test pending
+            "completion_by_difficulty": completion_by_difficulty,
+        },
+        # Phase 3 progression stats
+        "progression": progression_block,
     }
 
 
@@ -1390,6 +1433,20 @@ async def get_learning_path(
     """
     user_id = current_user["uid"]
 
+    # Phase 3: if user has a smart learning path, redirect to /learning-path/today
+    _lp_profile = db["user_learning_profile"].find_one(
+        {"user_id": user_id}, projection={"active_path_id": 1}
+    )
+    if _lp_profile and _lp_profile.get("active_path_id"):
+        return {
+            "has_smart_path": True,
+            "redirect_to": "/api/v1/learning-path/today",
+            "message": (
+                "You have a personalized learning path. "
+                "Use /api/v1/learning-path/today for your daily assignments."
+            ),
+        }
+
     conv_col = db["conversation_library"]
     progress_col = db["user_conversation_progress"]
 
@@ -1795,6 +1852,33 @@ async def get_user_xp(
             }
         )
 
+    # Phase 3: progression level data
+    _prog_names = {1: "Initiate", 2: "Scholar", 3: "Addict"}
+    _profile = db["user_learning_profile"].find_one({"user_id": user_id})
+    if _profile:
+        _prog_level = _profile.get("progression_level", 1)
+        _lk = f"l{_prog_level}"
+        _convs_done = _profile.get(f"{_lk}_completed", 0)
+        _songs_done = _profile.get(f"{_lk}_songs_completed", 0)
+        progression_data = {
+            "progression_level": _prog_level,
+            "progression_level_name": _prog_names.get(_prog_level, "Initiate"),
+            "progression_progress": {
+                "conversations_completed": _convs_done,
+                "conversations_required": 100,
+                "conversations_remaining": max(0, 100 - _convs_done),
+                "songs_completed": _songs_done,
+                "songs_required": 10,
+                "songs_remaining": max(0, 10 - _songs_done),
+            },
+        }
+    else:
+        progression_data = {
+            "progression_level": None,
+            "progression_level_name": None,
+            "progression_progress": None,
+        }
+
     return {
         "total_xp": total_xp,
         "level": level,
@@ -1806,6 +1890,7 @@ async def get_user_xp(
             for threshold, lvl, name in level_thresholds
         ],
         "recent_xp_history": formatted_history,
+        **progression_data,
     }
 
 
@@ -1945,6 +2030,53 @@ async def get_user_achievements(
                             "topic_number": info["topic_number"],
                             "level": info["level"],
                         },
+                    }
+                )
+
+    # Phase 3: progression achievements
+    _prog_profile = db["user_learning_profile"].find_one({"user_id": user_id})
+    if _prog_profile:
+        _prog_achievements = [
+            {
+                "id": "level_1_initiate",
+                "name": "Initiate",
+                "convs_key": "l1_completed",
+                "songs_key": "l1_songs_completed",
+                "xp": 200,
+            },
+            {
+                "id": "level_2_scholar",
+                "name": "Scholar",
+                "convs_key": "l2_completed",
+                "songs_key": "l2_songs_completed",
+                "xp": 500,
+            },
+            {
+                "id": "level_3_addict",
+                "name": "Addict",
+                "convs_key": "l3_completed",
+                "songs_key": "l3_songs_completed",
+                "xp": 1000,
+            },
+        ]
+        for pa in _prog_achievements:
+            if pa["id"] not in earned_ids:
+                _c = _prog_profile.get(pa["convs_key"], 0)
+                _s = _prog_profile.get(pa["songs_key"], 0)
+                _pct = round(
+                    min(_c / 100, 1.0) * 60 + min(_s / 10, 1.0) * 40, 1
+                )
+                progress_info.append(
+                    {
+                        "achievement_id": pa["id"],
+                        "achievement_name": pa["name"],
+                        "achievement_type": "progression",
+                        "xp_bonus": pa["xp"],
+                        "current_conversations": _c,
+                        "required_conversations": 100,
+                        "current_songs": _s,
+                        "required_songs": 10,
+                        "progress_percentage": _pct,
                     }
                 )
 
@@ -2295,10 +2427,16 @@ async def submit_gap_exercise(
             "completed_at": datetime.utcnow(),
         }
 
-    # Mark as completed if passed
+    # Mark as completed if passed + update Phase 1 dual-part fields
     if is_passed:
-        update_data["$set"]["is_completed"] = True
+        update_data["$set"]["is_completed"] = True  # kept for backward compat
         update_data["$addToSet"] = {"completed_difficulties": difficulty}
+        # Phase 1: gap completion fields (worker will also check dual-part for is_completed)
+        prev_gap_best = (existing_progress or {}).get("gap_best_score", 0)
+        update_data["$set"]["gap_completed"] = True
+        update_data["$set"]["gap_difficulty"] = difficulty
+        if score > prev_gap_best:
+            update_data["$set"]["gap_best_score"] = score
 
     progress_col.update_one(
         {"user_id": user_id, "conversation_id": conversation_id},
@@ -2345,6 +2483,29 @@ async def submit_gap_exercise(
             user_id, conversation_id, score, difficulty, db
         )
 
+    # Phase 1: push gamification event → learning_events_worker processes
+    # new dual-part is_completed check + future Phase 2/3 path/progression updates
+    try:
+        event_payload = json.dumps(
+            {
+                "event_id": str(uuid.uuid4()),
+                "event_type": "gap_submitted",
+                "user_id": user_id,
+                "conversation_id": conversation_id,
+                "difficulty": difficulty,
+                "score": score,
+                "correct": correct_count,
+                "total": total_gaps,
+                "time_spent": time_spent,
+                "is_first_attempt": not existing_progress,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+        )
+        redis_client.lpush("learning_events", event_payload)
+    except Exception as _e:
+        # Non-critical: log but never fail the submit response
+        logger.warning(f"learning_events push failed: {_e}")
+
     # Return results
     return {
         "total_gaps": total_gaps,
@@ -2373,6 +2534,7 @@ async def submit_gap_exercise(
             }
             for ach in newly_earned_achievements
         ],
+        "gamification": "synced",  # background worker also handling dual-part tracking
     }
 
 
