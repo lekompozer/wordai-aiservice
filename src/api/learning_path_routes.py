@@ -287,7 +287,7 @@ async def setup_learning_path(
                 "l1_songs_completed": 0,
                 "l2_songs_completed": 0,
                 "l3_songs_completed": 0,
-                "created_at": now,
+                # created_at is handled by $setOnInsert below to avoid field conflict
             }
         )
 
