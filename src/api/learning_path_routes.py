@@ -125,6 +125,7 @@ def _get_topic_convs(
             },
             projection={
                 "conversation_id": 1,
+                "title": 1,
                 "topic": 1,
                 "topic_number": 1,
                 "level": 1,
@@ -204,9 +205,14 @@ def _generate_path_items(
     all_items = goal_items + interest_items + challenge_items + foundation_items
     path_items = []
     for pos, item in enumerate(all_items, start=1):
+        title = item.get("title", {})
+        title_en = title.get("en", "") if isinstance(title, dict) else str(title)
+        title_vi = title.get("vi", "") if isinstance(title, dict) else ""
         path_items.append(
             {
                 "conversation_id": item["conversation_id"],
+                "title_en": title_en,
+                "title_vi": title_vi,
                 "topic": item.get("topic", {}).get("en", ""),
                 "topic_number": item.get("topic_number", 0),
                 "level": item.get("level", level),
@@ -513,6 +519,24 @@ async def get_today_plan(
 
     if review_candidate:
         assignments.append(review_candidate)
+
+    # ── Inject titles (batch fetch from conversation_library) ───────────────
+    # Handles both new paths (title_en stored) and old paths (no title stored)
+    assign_cids = [a["conversation_id"] for a in assignments]
+    if assign_cids:
+        title_docs = {
+            d["conversation_id"]: d["title"]
+            for d in conv_col.find(
+                {"conversation_id": {"$in": assign_cids}},
+                projection={"conversation_id": 1, "title": 1, "_id": 0},
+            )
+        }
+        for a in assignments:
+            title = title_docs.get(a["conversation_id"], {})
+            a["title_en"] = (
+                title.get("en", "") if isinstance(title, dict) else str(title)
+            )
+            a["title_vi"] = title.get("vi", "") if isinstance(title, dict) else ""
 
     # ── Streak info ─────────────────────────────────────────────────────────
     streak_col = db["user_learning_streak"]
