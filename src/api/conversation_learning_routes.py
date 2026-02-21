@@ -1975,7 +1975,7 @@ async def get_user_achievements(
                     "achievement_name": ach_def["name"],
                     "achievement_type": "completion",
                     "xp_bonus": ach_def["xp"],
-                    "current": total_completed,
+                    "current": min(total_completed, ach_def["threshold"]),
                     "required": ach_def["threshold"],
                     "progress_percentage": min(
                         round((total_completed / ach_def["threshold"]) * 100, 1), 100
