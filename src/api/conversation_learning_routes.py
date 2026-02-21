@@ -544,6 +544,7 @@ async def check_and_award_achievements(
 async def browse_conversations(
     level: Optional[str] = None,
     topic: Optional[str] = None,
+    search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
     db=Depends(get_db),
@@ -554,6 +555,7 @@ async def browse_conversations(
     Query Parameters:
     - level: "beginner" | "intermediate" | "advanced"
     - topic: Topic slug (e.g., "work_office")
+    - search: Search term matched against title.en and title.vi (case-insensitive, bilingual)
     - page: Page number (default: 1)
     - page_size: Items per page (default: 20, max: 100)
 
@@ -579,6 +581,13 @@ async def browse_conversations(
 
     if topic:
         filter_query["topic_slug"] = topic
+
+    if search and search.strip():
+        regex = {"$regex": search.strip(), "$options": "i"}
+        filter_query["$or"] = [
+            {"title.en": regex},
+            {"title.vi": regex},
+        ]
 
     # Get conversations
     conv_col = db["conversation_library"]
