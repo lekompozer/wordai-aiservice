@@ -77,16 +77,21 @@ def get_redis():
 async def check_user_premium(user_id: str, db) -> bool:
     """
     Check if user has active premium subscription.
+    Returns True for active Song subscription OR Conversation Learning subscription.
+    A Conversation Learning subscription also unlocks Song Learning.
 
     Returns: True if user is premium, False otherwise
     """
-    subscription_col = db["user_song_subscription"]
-
-    subscription = subscription_col.find_one(
-        {"user_id": user_id, "is_active": True, "end_date": {"$gte": datetime.utcnow()}}
-    )
-
-    return subscription is not None
+    now = datetime.utcnow()
+    if db["user_song_subscription"].find_one(
+        {"user_id": user_id, "is_active": True, "end_date": {"$gte": now}}
+    ):
+        return True
+    if db["user_conversation_subscription"].find_one(
+        {"user_id": user_id, "is_active": True, "end_date": {"$gte": now}}
+    ):
+        return True
+    return False
 
 
 # Dependency: Check daily limit

@@ -4,19 +4,23 @@ Conversation Learning API Routes - Core Learning Features
 Endpoints:
 1. GET /api/v1/conversations/browse - Browse conversations with filters
 2. GET /api/v1/conversations/topics - Get topics list
-3. GET /api/v1/conversations/{conversation_id} - Get conversation details
-4. GET /api/v1/conversations/{conversation_id}/vocabulary - Get vocabulary & grammar
-5. GET /api/v1/conversations/{conversation_id}/gaps - Get all gap exercises (3 levels)
-6. GET /api/v1/conversations/{conversation_id}/gaps/{difficulty} - Get single difficulty gap
-7. POST /api/v1/conversations/{conversation_id}/gaps/{difficulty}/submit - Submit answers
-8. GET /api/v1/conversations/progress - Get user progress
-9. GET /api/v1/conversations/{conversation_id}/history - Get single conversation history
-10. GET /api/v1/conversations/history - Get all learning history
+3. GET /api/v1/conversations/limits - Get free-user limits status (auth required)
+4. GET /api/v1/conversations/{conversation_id} - Get conversation details
+5. GET /api/v1/conversations/{conversation_id}/vocabulary - Get vocabulary & grammar
+6. GET /api/v1/conversations/{conversation_id}/gaps - Get all gap exercises (3 levels)
+7. GET /api/v1/conversations/{conversation_id}/gaps/{difficulty} - Get single difficulty gap
+8. POST /api/v1/conversations/{conversation_id}/gaps/{difficulty}/submit - Submit answers
+9. GET /api/v1/conversations/progress - Get user progress
+10. GET /api/v1/conversations/{conversation_id}/history - Get single conversation history
+11. GET /api/v1/conversations/history - Get all learning history
 
-Business rules:
-- Free users: 5 conversations/day limit
-- Premium users: Unlimited (shared with Song Learning)
-- Completion threshold: ≥80% correct answers
+Free user limits:
+- Lifetime: 20 conversations via Learning Path, 15 Beginner / 5 Intermediate / 5 Advanced via Browse
+- Daily: 3 gap-fill submissions/day (reset at 00:00 UTC)
+- Audio: disabled on locked (over-limit) conversations
+- Online Tests: not accessible (Premium only — no points deduction)
+Premium (Song OR Conversation subscription):
+- Unlimited submissions, full audio, Online Tests free of points
 """
 
 from fastapi import APIRouter, HTTPException, Depends, status
@@ -28,7 +32,7 @@ import logging
 import redis
 
 from src.database.db_manager import DBManager
-from src.middleware.firebase_auth import get_current_user
+from src.middleware.firebase_auth import get_current_user, get_current_user_optional
 
 logger = logging.getLogger(__name__)
 
@@ -59,78 +63,114 @@ STREAK_CACHE_TTL = 3600  # 1 hour - refresh after 1 hour or on each submit
 async def check_user_premium(user_id: str, db) -> bool:
     """
     Check if user has active premium subscription.
-    Shared with Song Learning subscription.
-
-    Returns: True if user is premium, False otherwise
+    Returns True for active Song subscription OR Conversation Learning subscription.
+    A Conversation Learning subscription also unlocks Song Learning.
     """
-    subscription_col = db["user_song_subscription"]
-
-    subscription = subscription_col.find_one(
-        {"user_id": user_id, "is_active": True, "end_date": {"$gte": datetime.utcnow()}}
-    )
-
-    return subscription is not None
+    now = datetime.utcnow()
+    if db["user_song_subscription"].find_one(
+        {"user_id": user_id, "is_active": True, "end_date": {"$gte": now}}
+    ):
+        return True
+    if db["user_conversation_subscription"].find_one(
+        {"user_id": user_id, "is_active": True, "end_date": {"$gte": now}}
+    ):
+        return True
+    return False
 
 
 async def check_daily_limit(user_id: str, db) -> dict:
     """
-    Check user's daily free conversation limit.
+    Check user's daily free submit limit (3 gap-fill submissions/day for free users).
 
-    Returns: Dict with is_premium, conversations_played_today, remaining_free
+    Returns: Dict with is_premium, daily_submits_used, remaining_free
     """
     is_premium = await check_user_premium(user_id, db)
 
     if is_premium:
         return {
             "is_premium": True,
-            "conversations_played_today": 0,
+            "daily_submits_used": 0,
             "remaining_free": -1,  # Unlimited
         }
 
-    # Check free usage today
-    today = date.today()
-    daily_col = db["user_daily_free_conversations"]
+    today = date.today().isoformat()
+    daily_col = db["user_daily_submits"]
 
-    daily_record = daily_col.find_one(
-        {"user_id": user_id, "date": datetime.combine(today, datetime.min.time())}
-    )
-
-    if not daily_record:
-        return {
-            "is_premium": False,
-            "conversations_played_today": 0,
-            "remaining_free": 5,
-        }
-
-    conversations_played = len(daily_record.get("conversation_ids", []))
-    remaining = max(0, 5 - conversations_played)
+    record = daily_col.find_one({"user_id": user_id, "date": today})
+    used = record.get("submit_count", 0) if record else 0
+    remaining = max(0, 3 - used)
 
     return {
         "is_premium": False,
-        "conversations_played_today": conversations_played,
+        "daily_submits_used": used,
         "remaining_free": remaining,
     }
 
 
-async def increment_daily_usage(user_id: str, conversation_id: str, db):
+async def increment_daily_submit(user_id: str, db):
     """
-    Increment user's daily conversation usage.
-    Only for free users.
+    Increment daily gap-fill submit count for free users.
+    No-op for premium users.
     """
     is_premium = await check_user_premium(user_id, db)
     if is_premium:
-        return  # Premium users don't have limits
+        return
 
-    today = date.today()
-    daily_col = db["user_daily_free_conversations"]
+    today = date.today().isoformat()
+    daily_col = db["user_daily_submits"]
 
     daily_col.update_one(
-        {"user_id": user_id, "date": datetime.combine(today, datetime.min.time())},
+        {"user_id": user_id, "date": today},
         {
-            "$addToSet": {"conversation_ids": conversation_id},
+            "$inc": {"submit_count": 1},
             "$setOnInsert": {"created_at": datetime.utcnow()},
             "$set": {"updated_at": datetime.utcnow()},
         },
+        upsert=True,
+    )
+
+
+# Free user lifetime conversation unlock limits per context
+FREE_LIFETIME_LIMITS = {
+    "learning_path": 20,
+    "beginner": 15,
+    "intermediate": 5,
+    "advanced": 5,
+}
+
+
+async def _get_free_limits(user_id: str, db) -> dict:
+    """Return current free_limits counters from user_learning_profile."""
+    defaults = {
+        "learning_path_unlocked": 0,
+        "beginner_unlocked": 0,
+        "intermediate_unlocked": 0,
+        "advanced_unlocked": 0,
+    }
+    profile = db["user_learning_profile"].find_one(
+        {"user_id": user_id}, {"free_limits": 1}
+    )
+    if not profile:
+        return defaults
+    return {**defaults, **profile.get("free_limits", {})}
+
+
+async def _can_unlock(user_id: str, context: str, db) -> bool:
+    """
+    Check if a free user can still unlock a new conversation in the given context.
+    context: 'learning_path' | 'beginner' | 'intermediate' | 'advanced'
+    """
+    limits = await _get_free_limits(user_id, db)
+    max_allowed = FREE_LIFETIME_LIMITS.get(context, 0)
+    current = limits.get(f"{context}_unlocked", 0)
+    return current < max_allowed
+
+
+async def _increment_lifetime_unlock(user_id: str, context: str, db):
+    """Increment the lifetime unlock counter for this context (called on first submit)."""
+    db["user_learning_profile"].update_one(
+        {"user_id": user_id},
+        {"$inc": {f"free_limits.{context}_unlocked": 1}},
         upsert=True,
     )
 
@@ -2096,6 +2136,70 @@ async def get_user_achievements(
 
 
 # ============================================================================
+# ENDPOINT: Get Free User Limits
+# ============================================================================
+
+
+@router.get("/limits")
+async def get_user_limits(
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get current free-tier usage limits for the authenticated user.
+    Premium users receive unlimited=True with no counters.
+
+    Returns: Lifetime unlock counts, daily submit count, and reset time.
+    """
+    from datetime import timedelta
+
+    user_id = current_user["uid"]
+    is_premium = await check_user_premium(user_id, db)
+
+    if is_premium:
+        return {
+            "is_premium": True,
+            "unlimited": True,
+        }
+
+    free_limits = await _get_free_limits(user_id, db)
+    today = date.today().isoformat()
+    record = db["user_daily_submits"].find_one({"user_id": user_id, "date": today})
+    daily_used = record.get("submit_count", 0) if record else 0
+
+    # Calculate UTC reset time (start of next day)
+    from datetime import timezone as _tz
+
+    tomorrow = date.today() + timedelta(days=1)
+    resets_at = (
+        datetime.combine(tomorrow, datetime.min.time())
+        .replace(tzinfo=_tz.utc)
+        .isoformat()
+    )
+
+    return {
+        "is_premium": False,
+        "unlimited": False,
+        "lifetime": {
+            "learning_path_unlocked": free_limits["learning_path_unlocked"],
+            "learning_path_max": FREE_LIFETIME_LIMITS["learning_path"],
+            "beginner_unlocked": free_limits["beginner_unlocked"],
+            "beginner_max": FREE_LIFETIME_LIMITS["beginner"],
+            "intermediate_unlocked": free_limits["intermediate_unlocked"],
+            "intermediate_max": FREE_LIFETIME_LIMITS["intermediate"],
+            "advanced_unlocked": free_limits["advanced_unlocked"],
+            "advanced_max": FREE_LIFETIME_LIMITS["advanced"],
+        },
+        "daily_submits": {
+            "used": daily_used,
+            "max": 3,
+            "remaining": max(0, 3 - daily_used),
+            "resets_at": resets_at,
+        },
+    }
+
+
+# ============================================================================
 # ENDPOINT 4: Get Conversation Detail
 # ============================================================================
 
@@ -2104,10 +2208,12 @@ async def get_user_achievements(
 async def get_conversation_detail(
     conversation_id: str,
     db=Depends(get_db),
+    current_user: Optional[dict] = Depends(get_current_user_optional),
 ):
     """
     Get full conversation details including dialogue (PUBLIC - No authentication required)
-    Returns: Complete conversation with all dialogue turns
+    Returns: Complete conversation with all dialogue turns.
+    When authenticated, also returns `can_play_audio` reflecting the user's access level.
     """
     conv_col = db["conversation_library"]
 
@@ -2139,6 +2245,25 @@ async def get_conversation_detail(
 
         conversation["audio_url"] = audio_url
         conversation["has_audio"] = bool(audio_url)
+
+    # Determine audio access for authenticated users
+    if current_user:
+        is_premium = await check_user_premium(current_user["uid"], db)
+        if is_premium:
+            conversation["can_play_audio"] = True
+        else:
+            level = conversation.get("level", "beginner")
+            # Can play audio if they've already attempted this conversation (already unlocked)
+            has_prior = db["user_conversation_progress"].find_one(
+                {"user_id": current_user["uid"], "conversation_id": conversation_id}
+            )
+            if has_prior:
+                conversation["can_play_audio"] = True
+            else:
+                # Not yet unlocked — check if there's room in their lifetime limit
+                conversation["can_play_audio"] = await _can_unlock(
+                    current_user["uid"], level, db
+                )
 
     return conversation
 
@@ -2314,16 +2439,28 @@ async def submit_gap_exercise(
             detail=f"Gaps not found for {conversation_id} at {difficulty} level",
         )
 
-    # Check daily limit
+    # Check daily submit limit (free users: 3 submissions/day)
     limit_info = await check_daily_limit(user_id, db)
     if not limit_info["is_premium"] and limit_info["remaining_free"] == 0:
         raise HTTPException(
             status_code=403,
-            detail="Daily limit reached (5 conversations/day for free users). Upgrade to premium for unlimited access.",
+            detail="Daily submit limit reached (3 submissions/day for free users). Upgrade to Premium for unlimited access.",
         )
 
-    # Increment daily usage
-    await increment_daily_usage(user_id, conversation_id, db)
+    # Increment daily submit count (free users only)
+    await increment_daily_submit(user_id, db)
+
+    # On first-ever attempt for this conversation, increment lifetime unlock counter
+    if not limit_info["is_premium"]:
+        has_prior_attempt = db["user_conversation_progress"].find_one(
+            {"user_id": user_id, "conversation_id": conversation_id}
+        )
+        if not has_prior_attempt:
+            conv_meta = db["conversation_library"].find_one(
+                {"conversation_id": conversation_id}, {"level": 1}
+            )
+            if conv_meta:
+                await _increment_lifetime_unlock(user_id, conv_meta["level"], db)
 
     # Grade answers
     gap_definitions = gaps_doc["gap_definitions"]  # Use gap_definitions field

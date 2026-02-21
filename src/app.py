@@ -1065,6 +1065,15 @@ def create_app() -> FastAPI:
     # ✅ ADDED: Conversation Learning API - English learning through conversations
     app.include_router(conversation_learning_router, tags=["Conversation Learning"])
 
+    # ✅ ADDED: Conversation Subscription API - Premium plans with affiliate pricing
+    from src.api.conversation_subscription_routes import (
+        router as conversation_subscription_router,
+    )
+
+    app.include_router(
+        conversation_subscription_router, tags=["Conversation Subscription"]
+    )
+
     # ✅ ADDED: Learning Path API - Phase 2: Smart personalized 100-conversation path
     from src.api.learning_path_routes import router as learning_path_router
 

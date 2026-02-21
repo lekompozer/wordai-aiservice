@@ -426,6 +426,29 @@ async def start_test(
         # 3. Test has a price
         should_deduct_points = is_public and not is_creator and price_points > 0
 
+        # Conversation Learning premium subscribers: free access to conversation-linked tests
+        if should_deduct_points:
+            try:
+                _now = datetime.utcnow()
+                _conv_link = db["conversation_library"].find_one(
+                    {"online_test_id": ObjectId(test_id)}, {"_id": 1}
+                )
+                if _conv_link:
+                    _conv_sub = db["user_conversation_subscription"].find_one(
+                        {
+                            "user_id": user_info["uid"],
+                            "is_active": True,
+                            "end_date": {"$gte": _now},
+                        }
+                    )
+                    if _conv_sub:
+                        should_deduct_points = False
+                        logger.info(
+                            f"   ✅ Conversation premium user - skipping point deduction for test {test_id}"
+                        )
+            except Exception as _e:
+                logger.warning(f"   ⚠️ Could not check conversation premium: {_e}")
+
         if should_deduct_points:
             # Get user's current points
             users_collection = db["users"]
