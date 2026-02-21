@@ -406,23 +406,35 @@ def _update_progression_counter(
     """
     Phase 3: Level-gated progression counter.
 
-    Only increments the counter for the user's CURRENT progression_level:
+    Triggered by: first successful gap fill (score ≥ 80) per conversation.
+    Deduped via l{n}_counted_convs list — each conversation counts once.
+
+    Level rules:
       l1 (level 1) — any difficulty counts
       l2 (level 2) — medium or hard only
-      l3 (level 3) — only when completion_count ≥ 3 on this conversation
+      l3 (level 3) — hard only
 
-    After incrementing, checks for level-up (100 convos + 10 songs threshold)
-    and awards progression achievements.  Also marks the path item completed.
+    After incrementing, checks for level-up (100 convos + 10 songs).
+    Also marks the path item as completed.
     """
     profile_col = db["user_learning_profile"]
     path_col = db["user_learning_path"]
-    progress_col = db["user_conversation_progress"]
 
     profile = profile_col.find_one({"user_id": user_id})
     if not profile:
         return  # User hasn't set up Phase 2 profile yet — skip silently
 
     level = profile.get("progression_level", 1)
+    counted_key = f"l{level}_counted_convs"
+
+    # Dedup: each conversation counts once per progression level
+    counted = profile.get(counted_key, [])
+    if conversation_id in counted:
+        logger.info(
+            f"[progression] user={user_id} conv={conversation_id} already counted — skip"
+        )
+        return
+
     now = datetime.utcnow()
     inc = {}
 
@@ -434,18 +446,18 @@ def _update_progression_counter(
         if difficulty in ("medium", "hard"):
             inc["l2_completed"] = 1
     elif level == 3:
-        # L3: only when user has completed this conversation 3+ times
-        prog = progress_col.find_one(
-            {"user_id": user_id, "conversation_id": conversation_id},
-            projection={"completion_count": 1},
-        )
-        if prog and prog.get("completion_count", 0) >= 3:
+        # L3: hard only
+        if difficulty == "hard":
             inc["l3_completed"] = 1
 
     if inc:
         profile_col.update_one(
             {"user_id": user_id},
-            {"$inc": inc, "$set": {"updated_at": now}},
+            {
+                "$inc": inc,
+                "$push": {counted_key: conversation_id},
+                "$set": {"updated_at": now},
+            },
         )
         # Re-read to check level-up with latest counters
         updated_profile = profile_col.find_one({"user_id": user_id})
@@ -453,6 +465,12 @@ def _update_progression_counter(
             _check_progression_level_up(
                 db, user_id, updated_profile, conversation_id, difficulty
             )
+    else:
+        # Difficulty doesn't qualify for this level — still record as seen to avoid re-processing
+        profile_col.update_one(
+            {"user_id": user_id},
+            {"$push": {counted_key: conversation_id}, "$set": {"updated_at": now}},
+        )
 
     # Mark path item as completed in active path
     path_col.update_one(
@@ -539,13 +557,12 @@ def _handle_gap_submitted(db, redis_client, event: dict):
             {"user_id": user_id, "conversation_id": conversation_id},
             gap_update,
         )
-        unit_completed = new_gap_done and test_done
         logger.info(
             f"[gap_submitted] user={user_id} conv={conversation_id} "
-            f"gap_completed=True is_completed={unit_completed}"
+            f"gap_completed=True already_was={already_gap_completed}"
         )
-        # Phase 2: update progression counters when unit is fully completed
-        if unit_completed:
+        # Progression: triggered by first successful gap pass per conversation
+        if not already_gap_completed:
             _update_progression_counter(db, user_id, conversation_id, difficulty)
 
 
@@ -645,9 +662,8 @@ def _handle_test_submitted(db, redis_client, event: dict):
     # Achievements (check after is_completed may have been set)
     _award_achievements(db, user_id, conversation_id, score, gap_difficulty, "test")
 
-    # Phase 2: update progression counters when unit is fully completed
-    if gap_done and is_passed:
-        _update_progression_counter(db, user_id, conversation_id, gap_difficulty)
+    # Note: progression already counted on gap_submitted (first gap pass)
+    # No double-count needed here — _update_progression_counter deduplicates
 
     logger.info(
         f"[test_submitted] user={user_id} conv={conversation_id} "
