@@ -2499,7 +2499,7 @@ async def submit_gap_exercise(
                 "timestamp": datetime.utcnow().isoformat(),
             }
         )
-        redis_client.lpush("learning_events", event_payload)
+        redis_client.lpush("queue:learning_events", event_payload)
     except Exception as _e:
         # Non-critical: log but never fail the submit response
         logger.warning(f"learning_events push failed: {_e}")

@@ -1229,7 +1229,7 @@ async def submit_test(
                     host="redis-server", port=6379, db=0, decode_responses=True
                 )
                 _redis.lpush(
-                    "learning_events",
+                    "queue:learning_events",
                     json.dumps(
                         {
                             "event_id": str(uuid.uuid4()),

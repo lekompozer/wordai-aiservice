@@ -924,6 +924,334 @@ async def remove_song_from_playlist(
     return await get_playlist(playlist_id, current_user, db)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Static / prefixed routes MUST come before /{song_id} to avoid being caught
+# by the generic path-parameter route.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.get("/random/pick", response_model=RandomSongResponse)
+async def get_random_song(
+    difficulty: Optional[DifficultyLevel] = None,
+    category: Optional[str] = None,
+    db=Depends(get_db),
+):
+    """
+    Get a random song for learning.
+
+    Query params:
+    - difficulty: Filter by difficulty level (easy/medium/hard)
+    - category: Filter by category name
+
+    Returns: Random song with specified filters
+    """
+    # Build query
+    query = {}
+
+    if category:
+        query["category"] = {"$regex": category, "$options": "i"}
+
+    # Get random song
+    song_lyrics_col = db["song_lyrics"]
+
+    # Use MongoDB aggregation for random selection
+    pipeline = []
+
+    if query:
+        pipeline.append({"$match": query})
+
+    # If difficulty specified, filter songs that have gaps for that difficulty
+    if difficulty:
+        song_gaps_col = db["song_gaps"]
+
+        # Get song_ids that have this difficulty
+        gap_docs = song_gaps_col.find({"difficulty": difficulty.value}, {"song_id": 1})
+        song_ids_with_difficulty = [doc["song_id"] for doc in gap_docs]
+
+        if not song_ids_with_difficulty:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No songs found with {difficulty.value} difficulty",
+            )
+
+        pipeline.append({"$match": {"song_id": {"$in": song_ids_with_difficulty}}})
+
+    # Random sample
+    pipeline.append({"$sample": {"size": 1}})
+
+    # Project fields
+    pipeline.append(
+        {
+            "$project": {
+                "song_id": 1,
+                "title": 1,
+                "artist": 1,
+                "category": 1,
+                "youtube_id": 1,
+                "word_count": 1,
+                "_id": 0,
+            }
+        }
+    )
+
+    result = list(song_lyrics_col.aggregate(pipeline))
+
+    if not result:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No songs found matching criteria",
+        )
+
+    song = result[0]
+
+    # Construct youtube_url from youtube_id
+    youtube_url = f"https://www.youtube.com/watch?v={song['youtube_id']}"
+
+    # Use requested difficulty or default to easy
+    selected_difficulty = difficulty if difficulty else DifficultyLevel.EASY
+
+    return RandomSongResponse(
+        **song, youtube_url=youtube_url, difficulty=selected_difficulty
+    )
+
+
+@router.get("/users/me/progress", response_model=UserProgressResponse)
+async def get_user_progress(
+    current_user: dict = Depends(get_current_user), db=Depends(get_db)
+):
+    """
+    Get user's learning progress and statistics.
+
+    Returns:
+    - Total songs played
+    - Completed songs (by difficulty)
+    - Total attempts
+    - Average score
+    - Recent activity
+    - Subscription status
+    """
+    user_id = current_user["uid"]
+
+    progress_col = db["user_song_progress"]
+
+    # Get all user's progress
+    all_progress = list(progress_col.find({"user_id": user_id}))
+
+    # Calculate statistics
+    total_songs = len({p["song_id"] for p in all_progress})
+    total_attempts = sum(len(p.get("attempts", [])) for p in all_progress)
+
+    completed_by_difficulty = {
+        DifficultyLevel.EASY.value: 0,
+        DifficultyLevel.MEDIUM.value: 0,
+        DifficultyLevel.HARD.value: 0,
+    }
+
+    all_scores = []
+    for progress in all_progress:
+        if progress.get("is_completed"):
+            difficulty = progress["difficulty"]
+            completed_by_difficulty[difficulty] += 1
+
+        all_scores.extend(
+            attempt.get("score", 0) for attempt in progress.get("attempts", [])
+        )
+
+    average_score = round(sum(all_scores) / len(all_scores), 2) if all_scores else 0
+
+    # Get recent activity (last 10)
+    recent_progress = sorted(
+        all_progress, key=lambda x: x.get("last_attempt_at", datetime.min), reverse=True
+    )[:10]
+
+    # Enrich with song info
+    song_lyrics_col = db["song_lyrics"]
+    recent_activity = []
+
+    for progress in recent_progress:
+        song = song_lyrics_col.find_one(
+            {"song_id": progress["song_id"]}, {"title": 1, "artist": 1, "_id": 0}
+        )
+
+        if song:
+            recent_activity.append(
+                {
+                    "song_id": progress["song_id"],
+                    "title": song["title"],
+                    "artist": song["artist"],
+                    "difficulty": progress["difficulty"],
+                    "best_score": progress.get("best_score", 0),
+                    "is_completed": progress.get("is_completed", False),
+                    "last_attempt_at": progress.get("last_attempt_at"),
+                }
+            )
+
+    # Check subscription
+    limit_info = await check_daily_limit(user_id, db)
+
+    # Get subscription details if premium
+    subscription_info = None
+    if limit_info["is_premium"]:
+        subscription_col = db["user_song_subscription"]
+        subscription = subscription_col.find_one(
+            {"user_id": user_id, "is_active": True}, {"_id": 0}
+        )
+
+        if subscription:
+            subscription_info = {
+                "plan_type": subscription["plan_type"],
+                "start_date": subscription["start_date"],
+                "end_date": subscription["end_date"],
+                "price_paid": subscription.get("price_paid", 29000),
+            }
+
+    return UserProgressResponse(
+        user_id=user_id,
+        total_songs_played=total_songs,
+        total_attempts=total_attempts,
+        completed_songs=completed_by_difficulty,
+        average_score=average_score,
+        is_premium=limit_info["is_premium"],
+        songs_played_today=limit_info["songs_played_today"],
+        remaining_free_songs=limit_info["remaining_free"],
+        subscription=subscription_info,
+        recent_activity=recent_activity,
+    )
+
+
+@router.get("/users/me/streak")
+async def get_daily_streak(
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get user's daily learning streak information.
+
+    Returns:
+    - current_streak: Current consecutive days with learning activity
+    - longest_streak: Best streak ever achieved
+    - today_learned: Whether user learned today
+    - today_activities: List of today's learning activities
+    - streak_status: Badge/title based on streak (e.g. "Week Warrior", "Monthly Master")
+    - last_7_days: Activity for last 7 days (for calendar view)
+    """
+    from datetime import timedelta
+
+    user_id = current_user["uid"]
+    streak_col = db["user_learning_streak"]
+    today = date.today()
+    today_str = today.isoformat()
+
+    # Get today's record
+    today_record = streak_col.find_one({"user_id": user_id, "date": today_str})
+
+    # Get latest record to find current streak
+    latest_record = streak_col.find_one({"user_id": user_id}, sort=[("date", -1)])
+
+    current_streak = 0
+    longest_streak = 0
+    today_learned = False
+    today_activities = []
+
+    if today_record:
+        current_streak = today_record.get("current_streak", 1)
+        longest_streak = today_record.get("longest_streak", 1)
+        today_learned = True
+        today_activities = today_record.get("activities", [])
+    elif latest_record:
+        # Check if latest record is yesterday
+        latest_date = latest_record.get("date")
+        yesterday = (today - timedelta(days=1)).isoformat()
+
+        if latest_date == yesterday:
+            # Streak is still alive (just haven't learned today yet)
+            current_streak = latest_record.get("current_streak", 1)
+        else:
+            # Streak broken
+            current_streak = 0
+
+        longest_streak = latest_record.get("longest_streak", 1)
+
+    # Determine streak status/badge
+    streak_status = {
+        "title": "New Learner",
+        "emoji": "",
+        "description": "Complete your first day of learning!",
+    }
+
+    if current_streak >= 100:
+        streak_status = {
+            "title": "Legend",
+            "emoji": "🔥🔥🔥🔥🔥🔥🔥",
+            "description": "100 day streak! You're unstoppable!",
+        }
+    elif current_streak >= 60:
+        streak_status = {
+            "title": "Unstoppable",
+            "emoji": "🔥🔥🔥🔥🔥🔥",
+            "description": "60 day streak! You're on fire!",
+        }
+    elif current_streak >= 30:
+        streak_status = {
+            "title": "Monthly Master",
+            "emoji": "🔥🔥🔥🔥🔥",
+            "description": "30 day streak! You're a master of consistency!",
+        }
+    elif current_streak >= 14:
+        streak_status = {
+            "title": "Fortnight Champion",
+            "emoji": "🔥🔥🔥🔥",
+            "description": "14 day streak! You're on a roll!",
+        }
+    elif current_streak >= 7:
+        streak_status = {
+            "title": "Week Warrior",
+            "emoji": "🔥🔥🔥",
+            "description": "7 day streak! Keep it up!",
+        }
+    elif current_streak >= 3:
+        streak_status = {
+            "title": "Building Momentum",
+            "emoji": "🔥🔥",
+            "description": "3 day streak! You're building a habit!",
+        }
+    elif current_streak >= 1:
+        streak_status = {
+            "title": "Getting Started",
+            "emoji": "🔥",
+            "description": "Great start! Come back tomorrow!",
+        }
+
+    # Get last 7 days activity (for calendar visualization)
+    last_7_days = []
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        day_str = day.isoformat()
+
+        day_record = streak_col.find_one({"user_id": user_id, "date": day_str})
+
+        last_7_days.append(
+            {
+                "date": day_str,
+                "day_of_week": day.strftime("%A"),
+                "learned": day_record is not None,
+                "activity_count": (
+                    len(day_record.get("activities", [])) if day_record else 0
+                ),
+            }
+        )
+
+    return {
+        "current_streak": current_streak,
+        "longest_streak": longest_streak,
+        "today_learned": today_learned,
+        "today_activities": today_activities,
+        "streak_status": streak_status,
+        "last_7_days": last_7_days,
+        "note": "Complete at least 1 learning activity with score ≥60% per day to maintain streak",
+    }
+
+
 @router.get("/{song_id}", response_model=SongDetailResponse)
 async def get_song_detail(song_id: str, db=Depends(get_db)):
     """
@@ -1281,33 +1609,33 @@ async def submit_answers(
         db=db,
     )
 
-    # Phase 3: push song_completed event for progression tracking
-    if is_completed:
-        try:
-            _redis = redis.Redis(
-                host="redis-server", port=6379, db=0, decode_responses=True
-            )
-            _redis.lpush(
-                "learning_events",
-                json.dumps(
-                    {
-                        "event_id": str(uuid.uuid4()),
-                        "event_type": "song_completed",
-                        "user_id": user_id,
-                        "song_id": song_id,
-                        "difficulty": request.difficulty.value,
-                        "score": score,
-                        "is_first_attempt": is_first_attempt,
-                        "timestamp": datetime.utcnow().isoformat(),
-                    }
-                ),
-            )
-        except Exception as _e:
-            import logging as _logging
+    # Phase 3: push song_completed event for progression tracking (any score counts)
+    # Worker deduplicates per song_id — each song counts once toward learning path
+    try:
+        _redis = redis.Redis(
+            host="redis-server", port=6379, db=0, decode_responses=True
+        )
+        _redis.lpush(
+            "queue:learning_events",
+            json.dumps(
+                {
+                    "event_id": str(uuid.uuid4()),
+                    "event_type": "song_completed",
+                    "user_id": user_id,
+                    "song_id": song_id,
+                    "difficulty": request.difficulty.value,
+                    "score": score,
+                    "is_first_attempt": is_first_attempt,
+                    "timestamp": datetime.utcnow().isoformat(),
+                }
+            ),
+        )
+    except Exception as _e:
+        import logging as _logging
 
-            _logging.getLogger(__name__).warning(
-                f"learning_events push failed (song_submit): {_e}"
-            )
+        _logging.getLogger(__name__).warning(
+            f"learning_events push failed (song_submit): {_e}"
+        )
 
     return SubmitAnswersResponse(
         session_id=request.session_id,
