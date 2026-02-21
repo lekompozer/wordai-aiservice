@@ -100,6 +100,35 @@ class ConversationSubscriptionStatus(BaseModel):
     subscription: Optional[dict] = None  # Full subscription detail if active
 
 
+class CheckoutPreviewRequest(BaseModel):
+    package: str = Field(..., description="3_months | 6_months | 12_months")
+    affiliate_code: Optional[str] = Field(None, description="Mã đại lý (optional)")
+    student_id: Optional[str] = Field(
+        None, description="Mã học viên tại trung tâm (optional, required for tier-1)"
+    )
+
+
+class CheckoutPreviewResponse(BaseModel):
+    package: str
+    months: int
+    # Pricing
+    base_per_month: int
+    original_per_month: int  # no-code price for strikethrough UI
+    original_total: int
+    subtotal: int
+    discount_rate: float
+    discount_amount: int
+    total: int
+    # Affiliate info
+    price_tier: str
+    affiliate_code: Optional[str] = None
+    affiliate_name: Optional[str] = None
+    affiliate_tier: Optional[int] = None
+    # Student info (tier-1 centers)
+    student_id: Optional[str] = None
+    requires_student_id: bool = False
+
+
 class ActivateConversationSubscriptionRequest(BaseModel):
     user_id: str = Field(..., description="Firebase UID")
     package: str = Field(..., description="3_months | 6_months | 12_months")
@@ -109,6 +138,9 @@ class ActivateConversationSubscriptionRequest(BaseModel):
     order_invoice_number: str = Field(..., description="Unique order invoice number")
     payment_method: str = Field(default="SEPAY_BANK_TRANSFER")
     affiliate_code: Optional[str] = Field(None, description="Affiliate code if used")
+    student_id: Optional[str] = Field(
+        None, description="Mã học viên tại trung tâm (for tier-1 affiliates)"
+    )
 
 
 class ActivateConversationSubscriptionResponse(BaseModel):

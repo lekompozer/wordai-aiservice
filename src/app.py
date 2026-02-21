@@ -1074,6 +1074,13 @@ def create_app() -> FastAPI:
         conversation_subscription_router, tags=["Conversation Subscription"]
     )
 
+    # ✅ ADDED: Affiliate System API (Phase 3) - User portal + Admin management
+    from src.api.affiliate_routes import router as affiliate_router
+    from src.api.affiliate_admin_routes import router as affiliate_admin_router
+
+    app.include_router(affiliate_router, tags=["Affiliate"])
+    app.include_router(affiliate_admin_router, tags=["Affiliate Admin"])
+
     # ✅ ADDED: Learning Path API - Phase 2: Smart personalized 100-conversation path
     from src.api.learning_path_routes import router as learning_path_router
 

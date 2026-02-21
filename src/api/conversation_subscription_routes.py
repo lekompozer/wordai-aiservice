@@ -19,6 +19,8 @@ from src.models.conversation_subscription import (
     PACKAGE_MONTHS,
     AFFILIATE_COMMISSION_RATES,
     calculate_price,
+    CheckoutPreviewRequest,
+    CheckoutPreviewResponse,
     ConversationSubscriptionStatus,
     ActivateConversationSubscriptionRequest,
     ActivateConversationSubscriptionResponse,
@@ -125,6 +127,64 @@ async def get_subscription_plans(
 
 
 # ============================================================================
+# POST /checkout/preview
+# ============================================================================
+
+
+@router.post("/checkout/preview", response_model=CheckoutPreviewResponse)
+async def checkout_preview(
+    body: CheckoutPreviewRequest,
+    db=Depends(get_db),
+):
+    """
+    Preview the final checkout price given a package + optional affiliate code.
+
+    - If affiliate_code is invalid or inactive: returns no-code pricing.
+    - If affiliate_code is a tier-1 code: `requires_student_id=True` is returned,
+      and the frontend should show the Mã học viên input field.
+    - student_id is accepted but NOT validated here (the center verifies offline).
+
+    No authentication required (pre-login checkout screen).
+    """
+    pkg = body.package
+    if pkg not in PACKAGE_MONTHS:
+        raise HTTPException(status_code=400, detail=f"Gói '{pkg}' không hợp lệ.")
+
+    price_tier = "no_code"
+    affiliate_info = None
+
+    if body.affiliate_code:
+        aff = db["affiliates"].find_one(
+            {"code": body.affiliate_code.upper(), "is_active": True},
+            {"tier": 1, "code": 1, "name": 1},
+        )
+        if aff:
+            price_tier = f"tier_{aff['tier']}"
+            affiliate_info = aff
+
+    pricing = calculate_price(price_tier, pkg)
+    original = calculate_price("no_code", pkg)
+
+    return CheckoutPreviewResponse(
+        package=pkg,
+        months=pricing["months"],
+        base_per_month=pricing["base_per_month"],
+        original_per_month=original["base_per_month"],
+        original_total=original["total"],
+        subtotal=pricing["subtotal"],
+        discount_rate=pricing["discount_rate"],
+        discount_amount=pricing["discount_amount"],
+        total=pricing["total"],
+        price_tier=price_tier,
+        affiliate_code=affiliate_info["code"] if affiliate_info else None,
+        affiliate_name=affiliate_info.get("name") if affiliate_info else None,
+        affiliate_tier=affiliate_info["tier"] if affiliate_info else None,
+        student_id=body.student_id,
+        requires_student_id=affiliate_info["tier"] == 1 if affiliate_info else False,
+    )
+
+
+# ============================================================================
 # GET /me
 # ============================================================================
 
@@ -159,6 +219,7 @@ async def get_my_subscription(
             "days_remaining": days_remaining,
             "amount_paid": sub.get("amount_paid"),
             "affiliate_code": sub.get("affiliate_code"),
+            "student_id": sub.get("student_id"),
         },
     )
 
@@ -230,6 +291,7 @@ async def activate_conversation_subscription(
             "order_invoice_number": request.order_invoice_number,
             "payment_method": request.payment_method,
             "affiliate_code": request.affiliate_code,
+            "student_id": request.student_id,
             "created_at": now,
             "updated_at": now,
         }
@@ -256,6 +318,7 @@ async def activate_conversation_subscription(
                     "amount_paid_by_user": request.amount_paid,
                     "commission_rate": commission_rate,
                     "commission_amount": commission_amount,
+                    "student_id": request.student_id,
                     "status": "pending",
                     "created_at": now,
                 }
