@@ -18,6 +18,7 @@ from src.models.conversation_subscription import (
     PRICING_TIERS,
     PACKAGE_MONTHS,
     AFFILIATE_COMMISSION_RATES,
+    SUPERVISOR_COMMISSION_RATE,
     calculate_price,
     CheckoutPreviewRequest,
     CheckoutPreviewResponse,
@@ -25,6 +26,7 @@ from src.models.conversation_subscription import (
     ActivateConversationSubscriptionRequest,
     ActivateConversationSubscriptionResponse,
 )
+from bson import ObjectId
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -341,6 +343,55 @@ async def activate_conversation_subscription(
                 f"   💰 Commission recorded: {commission_amount} VND "
                 f"for affiliate {request.affiliate_code} (tier {aff['tier']})"
             )
+
+            # ----------------------------------------------------------------
+            # Supervisor commission cascade (10% of gross revenue)
+            # ----------------------------------------------------------------
+            supervisor_id = aff.get("supervisor_id")
+            if supervisor_id:
+                try:
+                    sup = db["supervisors"].find_one(
+                        {"_id": ObjectId(supervisor_id), "is_active": True}
+                    )
+                except Exception:
+                    sup = None
+
+                if sup:
+                    sup_commission = round(
+                        request.amount_paid * SUPERVISOR_COMMISSION_RATE
+                    )
+
+                    db["supervisor_commissions"].insert_one(
+                        {
+                            "supervisor_id": supervisor_id,
+                            "supervisor_code": sup["code"],
+                            "affiliate_id": str(aff["_id"]),
+                            "affiliate_code": request.affiliate_code.upper(),
+                            "user_id": user_id,
+                            "subscription_id": subscription_id,
+                            "amount_paid_by_user": request.amount_paid,
+                            "commission_rate": SUPERVISOR_COMMISSION_RATE,
+                            "commission_amount": sup_commission,
+                            "status": "pending",
+                            "created_at": now,
+                        }
+                    )
+
+                    db["supervisors"].update_one(
+                        {"_id": sup["_id"]},
+                        {
+                            "$inc": {
+                                "total_earned": sup_commission,
+                                "pending_balance": sup_commission,
+                            },
+                            "$set": {"updated_at": now},
+                        },
+                    )
+
+                    logger.info(
+                        f"   💼 Supervisor commission: {sup_commission} VND "
+                        f"for supervisor {sup['code']} (10%)"
+                    )
 
     return ActivateConversationSubscriptionResponse(
         subscription_id=subscription_id,

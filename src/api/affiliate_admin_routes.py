@@ -73,6 +73,9 @@ class CreateAffiliateRequest(BaseModel):
     user_id: Optional[str] = Field(None, description="Firebase UID (nếu có)")
     notes: Optional[str] = Field(None, description="Ghi chú nội bộ")
     bank_info: Optional[dict] = Field(None, description="Thông tin ngân hàng")
+    supervisor_id: Optional[str] = Field(
+        None, description="ObjectId string của Supervisor quản lý (nếu có)"
+    )
 
 
 class UpdateAffiliateRequest(BaseModel):
@@ -82,6 +85,9 @@ class UpdateAffiliateRequest(BaseModel):
     user_id: Optional[str] = None
     notes: Optional[str] = None
     bank_info: Optional[dict] = None
+    supervisor_id: Optional[str] = Field(
+        None, description="ObjectId string của Supervisor (đặt null để bỏ gán)"
+    )
 
 
 class ApproveWithdrawalRequest(BaseModel):
@@ -106,6 +112,7 @@ def fmt_affiliate(aff: dict) -> dict:
         "tier_label": TIER_LABELS.get(aff["tier"], ""),
         "is_active": aff.get("is_active", True),
         "user_id": aff.get("user_id"),
+        "supervisor_id": aff.get("supervisor_id"),
         "price_per_month": PRICING_TIERS.get(
             f"tier_{aff['tier']}", PRICING_TIERS["no_code"]
         ),
@@ -140,6 +147,22 @@ async def create_affiliate(
     if db["affiliates"].find_one({"code": code}):
         raise HTTPException(status_code=409, detail=f"Mã đại lý '{code}' đã tồn tại.")
 
+    # Validate supervisor_id if provided
+    supervisor_id = None
+    if body.supervisor_id:
+        try:
+            sup = db["supervisors"].find_one(
+                {"_id": ObjectId(body.supervisor_id), "is_active": True}
+            )
+        except Exception:
+            sup = None
+        if not sup:
+            raise HTTPException(
+                status_code=404,
+                detail="Không tìm thấy Supervisor hoặc đã bị vô hiệu hóa.",
+            )
+        supervisor_id = body.supervisor_id
+
     now = datetime.utcnow()
     doc = {
         "code": code,
@@ -147,6 +170,7 @@ async def create_affiliate(
         "tier": body.tier,
         "is_active": True,
         "user_id": body.user_id,
+        "supervisor_id": supervisor_id,
         "notes": body.notes,
         "bank_info": body.bank_info,
         "pending_balance": 0,
@@ -159,7 +183,16 @@ async def create_affiliate(
     result = db["affiliates"].insert_one(doc)
     doc["_id"] = result.inserted_id
 
-    logger.info(f"🤝 New affiliate created: code={code}, tier={body.tier}")
+    # Increment supervisor's managed affiliate count
+    if supervisor_id:
+        db["supervisors"].update_one(
+            {"_id": ObjectId(supervisor_id)},
+            {"$inc": {"total_managed_affiliates": 1}, "$set": {"updated_at": now}},
+        )
+
+    logger.info(
+        f"🤝 New affiliate created: code={code}, tier={body.tier}, supervisor_id={supervisor_id}"
+    )
 
     return {
         "message": f"Tạo đại lý thành công.",
@@ -251,6 +284,44 @@ async def update_affiliate(
         updates["notes"] = body.notes
     if body.bank_info is not None:
         updates["bank_info"] = body.bank_info
+    if body.supervisor_id is not None:
+        # Validate new supervisor if a non-empty value is given
+        if body.supervisor_id == "":
+            updates["supervisor_id"] = None  # Unassign supervisor
+        else:
+            try:
+                sup = db["supervisors"].find_one(
+                    {"_id": ObjectId(body.supervisor_id), "is_active": True}
+                )
+            except Exception:
+                sup = None
+            if not sup:
+                raise HTTPException(
+                    status_code=404, detail="Không tìm thấy Supervisor."
+                )
+            updates["supervisor_id"] = body.supervisor_id
+            # If changing supervisor, update managed counts
+            old_sup_id = aff.get("supervisor_id")
+            now_dt = updates["updated_at"]
+            if old_sup_id and old_sup_id != body.supervisor_id:
+                try:
+                    db["supervisors"].update_one(
+                        {"_id": ObjectId(old_sup_id)},
+                        {
+                            "$inc": {"total_managed_affiliates": -1},
+                            "$set": {"updated_at": now_dt},
+                        },
+                    )
+                except Exception:
+                    pass
+            if not old_sup_id or old_sup_id != body.supervisor_id:
+                db["supervisors"].update_one(
+                    {"_id": ObjectId(body.supervisor_id)},
+                    {
+                        "$inc": {"total_managed_affiliates": 1},
+                        "$set": {"updated_at": now_dt},
+                    },
+                )
 
     db["affiliates"].update_one({"_id": aff["_id"]}, {"$set": updates})
     updated = db["affiliates"].find_one({"_id": aff["_id"]})

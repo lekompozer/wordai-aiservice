@@ -1081,6 +1081,13 @@ def create_app() -> FastAPI:
     app.include_router(affiliate_router, tags=["Affiliate"])
     app.include_router(affiliate_admin_router, tags=["Affiliate Admin"])
 
+    # ✅ ADDED: Supervisor System API (Phase 5) - Supervisor portal + Admin management
+    from src.api.supervisor_routes import router as supervisor_router
+    from src.api.supervisor_admin_routes import router as supervisor_admin_router
+
+    app.include_router(supervisor_router, tags=["Supervisor"])
+    app.include_router(supervisor_admin_router, tags=["Supervisor Admin"])
+
     # ✅ ADDED: Learning Path API - Phase 2: Smart personalized 100-conversation path
     from src.api.learning_path_routes import router as learning_path_router
 

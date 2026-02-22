@@ -46,6 +46,9 @@ AFFILIATE_COMMISSION_RATES = {
     2: 0.25,  # Tier-2 affiliate: 25%
 }
 
+# Supervisor earns 10% of gross revenue from all affiliates they manage
+SUPERVISOR_COMMISSION_RATE = 0.10
+
 
 def calculate_price(tier: str, package: str) -> dict:
     """

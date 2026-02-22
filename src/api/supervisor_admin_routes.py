@@ -1,0 +1,417 @@
+"""
+Supervisor Admin API Routes
+
+All endpoints require X-Service-Secret header (inter-service auth).
+Only Admin (partners.wordai.pro) can create supervisor accounts.
+
+Endpoints:
+- POST /api/v1/admin/supervisors                               — Create supervisor
+- GET  /api/v1/admin/supervisors                               — List all supervisors
+- GET  /api/v1/admin/supervisors/{code}                        — Get one supervisor
+- PUT  /api/v1/admin/supervisors/{code}                        — Update supervisor
+- GET  /api/v1/admin/supervisors/withdrawals/list              — List withdrawal requests
+- POST /api/v1/admin/supervisors/withdrawals/{id}/approve      — Approve withdrawal
+- POST /api/v1/admin/supervisors/withdrawals/{id}/reject       — Reject withdrawal
+"""
+
+import os
+import re
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from bson import ObjectId
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from src.database.db_manager import DBManager
+from src.utils.logger import setup_logger
+
+logger = setup_logger()
+
+router = APIRouter(
+    prefix="/api/v1/admin/supervisors",
+    tags=["Supervisor Admin"],
+)
+
+SERVICE_SECRET = os.getenv(
+    "API_SECRET_KEY", "wordai-payment-service-secret-2025-secure-key"
+)
+
+
+def get_db():
+    db_manager = DBManager()
+    return db_manager.db
+
+
+def verify_service_secret(
+    x_service_secret: str = Header(..., alias="X-Service-Secret"),
+):
+    if x_service_secret != SERVICE_SECRET:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return True
+
+
+# ============================================================================
+# Pydantic Models
+# ============================================================================
+
+
+class CreateSupervisorRequest(BaseModel):
+    code: str = Field(
+        ..., description="Mã Supervisor (uppercase, không dấu, không khoảng trắng)"
+    )
+    name: str = Field(..., description="Tên công ty / cá nhân Supervisor")
+    user_id: Optional[str] = Field(None, description="Firebase UID (nếu có)")
+    notes: Optional[str] = Field(None, description="Ghi chú nội bộ")
+    bank_info: Optional[dict] = Field(None, description="Thông tin ngân hàng")
+
+
+class UpdateSupervisorRequest(BaseModel):
+    name: Optional[str] = None
+    is_active: Optional[bool] = None
+    user_id: Optional[str] = None
+    notes: Optional[str] = None
+    bank_info: Optional[dict] = None
+
+
+class ApproveWithdrawalRequest(BaseModel):
+    notes: Optional[str] = Field(None, description="Ghi chú admin")
+
+
+class RejectWithdrawalRequest(BaseModel):
+    reason: str = Field(..., description="Lý do từ chối")
+
+
+# ============================================================================
+# Helpers
+# ============================================================================
+
+
+def fmt_supervisor(sup: dict) -> dict:
+    return {
+        "id": str(sup["_id"]),
+        "code": sup["code"],
+        "name": sup.get("name", ""),
+        "is_active": sup.get("is_active", True),
+        "user_id": sup.get("user_id"),
+        "notes": sup.get("notes"),
+        "bank_info": sup.get("bank_info"),
+        "pending_balance": sup.get("pending_balance", 0),
+        "available_balance": sup.get("available_balance", 0),
+        "total_earned": sup.get("total_earned", 0),
+        "total_managed_affiliates": sup.get("total_managed_affiliates", 0),
+        "created_at": sup["created_at"].isoformat() if sup.get("created_at") else None,
+        "updated_at": sup["updated_at"].isoformat() if sup.get("updated_at") else None,
+    }
+
+
+# ============================================================================
+# POST / — Create supervisor
+# ============================================================================
+
+
+@router.post("/")
+async def create_supervisor(
+    body: CreateSupervisorRequest,
+    _: bool = Depends(verify_service_secret),
+    db=Depends(get_db),
+):
+    """Create a new supervisor account. Only admin can create supervisors."""
+    code = re.sub(r"[^A-Z0-9_]", "", body.code.upper())
+    if not code:
+        raise HTTPException(status_code=400, detail="Mã Supervisor không hợp lệ.")
+
+    if db["supervisors"].find_one({"code": code}):
+        raise HTTPException(
+            status_code=409, detail=f"Mã Supervisor '{code}' đã tồn tại."
+        )
+
+    now = datetime.utcnow()
+    doc = {
+        "code": code,
+        "name": body.name,
+        "is_active": True,
+        "user_id": body.user_id,
+        "notes": body.notes,
+        "bank_info": body.bank_info,
+        "pending_balance": 0,
+        "available_balance": 0,
+        "total_earned": 0,
+        "total_managed_affiliates": 0,
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = db["supervisors"].insert_one(doc)
+    doc["_id"] = result.inserted_id
+
+    logger.info(f"👑 New supervisor created: code={code}, name={body.name}")
+
+    return {
+        "message": "Tạo Supervisor thành công.",
+        "supervisor": fmt_supervisor(doc),
+    }
+
+
+# ============================================================================
+# GET / — List supervisors
+# ============================================================================
+
+
+@router.get("/")
+async def list_supervisors(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    is_active: Optional[bool] = Query(default=None),
+    _: bool = Depends(verify_service_secret),
+    db=Depends(get_db),
+):
+    """List all supervisor accounts."""
+    query: dict = {}
+    if is_active is not None:
+        query["is_active"] = is_active
+
+    total = db["supervisors"].count_documents(query)
+    skip = (page - 1) * page_size
+    docs = list(
+        db["supervisors"].find(query).sort("created_at", -1).skip(skip).limit(page_size)
+    )
+
+    return {
+        "items": [fmt_supervisor(d) for d in docs],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
+    }
+
+
+# ============================================================================
+# GET /withdrawals/list — Must be BEFORE /{code}
+# ============================================================================
+
+
+@router.get("/withdrawals/list")
+async def list_supervisor_withdrawals(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    status: Optional[str] = Query(
+        default=None, description="pending | paid | rejected"
+    ),
+    _: bool = Depends(verify_service_secret),
+    db=Depends(get_db),
+):
+    """List all supervisor withdrawal requests."""
+    query: dict = {}
+    if status:
+        query["status"] = status
+
+    total = db["supervisor_withdrawals"].count_documents(query)
+    skip = (page - 1) * page_size
+    docs = list(
+        db["supervisor_withdrawals"]
+        .find(query)
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(page_size)
+    )
+
+    items = []
+    for doc in docs:
+        item: Dict[str, Any] = {
+            "id": str(doc["_id"]),
+            "supervisor_id": doc.get("supervisor_id"),
+            "supervisor_code": doc.get("supervisor_code"),
+            "amount": doc.get("amount", 0),
+            "status": doc.get("status"),
+            "bank_info": doc.get("bank_info"),
+            "notes": doc.get("notes"),
+            "created_at": (
+                doc["created_at"].isoformat() if doc.get("created_at") else None
+            ),
+            "updated_at": (
+                doc["updated_at"].isoformat() if doc.get("updated_at") else None
+            ),
+        }
+        items.append(item)
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
+    }
+
+
+# ============================================================================
+# POST /withdrawals/{id}/approve
+# ============================================================================
+
+
+@router.post("/withdrawals/{withdrawal_id}/approve")
+async def approve_supervisor_withdrawal(
+    withdrawal_id: str,
+    body: ApproveWithdrawalRequest,
+    _: bool = Depends(verify_service_secret),
+    db=Depends(get_db),
+):
+    """Approve a supervisor withdrawal request."""
+    try:
+        wd_oid = ObjectId(withdrawal_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID không hợp lệ.")
+
+    wd = db["supervisor_withdrawals"].find_one({"_id": wd_oid})
+    if not wd:
+        raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu rút tiền.")
+    if wd["status"] != "pending":
+        raise HTTPException(
+            status_code=409, detail=f"Yêu cầu đã ở trạng thái '{wd['status']}'."
+        )
+
+    now = datetime.utcnow()
+    amount = wd["amount"]
+    supervisor_id = wd["supervisor_id"]
+
+    db["supervisor_withdrawals"].update_one(
+        {"_id": wd_oid},
+        {"$set": {"status": "paid", "notes": body.notes, "updated_at": now}},
+    )
+
+    # Mark related supervisor_commissions as paid
+    db["supervisor_commissions"].update_many(
+        {"supervisor_id": supervisor_id, "status": "pending"},
+        {"$set": {"status": "paid"}},
+    )
+
+    # Deduct from pending_balance (available_balance already deducted on withdraw request)
+    try:
+        db["supervisors"].update_one(
+            {"_id": ObjectId(supervisor_id)},
+            {
+                "$inc": {"pending_balance": -amount},
+                "$set": {"updated_at": now},
+            },
+        )
+    except Exception:
+        pass
+
+    logger.info(f"✅ Supervisor withdrawal approved: {withdrawal_id}, amount={amount}")
+
+    return {
+        "message": "Đã duyệt yêu cầu rút tiền Supervisor.",
+        "withdrawal_id": withdrawal_id,
+    }
+
+
+# ============================================================================
+# POST /withdrawals/{id}/reject
+# ============================================================================
+
+
+@router.post("/withdrawals/{withdrawal_id}/reject")
+async def reject_supervisor_withdrawal(
+    withdrawal_id: str,
+    body: RejectWithdrawalRequest,
+    _: bool = Depends(verify_service_secret),
+    db=Depends(get_db),
+):
+    """Reject a supervisor withdrawal request and refund available balance."""
+    try:
+        wd_oid = ObjectId(withdrawal_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID không hợp lệ.")
+
+    wd = db["supervisor_withdrawals"].find_one({"_id": wd_oid})
+    if not wd:
+        raise HTTPException(status_code=404, detail="Không tìm thấy yêu cầu rút tiền.")
+    if wd["status"] != "pending":
+        raise HTTPException(
+            status_code=409, detail=f"Yêu cầu đã ở trạng thái '{wd['status']}'."
+        )
+
+    now = datetime.utcnow()
+    amount = wd["amount"]
+    supervisor_id = wd["supervisor_id"]
+
+    db["supervisor_withdrawals"].update_one(
+        {"_id": wd_oid},
+        {"$set": {"status": "rejected", "notes": body.reason, "updated_at": now}},
+    )
+
+    # Refund available_balance
+    try:
+        db["supervisors"].update_one(
+            {"_id": ObjectId(supervisor_id)},
+            {
+                "$inc": {"available_balance": amount},
+                "$set": {"updated_at": now},
+            },
+        )
+    except Exception:
+        pass
+
+    logger.info(
+        f"❌ Supervisor withdrawal rejected: {withdrawal_id}, reason={body.reason}"
+    )
+
+    return {
+        "message": "Đã từ chối yêu cầu rút tiền Supervisor.",
+        "withdrawal_id": withdrawal_id,
+    }
+
+
+# ============================================================================
+# GET /{code}  — Get one supervisor  (must be after static routes)
+# ============================================================================
+
+
+@router.get("/{code}")
+async def get_supervisor(
+    code: str,
+    _: bool = Depends(verify_service_secret),
+    db=Depends(get_db),
+):
+    """Get one supervisor by code."""
+    sup = db["supervisors"].find_one({"code": code.upper()})
+    if not sup:
+        raise HTTPException(status_code=404, detail="Không tìm thấy Supervisor.")
+    return fmt_supervisor(sup)
+
+
+# ============================================================================
+# PUT /{code}  — Update supervisor
+# ============================================================================
+
+
+@router.put("/{code}")
+async def update_supervisor(
+    code: str,
+    body: UpdateSupervisorRequest,
+    _: bool = Depends(verify_service_secret),
+    db=Depends(get_db),
+):
+    """Update supervisor details."""
+    sup = db["supervisors"].find_one({"code": code.upper()})
+    if not sup:
+        raise HTTPException(status_code=404, detail="Không tìm thấy Supervisor.")
+
+    updates: dict = {"updated_at": datetime.utcnow()}
+    if body.name is not None:
+        updates["name"] = body.name
+    if body.is_active is not None:
+        updates["is_active"] = body.is_active
+    if body.user_id is not None:
+        updates["user_id"] = body.user_id
+    if body.notes is not None:
+        updates["notes"] = body.notes
+    if body.bank_info is not None:
+        updates["bank_info"] = body.bank_info
+
+    db["supervisors"].update_one({"_id": sup["_id"]}, {"$set": updates})
+    updated = db["supervisors"].find_one({"_id": sup["_id"]})
+
+    return {
+        "message": "Cập nhật Supervisor thành công.",
+        "supervisor": fmt_supervisor(updated),
+    }
