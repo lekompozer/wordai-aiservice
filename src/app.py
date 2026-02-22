@@ -1088,6 +1088,11 @@ def create_app() -> FastAPI:
     app.include_router(supervisor_router, tags=["Supervisor"])
     app.include_router(supervisor_admin_router, tags=["Supervisor Admin"])
 
+    # ✅ ADDED: Admin Portal — /api/v1/admin/me (for partners.wordai.pro login check)
+    from src.api.admin_portal_routes import router as admin_portal_router
+
+    app.include_router(admin_portal_router, tags=["Admin Portal"])
+
     # ✅ ADDED: Learning Path API - Phase 2: Smart personalized 100-conversation path
     from src.api.learning_path_routes import router as learning_path_router
 
