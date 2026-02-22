@@ -14,16 +14,16 @@ Endpoints:
 - POST /api/v1/admin/supervisors/withdrawals/{id}/reject       — Reject withdrawal
 """
 
-import os
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.database.db_manager import DBManager
+from src.middleware.admin_auth import verify_admin
 from src.utils.logger import setup_logger
 
 logger = setup_logger()
@@ -33,22 +33,10 @@ router = APIRouter(
     tags=["Supervisor Admin"],
 )
 
-SERVICE_SECRET = os.getenv(
-    "API_SECRET_KEY", "wordai-payment-service-secret-2025-secure-key"
-)
-
 
 def get_db():
     db_manager = DBManager()
     return db_manager.db
-
-
-def verify_service_secret(
-    x_service_secret: str = Header(..., alias="X-Service-Secret"),
-):
-    if x_service_secret != SERVICE_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return True
 
 
 # ============================================================================
@@ -113,7 +101,7 @@ def fmt_supervisor(sup: dict) -> dict:
 @router.post("/")
 async def create_supervisor(
     body: CreateSupervisorRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Create a new supervisor account. Only admin can create supervisors."""
@@ -162,7 +150,7 @@ async def list_supervisors(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
     is_active: Optional[bool] = Query(default=None),
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """List all supervisor accounts."""
@@ -197,7 +185,7 @@ async def list_supervisor_withdrawals(
     status: Optional[str] = Query(
         default=None, description="pending | paid | rejected"
     ),
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """List all supervisor withdrawal requests."""
@@ -252,7 +240,7 @@ async def list_supervisor_withdrawals(
 async def approve_supervisor_withdrawal(
     withdrawal_id: str,
     body: ApproveWithdrawalRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Approve a supervisor withdrawal request."""
@@ -313,7 +301,7 @@ async def approve_supervisor_withdrawal(
 async def reject_supervisor_withdrawal(
     withdrawal_id: str,
     body: RejectWithdrawalRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Reject a supervisor withdrawal request and refund available balance."""
@@ -369,7 +357,7 @@ async def reject_supervisor_withdrawal(
 @router.get("/{code}")
 async def get_supervisor(
     code: str,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Get one supervisor by code."""
@@ -388,7 +376,7 @@ async def get_supervisor(
 async def update_supervisor(
     code: str,
     body: UpdateSupervisorRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Update supervisor details."""

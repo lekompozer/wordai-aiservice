@@ -13,16 +13,16 @@ Endpoints:
 - POST /api/v1/admin/affiliates/withdrawals/{id}/reject  — Reject withdrawal
 """
 
-import os
 import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from src.database.db_manager import DBManager
+from src.middleware.admin_auth import verify_admin
 from src.models.conversation_subscription import (
     AFFILIATE_COMMISSION_RATES,
     PRICING_TIERS,
@@ -36,10 +36,6 @@ router = APIRouter(
     tags=["Affiliate Admin"],
 )
 
-SERVICE_SECRET = os.getenv(
-    "API_SECRET_KEY", "wordai-payment-service-secret-2025-secure-key"
-)
-
 TIER_LABELS = {
     1: "Đại lý cấp 1 (Trung tâm)",
     2: "Đại lý cấp 2 (Cộng tác viên)",
@@ -49,14 +45,6 @@ TIER_LABELS = {
 def get_db():
     db_manager = DBManager()
     return db_manager.db
-
-
-def verify_service_secret(
-    x_service_secret: str = Header(..., alias="X-Service-Secret"),
-):
-    if x_service_secret != SERVICE_SECRET:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    return True
 
 
 # ============================================================================
@@ -136,7 +124,7 @@ def fmt_affiliate(aff: dict) -> dict:
 @router.post("/")
 async def create_affiliate(
     body: CreateAffiliateRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Create a new affiliate account."""
@@ -211,7 +199,7 @@ async def list_affiliates(
     page_size: int = Query(default=50, ge=1, le=200),
     tier: Optional[int] = Query(default=None),
     is_active: Optional[bool] = Query(default=None),
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """List all affiliates with optional filters."""
@@ -244,7 +232,7 @@ async def list_affiliates(
 @router.get("/{code}")
 async def get_affiliate(
     code: str,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Get details for a specific affiliate by code."""
@@ -263,7 +251,7 @@ async def get_affiliate(
 async def update_affiliate(
     code: str,
     body: UpdateAffiliateRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Update affiliate details."""
@@ -341,7 +329,7 @@ async def list_withdrawals(
     status: Optional[str] = Query(
         default=None, description="pending | approved | rejected | paid"
     ),
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """List all withdrawal requests across all affiliates."""
@@ -411,7 +399,7 @@ async def list_withdrawals(
 async def approve_withdrawal(
     withdrawal_id: str,
     body: ApproveWithdrawalRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Approve a withdrawal request — marks commission as paid."""
@@ -479,7 +467,7 @@ async def approve_withdrawal(
 async def reject_withdrawal(
     withdrawal_id: str,
     body: RejectWithdrawalRequest,
-    _: bool = Depends(verify_service_secret),
+    _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
     """Reject a withdrawal request — refunds the held balance back to available."""
