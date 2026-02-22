@@ -49,7 +49,7 @@ class CreateSupervisorRequest(BaseModel):
         ..., description="Mã Supervisor (uppercase, không dấu, không khoảng trắng)"
     )
     name: str = Field(..., description="Tên công ty / cá nhân Supervisor")
-    user_id: Optional[str] = Field(None, description="Firebase UID (nếu có)")
+    email: str = Field(..., description="Gmail của Supervisor (dùng để lookup Firebase UID)")
     notes: Optional[str] = Field(None, description="Ghi chú nội bộ")
     bank_info: Optional[dict] = Field(None, description="Thông tin ngân hàng")
 
@@ -57,7 +57,7 @@ class CreateSupervisorRequest(BaseModel):
 class UpdateSupervisorRequest(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
-    user_id: Optional[str] = None
+    email: Optional[str] = Field(None, description="Cập nhật Gmail (tự lookup UID mới)")
     notes: Optional[str] = None
     bank_info: Optional[dict] = None
 
@@ -81,6 +81,7 @@ def fmt_supervisor(sup: dict) -> dict:
         "code": sup["code"],
         "name": sup.get("name", ""),
         "is_active": sup.get("is_active", True),
+        "email": sup.get("email"),
         "user_id": sup.get("user_id"),
         "notes": sup.get("notes"),
         "bank_info": sup.get("bank_info"),
@@ -104,7 +105,7 @@ async def create_supervisor(
     _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
-    """Create a new supervisor account. Only admin can create supervisors."""
+    """Create a new supervisor account by email. Admin provides Gmail, system looks up Firebase UID."""
     code = re.sub(r"[^A-Z0-9_]", "", body.code.upper())
     if not code:
         raise HTTPException(status_code=400, detail="Mã Supervisor không hợp lệ.")
@@ -114,12 +115,36 @@ async def create_supervisor(
             status_code=409, detail=f"Mã Supervisor '{code}' đã tồn tại."
         )
 
+    # Lookup Firebase UID from email
+    user_id = None
+    email = body.email.strip().lower()
+    try:
+        from firebase_admin import auth as fb_auth
+        from src.config.firebase_config import FirebaseConfig
+        FirebaseConfig()  # ensure SDK initialized
+        fb_user = fb_auth.get_user_by_email(email)
+        user_id = fb_user.uid
+        logger.info(f"✅ Firebase UID found for {email}: {user_id}")
+    except Exception as e:
+        logger.warning(f"⚠️ Could not find Firebase UID for email {email}: {e}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Không tìm thấy tài khoản Firebase với email '{email}'. Hãy đảm bảo người dùng đã đăng ký.",
+        )
+
+    if db["supervisors"].find_one({"user_id": user_id}):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Email '{email}' đã được gán cho một Supervisor khác.",
+        )
+
     now = datetime.utcnow()
     doc = {
         "code": code,
         "name": body.name,
         "is_active": True,
-        "user_id": body.user_id,
+        "email": email,
+        "user_id": user_id,
         "notes": body.notes,
         "bank_info": body.bank_info,
         "pending_balance": 0,
@@ -132,7 +157,7 @@ async def create_supervisor(
     result = db["supervisors"].insert_one(doc)
     doc["_id"] = result.inserted_id
 
-    logger.info(f"👑 New supervisor created: code={code}, name={body.name}")
+    logger.info(f"👑 New supervisor created: code={code}, name={body.name}, email={email}, uid={user_id}")
 
     return {
         "message": "Tạo Supervisor thành công.",
@@ -389,8 +414,21 @@ async def update_supervisor(
         updates["name"] = body.name
     if body.is_active is not None:
         updates["is_active"] = body.is_active
-    if body.user_id is not None:
-        updates["user_id"] = body.user_id
+    if body.email is not None:
+        email = body.email.strip().lower()
+        try:
+            from firebase_admin import auth as fb_auth
+            from src.config.firebase_config import FirebaseConfig
+            FirebaseConfig()
+            fb_user = fb_auth.get_user_by_email(email)
+            updates["email"] = email
+            updates["user_id"] = fb_user.uid
+            logger.info(f"✅ Updated supervisor {code} email={email} uid={fb_user.uid}")
+        except Exception as e:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Không tìm thấy tài khoản Firebase với email '{email}'.",
+            )
     if body.notes is not None:
         updates["notes"] = body.notes
     if body.bank_info is not None:
