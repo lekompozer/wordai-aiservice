@@ -58,7 +58,10 @@ class CreateAffiliateRequest(BaseModel):
     )
     name: str = Field(..., description="Tên trung tâm hoặc đại lý")
     tier: int = Field(..., ge=1, le=2, description="1 = Trung tâm, 2 = Cộng tác viên")
-    user_id: Optional[str] = Field(None, description="Firebase UID (nếu có)")
+    email: Optional[str] = Field(
+        None,
+        description="Gmail của đại lý. UID tự được link khi đại lý đăng nhập lần đầu.",
+    )
     notes: Optional[str] = Field(None, description="Ghi chú nội bộ")
     bank_info: Optional[dict] = Field(None, description="Thông tin ngân hàng")
     supervisor_id: Optional[str] = Field(
@@ -70,7 +73,9 @@ class UpdateAffiliateRequest(BaseModel):
     name: Optional[str] = None
     tier: Optional[int] = Field(None, ge=1, le=2)
     is_active: Optional[bool] = None
-    user_id: Optional[str] = None
+    email: Optional[str] = Field(
+        None, description="Cập nhật Gmail (UID reset, re-link lần đăng nhập tiếp)"
+    )
     notes: Optional[str] = None
     bank_info: Optional[dict] = None
     supervisor_id: Optional[str] = Field(
@@ -99,6 +104,7 @@ def fmt_affiliate(aff: dict) -> dict:
         "tier": aff["tier"],
         "tier_label": TIER_LABELS.get(aff["tier"], ""),
         "is_active": aff.get("is_active", True),
+        "email": aff.get("email"),
         "user_id": aff.get("user_id"),
         "supervisor_id": aff.get("supervisor_id"),
         "price_per_month": PRICING_TIERS.get(
@@ -151,13 +157,16 @@ async def create_affiliate(
             )
         supervisor_id = body.supervisor_id
 
+    email = body.email.strip().lower() if body.email else None
+
     now = datetime.utcnow()
     doc = {
         "code": code,
         "name": body.name,
         "tier": body.tier,
         "is_active": True,
-        "user_id": body.user_id,
+        "email": email,
+        "user_id": None,  # Auto-linked on first login
         "supervisor_id": supervisor_id,
         "notes": body.notes,
         "bank_info": body.bank_info,
@@ -266,8 +275,9 @@ async def update_affiliate(
         updates["tier"] = body.tier
     if body.is_active is not None:
         updates["is_active"] = body.is_active
-    if body.user_id is not None:
-        updates["user_id"] = body.user_id
+    if body.email is not None:
+        updates["email"] = body.email.strip().lower()
+        updates["user_id"] = None  # Reset UID — re-linked on next login
     if body.notes is not None:
         updates["notes"] = body.notes
     if body.bank_info is not None:

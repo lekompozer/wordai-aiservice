@@ -43,6 +43,27 @@ def get_db():
     return db_manager.db
 
 
+def _get_affiliate(db, user_id: str, email: str = None) -> dict:
+    """Look up affiliate by Firebase UID, with email-based auto-link on first login."""
+    # Fast path: already linked
+    aff = db["affiliates"].find_one({"user_id": user_id})
+
+    # First-time login: look up by email, then link UID
+    if not aff and email:
+        aff = db["affiliates"].find_one({"email": email.lower()})
+        if aff:
+            db["affiliates"].update_one(
+                {"_id": aff["_id"]},
+                {"$set": {"user_id": user_id, "updated_at": datetime.utcnow()}},
+            )
+            aff["user_id"] = user_id
+            logger.info(
+                f"🔗 Affiliate {aff['code']} UID linked: email={email} uid={user_id}"
+            )
+
+    return aff
+
+
 # ============================================================================
 # Pydantic Models
 # ============================================================================
@@ -116,7 +137,7 @@ async def get_my_affiliate_dashboard(
     """
     user_id = current_user["uid"]
 
-    aff = db["affiliates"].find_one({"user_id": user_id})
+    aff = _get_affiliate(db, user_id, email=current_user.get("email"))
     if not aff:
         raise HTTPException(
             status_code=404,
@@ -166,7 +187,7 @@ async def get_my_transactions(
     """
     user_id = current_user["uid"]
 
-    aff = db["affiliates"].find_one({"user_id": user_id}, {"_id": 1})
+    aff = _get_affiliate(db, user_id, email=current_user.get("email"))
     if not aff:
         raise HTTPException(status_code=404, detail="Bạn chưa có tài khoản đại lý.")
 
@@ -229,7 +250,7 @@ async def request_withdrawal(
     """
     user_id = current_user["uid"]
 
-    aff = db["affiliates"].find_one({"user_id": user_id})
+    aff = _get_affiliate(db, user_id, email=current_user.get("email"))
     if not aff:
         raise HTTPException(status_code=404, detail="Bạn chưa có tài khoản đại lý.")
 

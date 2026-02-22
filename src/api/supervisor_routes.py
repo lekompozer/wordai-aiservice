@@ -90,7 +90,10 @@ class CreateManagedAffiliateRequest(BaseModel):
     )
     name: str = Field(..., description="Tên trung tâm hoặc đại lý")
     tier: int = Field(..., ge=1, le=2, description="1 = Trung tâm, 2 = Cộng tác viên")
-    user_id: Optional[str] = Field(None, description="Firebase UID của đại lý (nếu có)")
+    email: Optional[str] = Field(
+        None,
+        description="Gmail của đại lý. UID tự được link khi đại lý đăng nhập lần đầu.",
+    )
     notes: Optional[str] = Field(None, description="Ghi chú nội bộ")
     bank_info: Optional[dict] = Field(None, description="Thông tin ngân hàng")
 
@@ -98,7 +101,9 @@ class CreateManagedAffiliateRequest(BaseModel):
 class UpdateManagedAffiliateRequest(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
-    user_id: Optional[str] = None
+    email: Optional[str] = Field(
+        None, description="Cập nhật Gmail (UID reset, re-link lần đăng nhập tiếp)"
+    )
     notes: Optional[str] = None
     bank_info: Optional[dict] = None
     # Supervisor CANNOT change: code, tier, supervisor_id
@@ -128,7 +133,9 @@ async def get_supervisor_dashboard(
     Return the authenticated supervisor's account details, balance summary,
     and managed affiliate stats.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
 
     # Count managed affiliates broken down by tier
     managed = list(
@@ -181,7 +188,9 @@ async def list_managed_affiliates(
     """
     List all tier-1 and tier-2 affiliates created/managed by this supervisor.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
     supervisor_id = str(sup["_id"])
 
     query: dict = {"supervisor_id": supervisor_id}
@@ -247,7 +256,9 @@ async def create_managed_affiliate(
     Create a new tier-1 or tier-2 affiliate account.
     The new affiliate is automatically linked to this supervisor.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
 
     code = re.sub(r"[^A-Z0-9]", "", body.code.upper())
     if not code:
@@ -257,13 +268,15 @@ async def create_managed_affiliate(
         raise HTTPException(status_code=409, detail=f"Mã đại lý '{code}' đã tồn tại.")
 
     supervisor_id = str(sup["_id"])
+    email = body.email.strip().lower() if body.email else None
     now = datetime.utcnow()
     doc = {
         "code": code,
         "name": body.name,
         "tier": body.tier,
         "is_active": True,
-        "user_id": body.user_id,
+        "email": email,
+        "user_id": None,  # Auto-linked on first login
         "supervisor_id": supervisor_id,
         "notes": body.notes,
         "bank_info": body.bank_info,
@@ -317,7 +330,9 @@ async def update_managed_affiliate(
     Update a tier-1 or tier-2 affiliate that belongs to this supervisor.
     Supervisor cannot change: code, tier, supervisor_id.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
     supervisor_id = str(sup["_id"])
 
     aff = db["affiliates"].find_one({"code": code.upper()})
@@ -336,8 +351,9 @@ async def update_managed_affiliate(
         updates["name"] = body.name
     if body.is_active is not None:
         updates["is_active"] = body.is_active
-    if body.user_id is not None:
-        updates["user_id"] = body.user_id
+    if body.email is not None:
+        updates["email"] = body.email.strip().lower()
+        updates["user_id"] = None  # Reset UID — re-linked on next login
     if body.notes is not None:
         updates["notes"] = body.notes
     if body.bank_info is not None:
@@ -355,6 +371,7 @@ async def update_managed_affiliate(
             "tier": updated["tier"],
             "tier_label": TIER_LABELS.get(updated["tier"], ""),
             "is_active": updated.get("is_active", True),
+            "email": updated.get("email"),
             "user_id": updated.get("user_id"),
             "bank_info": updated.get("bank_info"),
             "notes": updated.get("notes"),
@@ -380,7 +397,9 @@ async def get_supervisor_transactions(
     """
     List this supervisor's commission transactions (10% from managed affiliates).
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
     supervisor_id = str(sup["_id"])
 
     query: dict = {"supervisor_id": supervisor_id}
@@ -438,7 +457,9 @@ async def supervisor_request_withdrawal(
     """
     Submit a withdrawal request for supervisor's available balance.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
 
     available = sup.get("available_balance", 0)
     if body.amount > available:
