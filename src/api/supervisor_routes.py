@@ -216,6 +216,10 @@ async def list_managed_affiliates(
                 "tier": aff["tier"],
                 "tier_label": TIER_LABELS.get(aff["tier"], ""),
                 "is_active": aff.get("is_active", True),
+                "login_status": (
+                    "đã đăng nhập" if aff.get("user_id") else "chưa đăng nhập"
+                ),
+                "email": aff.get("email"),
                 "user_id": aff.get("user_id"),
                 "price_per_month": PRICING_TIERS.get(
                     f"tier_{aff['tier']}", PRICING_TIERS["no_code"]

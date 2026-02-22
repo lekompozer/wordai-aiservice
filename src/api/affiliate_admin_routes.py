@@ -104,6 +104,7 @@ def fmt_affiliate(aff: dict) -> dict:
         "tier": aff["tier"],
         "tier_label": TIER_LABELS.get(aff["tier"], ""),
         "is_active": aff.get("is_active", True),
+        "login_status": "đã đăng nhập" if aff.get("user_id") else "chưa đăng nhập",
         "email": aff.get("email"),
         "user_id": aff.get("user_id"),
         "supervisor_id": aff.get("supervisor_id"),

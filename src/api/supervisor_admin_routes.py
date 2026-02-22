@@ -87,6 +87,7 @@ def fmt_supervisor(sup: dict) -> dict:
         "code": sup["code"],
         "name": sup.get("name", ""),
         "is_active": sup.get("is_active", True),
+        "login_status": "đã đăng nhập" if sup.get("user_id") else "chưa đăng nhập",
         "email": sup.get("email"),
         "user_id": sup.get("user_id"),
         "notes": sup.get("notes"),
