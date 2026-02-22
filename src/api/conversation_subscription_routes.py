@@ -129,6 +129,79 @@ async def get_subscription_plans(
 
 
 # ============================================================================
+# GET /validate-code  — AUTH REQUIRED
+# ============================================================================
+
+
+@router.get("/validate-code")
+@router.get("/validate-code/")
+async def validate_affiliate_code(
+    code: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Validate an affiliate/discount code for the upgrade flow.
+    Requires the user to be authenticated (logged in).
+
+    Returns full pricing table at the code's discounted tier.
+    Use this before rendering the upgrade page with a code pre-filled.
+    """
+    TIER_LABELS = {
+        1: "Đại lý Cấp 1 (Trung tâm Anh ngữ)",
+        2: "Đại lý Cấp 2 (Cộng tác viên)",
+    }
+
+    aff = db["affiliates"].find_one(
+        {"code": code.upper(), "is_active": True},
+        {"tier": 1, "code": 1, "name": 1},
+    )
+    if not aff:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "invalid_code",
+                "message": "Mã đại lý không tồn tại hoặc đã bị vô hiệu hóa.",
+            },
+        )
+
+    tier = aff["tier"]
+    price_tier = f"tier_{tier}"
+    original_per_month = PRICING_TIERS["no_code"]
+    discounted_per_month = PRICING_TIERS[price_tier]
+    discount_percent = round((1 - discounted_per_month / original_per_month) * 100)
+
+    plans = []
+    for pkg_id, months in PACKAGE_MONTHS.items():
+        pricing = calculate_price(price_tier, pkg_id)
+        original = calculate_price("no_code", pkg_id)
+        plans.append(
+            {
+                "package_id": pkg_id,
+                "months": months,
+                "original_total": original["total"],
+                "total": pricing["total"],
+                "discount_rate": pricing["discount_rate"],
+                "discount_amount": pricing["discount_amount"],
+            }
+        )
+
+    return {
+        "valid": True,
+        "code": aff["code"],
+        "affiliate_name": aff.get("name", ""),
+        "tier": tier,
+        "tier_label": TIER_LABELS.get(tier, ""),
+        "price_per_month": discounted_per_month,
+        "original_price_per_month": original_per_month,
+        "discount_percent": discount_percent,
+        "requires_student_id": tier == 1,
+        "plans": plans,
+        "user_uid": current_user["uid"],
+    }
+
+
+# ============================================================================
 # POST /checkout/preview
 # ============================================================================
 
