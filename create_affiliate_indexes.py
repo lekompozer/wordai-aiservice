@@ -1,6 +1,7 @@
 """
 Create indexes for affiliate withdrawal collection (Phase 3).
 """
+
 from src.database.db_manager import DBManager
 
 db_manager = DBManager()

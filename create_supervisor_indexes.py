@@ -41,4 +41,3 @@ db.supervisor_withdrawals.create_index([("status", 1), ("created_at", -1)])
 print("✅ supervisor_withdrawals indexes created")
 
 print("\n✨ All supervisor indexes created successfully!")
-
