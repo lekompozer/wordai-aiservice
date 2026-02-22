@@ -177,6 +177,7 @@ async def get_supervisor_dashboard(
 
 
 @router.get("/affiliates")
+@router.get("/affiliates/")
 async def list_managed_affiliates(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
@@ -247,6 +248,7 @@ async def list_managed_affiliates(
 
 
 @router.post("/affiliates")
+@router.post("/affiliates/")
 async def create_managed_affiliate(
     body: CreateManagedAffiliateRequest,
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -320,6 +322,7 @@ async def create_managed_affiliate(
 
 
 @router.put("/affiliates/{code}")
+@router.put("/affiliates/{code}/")
 async def update_managed_affiliate(
     code: str,
     body: UpdateManagedAffiliateRequest,
