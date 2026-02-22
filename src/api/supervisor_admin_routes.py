@@ -49,7 +49,9 @@ class CreateSupervisorRequest(BaseModel):
         ..., description="Mã Supervisor (uppercase, không dấu, không khoảng trắng)"
     )
     name: str = Field(..., description="Tên công ty / cá nhân Supervisor")
-    email: str = Field(..., description="Gmail của Supervisor (dùng để lookup Firebase UID)")
+    email: str = Field(
+        ..., description="Gmail của Supervisor (dùng để lookup Firebase UID)"
+    )
     notes: Optional[str] = Field(None, description="Ghi chú nội bộ")
     bank_info: Optional[dict] = Field(None, description="Thông tin ngân hàng")
 
@@ -121,6 +123,7 @@ async def create_supervisor(
     try:
         from firebase_admin import auth as fb_auth
         from src.config.firebase_config import FirebaseConfig
+
         FirebaseConfig()  # ensure SDK initialized
         fb_user = fb_auth.get_user_by_email(email)
         user_id = fb_user.uid
@@ -157,7 +160,9 @@ async def create_supervisor(
     result = db["supervisors"].insert_one(doc)
     doc["_id"] = result.inserted_id
 
-    logger.info(f"👑 New supervisor created: code={code}, name={body.name}, email={email}, uid={user_id}")
+    logger.info(
+        f"👑 New supervisor created: code={code}, name={body.name}, email={email}, uid={user_id}"
+    )
 
     return {
         "message": "Tạo Supervisor thành công.",
@@ -419,6 +424,7 @@ async def update_supervisor(
         try:
             from firebase_admin import auth as fb_auth
             from src.config.firebase_config import FirebaseConfig
+
             FirebaseConfig()
             fb_user = fb_auth.get_user_by_email(email)
             updates["email"] = email
