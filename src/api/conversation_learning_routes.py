@@ -80,9 +80,11 @@ async def check_user_premium(user_id: str, db) -> bool:
 
 async def check_daily_limit(user_id: str, db) -> dict:
     """
-    Check user's daily free submit limit (3 gap-fill submissions/day for free users).
+    Check user's daily free interaction limit (3 unique conversations/day for free users).
+    'Interaction' means playing audio OR submitting gap-fill for a NEW conversation.
+    Re-interacting with an already-accessed conversation today is free.
 
-    Returns: Dict with is_premium, daily_submits_used, remaining_free
+    Returns: Dict with is_premium, daily_used, remaining_free
     """
     is_premium = await check_user_premium(user_id, db)
 
@@ -97,7 +99,11 @@ async def check_daily_limit(user_id: str, db) -> dict:
     daily_col = db["user_daily_submits"]
 
     record = daily_col.find_one({"user_id": user_id, "date": today})
-    used = record.get("submit_count", 0) if record else 0
+    # New set-based: count unique conversation_ids; fallback to old submit_count for legacy records
+    if record and "conversation_ids" in record:
+        used = len(record["conversation_ids"])
+    else:
+        used = record.get("submit_count", 0) if record else 0
     remaining = max(0, 3 - used)
 
     return {
@@ -107,10 +113,21 @@ async def check_daily_limit(user_id: str, db) -> dict:
     }
 
 
-async def increment_daily_submit(user_id: str, db):
+async def is_conversation_accessed_today(
+    user_id: str, conversation_id: str, db
+) -> bool:
+    """Return True if this conversation was already played/submitted today."""
+    today = date.today().isoformat()
+    record = db["user_daily_submits"].find_one({"user_id": user_id, "date": today})
+    if not record:
+        return False
+    return conversation_id in record.get("conversation_ids", [])
+
+
+async def increment_daily_submit(user_id: str, db, conversation_id: str = None):
     """
-    Increment daily gap-fill submit count for free users.
-    No-op for premium users.
+    Record a free-user interaction with a conversation today.
+    Uses $addToSet so play + submit on same conversation only count once.
     """
     is_premium = await check_user_premium(user_id, db)
     if is_premium:
@@ -119,13 +136,19 @@ async def increment_daily_submit(user_id: str, db):
     today = date.today().isoformat()
     daily_col = db["user_daily_submits"]
 
+    update = {
+        "$setOnInsert": {"created_at": datetime.utcnow()},
+        "$set": {"updated_at": datetime.utcnow()},
+    }
+    if conversation_id:
+        update["$addToSet"] = {"conversation_ids": conversation_id}
+    else:
+        # Legacy fallback: just increment counter
+        update["$inc"] = {"submit_count": 1}
+
     daily_col.update_one(
         {"user_id": user_id, "date": today},
-        {
-            "$inc": {"submit_count": 1},
-            "$setOnInsert": {"created_at": datetime.utcnow()},
-            "$set": {"updated_at": datetime.utcnow()},
-        },
+        update,
         upsert=True,
     )
 
@@ -2165,7 +2188,11 @@ async def get_user_limits(
     free_limits = await _get_free_limits(user_id, db)
     today = date.today().isoformat()
     record = db["user_daily_submits"].find_one({"user_id": user_id, "date": today})
-    daily_used = record.get("submit_count", 0) if record else 0
+    # New set-based: count unique conversation_ids; fallback to submit_count for legacy
+    if record and "conversation_ids" in record:
+        daily_used = len(record["conversation_ids"])
+    else:
+        daily_used = record.get("submit_count", 0) if record else 0
 
     # Calculate UTC reset time (start of next day)
     from datetime import timezone as _tz
@@ -2252,20 +2279,102 @@ async def get_conversation_detail(
         if is_premium:
             conversation["can_play_audio"] = True
         else:
-            level = conversation.get("level", "beginner")
-            # Can play audio if they've already attempted this conversation (already unlocked)
+            uid = current_user["uid"]
+            # Can play if already submitted (has progress record any day)
             has_prior = db["user_conversation_progress"].find_one(
-                {"user_id": current_user["uid"], "conversation_id": conversation_id}
+                {"user_id": uid, "conversation_id": conversation_id}
             )
             if has_prior:
                 conversation["can_play_audio"] = True
             else:
-                # Not yet unlocked — check if there's room in their lifetime limit
-                conversation["can_play_audio"] = await _can_unlock(
-                    current_user["uid"], level, db
+                # Or: already played/accessed this conversation today (in daily set)
+                already_today = await is_conversation_accessed_today(
+                    uid, conversation_id, db
                 )
+                if already_today:
+                    conversation["can_play_audio"] = True
+                else:
+                    # New conversation — check BOTH lifetime AND daily limits
+                    level = conversation.get("level", "beginner")
+                    can_lifetime = await _can_unlock(uid, level, db)
+                    daily_info = await check_daily_limit(uid, db)
+                    conversation["can_play_audio"] = (
+                        can_lifetime and daily_info["remaining_free"] > 0
+                    )
+    else:
+        conversation["can_play_audio"] = False
+
+    # Enforce server-side: hide audio_url when user cannot play audio
+    if not conversation.get("can_play_audio"):
+        conversation["audio_url"] = None
 
     return conversation
+
+
+# ============================================================================
+# ENDPOINT 3b: Track Audio Play (increments daily counter for free users)
+# ============================================================================
+
+
+@router.post("/{conversation_id}/play")
+async def track_audio_play(
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Track that a user played audio for a conversation.
+    For free users: consumes 1 daily interaction slot (shared with gap-fill submits).
+    No-op for premium users or already-attempted conversations.
+    """
+    user_id = current_user["uid"]
+    is_premium = await check_user_premium(user_id, db)
+
+    if is_premium:
+        return {"ok": True, "premium": True}
+
+    # If user already has a progress record, replay is free (already unlocked)
+    has_prior = db["user_conversation_progress"].find_one(
+        {"user_id": user_id, "conversation_id": conversation_id}
+    )
+    if has_prior:
+        return {"ok": True, "already_unlocked": True}
+
+    # If already played this conversation today, replay is free (slot already consumed)
+    already_today = await is_conversation_accessed_today(user_id, conversation_id, db)
+    if already_today:
+        return {"ok": True, "already_accessed_today": True}
+
+    # New conversation — check daily limit
+    limit_info = await check_daily_limit(user_id, db)
+    if limit_info["remaining_free"] == 0:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "daily_limit_reached",
+                "message": "Bạn đã dùng hết 3 lượt miễn phí hôm nay. Nâng cấp Premium để nghe không giới hạn!",
+                "remaining": 0,
+            },
+        )
+
+    # Check lifetime limit for this level
+    conv_meta = db["conversation_library"].find_one(
+        {"conversation_id": conversation_id}, {"level": 1}
+    )
+    level = conv_meta.get("level", "beginner") if conv_meta else "beginner"
+    if not await _can_unlock(user_id, level, db):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "lifetime_limit_reached",
+                "message": f"Bạn đã đạt giới hạn số bài {level} miễn phí. Nâng cấp Premium để học không giới hạn!",
+            },
+        )
+
+    # Increment daily counter (shared pool with submit)
+    await increment_daily_submit(user_id, db, conversation_id=conversation_id)
+    new_remaining = limit_info["remaining_free"] - 1
+    return {"ok": True, "remaining_today": new_remaining}
 
 
 # ============================================================================
@@ -2439,16 +2548,45 @@ async def submit_gap_exercise(
             detail=f"Gaps not found for {conversation_id} at {difficulty} level",
         )
 
-    # Check daily submit limit (free users: 3 submissions/day)
+    # Check daily submit limit (free users: 3 unique conversations/day)
     limit_info = await check_daily_limit(user_id, db)
     if not limit_info["is_premium"] and limit_info["remaining_free"] == 0:
-        raise HTTPException(
-            status_code=403,
-            detail="Daily submit limit reached (3 submissions/day for free users). Upgrade to Premium for unlimited access.",
+        # Allow if this conversation was already accessed today (replay is free)
+        already_today = await is_conversation_accessed_today(
+            user_id, conversation_id, db
         )
+        if not already_today:
+            raise HTTPException(
+                status_code=403,
+                detail="Daily submit limit reached (3 submissions/day for free users). Upgrade to Premium for unlimited access.",
+            )
+
+    # Check lifetime limit for NEW conversations (free users)
+    if not limit_info["is_premium"]:
+        has_prior_check = db["user_conversation_progress"].find_one(
+            {"user_id": user_id, "conversation_id": conversation_id}
+        )
+        if not has_prior_check:
+            already_today_check = await is_conversation_accessed_today(
+                user_id, conversation_id, db
+            )
+            if not already_today_check:
+                conv_level_meta = db["conversation_library"].find_one(
+                    {"conversation_id": conversation_id}, {"level": 1}
+                )
+                level_ctx = (
+                    conv_level_meta.get("level", "beginner")
+                    if conv_level_meta
+                    else "beginner"
+                )
+                if not await _can_unlock(user_id, level_ctx, db):
+                    raise HTTPException(
+                        status_code=403,
+                        detail=f"Lifetime limit reached for {level_ctx} conversations. Upgrade to Premium for unlimited access.",
+                    )
 
     # Increment daily submit count (free users only)
-    await increment_daily_submit(user_id, db)
+    await increment_daily_submit(user_id, db, conversation_id=conversation_id)
 
     # On first-ever attempt for this conversation, increment lifetime unlock counter
     if not limit_info["is_premium"]:
