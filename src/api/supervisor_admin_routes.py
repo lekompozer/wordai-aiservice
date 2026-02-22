@@ -50,7 +50,8 @@ class CreateSupervisorRequest(BaseModel):
     )
     name: str = Field(..., description="Tên công ty / cá nhân Supervisor")
     email: str = Field(
-        ..., description="Gmail của Supervisor (dùng để lookup Firebase UID)"
+        ...,
+        description="Gmail của Supervisor. Hệ thống tự link Firebase UID khi supervisor đăng nhập lần đầu.",
     )
     notes: Optional[str] = Field(None, description="Ghi chú nội bộ")
     bank_info: Optional[dict] = Field(None, description="Thông tin ngân hàng")
@@ -59,7 +60,10 @@ class CreateSupervisorRequest(BaseModel):
 class UpdateSupervisorRequest(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
-    email: Optional[str] = Field(None, description="Cập nhật Gmail (tự lookup UID mới)")
+    email: Optional[str] = Field(
+        None,
+        description="Cập nhật Gmail (UID sẽ được link lại lần đăng nhập tiếp theo)",
+    )
     notes: Optional[str] = None
     bank_info: Optional[dict] = None
 
@@ -107,35 +111,21 @@ async def create_supervisor(
     _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
-    """Create a new supervisor account by email. Admin provides Gmail, system looks up Firebase UID."""
+    """Create a new supervisor account by email only.
+    Firebase UID will be auto-linked when the supervisor logs in for the first time.
+    """
     code = re.sub(r"[^A-Z0-9_]", "", body.code.upper())
     if not code:
         raise HTTPException(status_code=400, detail="Mã Supervisor không hợp lệ.")
+
+    email = body.email.strip().lower()
 
     if db["supervisors"].find_one({"code": code}):
         raise HTTPException(
             status_code=409, detail=f"Mã Supervisor '{code}' đã tồn tại."
         )
 
-    # Lookup Firebase UID from email
-    user_id = None
-    email = body.email.strip().lower()
-    try:
-        from firebase_admin import auth as fb_auth
-        from src.config.firebase_config import FirebaseConfig
-
-        FirebaseConfig()  # ensure SDK initialized
-        fb_user = fb_auth.get_user_by_email(email)
-        user_id = fb_user.uid
-        logger.info(f"✅ Firebase UID found for {email}: {user_id}")
-    except Exception as e:
-        logger.warning(f"⚠️ Could not find Firebase UID for email {email}: {e}")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Không tìm thấy tài khoản Firebase với email '{email}'. Hãy đảm bảo người dùng đã đăng ký.",
-        )
-
-    if db["supervisors"].find_one({"user_id": user_id}):
+    if db["supervisors"].find_one({"email": email}):
         raise HTTPException(
             status_code=409,
             detail=f"Email '{email}' đã được gán cho một Supervisor khác.",
@@ -147,7 +137,7 @@ async def create_supervisor(
         "name": body.name,
         "is_active": True,
         "email": email,
-        "user_id": user_id,
+        "user_id": None,  # Will be linked automatically on first login
         "notes": body.notes,
         "bank_info": body.bank_info,
         "pending_balance": 0,
@@ -161,7 +151,7 @@ async def create_supervisor(
     doc["_id"] = result.inserted_id
 
     logger.info(
-        f"👑 New supervisor created: code={code}, name={body.name}, email={email}, uid={user_id}"
+        f"👑 New supervisor created: code={code}, name={body.name}, email={email}"
     )
 
     return {

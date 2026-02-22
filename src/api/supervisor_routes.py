@@ -47,9 +47,26 @@ def get_db():
     return db_manager.db
 
 
-def _get_supervisor_by_uid(db, user_id: str) -> dict:
-    """Look up registered supervisor by Firebase UID. Raises 404 if not found."""
+def _get_supervisor_by_uid(db, user_id: str, email: str = None) -> dict:
+    """Look up supervisor by Firebase UID.
+    If not found by UID, fall back to email lookup and auto-link UID on first login.
+    """
+    # 1. Fast path: already linked
     sup = db["supervisors"].find_one({"user_id": user_id})
+
+    # 2. First-time login: look up by email, then link UID
+    if not sup and email:
+        sup = db["supervisors"].find_one({"email": email.lower()})
+        if sup:
+            db["supervisors"].update_one(
+                {"_id": sup["_id"]},
+                {"$set": {"user_id": user_id, "updated_at": datetime.utcnow()}},
+            )
+            sup["user_id"] = user_id
+            logger.info(
+                f"🔗 Supervisor {sup['code']} UID linked: email={email} uid={user_id}"
+            )
+
     if not sup:
         raise HTTPException(
             status_code=404,
@@ -111,7 +128,7 @@ async def get_supervisor_dashboard(
     Return the authenticated supervisor's account details, balance summary,
     and managed affiliate stats.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"])
+    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
 
     # Count managed affiliates broken down by tier
     managed = list(
@@ -164,7 +181,7 @@ async def list_managed_affiliates(
     """
     List all tier-1 and tier-2 affiliates created/managed by this supervisor.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"])
+    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
     supervisor_id = str(sup["_id"])
 
     query: dict = {"supervisor_id": supervisor_id}
@@ -230,7 +247,7 @@ async def create_managed_affiliate(
     Create a new tier-1 or tier-2 affiliate account.
     The new affiliate is automatically linked to this supervisor.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"])
+    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
 
     code = re.sub(r"[^A-Z0-9]", "", body.code.upper())
     if not code:
@@ -300,7 +317,7 @@ async def update_managed_affiliate(
     Update a tier-1 or tier-2 affiliate that belongs to this supervisor.
     Supervisor cannot change: code, tier, supervisor_id.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"])
+    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
     supervisor_id = str(sup["_id"])
 
     aff = db["affiliates"].find_one({"code": code.upper()})
@@ -363,7 +380,7 @@ async def get_supervisor_transactions(
     """
     List this supervisor's commission transactions (10% from managed affiliates).
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"])
+    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
     supervisor_id = str(sup["_id"])
 
     query: dict = {"supervisor_id": supervisor_id}
@@ -421,7 +438,7 @@ async def supervisor_request_withdrawal(
     """
     Submit a withdrawal request for supervisor's available balance.
     """
-    sup = _get_supervisor_by_uid(db, current_user["uid"])
+    sup = _get_supervisor_by_uid(db, current_user["uid"], email=current_user.get("email"))
 
     available = sup.get("available_balance", 0)
     if body.amount > available:
