@@ -234,42 +234,10 @@ services:
       retries: 3
 
   # ============================================================================
-  # Payment Events Worker - Conversation Learning subscription activation,
-  # affiliate commissions, supervisor commissions after SePay IPN
-  # ============================================================================
-  payment-events-worker:
-    container_name: payment-events-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    command: python -m src.workers.payment_events_worker
-    volumes:
-      - ./logs:/app/logs
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: "0.25"
-    healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'payment_events_worker' | grep -v grep || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # ============================================================================
-  # Learning Events Worker - Phase 1 gamification: XP, streak, achievements,
-  # dual-part completion tracking (gap + test)
+  # Learning Events Worker - XP, streak, achievements, dual-part completion
+  # ALSO handles: Payment Events (conversation_subscription_paid) —
+  #   subscription activation, affiliate + supervisor commissions after SePay IPN
+  #   (merged from payment-events-worker to save RAM)
   # ============================================================================
   learning-events-worker:
     container_name: learning-events-worker

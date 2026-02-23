@@ -107,7 +107,7 @@ ssh root@104.248.147.155 'docker exec ai-chatbot-rag curl -s http://localhost:80
 
 ### 5. Production Deployment (MANDATORY)
 
-**MUST use this command for ALL deployments:**
+**MUST use this command for ALL deployments (full stack):**
 ```bash
 ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./deploy-compose-with-rollback.sh'"
 ```
@@ -118,6 +118,15 @@ ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./
 - ✅ Zero-downtime deployment with health checks
 - ✅ Pulls latest code from main branch
 - ✅ Rebuilds all containers (app, workers, nginx)
+
+**Python-only deployment (FASTER — only when `src/` Python code changed, NOT payment-service/docker-compose):**
+```bash
+ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./deploy-app-only.sh'"
+```
+- ✅ Only recreates `ai-chatbot-rag` container, all other containers untouched
+- ✅ Initial delay 30s (vs 150s for full deploy)
+- ✅ Automatic rollback if health check fails
+- ❌ DO NOT use for: payment-service changes, docker-compose changes, new workers, nginx changes
 
 **Alternative (ONLY for nginx config changes):**
 ```bash
@@ -333,6 +342,94 @@ ssh root@104.248.147.155 "curl -s http://localhost:8000/api/v1/YOUR_ENDPOINT"
 ssh root@104.248.147.155 "docker logs ai-chatbot-rag --tail 50"
 ```
 
+### 10. Payment Service (Node.js) — CRITICAL NOTES
+
+**Location:** `payment-service/` (Node.js/Express app)
+**Container:** `payment-service` (port 3000 internal)
+**Nginx routing:** `location ^~ /api/payment/` → rewrites to `/api/v1/payments/` → proxied to Node.js
+
+**File structure:**
+```
+payment-service/
+  src/
+    controllers/paymentController.js  ← checkout + IPN handling
+    routes/                           ← Express routes
+    middleware/
+  Dockerfile
+  package.json
+```
+
+**After IPN webhook (payment completed), Node.js:**
+1. Marks payment `status: completed` in MongoDB `payments` collection
+2. Sets `subscription_queued: true` on the record
+3. Pushes event to Redis: `LPUSH queue:payment_events {...}`
+4. Python `learning-events-worker` consumes and activates subscription
+
+**Known issue fixed:** `payment-events-worker` WAS a separate container but caused:
+- High CPU 25%+ crash-loop (no logs output despite PYTHONUNBUFFERED)
+- Wasted 256MB RAM on 7.8GB constrained server
+- **Fix:** Merged into `learning-events-worker` — single worker now handles both `queue:learning_events` AND `queue:payment_events` via `brpop([key1, key2], timeout=1)`
+
+**Affiliate validation in paymentController.js (MANDATORY):**
+```javascript
+// ALWAYS validate affiliate before creating payment:
+const aff = await affiliatesCollection.findOne(
+    { code: affiliate_code.toUpperCase() },
+    { projection: { is_active: 1, user_id: 1 } }  // MUST include ALL fields you access
+);
+if (!aff) throw new AppError('Mã đại lý không tồn tại.', 404);
+if (!aff.is_active) throw new AppError('Đại lý chưa được kích hoạt.', 403);
+if (!aff.user_id) throw new AppError('Đại lý chưa đăng nhập hệ thống.', 403);
+// ❌ BUG: projection missing user_id → aff.user_id always undefined → always 403
+```
+
+**Testing payment-service:**
+```bash
+# Checkout endpoint
+ssh root@104.248.147.155 "docker exec payment-service curl -s http://localhost:3000/health"
+
+# Check payment logs
+ssh root@104.248.147.155 "docker logs payment-service --tail=50"
+
+# Check pending payment jobs in Redis:
+ssh root@104.248.147.155 "docker exec redis-server redis-cli LLEN queue:payment_events"
+ssh root@104.248.147.155 "docker exec redis-server redis-cli LRANGE queue:payment_events 0 -1"
+```
+
+**Diagnose subscription not activated:**
+```bash
+# 1. Check payment record in MongoDB
+docker exec mongodb mongosh ai_service_db ... --eval \
+  "db.payments.find({user_email:'...'}).sort({created_at:-1}).limit(3).toArray()"
+# Look for: status=completed, subscription_queued=true, subscription_activated=true/false
+
+# 2. Check subscription record
+db.user_conversation_subscription.findOne({user_id: 'firebase_uid'})
+
+# 3. Check Redis queue (should be 0 if worker processed it)
+docker exec redis-server redis-cli LLEN queue:payment_events
+
+# 4. Check worker logs
+docker logs learning-events-worker --tail=50
+```
+
+### 11. Server Resource Constraints (CRITICAL)
+
+**Server:** `104.248.147.155` — 2 vCPUs, 7.8GB RAM, NO SWAP
+**RAM usage:** ~7.0GB used (very tight — each Python worker ≈ 350-420MB)
+
+**To save RAM:**
+- ✅ Merge lightweight workers with similar event-driven workers
+- ✅ Each Python worker uses brpop multi-key: `brpop([queue1, queue2], timeout=1)`
+- ❌ Do NOT add new standalone worker containers unless absolutely necessary
+- ❌ Do NOT increase memory limits without checking total budget
+
+**Worker RAM budget:**
+- Each Python worker: ~350-420MB (hits 512MB limit)
+- `pdf-chapter-worker` / `ai-editor-worker`: 2GB limit
+- `payment-service` (Node.js): ~70MB only
+- Total containers: ~15+ services
+
 ## When Implementing New Features
 
 1. **Check SYSTEM_REFERENCE.md** for existing patterns
@@ -367,6 +464,18 @@ ssh root@104.248.147.155 "docker logs ai-chatbot-rag --tail 50"
 ❌ New endpoint without deployment
 ✅ Deploy first, then test: `curl http://localhost:8000/api/v1/...`
 
+❌ Full deploy for Python-only changes (slow, 150s wait)
+✅ `./deploy-app-only.sh` when only `src/` Python changed (30s, no worker restart)
+
+❌ MongoDB projection missing fields: `{"code": 1, "is_active": 1}` → `doc.get("user_id")` always None
+✅ Always include every field you access in the projection!
+
+❌ New standalone Python worker container for lightweight event handling
+✅ Merge into `learning-events-worker` using multi-key brpop (saves ~350MB RAM)
+
+❌ Checking logs of `payment-events-worker` (container removed, merged)
+✅ `docker logs learning-events-worker --tail=50` handles both learning + payment events
+
 ## Quick Reference Links
 
 - Full docs: `/SYSTEM_REFERENCE.md`
@@ -376,5 +485,5 @@ ssh root@104.248.147.155 "docker logs ai-chatbot-rag --tail 50"
 
 ---
 
-**Last Updated:** December 28, 2025
+**Last Updated:** February 23, 2026
 **For:** GitHub Copilot, Cursor AI, and other AI coding assistants

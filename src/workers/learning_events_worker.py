@@ -25,10 +25,12 @@ from datetime import datetime, date, timedelta
 
 from src.database.db_manager import DBManager
 from src.queue.queue_manager import QueueManager
+from src.workers.payment_events_worker import _handle_conversation_subscription_paid
 
 logger = logging.getLogger(__name__)
 
 QUEUE_NAME = "learning_events"
+PAYMENT_QUEUE_NAME = "payment_events"
 REDIS_URL = "redis://redis-server:6379"
 
 # ── XP Tables (same formula as API handler) ──────────────────────────────────
@@ -723,8 +725,11 @@ class LearningEventsWorker:
         self.redis_url = redis_url
         self.running = False
         self.queue = QueueManager(redis_url=redis_url, queue_name=QUEUE_NAME)
+        self.payment_queue_key = f"queue:{PAYMENT_QUEUE_NAME}"
         self.db_manager = DBManager()
-        logger.info(f"🎮 LearningEventsWorker [{worker_id}] initialized")
+        logger.info(
+            f"🎮 LearningEventsWorker [{worker_id}] initialized (also handles payment_events)"
+        )
 
     async def initialize(self):
         await self.queue.connect()
@@ -751,19 +756,21 @@ class LearningEventsWorker:
 
         while self.running:
             try:
-                # BRPOP blocks for up to 1s then loops — allows clean shutdown
+                # BRPOP blocks up to 1s on BOTH queues — learning_events + payment_events
                 raw = await self.queue.redis_client.brpop(
-                    self.queue.task_queue_key, timeout=1
+                    [self.queue.task_queue_key, self.payment_queue_key], timeout=1
                 )
                 if not raw:
                     continue
 
-                _, raw_payload = raw
+                queue_key, raw_payload = raw
                 event = json.loads(raw_payload)
                 event_type = event.get("event_type", "")
-                event_id = event.get("event_id", "?")
+                event_id = event.get("event_id", event.get("order_invoice_number", "?"))
 
-                logger.info(f"📥 [{self.worker_id}] event={event_type} id={event_id}")
+                logger.info(
+                    f"📥 [{self.worker_id}] queue={queue_key} event={event_type} id={event_id}"
+                )
 
                 if event_type == "gap_submitted":
                     _handle_gap_submitted(db, redis_sync, event)
@@ -771,6 +778,8 @@ class LearningEventsWorker:
                     _handle_test_submitted(db, redis_sync, event)
                 elif event_type == "song_completed":
                     _handle_song_completed(db, redis_sync, event)
+                elif event_type == "conversation_subscription_paid":
+                    _handle_conversation_subscription_paid(db, event)
                 else:
                     logger.warning(
                         f"[{self.worker_id}] Unknown event_type: {event_type}"
