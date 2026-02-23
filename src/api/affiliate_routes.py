@@ -147,13 +147,16 @@ async def get_my_affiliate_dashboard(
     return {
         "code": aff["code"],
         "name": aff.get("name", ""),
+        "email": aff.get("email"),
         "tier": aff["tier"],
         "tier_label": TIER_LABELS.get(aff["tier"], ""),
         "is_active": aff.get("is_active", False),
         "commission_rate": AFFILIATE_COMMISSION_RATES.get(aff["tier"], 0),
+        "requires_student_id": aff["tier"] == 1,
         "price_per_month": PRICING_TIERS.get(
             f"tier_{aff['tier']}", PRICING_TIERS["no_code"]
         ),
+        "total_students": aff.get("total_referred_users", 0),
         "balances": {
             "pending_balance": aff.get("pending_balance", 0),
             "available_balance": aff.get("available_balance", 0),
@@ -164,6 +167,76 @@ async def get_my_affiliate_dashboard(
         "created_at": (
             aff.get("created_at", "").isoformat() if aff.get("created_at") else None
         ),
+    }
+
+
+# ============================================================================
+# GET /students  — List enrolled students via this affiliate code
+# ============================================================================
+
+
+@router.get("/students")
+async def get_my_students(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    List all students who enrolled via this affiliate's code.
+    Returns user email, student_id (entered at checkout), package, amount, date.
+    """
+    user_id = current_user["uid"]
+
+    aff = _get_affiliate(db, user_id, email=current_user.get("email"))
+    if not aff:
+        raise HTTPException(status_code=404, detail="Bạn chưa có tài khoản đại lý.")
+
+    code = aff["code"]
+    query = {
+        "affiliate_code": code,
+        "plan_type": "conversation_learning",
+        "status": "completed",
+    }
+    total = db["payments"].count_documents(query)
+    skip = (page - 1) * page_size
+    docs = list(
+        db["payments"].find(query).sort("completed_at", -1).skip(skip).limit(page_size)
+    )
+
+    items = []
+    for doc in docs:
+        # Check if subscription is still active
+        sub = db["user_conversation_subscription"].find_one(
+            {"order_invoice_number": doc.get("order_invoice_number")},
+            {"is_active": 1, "end_date": 1, "start_date": 1},
+        )
+        items.append(
+            {
+                "user_id": doc.get("user_id"),
+                "user_email": doc.get("user_email"),
+                "user_name": doc.get("user_name"),
+                "student_id": doc.get("student_id"),
+                "package_id": doc.get("package_id"),
+                "amount_paid": doc.get("price", 0),
+                "order_invoice_number": doc.get("order_invoice_number"),
+                "enrolled_at": (
+                    doc["completed_at"].isoformat() if doc.get("completed_at") else None
+                ),
+                "subscription_active": sub.get("is_active", False) if sub else False,
+                "subscription_end_date": (
+                    sub["end_date"].isoformat() if sub and sub.get("end_date") else None
+                ),
+            }
+        )
+
+    return {
+        "code": code,
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
     }
 
 

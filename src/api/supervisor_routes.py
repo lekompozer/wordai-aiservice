@@ -141,18 +141,35 @@ async def get_supervisor_dashboard(
     managed = list(
         db["affiliates"].find(
             {"supervisor_id": str(sup["_id"])},
-            {"tier": 1, "is_active": 1},
+            {"tier": 1, "is_active": 1, "code": 1},
         )
     )
     tier1_count = sum(1 for a in managed if a["tier"] == 1)
     tier2_count = sum(1 for a in managed if a["tier"] == 2)
     active_count = sum(1 for a in managed if a.get("is_active", True))
 
+    # Count total unique students across all managed affiliates
+    total_students = (
+        db["payments"].count_documents(
+            {
+                "affiliate_code": {
+                    "$in": [a["code"] for a in managed] if managed else []
+                },
+                "plan_type": "conversation_learning",
+                "status": "completed",
+            }
+        )
+        if managed
+        else 0
+    )
+
     return {
         "code": sup["code"],
         "name": sup.get("name", ""),
+        "email": sup.get("email"),
         "is_active": sup.get("is_active", True),
         "commission_rate": SUPERVISOR_COMMISSION_RATE,
+        "total_students": total_students,
         "balances": {
             "pending_balance": sup.get("pending_balance", 0),
             "available_balance": sup.get("available_balance", 0),
@@ -383,6 +400,102 @@ async def update_managed_affiliate(
             "bank_info": updated.get("bank_info"),
             "notes": updated.get("notes"),
         },
+    }
+
+
+# ============================================================================
+# GET /students  — All students enrolled via any affiliate under this supervisor
+# ============================================================================
+
+
+@router.get("/students")
+async def get_supervisor_students(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=200),
+    affiliate_code: Optional[str] = Query(
+        default=None, description="Filter by specific affiliate code"
+    ),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    List all students enrolled via any affiliate managed by this supervisor.
+    Includes user email, student_id, which affiliate they used, package, amount, date.
+    """
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
+    supervisor_id = str(sup["_id"])
+
+    # Get all affiliate codes under this supervisor
+    managed_affiliates = list(
+        db["affiliates"].find(
+            {"supervisor_id": supervisor_id},
+            {"code": 1, "name": 1, "tier": 1},
+        )
+    )
+    managed_codes = [a["code"] for a in managed_affiliates]
+    aff_map = {a["code"]: a for a in managed_affiliates}
+
+    if not managed_codes:
+        return {
+            "items": [],
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": 1,
+        }
+
+    query: dict = {
+        "affiliate_code": {
+            "$in": [affiliate_code.upper()] if affiliate_code else managed_codes
+        },
+        "plan_type": "conversation_learning",
+        "status": "completed",
+    }
+    total = db["payments"].count_documents(query)
+    skip = (page - 1) * page_size
+    docs = list(
+        db["payments"].find(query).sort("completed_at", -1).skip(skip).limit(page_size)
+    )
+
+    items = []
+    for doc in docs:
+        sub = db["user_conversation_subscription"].find_one(
+            {"order_invoice_number": doc.get("order_invoice_number")},
+            {"is_active": 1, "end_date": 1},
+        )
+        aff_code = doc.get("affiliate_code", "")
+        aff_info = aff_map.get(aff_code, {})
+        items.append(
+            {
+                "user_id": doc.get("user_id"),
+                "user_email": doc.get("user_email"),
+                "user_name": doc.get("user_name"),
+                "student_id": doc.get("student_id"),
+                "affiliate_code": aff_code,
+                "affiliate_name": aff_info.get("name", ""),
+                "affiliate_tier": aff_info.get("tier"),
+                "package_id": doc.get("package_id"),
+                "amount_paid": doc.get("price", 0),
+                "order_invoice_number": doc.get("order_invoice_number"),
+                "enrolled_at": (
+                    doc["completed_at"].isoformat() if doc.get("completed_at") else None
+                ),
+                "subscription_active": sub.get("is_active", False) if sub else False,
+                "subscription_end_date": (
+                    sub["end_date"].isoformat() if sub and sub.get("end_date") else None
+                ),
+            }
+        )
+
+    return {
+        "managed_affiliate_codes": managed_codes,
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
     }
 
 
