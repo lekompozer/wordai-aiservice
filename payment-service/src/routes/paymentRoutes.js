@@ -41,6 +41,14 @@ router.post(
     asyncHandler(paymentController.createSongLearningCheckout)
 );
 
+// Create conversation learning subscription - REQUIRES AUTHENTICATION
+router.post(
+    '/conversation-learning/checkout',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    validateBody(schemas.conversationLearningCheckout),
+    asyncHandler(paymentController.createConversationLearningCheckout)
+);
+
 // Get payment status
 router.get(
     '/status/:order_invoice_number',

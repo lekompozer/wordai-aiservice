@@ -52,6 +52,15 @@ const schemas = {
         amount: Joi.number().valid(29000, 150000, 250000).required(),
     }),
 
+    // Conversation Learning subscription
+    conversationLearningCheckout: Joi.object({
+        package_id: Joi.string().valid('3_months', '6_months', '12_months').required(),
+        price_tier: Joi.string().valid('no_code', 'tier_1', 'tier_2').required(),
+        amount: Joi.number().integer().min(100000).required(), // min 99k*3months=297k, but allow some flexibility
+        affiliate_code: Joi.string().alphanum().max(30).optional().allow(null, ''),
+        student_id: Joi.string().max(50).optional().allow(null, ''),
+    }),
+
     // Webhook payload (basic validation, SePay signature will be verified separately)
     webhook: Joi.object().unknown(true),
 };

@@ -40,6 +40,23 @@ const SONG_LEARNING_PRICING = {
     'yearly': { duration_months: 12, amount: 250000 },
 };
 
+// Conversation Learning subscription pricing
+// Mirrors Python: src/models/conversation_subscription.py
+const CONVERSATION_PRICING = {
+    tiers: { no_code: 149000, tier_1: 99000, tier_2: 119000 },
+    discounts: { '3_months': 0.0, '6_months': 0.10, '12_months': 0.15 },
+    months: { '3_months': 3, '6_months': 6, '12_months': 12 },
+};
+
+function calculateConversationPrice(priceTier, packageId) {
+    const base = CONVERSATION_PRICING.tiers[priceTier] || CONVERSATION_PRICING.tiers.no_code;
+    const months = CONVERSATION_PRICING.months[packageId] || 3;
+    const discountRate = CONVERSATION_PRICING.discounts[packageId] || 0;
+    const subtotal = base * months;
+    const discountAmount = Math.round(subtotal * discountRate);
+    return subtotal - discountAmount;
+}
+
 /**
  * Generate order invoice number
  * Format: WA-{timestamp}-{user_short}
@@ -575,11 +592,117 @@ async function createBookPurchase(req, res) {
     }
 }
 
+/**
+ * Create Conversation Learning subscription checkout
+ * REQUIRES AUTHENTICATION
+ * Body: { package_id, price_tier, amount, affiliate_code?, student_id? }
+ */
+async function createConversationLearningCheckout(req, res) {
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const user_id = authenticatedUser.uid;
+    const user_email = authenticatedUser.email;
+    const user_name = authenticatedUser.name || (authenticatedUser.email || '').split('@')[0];
+
+    const { package_id, price_tier, affiliate_code, student_id, amount } = req.body;
+
+    try {
+        // Recompute price server-side — client-sent amount is only used for sanity check
+        const expectedAmount = calculateConversationPrice(price_tier, package_id);
+
+        if (Math.abs(amount - expectedAmount) > 1) {
+            throw new AppError(
+                `Amount mismatch. Expected ${expectedAmount} VND, received ${amount} VND`,
+                400
+            );
+        }
+
+        const orderInvoiceNumber = generateOrderInvoiceNumber(user_id);
+
+        const db = getDb();
+        const paymentsCollection = db.collection('payments');
+
+        const planLabels = {
+            '3_months': '3 tháng',
+            '6_months': '6 tháng',
+            '12_months': '12 tháng',
+        };
+
+        const paymentDoc = {
+            user_id,
+            order_invoice_number: orderInvoiceNumber,
+            plan_type: 'conversation_learning',
+            package_id,
+            price_tier,
+            affiliate_code: affiliate_code ? affiliate_code.toUpperCase() : null,
+            student_id: student_id || null,
+            duration_months: CONVERSATION_PRICING.months[package_id] || 3,
+            price: expectedAmount,
+            status: 'pending',
+            payment_method: 'SEPAY_BANK_TRANSFER',
+            user_email: user_email || null,
+            user_name: user_name || null,
+            sepay_transaction_id: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+        };
+
+        const result = await paymentsCollection.insertOne(paymentDoc);
+        const paymentId = result.insertedId.toString();
+
+        logger.info(
+            `Created conversation learning payment: ${paymentId} ` +
+            `user: ${user_id} package: ${package_id} tier: ${price_tier} amount: ${expectedAmount}`
+        );
+
+        // Build SePay order description
+        const descParts = [`WordAI Conversation Learning - ${planLabels[package_id] || package_id}`];
+        if (affiliate_code) descParts.push(`Ma: ${affiliate_code.toUpperCase()}`);
+
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: expectedAmount.toString(),
+            currency: 'VND',
+            order_invoice_number: orderInvoiceNumber,
+            order_description: descParts.join(' - '),
+            customer_id: user_id,
+            success_url: `https://wordai.chat/upgrade/success`,
+            error_url: `https://wordai.chat/upgrade/error`,
+            cancel_url: `https://wordai.chat/upgrade`,
+        };
+
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
+
+        logger.info(`Generated conversation learning checkout: ${orderInvoiceNumber}`);
+
+        res.status(201).json({
+            payment_url: config.sepay.checkoutUrl,
+            order_invoice_number: orderInvoiceNumber,
+            payment_id: paymentId,
+            form_fields: formFields,
+            amount: expectedAmount,
+            package_id,
+            price_tier,
+            duration_months: CONVERSATION_PRICING.months[package_id] || 3,
+        });
+    } catch (error) {
+        logger.error(`Conversation learning checkout error: ${error.message}`);
+        throw error;
+    }
+}
+
 module.exports = {
     createCheckout,
     createPointsPurchase,
     createBookPurchase,
     createSongLearningCheckout,
+    createConversationLearningCheckout,
     getPaymentStatus,
     getUserPayments,
 };

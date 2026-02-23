@@ -177,11 +177,15 @@ async function handleWebhook(req, res) {
                 try {
                     logger.info(`Activating subscription for user: ${payment.user_id}`);
 
-                    // Check if this is song learning payment
+                    // Check payment type to route to correct activation endpoint
                     const isSongLearning = payment.plan_type === 'song_learning';
+                    const isConversationLearning = payment.plan_type === 'conversation_learning';
+
                     const activationUrl = isSongLearning
                         ? `${config.pythonService.url}/api/v1/songs/subscription/activate`
-                        : `${config.pythonService.url}/api/v1/subscriptions/activate`;
+                        : isConversationLearning
+                            ? `${config.pythonService.url}/api/v1/conversations/subscription/activate`
+                            : `${config.pythonService.url}/api/v1/subscriptions/activate`;
 
                     const activationPayload = isSongLearning
                         ? {
@@ -193,15 +197,27 @@ async function handleWebhook(req, res) {
                             payment_method: 'SEPAY_BANK_TRANSFER',
                             amount: payment.price,
                         }
-                        : {
-                            user_id: payment.user_id,
-                            plan: payment.plan, // premium, pro, vip
-                            duration_months: payment.duration_months,
-                            payment_id: payment._id.toString(),
-                            order_invoice_number,
-                            payment_method: 'SEPAY_BANK_TRANSFER',
-                            amount: payment.price,
-                        };
+                        : isConversationLearning
+                            ? {
+                                user_id: payment.user_id,
+                                package: payment.package_id,   // 3_months | 6_months | 12_months
+                                price_tier: payment.price_tier, // no_code | tier_1 | tier_2
+                                amount_paid: payment.price,     // matches Python field name
+                                payment_id: payment._id.toString(),
+                                order_invoice_number,
+                                payment_method: 'SEPAY_BANK_TRANSFER',
+                                affiliate_code: payment.affiliate_code || null,
+                                student_id: payment.student_id || null,
+                            }
+                            : {
+                                user_id: payment.user_id,
+                                plan: payment.plan, // premium, pro, vip
+                                duration_months: payment.duration_months,
+                                payment_id: payment._id.toString(),
+                                order_invoice_number,
+                                payment_method: 'SEPAY_BANK_TRANSFER',
+                                amount: payment.price,
+                            };
 
                     logger.info(`Calling ${activationUrl} with payload:`, activationPayload);
 
@@ -490,7 +506,9 @@ async function retryActivation(req, res) {
         const activationUrl =
             payment.plan_type === 'song_learning'
                 ? `${config.pythonService.url}/api/v1/songs/subscription/activate`
-                : `${config.pythonService.url}/api/v1/subscriptions/activate`;
+                : payment.plan_type === 'conversation_learning'
+                    ? `${config.pythonService.url}/api/v1/conversations/subscription/activate`
+                    : `${config.pythonService.url}/api/v1/subscriptions/activate`;
 
         // Build request payload based on plan_type
         const activationPayload =
@@ -504,15 +522,27 @@ async function retryActivation(req, res) {
                     payment_method: 'SEPAY_BANK_TRANSFER',
                     amount: payment.price,
                 }
-                : {
-                    user_id: payment.user_id,
-                    plan: payment.plan,
-                    duration_months: payment.duration_months,
-                    payment_id: payment._id.toString(),
-                    order_invoice_number,
-                    payment_method: 'SEPAY_BANK_TRANSFER',
-                    amount: payment.price,
-                };
+                : payment.plan_type === 'conversation_learning'
+                    ? {
+                        user_id: payment.user_id,
+                        package: payment.package_id,
+                        price_tier: payment.price_tier,
+                        amount_paid: payment.price,
+                        payment_id: payment._id.toString(),
+                        order_invoice_number,
+                        payment_method: 'SEPAY_BANK_TRANSFER',
+                        affiliate_code: payment.affiliate_code || null,
+                        student_id: payment.student_id || null,
+                    }
+                    : {
+                        user_id: payment.user_id,
+                        plan: payment.plan,
+                        duration_months: payment.duration_months,
+                        payment_id: payment._id.toString(),
+                        order_invoice_number,
+                        payment_method: 'SEPAY_BANK_TRANSFER',
+                        amount: payment.price,
+                    };
 
         logger.info(`Calling activation endpoint: ${activationUrl}`);
 
