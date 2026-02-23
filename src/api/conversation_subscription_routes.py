@@ -153,15 +153,23 @@ async def validate_affiliate_code(
     }
 
     aff = db["affiliates"].find_one(
-        {"code": code.upper(), "is_active": True},
-        {"tier": 1, "code": 1, "name": 1},
+        {"code": code.upper()},
+        {"tier": 1, "code": 1, "name": 1, "is_active": 1},
     )
     if not aff:
         raise HTTPException(
             status_code=404,
             detail={
                 "error": "invalid_code",
-                "message": "Mã đại lý không tồn tại hoặc đã bị vô hiệu hóa.",
+                "message": "Mã đại lý không tồn tại.",
+            },
+        )
+    if not aff.get("is_active", True):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "affiliate_not_active",
+                "message": "Đại lý chưa được kích hoạt. Vui lòng liên hệ quản trị viên.",
             },
         )
 
