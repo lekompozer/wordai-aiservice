@@ -88,7 +88,7 @@ class ApproveWithdrawalRequest(BaseModel):
 
 
 class RejectWithdrawalRequest(BaseModel):
-    reason: str = Field(..., description="Lý do từ chối")
+    reason: Optional[str] = Field(None, description="Lý do từ chối")
 
 
 # ============================================================================
@@ -409,7 +409,7 @@ async def list_withdrawals(
 @router.post("/withdrawals/{withdrawal_id}/approve")
 async def approve_withdrawal(
     withdrawal_id: str,
-    body: ApproveWithdrawalRequest,
+    body: Optional[ApproveWithdrawalRequest] = None,
     _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
@@ -435,7 +435,7 @@ async def approve_withdrawal(
         {
             "$set": {
                 "status": "paid",
-                "admin_notes": body.notes,
+                "admin_notes": body.notes if body else None,
                 "processed_at": now,
                 "updated_at": now,
             }
@@ -477,7 +477,7 @@ async def approve_withdrawal(
 @router.post("/withdrawals/{withdrawal_id}/reject")
 async def reject_withdrawal(
     withdrawal_id: str,
-    body: RejectWithdrawalRequest,
+    body: Optional[RejectWithdrawalRequest] = None,
     _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
@@ -503,7 +503,7 @@ async def reject_withdrawal(
         {
             "$set": {
                 "status": "rejected",
-                "rejection_reason": body.reason,
+                "rejection_reason": body.reason if body else None,
                 "processed_at": now,
                 "updated_at": now,
             }
@@ -513,11 +513,12 @@ async def reject_withdrawal(
     # Note: available_balance is computed dynamically (pending_balance - pending_withdrawals)
     # No DB balance update needed — rejected record is excluded from pending sum automatically
 
-    logger.info(f"❌ Withdrawal rejected: id={withdrawal_id}, reason={body.reason}")
+    reason = body.reason if body else None
+    logger.info(f"❌ Withdrawal rejected: id={withdrawal_id}, reason={reason}")
 
     return {
         "message": "Đã từ chối yêu cầu rút tiền.",
         "withdrawal_id": withdrawal_id,
-        "reason": body.reason,
+        "reason": reason,
         "status": "rejected",
     }

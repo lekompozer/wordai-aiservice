@@ -73,7 +73,7 @@ class ApproveWithdrawalRequest(BaseModel):
 
 
 class RejectWithdrawalRequest(BaseModel):
-    reason: str = Field(..., description="Lý do từ chối")
+    reason: Optional[str] = Field(None, description="Lý do từ chối")
 
 
 # ============================================================================
@@ -260,7 +260,7 @@ async def list_supervisor_withdrawals(
 @router.post("/withdrawals/{withdrawal_id}/approve")
 async def approve_supervisor_withdrawal(
     withdrawal_id: str,
-    body: ApproveWithdrawalRequest,
+    body: Optional[ApproveWithdrawalRequest] = None,
     _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
@@ -284,7 +284,13 @@ async def approve_supervisor_withdrawal(
 
     db["supervisor_withdrawals"].update_one(
         {"_id": wd_oid},
-        {"$set": {"status": "paid", "notes": body.notes, "updated_at": now}},
+        {
+            "$set": {
+                "status": "paid",
+                "notes": body.notes if body else None,
+                "updated_at": now,
+            }
+        },
     )
 
     # Mark related supervisor_commissions as paid
@@ -321,7 +327,7 @@ async def approve_supervisor_withdrawal(
 @router.post("/withdrawals/{withdrawal_id}/reject")
 async def reject_supervisor_withdrawal(
     withdrawal_id: str,
-    body: RejectWithdrawalRequest,
+    body: Optional[RejectWithdrawalRequest] = None,
     _: bool = Depends(verify_admin),
     db=Depends(get_db),
 ):
@@ -345,14 +351,21 @@ async def reject_supervisor_withdrawal(
 
     db["supervisor_withdrawals"].update_one(
         {"_id": wd_oid},
-        {"$set": {"status": "rejected", "notes": body.reason, "processed_at": now, "updated_at": now}},
+        {
+            "$set": {
+                "status": "rejected",
+                "notes": body.reason if body else None,
+                "processed_at": now,
+                "updated_at": now,
+            }
+        },
     )
 
     # Note: available_balance is computed dynamically (pending_balance - pending_withdrawals)
     # No DB balance update needed — rejected record is excluded from pending sum automatically
 
     logger.info(
-        f"❌ Supervisor withdrawal rejected: {withdrawal_id}, reason={body.reason}"
+        f"❌ Supervisor withdrawal rejected: {withdrawal_id}, reason={body.reason if body else None}"
     )
 
     return {
