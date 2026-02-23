@@ -32,7 +32,6 @@ from bson import ObjectId
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.database.db_manager import DBManager
-from src.services.xai_test_cover_service import get_xai_test_cover_service
 
 # DeepSeek API
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
@@ -540,9 +539,6 @@ async def save_test_to_database(
     for idx, q in enumerate(questions, 1):
         q["question_id"] = f"q{idx}"
         q["question_number"] = idx
-        # Add empty questions array if not exists (old schema compatibility)
-        if "questions" not in q:
-            q["questions"] = []
 
     # Prepare test document
     now = datetime.utcnow()
@@ -669,7 +665,6 @@ async def process_conversation(
     conversation: Dict,
     level: str,
     db_manager: DBManager,
-    xai_service,
     semaphore: asyncio.Semaphore,
 ) -> Dict:
     """Process one conversation (with rate limiting)"""
@@ -681,7 +676,7 @@ async def process_conversation(
             # Get vocabulary data from conversation_vocabulary collection
             vocab_data = db_manager.db.conversation_vocabulary.find_one(
                 {"conversation_id": conversation_id}
-            ) or {"vocabulary": [], "grammar_patterns": []}
+            ) or {"vocabulary": [], "grammar_points": []}
 
             # Generate test questions
             questions = await generate_test_questions(
@@ -711,30 +706,7 @@ async def process_conversation(
                 cover_prompt=cover_prompt,
             )
 
-            # Generate cover (non-blocking)
-            cover_url = None
-            if xai_service:
-                try:
-                    cover_prompt = generate_cover_image_prompt(level, title_en)
-                    cover_url = await generate_and_upload_cover(
-                        test_id=test_id,
-                        title=title_en,
-                        cover_prompt=cover_prompt,
-                        xai_service=xai_service,
-                    )
-
-                    if cover_url:
-                        db_manager.db.online_tests.update_one(
-                            {"_id": ObjectId(test_id)},
-                            {
-                                "$set": {
-                                    "marketplace_config.cover_image_url": cover_url,
-                                    "cover_image_url": cover_url,
-                                }
-                            },
-                        )
-                except Exception:
-                    pass  # Continue without cover
+            # Skip cover generation to save xAI credits
 
             # Update conversation
             db_manager.db.conversation_library.update_one(
@@ -754,7 +726,6 @@ async def process_conversation(
                 "test_id": test_id,
                 "slug": slug,
                 "num_questions": len(questions),
-                "cover_url": cover_url,
                 "success": True,
             }
 
@@ -781,13 +752,7 @@ async def main():
     db_manager = DBManager()
     print(f"✅ MongoDB: {db_manager.db.name}")
 
-    # Initialize xAI service
-    try:
-        xai_service = get_xai_test_cover_service()
-        print("✅ xAI service initialized")
-    except Exception as e:
-        print(f"⚠️  xAI service failed: {e}")
-        xai_service = None
+    # Cover generation DISABLED (save xAI credits)
 
     # Get intermediate conversations WITHOUT tests
     conversations = list(
@@ -822,9 +787,7 @@ async def main():
 
         # Process batch in parallel
         tasks = [
-            process_conversation(
-                conv, "intermediate", db_manager, xai_service, semaphore
-            )
+            process_conversation(conv, "intermediate", db_manager, semaphore)
             for conv in batch
         ]
 

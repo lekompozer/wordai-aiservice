@@ -538,9 +538,6 @@ async def save_test_to_database(
     for idx, q in enumerate(questions, 1):
         q["question_id"] = f"q{idx}"
         q["question_number"] = idx
-        # Add empty questions array if not exists (old schema compatibility)
-        if "questions" not in q:
-            q["questions"] = []
 
     # Prepare test document
     now = datetime.utcnow()
@@ -678,7 +675,7 @@ async def process_conversation(
             # Get vocabulary data from conversation_vocabulary collection
             vocab_data = db_manager.db.conversation_vocabulary.find_one(
                 {"conversation_id": conversation_id}
-            ) or {"vocabulary": [], "grammar_patterns": []}
+            ) or {"vocabulary": [], "grammar_points": []}
 
             # Generate test questions
             questions = await generate_test_questions(
