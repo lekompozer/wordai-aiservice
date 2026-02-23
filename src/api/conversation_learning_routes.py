@@ -610,10 +610,11 @@ async def browse_conversations(
     search: Optional[str] = None,
     page: int = 1,
     page_size: int = 20,
+    current_user: Optional[dict] = Depends(get_current_user_optional),
     db=Depends(get_db),
 ):
     """
-    Browse conversations with filters (PUBLIC - No authentication required).
+    Browse conversations with filters (PUBLIC - auth optional for premium unlock).
 
     Query Parameters:
     - level: "beginner" | "intermediate" | "advanced"
@@ -622,7 +623,7 @@ async def browse_conversations(
     - page: Page number (default: 1)
     - page_size: Items per page (default: 20, max: 100)
 
-    Returns: List of conversations with metadata
+    Returns: List of conversations with metadata and can_play_audio per item
     """
     # Validate page_size
     if page_size > 100:
@@ -668,30 +669,35 @@ async def browse_conversations(
         .limit(limit)
     )
 
+    # Check premium once for all items (avoid N+1 queries)
+    is_premium = False
+    if current_user:
+        is_premium = await check_user_premium(current_user["uid"], db)
+
     # Format response
     conversation_list = []
     for conv in conversations:
-        conversation_list.append(
-            {
-                "conversation_id": conv["conversation_id"],
-                "level": conv["level"],
-                "topic_number": conv["topic_number"],
-                "topic_slug": conv["topic_slug"],
-                "topic": conv["topic"],
-                "title": conv["title"],
-                "situation": conv["situation"],
-                "turn_count": conv["turn_count"],
-                "word_count": conv["word_count"],
-                "difficulty_score": conv.get("difficulty_score", 5),
-                "has_audio": conv.get("has_audio", False),
-                "audio_url": conv.get("audio_url"),
-                "difficulties_available": [
-                    "easy",
-                    "medium",
-                    "hard",
-                ],  # All have 3 levels
-            }
-        )
+        item = {
+            "conversation_id": conv["conversation_id"],
+            "level": conv["level"],
+            "topic_number": conv["topic_number"],
+            "topic_slug": conv["topic_slug"],
+            "topic": conv["topic"],
+            "title": conv["title"],
+            "situation": conv["situation"],
+            "turn_count": conv["turn_count"],
+            "word_count": conv["word_count"],
+            "difficulty_score": conv.get("difficulty_score", 5),
+            "has_audio": conv.get("has_audio", False),
+            "audio_url": conv.get("audio_url") if is_premium else None,
+            "can_play_audio": is_premium,
+            "difficulties_available": [
+                "easy",
+                "medium",
+                "hard",
+            ],  # All have 3 levels
+        }
+        conversation_list.append(item)
 
     return {
         "conversations": conversation_list,
