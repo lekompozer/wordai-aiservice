@@ -6,9 +6,13 @@
 const crypto = require('crypto');
 const axios = require('axios');
 const { getDb } = require('../config/database');
+const { getRedisClient } = require('../config/redis');
 const config = require('../config');
 const logger = require('../utils/logger');
 const { AppError } = require('../middleware/errorHandler');
+
+// Redis queue key (must match Python QueueManager: "queue:{queue_name}")
+const PAYMENT_EVENTS_QUEUE = 'queue:payment_events';
 
 /**
  * Verify SePay IPN using X-Secret-Key header
@@ -173,19 +177,63 @@ async function handleWebhook(req, res) {
                     message: 'Payment and points processed successfully',
                 });
             } else {
-                // Original: Handle subscription activation
+                // ── Conversation Learning: push to Redis queue (async worker) ──
+                if (payment.plan_type === 'conversation_learning') {
+                    try {
+                        const redis = getRedisClient();
+                        const queuePayload = JSON.stringify({
+                            event_type: 'conversation_subscription_paid',
+                            payment_id: payment._id.toString(),
+                            order_invoice_number,
+                            user_id: payment.user_id,
+                            package_id: payment.package_id,
+                            price_tier: payment.price_tier,
+                            amount_paid: payment.price,
+                            duration_months: payment.duration_months,
+                            payment_method: 'SEPAY_BANK_TRANSFER',
+                            affiliate_code: payment.affiliate_code || null,
+                            student_id: payment.student_id || null,
+                            queued_at: new Date().toISOString(),
+                        });
+
+                        await redis.rpush(PAYMENT_EVENTS_QUEUE, queuePayload);
+
+                        // Mark payment as queued (worker will set subscription_activated)
+                        await paymentsCollection.updateOne(
+                            { order_invoice_number },
+                            {
+                                $set: {
+                                    subscription_queued: true,
+                                    subscription_queued_at: new Date(),
+                                    updated_at: new Date(),
+                                },
+                            }
+                        );
+
+                        logger.info(
+                            `✅ Conversation subscription queued for worker: ${order_invoice_number}`
+                        );
+                    } catch (err) {
+                        logger.error(`Failed to queue payment event: ${err.message}`);
+                        // Don't fail — payment is confirmed, worker can be re-triggered manually
+                    }
+
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Payment confirmed, subscription activation queued',
+                    });
+                }
+
+                // ── Song Learning / Legacy subscriptions: direct HTTP call ──
                 try {
                     logger.info(`Activating subscription for user: ${payment.user_id}`);
 
-                    // Check payment type to route to correct activation endpoint
+                    // Route: song_learning → song endpoint, else → legacy subscription
                     const isSongLearning = payment.plan_type === 'song_learning';
-                    const isConversationLearning = payment.plan_type === 'conversation_learning';
 
                     const activationUrl = isSongLearning
                         ? `${config.pythonService.url}/api/v1/songs/subscription/activate`
-                        : isConversationLearning
-                            ? `${config.pythonService.url}/api/v1/conversations/subscription/activate`
-                            : `${config.pythonService.url}/api/v1/subscriptions/activate`;
+                        : `${config.pythonService.url}/api/v1/subscriptions/activate`;
 
                     const activationPayload = isSongLearning
                         ? {
@@ -197,27 +245,15 @@ async function handleWebhook(req, res) {
                             payment_method: 'SEPAY_BANK_TRANSFER',
                             amount: payment.price,
                         }
-                        : isConversationLearning
-                            ? {
-                                user_id: payment.user_id,
-                                package: payment.package_id,   // 3_months | 6_months | 12_months
-                                price_tier: payment.price_tier, // no_code | tier_1 | tier_2
-                                amount_paid: payment.price,     // matches Python field name
-                                payment_id: payment._id.toString(),
-                                order_invoice_number,
-                                payment_method: 'SEPAY_BANK_TRANSFER',
-                                affiliate_code: payment.affiliate_code || null,
-                                student_id: payment.student_id || null,
-                            }
-                            : {
-                                user_id: payment.user_id,
-                                plan: payment.plan, // premium, pro, vip
-                                duration_months: payment.duration_months,
-                                payment_id: payment._id.toString(),
-                                order_invoice_number,
-                                payment_method: 'SEPAY_BANK_TRANSFER',
-                                amount: payment.price,
-                            };
+                        : {
+                            user_id: payment.user_id,
+                            plan: payment.plan, // premium, pro, vip
+                            duration_months: payment.duration_months,
+                            payment_id: payment._id.toString(),
+                            order_invoice_number,
+                            payment_method: 'SEPAY_BANK_TRANSFER',
+                            amount: payment.price,
+                        };
 
                     logger.info(`Calling ${activationUrl} with payload:`, activationPayload);
 
@@ -501,6 +537,43 @@ async function retryActivation(req, res) {
         }
 
         logger.info(`Retrying activation for user: ${payment.user_id}, plan_type: ${payment.plan_type}`);
+
+        // Conversation Learning: re-queue to Redis worker instead of direct HTTP
+        if (payment.plan_type === 'conversation_learning') {
+            const redis = getRedisClient();
+            const queuePayload = JSON.stringify({
+                event_type: 'conversation_subscription_paid',
+                payment_id: payment._id.toString(),
+                order_invoice_number,
+                user_id: payment.user_id,
+                package_id: payment.package_id,
+                price_tier: payment.price_tier,
+                amount_paid: payment.price,
+                duration_months: payment.duration_months,
+                payment_method: 'SEPAY_BANK_TRANSFER',
+                affiliate_code: payment.affiliate_code || null,
+                student_id: payment.student_id || null,
+                queued_at: new Date().toISOString(),
+            });
+
+            await redis.rpush(PAYMENT_EVENTS_QUEUE, queuePayload);
+
+            await paymentsCollection.updateOne(
+                { order_invoice_number },
+                {
+                    $set: {
+                        subscription_queued: true,
+                        subscription_queued_at: new Date(),
+                        updated_at: new Date(),
+                    },
+                }
+            );
+
+            return res.json({
+                success: true,
+                message: 'Conversation subscription re-queued for worker',
+            });
+        }
 
         // Determine activation endpoint based on plan_type
         const activationUrl =

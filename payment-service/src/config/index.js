@@ -57,6 +57,11 @@ const config = {
         windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS, 10) || 900000, // 15 minutes
         maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS, 10) || 100,
     },
+
+    // Redis (for pushing payment events to Python worker queue)
+    redis: {
+        url: process.env.REDIS_URL || 'redis://redis-server:6379',
+    },
 };
 
 // Validate required configuration
