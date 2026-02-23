@@ -676,19 +676,20 @@ async def browse_conversations(
         uid = current_user["uid"]
         is_premium = await check_user_premium(uid, db)
 
-        # Batch-fetch which conversations this user has completed gap exercises for
+        # Batch-fetch which conversations this user has attempted gap exercises for
+        # Any progress document = user has done the gap (gap_completed field may be absent
+        # for low-score attempts, so we check existence only)
         page_conv_ids = [c["conversation_id"] for c in conversations]
         if page_conv_ids:
             progress_col = db["user_conversation_progress"]
-            completed_docs = progress_col.find(
+            attempted_docs = progress_col.find(
                 {
                     "user_id": uid,
                     "conversation_id": {"$in": page_conv_ids},
-                    "gap_completed": True,
                 },
                 {"conversation_id": 1, "_id": 0},
             )
-            gap_completed_ids = {d["conversation_id"] for d in completed_docs}
+            gap_completed_ids = {d["conversation_id"] for d in attempted_docs}
 
     # Format response
     conversation_list = []
