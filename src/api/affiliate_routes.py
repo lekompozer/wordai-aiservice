@@ -159,10 +159,20 @@ async def get_my_affiliate_dashboard(
             ]
         )
     )
+    approved_wd_agg = list(
+        db["affiliate_withdrawals"].aggregate(
+            [
+                {"$match": {"affiliate_id": str(aff["_id"]), "status": "approved"}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+            ]
+        )
+    )
     pending_withdrawal_amount = pending_wd_agg[0]["total"] if pending_wd_agg else 0
+    total_withdrawn = approved_wd_agg[0]["total"] if approved_wd_agg else 0
     total_earned = aff.get("total_earned", 0)
-    db_balance = aff.get("pending_balance", 0)  # earned minus approved payouts
-    available_balance = max(0, db_balance - pending_withdrawal_amount)
+    available_balance = max(
+        0, total_earned - total_withdrawn - pending_withdrawal_amount
+    )
 
     return {
         "code": aff["code"],
@@ -179,11 +189,13 @@ async def get_my_affiliate_dashboard(
         "total_students": aff.get("total_referred_users", 0),
         # Flat balance fields (read directly by frontend)
         "total_earned": total_earned,
+        "total_withdrawn": total_withdrawn,  # Tổng đã rút (approved)
         "pending_balance": pending_withdrawal_amount,  # Chờ thanh toán = pending requests
-        "available_balance": available_balance,  # Sẵn sàng rút = earned - pending
+        "available_balance": available_balance,  # Sẵn sàng rút = total_earned - total_withdrawn - pending
         # Nested for backward compat
         "balances": {
             "total_earned": total_earned,
+            "total_withdrawn": total_withdrawn,
             "pending_balance": pending_withdrawal_amount,
             "available_balance": available_balance,
             "total_referred_users": aff.get("total_referred_users", 0),
@@ -420,8 +432,17 @@ async def request_withdrawal(
             ]
         )
     )
+    approved_wd_agg_w = list(
+        db["affiliate_withdrawals"].aggregate(
+            [
+                {"$match": {"affiliate_id": str(aff["_id"]), "status": "approved"}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+            ]
+        )
+    )
     pending_wd_amt = pending_wd_agg[0]["total"] if pending_wd_agg else 0
-    available = max(0, aff.get("pending_balance", 0) - pending_wd_amt)
+    total_withdrawn_w = approved_wd_agg_w[0]["total"] if approved_wd_agg_w else 0
+    available = max(0, aff.get("total_earned", 0) - total_withdrawn_w - pending_wd_amt)
 
     if body.amount > available:
         raise HTTPException(

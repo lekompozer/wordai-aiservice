@@ -178,10 +178,20 @@ async def get_supervisor_dashboard(
             ]
         )
     )
+    approved_wd_agg = list(
+        db["supervisor_withdrawals"].aggregate(
+            [
+                {"$match": {"supervisor_id": str(sup["_id"]), "status": "approved"}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+            ]
+        )
+    )
     pending_withdrawal_amount = pending_wd_agg[0]["total"] if pending_wd_agg else 0
+    total_withdrawn = approved_wd_agg[0]["total"] if approved_wd_agg else 0
     total_earned = sup.get("total_earned", 0)
-    db_balance = sup.get("pending_balance", 0)  # earned minus approved payouts
-    available_balance = max(0, db_balance - pending_withdrawal_amount)
+    available_balance = max(
+        0, total_earned - total_withdrawn - pending_withdrawal_amount
+    )
 
     return {
         "code": sup["code"],
@@ -193,11 +203,13 @@ async def get_supervisor_dashboard(
         # Flat fields (read directly by frontend)
         "total_affiliates": len(managed),
         "total_earned": total_earned,
+        "total_withdrawn": total_withdrawn,  # Tổng đã rút (approved)
         "pending_balance": pending_withdrawal_amount,  # Chờ thanh toán = pending requests
-        "available_balance": available_balance,  # Sẵn sàng rút = earned - pending
+        "available_balance": available_balance,  # Sẵn sàng rút = total_earned - total_withdrawn - pending
         # Nested for backward compat
         "balances": {
             "total_earned": total_earned,
+            "total_withdrawn": total_withdrawn,
             "pending_balance": pending_withdrawal_amount,
             "available_balance": available_balance,
         },
@@ -665,7 +677,7 @@ async def supervisor_request_withdrawal(
         db, current_user["uid"], email=current_user.get("email")
     )
 
-    # Compute available balance dynamically (earned - pending requests)
+    # Compute available balance dynamically (earned - withdrawn - pending requests)
     pending_wd_agg = list(
         db["supervisor_withdrawals"].aggregate(
             [
@@ -674,8 +686,17 @@ async def supervisor_request_withdrawal(
             ]
         )
     )
+    approved_wd_agg_w = list(
+        db["supervisor_withdrawals"].aggregate(
+            [
+                {"$match": {"supervisor_id": str(sup["_id"]), "status": "approved"}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+            ]
+        )
+    )
     pending_wd_amt = pending_wd_agg[0]["total"] if pending_wd_agg else 0
-    available = max(0, sup.get("pending_balance", 0) - pending_wd_amt)
+    total_withdrawn_w = approved_wd_agg_w[0]["total"] if approved_wd_agg_w else 0
+    available = max(0, sup.get("total_earned", 0) - total_withdrawn_w - pending_wd_amt)
 
     if body.amount > available:
         raise HTTPException(
