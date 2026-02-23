@@ -113,9 +113,15 @@ class SupervisorWithdrawRequest(BaseModel):
     amount: int = Field(
         ..., ge=100_000, description="Số tiền rút (VND), tối thiểu 100,000"
     )
-    bank_name: str = Field(..., description="Tên ngân hàng")
-    bank_account_number: str = Field(..., description="Số tài khoản")
-    bank_account_name: str = Field(..., description="Tên chủ tài khoản")
+    bank_name: Optional[str] = Field(
+        None, description="Tên ngân hàng (bỏ trống nếu đã lưu)"
+    )
+    bank_account_number: Optional[str] = Field(
+        None, description="Số tài khoản (bỏ trống nếu đã lưu)"
+    )
+    bank_account_name: Optional[str] = Field(
+        None, description="Tên chủ tài khoản (bỏ trống nếu đã lưu)"
+    )
     notes: Optional[str] = Field(None, description="Ghi chú thêm")
 
 
@@ -163,6 +169,20 @@ async def get_supervisor_dashboard(
         else 0
     )
 
+    # Compute dynamic balances from withdrawal records
+    pending_wd_agg = list(
+        db["supervisor_withdrawals"].aggregate(
+            [
+                {"$match": {"supervisor_id": str(sup["_id"]), "status": "pending"}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+            ]
+        )
+    )
+    pending_withdrawal_amount = pending_wd_agg[0]["total"] if pending_wd_agg else 0
+    total_earned = sup.get("total_earned", 0)
+    db_balance = sup.get("pending_balance", 0)  # earned minus approved payouts
+    available_balance = max(0, db_balance - pending_withdrawal_amount)
+
     return {
         "code": sup["code"],
         "name": sup.get("name", ""),
@@ -170,10 +190,16 @@ async def get_supervisor_dashboard(
         "is_active": sup.get("is_active", True),
         "commission_rate": SUPERVISOR_COMMISSION_RATE,
         "total_students": total_students,
+        # Flat fields (read directly by frontend)
+        "total_affiliates": len(managed),
+        "total_earned": total_earned,
+        "pending_balance": pending_withdrawal_amount,  # Chờ thanh toán = pending requests
+        "available_balance": available_balance,  # Sẵn sàng rút = earned - pending
+        # Nested for backward compat
         "balances": {
-            "pending_balance": sup.get("pending_balance", 0),
-            "available_balance": sup.get("available_balance", 0),
-            "total_earned": sup.get("total_earned", 0),
+            "total_earned": total_earned,
+            "pending_balance": pending_withdrawal_amount,
+            "available_balance": available_balance,
         },
         "managed_affiliates": {
             "total": len(managed),
@@ -564,6 +590,63 @@ async def get_supervisor_transactions(
 
 
 # ============================================================================
+# GET /withdrawals  — List my withdrawal requests
+# ============================================================================
+
+
+@router.get("/withdrawals")
+async def get_supervisor_withdrawals(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    List withdrawal requests submitted by this supervisor (newest first).
+    """
+    sup = _get_supervisor_by_uid(
+        db, current_user["uid"], email=current_user.get("email")
+    )
+
+    query = {"supervisor_id": str(sup["_id"])}
+    total = db["supervisor_withdrawals"].count_documents(query)
+    skip = (page - 1) * page_size
+    docs = list(
+        db["supervisor_withdrawals"]
+        .find(query)
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(page_size)
+    )
+
+    items = [
+        {
+            "id": str(doc["_id"]),
+            "amount": doc.get("amount"),
+            "status": doc.get("status"),
+            "bank_info": doc.get("bank_info"),
+            "notes": doc.get("notes"),
+            "admin_notes": doc.get("admin_notes"),
+            "created_at": (
+                doc["created_at"].isoformat() if doc.get("created_at") else None
+            ),
+            "processed_at": (
+                doc["processed_at"].isoformat() if doc.get("processed_at") else None
+            ),
+        }
+        for doc in docs
+    ]
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
+    }
+
+
+# ============================================================================
 # POST /withdraw  — Request withdrawal
 # ============================================================================
 
@@ -576,12 +659,24 @@ async def supervisor_request_withdrawal(
 ):
     """
     Submit a withdrawal request for supervisor's available balance.
+    Bank info is optional if already saved to profile; new info will be saved.
     """
     sup = _get_supervisor_by_uid(
         db, current_user["uid"], email=current_user.get("email")
     )
 
-    available = sup.get("available_balance", 0)
+    # Compute available balance dynamically (earned - pending requests)
+    pending_wd_agg = list(
+        db["supervisor_withdrawals"].aggregate(
+            [
+                {"$match": {"supervisor_id": str(sup["_id"]), "status": "pending"}},
+                {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
+            ]
+        )
+    )
+    pending_wd_amt = pending_wd_agg[0]["total"] if pending_wd_agg else 0
+    available = max(0, sup.get("pending_balance", 0) - pending_wd_amt)
+
     if body.amount > available:
         raise HTTPException(
             status_code=400,
@@ -598,13 +693,25 @@ async def supervisor_request_withdrawal(
             detail="Bạn đang có yêu cầu rút tiền đang chờ xử lý. Vui lòng chờ admin duyệt.",
         )
 
-    now = datetime.utcnow()
+    # Resolve bank info: use body fields or fall back to saved profile
+    saved_bank = sup.get("bank_info") or {}
+    bank_name = body.bank_name or saved_bank.get("bank_name")
+    bank_account_number = body.bank_account_number or saved_bank.get("account_number")
+    bank_account_name = body.bank_account_name or saved_bank.get("account_name")
+
+    if not (bank_name and bank_account_number and bank_account_name):
+        raise HTTPException(
+            status_code=400,
+            detail="Vui lòng cung cấp thông tin ngân hàng (lần đầu rút tiền).",
+        )
+
     bank_info = {
-        "bank_name": body.bank_name,
-        "account_number": body.bank_account_number,
-        "account_name": body.bank_account_name,
+        "bank_name": bank_name,
+        "account_number": bank_account_number,
+        "account_name": bank_account_name,
     }
 
+    now = datetime.utcnow()
     doc = {
         "supervisor_id": str(sup["_id"]),
         "supervisor_code": sup["code"],
@@ -617,13 +724,10 @@ async def supervisor_request_withdrawal(
     }
     result = db["supervisor_withdrawals"].insert_one(doc)
 
-    # Deduct from available_balance (hold until processed)
+    # Save bank info to profile for convenience on next withdrawal
     db["supervisors"].update_one(
         {"_id": sup["_id"]},
-        {
-            "$inc": {"available_balance": -body.amount},
-            "$set": {"updated_at": now},
-        },
+        {"$set": {"bank_info": bank_info, "updated_at": now}},
     )
 
     logger.info(

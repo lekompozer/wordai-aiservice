@@ -345,20 +345,11 @@ async def reject_supervisor_withdrawal(
 
     db["supervisor_withdrawals"].update_one(
         {"_id": wd_oid},
-        {"$set": {"status": "rejected", "notes": body.reason, "updated_at": now}},
+        {"$set": {"status": "rejected", "notes": body.reason, "processed_at": now, "updated_at": now}},
     )
 
-    # Refund available_balance
-    try:
-        db["supervisors"].update_one(
-            {"_id": ObjectId(supervisor_id)},
-            {
-                "$inc": {"available_balance": amount},
-                "$set": {"updated_at": now},
-            },
-        )
-    except Exception:
-        pass
+    # Note: available_balance is computed dynamically (pending_balance - pending_withdrawals)
+    # No DB balance update needed — rejected record is excluded from pending sum automatically
 
     logger.info(
         f"❌ Supervisor withdrawal rejected: {withdrawal_id}, reason={body.reason}"

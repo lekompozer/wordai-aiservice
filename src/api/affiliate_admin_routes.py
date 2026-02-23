@@ -510,19 +510,13 @@ async def reject_withdrawal(
         },
     )
 
-    # Refund the held amount back to available_balance
-    db["affiliates"].update_one(
-        {"_id": ObjectId(doc["affiliate_id"])},
-        {
-            "$inc": {"available_balance": doc["amount"]},
-            "$set": {"updated_at": now},
-        },
-    )
+    # Note: available_balance is computed dynamically (pending_balance - pending_withdrawals)
+    # No DB balance update needed — rejected record is excluded from pending sum automatically
 
     logger.info(f"❌ Withdrawal rejected: id={withdrawal_id}, reason={body.reason}")
 
     return {
-        "message": "Đã từ chối yêu cầu rút tiền. Số dư đã được hoàn trả.",
+        "message": "Đã từ chối yêu cầu rút tiền.",
         "withdrawal_id": withdrawal_id,
         "reason": body.reason,
         "status": "rejected",
