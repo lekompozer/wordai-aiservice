@@ -154,7 +154,7 @@ async def validate_affiliate_code(
 
     aff = db["affiliates"].find_one(
         {"code": code.upper()},
-        {"tier": 1, "code": 1, "name": 1, "is_active": 1},
+        {"tier": 1, "code": 1, "name": 1, "is_active": 1, "user_id": 1},
     )
     if not aff:
         raise HTTPException(
