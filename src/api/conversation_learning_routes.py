@@ -671,14 +671,31 @@ async def browse_conversations(
 
     # Check premium once for all items (avoid N+1 queries)
     is_premium = False
+    gap_completed_ids = set()
     if current_user:
-        is_premium = await check_user_premium(current_user["uid"], db)
+        uid = current_user["uid"]
+        is_premium = await check_user_premium(uid, db)
+
+        # Batch-fetch which conversations this user has completed gap exercises for
+        page_conv_ids = [c["conversation_id"] for c in conversations]
+        if page_conv_ids:
+            progress_col = db["user_conversation_progress"]
+            completed_docs = progress_col.find(
+                {
+                    "user_id": uid,
+                    "conversation_id": {"$in": page_conv_ids},
+                    "gap_completed": True,
+                },
+                {"conversation_id": 1, "_id": 0},
+            )
+            gap_completed_ids = {d["conversation_id"] for d in completed_docs}
 
     # Format response
     conversation_list = []
     for conv in conversations:
+        conv_id = conv["conversation_id"]
         item = {
-            "conversation_id": conv["conversation_id"],
+            "conversation_id": conv_id,
             "level": conv["level"],
             "topic_number": conv["topic_number"],
             "topic_slug": conv["topic_slug"],
@@ -691,6 +708,7 @@ async def browse_conversations(
             "has_audio": conv.get("has_audio", False),
             "audio_url": conv.get("audio_url") if is_premium else None,
             "can_play_audio": is_premium,
+            "gap_completed": conv_id in gap_completed_ids,
             "difficulties_available": [
                 "easy",
                 "medium",
