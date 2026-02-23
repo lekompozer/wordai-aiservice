@@ -626,6 +626,24 @@ async function createConversationLearningCheckout(req, res) {
         const db = getDb();
         const paymentsCollection = db.collection('payments');
 
+        // Validate affiliate code if provided
+        if (affiliate_code) {
+            const affiliatesCollection = db.collection('affiliates');
+            const aff = await affiliatesCollection.findOne(
+                { code: affiliate_code.toUpperCase() },
+                { projection: { is_active: 1, user_id: 1 } }
+            );
+            if (!aff) {
+                throw new AppError('Mã đại lý không tồn tại.', 404);
+            }
+            if (!aff.is_active) {
+                throw new AppError('Đại lý chưa được kích hoạt.', 403);
+            }
+            if (!aff.user_id) {
+                throw new AppError('Đại lý chưa đăng nhập hệ thống. Vui lòng yêu cầu đại lý đăng nhập trước.', 403);
+            }
+        }
+
         const planLabels = {
             '3_months': '3 tháng',
             '6_months': '6 tháng',

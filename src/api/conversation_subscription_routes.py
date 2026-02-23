@@ -172,6 +172,14 @@ async def validate_affiliate_code(
                 "message": "Đại lý chưa được kích hoạt. Vui lòng liên hệ quản trị viên.",
             },
         )
+    if not aff.get("user_id"):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "affiliate_not_registered",
+                "message": "Đại lý chưa đăng nhập lần nào. Vui lòng yêu cầu đại lý đăng nhập hệ thống trước.",
+            },
+        )
 
     tier = aff["tier"]
     price_tier = f"tier_{tier}"
