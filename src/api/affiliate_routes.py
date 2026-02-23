@@ -162,7 +162,12 @@ async def get_my_affiliate_dashboard(
     approved_wd_agg = list(
         db["affiliate_withdrawals"].aggregate(
             [
-                {"$match": {"affiliate_id": str(aff["_id"]), "status": "approved"}},
+                {
+                    "$match": {
+                        "affiliate_id": str(aff["_id"]),
+                        "status": {"$in": ["approved", "paid"]},
+                    }
+                },
                 {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
             ]
         )

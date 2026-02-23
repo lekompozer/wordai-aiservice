@@ -181,7 +181,12 @@ async def get_supervisor_dashboard(
     approved_wd_agg = list(
         db["supervisor_withdrawals"].aggregate(
             [
-                {"$match": {"supervisor_id": str(sup["_id"]), "status": "approved"}},
+                {
+                    "$match": {
+                        "supervisor_id": str(sup["_id"]),
+                        "status": {"$in": ["approved", "paid"]},
+                    }
+                },
                 {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
             ]
         )
