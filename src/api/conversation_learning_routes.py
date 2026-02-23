@@ -2300,15 +2300,19 @@ async def get_conversation_detail(
 
     # Determine audio access for authenticated users
     if current_user:
-        is_premium = await check_user_premium(current_user["uid"], db)
+        uid = current_user["uid"]
+        is_premium = await check_user_premium(uid, db)
+
+        # Check if user has ever attempted this conversation (for gap_completed flag)
+        has_prior = db["user_conversation_progress"].find_one(
+            {"user_id": uid, "conversation_id": conversation_id}
+        )
+        conversation["gap_completed"] = bool(has_prior)
+
         if is_premium:
             conversation["can_play_audio"] = True
         else:
-            uid = current_user["uid"]
             # Can play if already submitted (has progress record any day)
-            has_prior = db["user_conversation_progress"].find_one(
-                {"user_id": uid, "conversation_id": conversation_id}
-            )
             if has_prior:
                 conversation["can_play_audio"] = True
             else:
@@ -2328,6 +2332,7 @@ async def get_conversation_detail(
                     )
     else:
         conversation["can_play_audio"] = False
+        conversation["gap_completed"] = False
 
     # Enforce server-side: hide audio_url when user cannot play audio
     if not conversation.get("can_play_audio"):
