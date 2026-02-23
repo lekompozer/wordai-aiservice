@@ -46,9 +46,13 @@ def score_mcq_question(
     Returns:
         (is_correct, points_earned, feedback)
     """
-    correct_answers = question.get("correct_answer_keys", [])
-    if not correct_answers and "correct_answer_key" in question:
-        correct_answers = [question["correct_answer_key"]]
+    correct_answers = (
+        question.get("correct_answer_keys")
+        or question.get("correct_answers")
+        or (
+            [question["correct_answer_key"]] if "correct_answer_key" in question else []
+        )
+    )
 
     # Get user's selected answers
     selected_answers = user_answer.get("selected_answer_keys", [])

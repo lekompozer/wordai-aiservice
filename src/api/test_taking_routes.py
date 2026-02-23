@@ -2065,6 +2065,39 @@ async def get_submission_detail(
                     }
                 )
 
+        # ========== Re-compute scores from results (handles old submissions with wrong stored scores) ==========
+        is_diagnostic_test = submission.get("is_diagnostic_test", False)
+        if grading_status == "auto_graded" and not is_diagnostic_test:
+            recomputed_mcq_correct = sum(
+                1
+                for r in results
+                if r.get("question_type") == "mcq" and r.get("is_correct") is True
+            )
+            recomputed_mcq_score = sum(
+                r.get("points_awarded", 0)
+                for r in results
+                if r.get("question_type") not in ("essay",)
+                and r.get("is_correct") is not None
+            )
+            # Only override if stored value looks wrong (0 but re-computed says > 0)
+            stored_correct = submission.get("correct_answers", 0) or 0
+            if stored_correct == 0 and recomputed_mcq_correct > 0:
+                submission["correct_answers"] = recomputed_mcq_correct
+                submission["mcq_correct_count"] = recomputed_mcq_correct
+                submission["mcq_score"] = recomputed_mcq_score
+                total_max = sum(
+                    q.get("max_points", 1)
+                    for q in test_doc["questions"]
+                    if q.get("question_type") != "essay"
+                )
+                if total_max > 0:
+                    submission["score_percentage"] = round(
+                        recomputed_mcq_score / total_max * 100, 1
+                    )
+                    submission["score"] = round(
+                        recomputed_mcq_score / total_max * 10, 1
+                    )
+
         # Build response based on show_answers_timing
         if not should_hide_answers:
             # Full response - show everything
