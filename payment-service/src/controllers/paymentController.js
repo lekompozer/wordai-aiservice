@@ -672,9 +672,9 @@ async function createConversationLearningCheckout(req, res) {
             order_invoice_number: orderInvoiceNumber,
             order_description: descParts.join(' - '),
             customer_id: user_id,
-            success_url: `https://wordai.chat/upgrade/success`,
-            error_url: `https://wordai.chat/upgrade/error`,
-            cancel_url: `https://wordai.chat/upgrade`,
+            success_url: `https://wordai.pro/ai-tools/listen-learn?tab=conversations`,
+            error_url: `https://wordai.pro/ai-tools/listen-learn?tab=conversations`,
+            cancel_url: `https://wordai.pro/ai-tools/listen-learn?tab=conversations`,
         };
 
         formFields.signature = generateSignature(formFields, config.sepay.secretKey);
