@@ -23,9 +23,9 @@ Premium (Song OR Conversation subscription):
 - Unlimited submissions, full audio, Online Tests free of points
 """
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Request
 from typing import List, Optional, Dict, Any
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import uuid
 import json
 import logging
@@ -1176,6 +1176,192 @@ async def get_saved_conversations(
     return {
         "saved": paginated,
         "total": total,
+        "page": skip // limit + 1,
+        "limit": limit,
+    }
+
+
+# ============================================================================
+# ENDPOINT: Get Saved Vocabulary
+# (MUST stay above /{conversation_id} catch-all route)
+# ============================================================================
+
+
+@router.get("/saved/vocabulary")
+async def get_saved_vocabulary(
+    topic_slug: Optional[str] = None,
+    level: Optional[str] = None,
+    due_today: bool = False,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get user's saved vocabulary items with optional filters.
+
+    Query Parameters:
+    - topic_slug: Filter by topic (e.g. "greetings_introductions")
+    - level: Filter by level ("beginner" | "intermediate" | "advanced")
+    - due_today: If true, only return items where next_review_date <= today
+    - from_date: Filter saved_at >= from_date (ISO date string, e.g. "2026-02-01")
+    - to_date: Filter saved_at <= to_date (ISO date string)
+    - skip: Pagination offset
+    - limit: Page size (max 100)
+
+    Returns: Paginated list of saved vocabulary + due_today_count
+    """
+    user_id = current_user["uid"]
+    if limit > 100:
+        limit = 100
+
+    col = db["user_saved_vocabulary"]
+    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    tomorrow_start = datetime.utcnow().replace(
+        hour=23, minute=59, second=59, microsecond=999999
+    )
+
+    # Build filter
+    q: Dict[str, Any] = {"user_id": user_id}
+    if topic_slug:
+        q["topic_slug"] = topic_slug
+    if level:
+        q["level"] = level
+    if due_today:
+        q["next_review_date"] = {"$lte": tomorrow_start}
+    if from_date:
+        try:
+            q.setdefault("saved_at", {})["$gte"] = datetime.fromisoformat(from_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid from_date format. Use ISO date: YYYY-MM-DD",
+            )
+    if to_date:
+        try:
+            q.setdefault("saved_at", {})["$lte"] = datetime.fromisoformat(
+                to_date
+            ).replace(hour=23, minute=59, second=59)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid to_date format. Use ISO date: YYYY-MM-DD",
+            )
+
+    total = col.count_documents(q)
+    due_today_count = col.count_documents(
+        {"user_id": user_id, "next_review_date": {"$lte": tomorrow_start}}
+    )
+
+    docs = list(col.find(q, {"_id": 0}).sort("saved_at", -1).skip(skip).limit(limit))
+
+    # Serialize datetimes
+    for d in docs:
+        for field in ("saved_at", "updated_at", "next_review_date"):
+            if d.get(field) and isinstance(d[field], datetime):
+                d[field] = (
+                    d[field].date().isoformat()
+                    if field == "next_review_date"
+                    else d[field].isoformat()
+                )
+
+    return {
+        "saved_vocabulary": docs,
+        "total": total,
+        "due_today_count": due_today_count,
+        "page": skip // limit + 1,
+        "limit": limit,
+    }
+
+
+# ============================================================================
+# ENDPOINT: Get Saved Grammar
+# (MUST stay above /{conversation_id} catch-all route)
+# ============================================================================
+
+
+@router.get("/saved/grammar")
+async def get_saved_grammar(
+    topic_slug: Optional[str] = None,
+    level: Optional[str] = None,
+    due_today: bool = False,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Get user's saved grammar patterns with optional filters.
+
+    Query Parameters:
+    - topic_slug: Filter by topic
+    - level: Filter by level
+    - due_today: If true, only return items where next_review_date <= today
+    - from_date: Filter saved_at >= from_date (ISO date string)
+    - to_date: Filter saved_at <= to_date (ISO date string)
+    - skip / limit: Pagination (max limit 100)
+
+    Returns: Paginated list of saved grammar + due_today_count
+    """
+    user_id = current_user["uid"]
+    if limit > 100:
+        limit = 100
+
+    col = db["user_saved_grammar"]
+    tomorrow_start = datetime.utcnow().replace(
+        hour=23, minute=59, second=59, microsecond=999999
+    )
+
+    q: Dict[str, Any] = {"user_id": user_id}
+    if topic_slug:
+        q["topic_slug"] = topic_slug
+    if level:
+        q["level"] = level
+    if due_today:
+        q["next_review_date"] = {"$lte": tomorrow_start}
+    if from_date:
+        try:
+            q.setdefault("saved_at", {})["$gte"] = datetime.fromisoformat(from_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid from_date format. Use ISO date: YYYY-MM-DD",
+            )
+    if to_date:
+        try:
+            q.setdefault("saved_at", {})["$lte"] = datetime.fromisoformat(
+                to_date
+            ).replace(hour=23, minute=59, second=59)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid to_date format. Use ISO date: YYYY-MM-DD",
+            )
+
+    total = col.count_documents(q)
+    due_today_count = col.count_documents(
+        {"user_id": user_id, "next_review_date": {"$lte": tomorrow_start}}
+    )
+
+    docs = list(col.find(q, {"_id": 0}).sort("saved_at", -1).skip(skip).limit(limit))
+
+    for d in docs:
+        for field in ("saved_at", "updated_at", "next_review_date"):
+            if d.get(field) and isinstance(d[field], datetime):
+                d[field] = (
+                    d[field].date().isoformat()
+                    if field == "next_review_date"
+                    else d[field].isoformat()
+                )
+
+    return {
+        "saved_grammar": docs,
+        "total": total,
+        "due_today_count": due_today_count,
         "page": skip // limit + 1,
         "limit": limit,
     }
@@ -3036,4 +3222,347 @@ async def unsave_conversation(
     return {
         "message": "Conversation removed from saved list",
         "conversation_id": conversation_id,
+    }
+
+
+# ============================================================================
+# ENDPOINT: Save Vocabulary Word
+# ============================================================================
+
+
+@router.post("/{conversation_id}/vocabulary/save")
+async def save_vocabulary(
+    conversation_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Save a vocabulary word from a specific conversation.
+
+    Request Body:
+    - word (str, required): The word to save
+    - pos_tag (str, required): Part-of-speech tag (e.g. "ADJ", "NOUN")
+    - definition_en (str, required): English definition
+    - definition_vi (str, required): Vietnamese definition
+    - example (str, required): Example sentence
+    - definition_zh (str, optional): Chinese definition
+    - definition_ja (str, optional): Japanese definition
+    - definition_ko (str, optional): Korean definition
+
+    Returns:
+    - {saved: true, save_id, next_review_date} on first save
+    - {already_saved: true, save_id, next_review_date} if already saved
+    """
+    user_id = current_user["uid"]
+    body = await request.json()
+
+    word = body.get("word", "").strip()
+    if not word:
+        raise HTTPException(status_code=400, detail="word is required")
+
+    pos_tag = body.get("pos_tag", "").strip()
+    definition_en = body.get("definition_en", "").strip()
+    definition_vi = body.get("definition_vi", "").strip()
+    example = body.get("example", "").strip()
+
+    if not definition_en or not definition_vi or not example:
+        raise HTTPException(
+            status_code=400,
+            detail="definition_en, definition_vi, and example are required",
+        )
+
+    col = db["user_saved_vocabulary"]
+
+    # Check if already saved
+    existing = col.find_one(
+        {"user_id": user_id, "word": word},
+        {"_id": 0, "save_id": 1, "next_review_date": 1},
+    )
+    if existing:
+        next_review = existing.get("next_review_date")
+        next_review_str = (
+            next_review.date().isoformat()
+            if isinstance(next_review, datetime)
+            else str(next_review)
+        )
+        return {
+            "already_saved": True,
+            "save_id": existing["save_id"],
+            "word": word,
+            "next_review_date": next_review_str,
+        }
+
+    # Fetch conversation metadata for denormalization
+    conv = db["conversations"].find_one(
+        {"conversation_id": conversation_id},
+        {"_id": 0, "topic_slug": 1, "topic": 1, "level": 1},
+    )
+    topic_slug = conv.get("topic_slug", "") if conv else ""
+    topic_en = (conv.get("topic") or {}).get("en", "") if conv else ""
+    level = conv.get("level", "") if conv else ""
+
+    now = datetime.utcnow()
+    next_review_date = (now + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    save_id = str(uuid.uuid4())
+
+    doc = {
+        "save_id": save_id,
+        "user_id": user_id,
+        "word": word,
+        "pos_tag": pos_tag,
+        "definition_en": definition_en,
+        "definition_vi": definition_vi,
+        "definition_zh": body.get("definition_zh"),
+        "definition_ja": body.get("definition_ja"),
+        "definition_ko": body.get("definition_ko"),
+        "example": example,
+        "conversation_id": conversation_id,
+        "topic_slug": topic_slug,
+        "topic_en": topic_en,
+        "level": level,
+        "review_count": 0,
+        "correct_count": 0,
+        "next_review_date": next_review_date,
+        "saved_at": now,
+        "updated_at": now,
+    }
+
+    try:
+        col.insert_one(doc)
+    except Exception:
+        # Race condition: another request saved first
+        existing = col.find_one(
+            {"user_id": user_id, "word": word},
+            {"_id": 0, "save_id": 1, "next_review_date": 1},
+        )
+        if existing:
+            next_review = existing.get("next_review_date")
+            next_review_str = (
+                next_review.date().isoformat()
+                if isinstance(next_review, datetime)
+                else str(next_review)
+            )
+            return {
+                "already_saved": True,
+                "save_id": existing["save_id"],
+                "word": word,
+                "next_review_date": next_review_str,
+            }
+        raise HTTPException(status_code=500, detail="Failed to save vocabulary")
+
+    return {
+        "saved": True,
+        "save_id": save_id,
+        "word": word,
+        "next_review_date": next_review_date.date().isoformat(),
+    }
+
+
+# ============================================================================
+# ENDPOINT: Unsave Vocabulary Word
+# ============================================================================
+
+
+@router.delete("/{conversation_id}/vocabulary/{word}/save")
+async def unsave_vocabulary(
+    conversation_id: str,
+    word: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Remove a saved vocabulary word.
+
+    Path Parameters:
+    - conversation_id: The conversation the word came from
+    - word: The word to unsave (URL-encoded)
+
+    Returns: {message, word}
+    """
+    user_id = current_user["uid"]
+
+    col = db["user_saved_vocabulary"]
+    result = col.delete_one({"user_id": user_id, "word": word})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Saved vocabulary not found")
+
+    return {
+        "message": "Vocabulary removed from saved list",
+        "word": word,
+    }
+
+
+# ============================================================================
+# ENDPOINT: Save Grammar Pattern
+# ============================================================================
+
+
+@router.post("/{conversation_id}/grammar/save")
+async def save_grammar(
+    conversation_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Save a grammar pattern from a specific conversation.
+
+    Request Body:
+    - pattern (str, required): Grammar pattern (e.g. "I feel like + clause")
+    - explanation_en (str, required): English explanation
+    - explanation_vi (str, required): Vietnamese explanation
+    - example (str, required): Example sentence
+    - explanation_zh (str, optional): Chinese explanation
+    - explanation_ja (str, optional): Japanese explanation
+    - explanation_ko (str, optional): Korean explanation
+
+    Returns:
+    - {saved: true, save_id, next_review_date} on first save
+    - {already_saved: true, save_id, next_review_date} if already saved
+    """
+    user_id = current_user["uid"]
+    body = await request.json()
+
+    pattern = body.get("pattern", "").strip()
+    if not pattern:
+        raise HTTPException(status_code=400, detail="pattern is required")
+
+    explanation_en = body.get("explanation_en", "").strip()
+    explanation_vi = body.get("explanation_vi", "").strip()
+    example = body.get("example", "").strip()
+
+    if not explanation_en or not explanation_vi or not example:
+        raise HTTPException(
+            status_code=400,
+            detail="explanation_en, explanation_vi, and example are required",
+        )
+
+    col = db["user_saved_grammar"]
+
+    existing = col.find_one(
+        {"user_id": user_id, "pattern": pattern},
+        {"_id": 0, "save_id": 1, "next_review_date": 1},
+    )
+    if existing:
+        next_review = existing.get("next_review_date")
+        next_review_str = (
+            next_review.date().isoformat()
+            if isinstance(next_review, datetime)
+            else str(next_review)
+        )
+        return {
+            "already_saved": True,
+            "save_id": existing["save_id"],
+            "pattern": pattern,
+            "next_review_date": next_review_str,
+        }
+
+    # Fetch conversation metadata for denormalization
+    conv = db["conversations"].find_one(
+        {"conversation_id": conversation_id},
+        {"_id": 0, "topic_slug": 1, "topic": 1, "level": 1},
+    )
+    topic_slug = conv.get("topic_slug", "") if conv else ""
+    topic_en = (conv.get("topic") or {}).get("en", "") if conv else ""
+    level = conv.get("level", "") if conv else ""
+
+    now = datetime.utcnow()
+    next_review_date = (now + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    save_id = str(uuid.uuid4())
+
+    doc = {
+        "save_id": save_id,
+        "user_id": user_id,
+        "pattern": pattern,
+        "explanation_en": explanation_en,
+        "explanation_vi": explanation_vi,
+        "explanation_zh": body.get("explanation_zh"),
+        "explanation_ja": body.get("explanation_ja"),
+        "explanation_ko": body.get("explanation_ko"),
+        "example": example,
+        "conversation_id": conversation_id,
+        "topic_slug": topic_slug,
+        "topic_en": topic_en,
+        "level": level,
+        "review_count": 0,
+        "correct_count": 0,
+        "next_review_date": next_review_date,
+        "saved_at": now,
+        "updated_at": now,
+    }
+
+    try:
+        col.insert_one(doc)
+    except Exception:
+        existing = col.find_one(
+            {"user_id": user_id, "pattern": pattern},
+            {"_id": 0, "save_id": 1, "next_review_date": 1},
+        )
+        if existing:
+            next_review = existing.get("next_review_date")
+            next_review_str = (
+                next_review.date().isoformat()
+                if isinstance(next_review, datetime)
+                else str(next_review)
+            )
+            return {
+                "already_saved": True,
+                "save_id": existing["save_id"],
+                "pattern": pattern,
+                "next_review_date": next_review_str,
+            }
+        raise HTTPException(status_code=500, detail="Failed to save grammar")
+
+    return {
+        "saved": True,
+        "save_id": save_id,
+        "pattern": pattern,
+        "next_review_date": next_review_date.date().isoformat(),
+    }
+
+
+# ============================================================================
+# ENDPOINT: Unsave Grammar Pattern
+# ============================================================================
+
+
+@router.delete("/{conversation_id}/grammar/save")
+async def unsave_grammar(
+    conversation_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Remove a saved grammar pattern.
+
+    Request Body:
+    - pattern (str, required): The grammar pattern to unsave
+
+    Returns: {message, pattern}
+    """
+    user_id = current_user["uid"]
+    body = await request.json()
+
+    pattern = body.get("pattern", "").strip()
+    if not pattern:
+        raise HTTPException(
+            status_code=400, detail="pattern is required in request body"
+        )
+
+    col = db["user_saved_grammar"]
+    result = col.delete_one({"user_id": user_id, "pattern": pattern})
+
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Saved grammar not found")
+
+    return {
+        "message": "Grammar pattern removed from saved list",
+        "pattern": pattern,
     }
