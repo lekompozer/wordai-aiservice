@@ -209,6 +209,7 @@ from src.api.song_learning_routes import router as song_learning_router
 
 # ✅ ADDED: Conversation Learning API - English learning through conversations with gap-fill exercises
 from src.api.conversation_learning_routes import router as conversation_learning_router
+import src.api.conversation_detail_routes  # noqa: F401 — registers routes on shared router
 
 # ✅ ADDED: Song Subscription API - Premium subscription for unlimited songs
 from src.api.song_subscription_routes import router as song_subscription_router
