@@ -433,19 +433,24 @@ async def get_today_plan(
 
     for item in path["path_items"]:
         cid = item["conversation_id"]
-        prog = progress_docs.get(cid, {})
+        prog = progress_docs.get(cid)  # None = never attempted
+        has_any_attempt = (
+            prog is not None
+        )  # any progress doc = user touched this before
+        prog = prog or {}
         gap_done = prog.get("gap_completed", False)
         test_done = prog.get("test_completed", False)
         is_fully_done = prog.get("is_completed", False)
 
         if is_fully_done:
-            continue  # Skip fully done items
+            continue  # Skip fully completed items
 
-        if len(assignments) < daily_goal:
+        # Primary assignments: ONLY brand-new conversations (never attempted)
+        if len(assignments) < daily_goal and not has_any_attempt:
             assignments.append(
                 {
                     "position": item["position"],
-                    "type": "new" if not gap_done else "continue",
+                    "type": "new",
                     "conversation_id": cid,
                     "topic": item.get("topic", ""),
                     "topic_number": item.get("topic_number", 0),
@@ -465,8 +470,12 @@ async def get_today_plan(
                     },
                 }
             )
-        elif review_candidate is None and gap_done and not test_done:
-            # Review candidate: gap done but test not done, or low gap score
+        elif review_candidate is None and has_any_attempt:
+            # Previously attempted but not fully completed → review slot
+            if gap_done and not test_done:
+                review_reason = "test_pending"
+            else:
+                review_reason = "gap_score_low"
             review_candidate = {
                 "position": item["position"],
                 "type": "review",
@@ -476,34 +485,7 @@ async def get_today_plan(
                 "level": item.get("level", ""),
                 "source": item["source"],
                 "suggested_difficulty": item["difficulty_suggestion"],
-                "review_reason": "test_pending",
-                "parts": {
-                    "gap_fill": {
-                        "completed": gap_done,
-                        "best_score": prog.get("gap_best_score"),
-                    },
-                    "online_test": {
-                        "completed": test_done,
-                        "test_id": item.get("online_test_id"),
-                        "best_score": prog.get("test_best_score"),
-                    },
-                },
-            }
-        elif (
-            review_candidate is None
-            and gap_done
-            and (prog.get("gap_best_score", 100) < 80)
-        ):
-            review_candidate = {
-                "position": item["position"],
-                "type": "review",
-                "conversation_id": cid,
-                "topic": item.get("topic", ""),
-                "topic_number": item.get("topic_number", 0),
-                "level": item.get("level", ""),
-                "source": item["source"],
-                "suggested_difficulty": item["difficulty_suggestion"],
-                "review_reason": "gap_score_low",
+                "review_reason": review_reason,
                 "parts": {
                     "gap_fill": {
                         "completed": gap_done,
