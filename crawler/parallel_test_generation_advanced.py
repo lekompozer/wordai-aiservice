@@ -353,7 +353,7 @@ async def generate_test_questions(
 
             # Validate question count (allow less than expected)
             expected = LEVEL_CONFIG[level]["total_questions"]
-            min_required = max(5, expected - 5)  # At least 5 or expected-5
+            min_required = max(5, expected // 2)  # At least half of expected
             if len(questions) < min_required:
                 print(
                     f"⚠️  Question count low: {len(questions)} < {min_required} (expected {expected}). Retrying..."

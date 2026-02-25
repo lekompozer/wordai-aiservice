@@ -99,3 +99,11 @@ migrations/
 setup-nginx-wordai.sh
 start_wordai.sh
 wordai-6779e-ed6189c466f1.json
+
+# One-off scripts (moved to crawler/ to avoid root clutter)
+crawler/fix_*.py
+crawler/_fix_*.js
+crawler/audit_*.py
+crawler/cleanup_broken_*.py
+crawler/check_missing_*.py
+crawler/translate_conversations_th_ms_id.py

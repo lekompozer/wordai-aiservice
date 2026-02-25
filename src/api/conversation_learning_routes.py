@@ -2028,4 +2028,3 @@ async def get_daily_streak(
         "last_7_days": last_7_days,
         "note": "Complete at least 1 learning activity per day to maintain streak",
     }
-
