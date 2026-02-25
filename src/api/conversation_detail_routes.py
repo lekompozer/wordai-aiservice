@@ -1769,7 +1769,7 @@ async def save_vocabulary(
         }
 
     # Fetch conversation metadata for denormalization
-    conv = db["conversations"].find_one(
+    conv = db["conversation_library"].find_one(
         {"conversation_id": conversation_id},
         {"_id": 0, "topic_slug": 1, "topic": 1, "level": 1},
     )
@@ -1937,7 +1937,7 @@ async def save_grammar(
         }
 
     # Fetch conversation metadata for denormalization
-    conv = db["conversations"].find_one(
+    conv = db["conversation_library"].find_one(
         {"conversation_id": conversation_id},
         {"_id": 0, "topic_slug": 1, "topic": 1, "level": 1},
     )
