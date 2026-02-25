@@ -215,7 +215,7 @@ def _award_achievements(
     ]
 
     for threshold, ach_id, ach_name, ach_type, xp_bonus in completion_achievements:
-        if total_completed == threshold:
+        if total_completed >= threshold:
             if not achievements_col.find_one(
                 {"user_id": user_id, "achievement_id": ach_id}
             ):
