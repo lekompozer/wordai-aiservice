@@ -1253,43 +1253,47 @@ async def submit_gap_exercise(
             )
 
     # Check lifetime limit for NEW conversations (free users)
+    # IMPORTANT: Query progress record ONCE and reuse to avoid race condition
+    has_prior_progress = None
+    conv_level = None
+
     if not limit_info["is_premium"]:
-        has_prior_check = db["user_conversation_progress"].find_one(
+        # Single query for progress record - store result for reuse
+        has_prior_progress = db["user_conversation_progress"].find_one(
             {"user_id": user_id, "conversation_id": conversation_id}
         )
-        if not has_prior_check:
+
+        if not has_prior_progress:
+            # Get conversation level once
+            conv_meta = db["conversation_library"].find_one(
+                {"conversation_id": conversation_id}, {"level": 1}
+            )
+            conv_level = conv_meta.get("level", "beginner") if conv_meta else "beginner"
+
             already_today_check = await is_conversation_accessed_today(
                 user_id, conversation_id, db
             )
             if not already_today_check:
-                conv_level_meta = db["conversation_library"].find_one(
-                    {"conversation_id": conversation_id}, {"level": 1}
-                )
-                level_ctx = (
-                    conv_level_meta.get("level", "beginner")
-                    if conv_level_meta
-                    else "beginner"
-                )
-                if not await _can_unlock(user_id, level_ctx, db):
+                if not await _can_unlock(user_id, conv_level, db):
                     raise HTTPException(
                         status_code=403,
-                        detail=f"Lifetime limit reached for {level_ctx} conversations. Upgrade to Premium for unlimited access.",
+                        detail=f"Lifetime limit reached for {conv_level} conversations. Upgrade to Premium for unlimited access.",
                     )
 
     # Increment daily submit count (free users only)
     await increment_daily_submit(user_id, db, conversation_id=conversation_id)
 
     # On first-ever attempt for this conversation, increment lifetime unlock counter
-    if not limit_info["is_premium"]:
-        has_prior_attempt = db["user_conversation_progress"].find_one(
-            {"user_id": user_id, "conversation_id": conversation_id}
-        )
-        if not has_prior_attempt:
+    # CRITICAL FIX: Reuse has_prior_progress from above - DO NOT query again!
+    if not limit_info["is_premium"] and not has_prior_progress:
+        # Reuse conv_level from above if available, otherwise fetch
+        if conv_level is None:
             conv_meta = db["conversation_library"].find_one(
                 {"conversation_id": conversation_id}, {"level": 1}
             )
-            if conv_meta:
-                await _increment_lifetime_unlock(user_id, conv_meta["level"], db)
+            conv_level = conv_meta.get("level", "beginner") if conv_meta else "beginner"
+
+        await _increment_lifetime_unlock(user_id, conv_level, db)
 
     # Grade answers
     gap_definitions = gaps_doc["gap_definitions"]  # Use gap_definitions field
