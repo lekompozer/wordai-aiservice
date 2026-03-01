@@ -655,7 +655,7 @@ async def practice_check_sentence(
             )
 
             def _call_gemini():
-                _model = genai_mod.GenerativeModel("gemini-1.5-flash")
+                _model = genai_mod.GenerativeModel("gemini-2.5-flash")
                 response = _model.generate_content(
                     [
                         {"mime_type": audio_mime_type, "data": audio_bytes},
@@ -1015,8 +1015,9 @@ async def track_audio_play(
 ):
     """
     Track that a user played audio for a conversation.
-    For free users: consumes 1 daily interaction slot (shared with gap-fill submits).
-    No-op for premium users or already-attempted conversations.
+    For free users:
+    - First time playing a NEW conversation: checks daily + lifetime limits, increments both counters
+    - Replaying same conversation: FREE (unlimited replays of unlocked conversations)
     """
     user_id = current_user["uid"]
     is_premium = await check_user_premium(user_id, db)
@@ -1024,19 +1025,15 @@ async def track_audio_play(
     if is_premium:
         return {"ok": True, "premium": True}
 
-    # If user already has a progress record, replay is free (already unlocked)
+    # CRITICAL: If user already has a progress record, conversation is UNLOCKED → replay is FREE
+    # This allows unlimited play/submit of same conversation after first unlock
     has_prior = db["user_conversation_progress"].find_one(
         {"user_id": user_id, "conversation_id": conversation_id}
     )
     if has_prior:
         return {"ok": True, "already_unlocked": True}
 
-    # If already played this conversation today, replay is free (slot already consumed)
-    already_today = await is_conversation_accessed_today(user_id, conversation_id, db)
-    if already_today:
-        return {"ok": True, "already_accessed_today": True}
-
-    # New conversation — check daily limit
+    # New conversation — check daily limit (3 unique conversations/day)
     limit_info = await check_daily_limit(user_id, db)
     if limit_info["remaining_free"] == 0:
         raise HTTPException(
@@ -1048,7 +1045,7 @@ async def track_audio_play(
             },
         )
 
-    # Check lifetime limit for this level
+    # Check lifetime limit for this level (15 beginner, 5 intermediate, 5 advanced)
     conv_meta = db["conversation_library"].find_one(
         {"conversation_id": conversation_id}, {"level": 1}
     )
@@ -1064,6 +1061,30 @@ async def track_audio_play(
 
     # Increment daily counter (shared pool with submit)
     await increment_daily_submit(user_id, db, conversation_id=conversation_id)
+
+    # CRITICAL: Increment lifetime counter when unlocking NEW conversation
+    await _increment_lifetime_unlock(user_id, level, db)
+
+    # Create progress record to mark conversation as UNLOCKED
+    # This prevents double-counting when user submits later
+    db["user_conversation_progress"].update_one(
+        {"user_id": user_id, "conversation_id": conversation_id},
+        {
+            "$setOnInsert": {
+                "user_id": user_id,
+                "conversation_id": conversation_id,
+                "first_attempt_at": datetime.utcnow(),
+                "created_at": datetime.utcnow(),
+                "total_attempts": 0,
+                "total_time_spent": 0,
+            },
+            "$set": {
+                "updated_at": datetime.utcnow(),
+            },
+        },
+        upsert=True,
+    )
+
     new_remaining = limit_info["remaining_free"] - 1
     return {"ok": True, "remaining_today": new_remaining}
 
@@ -1263,6 +1284,8 @@ async def submit_gap_exercise(
             {"user_id": user_id, "conversation_id": conversation_id}
         )
 
+        # CRITICAL: Check lifetime limit for NEW conversations (no progress record yet)
+        # If progress record exists, conversation was already unlocked (by play or previous submit) → no need to check/increment
         if not has_prior_progress:
             # Get conversation level once
             conv_meta = db["conversation_library"].find_one(
@@ -1270,15 +1293,12 @@ async def submit_gap_exercise(
             )
             conv_level = conv_meta.get("level", "beginner") if conv_meta else "beginner"
 
-            already_today_check = await is_conversation_accessed_today(
-                user_id, conversation_id, db
-            )
-            if not already_today_check:
-                if not await _can_unlock(user_id, conv_level, db):
-                    raise HTTPException(
-                        status_code=403,
-                        detail=f"Lifetime limit reached for {conv_level} conversations. Upgrade to Premium for unlimited access.",
-                    )
+            # ALWAYS check lifetime limit for new conversations
+            if not await _can_unlock(user_id, conv_level, db):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Lifetime limit reached for {conv_level} conversations. Upgrade to Premium for unlimited access.",
+                )
 
     # Increment daily submit count (free users only)
     await increment_daily_submit(user_id, db, conversation_id=conversation_id)
