@@ -15,7 +15,7 @@ Endpoints covered:
 """
 
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime
 from enum import Enum
 
@@ -51,7 +51,7 @@ class BookPage(BaseModel):
     image_width: Optional[int] = Field(None, description="Image width in px")
     image_height: Optional[int] = Field(None, description="Image height in px")
     has_audio: bool = Field(default=False, description="Whether native audio exists")
-    letsread_page_id: Optional[str] = Field(None, description="Native LetsRead page ID")
+    letsread_page_id: Optional[Union[str, int]] = Field(None, description="Native LetsRead page ID")
 
     class Config:
         from_attributes = True
