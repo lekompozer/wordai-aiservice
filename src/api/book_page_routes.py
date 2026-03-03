@@ -40,6 +40,8 @@ from src.models.book_page_models import (
     AudioJobStatus,
     AudioJobStatusResponse,
     BookAudioResponse,
+    BookAudioAllResponse,
+    BookAudioLanguageEntry,
     PageTimestamp,
     DeleteAudioResponse,
     TranslateRequest,
@@ -494,8 +496,8 @@ async def get_audio_job_status(
 
 @router.get(
     "/audio",
-    response_model=BookAudioResponse,
-    summary="Get audio URL + page timestamps for frontend playback",
+    response_model=BookAudioAllResponse,
+    summary="Get audio URLs + timestamps for ALL languages",
 )
 async def get_book_audio(
     book_id: str,
@@ -503,120 +505,99 @@ async def get_book_audio(
         default=None,
         description="Voice name. Defaults to book's assigned voice.",
     ),
-    language: str = Query(default="en"),
-    include_pages: bool = Query(
-        default=False,
-        description="Include full pages list in response",
-    ),
-) -> BookAudioResponse:
+) -> BookAudioAllResponse:
     """
     **Primary endpoint for frontend book-reader audio playback.**
 
-    Returns:
-    - `audio_url` — CDN URL for the merged WAV file
-    - `page_timestamps` — list of `{page_number, start_time, end_time}` for sync
-    - `total_duration_seconds`
+    Returns audio data for **all available languages** (en, vi, …) in one call.
 
-    The frontend uses `page_timestamps` to show the correct page image/text
-    as the audio plays (no extra API calls during playback).
+    Response shape:
+    ```json
+    {
+      "book_id": "...",
+      "voice": "Algenib",
+      "languages": {
+        "en": { "status": "completed", "audio_url": "...", "page_timestamps": [...] },
+        "vi": { "status": "completed", "audio_url": "...", "page_timestamps": [...] }
+      }
+    }
+    ```
 
-    If `voice` is omitted, the book's default deterministic voice is used.
+    If `voice` is omitted, the book's deterministic default voice is used.
 
     **Authentication:** Not required (public)
     """
     book_id = _resolve_book_id(book_id)
     svc = get_book_page_audio_service()
 
-    if not voice:
-        voice = svc.get_default_voice(book_id)
-    else:
-        voice = voice.capitalize()
+    # resolve_voice handles None / "auto" / "Auto" → deterministic default
+    voice = svc.resolve_voice(book_id, voice or "auto")
 
-    doc = db.book_page_audio.find_one(
-        {
-            "book_id": book_id,
-            "voice_name": voice,
-            "language": language,
-            "status": "completed",
-        },
-        sort=[("version", -1)],
+    # Find all completed docs for this book × voice (any language)
+    completed_docs = list(
+        db.book_page_audio.find(
+            {"book_id": book_id, "voice_name": voice, "status": "completed"},
+            sort=[("language", 1), ("version", -1)],
+        )
     )
 
-    if not doc:
-        # Check if there's a pending/processing job
-        pending = db.book_page_audio.find_one(
+    # Dedupe: keep only the latest version per language
+    best: Dict[str, Any] = {}
+    for doc in completed_docs:
+        lang = doc.get("language", "en")
+        if lang not in best:  # already sorted by version desc
+            best[lang] = doc
+
+    # Also find any pending/processing languages not yet completed
+    processing_docs = list(
+        db.book_page_audio.find(
             {
                 "book_id": book_id,
                 "voice_name": voice,
-                "language": language,
                 "status": {"$in": ["pending", "processing"]},
-            },
-            sort=[("version", -1)],
+            }
         )
-        if pending:
-            return BookAudioResponse(
-                book_id=book_id,
-                voice=voice,
-                version=pending.get("version", 1),
+    )
+    pending_langs: set = {d.get("language", "en") for d in processing_docs}
+
+    # Build per-language entries
+    languages: Dict[str, BookAudioLanguageEntry] = {}
+
+    for lang, doc in best.items():
+        timestamps = [
+            PageTimestamp(
+                page_number=ts["page_number"],
+                start_time=ts["start_time"],
+                end_time=ts["end_time"],
+                duration=ts["duration"],
+            )
+            for ts in (doc.get("page_timestamps") or [])
+        ]
+        audio_meta = doc.get("audio_metadata") or {}
+        generated_at = doc.get("completed_at") or doc.get("created_at")
+        languages[lang] = BookAudioLanguageEntry(
+            status=AudioJobStatus.COMPLETED,
+            audio_url=doc.get("audio_url"),
+            total_duration_seconds=doc.get("total_duration_seconds"),
+            total_pages=doc.get("total_pages"),
+            page_timestamps=timestamps,
+            generated_at=generated_at.isoformat() if generated_at else None,
+            model=audio_meta.get("model"),
+            version=doc.get("version", 1),
+        )
+
+    # Add processing languages (not yet completed)
+    for lang in pending_langs:
+        if lang not in languages:
+            languages[lang] = BookAudioLanguageEntry(
                 status=AudioJobStatus.PROCESSING,
+                version=1,
             )
 
-        return BookAudioResponse(
-            book_id=book_id,
-            voice=voice,
-            version=0,
-            status=AudioJobStatus.PENDING,
-        )
-
-    timestamps = [
-        PageTimestamp(
-            page_number=ts["page_number"],
-            start_time=ts["start_time"],
-            end_time=ts["end_time"],
-            duration=ts["duration"],
-        )
-        for ts in (doc.get("page_timestamps") or [])
-    ]
-
-    pages_data = None
-    if include_pages:
-        pages_cursor = db.book_page_texts.find(
-            {"book_id": book_id, "language": language}
-        ).sort("page_number", 1)
-        pages_data = []
-        for p in pages_cursor:
-            if STORY_END_MARKER in (p.get("text_content") or ""):
-                break
-            pages_data.append(
-                BookPage(
-                    page_number=p["page_number"],
-                    text_content=p.get("text_content") or "",
-                    image_url=p.get("image_url") or "",
-                    image_url_cdn=p.get("image_url_cdn"),
-                    image_url_hires=p.get("image_url_hires"),
-                    image_name=p.get("image_name"),
-                    image_width=p.get("image_width"),
-                    image_height=p.get("image_height"),
-                    has_audio=p.get("has_audio", False),
-                    letsread_page_id=p.get("letsread_page_id"),
-                )
-            )
-
-    audio_meta = doc.get("audio_metadata") or {}
-    generated_at = doc.get("completed_at") or doc.get("created_at")
-
-    return BookAudioResponse(
+    return BookAudioAllResponse(
         book_id=book_id,
         voice=voice,
-        version=doc.get("version", 1),
-        status=AudioJobStatus.COMPLETED,
-        audio_url=doc.get("audio_url"),
-        total_duration_seconds=doc.get("total_duration_seconds"),
-        total_pages=doc.get("total_pages"),
-        page_timestamps=timestamps,
-        pages=pages_data,
-        generated_at=generated_at.isoformat() if generated_at else None,
-        model=audio_meta.get("model"),
+        languages=languages,
     )
 
 

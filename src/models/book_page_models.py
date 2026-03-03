@@ -203,6 +203,31 @@ class BookAudioResponse(BaseModel):
     model: Optional[str] = None
 
 
+class BookAudioLanguageEntry(BaseModel):
+    """Audio data for a single language."""
+
+    status: AudioJobStatus
+    audio_url: Optional[str] = None
+    total_duration_seconds: Optional[float] = None
+    total_pages: Optional[int] = None
+    page_timestamps: List[PageTimestamp] = Field(default_factory=list)
+    generated_at: Optional[str] = None
+    model: Optional[str] = None
+    version: int = 0
+
+
+class BookAudioAllResponse(BaseModel):
+    """
+    Response from GET /books/{book_id}/audio
+    Returns audio for ALL available languages at once.
+    """
+
+    book_id: str
+    voice: str
+    # Key = language code ("en", "vi", ...)
+    languages: Dict[str, BookAudioLanguageEntry] = Field(default_factory=dict)
+
+
 class DeleteAudioResponse(BaseModel):
     """Response from DELETE /books/{book_id}/audio/{voice}"""
 
