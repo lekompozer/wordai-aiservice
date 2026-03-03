@@ -487,8 +487,15 @@ async def list_my_purchases(
                 elif purchase["purchase_type"] == PurchaseType.ONE_TIME.value:
                     # Check expiry
                     expires_at = purchase.get("access_expires_at")
-                    if expires_at and expires_at > now:
-                        access_status = "active"
+                    if expires_at:
+                        # Normalize to timezone-aware (pymongo returns naive UTC datetimes)
+                        if expires_at.tzinfo is None:
+                            from datetime import timezone as _tz
+                            expires_at = expires_at.replace(tzinfo=_tz.utc)
+                        if expires_at > now:
+                            access_status = "active"
+                        else:
+                            access_status = "expired"
                     else:
                         access_status = "expired"
                 else:
