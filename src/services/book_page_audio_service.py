@@ -15,13 +15,20 @@ Key differences from slide narration:
 import asyncio
 import hashlib
 import io
+import json
 import logging
+import os
+import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+import httpx
 from bson import ObjectId
 
 logger = logging.getLogger("chatbot")
+
+# DeepSeek batch size for translation (pages per API call)
+_TRANSLATE_BATCH_SIZE = 20
 
 # BCP-47 language code map (same as slide_narration_service)
 BCP47_MAP = {
@@ -103,10 +110,152 @@ class BookPageAudioService:
         ).sort("page_number", 1)
         return list(cursor)
 
-    def _next_version(self, db, book_id: str, voice_name: str) -> int:
-        """Return next version number for this book × voice combination."""
+    # ------------------------------------------------------------------
+    # Translation helpers (EN → VI via DeepSeek)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _strip_html(text: str) -> str:
+        """Remove HTML tags for TTS — TTS doesn't need markup."""
+        text = re.sub(r"<br\s*/?>", " ", text, flags=re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", "", text)
+        return text.strip()
+
+    async def _translate_batch_deepseek(
+        self, texts: List[str], source: str = "en", target: str = "vi"
+    ) -> List[str]:
+        """
+        Batch translate texts via DeepSeek API.
+        Texts are sent as a numbered list; returns same-length list.
+        """
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not set in environment")
+
+        lang_names = {"vi": "Vietnamese", "en": "English"}
+        target_name = lang_names.get(target, target)
+
+        numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(texts))
+        prompt = (
+            f"Translate each item from English to {target_name}. "
+            "This is a children's storybook — keep the tone natural and age-appropriate. "
+            "Preserve all HTML tags (<b>, <i>, <br/>) exactly as-is. "
+            'Return a JSON object with key "items" containing an array of translated '
+            "strings in the SAME ORDER as the input. No extra commentary.\n\n"
+            f"{numbered}"
+        )
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.1,
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+
+        data = json.loads(content)
+        # Unwrap: expect {"items": [...]}
+        items = data.get("items") or data.get("translations") or data.get("results")
+        if isinstance(items, list) and len(items) == len(texts):
+            return items
+        # Fallback: try to find any list key with correct length
+        for val in data.values():
+            if isinstance(val, list) and len(val) == len(texts):
+                return val
+        raise ValueError(
+            f"Translation response has unexpected structure or length: {list(data.keys())}"
+        )
+
+    async def translate_pages_to_vi(
+        self, book_id: str, force: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Translate EN pages to VI using DeepSeek and save to book_page_texts.
+        Skips if VI pages already exist (unless force=True).
+
+        Returns dict with {saved, skipped, total}.
+        """
+        db = self._get_db()
+
+        # Check if VI pages already exist
+        existing_vi = db.book_page_texts.count_documents(
+            {"book_id": book_id, "language": "vi"}
+        )
+        if existing_vi > 0 and not force:
+            logger.info(
+                f"⏭️  VI pages already exist for book={book_id} ({existing_vi} pages), skipping"
+            )
+            return {"saved": 0, "skipped": existing_vi, "total": existing_vi}
+
+        # Load EN pages as source
+        en_pages = self._load_pages(db, book_id, language="en")
+        if not en_pages:
+            raise ValueError(f"No EN pages found for book_id={book_id}")
+
+        logger.info(
+            f"🌐 Translating {len(en_pages)} pages EN→VI for book={book_id} via DeepSeek"
+        )
+
+        # Extract texts for translation (strip HTML for clean input; preserve original HTML)
+        page_texts = [p.get("text_content") or "" for p in en_pages]
+
+        # Translate in batches
+        translated_texts: List[str] = []
+        for i in range(0, len(page_texts), _TRANSLATE_BATCH_SIZE):
+            batch = page_texts[i : i + _TRANSLATE_BATCH_SIZE]
+            logger.info(
+                f"  Batch {i // _TRANSLATE_BATCH_SIZE + 1}: translating pages "
+                f"{i + 1}–{min(i + _TRANSLATE_BATCH_SIZE, len(page_texts))}"
+            )
+            translated = await self._translate_batch_deepseek(batch)
+            translated_texts.extend(translated)
+
+        # Save VI pages (same image data as EN, different text)
+        if force and existing_vi > 0:
+            db.book_page_texts.delete_many({"book_id": book_id, "language": "vi"})
+
+        saved = 0
+        for page, vi_text in zip(en_pages, translated_texts):
+            vi_doc = {
+                **{k: v for k, v in page.items() if k != "_id"},
+                "language": "vi",
+                "text_content": vi_text,
+                "source_language": "en",
+                "translated_by": "deepseek-chat",
+                "translated_at": datetime.utcnow(),
+            }
+            db.book_page_texts.insert_one(vi_doc)
+            saved += 1
+
+        logger.info(f"✅ Saved {saved} VI pages for book={book_id}")
+        return {"saved": saved, "skipped": 0, "total": saved}
+
+    async def ensure_vi_pages(self, book_id: str) -> int:
+        """Translate EN→VI if VI pages are missing. Returns page count."""
+        db = self._get_db()
+        count = db.book_page_texts.count_documents(
+            {"book_id": book_id, "language": "vi"}
+        )
+        if count > 0:
+            return count
+        result = await self.translate_pages_to_vi(book_id)
+        return result["saved"]
+
+    def _next_version(
+        self, db, book_id: str, voice_name: str, language: str = "en"
+    ) -> int:
+        """Return next version number for this book × voice × language combination."""
         latest = db.book_page_audio.find_one(
-            {"book_id": book_id, "voice_name": voice_name},
+            {"book_id": book_id, "voice_name": voice_name, "language": language},
             sort=[("version", -1)],
         )
         return (latest["version"] + 1) if latest else 1
@@ -154,11 +303,18 @@ class BookPageAudioService:
             doc["_id"] = str(doc["_id"])
         return doc
 
-    def get_latest_audio(self, book_id: str, voice_name: str) -> Optional[Dict]:
-        """Return the latest completed audio record for book × voice."""
+    def get_latest_audio(
+        self, book_id: str, voice_name: str, language: str = "en"
+    ) -> Optional[Dict]:
+        """Return the latest completed audio record for book × voice × language."""
         db = self._get_db()
         doc = db.book_page_audio.find_one(
-            {"book_id": book_id, "voice_name": voice_name, "status": "completed"},
+            {
+                "book_id": book_id,
+                "voice_name": voice_name,
+                "language": language,
+                "status": "completed",
+            },
             sort=[("version", -1)],
         )
         if doc:
@@ -180,11 +336,19 @@ class BookPageAudioService:
         """
         Convenience wrapper: create job record + start generation.
 
+        For language="vi": auto-translates EN pages via DeepSeek if VI pages
+        don't exist yet.
+
         Returns:
             job_id (str) — can be polled via GET /audio/generate/status/{job_id}
         """
         db = self._get_db()
         voice_name = self.resolve_voice(book_id, voice)
+
+        # Auto-translate EN→VI if needed
+        if language == "vi":
+            await self.ensure_vi_pages(book_id)
+
         total_pages = db.book_page_texts.count_documents(
             {"book_id": book_id, "language": language}
         )
@@ -193,10 +357,10 @@ class BookPageAudioService:
                 f"No pages found for book_id={book_id} language={language}. "
                 "Run the letsread_page_crawler first."
             )
-        version = self._next_version(db, book_id, voice_name)
+        version = self._next_version(db, book_id, voice_name, language)
         if force_regenerate:
             db.book_page_audio.delete_many(
-                {"book_id": book_id, "voice_name": voice_name}
+                {"book_id": book_id, "voice_name": voice_name, "language": language}
             )
             version = 1
         job_id = self.create_job_record(
@@ -355,7 +519,7 @@ class BookPageAudioService:
                     raise ValueError(f"Chunk {chunk_idx + 1} TTS failed")
 
                 # Upload chunk to R2
-                chunk_filename = f"book-audio/{book_id}/{voice_name}/v{version}/chunk_{chunk_idx}.wav"
+                chunk_filename = f"book-audio/{book_id}/{voice_name}/{language}/v{version}/chunk_{chunk_idx}.wav"
                 upload_result = await r2_service.upload_file(
                     file_content=audio_data,
                     r2_key=chunk_filename,
@@ -404,6 +568,7 @@ class BookPageAudioService:
                     chunk_audio_docs=chunk_audio_docs,
                     book_id=book_id,
                     voice_name=voice_name,
+                    language=language,
                     version=version,
                     r2_service=r2_service,
                 )
@@ -533,6 +698,7 @@ async def _merge_or_single(
     chunk_audio_docs: List[Dict],
     book_id: str,
     voice_name: str,
+    language: str,
     version: int,
     r2_service,
 ) -> Tuple[str, float, List[Dict], str]:
@@ -597,7 +763,7 @@ async def _merge_or_single(
     combined.export(buf, format="wav")
     merged_bytes = buf.getvalue()
 
-    merged_key = f"book-audio/{book_id}/{voice_name}/v{version}/merged.wav"
+    merged_key = f"book-audio/{book_id}/{voice_name}/{language}/v{version}/merged.wav"
     upload_result = await r2_service.upload_file(
         file_content=merged_bytes,
         r2_key=merged_key,

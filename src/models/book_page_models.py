@@ -3,14 +3,15 @@ Pydantic models for Book Page Text & Audio API
 
 Collections:
   book_page_texts  — per-page text + image data (crawled from LetsRead)
-  book_page_audio  — generated TTS audio (per book × voice)
+  book_page_audio  — generated TTS audio (per book × voice × language)
 
 Endpoints covered:
   POST   /api/v1/books/{book_id}/pages/batch           → BatchSavePagesRequest
   GET    /api/v1/books/{book_id}/pages                 → BookPagesResponse
+  POST   /api/v1/books/{book_id}/pages/translate       → TranslateRequest / TranslateResponse
   POST   /api/v1/books/{book_id}/audio/generate        → AudioGenerateRequest
   GET    /api/v1/books/{book_id}/audio/generate/status/{job_id}
-  GET    /api/v1/books/{book_id}/audio?voice=aoede     → BookAudioResponse
+  GET    /api/v1/books/{book_id}/audio?voice=aoede&language=en  → BookAudioResponse
   DELETE /api/v1/books/{book_id}/audio/{voice}
 """
 
@@ -51,7 +52,9 @@ class BookPage(BaseModel):
     image_width: Optional[int] = Field(None, description="Image width in px")
     image_height: Optional[int] = Field(None, description="Image height in px")
     has_audio: bool = Field(default=False, description="Whether native audio exists")
-    letsread_page_id: Optional[Union[str, int]] = Field(None, description="Native LetsRead page ID")
+    letsread_page_id: Optional[Union[str, int]] = Field(
+        None, description="Native LetsRead page ID"
+    )
 
     class Config:
         from_attributes = True
@@ -206,4 +209,35 @@ class DeleteAudioResponse(BaseModel):
     book_id: str
     voice: str
     deleted: bool
+    message: str
+
+
+# ---------------------------------------------------------------------------
+# Translation models
+# ---------------------------------------------------------------------------
+
+
+class TranslateRequest(BaseModel):
+    """Request body for POST /books/{book_id}/pages/translate"""
+
+    target_language: str = Field(
+        default="vi", description="Target language code (currently supports: 'vi')"
+    )
+    force: bool = Field(
+        default=False,
+        description="Re-translate even if target-language pages already exist",
+    )
+
+
+class TranslateResponse(BaseModel):
+    """Response from POST /books/{book_id}/pages/translate"""
+
+    book_id: str
+    source_language: str = "en"
+    target_language: str
+    saved: int = Field(..., description="Number of pages translated and saved")
+    skipped: int = Field(..., description="Pages skipped (already translated)")
+    total: int = Field(
+        ..., description="Total pages in target language after operation"
+    )
     message: str

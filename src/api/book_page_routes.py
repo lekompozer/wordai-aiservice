@@ -42,6 +42,8 @@ from src.models.book_page_models import (
     BookAudioResponse,
     PageTimestamp,
     DeleteAudioResponse,
+    TranslateRequest,
+    TranslateResponse,
 )
 from src.services.book_page_audio_service import (
     BookPageAudioService,
@@ -215,6 +217,64 @@ async def get_book_pages(
 
 
 # ---------------------------------------------------------------------------
+# 2b. POST /pages/translate — translate EN pages to another language (admin)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/pages/translate",
+    response_model=TranslateResponse,
+    summary="Translate EN pages to another language via DeepSeek (admin)",
+)
+async def translate_book_pages(
+    book_id: str,
+    body: TranslateRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+) -> TranslateResponse:
+    """
+    **Translate all EN pages to the target language using DeepSeek.**
+
+    Currently supports: `"vi"` (Vietnamese).
+
+    The translated pages are saved to `book_page_texts` with the target
+    language code. Image data is inherited from the EN pages.
+
+    Set `force=true` to re-translate even if target-language pages exist.
+
+    **Authentication:** Required
+    """
+    _require_valid_book(book_id)
+
+    if body.target_language not in ("vi",):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported target_language '{body.target_language}'. Supported: vi",
+        )
+
+    svc = get_book_page_audio_service()
+    try:
+        result = await svc.translate_pages_to_vi(book_id=book_id, force=body.force)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Translation failed: {e}")
+
+    return TranslateResponse(
+        book_id=book_id,
+        source_language="en",
+        target_language=body.target_language,
+        saved=result["saved"],
+        skipped=result["skipped"],
+        total=result["total"],
+        message=(
+            f"Translated {result['saved']} pages EN→{body.target_language}"
+            if result["saved"] > 0
+            else f"{result['skipped']} pages already translated (use force=true to redo)"
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
 # 3. POST /audio/generate — start async audio generation
 # ---------------------------------------------------------------------------
 
@@ -247,6 +307,16 @@ async def generate_book_audio(
     """
     _require_valid_book(book_id)
 
+    svc = get_book_page_audio_service()
+    voice_name = svc.resolve_voice(book_id, body.voice)
+
+    # For Vietnamese: auto-translate if VI pages don't exist yet
+    if body.language == "vi":
+        try:
+            await svc.ensure_vi_pages(book_id)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"VI translation failed: {e}")
+
     # Count pages
     total_pages = db.book_page_texts.count_documents(
         {"book_id": book_id, "language": body.language}
@@ -260,14 +330,13 @@ async def generate_book_audio(
             ),
         )
 
-    svc = get_book_page_audio_service()
-    voice_name = svc.resolve_voice(book_id, body.voice)
-
     # Create pending job record immediately so we can return job_id
-    version = svc._next_version(db, book_id, voice_name)
+    version = svc._next_version(db, book_id, voice_name, body.language)
     if body.force_regenerate:
-        # Delete existing records for this voice before creating new job
-        db.book_page_audio.delete_many({"book_id": book_id, "voice_name": voice_name})
+        # Delete existing records for this voice + language before creating new job
+        db.book_page_audio.delete_many(
+            {"book_id": book_id, "voice_name": voice_name, "language": body.language}
+        )
         version = 1
 
     job_id = svc.create_job_record(
@@ -403,7 +472,12 @@ async def get_book_audio(
         voice = voice.capitalize()
 
     doc = db.book_page_audio.find_one(
-        {"book_id": book_id, "voice_name": voice, "status": "completed"},
+        {
+            "book_id": book_id,
+            "voice_name": voice,
+            "language": language,
+            "status": "completed",
+        },
         sort=[("version", -1)],
     )
 
@@ -413,6 +487,7 @@ async def get_book_audio(
             {
                 "book_id": book_id,
                 "voice_name": voice,
+                "language": language,
                 "status": {"$in": ["pending", "processing"]},
             },
             sort=[("version", -1)],
