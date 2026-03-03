@@ -243,6 +243,9 @@ from src.api.book_marketplace_routes import router as book_marketplace_router
 # ✅ NEW: Book Combo API - Group multiple books into purchasable bundles
 from src.api.book_combo_routes import router as book_combo_router
 
+# ✅ NEW: Desktop App License API - Individual + Enterprise licensing with Security & Customization
+from src.api.desktop_license_routes import router as desktop_license_router
+
 # ✅ ADDED: Book Advanced API - Translation & Duplication features
 from src.api.book_advanced_routes import router as book_advanced_router
 
@@ -1237,6 +1240,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_combo_router,
         tags=["Book Combos"],
+    )
+
+    # ✅ NEW: Desktop App License API - Individual + Enterprise (with user mgmt & customization)
+    app.include_router(
+        desktop_license_router,
+        tags=["Desktop License"],
     )
 
     # ✅ NEW: Book Chapter Management API - Chapter CRUD, reordering, bulk updates
