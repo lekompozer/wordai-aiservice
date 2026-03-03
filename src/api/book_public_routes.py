@@ -1000,6 +1000,9 @@ def _build_book_preview_response(
     community_config = book.get("community_config", {})
     return BookPreviewResponse(
         book_id=book["book_id"],
+        mongo_id=str(
+            book["_id"]
+        ),  # ✅ MongoDB _id — use for /audio and /pages endpoints
         title=book_title,
         slug=book["slug"],  # ✅ SLUG INCLUDED
         description=book_description,

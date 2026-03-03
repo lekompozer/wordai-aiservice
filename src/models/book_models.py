@@ -741,6 +741,10 @@ class BookPreviewResponse(BaseModel):
 
     # Basic info
     book_id: str
+    mongo_id: Optional[str] = Field(
+        None,
+        description="MongoDB _id (ObjectId as string). Use this as {book_id} in /api/v1/books/{book_id}/audio and /pages endpoints.",
+    )
     title: str
     slug: str
     description: Optional[str] = None

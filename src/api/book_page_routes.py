@@ -68,8 +68,34 @@ db = db_manager.db
 # ---------------------------------------------------------------------------
 
 
+def _resolve_book_id(book_id: str) -> str:
+    """
+    Resolve book_id to its MongoDB _id string.
+
+    Accepts either:
+      - MongoDB ObjectId string  (e.g. "69a574023e71c1cffad9fd99")
+      - Short book_id field      (e.g. "book_8797a3bf9d33")
+
+    Returns the ObjectId string, or raises 404 if not found.
+    """
+    # Try ObjectId first (24-char hex)
+    try:
+        doc = db.online_books.find_one({"_id": ObjectId(book_id)}, {"_id": 1})
+        if doc:
+            return str(doc["_id"])
+    except Exception:
+        pass
+
+    # Fall back to book_id field lookup (short format like "book_XXXX")
+    doc = db.online_books.find_one({"book_id": book_id}, {"_id": 1})
+    if doc:
+        return str(doc["_id"])
+
+    raise HTTPException(status_code=404, detail=f"Book not found: {book_id}")
+
+
 def _book_exists(book_id: str) -> bool:
-    """Check the book_id is a valid online_books document."""
+    """Check the book_id is a valid online_books document (ObjectId only)."""
     try:
         return db.online_books.find_one({"_id": ObjectId(book_id)}) is not None
     except Exception:
@@ -197,6 +223,7 @@ async def get_book_pages(
 
     **Authentication:** Not required (public)
     """
+    book_id = _resolve_book_id(book_id)
     cursor = db.book_page_texts.find({"book_id": book_id, "language": language}).sort(
         "page_number", 1
     )
@@ -497,6 +524,7 @@ async def get_book_audio(
 
     **Authentication:** Not required (public)
     """
+    book_id = _resolve_book_id(book_id)
     svc = get_book_page_audio_service()
 
     if not voice:
