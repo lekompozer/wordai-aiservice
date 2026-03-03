@@ -60,6 +60,10 @@ BCP47_MAP = {
 
 MAX_BYTES_PER_CHUNK = 3500  # Safe under Gemini TTS 4000-byte limit
 
+# Pages containing this string (and all pages after it) are post-story guides,
+# not part of the narrative — excluded from TTS audio and translation.
+STORY_END_MARKER = "Community Engagement Guide"
+
 
 class BookPageAudioService:
     """
@@ -196,13 +200,20 @@ class BookPageAudioService:
             )
             return {"saved": 0, "skipped": existing_vi, "total": existing_vi}
 
-        # Load EN pages as source
-        en_pages = self._load_pages(db, book_id, language="en")
-        if not en_pages:
+        # Load EN pages as source — story pages only (before Community Engagement Guide)
+        en_pages_all = self._load_pages(db, book_id, language="en")
+        if not en_pages_all:
             raise ValueError(f"No EN pages found for book_id={book_id}")
 
+        en_pages = []
+        for p in en_pages_all:
+            if STORY_END_MARKER in (p.get("text_content") or ""):
+                break
+            en_pages.append(p)
+
         logger.info(
-            f"🌐 Translating {len(en_pages)} pages EN→VI for book={book_id} via DeepSeek"
+            f"🌐 Translating {len(en_pages)}/{len(en_pages_all)} story pages "
+            f"EN→VI for book={book_id} via DeepSeek"
         )
 
         # Extract texts for translation (strip HTML for clean input; preserve original HTML)
@@ -430,6 +441,15 @@ class BookPageAudioService:
 
             for page in pages:
                 text = (page.get("text_content") or "").strip()
+
+                # Stop at the Community Engagement Guide (post-story section)
+                if STORY_END_MARKER in text:
+                    logger.info(
+                        f"  ⏹️  Page {page['page_number']}: hit story-end marker, "
+                        "stopping TTS here"
+                    )
+                    break
+
                 if not text:
                     logger.debug(f"  Page {page['page_number']}: empty text, skipping")
                     continue

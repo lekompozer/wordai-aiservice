@@ -48,6 +48,7 @@ from src.models.book_page_models import (
 from src.services.book_page_audio_service import (
     BookPageAudioService,
     get_book_page_audio_service,
+    STORY_END_MARKER,
 )
 
 logger = logging.getLogger("chatbot")
@@ -178,12 +179,21 @@ async def batch_save_pages(
 async def get_book_pages(
     book_id: str,
     language: str = Query(default="en", description="Language code"),
+    story_only: bool = Query(
+        default=False,
+        description=(
+            "If true, return only story pages (stop before "
+            "'Community Engagement Guide' and the last LetsRead promo page)"
+        ),
+    ),
 ) -> BookPagesResponse:
     """
-    **Return all story pages for a book.**
+    **Return all pages for a book.**
 
     Pages are sorted by `page_number` ascending.
-    Returns an empty list if no pages have been crawled yet.
+
+    Use `?story_only=true` for PDF export or clean reading view — this excludes
+    the post-story discussion guide and the last LetsRead promo page.
 
     **Authentication:** Not required (public)
     """
@@ -192,7 +202,30 @@ async def get_book_pages(
     )
 
     pages = []
-    for doc in cursor:
+    raw_docs = list(cursor)
+
+    # story_only: stop before the Community Engagement Guide,
+    # and exclude the very last page (LetsRead promo)
+    story_docs = []
+    for doc in raw_docs:
+        if STORY_END_MARKER in (doc.get("text_content") or ""):
+            break
+        story_docs.append(doc)
+    # Remove last page (LetsRead Asia promo) only when there are post-story pages
+    # i.e. we actually hit the marker above OR book has a known promo tail page
+    has_post_story = len(story_docs) < len(raw_docs)
+    if story_only and has_post_story and story_docs:
+        # The last story page is sometimes an outro — keep it; only the raw
+        # LetsRead promo page (raw_docs[-1] itself) was already excluded by
+        # the marker-break above, so just use story_docs as-is.
+        display_docs = story_docs
+    elif story_only:
+        # No post-story marker found; drop the last page (safety measure)
+        display_docs = raw_docs[:-1] if len(raw_docs) > 1 else raw_docs
+    else:
+        display_docs = raw_docs
+
+    for doc in display_docs:
         pages.append(
             BookPage(
                 page_number=doc["page_number"],
@@ -522,21 +555,24 @@ async def get_book_audio(
         pages_cursor = db.book_page_texts.find(
             {"book_id": book_id, "language": language}
         ).sort("page_number", 1)
-        pages_data = [
-            BookPage(
-                page_number=p["page_number"],
-                text_content=p.get("text_content") or "",
-                image_url=p.get("image_url") or "",
-                image_url_cdn=p.get("image_url_cdn"),
-                image_url_hires=p.get("image_url_hires"),
-                image_name=p.get("image_name"),
-                image_width=p.get("image_width"),
-                image_height=p.get("image_height"),
-                has_audio=p.get("has_audio", False),
-                letsread_page_id=p.get("letsread_page_id"),
+        pages_data = []
+        for p in pages_cursor:
+            if STORY_END_MARKER in (p.get("text_content") or ""):
+                break
+            pages_data.append(
+                BookPage(
+                    page_number=p["page_number"],
+                    text_content=p.get("text_content") or "",
+                    image_url=p.get("image_url") or "",
+                    image_url_cdn=p.get("image_url_cdn"),
+                    image_url_hires=p.get("image_url_hires"),
+                    image_name=p.get("image_name"),
+                    image_width=p.get("image_width"),
+                    image_height=p.get("image_height"),
+                    has_audio=p.get("has_audio", False),
+                    letsread_page_id=p.get("letsread_page_id"),
+                )
             )
-            for p in pages_cursor
-        ]
 
     audio_meta = doc.get("audio_metadata") or {}
     generated_at = doc.get("completed_at") or doc.get("created_at")
