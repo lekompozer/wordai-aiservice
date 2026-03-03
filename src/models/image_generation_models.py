@@ -14,12 +14,12 @@ from datetime import datetime
 class ImageGenerationMetadata(BaseModel):
     """Metadata stored with generated images in library_files"""
 
-    source: str = "gemini-3-pro-image-preview"
+    source: str = "gemini-3.1-flash-image-preview"
     generation_type: str  # photorealistic, stylized, logo, etc.
     prompt: str
     aspect_ratio: Optional[str] = None
     generation_time_ms: Optional[int] = None
-    model_version: str = "gemini-3-pro-image-preview"
+    model_version: str = "gemini-3.1-flash-image-preview"
     reference_images_count: int = 0
     user_options: dict = {}  # Stores lighting, camera_angle, style_preset, etc.
 

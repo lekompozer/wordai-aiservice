@@ -454,7 +454,7 @@ class TestGeneratorService:
                 response = await loop.run_in_executor(
                     None,
                     lambda: self.client.models.generate_content(
-                        model="gemini-3-pro-preview",
+                        model="gemini-3.1-pro-preview",
                         contents=contents,
                         config=types.GenerateContentConfig(
                             max_output_tokens=25000,
@@ -1187,7 +1187,7 @@ class TestGeneratorService:
                     response = await loop.run_in_executor(
                         None,
                         lambda: self.client.models.generate_content(
-                            model="gemini-3-pro-preview",
+                            model="gemini-3.1-pro-preview",
                             contents=contents,
                             config=types.GenerateContentConfig(
                                 max_output_tokens=25000,
@@ -2217,7 +2217,7 @@ Now, generate the mixed test based on the instructions and the document provided
                 response = await loop.run_in_executor(
                     None,
                     lambda: self.client.models.generate_content(
-                        model="gemini-3-pro-preview",
+                        model="gemini-3.1-pro-preview",
                         contents=contents,
                         config=types.GenerateContentConfig(
                             max_output_tokens=25000,
@@ -2351,7 +2351,7 @@ Now, generate the mixed test based on the instructions and the document provided
                 response = await loop.run_in_executor(
                     None,
                     lambda: self.client.models.generate_content(
-                        model="gemini-3-pro-preview",
+                        model="gemini-3.1-pro-preview",
                         contents=contents,
                         config=types.GenerateContentConfig(
                             max_output_tokens=25000,

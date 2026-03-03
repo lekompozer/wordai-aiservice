@@ -150,12 +150,12 @@ async def generate_photorealistic_image(
 
         # Create metadata
         metadata = ImageGenerationMetadata(
-            source="gemini-3-pro-image-preview",
+            source="gemini-3.1-flash-image-preview",
             generation_type="photorealistic",
             prompt=prompt,
             aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-3-pro-image-preview",
+            model_version="gemini-3.1-flash-image-preview",
             reference_images_count=0,
             user_options={
                 "lighting": lighting,
@@ -313,12 +313,12 @@ async def generate_stylized_image(
 
         # Create metadata
         metadata = ImageGenerationMetadata(
-            source="gemini-3-pro-image-preview",
+            source="gemini-3.1-flash-image-preview",
             generation_type="stylized",
             prompt=prompt,
             aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-3-pro-image-preview",
+            model_version="gemini-3.1-flash-image-preview",
             reference_images_count=result["reference_images_count"],
             user_options=user_options,
         )
@@ -478,12 +478,12 @@ async def generate_logo_image(
 
         # Create metadata
         metadata = ImageGenerationMetadata(
-            source="gemini-3-pro-image-preview",
+            source="gemini-3.1-flash-image-preview",
             generation_type="logo",
             prompt=prompt,
             aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-3-pro-image-preview",
+            model_version="gemini-3.1-flash-image-preview",
             reference_images_count=0,
             user_options=user_options,
         )

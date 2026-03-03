@@ -123,12 +123,12 @@ class AIChatService:
                 # Gemini Flash Image Preview
                 self.providers[AIProvider.GEMINI_FLASH_IMAGE] = genai_new
                 self.models[AIProvider.GEMINI_FLASH_IMAGE] = (
-                    "gemini-2.5-flash-image-preview"
+                    "gemini-3.1-flash-image-preview"
                 )
 
                 # Gemini Flash
                 self.providers[AIProvider.GEMINI_FLASH] = genai_new
-                self.models[AIProvider.GEMINI_FLASH] = "gemini-2.5-flash"
+                self.models[AIProvider.GEMINI_FLASH] = "gemini-3-flash-preview"
 
                 # Gemini Pro
                 self.providers[AIProvider.GEMINI_PRO] = genai_new

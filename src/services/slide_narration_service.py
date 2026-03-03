@@ -42,7 +42,7 @@ class SlideNarrationService:
     def __init__(self):
         """Initialize service"""
         self.gemini_client = gemini_client
-        self.gemini_model = "gemini-3-pro-preview"
+        self.gemini_model = "gemini-3.1-pro-preview"
 
         # Initialize R2 and library services (same as listening test)
         from src.services.r2_storage_service import get_r2_service

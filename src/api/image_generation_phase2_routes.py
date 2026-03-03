@@ -103,12 +103,12 @@ async def generate_background_image(
         )
 
         metadata = ImageGenerationMetadata(
-            source="gemini-3-pro-image-preview",
+            source="gemini-3.1-flash-image-preview",
             generation_type="background",
             prompt=theme,
             aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-3-pro-image-preview",
+            model_version="gemini-3.1-flash-image-preview",
             reference_images_count=0,
             user_options=user_options,
         )
@@ -216,12 +216,12 @@ async def generate_mockup_image(
         )
 
         metadata = ImageGenerationMetadata(
-            source="gemini-3-pro-image-preview",
+            source="gemini-3.1-flash-image-preview",
             generation_type="mockup",
             prompt=scene_description,
             aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-3-pro-image-preview",
+            model_version="gemini-3.1-flash-image-preview",
             reference_images_count=0,
             user_options=user_options,
         )
@@ -331,12 +331,12 @@ async def generate_sequential_image(
         )
 
         metadata = ImageGenerationMetadata(
-            source="gemini-3-pro-image-preview",
+            source="gemini-3.1-flash-image-preview",
             generation_type="sequential",
             prompt=story_script,
             aspect_ratio=aspect_ratio,
             generation_time_ms=result["generation_time_ms"],
-            model_version="gemini-3-pro-image-preview",
+            model_version="gemini-3.1-flash-image-preview",
             reference_images_count=0,
             user_options=user_options,
         )

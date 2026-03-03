@@ -22,7 +22,7 @@ class VertexAIService:
 
         # Model configurations
         self.claude_model_name = "claude-sonnet-4-5@20250929"
-        self.gemini_model_name = "gemini-3-pro-preview"
+        self.gemini_model_name = "gemini-3.1-pro-preview"
 
         # Initialize clients
         self._init_claude_client()

@@ -47,13 +47,13 @@ async def generate_test_cover_ai(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    **Generate online test cover image using Gemini 3 Pro Image (gemini-3-pro-image-preview)**
+    **Generate online test cover image using Gemini 3 Pro Image (gemini-3.1-flash-image-preview)**
 
     Generates a professional test cover with title rendered on the cover.
     Uses Google's state-of-the-art image generation model optimized for text rendering.
 
     **Features:**
-    - Uses Gemini 3 Pro Image model (gemini-3-pro-image-preview)
+    - Uses Gemini 3 Pro Image model (gemini-3.1-flash-image-preview)
     - Advanced text rendering: Title clearly visible on cover
     - Wide format output: 16:9 aspect ratio (landscape orientation)
     - Perfect for online tests and exams
@@ -92,7 +92,7 @@ async def generate_test_cover_ai(
     - `prompt_used`: Full prompt sent to Gemini
     - `title`: Test title
     - `aspect_ratio`: "16:9"
-    - `model`: "gemini-3-pro-image-preview"
+    - `model`: "gemini-3.1-flash-image-preview"
     - `generation_time_ms`: Time taken in milliseconds
     - `file_id`: Library file ID
     - `file_url`: Direct download URL

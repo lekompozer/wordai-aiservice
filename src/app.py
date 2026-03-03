@@ -252,6 +252,9 @@ from src.api.translation_job_routes import router as translation_job_router
 # ✅ ADDED: Book Chapter Audio API - Audio narration for chapters (upload, TTS, multi-language)
 from src.api.book_chapter_audio_routes import router as book_chapter_audio_router
 
+# ✅ ADDED: Book Page Text & Audio API - LetsRead per-page text + TTS audio (reader sync)
+from src.api.book_page_routes import router as book_page_router
+
 # ✅ ADDED: Standalone Audio API - Voices and preview endpoints (not tied to book/chapter)
 from src.api.audio_routes import router as audio_router
 
@@ -1267,6 +1270,12 @@ def create_app() -> FastAPI:
     app.include_router(
         book_chapter_audio_router,
         tags=["Book Audio", "Chapter Audio", "TTS", "Audio Narration"],
+    )
+
+    # ✅ NEW: Book Page Text & Audio API - LetsRead per-page text + TTS audio for reader sync
+    app.include_router(
+        book_page_router,
+        tags=["Book Pages", "Book Audio", "TTS", "LetsRead"],
     )
 
     # ✅ NEW: Standalone Audio API - Voices and preview endpoints

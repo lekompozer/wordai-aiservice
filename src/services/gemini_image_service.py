@@ -28,7 +28,7 @@ from src.models.image_generation_models import ImageGenerationMetadata
 logger = logging.getLogger(__name__)
 
 # Model name constant
-GEMINI_MODEL = "gemini-3-pro-image-preview"
+GEMINI_MODEL = "gemini-3.1-flash-image-preview"
 
 
 class GeminiImageService:

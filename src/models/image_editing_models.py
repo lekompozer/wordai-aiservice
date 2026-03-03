@@ -73,7 +73,7 @@ class StyleTransferResponse(BaseModel):
                 "metadata": {
                     "target_style": "Van Gogh",
                     "strength": 85,
-                    "model": "gemini-3-pro-image-preview",
+                    "model": "gemini-3.1-flash-image-preview",
                     "generation_time": 4.2,
                     "points_used": 2,
                 },
@@ -136,7 +136,7 @@ class ObjectEditResponse(BaseModel):
                 "metadata": {
                     "target_object": "the blue sofa",
                     "modification": "changed to brown leather",
-                    "model": "gemini-3-pro-image-preview",
+                    "model": "gemini-3.1-flash-image-preview",
                     "generation_time": 3.8,
                     "points_used": 3,
                 },
@@ -198,7 +198,7 @@ class InpaintingResponse(BaseModel):
                 "metadata": {
                     "prompt": "wizard hat added",
                     "action": "add",
-                    "model": "gemini-3-pro-image-preview",
+                    "model": "gemini-3.1-flash-image-preview",
                     "generation_time": 4.5,
                     "points_used": 3,
                 },
@@ -262,7 +262,7 @@ class CompositionResponse(BaseModel):
                     "prompt": "fashion composition",
                     "images_combined": 2,
                     "composition_style": "professional",
-                    "model": "gemini-3-pro-image-preview",
+                    "model": "gemini-3.1-flash-image-preview",
                     "generation_time": 5.1,
                     "points_used": 5,
                 },
@@ -285,7 +285,7 @@ class ImageEditMetadata(BaseModel):
     )
     aspect_ratio: str = Field(..., description="Output aspect ratio")
     model: str = Field(
-        default="gemini-3-pro-image-preview", description="Gemini model used"
+        default="gemini-3.1-flash-image-preview", description="Gemini model used"
     )
     generation_time: float = Field(..., description="Time taken to generate (seconds)")
     file_size: int = Field(..., description="File size in bytes")
@@ -302,7 +302,7 @@ class ImageEditMetadata(BaseModel):
                 "prompt": "Transform this image in Van Gogh style...",
                 "edit_type": "style_transfer",
                 "aspect_ratio": "1:1",
-                "model": "gemini-3-pro-image-preview",
+                "model": "gemini-3.1-flash-image-preview",
                 "generation_time": 4.2,
                 "file_size": 245678,
                 "points_used": 2,

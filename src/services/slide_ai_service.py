@@ -74,7 +74,7 @@ class SlideAIService:
         self.gemini_client = gemini_client
         self.claude_client = claude_client
         self.claude_provider = claude_provider  # "vertex" or "api"
-        self.gemini_model = "gemini-3-pro-preview"  # Gemini Pro 3 Preview
+        self.gemini_model = "gemini-3.1-pro-preview"  # Gemini Pro 3 Preview
 
         # Model name depends on provider
         if self.claude_provider == "vertex":

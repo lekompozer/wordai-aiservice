@@ -77,12 +77,12 @@ class BookBackgroundService:
             from src.models.image_generation_models import ImageGenerationMetadata
 
             metadata = ImageGenerationMetadata(
-                source="gemini-3-pro-image-preview",
+                source="gemini-3.1-flash-image-preview",
                 generation_type=gen_type,
                 prompt=request.prompt,
                 aspect_ratio=request.aspect_ratio,
                 generation_time_ms=result["generation_time_ms"],
-                model_version="gemini-3-pro-image-preview",
+                model_version="gemini-3.1-flash-image-preview",
                 reference_images_count=0,
                 user_options={
                     "style": request.style,
@@ -111,7 +111,7 @@ class BookBackgroundService:
                 "generation_time_ms": result["generation_time_ms"],
                 "ai_metadata": AIMetadata(
                     prompt=request.prompt,
-                    model="gemini-3-pro-image-preview",
+                    model="gemini-3.1-flash-image-preview",
                     generated_at=datetime.now(timezone.utc),
                     generation_time_ms=result["generation_time_ms"],
                     cost_points=2,

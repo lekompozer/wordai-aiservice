@@ -27,7 +27,7 @@ class SlideAIGenerationService:
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY not configured")
         self.gemini_client = genai.Client(api_key=self.gemini_api_key)
-        self.gemini_model = "gemini-3-pro-preview"  # Gemini Pro 3 Preview
+        self.gemini_model = "gemini-3.1-pro-preview"  # Gemini Pro 3 Preview
 
         # Claude for HTML generation (Step 2) - Try Vertex AI first, fallback to API
         try:

@@ -34,7 +34,7 @@ logger = setup_logger()
 
 # Gemini Model Configuration for Image Editing
 # Using Gemini 2.5 Flash Image for image generation/editing capabilities
-GEMINI_MODEL = "gemini-2.5-flash-image"
+GEMINI_MODEL = "gemini-3.1-flash-image-preview"
 
 # Style Definitions for Image Editing
 STYLE_DEFINITIONS = {

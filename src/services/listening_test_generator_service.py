@@ -163,7 +163,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         remainder = num_questions % num_audio_sections
 
         logger.info(
-            f"📡 Calling Gemini API (gemini-3-pro-preview) for IELTS test with {num_questions} questions across {num_audio_sections} sections..."
+            f"📡 Calling Gemini API (gemini-3.1-pro-preview) for IELTS test with {num_questions} questions across {num_audio_sections} sections..."
         )
         logger.info(
             f"   Target distribution: ~{questions_per_section} questions per section (total must be exactly {num_questions})"
@@ -179,7 +179,7 @@ Now, generate the listening test. Return ONLY the JSON object, no additional tex
         # Run blocking Gemini API call in thread pool to avoid blocking event loop
         response = await asyncio.to_thread(
             self.client.models.generate_content,
-            model="gemini-3-pro-preview",
+            model="gemini-3.1-pro-preview",
             contents=[prompt],
             config=types.GenerateContentConfig(
                 max_output_tokens=25000,
@@ -940,7 +940,7 @@ Return ONLY the questions array in JSON format."""
         response = await loop.run_in_executor(
             None,
             lambda: self.client.models.generate_content(
-                model="gemini-3-pro-preview",
+                model="gemini-3.1-pro-preview",
                 contents=[prompt],
                 config=types.GenerateContentConfig(
                     max_output_tokens=15000,

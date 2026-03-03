@@ -47,13 +47,13 @@ async def generate_book_cover_ai(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    **Generate book cover image using Gemini 3 Pro Image (gemini-3-pro-image-preview)**
+    **Generate book cover image using Gemini 3 Pro Image (gemini-3.1-flash-image-preview)**
 
     Generates a professional book cover with title and author name rendered on the cover.
     Uses Google's state-of-the-art image generation model optimized for text rendering.
 
     **Features:**
-    - Uses Gemini 3 Pro Image model (gemini-3-pro-image-preview)
+    - Uses Gemini 3 Pro Image model (gemini-3.1-flash-image-preview)
     - Advanced text rendering: Title and author name clearly visible on cover
     - High-resolution output: 1K (896x1200) or 2K (1792x2400)
     - Book cover aspect ratio: 3:4 (portrait orientation)
@@ -97,7 +97,7 @@ async def generate_book_cover_ai(
     - `author`: Author name
     - `aspect_ratio`: "3:4"
     - `resolution`: "1K" or "2K"
-    - `model`: "gemini-3-pro-image-preview"
+    - `model`: "gemini-3.1-flash-image-preview"
     - `generation_time_ms`: Time taken in milliseconds
 
     **Example Usage:**

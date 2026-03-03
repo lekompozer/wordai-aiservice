@@ -13,7 +13,7 @@ class AIMetadata(BaseModel):
 
     prompt: str = Field(..., description="Original user prompt")
     model: str = Field(
-        default="gemini-3-pro-image-preview", description="AI model used"
+        default="gemini-3.1-flash-image-preview", description="AI model used"
     )
     generated_at: datetime = Field(..., description="Generation timestamp")
     generation_time_ms: int = Field(..., description="Time taken to generate (ms)")

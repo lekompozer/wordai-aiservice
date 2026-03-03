@@ -1,6 +1,6 @@
 """
 Gemini 3 Pro Image Service for Online Test Cover Generation
-Uses gemini-3-pro-image-preview model with 16:9 aspect ratio
+Uses gemini-3.1-flash-image-preview model with 16:9 aspect ratio
 """
 
 import os
@@ -139,7 +139,7 @@ class GeminiTestCoverService:
                 - prompt_used: Full prompt sent to Gemini
                 - title: Test title
                 - style: Style used
-                - model: "gemini-3-pro-image-preview"
+                - model: "gemini-3.1-flash-image-preview"
                 - aspect_ratio: "16:9"
                 - timestamp: ISO 8601 timestamp
 
@@ -162,7 +162,7 @@ class GeminiTestCoverService:
             response = await loop.run_in_executor(
                 None,
                 lambda: self.client.models.generate_content(
-                    model="gemini-3-pro-image-preview",
+                    model="gemini-3.1-flash-image-preview",
                     contents=full_prompt,
                     config=types.GenerateContentConfig(
                         response_modalities=["TEXT", "IMAGE"],
@@ -197,7 +197,7 @@ class GeminiTestCoverService:
                 "prompt_used": full_prompt,
                 "title": title,
                 "style": style,
-                "model": "gemini-3-pro-image-preview",
+                "model": "gemini-3.1-flash-image-preview",
                 "aspect_ratio": self.TEST_ASPECT_RATIO,
                 "timestamp": datetime.utcnow().isoformat(),
                 "gemini_response_text": text_response,
@@ -300,7 +300,7 @@ class GeminiTestCoverService:
                     "description": description,
                     "style": style,
                     "prompt_used": prompt_used,
-                    "model": "gemini-3-pro-image-preview",
+                    "model": "gemini-3.1-flash-image-preview",
                     "aspect_ratio": self.TEST_ASPECT_RATIO,
                     "generation_method": "ai",
                 },

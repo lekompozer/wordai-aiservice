@@ -35,7 +35,7 @@ class GeminiAudioListeningTestService:
             raise ValueError("GEMINI_API_KEY not configured")
 
         self.client = genai.Client(api_key=self.gemini_api_key)
-        self.model = "gemini-3-pro-preview"  # Latest model with audio understanding
+        self.model = "gemini-3.1-pro-preview"  # Latest model with audio understanding
 
     def _validate_audio_file(self, file_path: str) -> bool:
         """Check if file is valid audio file"""

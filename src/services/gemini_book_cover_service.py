@@ -1,6 +1,6 @@
 """
 Gemini 3 Pro Image Service for Book Cover Generation
-Uses gemini-3-pro-image-preview model
+Uses gemini-3.1-flash-image-preview model
 """
 
 import os
@@ -146,7 +146,7 @@ class GeminiBookCoverService:
                 - title: Book title
                 - author: Author name
                 - style: Style used
-                - model: "gemini-3-pro-image-preview"
+                - model: "gemini-3.1-flash-image-preview"
                 - aspect_ratio: "3:4"
                 - timestamp: ISO 8601 timestamp
 
@@ -172,7 +172,7 @@ class GeminiBookCoverService:
             response = await loop.run_in_executor(
                 None,
                 lambda: self.client.models.generate_content(
-                    model="gemini-3-pro-image-preview",
+                    model="gemini-3.1-flash-image-preview",
                     contents=full_prompt,
                     config=types.GenerateContentConfig(
                         response_modalities=["TEXT", "IMAGE"],
@@ -209,7 +209,7 @@ class GeminiBookCoverService:
                 "title": title,
                 "author": author,
                 "style": style,
-                "model": "gemini-3-pro-image-preview",
+                "model": "gemini-3.1-flash-image-preview",
                 "aspect_ratio": self.BOOK_ASPECT_RATIO,
                 "timestamp": datetime.utcnow().isoformat(),
                 "gemini_response_text": text_response,
@@ -300,9 +300,9 @@ class GeminiBookCoverService:
 
             # Build metadata for book cover
             metadata = {
-                "source": "gemini-3-pro-image-preview",
+                "source": "gemini-3.1-flash-image-preview",
                 "generation_type": "book_cover",
-                "model_version": "gemini-3-pro-image-preview",
+                "model_version": "gemini-3.1-flash-image-preview",
                 "prompt": prompt_used,
                 "aspect_ratio": self.BOOK_ASPECT_RATIO,
                 "book_title": title,
