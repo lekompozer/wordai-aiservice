@@ -87,6 +87,7 @@ fix_*.py
 check_*.py
 explore_*.py
 generate_*.py
+!generate_audio_batch_letsread.py
 register_*.py
 rename_*.py
 show_*.py
