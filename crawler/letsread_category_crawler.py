@@ -657,7 +657,7 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="LetsRead Category Crawler")
-    parser.add_argument("--cat", help="Single category ID to crawl", default=None)
+    parser.add_argument("--cat", nargs="+", help="One or more category IDs to crawl", default=None)
     parser.add_argument("--dry-run", action="store_true", help="No DB writes, just list books")
     parser.add_argument("--pages-only", action="store_true", help="Only fetch/save pages, no new book creation")
     parser.add_argument("--force-pages", action="store_true", help="Re-fetch pages even if already saved")
@@ -681,7 +681,7 @@ def main():
     # Init R2
     s3 = get_s3_client()
 
-    categories = [args.cat] if args.cat else CATEGORIES
+    categories = args.cat if args.cat else CATEGORIES
 
     all_stats = []
     for cat_id in categories:
