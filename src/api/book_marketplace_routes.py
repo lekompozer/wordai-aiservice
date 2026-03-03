@@ -51,6 +51,13 @@ db = db_manager.db
 book_manager = UserBookManager(db)
 
 
+def _normalize_dt(dt):
+    """Ensure datetime is timezone-aware (UTC). pymongo returns naive datetimes."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
 @router.get("/my-published", response_model=MyPublishedBooksListResponse)
 async def list_my_published_books(
     skip: int = Query(0, ge=0, description="Pagination offset"),
@@ -491,6 +498,7 @@ async def list_my_purchases(
                         # Normalize to timezone-aware (pymongo returns naive UTC datetimes)
                         if expires_at.tzinfo is None:
                             from datetime import timezone as _tz
+
                             expires_at = expires_at.replace(tzinfo=_tz.utc)
                         if expires_at > now:
                             access_status = "active"
@@ -518,21 +526,105 @@ async def list_my_purchases(
                     book_is_deleted=book_is_deleted,
                     purchase_type=PurchaseType(purchase["purchase_type"]),
                     points_spent=purchase["points_spent"],
-                    purchased_at=purchase["purchased_at"],
-                    access_expires_at=purchase.get("access_expires_at"),
+                    purchased_at=_normalize_dt(purchase["purchased_at"]),
+                    access_expires_at=_normalize_dt(purchase.get("access_expires_at")),
                     access_status=access_status,
+                    source="direct",
                 )
             )
 
+        # ── Merge combo-sourced book access ────────────────────────────────
+        # Collect all book_ids already covered by direct purchases
+        direct_book_ids = {item.book_id for item in items}
+
+        # Find all active combo purchases for this user
+        combo_query = {"user_id": user_id}
+        if purchase_type:
+            combo_query["purchase_type"] = purchase_type.value
+
+        combo_purchases_cursor = db.combo_purchases.find(combo_query).sort(
+            "purchased_at", -1
+        )
+        for cpurchase in combo_purchases_cursor:
+            snap_ids = cpurchase.get("book_ids_snapshot", [])
+            combo_id = cpurchase["combo_id"]
+
+            combo_doc = db.book_combos.find_one({"combo_id": combo_id})
+            combo_title = combo_doc.get("title", "") if combo_doc else ""
+            combo_deleted = combo_doc.get("is_deleted", False) if combo_doc else True
+
+            # Determine combo access status
+            combo_expires_at = cpurchase.get("access_expires_at")
+            if combo_expires_at and combo_expires_at.tzinfo is None:
+                combo_expires_at = combo_expires_at.replace(tzinfo=timezone.utc)
+
+            if combo_deleted:
+                combo_access_status = "book_deleted_unpublished"
+            elif cpurchase["purchase_type"] == PurchaseType.ONE_TIME.value:
+                combo_access_status = (
+                    "active"
+                    if (combo_expires_at and combo_expires_at > now)
+                    else "expired"
+                )
+            else:
+                combo_access_status = "active"
+
+            for book_id in snap_ids:
+                if book_id in direct_book_ids:
+                    continue  # already in list from direct purchase
+
+                book = db.online_books.find_one({"book_id": book_id})
+                if not book:
+                    book_title = "Deleted Book"
+                    book_slug = ""
+                    book_cover = None
+                    book_is_deleted = True
+                    access_status = "book_deleted_unpublished"
+                else:
+                    book_is_deleted = book.get("is_deleted", False)
+                    is_published = book.get("community_config", {}).get(
+                        "is_public", False
+                    )
+                    book_title = book.get("title", "")
+                    book_slug = book.get("slug", "")
+                    book_cover = book.get("community_config", {}).get(
+                        "cover_image_url"
+                    ) or book.get("cover_image_url")
+                    if not is_published:
+                        access_status = "book_deleted_unpublished"
+                    else:
+                        access_status = combo_access_status
+
+                items.append(
+                    MyPurchaseItem(
+                        purchase_id=cpurchase["purchase_id"],
+                        book_id=book_id,
+                        book_title=book_title,
+                        book_slug=book_slug,
+                        book_cover_url=book_cover,
+                        book_is_deleted=book_is_deleted,
+                        purchase_type=PurchaseType(cpurchase["purchase_type"]),
+                        points_spent=cpurchase.get("points_spent", 0),
+                        purchased_at=_normalize_dt(cpurchase["purchased_at"]),
+                        access_expires_at=combo_expires_at,
+                        access_status=access_status,
+                        source="combo",
+                        combo_id=combo_id,
+                        combo_title=combo_title,
+                    )
+                )
+                direct_book_ids.add(book_id)  # dedupe
+
+        total_combined = len(items)
         total_pages = (total + limit - 1) // limit
 
         logger.info(
-            f"📚 User {user_id} listed {len(items)}/{total} purchases (page {page})"
+            f"📚 User {user_id} listed {len(items)} purchases (direct: {total}, page {page})"
         )
 
         return MyPurchasesResponse(
             purchases=items,
-            total=total,
+            total=total_combined,
             page=page,
             limit=limit,
             total_pages=total_pages,
@@ -835,7 +927,7 @@ async def check_book_access(
 
         # Point-based books - check purchases
         if visibility == "point_based":
-            # Check for forever access
+            # ── 1. Direct forever purchase ──────────────────────────────────
             forever_purchase = db.book_purchases.find_one(
                 {
                     "user_id": user_id,
@@ -845,7 +937,6 @@ async def check_book_access(
             )
 
             if forever_purchase:
-                # Check if user also has PDF access
                 pdf_purchase = db.book_purchases.find_one(
                     {
                         "user_id": user_id,
@@ -853,7 +944,6 @@ async def check_book_access(
                         "purchase_type": PurchaseType.PDF_DOWNLOAD.value,
                     }
                 )
-
                 return BookAccessResponse(
                     has_access=True,
                     access_type="forever",
@@ -864,10 +954,40 @@ async def check_book_access(
                         "purchase_id": forever_purchase.get("purchase_id"),
                         "purchased_at": forever_purchase.get("purchased_at"),
                         "points_spent": forever_purchase.get("points_spent"),
+                        "source": "direct",
                     },
                 )
 
-            # Check for active one-time access
+            # ── 2. Combo forever access ──────────────────────────────────────
+            combo_forever = db.combo_purchases.find_one(
+                {
+                    "user_id": user_id,
+                    "book_ids_snapshot": book_id,
+                    "purchase_type": "lifetime",
+                }
+            )
+            if combo_forever:
+                combo_doc = db.book_combos.find_one(
+                    {"combo_id": combo_forever["combo_id"]}
+                )
+                combo_title = combo_doc.get("title") if combo_doc else None
+                return BookAccessResponse(
+                    has_access=True,
+                    access_type="forever",
+                    expires_at=None,
+                    can_download_pdf=False,
+                    is_owner=False,
+                    purchase_details={
+                        "purchase_id": combo_forever.get("purchase_id"),
+                        "purchased_at": combo_forever.get("purchased_at"),
+                        "points_spent": combo_forever.get("points_spent"),
+                        "source": "combo",
+                        "combo_id": combo_forever["combo_id"],
+                        "combo_title": combo_title,
+                    },
+                )
+
+            # ── 3. Direct one-time access ────────────────────────────────────
             one_time_purchase = db.book_purchases.find_one(
                 {
                     "user_id": user_id,
@@ -875,25 +995,61 @@ async def check_book_access(
                     "purchase_type": PurchaseType.ONE_TIME.value,
                 }
             )
-
             if one_time_purchase:
                 expires_at = one_time_purchase.get("access_expires_at")
                 now = datetime.now(timezone.utc)
+                if expires_at:
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
+                    if expires_at > now:
+                        return BookAccessResponse(
+                            has_access=True,
+                            access_type="one_time",
+                            expires_at=expires_at,
+                            can_download_pdf=False,
+                            is_owner=False,
+                            purchase_details={
+                                "purchase_id": one_time_purchase.get("purchase_id"),
+                                "purchased_at": one_time_purchase.get("purchased_at"),
+                                "points_spent": one_time_purchase.get("points_spent"),
+                                "source": "direct",
+                            },
+                        )
 
-                # Check if not expired
-                if expires_at and expires_at > now:
-                    return BookAccessResponse(
-                        has_access=True,
-                        access_type="one_time",
-                        expires_at=expires_at,
-                        can_download_pdf=False,
-                        is_owner=False,
-                        purchase_details={
-                            "purchase_id": one_time_purchase.get("purchase_id"),
-                            "purchased_at": one_time_purchase.get("purchased_at"),
-                            "points_spent": one_time_purchase.get("points_spent"),
-                        },
-                    )
+            # ── 4. Combo one-time access ─────────────────────────────────────
+            combo_one_time = db.combo_purchases.find_one(
+                {
+                    "user_id": user_id,
+                    "book_ids_snapshot": book_id,
+                    "purchase_type": "one_time",
+                }
+            )
+            if combo_one_time:
+                expires_at = combo_one_time.get("access_expires_at")
+                now = datetime.now(timezone.utc)
+                if expires_at:
+                    if expires_at.tzinfo is None:
+                        expires_at = expires_at.replace(tzinfo=timezone.utc)
+                    if expires_at > now:
+                        combo_doc = db.book_combos.find_one(
+                            {"combo_id": combo_one_time["combo_id"]}
+                        )
+                        combo_title = combo_doc.get("title") if combo_doc else None
+                        return BookAccessResponse(
+                            has_access=True,
+                            access_type="one_time",
+                            expires_at=expires_at,
+                            can_download_pdf=False,
+                            is_owner=False,
+                            purchase_details={
+                                "purchase_id": combo_one_time.get("purchase_id"),
+                                "purchased_at": combo_one_time.get("purchased_at"),
+                                "points_spent": combo_one_time.get("points_spent"),
+                                "source": "combo",
+                                "combo_id": combo_one_time["combo_id"],
+                                "combo_title": combo_title,
+                            },
+                        )
 
         # No access
         return BookAccessResponse(

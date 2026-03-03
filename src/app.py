@@ -240,6 +240,9 @@ from src.api.book_public_routes import router as book_public_router
 # ✅ NEW: Book Marketplace API - Earnings, Purchases, My Published Books
 from src.api.book_marketplace_routes import router as book_marketplace_router
 
+# ✅ NEW: Book Combo API - Group multiple books into purchasable bundles
+from src.api.book_combo_routes import router as book_combo_router
+
 # ✅ ADDED: Book Advanced API - Translation & Duplication features
 from src.api.book_advanced_routes import router as book_advanced_router
 
@@ -1227,6 +1230,13 @@ def create_app() -> FastAPI:
     app.include_router(
         book_marketplace_router,
         tags=["Book Marketplace", "Earnings", "Purchases"],
+    )
+
+    # ✅ NEW: Book Combo API - Bundle multiple books, purchase as combo
+    # Register BEFORE book_router to avoid /{book_id} catch-all conflict
+    app.include_router(
+        book_combo_router,
+        tags=["Book Combos"],
     )
 
     # ✅ NEW: Book Chapter Management API - Chapter CRUD, reordering, bulk updates

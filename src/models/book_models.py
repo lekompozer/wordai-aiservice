@@ -682,6 +682,10 @@ class MyPurchaseItem(BaseModel):
     access_status: str = Field(
         ..., description="active | expired | book_deleted_unpublished"
     )
+    # Source of access: 'direct' (bought individually) or 'combo' (via combo purchase)
+    source: str = Field("direct", description="direct | combo")
+    combo_id: Optional[str] = Field(None, description="Combo ID if source=combo")
+    combo_title: Optional[str] = Field(None, description="Combo title if source=combo")
 
 
 class MyPurchasesResponse(BaseModel):
