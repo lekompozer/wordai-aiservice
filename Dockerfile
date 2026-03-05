@@ -3,7 +3,10 @@ FROM python:3.10-slim
 WORKDIR /app
 
 # Cài đặt các thư viện hệ thống cần thiết và LibreOffice
-RUN apt-get update && apt-get install -y \
+# Cache mount: apt .deb files được cache trên disk → không tải lại khi rebuild
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && apt-get install -y \
     build-essential \
     git \
     curl \
@@ -56,9 +59,7 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libxtst6 \
     xdg-utils \
-    --no-install-recommends \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+    --no-install-recommends
 
 # Copy requirements.txt trước để tận dụng Docker cache
 COPY requirements.txt .
