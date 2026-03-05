@@ -89,17 +89,30 @@ async def generate_audio_for_book(
 
 
 async def main():
-    parser = argparse.ArgumentParser(description="Batch audio generator for LetsRead books")
-    parser.add_argument("--lang", choices=["en", "vi", "both"], default="both",
-                        help="Which language(s) to generate (default: both)")
-    parser.add_argument("--from-index", type=int, default=0,
-                        help="Start from this book index (0-based, for resuming)")
-    parser.add_argument("--limit", type=int, default=0,
-                        help="Max number of books to process (0 = all)")
-    parser.add_argument("--force", action="store_true",
-                        help="Regenerate audio even if already exists")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Preview only, no audio generation")
+    parser = argparse.ArgumentParser(
+        description="Batch audio generator for LetsRead books"
+    )
+    parser.add_argument(
+        "--lang",
+        choices=["en", "vi", "both"],
+        default="both",
+        help="Which language(s) to generate (default: both)",
+    )
+    parser.add_argument(
+        "--from-index",
+        type=int,
+        default=0,
+        help="Start from this book index (0-based, for resuming)",
+    )
+    parser.add_argument(
+        "--limit", type=int, default=0, help="Max number of books to process (0 = all)"
+    )
+    parser.add_argument(
+        "--force", action="store_true", help="Regenerate audio even if already exists"
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Preview only, no audio generation"
+    )
     args = parser.parse_args()
 
     languages = ["en", "vi"] if args.lang == "both" else [args.lang]
@@ -110,16 +123,21 @@ async def main():
     db_manager = DBManager()
     db = db_manager.db
     svc = BookPageAudioService()
+    # Inject the single shared db_manager into service to avoid per-call reconnects
+    BookPageAudioService._db_manager = db_manager
 
     # Get all letsread books, ordered by created_at (oldest first → consistent voice assignment)
-    books = list(db.online_books.find(
-        {"metadata.source": "letsreadasia.org"},
-        {"title": 1, "created_at": 1}
-    ).sort("created_at", 1))
+    books = list(
+        db.online_books.find(
+            {"metadata.source": "letsreadasia.org"}, {"title": 1, "created_at": 1}
+        ).sort("created_at", 1)
+    )
 
     total = len(books)
     log.info(f"Found {total} LetsRead books")
-    log.info(f"Languages: {languages} | From index: {args.from_index} | Force: {args.force}")
+    log.info(
+        f"Languages: {languages} | From index: {args.from_index} | Force: {args.force}"
+    )
     log.info("")
 
     stats = {"ok": 0, "skip": 0, "err": 0}
@@ -137,7 +155,10 @@ async def main():
 
         for lang in languages:
             result = await generate_audio_for_book(
-                svc, book_id, voice, lang,
+                svc,
+                book_id,
+                voice,
+                lang,
                 force=args.force,
                 dry_run=args.dry_run,
             )

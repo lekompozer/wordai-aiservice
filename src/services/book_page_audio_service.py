@@ -79,6 +79,17 @@ class BookPageAudioService:
         7. Upsert book_page_audio document
     """
 
+    # Singleton DBManager — reuse one connection pool across all calls
+    _db_manager = None
+
+    @classmethod
+    def _get_shared_db_manager(cls):
+        if cls._db_manager is None:
+            from src.database.db_manager import DBManager
+
+            cls._db_manager = DBManager()
+        return cls._db_manager
+
     # ------------------------------------------------------------------
     # Voice helpers
     # ------------------------------------------------------------------
@@ -103,9 +114,7 @@ class BookPageAudioService:
     # ------------------------------------------------------------------
 
     def _get_db(self):
-        from src.database.db_manager import DBManager
-
-        return DBManager().db
+        return self._get_shared_db_manager().db
 
     def _load_pages(self, db, book_id: str, language: str = "en") -> List[Dict]:
         """Load all pages for a book sorted by page_number."""
