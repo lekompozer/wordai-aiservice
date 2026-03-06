@@ -26,6 +26,7 @@ class AIProvider(str, Enum):
 
     # OpenAI Models
     CHATGPT_4O_LATEST = "chatgpt_4o_latest"
+    GPT_5_MINI = "gpt_5_mini"
 
     # DeepSeek Models
     DEEPSEEK_CHAT = "deepseek_chat"
@@ -58,11 +59,16 @@ class AIChatService:
         try:
             # OpenAI
             if os.getenv("CHATGPT_API_KEY"):
-                self.providers[AIProvider.CHATGPT_4O_LATEST] = openai.AsyncOpenAI(
+                _openai_client = openai.AsyncOpenAI(
                     api_key=os.getenv("CHATGPT_API_KEY")
                 )
+                self.providers[AIProvider.CHATGPT_4O_LATEST] = _openai_client
                 self.models[AIProvider.CHATGPT_4O_LATEST] = "chatgpt-4o-latest"
-                logger.info("✅ OpenAI client initialized")
+                self.providers[AIProvider.GPT_5_MINI] = _openai_client
+                self.models[AIProvider.GPT_5_MINI] = "gpt-5-mini"
+                logger.info(
+                    "✅ OpenAI client initialized (chatgpt-4o-latest + gpt-5-mini)"
+                )
 
             # DeepSeek (OpenAI compatible)
             if os.getenv("DEEPSEEK_API_KEY"):
@@ -147,6 +153,11 @@ class AIChatService:
             AIProvider.CHATGPT_4O_LATEST: {
                 "name": "ChatGPT-4o Latest",
                 "description": "Latest version of ChatGPT-4o with improved performance",
+                "category": "latest",
+            },
+            AIProvider.GPT_5_MINI: {
+                "name": "GPT-5 Mini",
+                "description": "OpenAI GPT-5 Mini - Fast and efficient",
                 "category": "latest",
             },
             AIProvider.DEEPSEEK_CHAT: {
@@ -236,7 +247,7 @@ class AIChatService:
             raise ValueError(f"Provider {provider} not available")
 
         try:
-            if provider in [AIProvider.CHATGPT_4O_LATEST]:
+            if provider in [AIProvider.CHATGPT_4O_LATEST, AIProvider.GPT_5_MINI]:
                 # OpenAI providers
                 return await self._chat_openai_compatible(
                     provider, messages, temperature, max_tokens
@@ -289,7 +300,7 @@ class AIChatService:
             return
 
         try:
-            if provider in [AIProvider.CHATGPT_4O_LATEST]:
+            if provider in [AIProvider.CHATGPT_4O_LATEST, AIProvider.GPT_5_MINI]:
                 # OpenAI providers
                 async for chunk in self._stream_openai_compatible(
                     provider, messages, temperature, max_tokens

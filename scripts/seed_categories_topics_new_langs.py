@@ -15,7 +15,7 @@ from pymongo import MongoClient
 
 # ── DB connection ──────────────────────────────────────────────────
 MONGO_URI = os.getenv(
-    "MONGODB_URI",
+    "MONGODB_URI_AUTH",
     "mongodb://ai_service_user:ai_service_2025_secure_password@localhost:27017/ai_service_db?authSource=admin",
 )
 client = MongoClient(MONGO_URI)

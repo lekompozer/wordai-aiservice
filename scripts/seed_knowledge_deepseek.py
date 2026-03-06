@@ -18,6 +18,7 @@ What it does:
 
 import sys
 import os
+import re
 import time
 import json
 import random
@@ -32,12 +33,18 @@ import httpx
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 MONGO_URI = os.getenv(
-    "MONGODB_URI",
+    "MONGODB_URI_AUTH",
     "mongodb://ai_service_user:ai_service_2025_secure_password@localhost:27017/ai_service_db?authSource=admin",
 )
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
+# Gemini direct API for exercises
+GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID", "wordai-6779e")
+GCP_REGION = os.getenv("GCP_REGION", "asia-southeast1")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = "gemini-3.1-flash-lite-preview"
+GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 REQUEST_DELAY = 1.5  # seconds between API calls
 MAX_RETRIES = 3
 
@@ -89,39 +96,96 @@ def deepseek_call(prompt: str, system: str = "", max_tokens: int = 3000) -> str:
                 raise
 
 
+def gemini_call(prompt: str, max_tokens: int = 3000) -> str:
+    """Call gemini-3.1-flash-lite-preview via Gemini direct API."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY not set in environment")
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"maxOutputTokens": max_tokens, "temperature": 0.7},
+    }
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            resp = httpx.post(
+                f"{GEMINI_ENDPOINT}?key={GEMINI_API_KEY}",
+                json=payload,
+                headers=headers,
+                timeout=120,
+            )
+            resp.raise_for_status()
+            return resp.json()["candidates"][0]["content"]["parts"][0]["text"]
+        except Exception as e:
+            print(f"    [WARN] Gemini attempt {attempt}/{MAX_RETRIES} failed: {e}")
+            if attempt < MAX_RETRIES:
+                time.sleep(3 * attempt)
+            else:
+                raise
+
+
+# ── JSON Repair ───────────────────────────────────────────────────────────────
+def _fix_json_strings(raw: str) -> str:
+    """Escape literal newlines/tabs inside JSON string values (LLM often forgets)."""
+    result = []
+    in_string = False
+    escape_next = False
+    for ch in raw:
+        if escape_next:
+            result.append(ch)
+            escape_next = False
+        elif ch == "\\":
+            result.append(ch)
+            escape_next = True
+        elif ch == '"':
+            result.append(ch)
+            in_string = not in_string
+        elif in_string and ch == "\n":
+            result.append("\\n")
+        elif in_string and ch == "\r":
+            result.append("\\r")
+        elif in_string and ch == "\t":
+            result.append("\\t")
+        else:
+            result.append(ch)
+    return "".join(result)
+
+
 # ── Knowledge Article Generation ────────────────────────────────────────────────
 KNOWLEDGE_SYSTEM = """Bạn là technical writer chuyên viết tài liệu lập trình bằng tiếng Việt.
-Viết bài giảng học lập trình chất lượng cao, rõ ràng, có ví dụ code cụ thể.
-Output PHẢI là JSON hợp lệ theo schema được yêu cầu. Không thêm text ngoài JSON."""
+Viết bài giảng học lập trình chất lượng cao, rõ ràng, có ví dụ code cụ thể."""
 
-KNOWLEDGE_PROMPT = """Tạo 1 bài học cho topic lập trình sau:
+KNOWLEDGE_META_PROMPT = """Với topic lập trình sau, trả về JSON CHÍNH XÁC (không text ngoài JSON):
 
 Topic ID: {topic_id}
 Topic Name: {topic_name}
 Category: {category_id}
 Level: {level}
-Description: {description}
 
-Yêu cầu bài học:
-- Ngôn ngữ: Tiếng Việt
-- Độ dài content: 600-1000 từ
-- Format: Markdown với headers, code blocks, bullet points
-- Có ít nhất 2 ví dụ code thực tế (code block với syntax highlighting)
-- Giải thích rõ ràng, dễ hiểu cho level {level}
-- Tags liên quan
-
-Trả về JSON theo schema sau CHÍNH XÁC:
 {{
-  "title": "Tiêu đề bài học tiếng Việt (ngắn gọn, rõ ràng)",
-  "excerpt": "Tóm tắt 1-2 câu về nội dung bài học",
-  "content": "Nội dung markdown đầy đủ",
+  "title": "Tiêu đề bài học tiếng Việt ngắn gọn",
+  "excerpt": "Tóm tắt 1-2 câu",
   "tags": ["tag1", "tag2", "tag3"],
   "difficulty": "{difficulty}"
 }}"""
 
+KNOWLEDGE_CONTENT_PROMPT = """Viết bài học lập trình tiếng Việt cho topic sau:
+
+Topic: {topic_name}
+Category: {category_id}
+Level: {level}
+Description: {description}
+
+Yêu cầu:
+- Tiếng Việt, 600-1000 từ
+- Markdown format với headers, code blocks, bullet points
+- Ít nhất 2 ví dụ code thực tế
+- Dễ hiểu cho level {level}
+
+Trả về TRỰC TIẾP nội dung markdown, không cần JSON wrapper."""
+
 
 def generate_knowledge(topic: dict) -> dict | None:
-    """Generate 1 knowledge article for a topic using DeepSeek."""
+    """Generate 1 knowledge article for a topic using DeepSeek (2-call approach)."""
     level = topic.get("level", "beginner")
     difficulty = (
         "beginner"
@@ -129,31 +193,49 @@ def generate_knowledge(topic: dict) -> dict | None:
         else ("intermediate" if level in ("intermediate", "practical") else "advanced")
     )
 
-    prompt = KNOWLEDGE_PROMPT.format(
+    # Call 1: get metadata as small JSON (no content → no escaping issues)
+    meta_prompt = KNOWLEDGE_META_PROMPT.format(
         topic_id=topic["id"],
         topic_name=topic["name"],
         category_id=topic["category_id"],
         level=level,
-        description=topic.get("description", ""),
         difficulty=difficulty,
     )
-
     try:
-        raw = deepseek_call(prompt, system=KNOWLEDGE_SYSTEM, max_tokens=3000)
-        # Extract JSON from possible markdown code fences
-        raw = raw.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        data = json.loads(raw.strip())
-        return data
-    except json.JSONDecodeError as e:
-        print(f"    [ERROR] JSON parse failed for {topic['id']}: {e}")
-        return None
+        raw_meta = deepseek_call(meta_prompt, system=KNOWLEDGE_SYSTEM, max_tokens=300)
+        raw_meta = raw_meta.strip()
+        if raw_meta.startswith("```"):
+            m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw_meta)
+            if m:
+                raw_meta = m.group(1).strip()
+        meta = json.loads(raw_meta)
     except Exception as e:
-        print(f"    [ERROR] Knowledge generation failed for {topic['id']}: {e}")
+        print(f"    [ERROR] Metadata generation failed for {topic['id']}: {e}")
         return None
+
+    # Call 2: get raw markdown content (no JSON → no escaping issues)
+    content_prompt = KNOWLEDGE_CONTENT_PROMPT.format(
+        topic_name=topic["name"],
+        category_id=topic["category_id"],
+        level=level,
+        description=topic.get("description", ""),
+    )
+    try:
+        content = deepseek_call(
+            content_prompt, system=KNOWLEDGE_SYSTEM, max_tokens=6000
+        )
+        content = content.strip()
+    except Exception as e:
+        print(f"    [ERROR] Content generation failed for {topic['id']}: {e}")
+        return None
+
+    return {
+        "title": meta.get("title", topic["name"]),
+        "excerpt": meta.get("excerpt", ""),
+        "content": content,
+        "tags": meta.get("tags", []),
+        "difficulty": meta.get("difficulty", difficulty),
+    }
 
 
 def insert_knowledge(topic: dict, article_data: dict) -> str | None:
@@ -265,29 +347,37 @@ def get_language(category_id: str) -> str:
 
 
 def generate_exercises(topic: dict) -> list | None:
-    """Generate 2 exercises for a topic using DeepSeek."""
+    """Generate 2 exercises for a topic using Gemini (gemini-3.1-flash-lite-preview) via Vertex AI."""
     language = get_language(topic["category_id"])
-    prompt = EXERCISE_PROMPT.format(
-        topic_id=topic["id"],
-        topic_name=topic["name"],
-        category_id=topic["category_id"],
-        level=topic.get("level", "beginner"),
-        language=language,
+    # Gemini takes a single prompt (no separate system role) — prepend system instructions
+    full_prompt = (
+        EXERCISE_SYSTEM
+        + "\n\n"
+        + EXERCISE_PROMPT.format(
+            topic_id=topic["id"],
+            topic_name=topic["name"],
+            category_id=topic["category_id"],
+            level=topic.get("level", "beginner"),
+            language=language,
+        )
     )
 
+    raw = ""
     try:
-        raw = deepseek_call(prompt, system=EXERCISE_SYSTEM, max_tokens=3000)
+        raw = gemini_call(full_prompt, max_tokens=3000)
         raw = raw.strip()
         if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-        data = json.loads(raw.strip())
+            m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", raw)
+            if m:
+                raw = m.group(1).strip()
+        raw = _fix_json_strings(raw)
+        data = json.loads(raw)
         if isinstance(data, list):
             return data
         return None
     except json.JSONDecodeError as e:
         print(f"    [ERROR] JSON parse failed for exercises {topic['id']}: {e}")
+        print(f"    Raw (first 300): {raw[:300]}")
         return None
     except Exception as e:
         print(f"    [ERROR] Exercise generation failed for {topic['id']}: {e}")
