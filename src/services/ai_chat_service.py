@@ -25,20 +25,15 @@ class AIProvider(str, Enum):
     """Supported AI Providers"""
 
     # OpenAI Models
-    CHATGPT_4O_LATEST = "chatgpt_4o_latest"
-    GPT_5_MINI = "gpt_5_mini"
+    CHATGPT_4O_LATEST = "chatgpt_4o_latest"  # maps to gpt-5-mini
 
     # DeepSeek Models
     DEEPSEEK_CHAT = "deepseek_chat"
     DEEPSEEK_REASONER = "deepseek_reasoner"
 
-    # Cerebras Models
-    QWEN_235B_INSTRUCT = "qwen_235b_instruct"
-    QWEN_235B_THINKING = "qwen_235b_thinking"
-    QWEN_480B_CODER = "qwen_480b_coder"
-    QWEN_32B = "qwen_32b"
-    LLAMA_70B = "llama_70b"
-    LLAMA_8B = "llama_8b"
+    # Cerebras Models (chỉ 2 model còn hoạt động)
+    QWEN_32B = "qwen_32b"  # maps to gpt-oss-120b
+    ZAI_GLM = "zai_glm"  # maps to zai-glm-4.7
 
     # Gemini Models
     GEMINI_FLASH_IMAGE = "gemini_flash_image"
@@ -63,12 +58,8 @@ class AIChatService:
                     api_key=os.getenv("CHATGPT_API_KEY")
                 )
                 self.providers[AIProvider.CHATGPT_4O_LATEST] = _openai_client
-                self.models[AIProvider.CHATGPT_4O_LATEST] = "chatgpt-4o-latest"
-                self.providers[AIProvider.GPT_5_MINI] = _openai_client
-                self.models[AIProvider.GPT_5_MINI] = "gpt-5-mini"
-                logger.info(
-                    "✅ OpenAI client initialized (chatgpt-4o-latest + gpt-5-mini)"
-                )
+                self.models[AIProvider.CHATGPT_4O_LATEST] = "gpt-5-mini"
+                logger.info("✅ OpenAI client initialized (gpt-5-mini)")
 
             # DeepSeek (OpenAI compatible)
             if os.getenv("DEEPSEEK_API_KEY"):
@@ -87,38 +78,22 @@ class AIChatService:
 
                 logger.info("✅ DeepSeek clients initialized")
 
-            # Cerebras - All models
+            # Cerebras - chỉ 2 model còn hoạt động
             if os.getenv("CEREBRAS_API_KEY"):
                 cerebras_client = openai.AsyncOpenAI(
                     api_key=os.getenv("CEREBRAS_API_KEY"),
                     base_url="https://api.cerebras.ai/v1",
                 )
 
-                # Qwen models
-                self.providers[AIProvider.QWEN_235B_INSTRUCT] = cerebras_client
-                self.models[AIProvider.QWEN_235B_INSTRUCT] = (
-                    "qwen-3-235b-a22b-instruct-2507"
-                )
-
-                self.providers[AIProvider.QWEN_235B_THINKING] = cerebras_client
-                self.models[AIProvider.QWEN_235B_THINKING] = (
-                    "qwen-3-235b-a22b-thinking-2507"
-                )
-
-                self.providers[AIProvider.QWEN_480B_CODER] = cerebras_client
-                self.models[AIProvider.QWEN_480B_CODER] = "qwen-3-coder-480b"
-
                 self.providers[AIProvider.QWEN_32B] = cerebras_client
-                self.models[AIProvider.QWEN_32B] = "qwen-3-32b"
+                self.models[AIProvider.QWEN_32B] = "gpt-oss-120b"
 
-                # Llama models
-                self.providers[AIProvider.LLAMA_70B] = cerebras_client
-                self.models[AIProvider.LLAMA_70B] = "llama-3.3-70b"
+                self.providers[AIProvider.ZAI_GLM] = cerebras_client
+                self.models[AIProvider.ZAI_GLM] = "zai-glm-4.7"
 
-                self.providers[AIProvider.LLAMA_8B] = cerebras_client
-                self.models[AIProvider.LLAMA_8B] = "llama3.1-8b"
-
-                logger.info("✅ Cerebras clients initialized (6 models)")
+                logger.info(
+                    "✅ Cerebras clients initialized (gpt-oss-120b + zai-glm-4.7)"
+                )
 
             # Gemini
             if os.getenv("GEMINI_API_KEY"):
@@ -151,11 +126,6 @@ class AIChatService:
 
         provider_info = {
             AIProvider.CHATGPT_4O_LATEST: {
-                "name": "ChatGPT-4o Latest",
-                "description": "Latest version of ChatGPT-4o with improved performance",
-                "category": "latest",
-            },
-            AIProvider.GPT_5_MINI: {
                 "name": "GPT-5 Mini",
                 "description": "OpenAI GPT-5 Mini - Fast and efficient",
                 "category": "latest",
@@ -170,35 +140,15 @@ class AIChatService:
                 "description": "DeepSeek R1 - Advanced reasoning with thinking process",
                 "category": "reasoning",
             },
-            AIProvider.QWEN_235B_INSTRUCT: {
-                "name": "Qwen 235B Instruct",
-                "description": "Large-scale instruction following model",
-                "category": "instruct",
-            },
-            AIProvider.QWEN_235B_THINKING: {
-                "name": "Qwen 235B Thinking",
-                "description": "Step-by-step reasoning model",
-                "category": "thinking",
-            },
-            AIProvider.QWEN_480B_CODER: {
-                "name": "Qwen 480B Coder",
-                "description": "Specialized programming and coding model",
-                "category": "coding",
-            },
             AIProvider.QWEN_32B: {
-                "name": "Qwen 32B",
-                "description": "Efficient general purpose model",
+                "name": "Cerebras 120B",
+                "description": "Cerebras gpt-oss-120b - Fast general purpose model",
                 "category": "general",
             },
-            AIProvider.LLAMA_70B: {
-                "name": "Llama 3.3 70B",
-                "description": "Meta's powerful general purpose model",
+            AIProvider.ZAI_GLM: {
+                "name": "Cerebras ZAI GLM",
+                "description": "Cerebras zai-glm-4.7 - Efficient model",
                 "category": "general",
-            },
-            AIProvider.LLAMA_8B: {
-                "name": "Llama 3.1 8B",
-                "description": "Lightweight and fast model",
-                "category": "lightweight",
             },
             AIProvider.GEMINI_FLASH_IMAGE: {
                 "name": "Gemini 2.5 Flash Image Preview",
@@ -247,7 +197,7 @@ class AIChatService:
             raise ValueError(f"Provider {provider} not available")
 
         try:
-            if provider in [AIProvider.CHATGPT_4O_LATEST, AIProvider.GPT_5_MINI]:
+            if provider in [AIProvider.CHATGPT_4O_LATEST]:
                 # OpenAI providers
                 return await self._chat_openai_compatible(
                     provider, messages, temperature, max_tokens
@@ -260,12 +210,8 @@ class AIChatService:
                 )
 
             elif provider in [
-                AIProvider.QWEN_235B_INSTRUCT,
-                AIProvider.QWEN_235B_THINKING,
-                AIProvider.QWEN_480B_CODER,
                 AIProvider.QWEN_32B,
-                AIProvider.LLAMA_70B,
-                AIProvider.LLAMA_8B,
+                AIProvider.ZAI_GLM,
             ]:
                 # Cerebras providers (OpenAI-compatible)
                 return await self._chat_openai_compatible(
@@ -300,7 +246,7 @@ class AIChatService:
             return
 
         try:
-            if provider in [AIProvider.CHATGPT_4O_LATEST, AIProvider.GPT_5_MINI]:
+            if provider in [AIProvider.CHATGPT_4O_LATEST]:
                 # OpenAI providers
                 async for chunk in self._stream_openai_compatible(
                     provider, messages, temperature, max_tokens
@@ -315,12 +261,8 @@ class AIChatService:
                     yield chunk
 
             elif provider in [
-                AIProvider.QWEN_235B_INSTRUCT,
-                AIProvider.QWEN_235B_THINKING,
-                AIProvider.QWEN_480B_CODER,
                 AIProvider.QWEN_32B,
-                AIProvider.LLAMA_70B,
-                AIProvider.LLAMA_8B,
+                AIProvider.ZAI_GLM,
             ]:
                 # Cerebras providers (OpenAI-compatible)
                 async for chunk in self._stream_openai_compatible(
