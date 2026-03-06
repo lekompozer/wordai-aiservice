@@ -20,6 +20,10 @@ class CodeLanguage(str, Enum):
     HTML = "html"
     CSS = "css"
     SQL = "sql"
+    JAVA = "java"
+    C_CPP = "c_cpp"
+    RUST = "rust"
+    GO = "go"
 
 
 class FileSortBy(str, Enum):
