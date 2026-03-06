@@ -104,10 +104,10 @@ echo "   Tag: $DOCKER_HUB_USERNAME/$APP_NAME:$NEW_VERSION_TAG"
 export IMAGE_TAG=$NEW_VERSION_TAG
 export DOCKER_HUB_USERNAME=$DOCKER_HUB_USERNAME
 
-# Build with cache-from latest to reuse apt/pip layers (avoids full reinstall)
-# BUILDKIT_INLINE_CACHE=1 stores cache metadata in image so --cache-from works
-DOCKER_BUILDKIT=1 BUILDKIT_INLINE_CACHE=1 docker build \
-    --cache-from "$DOCKER_HUB_USERNAME/$APP_NAME:latest" \
+# Docker daemon tự động cache layer theo content hash — apt/pip layer được cache
+# miễn là requirements.txt không thay đổi, không cần --cache-from hay buildx.
+# Cache lưu ở /var/lib/docker/overlay2, tồn tại qua tất cả các lần deploy.
+DOCKER_BUILDKIT=1 docker build \
     -t "$DOCKER_HUB_USERNAME/$APP_NAME:$NEW_VERSION_TAG" \
     .
 
