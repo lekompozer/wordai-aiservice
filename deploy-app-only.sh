@@ -92,9 +92,9 @@ echo "   Tag: $DOCKER_HUB_USERNAME/$APP_NAME:$NEW_VERSION_TAG"
 export IMAGE_TAG=$NEW_VERSION_TAG
 export DOCKER_HUB_USERNAME=$DOCKER_HUB_USERNAME
 
-# Local disk cache: apt/pip layers được persist ở /var/cache/docker-buildcache
+# Local disk cache: apt/pip layers được persist ở home dir của user
 # → Kể cả sau khi docker image prune, apt vẫn không cần tải lại
-BUILDCACHE_DIR="/var/cache/docker-buildcache"
+BUILDCACHE_DIR="${HOME}/.docker-buildcache"
 mkdir -p "$BUILDCACHE_DIR"
 
 docker buildx build \
