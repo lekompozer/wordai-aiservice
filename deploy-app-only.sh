@@ -92,15 +92,11 @@ echo "   Tag: $DOCKER_HUB_USERNAME/$APP_NAME:$NEW_VERSION_TAG"
 export IMAGE_TAG=$NEW_VERSION_TAG
 export DOCKER_HUB_USERNAME=$DOCKER_HUB_USERNAME
 
-# Local disk cache: apt/pip layers được persist ở home dir của user
-# → Kể cả sau khi docker image prune, apt vẫn không cần tải lại
-BUILDCACHE_DIR="${HOME}/.docker-buildcache"
-mkdir -p "$BUILDCACHE_DIR"
-
-docker buildx build \
-    --cache-from type=local,src="$BUILDCACHE_DIR" \
-    --cache-to   type=local,dest="$BUILDCACHE_DIR",mode=max \
-    --load \
+# Dùng `:latest` image đang chạy trên server làm cache source — layer apt/pip
+# được reuse hoàn toàn, không cần tải lại. Cùng cơ chế với deploy-compose-with-rollback.sh.
+# BUILDKIT_INLINE_CACHE=1 lưu metadata cache vào image để --cache-from hoạt động đúng.
+DOCKER_BUILDKIT=1 BUILDKIT_INLINE_CACHE=1 docker build \
+    --cache-from "$DOCKER_HUB_USERNAME/$APP_NAME:latest" \
     -t "$DOCKER_HUB_USERNAME/$APP_NAME:$NEW_VERSION_TAG" \
     -t "$DOCKER_HUB_USERNAME/$APP_NAME:latest" \
     .
