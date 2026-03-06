@@ -44,6 +44,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 # Load .env before DB init
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -60,7 +61,7 @@ log = logging.getLogger(__name__)
 # Constants
 # -------------------------------------------------------------------
 
-LANG_ID = "4846240843956224"   # English
+LANG_ID = "4846240843956224"  # English
 
 # 15 categories (deduplicated — 5728283396145152 appeared twice in the list)
 CATEGORIES = [
@@ -84,7 +85,9 @@ MAX_BOOKS_PER_CATEGORY = 100
 PAGE_SIZE = 20
 
 TAG_API = "https://letsreadasia.org/api/tag/get-books/{cat_id}?limit={limit}&lId={lang_id}&cursor={cursor}"
-PREVIEW_API = "https://letsreadasia.org/api/v5/book/preview/language/{lang_id}/book/{book_uuid}"
+PREVIEW_API = (
+    "https://letsreadasia.org/api/v5/book/preview/language/{lang_id}/book/{book_uuid}"
+)
 
 REQUEST_HEADERS = {
     "User-Agent": (
@@ -108,6 +111,7 @@ BASE_TAGS = ["letsread-asia", "english-books"]
 # R2 / S3
 # -------------------------------------------------------------------
 
+
 def get_s3_client():
     return boto3.client(
         "s3",
@@ -118,6 +122,7 @@ def get_s3_client():
         region_name="auto",
     )
 
+
 R2_BUCKET = os.getenv("R2_BUCKET_NAME", "wordai-documents")
 
 
@@ -125,7 +130,10 @@ R2_BUCKET = os.getenv("R2_BUCKET_NAME", "wordai-documents")
 # API helpers
 # -------------------------------------------------------------------
 
-def fetch_category_books(cat_id: str, max_books: int = MAX_BOOKS_PER_CATEGORY) -> Tuple[List[Dict], str]:
+
+def fetch_category_books(
+    cat_id: str, max_books: int = MAX_BOOKS_PER_CATEGORY
+) -> Tuple[List[Dict], str]:
     """
     Fetch up to max_books books from the Tag API for a given category.
     Returns (books_list, tag_name).
@@ -135,7 +143,9 @@ def fetch_category_books(cat_id: str, max_books: int = MAX_BOOKS_PER_CATEGORY) -
     tag_name = cat_id  # fallback until first API call
 
     while len(all_books) < max_books:
-        url = TAG_API.format(cat_id=cat_id, limit=PAGE_SIZE, lang_id=LANG_ID, cursor=cursor)
+        url = TAG_API.format(
+            cat_id=cat_id, limit=PAGE_SIZE, lang_id=LANG_ID, cursor=cursor
+        )
         try:
             resp = requests.get(url, headers=REQUEST_HEADERS, timeout=20)
             resp.raise_for_status()
@@ -186,6 +196,7 @@ def fetch_book_pages(master_book_id: str) -> Optional[Dict]:
 # Page parsing (skip cover + last promo page)
 # -------------------------------------------------------------------
 
+
 def parse_story_pages(api_data: Dict) -> List[Dict]:
     """
     Parse pages from Preview API response.
@@ -209,24 +220,26 @@ def parse_story_pages(api_data: Dict) -> List[Dict]:
         except (ValueError, TypeError):
             page_num_int = idx + 2
 
-        pages.append({
-            "page_number": idx + 1,        # 1-based story page
-            "api_page_num": page_num_int,
-            "text_content": raw.get("extractedLongContentValue") or "",
-            "image_url": (
-                raw.get("imageUrl")
-                or raw.get("thumborImageUrl")
-                or raw.get("imageServingUrl")
-                or ""
-            ),
-            "image_url_hires": raw.get("imageServingUrl") or "",
-            "image_url_cdn": raw.get("thumborImageUrl") or "",
-            "image_name": raw.get("imageName") or "",
-            "image_width": int(raw.get("imageWidth") or 0),
-            "image_height": int(raw.get("imageHeight") or 0),
-            "has_audio": bool(raw.get("audio")),
-            "letsread_page_id": raw.get("id") or "",
-        })
+        pages.append(
+            {
+                "page_number": idx + 1,  # 1-based story page
+                "api_page_num": page_num_int,
+                "text_content": raw.get("extractedLongContentValue") or "",
+                "image_url": (
+                    raw.get("imageUrl")
+                    or raw.get("thumborImageUrl")
+                    or raw.get("imageServingUrl")
+                    or ""
+                ),
+                "image_url_hires": raw.get("imageServingUrl") or "",
+                "image_url_cdn": raw.get("thumborImageUrl") or "",
+                "image_name": raw.get("imageName") or "",
+                "image_width": int(raw.get("imageWidth") or 0),
+                "image_height": int(raw.get("imageHeight") or 0),
+                "has_audio": bool(raw.get("audio")),
+                "letsread_page_id": raw.get("id") or "",
+            }
+        )
 
     return pages
 
@@ -234,6 +247,7 @@ def parse_story_pages(api_data: Dict) -> List[Dict]:
 # -------------------------------------------------------------------
 # DB helpers
 # -------------------------------------------------------------------
+
 
 def find_book_by_master_id(db, master_book_id: str) -> Optional[Dict]:
     """Look up online_books by letsread masterBookId."""
@@ -255,12 +269,17 @@ def add_tag_to_book(db, mongo_id, tag_slug: str) -> bool:
         return False
     db.online_books.update_one(
         {"_id": mongo_id},
-        {"$addToSet": {"community_config.tags": tag_slug}, "$set": {"updated_at": datetime.utcnow()}},
+        {
+            "$addToSet": {"community_config.tags": tag_slug},
+            "$set": {"updated_at": datetime.utcnow()},
+        },
     )
     return True
 
 
-def save_pages_to_db(db, book_id: str, master_book_id: str, pages: List[Dict], force: bool = False) -> int:
+def save_pages_to_db(
+    db, book_id: str, master_book_id: str, pages: List[Dict], force: bool = False
+) -> int:
     """Upsert pages to book_page_texts. Returns count saved."""
     saved = 0
     for page in pages:
@@ -272,7 +291,11 @@ def save_pages_to_db(db, book_id: str, master_book_id: str, pages: List[Dict], f
             "updated_at": datetime.utcnow(),
             **page,
         }
-        filter_q = {"book_id": book_id, "page_number": page["page_number"], "language": "en"}
+        filter_q = {
+            "book_id": book_id,
+            "page_number": page["page_number"],
+            "language": "en",
+        }
         if force:
             db.book_page_texts.replace_one(filter_q, doc, upsert=True)
             saved += 1
@@ -288,6 +311,7 @@ def save_pages_to_db(db, book_id: str, master_book_id: str, pages: List[Dict], f
 # -------------------------------------------------------------------
 # R2 helpers
 # -------------------------------------------------------------------
+
 
 def create_slug(text: str) -> str:
     text = text.lower()
@@ -305,7 +329,9 @@ def upload_cover(s3, cover_url: str, slug: str) -> str:
         ext = "webp" if "webp" in ct else ("png" if "png" in ct else "jpg")
         ts = int(time.time())
         key = f"books/covers/{ts}_{slug}.{ext}"
-        s3.put_object(Bucket=R2_BUCKET, Key=key, Body=resp.content, ContentType=ct or "image/jpeg")
+        s3.put_object(
+            Bucket=R2_BUCKET, Key=key, Body=resp.content, ContentType=ct or "image/jpeg"
+        )
         url = f"https://static.wordai.pro/{key}"
         log.info(f"  ✅ Cover → R2: {url}")
         return url
@@ -323,7 +349,9 @@ def upload_pdf(s3, pdf_url: str, slug: str) -> Optional[str]:
         pdf_bytes = resp.content
         ts = int(time.time())
         key = f"books/letsread/{ts}_{slug}.pdf"
-        s3.put_object(Bucket=R2_BUCKET, Key=key, Body=pdf_bytes, ContentType="application/pdf")
+        s3.put_object(
+            Bucket=R2_BUCKET, Key=key, Body=pdf_bytes, ContentType="application/pdf"
+        )
         url = f"https://static.wordai.pro/{key}"
         log.info(f"  ✅ PDF → R2: {url}")
         return url
@@ -335,6 +363,7 @@ def upload_pdf(s3, pdf_url: str, slug: str) -> Optional[str]:
 # -------------------------------------------------------------------
 # Book creation
 # -------------------------------------------------------------------
+
 
 def create_book_in_db(
     db,
@@ -364,7 +393,13 @@ def create_book_in_db(
     short_desc = description[:200] if len(description) > 200 else description
 
     # Difficulty from reading level
-    level_map = {1: "beginner", 2: "beginner", 3: "elementary", 4: "intermediate", 5: "intermediate"}
+    level_map = {
+        1: "beginner",
+        2: "beginner",
+        3: "elementary",
+        4: "intermediate",
+        5: "intermediate",
+    }
     difficulty = level_map.get(reading_level, "beginner")
 
     book_doc = {
@@ -372,7 +407,8 @@ def create_book_in_db(
         "user_id": owner_user_id,
         "title": title,
         "slug": slug,
-        "description": description or f"{title} - Children's story from Let's Read Asia",
+        "description": description
+        or f"{title} - Children's story from Let's Read Asia",
         "visibility": "point_based",
         "is_published": True,
         "published_at": datetime.utcnow(),
@@ -415,9 +451,12 @@ def create_book_in_db(
             "is_download_enabled": False,
         },
         "stats": {
-            "total_revenue_points": 0, "owner_reward_points": 0,
-            "system_fee_points": 0, "one_time_purchases": 0,
-            "forever_purchases": 0, "pdf_downloads": 0,
+            "total_revenue_points": 0,
+            "owner_reward_points": 0,
+            "system_fee_points": 0,
+            "one_time_purchases": 0,
+            "forever_purchases": 0,
+            "pdf_downloads": 0,
         },
         "cover_image_url": cover_r2_url or "",
         "logo_url": None,
@@ -456,6 +495,7 @@ def create_book_in_db(
 # -------------------------------------------------------------------
 # Main crawl logic
 # -------------------------------------------------------------------
+
 
 def crawl_category(
     cat_id: str,
@@ -504,7 +544,9 @@ def crawl_category(
             pages_count = b.get("totalPages", "?")
             existing = find_book_by_master_id(db, mid) or find_book_by_title(db, title)
             status = "EXISTS" if existing else "NEW"
-            log.info(f"    {i:3d}. [{status}] {title} (uuid={mid[:8]}..., pages={pages_count})")
+            log.info(
+                f"    {i:3d}. [{status}] {title} (uuid={mid[:8]}..., pages={pages_count})"
+            )
         return stats
 
     # Step 2: Process each book
@@ -517,8 +559,8 @@ def crawl_category(
         cover_url = book.get("thumborCoverImageUrl") or book.get("coverImageUrl") or ""
         pdf_info = book.get("pdfUrl") or {}
         portrait_pdf_url = (
-            pdf_info.get("potraitUrl")      # Note: API typo is "potrait" not "portrait"
-            or pdf_info.get("bookletUrl")    # fallback to booklet
+            pdf_info.get("potraitUrl")  # Note: API typo is "potrait" not "portrait"
+            or pdf_info.get("bookletUrl")  # fallback to booklet
             or ""
         )
 
@@ -530,7 +572,9 @@ def crawl_category(
         log.info(f"\n  [{idx}/{len(books)}] {title!r}")
 
         # Check if book already exists
-        existing = find_book_by_master_id(db, master_book_id) or find_book_by_title(db, title)
+        existing = find_book_by_master_id(db, master_book_id) or find_book_by_title(
+            db, title
+        )
 
         if existing:
             book_id = str(existing["_id"])
@@ -541,10 +585,12 @@ def crawl_category(
             if not existing.get("metadata", {}).get("letsread_book_id"):
                 db.online_books.update_one(
                     {"_id": existing["_id"]},
-                    {"$set": {
-                        "metadata.letsread_book_id": master_book_id,
-                        "metadata.letsread_lang_id": LANG_ID,
-                    }}
+                    {
+                        "$set": {
+                            "metadata.letsread_book_id": master_book_id,
+                            "metadata.letsread_lang_id": LANG_ID,
+                        }
+                    },
                 )
 
             # Add new category tag if missing
@@ -572,7 +618,9 @@ def crawl_category(
 
         try:
             # Upload cover
-            cover_r2_url = upload_cover(s3, cover_url, create_slug(title)) if cover_url else ""
+            cover_r2_url = (
+                upload_cover(s3, cover_url, create_slug(title)) if cover_url else ""
+            )
 
             # Download + Upload PDF
             log.info(f"    📄 PDF: {portrait_pdf_url[:60]}...")
@@ -609,13 +657,17 @@ def crawl_category(
             stats["failed"] += 1
 
     log.info(f"\n  📊 Category {tag_name!r} done:")
-    log.info(f"     total={stats['total_api']}, new={stats['new_created']}, "
-             f"existing={stats['already_exists']}, tags_added={stats['tags_added']}, "
-             f"failed={stats['failed']}")
+    log.info(
+        f"     total={stats['total_api']}, new={stats['new_created']}, "
+        f"existing={stats['already_exists']}, tags_added={stats['tags_added']}, "
+        f"failed={stats['failed']}"
+    )
     return stats
 
 
-def _fetch_and_save_pages(db, book_id: str, master_book_id: str, force: bool = False) -> int:
+def _fetch_and_save_pages(
+    db, book_id: str, master_book_id: str, force: bool = False
+) -> int:
     """Fetch Preview API pages and save to book_page_texts. Returns pages saved."""
     log.info(f"    📖 Fetching pages for {master_book_id[:8]}...")
     api_data = fetch_book_pages(master_book_id)
@@ -625,7 +677,9 @@ def _fetch_and_save_pages(db, book_id: str, master_book_id: str, force: bool = F
 
     pages = parse_story_pages(api_data)
     total_raw = api_data.get("totalPages", 0)
-    log.info(f"    📄 API totalPages={total_raw}, story pages (excl cover+promo)={len(pages)}")
+    log.info(
+        f"    📄 API totalPages={total_raw}, story pages (excl cover+promo)={len(pages)}"
+    )
 
     saved = save_pages_to_db(db, book_id, master_book_id, pages, force=force)
     log.info(f"    ✅ Saved {saved}/{len(pages)} pages")
@@ -633,15 +687,18 @@ def _fetch_and_save_pages(db, book_id: str, master_book_id: str, force: bool = F
     # Update online_books metadata
     try:
         import bson
+
         db.online_books.update_one(
             {"_id": bson.ObjectId(book_id)},
-            {"$set": {
-                "metadata.letsread_book_id": master_book_id,
-                "metadata.letsread_lang_id": LANG_ID,
-                "metadata.has_page_texts": True,
-                "metadata.total_pages": len(pages),
-                "updated_at": datetime.utcnow(),
-            }},
+            {
+                "$set": {
+                    "metadata.letsread_book_id": master_book_id,
+                    "metadata.letsread_lang_id": LANG_ID,
+                    "metadata.has_page_texts": True,
+                    "metadata.total_pages": len(pages),
+                    "updated_at": datetime.utcnow(),
+                }
+            },
         )
     except Exception:
         pass
@@ -653,15 +710,30 @@ def _fetch_and_save_pages(db, book_id: str, master_book_id: str, force: bool = F
 # CLI entry point
 # -------------------------------------------------------------------
 
+
 def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="LetsRead Category Crawler")
-    parser.add_argument("--cat", nargs="+", help="One or more category IDs to crawl", default=None)
-    parser.add_argument("--dry-run", action="store_true", help="No DB writes, just list books")
-    parser.add_argument("--pages-only", action="store_true", help="Only fetch/save pages, no new book creation")
-    parser.add_argument("--force-pages", action="store_true", help="Re-fetch pages even if already saved")
-    parser.add_argument("--max", type=int, default=MAX_BOOKS_PER_CATEGORY, help="Max books per category")
+    parser.add_argument(
+        "--cat", nargs="+", help="One or more category IDs to crawl", default=None
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="No DB writes, just list books"
+    )
+    parser.add_argument(
+        "--pages-only",
+        action="store_true",
+        help="Only fetch/save pages, no new book creation",
+    )
+    parser.add_argument(
+        "--force-pages",
+        action="store_true",
+        help="Re-fetch pages even if already saved",
+    )
+    parser.add_argument(
+        "--max", type=int, default=MAX_BOOKS_PER_CATEGORY, help="Max books per category"
+    )
     args = parser.parse_args()
 
     max_books = args.max
@@ -706,17 +778,21 @@ def main():
     print(f"{'='*70}")
     total_new = total_existing = total_fails = total_pages = 0
     for s in all_stats:
-        print(f"  [{s['tag_name']:25s}]  api={s['total_api']:3d}  "
-              f"new={s['new_created']:3d}  exists={s['already_exists']:3d}  "
-              f"tags_added={s['tags_added']:3d}  pages={s['pages_saved']:3d}  "
-              f"fail={s['failed']:3d}")
+        print(
+            f"  [{s['tag_name']:25s}]  api={s['total_api']:3d}  "
+            f"new={s['new_created']:3d}  exists={s['already_exists']:3d}  "
+            f"tags_added={s['tags_added']:3d}  pages={s['pages_saved']:3d}  "
+            f"fail={s['failed']:3d}"
+        )
         total_new += s["new_created"]
         total_existing += s["already_exists"]
         total_fails += s["failed"]
         total_pages += s["pages_saved"]
     print(f"{'─'*70}")
-    print(f"  TOTAL: new_books={total_new}, existing={total_existing}, "
-          f"pages_saved={total_pages}, failed={total_fails}")
+    print(
+        f"  TOTAL: new_books={total_new}, existing={total_existing}, "
+        f"pages_saved={total_pages}, failed={total_fails}"
+    )
     print(f"{'='*70}\n")
 
 

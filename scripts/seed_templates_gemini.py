@@ -37,7 +37,7 @@ MONGO_URI = os.getenv(
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = "gemini-2.0-flash-lite"  # or gemini-1.5-flash-latest
 GEMINI_ENDPOINT = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
-REQUEST_DELAY = 1.2   # seconds between API calls
+REQUEST_DELAY = 1.2  # seconds between API calls
 MAX_RETRIES = 3
 TEMPLATES_PER_TOPIC = 3
 
@@ -117,7 +117,7 @@ def ensure_category(topic: dict) -> str:
     """Ensure a code_template_category exists for this topic. Returns category_id."""
     # Use topic_id as category slug
     cat_id = f"tmpl-{topic['id']}"
-    
+
     existing = db.code_template_categories.find_one({"slug": cat_id})
     if existing:
         return existing["id"] if "id" in existing else cat_id
@@ -274,13 +274,11 @@ def insert_templates(topic: dict, templates: list, category_id: str) -> int:
     if inserted > 0:
         # Update template_count on topic
         db.learning_topics.update_one(
-            {"id": topic["id"]},
-            {"$inc": {"template_count": inserted}}
+            {"id": topic["id"]}, {"$inc": {"template_count": inserted}}
         )
         # Update template_count on category
         db.code_template_categories.update_one(
-            {"id": category_id},
-            {"$inc": {"template_count": inserted}}
+            {"id": category_id}, {"$inc": {"template_count": inserted}}
         )
     print(f"    [OK] Inserted {inserted} templates for {topic['id']}")
     return inserted
@@ -301,11 +299,19 @@ def get_topics_missing_templates(category_id: str = None, limit: int = None) -> 
 
 def main():
     parser = argparse.ArgumentParser(description="Seed code templates via Gemini Flash")
-    parser.add_argument("--all", action="store_true", help="Process ALL topics missing templates")
+    parser.add_argument(
+        "--all", action="store_true", help="Process ALL topics missing templates"
+    )
     parser.add_argument("--category", type=str, help="Filter by category_id")
-    parser.add_argument("--limit", type=int, default=2, help="Max topics (default: 2 for test)")
-    parser.add_argument("--count", type=int, default=TEMPLATES_PER_TOPIC,
-                        help=f"Templates per topic (default: {TEMPLATES_PER_TOPIC})")
+    parser.add_argument(
+        "--limit", type=int, default=2, help="Max topics (default: 2 for test)"
+    )
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=TEMPLATES_PER_TOPIC,
+        help=f"Templates per topic (default: {TEMPLATES_PER_TOPIC})",
+    )
     args = parser.parse_args()
 
     limit = None if args.all else args.limit
@@ -328,7 +334,9 @@ def main():
     stats = {"topics": 0, "templates": 0, "errors": 0}
 
     for idx, topic in enumerate(topics, start=1):
-        print(f"\n[{idx}/{len(topics)}] {topic['id']} — {topic['name']} ({topic.get('level', '?')})")
+        print(
+            f"\n[{idx}/{len(topics)}] {topic['id']} — {topic['name']} ({topic.get('level', '?')})"
+        )
 
         # Ensure category entry exists
         cat_id = ensure_category(topic)

@@ -38,7 +38,7 @@ MONGO_URI = os.getenv(
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions"
 DEEPSEEK_MODEL = "deepseek-chat"
-REQUEST_DELAY = 1.5   # seconds between API calls
+REQUEST_DELAY = 1.5  # seconds between API calls
 MAX_RETRIES = 3
 
 now = datetime.now(timezone.utc)
@@ -123,8 +123,10 @@ Trả về JSON theo schema sau CHÍNH XÁC:
 def generate_knowledge(topic: dict) -> dict | None:
     """Generate 1 knowledge article for a topic using DeepSeek."""
     level = topic.get("level", "beginner")
-    difficulty = "beginner" if level in ("beginner",) else (
-        "intermediate" if level in ("intermediate", "practical") else "advanced"
+    difficulty = (
+        "beginner"
+        if level in ("beginner",)
+        else ("intermediate" if level in ("intermediate", "practical") else "advanced")
     )
 
     prompt = KNOWLEDGE_PROMPT.format(
@@ -157,7 +159,7 @@ def generate_knowledge(topic: dict) -> dict | None:
 def insert_knowledge(topic: dict, article_data: dict) -> str | None:
     """Insert a knowledge article into MongoDB."""
     article_id = f"ka-{topic['id']}-01"
-    
+
     # Check for duplicate
     if db.knowledge_articles.find_one({"id": article_id}):
         print(f"    [SKIP] Knowledge article {article_id} already exists")
@@ -190,10 +192,7 @@ def insert_knowledge(topic: dict, article_data: dict) -> str | None:
     }
     db.knowledge_articles.insert_one(doc)
     # Update topic knowledge_count
-    db.learning_topics.update_one(
-        {"id": topic["id"]},
-        {"$inc": {"knowledge_count": 1}}
-    )
+    db.learning_topics.update_one({"id": topic["id"]}, {"$inc": {"knowledge_count": 1}})
     print(f"    [OK] Inserted knowledge article: {article_id}")
     return article_id
 
@@ -337,8 +336,7 @@ def insert_exercises(topic: dict, exercises: list):
     # Update topic exercise_count
     if inserted > 0:
         db.learning_topics.update_one(
-            {"id": topic["id"]},
-            {"$inc": {"exercise_count": inserted}}
+            {"id": topic["id"]}, {"$inc": {"exercise_count": inserted}}
         )
     print(f"    [OK] Inserted {inserted} exercises for {topic['id']}")
 
@@ -349,7 +347,7 @@ def get_topics_missing_knowledge(category_id: str = None, limit: int = None) -> 
     query = {"knowledge_count": {"$lte": 0}, "is_active": True}
     if category_id:
         query["category_id"] = category_id
-    
+
     cursor = db.learning_topics.find(query).sort("order", 1)
     if limit:
         cursor = cursor.limit(limit)
@@ -357,11 +355,24 @@ def get_topics_missing_knowledge(category_id: str = None, limit: int = None) -> 
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Seed knowledge articles + exercises via DeepSeek")
-    parser.add_argument("--all", action="store_true", help="Process ALL topics missing knowledge (not just 2)")
+    parser = argparse.ArgumentParser(
+        description="Seed knowledge articles + exercises via DeepSeek"
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Process ALL topics missing knowledge (not just 2)",
+    )
     parser.add_argument("--category", type=str, help="Filter by category_id")
-    parser.add_argument("--limit", type=int, default=2, help="Max topics to process (default: 2 for test)")
-    parser.add_argument("--skip-exercises", action="store_true", help="Skip exercise generation")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=2,
+        help="Max topics to process (default: 2 for test)",
+    )
+    parser.add_argument(
+        "--skip-exercises", action="store_true", help="Skip exercise generation"
+    )
     args = parser.parse_args()
 
     limit = None if args.all else args.limit
@@ -383,7 +394,9 @@ def main():
     stats = {"topics": 0, "knowledge": 0, "exercises": 0, "errors": 0}
 
     for idx, topic in enumerate(topics, start=1):
-        print(f"\n[{idx}/{len(topics)}] {topic['id']} — {topic['name']} ({topic.get('level', '?')})")
+        print(
+            f"\n[{idx}/{len(topics)}] {topic['id']} — {topic['name']} ({topic.get('level', '?')})"
+        )
 
         # === Knowledge Article ===
         print(f"  → Generating knowledge article...")

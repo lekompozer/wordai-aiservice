@@ -44,7 +44,7 @@ class SlideAIGenerationService:
 
             self.claude_client = AnthropicVertex(project_id=project_id, region=region)
             self.claude_provider = "vertex"
-            self.claude_model = "claude-sonnet-4-5@20250929"  # Vertex AI format
+            self.claude_model = "claude-sonnet-4-6"  # Vertex AI format
             logger.info(
                 f"✅ Claude Vertex AI initialized for slide generation (project={project_id}, region={region})"
             )
@@ -62,7 +62,7 @@ class SlideAIGenerationService:
 
             self.claude_client = Anthropic(api_key=self.claude_api_key)
             self.claude_provider = "api"
-            self.claude_model = "claude-sonnet-4-5-20250929"  # Standard API format
+            self.claude_model = "claude-sonnet-4-6"  # Standard API format
             logger.info(
                 "✅ Claude API initialized for slide generation (fallback mode)"
             )

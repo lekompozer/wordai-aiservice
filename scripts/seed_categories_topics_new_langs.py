@@ -4,15 +4,20 @@ Seed 4 new programming language categories + topics into MongoDB.
 Categories: java, c-cpp, rust, go
 Usage: ./copy-and-run.sh seed_categories_topics_new_langs.py --bg --deps
 """
+
 import sys
 import os
+
 sys.path.insert(0, "/app")
 
 from datetime import datetime, timezone
 from pymongo import MongoClient
 
 # ── DB connection ──────────────────────────────────────────────────
-MONGO_URI = os.getenv("MONGODB_URI", "mongodb://ai_service_user:ai_service_2025_secure_password@localhost:27017/ai_service_db?authSource=admin")
+MONGO_URI = os.getenv(
+    "MONGODB_URI",
+    "mongodb://ai_service_user:ai_service_2025_secure_password@localhost:27017/ai_service_db?authSource=admin",
+)
 client = MongoClient(MONGO_URI)
 db = client["ai_service_db"]
 
@@ -29,9 +34,7 @@ def upsert_category(cat: dict):
         "updated_at": now,
     }
     result = db.learning_categories.update_one(
-        {"id": cat["id"]},
-        {"$setOnInsert": doc},
-        upsert=True
+        {"id": cat["id"]}, {"$setOnInsert": doc}, upsert=True
     )
     action = "inserted" if result.upserted_id else "already exists"
     print(f"  Category [{cat['id']}] {action}")
@@ -54,9 +57,7 @@ def upsert_topic(topic: dict):
         "updated_at": now,
     }
     result = db.learning_topics.update_one(
-        {"id": topic["id"]},
-        {"$setOnInsert": doc},
-        upsert=True
+        {"id": topic["id"]}, {"$setOnInsert": doc}, upsert=True
     )
     action = "inserted" if result.upserted_id else "already exists"
     print(f"    Topic [{topic['id']}] {action}")
@@ -110,7 +111,11 @@ JAVA_TOPICS = [
         "icon": "☕",
         "estimated_hours": 8,
         "tags": ["java", "basics", "syntax"],
-        "learning_outcomes": ["Hiểu cú pháp Java cơ bản", "Khai báo biến và kiểu dữ liệu", "Sử dụng vòng lặp và điều kiện"],
+        "learning_outcomes": [
+            "Hiểu cú pháp Java cơ bản",
+            "Khai báo biến và kiểu dữ liệu",
+            "Sử dụng vòng lặp và điều kiện",
+        ],
     },
     {
         "id": "java-02-oop",
@@ -122,7 +127,11 @@ JAVA_TOPICS = [
         "icon": "🏗️",
         "estimated_hours": 12,
         "tags": ["java", "oop", "class", "inheritance"],
-        "learning_outcomes": ["Tạo class và object", "Áp dụng 4 tính chất OOP", "Interface và abstract class"],
+        "learning_outcomes": [
+            "Tạo class và object",
+            "Áp dụng 4 tính chất OOP",
+            "Interface và abstract class",
+        ],
     },
     {
         "id": "java-03-collections",
@@ -134,7 +143,11 @@ JAVA_TOPICS = [
         "icon": "📦",
         "estimated_hours": 10,
         "tags": ["java", "collections", "arraylist", "hashmap"],
-        "learning_outcomes": ["Chọn cấu trúc dữ liệu phù hợp", "Sử dụng ArrayList, HashMap, LinkedList", "Iterator và Stream API"],
+        "learning_outcomes": [
+            "Chọn cấu trúc dữ liệu phù hợp",
+            "Sử dụng ArrayList, HashMap, LinkedList",
+            "Iterator và Stream API",
+        ],
     },
     {
         "id": "java-04-exceptions",
@@ -146,7 +159,11 @@ JAVA_TOPICS = [
         "icon": "⚠️",
         "estimated_hours": 6,
         "tags": ["java", "exceptions", "error-handling"],
-        "learning_outcomes": ["Bắt và xử lý exception", "Tạo custom exception", "Best practices error handling"],
+        "learning_outcomes": [
+            "Bắt và xử lý exception",
+            "Tạo custom exception",
+            "Best practices error handling",
+        ],
     },
     {
         "id": "java-05-generics",
@@ -158,7 +175,11 @@ JAVA_TOPICS = [
         "icon": "🔧",
         "estimated_hours": 8,
         "tags": ["java", "generics", "type-safety"],
-        "learning_outcomes": ["Viết generic class và method", "Hiểu wildcard ? extends / ? super", "Type erasure hoạt động như thế nào"],
+        "learning_outcomes": [
+            "Viết generic class và method",
+            "Hiểu wildcard ? extends / ? super",
+            "Type erasure hoạt động như thế nào",
+        ],
     },
     {
         "id": "java-06-streams",
@@ -170,7 +191,11 @@ JAVA_TOPICS = [
         "icon": "🌊",
         "estimated_hours": 10,
         "tags": ["java", "stream", "lambda", "functional"],
-        "learning_outcomes": ["Viết lambda expression", "Xử lý collection với Stream", "map, filter, reduce, collect"],
+        "learning_outcomes": [
+            "Viết lambda expression",
+            "Xử lý collection với Stream",
+            "map, filter, reduce, collect",
+        ],
     },
     {
         "id": "java-07-concurrency",
@@ -182,7 +207,11 @@ JAVA_TOPICS = [
         "icon": "⚡",
         "estimated_hours": 14,
         "tags": ["java", "threads", "concurrency", "async"],
-        "learning_outcomes": ["Tạo và quản lý thread", "Tránh race condition", "Dùng ExecutorService hiệu quả"],
+        "learning_outcomes": [
+            "Tạo và quản lý thread",
+            "Tránh race condition",
+            "Dùng ExecutorService hiệu quả",
+        ],
     },
     {
         "id": "java-08-io-files",
@@ -194,7 +223,11 @@ JAVA_TOPICS = [
         "icon": "📁",
         "estimated_hours": 8,
         "tags": ["java", "io", "files", "nio"],
-        "learning_outcomes": ["Đọc ghi file văn bản và binary", "Dùng Path và Files API", "Serialize/deserialize object"],
+        "learning_outcomes": [
+            "Đọc ghi file văn bản và binary",
+            "Dùng Path và Files API",
+            "Serialize/deserialize object",
+        ],
     },
     {
         "id": "java-09-jdbc",
@@ -206,7 +239,11 @@ JAVA_TOPICS = [
         "icon": "🗄️",
         "estimated_hours": 10,
         "tags": ["java", "jdbc", "database", "sql"],
-        "learning_outcomes": ["Kết nối MySQL/PostgreSQL", "Thực thi CRUD với JDBC", "Transaction và connection pool"],
+        "learning_outcomes": [
+            "Kết nối MySQL/PostgreSQL",
+            "Thực thi CRUD với JDBC",
+            "Transaction và connection pool",
+        ],
     },
     {
         "id": "java-10-spring-core",
@@ -218,7 +255,11 @@ JAVA_TOPICS = [
         "icon": "🌱",
         "estimated_hours": 16,
         "tags": ["java", "spring", "di", "ioc"],
-        "learning_outcomes": ["Cấu hình Spring với annotations", "Dependency Injection patterns", "Bean scopes và lifecycle"],
+        "learning_outcomes": [
+            "Cấu hình Spring với annotations",
+            "Dependency Injection patterns",
+            "Bean scopes và lifecycle",
+        ],
     },
     {
         "id": "java-11-spring-boot",
@@ -230,7 +271,11 @@ JAVA_TOPICS = [
         "icon": "🚀",
         "estimated_hours": 20,
         "tags": ["java", "spring-boot", "rest-api", "jpa"],
-        "learning_outcomes": ["Tạo REST endpoints", "Spring Data JPA CRUD", "Validation, error handling, pagination"],
+        "learning_outcomes": [
+            "Tạo REST endpoints",
+            "Spring Data JPA CRUD",
+            "Validation, error handling, pagination",
+        ],
     },
     {
         "id": "java-12-spring-security",
@@ -242,7 +287,11 @@ JAVA_TOPICS = [
         "icon": "🔐",
         "estimated_hours": 12,
         "tags": ["java", "security", "jwt", "oauth2"],
-        "learning_outcomes": ["Cấu hình authentication", "JWT token generation/validation", "Role-based access control"],
+        "learning_outcomes": [
+            "Cấu hình authentication",
+            "JWT token generation/validation",
+            "Role-based access control",
+        ],
     },
     {
         "id": "java-13-microservices",
@@ -254,7 +303,11 @@ JAVA_TOPICS = [
         "icon": "☁️",
         "estimated_hours": 20,
         "tags": ["java", "microservices", "spring-cloud", "eureka"],
-        "learning_outcomes": ["Service discovery với Eureka", "API Gateway pattern", "Circuit breaker với Resilience4j"],
+        "learning_outcomes": [
+            "Service discovery với Eureka",
+            "API Gateway pattern",
+            "Circuit breaker với Resilience4j",
+        ],
     },
     {
         "id": "java-14-testing",
@@ -266,7 +319,11 @@ JAVA_TOPICS = [
         "icon": "🧪",
         "estimated_hours": 10,
         "tags": ["java", "testing", "junit", "mockito", "tdd"],
-        "learning_outcomes": ["Viết unit test với JUnit 5", "Mock dependencies với Mockito", "Test coverage và TDD workflow"],
+        "learning_outcomes": [
+            "Viết unit test với JUnit 5",
+            "Mock dependencies với Mockito",
+            "Test coverage và TDD workflow",
+        ],
     },
     {
         "id": "java-15-design-patterns",
@@ -278,7 +335,11 @@ JAVA_TOPICS = [
         "icon": "🎨",
         "estimated_hours": 14,
         "tags": ["java", "design-patterns", "solid", "refactoring"],
-        "learning_outcomes": ["Áp dụng creational patterns", "Structural patterns", "Behavioral patterns in real code"],
+        "learning_outcomes": [
+            "Áp dụng creational patterns",
+            "Structural patterns",
+            "Behavioral patterns in real code",
+        ],
     },
 ]
 
@@ -296,7 +357,11 @@ CCPP_TOPICS = [
         "icon": "⚙️",
         "estimated_hours": 8,
         "tags": ["c", "basics", "syntax"],
-        "learning_outcomes": ["Hiểu cú pháp C cơ bản", "Khai báo và sử dụng biến", "Vòng lặp và hàm đơn giản"],
+        "learning_outcomes": [
+            "Hiểu cú pháp C cơ bản",
+            "Khai báo và sử dụng biến",
+            "Vòng lặp và hàm đơn giản",
+        ],
     },
     {
         "id": "c-cpp-02-pointers",
@@ -308,7 +373,11 @@ CCPP_TOPICS = [
         "icon": "🎯",
         "estimated_hours": 12,
         "tags": ["c", "pointers", "memory", "malloc"],
-        "learning_outcomes": ["Hiểu địa chỉ bộ nhớ", "Dùng pointer đúng cách", "Quản lý dynamic memory"],
+        "learning_outcomes": [
+            "Hiểu địa chỉ bộ nhớ",
+            "Dùng pointer đúng cách",
+            "Quản lý dynamic memory",
+        ],
     },
     {
         "id": "c-cpp-03-arrays-strings",
@@ -320,7 +389,11 @@ CCPP_TOPICS = [
         "icon": "📋",
         "estimated_hours": 8,
         "tags": ["c", "arrays", "strings"],
-        "learning_outcomes": ["Khai báo và dùng mảng", "Xử lý chuỗi C-style", "Pointer và array relationship"],
+        "learning_outcomes": [
+            "Khai báo và dùng mảng",
+            "Xử lý chuỗi C-style",
+            "Pointer và array relationship",
+        ],
     },
     {
         "id": "c-cpp-04-structs",
@@ -332,7 +405,11 @@ CCPP_TOPICS = [
         "icon": "🏗️",
         "estimated_hours": 8,
         "tags": ["c", "struct", "union", "enum"],
-        "learning_outcomes": ["Định nghĩa và dùng struct", "Pointer to struct", "Enum và typedef patterns"],
+        "learning_outcomes": [
+            "Định nghĩa và dùng struct",
+            "Pointer to struct",
+            "Enum và typedef patterns",
+        ],
     },
     {
         "id": "c-cpp-05-file-io",
@@ -344,7 +421,11 @@ CCPP_TOPICS = [
         "icon": "📁",
         "estimated_hours": 6,
         "tags": ["c", "file-io", "fopen"],
-        "learning_outcomes": ["Đọc ghi file text và binary", "Error handling với file", "Stdin/stdout redirect"],
+        "learning_outcomes": [
+            "Đọc ghi file text và binary",
+            "Error handling với file",
+            "Stdin/stdout redirect",
+        ],
     },
     {
         "id": "c-cpp-06-cpp-basics",
@@ -356,7 +437,11 @@ CCPP_TOPICS = [
         "icon": "➕",
         "estimated_hours": 8,
         "tags": ["cpp", "basics", "references"],
-        "learning_outcomes": ["Hiểu sự khác biệt C++ và C", "Dùng references thay pointer", "I/O với cin/cout"],
+        "learning_outcomes": [
+            "Hiểu sự khác biệt C++ và C",
+            "Dùng references thay pointer",
+            "I/O với cin/cout",
+        ],
     },
     {
         "id": "c-cpp-07-oop-cpp",
@@ -368,7 +453,11 @@ CCPP_TOPICS = [
         "icon": "🏛️",
         "estimated_hours": 14,
         "tags": ["cpp", "oop", "class", "virtual"],
-        "learning_outcomes": ["Viết class với constructor/destructor", "Virtual functions và polymorphism", "Multiple inheritance"],
+        "learning_outcomes": [
+            "Viết class với constructor/destructor",
+            "Virtual functions và polymorphism",
+            "Multiple inheritance",
+        ],
     },
     {
         "id": "c-cpp-08-templates",
@@ -380,7 +469,11 @@ CCPP_TOPICS = [
         "icon": "🔧",
         "estimated_hours": 10,
         "tags": ["cpp", "templates", "generics"],
-        "learning_outcomes": ["Viết function và class template", "Template specialization", "CRTP pattern"],
+        "learning_outcomes": [
+            "Viết function và class template",
+            "Template specialization",
+            "CRTP pattern",
+        ],
     },
     {
         "id": "c-cpp-09-stl",
@@ -392,7 +485,11 @@ CCPP_TOPICS = [
         "icon": "📚",
         "estimated_hours": 12,
         "tags": ["cpp", "stl", "vector", "map", "algorithms"],
-        "learning_outcomes": ["Dùng thành thạo vector, map, set", "STL algorithms (sort, find, transform)", "Custom comparators"],
+        "learning_outcomes": [
+            "Dùng thành thạo vector, map, set",
+            "STL algorithms (sort, find, transform)",
+            "Custom comparators",
+        ],
     },
     {
         "id": "c-cpp-10-modern-cpp",
@@ -404,7 +501,11 @@ CCPP_TOPICS = [
         "icon": "⚡",
         "estimated_hours": 16,
         "tags": ["cpp", "modern-cpp", "move-semantics", "smart-pointers"],
-        "learning_outcomes": ["unique_ptr, shared_ptr, weak_ptr", "Move semantics và rvalue", "Lambda và std::function"],
+        "learning_outcomes": [
+            "unique_ptr, shared_ptr, weak_ptr",
+            "Move semantics và rvalue",
+            "Lambda và std::function",
+        ],
     },
     {
         "id": "c-cpp-11-memory-management",
@@ -416,7 +517,11 @@ CCPP_TOPICS = [
         "icon": "🧠",
         "estimated_hours": 10,
         "tags": ["cpp", "memory", "raii", "valgrind"],
-        "learning_outcomes": ["Áp dụng RAII pattern", "Phát hiện memory leak", "Custom allocators"],
+        "learning_outcomes": [
+            "Áp dụng RAII pattern",
+            "Phát hiện memory leak",
+            "Custom allocators",
+        ],
     },
     {
         "id": "c-cpp-12-concurrency",
@@ -428,7 +533,11 @@ CCPP_TOPICS = [
         "icon": "🔄",
         "estimated_hours": 14,
         "tags": ["cpp", "threads", "mutex", "atomic"],
-        "learning_outcomes": ["Tạo và đồng bộ thread", "Atomic operations", "lock-free programming basics"],
+        "learning_outcomes": [
+            "Tạo và đồng bộ thread",
+            "Atomic operations",
+            "lock-free programming basics",
+        ],
     },
     {
         "id": "c-cpp-13-systems-programming",
@@ -440,7 +549,11 @@ CCPP_TOPICS = [
         "icon": "🖥️",
         "estimated_hours": 16,
         "tags": ["c", "systems", "posix", "syscall"],
-        "learning_outcomes": ["Dùng POSIX APIs", "Fork/exec process model", "Socket programming cơ bản"],
+        "learning_outcomes": [
+            "Dùng POSIX APIs",
+            "Fork/exec process model",
+            "Socket programming cơ bản",
+        ],
     },
     {
         "id": "c-cpp-14-embedded",
@@ -452,7 +565,11 @@ CCPP_TOPICS = [
         "icon": "🔌",
         "estimated_hours": 20,
         "tags": ["c", "embedded", "microcontroller", "firmware"],
-        "learning_outcomes": ["Lập trình microcontroller", "Giao tiếp GPIO, UART", "Interrupt handlers"],
+        "learning_outcomes": [
+            "Lập trình microcontroller",
+            "Giao tiếp GPIO, UART",
+            "Interrupt handlers",
+        ],
     },
     {
         "id": "c-cpp-15-algorithms",
@@ -464,7 +581,11 @@ CCPP_TOPICS = [
         "icon": "🧩",
         "estimated_hours": 18,
         "tags": ["cpp", "algorithms", "data-structures", "dsa"],
-        "learning_outcomes": ["Implement cấu trúc dữ liệu cơ bản", "Big-O analysis", "Dynamic programming problems"],
+        "learning_outcomes": [
+            "Implement cấu trúc dữ liệu cơ bản",
+            "Big-O analysis",
+            "Dynamic programming problems",
+        ],
     },
 ]
 
@@ -482,7 +603,11 @@ RUST_TOPICS = [
         "icon": "🦀",
         "estimated_hours": 8,
         "tags": ["rust", "basics", "cargo"],
-        "learning_outcomes": ["Cài đặt và dùng cargo", "Cú pháp Rust cơ bản", "Immutability vs mutability"],
+        "learning_outcomes": [
+            "Cài đặt và dùng cargo",
+            "Cú pháp Rust cơ bản",
+            "Immutability vs mutability",
+        ],
     },
     {
         "id": "rust-02-ownership",
@@ -494,7 +619,11 @@ RUST_TOPICS = [
         "icon": "🔑",
         "estimated_hours": 12,
         "tags": ["rust", "ownership", "borrowing", "borrow-checker"],
-        "learning_outcomes": ["Hiểu ownership rules", "Shared & mutable borrows", "Tại sao Rust an toàn bộ nhớ"],
+        "learning_outcomes": [
+            "Hiểu ownership rules",
+            "Shared & mutable borrows",
+            "Tại sao Rust an toàn bộ nhớ",
+        ],
     },
     {
         "id": "rust-03-lifetimes",
@@ -506,7 +635,11 @@ RUST_TOPICS = [
         "icon": "⏳",
         "estimated_hours": 10,
         "tags": ["rust", "lifetimes", "annotations"],
-        "learning_outcomes": ["Đọc và viết lifetime annotations", "Lifetime trong structs và functions", "Common lifetime pitfalls"],
+        "learning_outcomes": [
+            "Đọc và viết lifetime annotations",
+            "Lifetime trong structs và functions",
+            "Common lifetime pitfalls",
+        ],
     },
     {
         "id": "rust-04-structs-enums",
@@ -518,7 +651,11 @@ RUST_TOPICS = [
         "icon": "🎲",
         "estimated_hours": 10,
         "tags": ["rust", "enum", "struct", "pattern-matching"],
-        "learning_outcomes": ["Định nghĩa và dùng structs", "Option<T> và Result<T,E>", "Pattern matching toàn diện"],
+        "learning_outcomes": [
+            "Định nghĩa và dùng structs",
+            "Option<T> và Result<T,E>",
+            "Pattern matching toàn diện",
+        ],
     },
     {
         "id": "rust-05-traits",
@@ -530,7 +667,11 @@ RUST_TOPICS = [
         "icon": "🎭",
         "estimated_hours": 12,
         "tags": ["rust", "traits", "generics"],
-        "learning_outcomes": ["Định nghĩa và implement traits", "Generics với trait bounds", "Static vs dynamic dispatch"],
+        "learning_outcomes": [
+            "Định nghĩa và implement traits",
+            "Generics với trait bounds",
+            "Static vs dynamic dispatch",
+        ],
     },
     {
         "id": "rust-06-error-handling",
@@ -542,7 +683,11 @@ RUST_TOPICS = [
         "icon": "🚨",
         "estimated_hours": 8,
         "tags": ["rust", "error-handling", "result", "thiserror"],
-        "learning_outcomes": ["Dùng Result và ? operator", "Custom Error types", "anyhow cho application code"],
+        "learning_outcomes": [
+            "Dùng Result và ? operator",
+            "Custom Error types",
+            "anyhow cho application code",
+        ],
     },
     {
         "id": "rust-07-collections",
@@ -554,7 +699,11 @@ RUST_TOPICS = [
         "icon": "📦",
         "estimated_hours": 10,
         "tags": ["rust", "vec", "hashmap", "iterators"],
-        "learning_outcomes": ["Vec, HashMap thành thạo", "Iterator chains với map/filter", "Collect vào các collection"],
+        "learning_outcomes": [
+            "Vec, HashMap thành thạo",
+            "Iterator chains với map/filter",
+            "Collect vào các collection",
+        ],
     },
     {
         "id": "rust-08-closures",
@@ -566,7 +715,11 @@ RUST_TOPICS = [
         "icon": "λ",
         "estimated_hours": 8,
         "tags": ["rust", "closures", "functional"],
-        "learning_outcomes": ["Viết và dùng closures", "Fn trait variants", "Functional patterns trong Rust"],
+        "learning_outcomes": [
+            "Viết và dùng closures",
+            "Fn trait variants",
+            "Functional patterns trong Rust",
+        ],
     },
     {
         "id": "rust-09-async",
@@ -578,7 +731,11 @@ RUST_TOPICS = [
         "icon": "⚡",
         "estimated_hours": 14,
         "tags": ["rust", "async", "tokio", "futures"],
-        "learning_outcomes": ["Viết async functions", "Tokio task và spawn", "Async channels và concurrency"],
+        "learning_outcomes": [
+            "Viết async functions",
+            "Tokio task và spawn",
+            "Async channels và concurrency",
+        ],
     },
     {
         "id": "rust-10-smart-pointers",
@@ -590,7 +747,11 @@ RUST_TOPICS = [
         "icon": "🔮",
         "estimated_hours": 10,
         "tags": ["rust", "box", "rc", "arc", "refcell"],
-        "learning_outcomes": ["Khi nào dùng Box/Rc/Arc", "Interior mutability với RefCell", "Arc<Mutex<T>> pattern"],
+        "learning_outcomes": [
+            "Khi nào dùng Box/Rc/Arc",
+            "Interior mutability với RefCell",
+            "Arc<Mutex<T>> pattern",
+        ],
     },
     {
         "id": "rust-11-unsafe",
@@ -602,7 +763,11 @@ RUST_TOPICS = [
         "icon": "⚠️",
         "estimated_hours": 10,
         "tags": ["rust", "unsafe", "ffi", "raw-pointers"],
-        "learning_outcomes": ["Hiểu khi nào unsafe cần thiết", "FFI với C libraries", "Viết safe abstraction over unsafe"],
+        "learning_outcomes": [
+            "Hiểu khi nào unsafe cần thiết",
+            "FFI với C libraries",
+            "Viết safe abstraction over unsafe",
+        ],
     },
     {
         "id": "rust-12-web-backend",
@@ -614,7 +779,11 @@ RUST_TOPICS = [
         "icon": "🌐",
         "estimated_hours": 16,
         "tags": ["rust", "axum", "actix", "rest-api", "sqlx"],
-        "learning_outcomes": ["Xây dựng REST API với axum", "Middleware và error handling", "Database queries với sqlx"],
+        "learning_outcomes": [
+            "Xây dựng REST API với axum",
+            "Middleware và error handling",
+            "Database queries với sqlx",
+        ],
     },
     {
         "id": "rust-13-systems",
@@ -626,7 +795,11 @@ RUST_TOPICS = [
         "icon": "🖥️",
         "estimated_hours": 16,
         "tags": ["rust", "systems", "cli", "performance"],
-        "learning_outcomes": ["Xây dựng CLI tools với clap", "File system và process management", "Low-level networking"],
+        "learning_outcomes": [
+            "Xây dựng CLI tools với clap",
+            "File system và process management",
+            "Low-level networking",
+        ],
     },
     {
         "id": "rust-14-wasm",
@@ -638,7 +811,11 @@ RUST_TOPICS = [
         "icon": "🕸️",
         "estimated_hours": 12,
         "tags": ["rust", "wasm", "webassembly", "wasm-pack"],
-        "learning_outcomes": ["Compile Rust sang WASM", "Tích hợp với JavaScript", "Performance optimization"],
+        "learning_outcomes": [
+            "Compile Rust sang WASM",
+            "Tích hợp với JavaScript",
+            "Performance optimization",
+        ],
     },
 ]
 
@@ -656,7 +833,11 @@ GO_TOPICS = [
         "icon": "🐹",
         "estimated_hours": 8,
         "tags": ["go", "basics", "syntax"],
-        "learning_outcomes": ["Cú pháp và cấu trúc chương trình Go", "Kiểu dữ liệu cơ bản", "Multiple return values"],
+        "learning_outcomes": [
+            "Cú pháp và cấu trúc chương trình Go",
+            "Kiểu dữ liệu cơ bản",
+            "Multiple return values",
+        ],
     },
     {
         "id": "go-02-control-flow",
@@ -668,7 +849,11 @@ GO_TOPICS = [
         "icon": "🔀",
         "estimated_hours": 6,
         "tags": ["go", "control-flow", "defer"],
-        "learning_outcomes": ["Vòng lặp for trong Go", "defer/panic/recover pattern", "Variadic functions"],
+        "learning_outcomes": [
+            "Vòng lặp for trong Go",
+            "defer/panic/recover pattern",
+            "Variadic functions",
+        ],
     },
     {
         "id": "go-03-structs-methods",
@@ -680,7 +865,11 @@ GO_TOPICS = [
         "icon": "🏗️",
         "estimated_hours": 8,
         "tags": ["go", "structs", "methods"],
-        "learning_outcomes": ["Khai báo struct và methods", "Pointer vs value receivers", "Struct embedding (composition)"],
+        "learning_outcomes": [
+            "Khai báo struct và methods",
+            "Pointer vs value receivers",
+            "Struct embedding (composition)",
+        ],
     },
     {
         "id": "go-04-interfaces",
@@ -692,7 +881,11 @@ GO_TOPICS = [
         "icon": "🎭",
         "estimated_hours": 10,
         "tags": ["go", "interfaces", "polymorphism"],
-        "learning_outcomes": ["Định nghĩa và implement interface", "Duck typing trong Go", "Type assertion và type switch"],
+        "learning_outcomes": [
+            "Định nghĩa và implement interface",
+            "Duck typing trong Go",
+            "Type assertion và type switch",
+        ],
     },
     {
         "id": "go-05-error-handling",
@@ -704,7 +897,11 @@ GO_TOPICS = [
         "icon": "🚨",
         "estimated_hours": 6,
         "tags": ["go", "errors", "error-handling"],
-        "learning_outcomes": ["Go error handling idioms", "Error wrapping với %w", "Custom error types"],
+        "learning_outcomes": [
+            "Go error handling idioms",
+            "Error wrapping với %w",
+            "Custom error types",
+        ],
     },
     {
         "id": "go-06-collections",
@@ -716,7 +913,11 @@ GO_TOPICS = [
         "icon": "📦",
         "estimated_hours": 8,
         "tags": ["go", "slices", "maps", "arrays"],
-        "learning_outcomes": ["Slice internals và gotchas", "Map operations", "Functional patterns với slice"],
+        "learning_outcomes": [
+            "Slice internals và gotchas",
+            "Map operations",
+            "Functional patterns với slice",
+        ],
     },
     {
         "id": "go-07-goroutines",
@@ -728,7 +929,11 @@ GO_TOPICS = [
         "icon": "⚡",
         "estimated_hours": 12,
         "tags": ["go", "goroutines", "channels", "concurrency"],
-        "learning_outcomes": ["Spawn và synchronize goroutines", "Channel patterns (fan-out, pipeline)", "select statement"],
+        "learning_outcomes": [
+            "Spawn và synchronize goroutines",
+            "Channel patterns (fan-out, pipeline)",
+            "select statement",
+        ],
     },
     {
         "id": "go-08-sync",
@@ -740,7 +945,11 @@ GO_TOPICS = [
         "icon": "🔄",
         "estimated_hours": 10,
         "tags": ["go", "sync", "mutex", "race-condition"],
-        "learning_outcomes": ["Tránh race conditions", "sync.Pool và sync.Once", "Dùng race detector"],
+        "learning_outcomes": [
+            "Tránh race conditions",
+            "sync.Pool và sync.Once",
+            "Dùng race detector",
+        ],
     },
     {
         "id": "go-09-stdlib",
@@ -752,7 +961,11 @@ GO_TOPICS = [
         "icon": "📚",
         "estimated_hours": 10,
         "tags": ["go", "stdlib", "json", "http"],
-        "learning_outcomes": ["JSON encode/decode", "File và I/O operations", "net/http server cơ bản"],
+        "learning_outcomes": [
+            "JSON encode/decode",
+            "File và I/O operations",
+            "net/http server cơ bản",
+        ],
     },
     {
         "id": "go-10-http-server",
@@ -764,7 +977,11 @@ GO_TOPICS = [
         "icon": "🌐",
         "estimated_hours": 12,
         "tags": ["go", "http", "gin", "rest-api"],
-        "learning_outcomes": ["REST API với Gin", "Middleware pattern", "JSON request/response"],
+        "learning_outcomes": [
+            "REST API với Gin",
+            "Middleware pattern",
+            "JSON request/response",
+        ],
     },
     {
         "id": "go-11-database",
@@ -776,7 +993,11 @@ GO_TOPICS = [
         "icon": "🗄️",
         "estimated_hours": 12,
         "tags": ["go", "gorm", "sqlx", "database"],
-        "learning_outcomes": ["CRUD với GORM", "Transactions và connection pool", "DB migrations"],
+        "learning_outcomes": [
+            "CRUD với GORM",
+            "Transactions và connection pool",
+            "DB migrations",
+        ],
     },
     {
         "id": "go-12-testing",
@@ -788,7 +1009,11 @@ GO_TOPICS = [
         "icon": "🧪",
         "estimated_hours": 8,
         "tags": ["go", "testing", "testify", "benchmarks"],
-        "learning_outcomes": ["Table-driven tests", "Benchmark tests", "Mock interfaces"],
+        "learning_outcomes": [
+            "Table-driven tests",
+            "Benchmark tests",
+            "Mock interfaces",
+        ],
     },
     {
         "id": "go-13-microservices",
@@ -800,7 +1025,11 @@ GO_TOPICS = [
         "icon": "☁️",
         "estimated_hours": 18,
         "tags": ["go", "microservices", "grpc", "protobuf"],
-        "learning_outcomes": ["gRPC service với protobuf", "Service-to-service communication", "Container deployment"],
+        "learning_outcomes": [
+            "gRPC service với protobuf",
+            "Service-to-service communication",
+            "Container deployment",
+        ],
     },
     {
         "id": "go-14-cli-tools",
@@ -812,7 +1041,11 @@ GO_TOPICS = [
         "icon": "🛠️",
         "estimated_hours": 8,
         "tags": ["go", "cli", "cobra", "viper"],
-        "learning_outcomes": ["Xây dựng CLI với cobra", "Config với viper", "Cross-compile cho đa nền tảng"],
+        "learning_outcomes": [
+            "Xây dựng CLI với cobra",
+            "Config với viper",
+            "Cross-compile cho đa nền tảng",
+        ],
     },
     {
         "id": "go-15-generics",
@@ -824,7 +1057,11 @@ GO_TOPICS = [
         "icon": "🔧",
         "estimated_hours": 8,
         "tags": ["go", "generics", "type-parameters"],
-        "learning_outcomes": ["Viết generic functions", "Type constraints", "Generic collections"],
+        "learning_outcomes": [
+            "Viết generic functions",
+            "Type constraints",
+            "Generic collections",
+        ],
     },
 ]
 

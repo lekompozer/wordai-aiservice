@@ -1,6 +1,6 @@
 # System Reference - Backend Infrastructure
 
-**Last Updated:** January 13, 2026
+**Last Updated:** March 6, 2026
 **Purpose:** Complete reference for AI agents and developers working with the backend system
 
 **Related Documentation:**
@@ -13,23 +13,24 @@
 
 ## 🤖 AI Model Configuration
 
-### Claude Sonnet 4.5 - MANDATORY VERSION
+### Claude Sonnet 4.6 - MANDATORY VERSION
 
-**⚠️ CRITICAL RULE:** The entire system MUST use Claude Sonnet 4.5 version `20250929` ONLY.
+**⚠️ CRITICAL RULE:** The entire system MUST use Claude Sonnet 4.6.
 
-**Model Names by Provider:**
-- **Vertex AI:** `claude-sonnet-4-5@20250929` (with `@` symbol)
-- **Claude API:** `claude-sonnet-4-5-20250929` (with dashes `-`)
+**Model Name (same for all providers):**
+- **Vertex AI:** `claude-sonnet-4-6`
+- **Claude API:** `claude-sonnet-4-6`
 
 **Environment Variables:**
 ```bash
-CLAUDE_MODEL=claude-sonnet-4-5-20250929
-CLAUDE_SONNET_MODEL=claude-sonnet-4-5-20250929
+CLAUDE_MODEL=claude-sonnet-4-6
+CLAUDE_SONNET_MODEL=claude-sonnet-4-6
 ```
 
 **DO NOT use:**
 - ❌ Claude 3.5 Sonnet (any version)
 - ❌ `claude-3-5-sonnet-20241022`
+- ❌ `claude-sonnet-4-5-20250929` (previous version)
 - ❌ Any other Claude version
 
 **Configuration Files:**
@@ -3562,6 +3563,302 @@ docker exec mongodb mongosh -u <user> -p <pass> \
   --authenticationDatabase admin ai_service_db --quiet --eval \
   'db.test_submissions.find().sort({submitted_at: -1}).limit(5).forEach(s => print(s._id + " - " + s.test_id + " - " + s.score))'
 ```
+
+
+---
+
+## 📖 Listen & Learn — Book Audio System
+
+### Overview
+
+The "Listen & Learn" feature provides TTS audio generation for books in English and Vietnamese.
+
+**Current stats (March 2026):**
+| Metric | Count |
+|--------|-------|
+| Total books with text (`book_page_texts`) | 620 |
+| Books with EN audio | 336 / 620 |
+| Books with VI audio | 321 / 596 |
+| EN text pages | 9,114 |
+| VI text pages (translated) | 8,660 |
+| Books missing VI translation | 24 |
+
+### Collections
+
+#### `book_page_texts` — Extracted page text (17,774 docs)
+
+```python
+{
+    "_id": ObjectId,
+    "book_id": "book_abc123",
+    "page_number": 1,
+    "language": "en",           # "en" or "vi"
+    "text_content": "Full text of the page...",
+    "word_count": 250,
+    "created_at": datetime,
+    "updated_at": datetime,
+}
+```
+
+**Key queries:**
+```python
+# Get pages for a book in a language
+pages = db.book_page_texts.find({"book_id": bid, "language": "en"}).sort("page_number", 1)
+
+# Check VI translation coverage
+en_ids = set(db.book_page_texts.distinct("book_id", {"language": "en"}))
+vi_ids = set(db.book_page_texts.distinct("book_id", {"language": "vi"}))
+missing = en_ids - vi_ids   # Books needing VI translation
+```
+
+#### `book_page_audio` — Generated TTS audio (657 docs)
+
+```python
+{
+    "_id": ObjectId,
+    "book_id": "book_abc123",
+    "language": "en",                   # "en" or "vi"
+    "voice_name": "en-US-Neural2-A",
+    "version": "v1",
+    "status": "completed",              # pending | processing | completed | failed
+    "total_pages": 15,
+    "progress": 100,
+    "audio_url": "https://cdn.wordai.pro/...",   # Full merged MP3
+    "r2_key": "book-audio/book_abc123/en/v1.mp3",
+    "page_timestamps": [
+        {"page": 1, "start_ms": 0, "end_ms": 12500},
+        {"page": 2, "start_ms": 12500, "end_ms": 28300},
+    ],
+    "total_duration_seconds": 324.5,
+    "audio_metadata": {"size_bytes": 5234800, "bitrate": "128k"},
+    "created_at": datetime,
+    "updated_at": datetime,
+    "completed_at": datetime,
+}
+```
+
+**Service file:** `src/services/book_page_audio_service.py`
+
+**Batch scripts (in `scripts/` — copy manually, do NOT git push):**
+- `scripts/batch_translate_vi_letsread.py` — Translate EN→VI via DeepSeek
+- `scripts/generate_audio_batch_letsread.py` — Generate TTS audio
+
+```bash
+./copy-and-run.sh scripts/batch_translate_vi_letsread.py --bg
+./copy-and-run.sh scripts/generate_audio_batch_letsread.py --bg
+```
+
+---
+
+## 🎓 Learning Code System — Database Structure
+
+### Overview
+
+Programming learning system with categories, topics, knowledge articles, templates and exercises.
+
+**API prefix:** `/api/learning/` and `/api/code-editor/`
+
+**Current stats (March 2026):**
+| Collection | Count | Status |
+|-----------|-------|--------|
+| `learning_categories` | 6 | java/c-cpp/rust/go pending seed |
+| `learning_topics` | 166 | python/js/html/sql/sa/ai only |
+| `knowledge_articles` | 7 | ⚠️ Needs seed via DeepSeek |
+| `code_templates` | 116 | Python only, others need seed |
+| `code_template_categories` | 17 | Python only |
+| `code_exercises` | 0 | ❌ Empty — needs seed |
+
+### Collections
+
+#### `learning_categories` — Top-level language categories
+
+```python
+{
+    "id": "python",           # Slug (primary key)
+    "name": "Python",
+    "description": "...",
+    "icon": "🐍",
+    "order": 1,               # Display order (python=1 … go=10)
+    "is_active": True,
+    "topic_count": 21,        # Cached
+    "created_at": datetime,
+    "updated_at": datetime,
+}
+```
+
+**Existing (order 1–6):** `python`, `javascript`, `html-css`, `sql`, `software-architecture`, `ai`
+**Pending (order 7–10):** `java`, `c-cpp`, `rust`, `go`
+
+#### `learning_topics` — Subtopics (166 docs)
+
+```python
+{
+    "id": "python-lop10-gioi-thieu",
+    "category_id": "python",
+    "name": "Gioi Thieu Python - Lop 10",
+    "description": "...",
+    "level": "beginner",          # beginner|intermediate|advanced|expert|practical
+    "grade": "highschool",        # Optional: highschool|university|professional
+    "order": 1,
+    "icon": "🐍",
+    "color": "#3B82F6",
+    "estimated_hours": 6,
+    "prerequisites": [],
+    "learning_outcomes": ["..."],
+    "tags": ["python", "lop10"],
+    "is_active": True, "is_published": True,
+    "source_type": "wordai_team",
+    "knowledge_count": 0,   # Cached — update on insert
+    "template_count": 0,    # Cached — update on insert
+    "exercise_count": 0,    # Cached — update on insert
+    "metadata": {},
+    "created_at": datetime, "updated_at": datetime,
+}
+```
+
+#### `knowledge_articles` — Markdown learning articles (7 docs, needs seed)
+
+```python
+{
+    "id": "ka-python-lop10-01",
+    "topic_id": "python-lop10-gioi-thieu",
+    "category_id": "python",
+    "title": "Python la gi?",
+    "title_multilang": {"vi": "Python la gi?", "en": "What is Python?"},
+    "content": "# Python la gi?\n\n...",   # Markdown
+    "content_multilang": {"vi": "...", "en": "..."},
+    "excerpt": "Gioi thieu ngon ngu Python",
+    "excerpt_multilang": {"vi": "...", "en": "..."},
+    "available_languages": ["vi"],
+    "difficulty": "beginner",   # beginner|intermediate|advanced
+    "tags": ["python", "intro"],
+    "source_type": "wordai_team",
+    "created_by": "system",
+    "author_name": "WordAI Team",
+    "view_count": 0, "like_count": 0, "comment_count": 0,
+    "is_published": True, "is_featured": False,
+    "created_at": datetime, "updated_at": datetime, "published_at": datetime,
+}
+```
+
+#### `code_templates` — Ready-to-use code snippets (116 docs, Python only)
+
+```python
+{
+    "id": "uuid-v4-string",
+    "title": "Hello World - Chuong trinh dau tien",
+    "name": "Hello World",             # Short name
+    "category": "python-lop10-gioi-thieu",   # Category slug
+    "category_id": "python",           # Language category
+    "topic_id": "python-lop10-gioi-thieu",
+    "programming_language": "python",  # CodeLanguage enum
+    "difficulty": "beginner",
+    "description": "Chuong trinh Python dau tien in ra man hinh",
+    "code": "# Code voi comments\nprint('Hello World!')",
+    "tags": ["lop10", "hello-world", "print"],
+    "is_featured": False, "is_active": True, "is_published": True,
+    "source_type": "wordai_team",
+    "metadata": {"author": "WordAI", "version": "1.0", "usage_count": 0, "dependencies": []},
+    "display_order": 1,
+    "created_at": datetime, "updated_at": datetime,
+}
+```
+
+**CodeLanguage enum** (`src/models/code_editor_models.py`):
+`python`, `javascript`, `html`, `css`, `sql`, `java`, `c_cpp`, `rust`, `go`
+
+#### `code_template_categories` — Template groupings (17 docs, Python only)
+
+```python
+{
+    "id": "python-lop10-gioi-thieu",
+    "name": "Gioi Thieu Python - Lop 10",
+    "slug": "python-lop10-gioi-thieu",
+    "language": "python",
+    "description": "...",
+    "icon": "🐍",
+    "color": "#3B82F6",
+    "template_count": 8,
+    "display_order": 1,
+    "is_active": True,
+    "created_at": datetime, "updated_at": datetime,
+}
+```
+
+#### `code_exercises` — Coding exercises (0 docs — needs seed)
+
+```python
+{
+    "id": "ex-python-lop10-01",
+    "topic_id": "python-lop10-gioi-thieu",
+    "category_id": "python",
+    "title": "Viet chuong trinh Hello World",
+    "description": "In ra man hinh 'Hello, World!'",
+    "difficulty": "beginner",
+    "programming_language": "python",
+    "starter_code": "# TODO: Viet code o day\n",
+    "solution_code": "print('Hello, World!')",   # Hidden from users
+    "test_cases": [
+        {"input": "", "expected_output": "Hello, World!", "description": "Basic test"}
+    ],
+    "hints": ["Dung ham print()", "Chu y dau nhay don hoac doi"],
+    "estimated_minutes": 10,
+    "grading_type": "test_cases",   # test_cases | ai_grading | manual
+    "tags": ["python", "print"],
+    "source_type": "wordai_team",
+    "author_name": "WordAI Team",
+    "submission_count": 0, "pass_rate": 0.0,
+    "is_published": True, "is_featured": False,
+    "created_at": datetime, "updated_at": datetime,
+}
+```
+
+### Content Generation Scripts (in `scripts/` — copy manually)
+
+| Script | Purpose | AI |
+|--------|---------|-----|
+| `seed_categories_topics_new_langs.py` | Seed Java/C++/Rust/Go (4 categories, 59 topics) | None |
+| `seed_knowledge_deepseek.py` | Knowledge articles + exercises | DeepSeek |
+| `seed_templates_gemini.py` | Code templates (3 per topic) | Gemini Flash |
+
+```bash
+# Step 1: Seed categories+topics (run once)
+./copy-and-run.sh scripts/seed_categories_topics_new_langs.py --bg
+
+# Step 2: TEST knowledge + exercises (2 topics)
+./copy-and-run.sh scripts/seed_knowledge_deepseek.py --bg
+
+# Step 3: TEST templates (2 topics)
+./copy-and-run.sh scripts/seed_templates_gemini.py --bg
+
+# Full run after quality check:
+./copy-and-run.sh "scripts/seed_knowledge_deepseek.py --all" --bg
+./copy-and-run.sh "scripts/seed_templates_gemini.py --all" --bg
+```
+
+### Learning System API Routes
+
+**Prefix:** `/api/learning/`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/categories` | Public | All categories |
+| GET | `/categories/{id}/topics` | Public | Topics in category |
+| GET | `/topics/{id}/knowledge` | Public | Knowledge articles |
+| GET | `/knowledge/{id}` | Public | Single article |
+| GET | `/topics/{id}/templates` | Required | Templates for topic |
+| GET | `/topics/{id}/exercises` | Required | Exercises for topic |
+| POST | `/categories` | Admin | Create category |
+| POST | `/topics` | Admin | Create topic |
+| POST | `/topics/{id}/knowledge` | Admin | Create article |
+
+**Prefix:** `/api/code-editor/`
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| GET | `/categories` | Public | Template categories (`?language=python`) |
+| GET | `/templates` | Public | Templates (`?language=python&difficulty=beginner`) |
+| POST | `/templates/{id}/use` | Required | Fork template to user files |
 
 ---
 

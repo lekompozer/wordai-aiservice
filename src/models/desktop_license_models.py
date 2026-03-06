@@ -28,12 +28,12 @@ class DesktopLicenseProduct(str, Enum):
 
 class EnterpriseUserRole(str, Enum):
     BILLING_ADMIN = "billing_admin"  # Person who purchased the enterprise plan
-    IT_ADMIN = "it_admin"            # IT/config admin (assigned by billing_admin)
-    MEMBER = "member"                # Regular employee
+    IT_ADMIN = "it_admin"  # IT/config admin (assigned by billing_admin)
+    MEMBER = "member"  # Regular employee
 
 
 class LicenseStatus(str, Enum):
-    PENDING = "pending"        # Payment not yet confirmed
+    PENDING = "pending"  # Payment not yet confirmed
     ACTIVE = "active"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
@@ -85,7 +85,9 @@ class ModuleVisibility(BaseModel):
 
     documents: bool = Field(True, description="Documents module visible")
     online_tests: bool = Field(True, description="Online Tests module visible")
-    online_books: bool = Field(True, description="Online Books (LetsRead) module visible")
+    online_books: bool = Field(
+        True, description="Online Books (LetsRead) module visible"
+    )
     studyhub: bool = Field(True, description="StudyHub module visible")
     listen_and_learn: bool = Field(True, description="Listen & Learn module visible")
     code_editor: bool = Field(True, description="Code Editor module visible")
@@ -243,8 +245,8 @@ class DesktopFeatures(BaseModel):
     code_editor: bool = True
     software_lab: bool = True
     ai_tools: bool = True
-    listen_and_learn: bool = False    # Requires separate subscription
-    music: bool = False               # Requires separate subscription
+    listen_and_learn: bool = False  # Requires separate subscription
+    music: bool = False  # Requires separate subscription
     learn_conversations: bool = False  # Requires separate subscription
 
 
@@ -255,7 +257,9 @@ class DesktopLicenseStatusResponse(BaseModel):
     """
 
     has_license: bool
-    license_type: Optional[str] = Field(None, description="individual | enterprise | null")
+    license_type: Optional[str] = Field(
+        None, description="individual | enterprise | null"
+    )
     status: str = Field("none", description="active | expired | none")
     expires_at: Optional[datetime] = None
     days_remaining: Optional[int] = None
@@ -300,7 +304,9 @@ class EnterpriseOrderResponse(BaseModel):
 
 class EnterpriseUserItem(BaseModel):
     email: str
-    user_id: Optional[str] = Field(None, description="Firebase UID (null if not yet activated)")
+    user_id: Optional[str] = Field(
+        None, description="Firebase UID (null if not yet activated)"
+    )
     role: EnterpriseUserRole
     status: str = Field(..., description="pending | active | removed")
     invited_at: datetime

@@ -377,7 +377,9 @@ async def create_individual_order(
         }
 
         db.desktop_license_orders.insert_one(order_doc)
-        logger.info(f"💻 Individual desktop order created: {order_id} — {price_vnd:,} VND")
+        logger.info(
+            f"💻 Individual desktop order created: {order_id} — {price_vnd:,} VND"
+        )
 
         return IndividualOrderResponse(
             success=True,
@@ -1203,10 +1205,24 @@ async def update_enterprise_customization(
         # Merge with existing settings (partial update)
         current_settings = _customization_from_doc(ent)
 
-        new_modules = request.modules if request.modules is not None else current_settings.modules
-        new_header_nav = request.header_nav if request.header_nav is not None else current_settings.header_nav
-        new_sidebar_mode = request.sidebar_mode if request.sidebar_mode is not None else current_settings.sidebar_mode
-        new_ai_models = request.ai_models if request.ai_models is not None else current_settings.ai_models
+        new_modules = (
+            request.modules if request.modules is not None else current_settings.modules
+        )
+        new_header_nav = (
+            request.header_nav
+            if request.header_nav is not None
+            else current_settings.header_nav
+        )
+        new_sidebar_mode = (
+            request.sidebar_mode
+            if request.sidebar_mode is not None
+            else current_settings.sidebar_mode
+        )
+        new_ai_models = (
+            request.ai_models
+            if request.ai_models is not None
+            else current_settings.ai_models
+        )
 
         updated = CustomizationSettings(
             modules=new_modules,
@@ -1274,7 +1290,11 @@ async def grant_license_from_order(request: GrantLicenseRequest):
 
         if order["access_granted"]:
             logger.info(f"⚠️  License already granted for order {order_id}")
-            return {"success": True, "message": "License already granted", "order_id": order_id}
+            return {
+                "success": True,
+                "message": "License already granted",
+                "order_id": order_id,
+            }
 
         product = order["product"]
         user_id = order["user_id"]
@@ -1323,7 +1343,9 @@ async def grant_license_from_order(request: GrantLicenseRequest):
                 },
             )
 
-            logger.info(f"✅ Individual license activated: {license_id} for {user_email}")
+            logger.info(
+                f"✅ Individual license activated: {license_id} for {user_email}"
+            )
 
             return {
                 "success": True,

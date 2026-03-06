@@ -39,7 +39,9 @@ async def main():
         return
 
     # Run generation (awaits full completion before returning job_id)
-    logging.info(f"Starting audio generation for language='{LANGUAGE}' (this may take several minutes)...")
+    logging.info(
+        f"Starting audio generation for language='{LANGUAGE}' (this may take several minutes)..."
+    )
     job_id = await svc.generate_book_audio(BOOK_ID, voice_name, language=LANGUAGE)
     logging.info(f"Job ID: {job_id}")
 

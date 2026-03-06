@@ -21,7 +21,7 @@ class VertexAIService:
         self.location = os.getenv("GCP_REGION", "asia-southeast1")
 
         # Model configurations
-        self.claude_model_name = "claude-sonnet-4-5@20250929"
+        self.claude_model_name = "claude-sonnet-4-6"
         self.gemini_model_name = "gemini-3.1-pro-preview"
 
         # Initialize clients

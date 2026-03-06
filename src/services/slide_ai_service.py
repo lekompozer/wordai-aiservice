@@ -78,9 +78,9 @@ class SlideAIService:
 
         # Model name depends on provider
         if self.claude_provider == "vertex":
-            self.claude_model = "claude-sonnet-4-5@20250929"  # Vertex AI format
+            self.claude_model = "claude-sonnet-4-6"  # Vertex AI format
         else:
-            self.claude_model = "claude-sonnet-4-5-20250929"  # Standard API format
+            self.claude_model = "claude-sonnet-4-6"  # Standard API format
 
         if self.claude_client:
             logger.info(
@@ -202,7 +202,7 @@ class SlideAIService:
 
                     # Create fallback client
                     fallback_client = Anthropic(api_key=api_key)
-                    fallback_model = "claude-sonnet-4-5-20250929"
+                    fallback_model = "claude-sonnet-4-6"
 
                     logger.info(
                         f"🔄 Using fallback: Claude API (model: {fallback_model})"
@@ -256,8 +256,8 @@ class SlideAIService:
 
                         # Create fallback client
                         fallback_client = Anthropic(api_key=api_key)
-                        # IMPORTANT: Use Claude Sonnet 4.5 (same version as Vertex AI)
-                        fallback_model = "claude-sonnet-4-5-20250929"
+                        # IMPORTANT: Use Claude Sonnet 4.6 (same version as Vertex AI)
+                        fallback_model = "claude-sonnet-4-6"
 
                         logger.info(
                             f"🔄 Using fallback: Claude API (model: {fallback_model})"
@@ -589,7 +589,7 @@ class SlideAIService:
                         raise ValueError("ANTHROPIC_API_KEY not found")
 
                     fallback_client = Anthropic(api_key=api_key)
-                    fallback_model = "claude-sonnet-4-5-20250929"
+                    fallback_model = "claude-sonnet-4-6"
 
                     def _stream_fallback():
                         response_text = ""

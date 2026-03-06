@@ -10,6 +10,7 @@ Run inside the Docker container:
 
 import sys
 import logging
+
 sys.path.insert(0, "/app")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
@@ -17,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 from src.database.db_manager import DBManager
 from pymongo import ASCENDING
+
 
 def main():
     db_manager = DBManager()
@@ -27,8 +29,7 @@ def main():
 
     # 1. Patch existing docs that are missing language field
     result = col.update_many(
-        {"language": {"$exists": False}},
-        {"$set": {"language": "en"}}
+        {"language": {"$exists": False}}, {"$set": {"language": "en"}}
     )
     print(f"  Patched {result.modified_count} docs missing language field → 'en'")
 
@@ -39,7 +40,11 @@ def main():
     # 3. Drop old unique index (book_id + page_number only)
     for name, idx in existing.items():
         key_fields = list(idx.get("key", {}).keys())
-        if "book_id" in key_fields and "page_number" in key_fields and "language" not in key_fields:
+        if (
+            "book_id" in key_fields
+            and "page_number" in key_fields
+            and "language" not in key_fields
+        ):
             if idx.get("unique"):
                 print(f"  Dropping old unique index: {name}")
                 col.drop_index(name)
@@ -49,7 +54,7 @@ def main():
     col.create_index(
         [("book_id", ASCENDING), ("page_number", ASCENDING), ("language", ASCENDING)],
         unique=True,
-        name="book_id_page_number_language_unique"
+        name="book_id_page_number_language_unique",
     )
 
     print("\n--- book_page_texts indexes after migration ---")
@@ -57,6 +62,7 @@ def main():
         print(f"  {idx['name']}: {idx['key']}")
 
     print("\n✅ Migration complete!")
+
 
 if __name__ == "__main__":
     main()

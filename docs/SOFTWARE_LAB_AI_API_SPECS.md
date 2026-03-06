@@ -18,8 +18,8 @@ The Software Lab AI system provides **5 AI-powered code assistant features** usi
 
 ## AI Models
 
-### Claude 4.5 Sonnet (via Vertex AI)
-- **Model ID**: `claude-sonnet-4-5@20250929`
+### Claude 4.6 Sonnet (via Vertex AI)
+- **Model ID**: `claude-sonnet-4-6`
 - **Provider**: Vertex AI
 - **Max Output**: 32,000 tokens
 - **Used For**: Code Generation, Explanation, Transformation

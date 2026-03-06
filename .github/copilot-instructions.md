@@ -18,10 +18,10 @@ This file contains:
 
 ### 1. Claude Model Version (MANDATORY)
 
-**MUST use Claude Sonnet 4.5 version `20250929` ONLY**
-- Vertex AI: `claude-sonnet-4-5@20250929`
-- Claude API: `claude-sonnet-4-5-20250929`
-- DO NOT use Claude 3.5 Sonnet or any other version
+**MUST use Claude Sonnet 4.6 — model string `claude-sonnet-4-6`**
+- Vertex AI: `claude-sonnet-4-6`
+- Claude API: `claude-sonnet-4-6`
+- DO NOT use Claude 3.5 Sonnet, claude-sonnet-4-5, or any other version
 
 ### 2. Database Connection (MANDATORY)
 
@@ -430,6 +430,37 @@ docker logs learning-events-worker --tail=50
 - `payment-service` (Node.js): ~70MB only
 - Total containers: ~15+ services
 
+### 12. Scripts Management (MANDATORY — NEVER git push scripts)
+
+**All utility/admin scripts MUST live in `scripts/` folder (git-ignored).**
+
+**Why:**
+- Scripts often contain hardcoded credentials or DB mutations
+- One-off scripts don't belong in the application repo history
+- `scripts/` is in `.gitignore` — will never be committed
+
+**Correct workflow:**
+```bash
+# 1. Create/edit script locally in scripts/
+vim scripts/my_migration.py
+
+# 2. Copy & run on server WITHOUT git push
+./copy-and-run.sh scripts/my_migration.py --bg --deps
+
+# Or manually:
+scp scripts/my_migration.py root@104.248.147.155:/tmp/
+ssh root@104.248.147.155 "docker cp /tmp/my_migration.py ai-chatbot-rag:/app/ && docker exec ai-chatbot-rag python3 /app/my_migration.py"
+```
+
+**NEVER do:**
+```bash
+# ❌ WRONG: pushing scripts to git
+git add scripts/
+git push
+# ❌ WRONG: running deploy just to run a script
+./deploy-compose-with-rollback.sh  # for a script change
+```
+
 ## When Implementing New Features
 
 1. **Check SYSTEM_REFERENCE.md** for existing patterns
@@ -476,6 +507,12 @@ docker logs learning-events-worker --tail=50
 ❌ Checking logs of `payment-events-worker` (container removed, merged)
 ✅ `docker logs learning-events-worker --tail=50` handles both learning + payment events
 
+❌ Push utility/admin scripts to git (they contain DB credentials & one-off logic)
+✅ Keep scripts in `scripts/` folder (git-ignored) and copy manually: `./copy-and-run.sh script.py --bg --deps`
+
+❌ Commit scripts that run against production DB directly to the repo
+✅ Use `scripts/` folder locally, deploy only `src/` application code via git
+
 ## Quick Reference Links
 
 - Full docs: `/SYSTEM_REFERENCE.md`
@@ -485,5 +522,5 @@ docker logs learning-events-worker --tail=50
 
 ---
 
-**Last Updated:** February 23, 2026
+**Last Updated:** March 6, 2026
 **For:** GitHub Copilot, Cursor AI, and other AI coding assistants
