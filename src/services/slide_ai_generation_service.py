@@ -11,7 +11,9 @@ import os
 
 from google import genai  # type: ignore
 from google.genai import types  # type: ignore
-from anthropic import AnthropicVertex, Anthropic
+
+# from anthropic import AnthropicVertex, Anthropic  # REPLACED BY GLM-5 (testing)
+from src.services.glm5_client import get_glm5_client
 import config.config as config
 
 logger = logging.getLogger("chatbot")
@@ -29,43 +31,12 @@ class SlideAIGenerationService:
         self.gemini_client = genai.Client(api_key=self.gemini_api_key)
         self.gemini_model = "gemini-3.1-pro-preview"  # Gemini Pro 3 Preview
 
-        # Claude for HTML generation (Step 2) - Try Vertex AI first, fallback to API
-        try:
-            # Try Vertex AI first (cheaper: 2 points/batch)
-            project_id = os.getenv("FIREBASE_PROJECT_ID", "wordai-6779e")
-            region = os.getenv("VERTEX_AI_REGION", "asia-southeast1")
-
-            # Check for credentials file
-            credentials_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-            if not credentials_path:
-                credentials_path = "/app/wordai-6779e-ed6189c466f1.json"
-                if os.path.exists(credentials_path):
-                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_path
-
-            self.claude_client = AnthropicVertex(project_id=project_id, region=region)
-            self.claude_provider = "vertex"
-            self.claude_model = "claude-sonnet-4-6"  # Vertex AI format
-            logger.info(
-                f"✅ Claude Vertex AI initialized for slide generation (project={project_id}, region={region})"
-            )
-
-        except Exception as vertex_error:
-            logger.warning(f"⚠️ Failed to initialize Claude Vertex AI: {vertex_error}")
-            logger.info("🔄 Falling back to Claude API for slide generation...")
-
-            # Fallback to direct Anthropic API (5 points/batch)
-            self.claude_api_key = os.getenv("ANTHROPIC_API_KEY")
-            if not self.claude_api_key:
-                raise ValueError(
-                    "ANTHROPIC_API_KEY not configured and Vertex AI unavailable"
-                )
-
-            self.claude_client = Anthropic(api_key=self.claude_api_key)
-            self.claude_provider = "api"
-            self.claude_model = "claude-sonnet-4-6"  # Standard API format
-            logger.info(
-                "✅ Claude API initialized for slide generation (fallback mode)"
-            )
+        # Step 2: GLM-5 for HTML generation (testing — was Claude Sonnet 4.6)
+        # NOTE: swap back to Claude by restoring the AnthropicVertex block above
+        self.glm5_client = get_glm5_client()
+        logger.info(
+            "✅ GLM-5 (zai-org/glm-5-maas) initialized for slide HTML generation (Step 2)"
+        )
 
     def build_analysis_prompt(
         self,
@@ -925,40 +896,22 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
         )
 
         logger.info(
-            f"🎨 Generating HTML batch {batch_number}/{total_batches} ({len(slides_outline)} slides) with Claude (Step 2)..."
+            f"🎨 Generating HTML batch {batch_number}/{total_batches} ({len(slides_outline)} slides) with GLM-5 (Step 2)..."
         )
 
         try:
-            # Use streaming to get real-time progress and avoid timeouts
-            logger.info(
-                f"🌊 Starting Claude streaming for batch {batch_number}/{total_batches}..."
-            )
-
-            # ⚠️ CRITICAL FIX: Run blocking streaming in thread to avoid blocking event loop
-            # Claude's sync streaming blocks entire async event loop, causing all API requests to timeout
             import asyncio
 
-            def _stream_claude_sync():
-                """Synchronous streaming function to run in thread"""
-                html_output = ""
-                with self.claude_client.messages.stream(
-                    model=self.claude_model,
-                    max_tokens=36864,  # 36K tokens (faster than 64K, sufficient for 8 slides)
-                    temperature=0.8,  # More creative for HTML content
-                    timeout=1800.0,  # 30 minutes timeout (default is 600s/10min)
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": prompt,
-                        }
-                    ],
-                ) as stream:
-                    for text in stream.text_stream:
-                        html_output += text
-                return html_output
-
-            # Run sync streaming in thread pool to prevent blocking
-            html_output = await asyncio.to_thread(_stream_claude_sync)
+            # GLM-5 via Vertex AI streaming (replaces Claude for testing)
+            logger.info(
+                f"🌊 Starting GLM-5 streaming for batch {batch_number}/{total_batches}..."
+            )
+            html_output = await self.glm5_client.call_streaming(
+                prompt=prompt,
+                max_tokens=36864,
+                temperature=0.8,
+                timeout=1800.0,
+            )
 
             logger.info(f"✅ HTML streaming completed: {len(html_output)} chars")
 
@@ -996,12 +949,12 @@ Return ONLY raw HTML code. No markdown, no explanations, no ```html blocks. Just
 
             if actual_count != expected_count:
                 logger.warning(
-                    f"⚠️ SLIDE COUNT MISMATCH! Expected {expected_count} slides, but Claude generated {actual_count} slides"
+                    f"⚠️ SLIDE COUNT MISMATCH! Expected {expected_count} slides, but GLM-5 generated {actual_count} slides"
                 )
                 logger.warning(
                     f"   Batch {batch_number}/{total_batches}: Expected slides {batch_start_index} to {batch_start_index + expected_count - 1}"
                 )
-                logger.warning(f"   Claude output length: {len(html_output)} chars")
+                logger.warning(f"   GLM-5 output length: {len(html_output)} chars")
                 logger.warning(f"   Output preview: {html_output[:500]}...")
                 logger.warning(
                     f"   ⚠️ Continuing with {actual_count} slides - user can retry if needed"
