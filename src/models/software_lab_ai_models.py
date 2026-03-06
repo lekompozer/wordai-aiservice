@@ -119,6 +119,21 @@ class GenerateCodeResponse(BaseModel):
 # Feature 2: Explain Code
 # ============================================================================
 
+# 8 major languages supported by GLM-5 for code explanation comments
+EXPLAIN_LANGUAGES = {
+    "vi": "Vietnamese (Tiếng Việt)",
+    "en": "English",
+    "zh": "Chinese Simplified (中文简体)",
+    "ja": "Japanese (日本語)",
+    "ko": "Korean (한국어)",
+    "fr": "French (Français)",
+    "es": "Spanish (Español)",
+    "de": "German (Deutsch)",
+    "th": "Thai (ภาษาไทย)",
+    "ms": "Malay (Bahasa Melayu)",
+    "id": "Indonesian (Bahasa Indonesia)",
+}
+
 
 class ExplainCodeRequest(BaseModel):
     """Request to explain existing code.
@@ -151,6 +166,16 @@ class ExplainCodeRequest(BaseModel):
         None, max_length=500, description="Specific question about the code"
     )
 
+    # Language for AI comments/explanations
+    explain_language: Optional[str] = Field(
+        "vi",
+        description=(
+            "Language for inline comments and explanations. "
+            f"Supported: {', '.join(EXPLAIN_LANGUAGES.keys())}. "
+            "Default: vi (Vietnamese)."
+        ),
+    )
+
     @model_validator(mode="after")
     def check_file_source(self):
         if not self.file_id and not self.local_file:
@@ -165,16 +190,17 @@ class ExplainCodeRequest(BaseModel):
         json_schema_extra = {
             "examples": {
                 "cloud_file": {
-                    "summary": "Cloud file",
+                    "summary": "Cloud file (Vietnamese comments)",
                     "value": {
                         "project_id": "proj_abc123",
                         "file_id": "file_xyz789",
                         "selection": {"start_line": 10, "end_line": 25},
                         "question": "Why is useState used here?",
+                        "explain_language": "vi",
                     },
                 },
-                "local_file": {
-                    "summary": "Local file (desktop)",
+                "local_file_english": {
+                    "summary": "Local file (English comments)",
                     "value": {
                         "project_id": "proj_abc123",
                         "local_file": {
@@ -183,6 +209,19 @@ class ExplainCodeRequest(BaseModel):
                             "language": "python",
                         },
                         "question": "What does this function do?",
+                        "explain_language": "en",
+                    },
+                },
+                "local_file_japanese": {
+                    "summary": "Local file (Japanese comments)",
+                    "value": {
+                        "project_id": "proj_abc123",
+                        "local_file": {
+                            "content": "const add = (a, b) => a + b;",
+                            "path": "src/utils.js",
+                            "language": "javascript",
+                        },
+                        "explain_language": "ja",
                     },
                 },
             }

@@ -307,12 +307,14 @@ services:
       retries: 3
 
   # ============================================================================
-  # Chapter Translation Worker - Book chapter translation
+  # Book Processing Worker - Chapter Translation + PDF Chapter (combined, saves ~512M RAM)
   # ============================================================================
-  chapter-translation-worker:
-    container_name: chapter-translation-worker
+  book-processing-worker:
+    container_name: book-processing-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    command: python -m src.workers.chapter_translation_worker
+    env_file:
+      - .env
+    command: python -m src.workers.book_processing_worker
     volumes:
       - ./logs:/app/logs
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
@@ -326,6 +328,16 @@ services:
       - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_API_KEY2=${GEMINI_API_KEY2}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-wordai}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-https://static.wordai.pro}
+      - CLOUDFLARE_IMAGES_ENABLED=${CLOUDFLARE_IMAGES_ENABLED:-false}
+      - CLOUDFLARE_IMAGES_ACCOUNT_ID=${CLOUDFLARE_IMAGES_ACCOUNT_ID:-}
+      - CLOUDFLARE_IMAGES_API_TOKEN=${CLOUDFLARE_IMAGES_API_TOKEN:-}
+      - CLOUDFLARE_IMAGES_ACCOUNT_HASH=${CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
+      - CLOUDFLARE_IMAGES_DELIVERY_URL=${CLOUDFLARE_IMAGES_DELIVERY_URL:-}
     depends_on:
       - redis-server
       - mongodb
@@ -335,13 +347,14 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Reduced from 1G - RAM optimization
-          cpus: "1"
+          memory: 2G # PDF processing needs 2G; chapter-translation shares the process (~512M overhead)
+          cpus: "2"
     healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'chapter_translation_worker' | grep -v grep || exit 1" ]
+      test: [ "CMD-SHELL", "ps aux | grep 'book_processing_worker' | grep -v grep || exit 1" ]
       interval: 30s
-      timeout: 10s
+      timeout: 30s
       retries: 3
+      start_period: 60s
 
   # ============================================================================
   # Test Generation Worker - AI test generation (listening, grammar, vocab)
@@ -436,18 +449,18 @@ services:
       retries: 3
 
   # ============================================================================
-  # Slide Narration Subtitle Worker - AI subtitle generation
+  # Slide Narration Worker - Audio (TTS) + Subtitle generation (combined, saves ~512M RAM)
   # ============================================================================
-  slide-narration-subtitle-worker:
-    container_name: slide-narration-subtitle-worker
+  slide-narration-worker:
+    container_name: slide-narration-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     env_file:
       - .env
-    command: python -m src.workers.slide_narration_subtitle_worker
+    command: python -m src.workers.slide_narration_combined_worker
     volumes:
       - ./logs:/app/logs
       - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      # Mount Vertex AI credentials for Gemini subtitle generation
+      # Mount Vertex AI credentials for TTS + Gemini subtitle generation
       - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
     environment:
       - TZ=Asia/Ho_Chi_Minh
@@ -459,6 +472,11 @@ services:
       - REDIS_URL=redis://redis-server:6379
       - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
       - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_API_KEY2=${GEMINI_API_KEY2}
     depends_on:
@@ -470,61 +488,13 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M # Reduced from 2G - RAM optimization
+          memory: 512M
           cpus: "1"
     healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'slide_narration_subtitle_worker' | grep -v grep || exit 1" ]
+      test: [ "CMD-SHELL", "ps aux | grep 'slide_narration_combined_worker' | grep -v grep || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # ============================================================================
-  # PDF Chapter Worker - Convert large PDF files to book chapters
-  # ============================================================================
-  pdf-chapter-worker:
-    container_name: pdf-chapter-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    env_file:
-      - .env
-    command: python -m src.workers.pdf_chapter_worker
-    volumes:
-      - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
-      - R2_ENDPOINT=${R2_ENDPOINT}
-      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME:-wordai}
-      - R2_PUBLIC_URL=${R2_PUBLIC_URL:-https://static.wordai.pro}
-      - CLOUDFLARE_IMAGES_ENABLED=${CLOUDFLARE_IMAGES_ENABLED:-false}
-      - CLOUDFLARE_IMAGES_ACCOUNT_ID=${CLOUDFLARE_IMAGES_ACCOUNT_ID:-}
-      - CLOUDFLARE_IMAGES_API_TOKEN=${CLOUDFLARE_IMAGES_API_TOKEN:-}
-      - CLOUDFLARE_IMAGES_ACCOUNT_HASH=${CLOUDFLARE_IMAGES_ACCOUNT_HASH:-}
-      - CLOUDFLARE_IMAGES_DELIVERY_URL=${CLOUDFLARE_IMAGES_DELIVERY_URL:-}
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 2G # Increased from 1G - PDF processing needs 2GB for large files (200+ pages)
-          cpus: "2" # More CPU for image conversion
-    healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'src.workers.pdf_chapter_worker' | grep -v grep || exit 1" ]
-      interval: 30s
-      timeout: 30s # Increased from 10s - ps aux can be slow during heavy PDF processing
-      retries: 3
-      start_period: 60s # Give worker time to initialize
 
   # ============================================================================
   # Lyria Music Generation Worker - AI music from text prompts
@@ -812,54 +782,6 @@ services:
           cpus: "1"
     healthcheck:
       test: [ "CMD-SHELL", "ps aux | grep 'learning_assistant_worker' | grep -v grep || exit 1" ]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # ============================================================================
-  # Slide Narration Audio Worker - TTS audio generation
-  # ============================================================================
-  slide-narration-audio-worker:
-    container_name: slide-narration-audio-worker
-    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
-    env_file:
-      - .env
-    command: python -m src.workers.slide_narration_audio_worker
-    volumes:
-      - ./logs:/app/logs
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
-      # Mount Vertex AI credentials for TTS generation
-      - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
-    environment:
-      - TZ=Asia/Ho_Chi_Minh
-      - PYTHONPATH=/app
-      - PYTHONUNBUFFERED=1
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/wordai-6779e-ed6189c466f1.json
-      - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID}
-      - REDIS_URL=redis://redis-server:6379
-      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
-      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
-      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
-      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
-      - R2_ENDPOINT=${R2_ENDPOINT}
-      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_API_KEY2=${GEMINI_API_KEY2}
-    depends_on:
-      - redis-server
-      - mongodb
-    restart: unless-stopped
-    networks:
-      - ai-chatbot-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M # Reduced from 2G - RAM optimization
-          cpus: "1"
-    healthcheck:
-      test: [ "CMD-SHELL", "ps aux | grep 'slide_narration_audio_worker' | grep -v grep || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3

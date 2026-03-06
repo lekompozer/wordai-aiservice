@@ -317,6 +317,27 @@ Then: The code (no markdown fences, no backticks)
         file_id = job.get("file_id")
         selection = job.get("selection")
         question = job.get("question")
+        explain_language = job.get("explain_language", "vi")
+
+        # Map language code to a natural-language instruction for the model
+        _LANG_NAMES = {
+            "vi": "Vietnamese (Tiếng Việt)",
+            "en": "English",
+            "zh": "Chinese Simplified (中文简体)",
+            "ja": "Japanese (日本語)",
+            "ko": "Korean (한국어)",
+            "fr": "French (Français)",
+            "es": "Spanish (Español)",
+            "de": "German (Deutsch)",
+            "th": "Thai (ภาษาไทย)",
+            "ms": "Malay (Bahasa Melayu)",
+            "id": "Indonesian (Bahasa Indonesia)",
+        }
+        lang_name = _LANG_NAMES.get(explain_language, "Vietnamese (Tiếng Việt)")
+        lang_instruction = (
+            f"IMPORTANT: Write ALL comments, explanations, and answers "
+            f"exclusively in {lang_name}. Do NOT use any other language."
+        )
 
         try:
             await set_job_status(
@@ -361,9 +382,14 @@ Then: The code (no markdown fences, no backticks)
 
             system_prompt = f"""You are a patient programming tutor explaining code to students.
 
+{lang_instruction}
+
 FILE: {file.get('path')}
 LANGUAGE: {file.get('language', 'unknown')}
-{f"SYSTEM CONTEXT: {architecture.get('architecture_document', {}).get('system_overview', '')[:200]}" if architecture else ""}
+{
+    f"SYSTEM CONTEXT: {architecture.get('architecture_document', {}).get('system_overview', '')[:200]}"
+    if architecture else ""
+}
 
 YOUR TASK:
 Return the SAME code with INLINE COMMENTS explaining:

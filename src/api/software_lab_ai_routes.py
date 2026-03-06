@@ -193,6 +193,7 @@ async def start_explain_code(
         "local_file": request.local_file.dict() if request.local_file else None,
         "selection": request.selection,
         "question": request.question,
+        "explain_language": request.explain_language or "vi",
     }
 
     await set_job_status(
