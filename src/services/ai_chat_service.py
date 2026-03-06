@@ -31,9 +31,8 @@ class AIProvider(str, Enum):
     DEEPSEEK_CHAT = "deepseek_chat"
     DEEPSEEK_REASONER = "deepseek_reasoner"
 
-    # Cerebras Models (chỉ 2 model còn hoạt động)
+    # Cerebras Models
     QWEN_32B = "qwen_32b"  # maps to gpt-oss-120b
-    ZAI_GLM = "zai_glm"  # maps to zai-glm-4.7
 
     # Gemini Models
     GEMINI_FLASH_IMAGE = "gemini_flash_image"
@@ -88,12 +87,7 @@ class AIChatService:
                 self.providers[AIProvider.QWEN_32B] = cerebras_client
                 self.models[AIProvider.QWEN_32B] = "gpt-oss-120b"
 
-                self.providers[AIProvider.ZAI_GLM] = cerebras_client
-                self.models[AIProvider.ZAI_GLM] = "zai-glm-4.7"
-
-                logger.info(
-                    "✅ Cerebras clients initialized (gpt-oss-120b + zai-glm-4.7)"
-                )
+                logger.info("✅ Cerebras client initialized (gpt-oss-120b)")
 
             # Gemini
             if os.getenv("GEMINI_API_KEY"):
@@ -109,11 +103,11 @@ class AIChatService:
 
                 # Gemini Flash
                 self.providers[AIProvider.GEMINI_FLASH] = genai_new
-                self.models[AIProvider.GEMINI_FLASH] = "gemini-3-flash-preview"
+                self.models[AIProvider.GEMINI_FLASH] = "gemini-3.1-flash-lite-preview"
 
                 # Gemini Pro
                 self.providers[AIProvider.GEMINI_PRO] = genai_new
-                self.models[AIProvider.GEMINI_PRO] = "gemini-2.5-pro"
+                self.models[AIProvider.GEMINI_PRO] = "gemini-3.1-pro-preview"
 
                 logger.info("✅ Gemini clients initialized (3 models)")
 
@@ -145,23 +139,18 @@ class AIChatService:
                 "description": "Cerebras gpt-oss-120b - Fast general purpose model",
                 "category": "general",
             },
-            AIProvider.ZAI_GLM: {
-                "name": "Cerebras ZAI GLM",
-                "description": "Cerebras zai-glm-4.7 - Efficient model",
-                "category": "general",
-            },
             AIProvider.GEMINI_FLASH_IMAGE: {
                 "name": "Gemini 2.5 Flash Image Preview",
                 "description": "Google's multimodal model with image capabilities",
                 "category": "image",
             },
             AIProvider.GEMINI_FLASH: {
-                "name": "Gemini 2.5 Flash",
+                "name": "Gemini 3.1 Flash Lite",
                 "description": "Google's fast and efficient model",
                 "category": "fast",
             },
             AIProvider.GEMINI_PRO: {
-                "name": "Gemini 2.5 Pro",
+                "name": "Gemini 3.1 Pro",
                 "description": "Google's advanced multimodal model",
                 "category": "advanced",
             },
@@ -209,10 +198,7 @@ class AIChatService:
                     provider, messages, temperature, max_tokens
                 )
 
-            elif provider in [
-                AIProvider.QWEN_32B,
-                AIProvider.ZAI_GLM,
-            ]:
+            elif provider in [AIProvider.QWEN_32B]:
                 # Cerebras providers (OpenAI-compatible)
                 return await self._chat_openai_compatible(
                     provider, messages, temperature, max_tokens
@@ -260,10 +246,7 @@ class AIChatService:
                 ):
                     yield chunk
 
-            elif provider in [
-                AIProvider.QWEN_32B,
-                AIProvider.ZAI_GLM,
-            ]:
+            elif provider in [AIProvider.QWEN_32B]:
                 # Cerebras providers (OpenAI-compatible)
                 async for chunk in self._stream_openai_compatible(
                     provider, messages, temperature, max_tokens
@@ -298,12 +281,11 @@ class AIChatService:
         client = self.providers[provider]
         model = self.models[provider]
 
-        # gpt-5-mini (OpenAI) requires max_completion_tokens; others use max_tokens
-        token_kwarg = (
-            {"max_completion_tokens": max_tokens}
-            if provider == AIProvider.CHATGPT_4O_LATEST
-            else {"max_tokens": max_tokens}
-        )
+        # gpt-5-mini (OpenAI) requires max_completion_tokens and no temperature
+        if provider == AIProvider.CHATGPT_4O_LATEST:
+            extra_kwargs = {"max_completion_tokens": max_tokens}
+        else:
+            extra_kwargs = {"max_tokens": max_tokens, "temperature": temperature}
 
         # Retry logic for transient errors
         for attempt in range(max_retries):
@@ -311,8 +293,7 @@ class AIChatService:
                 response = await client.chat.completions.create(
                     model=model,
                     messages=messages,
-                    temperature=temperature,
-                    **token_kwarg,
+                    **extra_kwargs,
                 )
 
                 return response.choices[0].message.content
@@ -450,12 +431,11 @@ class AIChatService:
         model = self.models[provider]
         max_retries = 3
 
-        # gpt-5-mini (OpenAI) requires max_completion_tokens; others use max_tokens
-        token_kwarg = (
-            {"max_completion_tokens": max_tokens}
-            if provider == AIProvider.CHATGPT_4O_LATEST
-            else {"max_tokens": max_tokens}
-        )
+        # gpt-5-mini (OpenAI) requires max_completion_tokens and no temperature
+        if provider == AIProvider.CHATGPT_4O_LATEST:
+            extra_kwargs = {"max_completion_tokens": max_tokens}
+        else:
+            extra_kwargs = {"max_tokens": max_tokens, "temperature": temperature}
 
         # Retry logic for establishing the stream
         for attempt in range(max_retries):
@@ -464,8 +444,7 @@ class AIChatService:
                     model=model,
                     messages=messages,
                     stream=True,
-                    temperature=temperature,
-                    **token_kwarg,
+                    **extra_kwargs,
                 )
 
                 # Once stream is established, yield chunks
