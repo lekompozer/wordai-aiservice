@@ -33,7 +33,7 @@ from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
-POINTS_COST_AI_CODE = 2
+POINTS_COST_AI_CODE = 1
 
 QUEUE_GENERATE = "queue:software_lab_generate_code"
 QUEUE_EXPLAIN = "queue:software_lab_explain_code"
@@ -167,7 +167,7 @@ class AIAssistantGLM5Worker:
             if not project:
                 raise Exception(f"Project {project_id} not found")
 
-            # Context files
+            # Context files (cloud)
             context_files = []
             if job.get("context_file_ids"):
                 cursor = db.software_lab_files.find(
@@ -177,6 +177,17 @@ class AIAssistantGLM5Worker:
             elif job.get("include_all_files"):
                 cursor = db.software_lab_files.find({"project_id": project_id})
                 context_files = await asyncio.to_thread(list, cursor)
+
+            # Context files (local — desktop only): merge after cloud files
+            for lf in job.get("context_local_files") or []:
+                context_files.append(
+                    {
+                        "file_id": None,
+                        "path": lf.get("path", "local_file"),
+                        "language": lf.get("language", "unknown"),
+                        "content": lf.get("content", ""),
+                    }
+                )
 
             architecture = await asyncio.to_thread(
                 db.software_lab_architectures.find_one, {"project_id": project_id}
@@ -209,7 +220,9 @@ class AIAssistantGLM5Worker:
                     "project_id": project_id,
                     "action": "generate",
                     "user_query": user_query,
-                    "context_files": [f["file_id"] for f in context_files],
+                    "context_files": [
+                        f["file_id"] for f in context_files if f.get("file_id")
+                    ],
                     "ai_response": content,
                     "generated_code": generated_code,
                     "model": response["model"],
@@ -315,11 +328,25 @@ Then: The code (no markdown fences, no backticks)
             )
 
             db = self.db_manager.db
-            file = await asyncio.to_thread(
-                db.software_lab_files.find_one, {"file_id": file_id}
-            )
-            if not file:
-                raise Exception(f"File {file_id} not found")
+
+            # Resolve file: local (desktop) or cloud (DB lookup)
+            local_file_data = job.get("local_file")
+            if local_file_data:
+                file = {
+                    "file_id": None,
+                    "path": local_file_data.get("path", "local_file"),
+                    "language": local_file_data.get("language", "unknown"),
+                    "content": local_file_data.get("content", ""),
+                }
+                logger.info(
+                    f"📂 explain job {job_id}: using local file '{file['path']}'"
+                )
+            else:
+                file = await asyncio.to_thread(
+                    db.software_lab_files.find_one, {"file_id": file_id}
+                )
+                if not file:
+                    raise Exception(f"File {file_id} not found")
 
             architecture = await asyncio.to_thread(
                 db.software_lab_architectures.find_one, {"project_id": project_id}
@@ -448,11 +475,25 @@ Add above/inline comments, DO NOT change the code structure.
             )
 
             db = self.db_manager.db
-            file = await asyncio.to_thread(
-                db.software_lab_files.find_one, {"file_id": file_id}
-            )
-            if not file:
-                raise Exception(f"File {file_id} not found")
+
+            # Resolve file: local (desktop) or cloud (DB lookup)
+            local_file_data = job.get("local_file")
+            if local_file_data:
+                file = {
+                    "file_id": None,
+                    "path": local_file_data.get("path", "local_file"),
+                    "language": local_file_data.get("language", "unknown"),
+                    "content": local_file_data.get("content", ""),
+                }
+                logger.info(
+                    f"📂 transform job {job_id}: using local file '{file['path']}'"
+                )
+            else:
+                file = await asyncio.to_thread(
+                    db.software_lab_files.find_one, {"file_id": file_id}
+                )
+                if not file:
+                    raise Exception(f"File {file_id} not found")
 
             code_content = file.get("content", "")
             if selection:

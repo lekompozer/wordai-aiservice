@@ -4,8 +4,38 @@ Pydantic models for AI Code Assistant features
 """
 
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from datetime import datetime
+
+
+# ============================================================================
+# Shared: Local File Input (Desktop only)
+# ============================================================================
+
+
+class LocalFileInput(BaseModel):
+    """Local file content sent inline from the desktop client.
+
+    Desktop apps can have files stored only on disk (not synced to the cloud).
+    In this case, the frontend must send the file content directly instead of
+    a ``file_id``.
+    """
+
+    content: str = Field(..., description="Full file content")
+    path: str = Field(..., description="File path for display, e.g. 'src/main.py'")
+    language: str = Field(
+        "unknown",
+        description="Programming language: python, javascript, typescript, etc.",
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "content": "def hello():\n    print('Hello, World!')",
+                "path": "src/main.py",
+                "language": "python",
+            }
+        }
 
 
 # ============================================================================
@@ -28,12 +58,19 @@ class GenerateCodeRequest(BaseModel):
         None, ge=1, description="Line number to insert"
     )
 
-    # Optional: context files
+    # Optional: context files (cloud)
     context_file_ids: Optional[List[str]] = Field(
-        None, description="Specific file IDs for context"
+        None, description="Specific cloud file IDs for context"
     )
     include_all_files: bool = Field(
-        False, description="Include entire project as context"
+        False, description="Include entire project as context (cloud files only)"
+    )
+
+    # Optional: context files (local — desktop only)
+    context_local_files: Optional[List[LocalFileInput]] = Field(
+        None,
+        description="Local files to include as context (desktop mode). "
+        "Send full content here when files are not synced to cloud.",
     )
 
     class Config:
@@ -43,6 +80,13 @@ class GenerateCodeRequest(BaseModel):
                 "user_query": "Create a login form with email and password validation",
                 "target_path": "src/components/LoginForm.jsx",
                 "include_all_files": False,
+                "context_local_files": [
+                    {
+                        "content": "// existing auth.js content",
+                        "path": "src/auth.js",
+                        "language": "javascript",
+                    }
+                ],
             }
         }
 
@@ -63,7 +107,7 @@ class GenerateCodeResponse(BaseModel):
     tokens: Optional[Dict[str, int]] = None
 
     # Points
-    points_deducted: int = 2
+    points_deducted: int = 1
     new_balance: Optional[int] = None
 
     # Error info
@@ -77,10 +121,25 @@ class GenerateCodeResponse(BaseModel):
 
 
 class ExplainCodeRequest(BaseModel):
-    """Request to explain existing code"""
+    """Request to explain existing code.
+
+    Supports two file modes:
+    - **Cloud file**: set ``file_id`` (file is stored in the cloud project)
+    - **Local file** (desktop only): set ``local_file`` with full content
+
+    Exactly one of ``file_id`` or ``local_file`` must be provided.
+    """
 
     project_id: str = Field(..., description="Project ID")
-    file_id: str = Field(..., description="File containing code to explain")
+
+    # File source — exactly one required
+    file_id: Optional[str] = Field(
+        None, description="Cloud file ID (file stored in project)"
+    )
+    local_file: Optional[LocalFileInput] = Field(
+        None,
+        description="Local file content (desktop only — file not synced to cloud)",
+    )
 
     # Optional: explain only selected lines
     selection: Optional[Dict[str, int]] = Field(
@@ -92,13 +151,40 @@ class ExplainCodeRequest(BaseModel):
         None, max_length=500, description="Specific question about the code"
     )
 
+    @model_validator(mode="after")
+    def check_file_source(self):
+        if not self.file_id and not self.local_file:
+            raise ValueError(
+                "Either 'file_id' (cloud) or 'local_file' (desktop) must be provided"
+            )
+        if self.file_id and self.local_file:
+            raise ValueError("Provide either 'file_id' or 'local_file', not both")
+        return self
+
     class Config:
         json_schema_extra = {
-            "example": {
-                "project_id": "proj_abc123",
-                "file_id": "file_xyz789",
-                "selection": {"start_line": 10, "end_line": 25},
-                "question": "Why is useState used here?",
+            "examples": {
+                "cloud_file": {
+                    "summary": "Cloud file",
+                    "value": {
+                        "project_id": "proj_abc123",
+                        "file_id": "file_xyz789",
+                        "selection": {"start_line": 10, "end_line": 25},
+                        "question": "Why is useState used here?",
+                    },
+                },
+                "local_file": {
+                    "summary": "Local file (desktop)",
+                    "value": {
+                        "project_id": "proj_abc123",
+                        "local_file": {
+                            "content": "def hello():\n    print('hi')",
+                            "path": "src/main.py",
+                            "language": "python",
+                        },
+                        "question": "What does this function do?",
+                    },
+                },
             }
         }
 
@@ -128,7 +214,7 @@ class ExplainCodeResponse(BaseModel):
     tokens: Optional[Dict[str, int]] = None
 
     # Points
-    points_deducted: int = 2
+    points_deducted: int = 1
     new_balance: Optional[int] = None
 
     # Error info
@@ -142,10 +228,25 @@ class ExplainCodeResponse(BaseModel):
 
 
 class TransformCodeRequest(BaseModel):
-    """Request to refactor/optimize/convert existing code"""
+    """Request to refactor/optimize/convert existing code.
+
+    Supports two file modes:
+    - **Cloud file**: set ``file_id`` (file is stored in the cloud project)
+    - **Local file** (desktop only): set ``local_file`` with full content
+
+    Exactly one of ``file_id`` or ``local_file`` must be provided.
+    """
 
     project_id: str = Field(..., description="Project ID")
-    file_id: str = Field(..., description="File containing code to transform")
+
+    # File source — exactly one required
+    file_id: Optional[str] = Field(
+        None, description="Cloud file ID (file stored in project)"
+    )
+    local_file: Optional[LocalFileInput] = Field(
+        None,
+        description="Local file content (desktop only — file not synced to cloud)",
+    )
 
     # Required: transformation type
     transformation: str = Field(
@@ -165,14 +266,42 @@ class TransformCodeRequest(BaseModel):
         None, description="Selected lines: {start_line: int, end_line: int}"
     )
 
+    @model_validator(mode="after")
+    def check_file_source(self):
+        if not self.file_id and not self.local_file:
+            raise ValueError(
+                "Either 'file_id' (cloud) or 'local_file' (desktop) must be provided"
+            )
+        if self.file_id and self.local_file:
+            raise ValueError("Provide either 'file_id' or 'local_file', not both")
+        return self
+
     class Config:
         json_schema_extra = {
-            "example": {
-                "project_id": "proj_abc123",
-                "file_id": "file_xyz789",
-                "transformation": "convert",
-                "instruction": "Convert class component to functional with hooks",
-                "selection": {"start_line": 1, "end_line": 50},
+            "examples": {
+                "cloud_file": {
+                    "summary": "Cloud file",
+                    "value": {
+                        "project_id": "proj_abc123",
+                        "file_id": "file_xyz789",
+                        "transformation": "convert",
+                        "instruction": "Convert class component to functional with hooks",
+                        "selection": {"start_line": 1, "end_line": 50},
+                    },
+                },
+                "local_file": {
+                    "summary": "Local file (desktop)",
+                    "value": {
+                        "project_id": "proj_abc123",
+                        "local_file": {
+                            "content": "class MyComp extends React.Component { ... }",
+                            "path": "src/MyComp.jsx",
+                            "language": "javascript",
+                        },
+                        "transformation": "convert",
+                        "instruction": "Convert to functional component with hooks",
+                    },
+                },
             }
         }
 
@@ -201,7 +330,7 @@ class TransformCodeResponse(BaseModel):
     tokens: Optional[Dict[str, int]] = None
 
     # Points
-    points_deducted: int = 2
+    points_deducted: int = 1
     new_balance: Optional[int] = None
 
     # Error info

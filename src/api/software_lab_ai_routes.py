@@ -28,8 +28,9 @@ from src.queue.queue_manager import QueueManager, set_job_status, get_job_status
 
 router = APIRouter(prefix="/software-lab/ai", tags=["Software Lab AI"])
 
-# Points cost for all AI features
-POINTS_COST_AI_CODE = 2
+# Points cost per AI model tier
+POINTS_COST_GLM = 1  # generate / explain / transform  (GLM-5 MaaS)
+POINTS_COST_GEMINI = 2  # analyze-architecture / scaffold  (Gemini Pro)
 
 # ========================================
 # FEATURE 1: GENERATE CODE
@@ -43,7 +44,7 @@ async def start_generate_code(
     """
     Start AI code generation job.
     Returns job_id for status polling.
-    Cost: 2 points
+    Cost: 1 point
     """
     user_id = user["uid"]
     points_service = get_points_service()
@@ -52,7 +53,7 @@ async def start_generate_code(
     try:
         await points_service.deduct_points(
             user_id=user_id,
-            amount=POINTS_COST_AI_CODE,
+            amount=POINTS_COST_GLM,
             service="ai_code_generate",
             description=f"Generate code: {request.query[:50]}...",
         )
@@ -62,7 +63,7 @@ async def start_generate_code(
             balance = await points_service.get_points_balance(user_id)
             raise HTTPException(
                 status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_AI_CODE}, Available: {balance['points_remaining']}",
+                detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
             )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -83,6 +84,11 @@ async def start_generate_code(
         "insert_at_line": request.insert_at_line,
         "context_file_ids": request.context_file_ids,
         "include_all_files": request.include_all_files,
+        "context_local_files": (
+            [f.dict() for f in request.context_local_files]
+            if request.context_local_files
+            else []
+        ),
     }
 
     # Set initial status in Redis
@@ -103,7 +109,7 @@ async def start_generate_code(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=2,
+        points_deducted=POINTS_COST_GLM,
         new_balance=balance,
     )
 
@@ -132,7 +138,7 @@ async def get_generate_code_status(job_id: str, user: dict = Depends(get_current
         explanation=job.get("explanation"),
         suggested_file=job.get("suggested_file"),
         tokens=job.get("tokens"),
-        points_deducted=2,
+        points_deducted=POINTS_COST_GLM,
         error=job.get("error"),
         message=job.get("message"),
     )
@@ -150,7 +156,7 @@ async def start_explain_code(
     """
     Start AI code explanation job.
     Returns annotated code with inline comments.
-    Cost: 2 points
+    Cost: 1 point
     """
     user_id = user["uid"]
     points_service = get_points_service()
@@ -159,16 +165,16 @@ async def start_explain_code(
     try:
         transaction = await points_service.deduct_points(
             user_id=user_id,
-            amount=POINTS_COST_AI_CODE,
+            amount=POINTS_COST_GLM,
             service="ai_code_explain",
-            description=f"Explain code: file {request.file_id}",
+            description=f"Explain code: file {request.file_id or request.local_file.path if request.local_file else 'local'}",
         )
     except Exception as e:
         if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
             balance = await points_service.get_points_balance(user_id)
             raise HTTPException(
                 status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_AI_CODE}, Available: {balance['points_remaining']}",
+                detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
             )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -184,6 +190,7 @@ async def start_explain_code(
         "user_id": user_id,
         "project_id": request.project_id,
         "file_id": request.file_id,
+        "local_file": request.local_file.dict() if request.local_file else None,
         "selection": request.selection,
         "question": request.question,
     }
@@ -203,7 +210,7 @@ async def start_explain_code(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=2,
+        points_deducted=POINTS_COST_GLM,
         new_balance=transaction.balance_after,
     )
 
@@ -233,7 +240,7 @@ async def get_explain_code_status(job_id: str, user: dict = Depends(get_current_
         key_concepts=job.get("key_concepts"),
         code_snippets=job.get("code_snippets"),
         tokens=job.get("tokens"),
-        points_deducted=2,
+        points_deducted=POINTS_COST_GLM,
         error=job.get("error"),
         message=job.get("message"),
     )
@@ -251,7 +258,7 @@ async def start_transform_code(
     """
     Start AI code transformation job.
     Refactor, optimize, convert, fix, or add features.
-    Cost: 2 points
+    Cost: 1 point
     """
     user_id = user["uid"]
     points_service = get_points_service()
@@ -260,7 +267,7 @@ async def start_transform_code(
     try:
         transaction = await points_service.deduct_points(
             user_id=user_id,
-            amount=POINTS_COST_AI_CODE,
+            amount=POINTS_COST_GLM,
             service="ai_code_transform",
             description=f"Transform code: {request.transformation_type}",
         )
@@ -269,7 +276,7 @@ async def start_transform_code(
             balance = await points_service.get_points_balance(user_id)
             raise HTTPException(
                 status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_AI_CODE}, Available: {balance['points_remaining']}",
+                detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
             )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -285,6 +292,7 @@ async def start_transform_code(
         "user_id": user_id,
         "project_id": request.project_id,
         "file_id": request.file_id,
+        "local_file": request.local_file.dict() if request.local_file else None,
         "transformation": request.transformation,
         "instruction": request.instruction,
         "selection": request.selection,
@@ -305,7 +313,7 @@ async def start_transform_code(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=2,
+        points_deducted=POINTS_COST_GLM,
         new_balance=transaction.balance_after,
     )
 
@@ -335,7 +343,7 @@ async def get_transform_code_status(
         changes_summary=job.get("changes_summary"),
         diff=job.get("diff"),
         tokens=job.get("tokens"),
-        points_deducted=2,
+        points_deducted=POINTS_COST_GLM,
         error=job.get("error"),
         message=job.get("message"),
     )
@@ -362,7 +370,7 @@ async def start_analyze_architecture(
     try:
         transaction = await points_service.deduct_points(
             user_id=user_id,
-            amount=POINTS_COST_AI_CODE,
+            amount=POINTS_COST_GEMINI,
             service="ai_architecture_analyze",
             description=f"Analyze architecture: {request.requirements[:50]}...",
         )
@@ -371,7 +379,7 @@ async def start_analyze_architecture(
             balance = await points_service.get_points_balance(user_id)
             raise HTTPException(
                 status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_AI_CODE}, Available: {balance['points_remaining']}",
+                detail=f"Insufficient points. Required: {POINTS_COST_GEMINI}, Available: {balance['points_remaining']}",
             )
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -463,7 +471,7 @@ async def start_scaffold_project(
     try:
         transaction = await points_service.deduct_points(
             user_id=user_id,
-            amount=POINTS_COST_AI_CODE,
+            amount=POINTS_COST_GEMINI,
             service="ai_scaffold_project",
             description=f"Scaffold project: architecture {request.architecture_id}",
         )
@@ -472,7 +480,7 @@ async def start_scaffold_project(
             balance = await points_service.get_points_balance(user_id)
             raise HTTPException(
                 status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_AI_CODE}, Available: {balance['points_remaining']}",
+                detail=f"Insufficient points. Required: {POINTS_COST_GEMINI}, Available: {balance['points_remaining']}",
             )
         raise HTTPException(status_code=500, detail=str(e))
 

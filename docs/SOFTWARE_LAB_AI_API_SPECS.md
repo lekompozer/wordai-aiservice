@@ -1,16 +1,16 @@
 # Software Lab AI API Technical Specifications
 
-**Version**: 1.0
-**Last Updated**: December 28, 2025
+**Version**: 1.1
+**Last Updated**: March 6, 2026
 **Status**: Production
 
 ## Overview
 
 The Software Lab AI system provides **5 AI-powered code assistant features** using Redis Worker Pattern with async job processing and polling:
 
-1. **Generate Code** - Generate code from natural language using Claude 4.5
-2. **Explain Code** - Add inline comments throughout code files using Claude 4.5
-3. **Transform Code** - Refactor/optimize/convert/fix code using Claude 4.5
+1. **Generate Code** - Generate code from natural language using GLM-5
+2. **Explain Code** - Add inline comments throughout code files using GLM-5
+3. **Transform Code** - Refactor/optimize/convert/fix code using GLM-5
 4. **Analyze Architecture** - Generate system architecture from requirements using Gemini 3 Pro
 5. **Scaffold Project** - Generate 20-30 template files from architecture using Gemini 3 Pro
 
@@ -18,18 +18,47 @@ The Software Lab AI system provides **5 AI-powered code assistant features** usi
 
 ## AI Models
 
-### Claude 4.6 Sonnet (via Vertex AI)
-- **Model ID**: `claude-sonnet-4-6`
-- **Provider**: Vertex AI
-- **Max Output**: 32,000 tokens
-- **Used For**: Code Generation, Explanation, Transformation
+### GLM-5 MaaS (via Vertex AI)
+- **Model ID**: `zai-org/glm-5-maas`
+- **Provider**: Vertex AI (GLM-5 MaaS endpoint)
+- **Max Output**: 8,000 tokens
+- **Used For**: Code Generation, Explanation, Transformation (features 1–3)
 
 ### Gemini 3 Pro (via Vertex AI)
-- **Model ID**: `gemini-3-pro-preview`
+- **Model ID**: `gemini-3.1-pro-preview`
 - **Provider**: Vertex AI
 - **Max Input**: ~200,000 tokens (≈680K characters)
 - **Max Output**: 32,000 tokens
 - **Used For**: Architecture Analysis, Project Scaffolding
+
+---
+
+## Local File Support (Desktop App)
+
+The desktop version of Software Lab supports **two file storage modes**:
+
+| Mode | Storage | How to identify |
+|------|---------|----------------|
+| **Cloud file** | Synced to server (MongoDB) | Has a `file_id` |
+| **Local file** | On disk only, not synced | No `file_id` — send `local_file` instead |
+
+### `LocalFileInput` object
+
+When a file is local-only, the frontend must send its content inline:
+
+```typescript
+interface LocalFileInput {
+  content: string;      // Full file content (required)
+  path: string;         // File path for display, e.g. "src/main.py" (required)
+  language: string;     // Language hint: python, javascript, typescript, etc.
+}
+```
+
+### Key rules
+
+- For **Explain** and **Transform**: provide **either** `file_id` (cloud) **or** `local_file` (desktop). Providing both or neither returns HTTP 422.
+- For **Generate**: local files can only appear as _context_ (`context_local_files`); the generation itself targets a cloud project. Local context files may be provided even when no `context_file_ids` are set.
+- **Validation**: `file_id` takes priority in the worker. If `file_id` is provided but not found in DB, the job fails (refund issued).
 
 ---
 
@@ -84,11 +113,11 @@ All endpoints are prefixed with `/api/software-lab`.
 
 ## Feature 1: Generate Code
 
-**Description**: Generate code from natural language description using Claude 4.5.
+**Description**: Generate code from natural language description using GLM-5.
 
-**Model**: Claude 4.5 Sonnet
+**Model**: GLM-5 MaaS
 
-**Context**: Injects project architecture document if available for better results.
+**Context**: Injects project architecture document and context files (cloud or local) if available for better results.
 
 ---
 
@@ -99,11 +128,22 @@ Start code generation job.
 **Request Body**:
 ```typescript
 interface GenerateCodeRequest {
-  project_id: string;           // Project UUID
-  query: string;                // Natural language description (e.g., "Create a login form with validation")
-  context_file_ids?: string[];  // Optional: File IDs for context (max 5 files)
+  project_id: string;                   // Project UUID
+  user_query: string;                   // Natural language description
+  target_file_id?: string;              // Optional: add generated code into this cloud file
+  target_path?: string;                 // Optional: path for a new file suggestion
+  insert_at_line?: number;              // Optional: line number to insert at
+
+  // Context files — cloud
+  context_file_ids?: string[];          // Cloud file IDs for context (fetched from DB)
+  include_all_files?: boolean;          // Include ALL cloud project files as context (default: false)
+
+  // Context files — local (desktop only)
+  context_local_files?: LocalFileInput[];  // Local files for context (content sent inline)
 }
 ```
+
+> **Desktop note**: Pass currently open local files in `context_local_files` to give the AI context about your existing code, even if those files haven't been synced to the cloud.
 
 **Response** (HTTP 200):
 ```typescript
@@ -170,9 +210,9 @@ interface JobFailedResponse {
 
 ## Feature 2: Explain Code
 
-**Description**: Add inline comments throughout code file to explain what's happening, using Claude 4.5.
+**Description**: Add inline comments throughout a code file to explain what's happening, using GLM-5.
 
-**Model**: Claude 4.5 Sonnet
+**Model**: GLM-5 MaaS
 
 **Behavior**: Returns the SAME code with educational comments added at key sections. Does NOT just return explanation text.
 
@@ -186,11 +226,41 @@ Start code explanation job.
 ```typescript
 interface ExplainCodeRequest {
   project_id: string;           // Project UUID
-  file_id: string;              // File UUID to explain
+
+  // File source — provide EXACTLY ONE:
+  file_id?: string;             // (Cloud) File UUID stored in the project
+  local_file?: LocalFileInput;  // (Desktop) Local file content sent inline
+
   selection?: {                 // Optional: Explain only selected lines
     start_line: number;         // 1-based line number
     end_line: number;           // 1-based line number (inclusive)
   };
+  question?: string;            // Optional: specific question about the code (max 500 chars)
+}
+```
+
+**Validation**: Exactly one of `file_id` or `local_file` must be provided. Providing both or neither returns HTTP 422.
+
+**Cloud file example**:
+```json
+{
+  "project_id": "proj_abc123",
+  "file_id": "file_xyz789",
+  "selection": { "start_line": 10, "end_line": 25 },
+  "question": "Why is useState used here?"
+}
+```
+
+**Local file example** (desktop):
+```json
+{
+  "project_id": "proj_abc123",
+  "local_file": {
+    "content": "def hello():\n    print('Hello World')",
+    "path": "src/main.py",
+    "language": "python"
+  },
+  "question": "What does this function do?"
 }
 ```
 
@@ -241,9 +311,9 @@ interface ExplainCodeResult {
 
 ## Feature 3: Transform Code
 
-**Description**: Refactor, optimize, convert, fix, or add features to code using Claude 4.5.
+**Description**: Refactor, optimize, convert, fix, or add features to code using GLM-5.
 
-**Model**: Claude 4.5 Sonnet
+**Model**: GLM-5 MaaS
 
 **Transformation Types**:
 - `refactor` - Improve code structure
@@ -262,9 +332,43 @@ Start code transformation job.
 ```typescript
 interface TransformCodeRequest {
   project_id: string;           // Project UUID
-  file_id: string;              // File UUID to transform
-  transformation_type: "refactor" | "optimize" | "convert" | "fix" | "add-feature";
+
+  // File source — provide EXACTLY ONE:
+  file_id?: string;             // (Cloud) File UUID stored in the project
+  local_file?: LocalFileInput;  // (Desktop) Local file content sent inline
+
+  transformation: "refactor" | "optimize" | "convert" | "fix" | "add-feature";
   instruction: string;          // Specific instruction (e.g., "Convert to TypeScript", "Add error handling")
+  selection?: {                 // Optional: transform only selected lines
+    start_line: number;
+    end_line: number;
+  };
+}
+```
+
+**Validation**: Exactly one of `file_id` or `local_file` must be provided. Providing both or neither returns HTTP 422.
+
+**Cloud file example**:
+```json
+{
+  "project_id": "proj_abc123",
+  "file_id": "file_xyz789",
+  "transformation": "convert",
+  "instruction": "Convert class component to functional with hooks"
+}
+```
+
+**Local file example** (desktop):
+```json
+{
+  "project_id": "proj_abc123",
+  "local_file": {
+    "content": "class MyComp extends React.Component { ... }",
+    "path": "src/MyComp.jsx",
+    "language": "javascript"
+  },
+  "transformation": "convert",
+  "instruction": "Convert to functional component with hooks"
 }
 ```
 
