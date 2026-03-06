@@ -33,19 +33,27 @@ logger = logging.getLogger(__name__)
 SERVICE_POINTS_COST = {
     # Chat operations - Variable pricing by provider
     "ai_chat_deepseek": 1,  # Deepseek: 1 point (cheaper)
-    "ai_chat_deepseek_chat": 1,  # DeepSeek Chat: 1 point (cheaper) - handle both variants
+    "ai_chat_deepseek_chat": 1,  # DeepSeek Chat: 1 point - handle both variants
+    "ai_chat_deepseek_reasoner": 1,  # DeepSeek Reasoner: 1 point
+    "ai_chat_qwen_32b": 1,  # Cerebras gpt-oss-120b: 1 point
+    "ai_chat_zai_glm": 1,  # Cerebras zai-glm-4.7: 1 point
     "ai_chat_claude": 2,  # Claude: 2 points
-    "ai_chat_chatgpt": 2,  # ChatGPT: 2 points
-    "ai_chat_gemini": 2,  # Gemini: 2 points
-    "ai_chat_cerebras": 2,  # Cerebras: 2 points
+    "ai_chat_chatgpt": 1,  # ChatGPT: 2 points
+    "ai_chat_chatgpt_4o_latest": 2,  # GPT-5 Mini (key chatgpt_4o_latest): 2 points
+    "ai_chat_gemini": 1,  # Gemini: 2 points
+    "ai_chat_cerebras": 1,  # Cerebras legacy: 2 points
     "ai_chat_default": 2,  # Other providers: 2 points
     # Document chat operations - Same pricing
     "ai_document_chat_deepseek": 1,  # DeepSeek: 1 point
     "ai_document_chat_deepseek_chat": 1,  # DeepSeek Chat: 1 point - handle both variants
+    "ai_document_chat_deepseek_reasoner": 1,  # DeepSeek Reasoner: 1 point
+    "ai_document_chat_qwen_32b": 1,  # Cerebras gpt-oss-120b: 1 point
+    "ai_document_chat_zai_glm": 1,  # Cerebras zai-glm-4.7: 1 point
     "ai_document_chat_claude": 2,  # Claude: 2 points
-    "ai_document_chat_chatgpt": 2,  # ChatGPT: 2 points
-    "ai_document_chat_gemini": 2,  # Gemini: 2 points
-    "ai_document_chat_cerebras": 2,  # Cerebras: 2 points
+    "ai_document_chat_chatgpt": 1,  # ChatGPT: 2 points
+    "ai_document_chat_chatgpt_4o_latest": 1,  # GPT-5 Mini: 2 points
+    "ai_document_chat_gemini": 1,  # Gemini: 2 points
+    "ai_document_chat_cerebras": 1,  # Cerebras legacy: 2 points
     # Document AI operations
     "ai_edit": 2,
     "ai_translate": 2,
