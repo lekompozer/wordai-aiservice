@@ -186,10 +186,14 @@ class LearningAssistantWorker:
                 None,
                 lambda: self.service.grade_and_tips(
                     assignment_image_b64=job.get("assignment_image"),
-                    assignment_image_mime=job.get("assignment_image_mime_type", "image/jpeg"),
+                    assignment_image_mime=job.get(
+                        "assignment_image_mime_type", "image/jpeg"
+                    ),
                     assignment_text=job.get("assignment_text"),
                     student_work_image_b64=job.get("student_work_image"),
-                    student_work_mime=job.get("student_work_image_mime_type", "image/jpeg"),
+                    student_work_mime=job.get(
+                        "student_work_image_mime_type", "image/jpeg"
+                    ),
                     student_answer_text=job.get("student_answer_text"),
                     subject=job.get("subject", "other"),
                     grade_level=job.get("grade_level", "other"),

@@ -1122,7 +1122,11 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Software Lab AI API - AI Code Assistant (5 features: Generate, Explain, Transform, Architecture, Scaffold)
     app.include_router(software_lab_ai_router, prefix="/api", tags=["Software Lab AI"])
-    app.include_router(learning_assistant_router, prefix="/api/learning-assistant", tags=["Learning Assistant"])
+    app.include_router(
+        learning_assistant_router,
+        prefix="/api/learning-assistant",
+        tags=["Learning Assistant"],
+    )
 
     # ✅ ADDED: AI Editor Suite - Edit, Translate, Format, Bilingual Conversion
     app.include_router(ai_editor_router, tags=["AI Editor Suite"])

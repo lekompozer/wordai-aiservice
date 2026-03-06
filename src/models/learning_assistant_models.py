@@ -24,10 +24,10 @@ SUBJECTS = [
 ]
 
 GRADE_LEVELS = [
-    "primary",        # Tiểu học
+    "primary",  # Tiểu học
     "middle_school",  # Trung học cơ sở
-    "high_school",    # Trung học phổ thông
-    "university",     # Đại học / Cao đẳng
+    "high_school",  # Trung học phổ thông
+    "university",  # Đại học / Cao đẳng
     "other",
 ]
 

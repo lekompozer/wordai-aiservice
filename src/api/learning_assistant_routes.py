@@ -198,10 +198,12 @@ async def start_grade_and_tips(
         "job_id": job_id,
         "user_id": user_id,
         "assignment_image": request.assignment_image,
-        "assignment_image_mime_type": request.assignment_image_mime_type or "image/jpeg",
+        "assignment_image_mime_type": request.assignment_image_mime_type
+        or "image/jpeg",
         "assignment_text": request.assignment_text,
         "student_work_image": request.student_work_image,
-        "student_work_image_mime_type": request.student_work_image_mime_type or "image/jpeg",
+        "student_work_image_mime_type": request.student_work_image_mime_type
+        or "image/jpeg",
         "student_answer_text": request.student_answer_text,
         "subject": request.subject,
         "grade_level": request.grade_level,
