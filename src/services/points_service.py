@@ -39,7 +39,7 @@ SERVICE_POINTS_COST = {
     "ai_chat_zai_glm": 1,  # Cerebras zai-glm-4.7: 1 point
     "ai_chat_claude": 2,  # Claude: 2 points
     "ai_chat_chatgpt": 1,  # ChatGPT: 2 points
-    "ai_chat_chatgpt_4o_latest": 2,  # GPT-5 Mini (key chatgpt_4o_latest): 2 points
+    "ai_chat_chatgpt_4o_latest": 1,  # GPT-5 Mini (key chatgpt_4o_latest): 2 points
     "ai_chat_gemini": 1,  # Gemini: 2 points
     "ai_chat_cerebras": 1,  # Cerebras legacy: 2 points
     "ai_chat_default": 2,  # Other providers: 2 points
