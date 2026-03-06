@@ -298,6 +298,13 @@ class AIChatService:
         client = self.providers[provider]
         model = self.models[provider]
 
+        # gpt-5-mini (OpenAI) requires max_completion_tokens; others use max_tokens
+        token_kwarg = (
+            {"max_completion_tokens": max_tokens}
+            if provider == AIProvider.CHATGPT_4O_LATEST
+            else {"max_tokens": max_tokens}
+        )
+
         # Retry logic for transient errors
         for attempt in range(max_retries):
             try:
@@ -305,7 +312,7 @@ class AIChatService:
                     model=model,
                     messages=messages,
                     temperature=temperature,
-                    max_tokens=max_tokens,
+                    **token_kwarg,
                 )
 
                 return response.choices[0].message.content
@@ -443,6 +450,13 @@ class AIChatService:
         model = self.models[provider]
         max_retries = 3
 
+        # gpt-5-mini (OpenAI) requires max_completion_tokens; others use max_tokens
+        token_kwarg = (
+            {"max_completion_tokens": max_tokens}
+            if provider == AIProvider.CHATGPT_4O_LATEST
+            else {"max_tokens": max_tokens}
+        )
+
         # Retry logic for establishing the stream
         for attempt in range(max_retries):
             try:
@@ -451,7 +465,7 @@ class AIChatService:
                     messages=messages,
                     stream=True,
                     temperature=temperature,
-                    max_tokens=max_tokens,
+                    **token_kwarg,
                 )
 
                 # Once stream is established, yield chunks
