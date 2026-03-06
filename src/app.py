@@ -224,6 +224,7 @@ from src.api.software_lab_routes import router as software_lab_router
 
 # ✅ ADDED: Software Lab AI API - AI Code Assistant (5 features with worker pattern)
 from src.api.software_lab_ai_routes import router as software_lab_ai_router
+from src.api.learning_assistant_routes import router as learning_assistant_router
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -1121,6 +1122,7 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Software Lab AI API - AI Code Assistant (5 features: Generate, Explain, Transform, Architecture, Scaffold)
     app.include_router(software_lab_ai_router, prefix="/api", tags=["Software Lab AI"])
+    app.include_router(learning_assistant_router, prefix="/api/learning-assistant", tags=["Learning Assistant"])
 
     # ✅ ADDED: AI Editor Suite - Edit, Translate, Format, Bilingual Conversion
     app.include_router(ai_editor_router, tags=["AI Editor Suite"])
