@@ -27,7 +27,7 @@ from src.models.learning_assistant_models import (
 logger = logging.getLogger("chatbot")
 router = APIRouter()
 
-POINTS_COST = 2  # Gemini vision — same as analyze-architecture
+POINTS_COST = 1  # Gemini 3.1 Flash Preview
 
 
 # ============================================================================

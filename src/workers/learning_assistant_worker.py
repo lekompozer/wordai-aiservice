@@ -16,7 +16,7 @@ from src.queue.queue_manager import QueueManager, set_job_status
 
 logger = logging.getLogger("chatbot")
 
-POINTS_COST = 2  # Gemini vision feature
+POINTS_COST = 1  # Gemini 3.1 Flash Preview
 
 
 class LearningAssistantWorker:

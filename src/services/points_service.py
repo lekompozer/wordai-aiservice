@@ -65,6 +65,9 @@ SERVICE_POINTS_COST = {
     "file_to_doc_conversion": 2,
     "file_to_slide_conversion": 2,
     "file_analysis": 2,
+    # Learning Assistant
+    "learning_assistant_solve": 1,  # Gemini 3.1 Flash Preview: 1 point
+    "learning_assistant_grade": 1,  # Gemini 3.1 Flash Preview: 1 point
     # Other AI operations
     "quote_generation": 2,
     "test_generation": 2,
