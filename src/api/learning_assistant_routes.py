@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.middleware.firebase_auth import get_current_user
 from src.queue.queue_manager import QueueManager, set_job_status, get_job_status
 from src.services.points_service import get_points_service
+from src.database.db_manager import DBManager
 from src.models.learning_assistant_models import (
     SolveHomeworkRequest,
     SolveHomeworkResponse,
@@ -27,7 +28,11 @@ from src.models.learning_assistant_models import (
 logger = logging.getLogger("chatbot")
 router = APIRouter()
 
-POINTS_COST = 1  # Gemini 3.1 Flash Preview
+POINTS_COST = 1  # Gemini 3.1 Flash Lite Preview
+
+
+def get_db():
+    return DBManager().db
 
 
 # ============================================================================
@@ -261,3 +266,57 @@ async def get_grade_status(job_id: str, user: dict = Depends(get_current_user)):
         new_balance=job.get("new_balance"),
         error=job.get("error"),
     )
+
+
+# ============================================================================
+# Feature 3: History
+# ============================================================================
+
+
+@router.get("/history")
+async def get_history(
+    user: dict = Depends(get_current_user),
+    type: str = None,
+    subject: str = None,
+    limit: int = 20,
+    skip: int = 0,
+    db=Depends(get_db),
+):
+    """
+    Return the authenticated user's Learning Assistant history from MongoDB.
+
+    Query params:
+      - type: "solve" | "grade" (optional filter)
+      - subject: e.g. "math" (optional filter)
+      - limit: max records (default 20, max 100)
+      - skip: offset for pagination (default 0)
+    """
+    query = {"user_id": user["uid"], "status": "completed"}
+    if type in ("solve", "grade"):
+        query["type"] = type
+    if subject:
+        query["subject"] = subject
+
+    limit = min(limit, 100)
+
+    docs = list(
+        db.learning_assistant_history.find(query, {"_id": 0})
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+
+    # Convert datetime to ISO string for JSON serialisation
+    for doc in docs:
+        if "created_at" in doc and hasattr(doc["created_at"], "isoformat"):
+            doc["created_at"] = doc["created_at"].isoformat()
+
+    total = db.learning_assistant_history.count_documents(query)
+
+    return {
+        "success": True,
+        "total": total,
+        "limit": limit,
+        "skip": skip,
+        "items": docs,
+    }

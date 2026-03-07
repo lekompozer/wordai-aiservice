@@ -27,7 +27,7 @@ def _lang_hint(language: Optional[str]) -> str:
 class LearningAssistantService:
     """Thin wrapper around google-genai Client for learning assistant tasks."""
 
-    FLASH_MODEL = "gemini-3.1-flash-preview"
+    FLASH_MODEL = "gemini-3.1-flash-lite-preview"
 
     def __init__(self) -> None:
         api_key = os.getenv("GEMINI_API_KEY")

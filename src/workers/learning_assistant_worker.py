@@ -13,6 +13,7 @@ from datetime import datetime
 import os
 
 from src.queue.queue_manager import QueueManager, set_job_status
+from src.database.db_manager import DBManager
 
 logger = logging.getLogger("chatbot")
 
@@ -40,6 +41,14 @@ class LearningAssistantWorker:
 
         # Lazy-init service (avoids import-time crash if config not set)
         self._service = None
+
+        # MongoDB for history persistence
+        try:
+            db_manager = DBManager()
+            self.db = db_manager.db
+        except Exception as exc:
+            logger.warning(f"⚠️ MongoDB not available for history: {exc}")
+            self.db = None
 
         logger.info(f"🎓 LearningAssistantWorker {self.worker_id} initialized")
 
@@ -157,6 +166,34 @@ class LearningAssistantWorker:
                 tokens=result.get("tokens", {}),
                 points_deducted=POINTS_COST,
             )
+
+            # Persist to MongoDB history (no base64 images saved)
+            if self.db is not None:
+                try:
+                    self.db.learning_assistant_history.insert_one(
+                        {
+                            "job_id": job_id,
+                            "user_id": user_id,
+                            "type": "solve",
+                            "status": "completed",
+                            "subject": job.get("subject", "other"),
+                            "grade_level": job.get("grade_level", "other"),
+                            "language": job.get("language", "vi"),
+                            "question_text": job.get("question_text"),
+                            "has_image": bool(job.get("question_image")),
+                            "solution_steps": result.get("solution_steps", []),
+                            "final_answer": result.get("final_answer", ""),
+                            "explanation": result.get("explanation", ""),
+                            "key_formulas": result.get("key_formulas", []),
+                            "study_tips": result.get("study_tips", []),
+                            "tokens": result.get("tokens", {}),
+                            "points_deducted": POINTS_COST,
+                            "created_at": datetime.utcnow(),
+                        }
+                    )
+                except Exception as db_exc:
+                    logger.warning(f"⚠️ [Solve] history save failed: {db_exc}")
+
             logger.info(f"✅ [Solve] {job_id} completed")
 
         except Exception as exc:
@@ -218,6 +255,42 @@ class LearningAssistantWorker:
                 tokens=result.get("tokens", {}),
                 points_deducted=POINTS_COST,
             )
+
+            # Persist to MongoDB history (no base64 images saved)
+            if self.db is not None:
+                try:
+                    self.db.learning_assistant_history.insert_one(
+                        {
+                            "job_id": job_id,
+                            "user_id": user_id,
+                            "type": "grade",
+                            "status": "completed",
+                            "subject": job.get("subject", "other"),
+                            "grade_level": job.get("grade_level", "other"),
+                            "language": job.get("language", "vi"),
+                            "assignment_text": job.get("assignment_text"),
+                            "has_assignment_image": bool(job.get("assignment_image")),
+                            "student_answer_text": job.get("student_answer_text"),
+                            "has_student_image": bool(job.get("student_work_image")),
+                            "score": result.get("score", 0),
+                            "score_breakdown": result.get("score_breakdown", {}),
+                            "overall_feedback": result.get("overall_feedback", ""),
+                            "strengths": result.get("strengths", []),
+                            "weaknesses": result.get("weaknesses", []),
+                            "correct_solution": result.get("correct_solution", ""),
+                            "improvement_plan": result.get("improvement_plan", []),
+                            "study_plan": result.get("study_plan", []),
+                            "recommended_materials": result.get(
+                                "recommended_materials", []
+                            ),
+                            "tokens": result.get("tokens", {}),
+                            "points_deducted": POINTS_COST,
+                            "created_at": datetime.utcnow(),
+                        }
+                    )
+                except Exception as db_exc:
+                    logger.warning(f"⚠️ [Grade] history save failed: {db_exc}")
+
             logger.info(f"✅ [Grade] {job_id} completed")
 
         except Exception as exc:
