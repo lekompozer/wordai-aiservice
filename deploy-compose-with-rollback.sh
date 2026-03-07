@@ -233,7 +233,7 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
         # Check all workers are running (excluding commented-out workers)
         echo "🔍 Checking workers status..."
         # Note: lyria-music-worker, generate-code-worker, explain-code-worker, transform-code-worker are temporarily disabled
-        WORKERS=("gemini-ai-worker" "slide-format-worker" "test-generation-worker" "slide-narration-audio-worker" "slide-narration-subtitle-worker" "slide-generation-worker" "chapter-translation-worker" "video-export-worker" "ai-editor-worker" "pdf-chapter-worker")
+        WORKERS=("gemini-ai-worker" "slide-format-worker" "test-generation-worker" "slide-narration-worker" "slide-generation-worker" "book-processing-worker" "video-export-worker" "ai-editor-worker")
 
         ALL_WORKERS_OK=true
         for worker in "${WORKERS[@]}"; do
