@@ -272,7 +272,7 @@ Additional fields for `type: "solve"` items:
 | Field | Type | Description |
 |-------|------|-------------|
 | `question_text` | `string\|null` | Typed question (null if image-only) |
-| `has_image` | `boolean` | Whether the original request included an image |
+| `question_image_url` | `string\|null` | R2 public URL of the question image (null if no image was sent) |
 | `solution_steps` | `string[]` | Step-by-step solution |
 | `final_answer` | `string` | Final answer |
 | `explanation` | `string` | Conceptual explanation |
@@ -284,9 +284,9 @@ Additional fields for `type: "grade"` items:
 | Field | Type | Description |
 |-------|------|-------------|
 | `assignment_text` | `string\|null` | Typed assignment text |
-| `has_assignment_image` | `boolean` | Whether the assignment included an image |
+| `assignment_image_url` | `string\|null` | R2 public URL of the assignment image (null if no image was sent) |
 | `student_answer_text` | `string\|null` | Typed student answer |
-| `has_student_image` | `boolean` | Whether student work included an image |
+| `student_image_url` | `string\|null` | R2 public URL of the student work image (null if no image was sent) |
 | `score` | `number` | Numeric score |
 | `score_breakdown` | `object` | Per-criterion scores |
 | `overall_feedback` | `string` | Summary feedback |
@@ -301,11 +301,14 @@ Additional fields for `type: "grade"` items:
 
 ## Image Input Notes
 
-**Current flow — base64 inline (no R2 involved):**
+**Current flow — base64 inline, then R2 for history:**
 
 1. Frontend reads the image file
 2. Encodes it as a base64 string (raw bytes only — no `data:image/...;base64,` prefix)
-3. Sends base64 string in the JSON request body as `question_image` / `assignment_image` / `student_work_image`
-4. Backend forwards directly to Gemini — no R2 upload or download at any step
+3. Sends base64 string in the JSON request body
+4. Backend forwards it directly to Gemini for AI processing
+5. **After AI completes**, the worker uploads the image to R2 under `learning-assistant/{user_id}/{job_id}_{suffix}.jpg`
+6. The R2 public URL is saved in MongoDB history (`question_image_url`, `assignment_image_url`, `student_image_url`)
+7. The original base64 is never persisted — only the R2 URL is stored
 
-Images are **never** saved to R2 or MongoDB. Only text content and AI results are persisted in history.
+URL format: `https://static.wordai.pro/learning-assistant/{user_id}/{job_id}_{suffix}.jpg`

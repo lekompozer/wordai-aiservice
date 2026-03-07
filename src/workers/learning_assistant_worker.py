@@ -6,11 +6,16 @@ Processes both queues using Gemini Flash:
 """
 
 import asyncio
+import base64
 import json
 import logging
 import signal
 from datetime import datetime
 import os
+import uuid
+
+import boto3
+from botocore.config import Config
 
 from src.queue.queue_manager import QueueManager, set_job_status
 from src.database.db_manager import DBManager
@@ -50,6 +55,24 @@ class LearningAssistantWorker:
             logger.warning(f"⚠️ MongoDB not available for history: {exc}")
             self.db = None
 
+        # R2 for image storage
+        try:
+            self._r2 = boto3.client(
+                "s3",
+                endpoint_url=os.getenv("R2_ENDPOINT"),
+                aws_access_key_id=os.getenv("R2_ACCESS_KEY_ID"),
+                aws_secret_access_key=os.getenv("R2_SECRET_ACCESS_KEY"),
+                config=Config(signature_version="s3v4"),
+                region_name="auto",
+            )
+            self._r2_bucket = os.getenv("R2_BUCKET_NAME", "wordai")
+            self._r2_public_url = os.getenv(
+                "R2_PUBLIC_URL", "https://static.wordai.pro"
+            )
+        except Exception as exc:
+            logger.warning(f"⚠️ R2 not available for image upload: {exc}")
+            self._r2 = None
+
         logger.info(f"🎓 LearningAssistantWorker {self.worker_id} initialized")
 
     @property
@@ -85,6 +108,33 @@ class LearningAssistantWorker:
         await self.solve_queue.disconnect()
         await self.grade_queue.disconnect()
         logger.info(f"⏹ {self.worker_id}: stopped")
+
+    # ------------------------------------------------------------------
+    # R2 helper
+    # ------------------------------------------------------------------
+
+    def _upload_image_to_r2(
+        self, b64: str, mime: str, user_id: str, prefix: str
+    ) -> str | None:
+        """Upload a base64 image to R2 and return its public URL (or None on failure)."""
+        if not b64 or not self._r2:
+            return None
+        try:
+            raw = base64.b64decode(b64)
+            ext = "png" if "png" in mime else "jpg"
+            key = f"learning-assistant/{user_id}/{prefix}_{uuid.uuid4().hex[:8]}.{ext}"
+            self._r2.put_object(
+                Bucket=self._r2_bucket,
+                Key=key,
+                Body=raw,
+                ContentType=mime,
+            )
+            url = f"{self._r2_public_url}/{key}"
+            logger.info(f"📸 Uploaded image to R2: {url}")
+            return url
+        except Exception as exc:
+            logger.warning(f"⚠️ R2 image upload failed ({prefix}): {exc}")
+            return None
 
     # ------------------------------------------------------------------
     # Queue consumers
@@ -167,7 +217,15 @@ class LearningAssistantWorker:
                 points_deducted=POINTS_COST,
             )
 
-            # Persist to MongoDB history (no base64 images saved)
+            # Upload image to R2 before saving history
+            question_image_url = self._upload_image_to_r2(
+                job.get("question_image"),
+                job.get("image_mime_type", "image/jpeg"),
+                user_id,
+                f"{job_id}_question",
+            )
+
+            # Persist to MongoDB history
             if self.db is not None:
                 try:
                     self.db.learning_assistant_history.insert_one(
@@ -180,7 +238,7 @@ class LearningAssistantWorker:
                             "grade_level": job.get("grade_level", "other"),
                             "language": job.get("language", "vi"),
                             "question_text": job.get("question_text"),
-                            "has_image": bool(job.get("question_image")),
+                            "question_image_url": question_image_url,
                             "solution_steps": result.get("solution_steps", []),
                             "final_answer": result.get("final_answer", ""),
                             "explanation": result.get("explanation", ""),
@@ -256,7 +314,21 @@ class LearningAssistantWorker:
                 points_deducted=POINTS_COST,
             )
 
-            # Persist to MongoDB history (no base64 images saved)
+            # Upload images to R2 before saving history
+            assignment_image_url = self._upload_image_to_r2(
+                job.get("assignment_image"),
+                job.get("assignment_image_mime_type", "image/jpeg"),
+                user_id,
+                f"{job_id}_assignment",
+            )
+            student_image_url = self._upload_image_to_r2(
+                job.get("student_work_image"),
+                job.get("student_work_image_mime_type", "image/jpeg"),
+                user_id,
+                f"{job_id}_student",
+            )
+
+            # Persist to MongoDB history
             if self.db is not None:
                 try:
                     self.db.learning_assistant_history.insert_one(
@@ -269,9 +341,9 @@ class LearningAssistantWorker:
                             "grade_level": job.get("grade_level", "other"),
                             "language": job.get("language", "vi"),
                             "assignment_text": job.get("assignment_text"),
-                            "has_assignment_image": bool(job.get("assignment_image")),
+                            "assignment_image_url": assignment_image_url,
                             "student_answer_text": job.get("student_answer_text"),
-                            "has_student_image": bool(job.get("student_work_image")),
+                            "student_image_url": student_image_url,
                             "score": result.get("score", 0),
                             "score_breakdown": result.get("score_breakdown", {}),
                             "overall_feedback": result.get("overall_feedback", ""),
