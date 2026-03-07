@@ -256,19 +256,36 @@ Yêu cầu đầu ra JSON (nghiêm ngặt):
 - recommended_materials: tài liệu tham khảo (mảng object: title, type, description)
 """
 
-        images: List[Dict[str, str]] = []
-        if assignment_image_b64:
-            images.append({"b64": assignment_image_b64, "mime": assignment_image_mime})
-        if student_work_image_b64:
-            images.append({"b64": student_work_image_b64, "mime": student_work_mime})
+        # Build parts in labeled, interleaved order so the AI knows which image is which
+        from google.genai import types as t
 
-        text_parts = [system_prompt]
+        def _img_part(b64: str, mime: str):
+            raw = base64.b64decode(b64)
+            return t.Part.from_bytes(data=raw, mime_type=mime)
+
+        parts = [t.Part.from_text(text=system_prompt)]
+
+        # --- Assignment section ---
         if assignment_text:
-            text_parts.append(f"ĐỀ BÀI / CÂU HỎI:\n{assignment_text}")
-        if student_answer_text:
-            text_parts.append(f"BÀI LÀM CỦA HỌC SINH:\n{student_answer_text}")
+            parts.append(t.Part.from_text(text=f"ĐỀ BÀI / CÂU HỎI:\n{assignment_text}"))
+        if assignment_image_b64:
+            parts.append(t.Part.from_text(text="ĐỀ BÀI / CÂU HỎI (ảnh):"))
+            try:
+                parts.append(_img_part(assignment_image_b64, assignment_image_mime))
+            except Exception as exc:
+                logger.warning(f"⚠️ Could not decode assignment image: {exc}")
 
-        parts = self._build_parts(text_parts=text_parts, images=images)
+        # --- Student work section ---
+        if student_answer_text:
+            parts.append(
+                t.Part.from_text(text=f"BÀI LÀM CỦA HỌC SINH:\n{student_answer_text}")
+            )
+        if student_work_image_b64:
+            parts.append(t.Part.from_text(text="BÀI LÀM CỦA HỌC SINH (ảnh):"))
+            try:
+                parts.append(_img_part(student_work_image_b64, student_work_mime))
+            except Exception as exc:
+                logger.warning(f"⚠️ Could not decode student work image: {exc}")
 
         response_schema = {
             "type": "object",
