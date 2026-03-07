@@ -320,3 +320,23 @@ async def get_history(
         "skip": skip,
         "items": docs,
     }
+
+
+@router.get("/history/{job_id}")
+async def get_history_detail(
+    job_id: str,
+    user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """Return detail of a single history item by job_id."""
+    doc = db.learning_assistant_history.find_one(
+        {"job_id": job_id, "user_id": user["uid"]},
+        {"_id": 0},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="History item not found")
+
+    if "created_at" in doc and hasattr(doc["created_at"], "isoformat"):
+        doc["created_at"] = doc["created_at"].isoformat()
+
+    return {"success": True, "item": doc}

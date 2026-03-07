@@ -15,7 +15,8 @@ Two features, each with an async queue pattern:
 |---------|-----------------|-------------------|
 | Solve Homework | `POST /solve` | `GET /solve/{job_id}/status` |
 | Grade & Study Plan | `POST /grade` | `GET /grade/{job_id}/status` |
-| History | `GET /history` | — |
+| History (list) | `GET /history` | — |
+| History (detail) | `GET /history/{job_id}` | — |
 
 **Polling flow:**
 1. POST → receive `job_id`, `status: "pending"`, points deducted immediately
@@ -24,6 +25,14 @@ Two features, each with an async queue pattern:
 ---
 
 ## Common Types
+
+### Math Formatting (KaTeX)
+
+All AI responses use **KaTeX** for mathematical notation:
+- Inline math: `$...$` — e.g. `$x^2 + 1$`, `$\int_0^1 f(x)dx$`
+- Block math: `$$...$$` — e.g. `$$\frac{a^2+b^2}{c}$$`
+
+Frontend must render these with a KaTeX library (e.g. `react-katex`, `katex`, `rehype-katex`). Applies to all subjects: Math, Physics, Chemistry, Biology, etc.
 
 ### Job Status Values
 

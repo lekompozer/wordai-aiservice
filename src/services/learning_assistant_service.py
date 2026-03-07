@@ -134,14 +134,21 @@ class LearningAssistantService:
         system_prompt = f"""Bạn là gia sư AI chuyên nghiệp, giải bài tập cho học sinh cấp {grade_level} môn {subject}.
 {lang}
 
+QUAN TRỌNG — ĐỊNH DẠNG TOÁN HỌC:
+- Viết TẤT CẢ ký hiệu toán học, công thức, phương trình dưới dạng KaTeX.
+- Công thức inline (trong câu): dùng $...$ (ví dụ: $x^2 + 1$, $\\int_0^1 f(x)dx$)
+- Công thức block (dòng riêng): dùng $$...$$ (ví dụ: $$\\frac{{a^2 + b^2}}{{c}}$$)
+- Không dùng ký hiệu ASCII thuần như x^2, a/b, sqrt(x) — luôn dùng KaTeX.
+- Áp dụng cho mọi môn: Toán, Vật lý, Hoá học, Sinh học, ...
+
 Nhiệm vụ: Giải bài tập / câu hỏi được cung cấp. Trình bày rõ ràng, dễ hiểu cho học sinh.
 
 Yêu cầu đầu ra JSON (nghiêm ngặt):
 - solution_steps: mảng các bước giải, mỗi bước là một chuỗi (ít nhất 3 bước)
 - final_answer: đáp án / kết luận cuối cùng (string)
 - explanation: giải thích tại sao phương pháp này đúng (string)
-- key_formulas: các công thức / định lý / quy tắc đã dùng (mảng string, có thể rỗng)
-- study_tips: mẹo ghi nhớ hoặc tránh lỗi thường gặp (mảng string, có thể rỗng)
+- key_formulas: các công thức / định lý / quy tắc đã dùng (mảng string, dùng KaTeX)
+- study_tips: mẹo ghi nhớ hoặc tránh lỗi thường gặp (mảng string)
 """
 
         images: List[Dict[str, str]] = []
@@ -228,6 +235,13 @@ Yêu cầu đầu ra JSON (nghiêm ngặt):
         system_prompt = f"""Bạn là giáo viên AI chuyên nghiệp, chấm bài và tư vấn học tập cho học sinh cấp {grade_level} môn {subject}.
 {lang}
 
+QUAN TRỌNG — ĐỊNH DẠNG TOÁN HỌC:
+- Viết TẤT CẢ ký hiệu toán học, công thức, phương trình dưới dạng KaTeX.
+- Công thức inline (trong câu): dùng $...$ (ví dụ: $x^2 + 1$, $F = ma$)
+- Công thức block (dòng riêng): dùng $$...$$ (ví dụ: $$E = mc^2$$)
+- Không dùng ký hiệu ASCII thuần như x^2, a/b, sqrt(x) — luôn dùng KaTeX.
+- Áp dụng cho mọi môn: Toán, Vật lý, Hoá học, Sinh học, ...
+
 Nhiệm vụ: Chấm bài của học sinh DỰA TRÊN đề bài / câu hỏi được cung cấp. Cho điểm theo thang 10.
 
 Yêu cầu đầu ra JSON (nghiêm ngặt):
@@ -236,7 +250,7 @@ Yêu cầu đầu ra JSON (nghiêm ngặt):
 - overall_feedback: nhận xét tổng thể về bài làm (string)
 - strengths: danh sách điểm mạnh của học sinh (mảng string)
 - weaknesses: danh sách lỗi sai / điểm yếu (mảng string)
-- correct_solution: đáp án đúng để học sinh tham khảo (string, tóm tắt)
+- correct_solution: đáp án đúng để học sinh tham khảo (string, tóm tắt, dùng KaTeX)
 - improvement_plan: các bước cụ thể học sinh cần làm để cải thiện (mảng string)
 - study_plan: kế hoạch học tập theo tuần (mảng object: week, focus, activities[])
 - recommended_materials: tài liệu tham khảo (mảng object: title, type, description)
