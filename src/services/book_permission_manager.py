@@ -455,7 +455,7 @@ class GuideBookBookPermissionManager:
         if book and book.get("user_id") == user_id:
             return True
 
-        # Check book purchases
+        # Check book purchases (direct)
         purchase = self.db.book_purchases.find_one(
             {
                 "user_id": user_id,
@@ -474,6 +474,29 @@ class GuideBookBookPermissionManager:
                     return False  # Expired or no expiry date set
             else:
                 # Forever access
+                return True
+
+        # Check combo purchases (book included in a combo the user bought)
+        combo_forever = self.db.combo_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_ids_snapshot": book_id,
+                "purchase_type": "lifetime",
+            }
+        )
+        if combo_forever:
+            return True
+
+        combo_one_time = self.db.combo_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_ids_snapshot": book_id,
+                "purchase_type": "one_time",
+            }
+        )
+        if combo_one_time:
+            expires_at = combo_one_time.get("access_expires_at")
+            if expires_at and expires_at > datetime.utcnow():
                 return True
 
         # Check book permissions

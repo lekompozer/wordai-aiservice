@@ -974,27 +974,61 @@ def _build_book_preview_response(
                     "expires_at": None,
                 }
             else:
-                # Check one-time purchase
-                one_time_purchase = db.book_purchases.find_one(
+                # Check combo forever access
+                combo_forever = db.combo_purchases.find_one(
                     {
                         "user_id": user_id,
-                        "book_id": book_id,
-                        "purchase_type": PurchaseType.ONE_TIME.value,
+                        "book_ids_snapshot": book_id,
+                        "purchase_type": "lifetime",
                     }
                 )
-
-                if one_time_purchase:
-                    expires_at = one_time_purchase.get("access_expires_at")
-                    # Ensure expires_at is timezone-aware for comparison
-                    if expires_at and expires_at.tzinfo is None:
-                        expires_at = expires_at.replace(tzinfo=timezone.utc)
-                    is_expired = expires_at and expires_at < datetime.now(timezone.utc)
-
+                if combo_forever:
                     user_access = {
-                        "has_access": not is_expired,
-                        "access_type": "one_time",
-                        "expires_at": (expires_at.isoformat() if expires_at else None),
+                        "has_access": True,
+                        "access_type": "forever",
+                        "expires_at": None,
                     }
+                else:
+                    # Check one-time purchase
+                    one_time_purchase = db.book_purchases.find_one(
+                        {
+                            "user_id": user_id,
+                            "book_id": book_id,
+                            "purchase_type": PurchaseType.ONE_TIME.value,
+                        }
+                    )
+
+                    if one_time_purchase:
+                        expires_at = one_time_purchase.get("access_expires_at")
+                        # Ensure expires_at is timezone-aware for comparison
+                        if expires_at and expires_at.tzinfo is None:
+                            expires_at = expires_at.replace(tzinfo=timezone.utc)
+                        is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+
+                        user_access = {
+                            "has_access": not is_expired,
+                            "access_type": "one_time",
+                            "expires_at": (expires_at.isoformat() if expires_at else None),
+                        }
+                    else:
+                        # Check combo one-time access
+                        combo_one_time = db.combo_purchases.find_one(
+                            {
+                                "user_id": user_id,
+                                "book_ids_snapshot": book_id,
+                                "purchase_type": "one_time",
+                            }
+                        )
+                        if combo_one_time:
+                            expires_at = combo_one_time.get("access_expires_at")
+                            if expires_at and expires_at.tzinfo is None:
+                                expires_at = expires_at.replace(tzinfo=timezone.utc)
+                            is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+                            user_access = {
+                                "has_access": not is_expired,
+                                "access_type": "one_time",
+                                "expires_at": (expires_at.isoformat() if expires_at else None),
+                            }
 
     # Build response
     community_config = book.get("community_config", {})
@@ -1501,7 +1535,21 @@ async def get_chapter_with_content(
             )
             return ChapterResponse(**chapter)
 
-        # Check one-time access (valid for 7 days)
+        # Check combo forever access (book included in purchased combo)
+        combo_forever = db.combo_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_ids_snapshot": book_id,
+                "purchase_type": "lifetime",
+            }
+        )
+        if combo_forever:
+            logger.info(
+                f"📄 User {user_id} accessed chapter (combo forever): {chapter_id}"
+            )
+            return ChapterResponse(**chapter)
+
+        # Check one-time access (valid for 24h)
         one_time_purchase = db.book_purchases.find_one(
             {
                 "user_id": user_id,
@@ -1518,6 +1566,24 @@ async def get_chapter_with_content(
             if expires_at and expires_at > datetime.now(timezone.utc):
                 logger.info(
                     f"📄 User {user_id} accessed chapter (one-time access): {chapter_id}"
+                )
+                return ChapterResponse(**chapter)
+
+        # Check combo one-time access
+        combo_one_time = db.combo_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_ids_snapshot": book_id,
+                "purchase_type": "one_time",
+            }
+        )
+        if combo_one_time:
+            expires_at = combo_one_time.get("access_expires_at")
+            if expires_at and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at and expires_at > datetime.now(timezone.utc):
+                logger.info(
+                    f"📄 User {user_id} accessed chapter (combo one-time): {chapter_id}"
                 )
                 return ChapterResponse(**chapter)
 
@@ -1736,7 +1802,21 @@ async def get_chapter_content_by_slug(
             )
             return ChapterResponse(**chapter)
 
-        # Check one-time access (valid for 7 days)
+        # Check combo forever access
+        combo_forever = db.combo_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_ids_snapshot": book_id,
+                "purchase_type": "lifetime",
+            }
+        )
+        if combo_forever:
+            logger.info(
+                f"📄 User {user_id} accessed chapter (slug, combo forever): {book_slug}/{chapter_slug}"
+            )
+            return ChapterResponse(**chapter)
+
+        # Check one-time access (valid for 24h)
         one_time_purchase = db.book_purchases.find_one(
             {
                 "user_id": user_id,
@@ -1753,6 +1833,24 @@ async def get_chapter_content_by_slug(
             if expires_at and expires_at > datetime.now(timezone.utc):
                 logger.info(
                     f"📄 User {user_id} accessed chapter (slug, one-time): {book_slug}/{chapter_slug}"
+                )
+                return ChapterResponse(**chapter)
+
+        # Check combo one-time access
+        combo_one_time = db.combo_purchases.find_one(
+            {
+                "user_id": user_id,
+                "book_ids_snapshot": book_id,
+                "purchase_type": "one_time",
+            }
+        )
+        if combo_one_time:
+            expires_at = combo_one_time.get("access_expires_at")
+            if expires_at and expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at and expires_at > datetime.now(timezone.utc):
+                logger.info(
+                    f"📄 User {user_id} accessed chapter (slug, combo one-time): {book_slug}/{chapter_slug}"
                 )
                 return ChapterResponse(**chapter)
 
