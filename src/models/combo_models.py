@@ -3,7 +3,7 @@ Pydantic Models for Book Combo System
 Book combos allow grouping multiple books and selling them as a bundle.
 """
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -27,10 +27,18 @@ class ComboAccessConfig(BaseModel):
 
     one_time_view_points: int = Field(0, ge=0, description="Points for one-time access")
     forever_view_points: int = Field(0, ge=0, description="Points for forever access")
-    download_pdf_points: int = Field(0, ge=0, description="Points for PDF download")
+    download_pdf_points: Optional[int] = Field(
+        None, description="Points for PDF download (null = not set)"
+    )
     is_one_time_enabled: bool = Field(False)
     is_forever_enabled: bool = Field(True)
     is_download_enabled: bool = Field(False)
+
+    @validator("download_pdf_points")
+    def pdf_points_non_negative(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("download_pdf_points must be >= 0")
+        return v
 
 
 # ==============================================================================
@@ -88,6 +96,21 @@ class CreateComboRequest(BaseModel):
         if len(v) != len(set(v)):
             raise ValueError("book_ids must be unique")
         return v
+
+    @root_validator
+    def access_config_has_pricing(cls, values):
+        cfg = values.get("access_config")
+        if cfg is None:
+            return values
+        has_forever = cfg.is_forever_enabled and cfg.forever_view_points > 0
+        has_one_time = cfg.is_one_time_enabled and cfg.one_time_view_points > 0
+        if not has_forever and not has_one_time:
+            raise ValueError(
+                "Combo phải có ít nhất 1 hình thức giá hợp lệ: "
+                "forever_view_points > 0 với is_forever_enabled=true, "
+                "hoặc one_time_view_points > 0 với is_one_time_enabled=true"
+            )
+        return values
 
 
 class UpdateComboRequest(BaseModel):

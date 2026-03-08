@@ -407,11 +407,11 @@ async def purchase_combo(
 
         access_config = combo.get("access_config", {})
 
-        # Map purchase type → points cost
+        # Map purchase type → points cost (use `or 0` to handle None stored when not set)
         points_map = {
-            ComboPurchaseType.ONE_TIME: access_config.get("one_time_view_points", 0),
-            ComboPurchaseType.FOREVER: access_config.get("forever_view_points", 0),
-            ComboPurchaseType.PDF_DOWNLOAD: access_config.get("download_pdf_points", 0),
+            ComboPurchaseType.ONE_TIME: access_config.get("one_time_view_points") or 0,
+            ComboPurchaseType.FOREVER: access_config.get("forever_view_points") or 0,
+            ComboPurchaseType.PDF_DOWNLOAD: access_config.get("download_pdf_points") or 0,
         }
         enabled_map = {
             ComboPurchaseType.ONE_TIME: access_config.get("is_one_time_enabled", False),
