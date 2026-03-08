@@ -28,7 +28,7 @@ from bson import ObjectId
 logger = logging.getLogger("chatbot")
 
 # DeepSeek batch size for translation (pages per API call)
-_TRANSLATE_BATCH_SIZE = 20
+_TRANSLATE_BATCH_SIZE = 5
 
 # BCP-47 language code map (same as slide_narration_service)
 BCP47_MAP = {
@@ -134,31 +134,18 @@ class BookPageAudioService:
         text = re.sub(r"<[^>]+>", "", text)
         return text.strip()
 
-    async def _translate_batch_deepseek(
-        self, texts: List[str], source: str = "en", target: str = "vi"
-    ) -> List[str]:
-        """
-        Batch translate texts via DeepSeek API.
-        Texts are sent as a numbered list; returns same-length list.
-        """
-        api_key = os.getenv("DEEPSEEK_API_KEY")
-        if not api_key:
-            raise ValueError("DEEPSEEK_API_KEY not set in environment")
-
-        lang_names = {"vi": "Vietnamese", "en": "English"}
-        target_name = lang_names.get(target, target)
-
-        numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(texts))
+    async def _translate_single_deepseek(
+        self, text: str, target_name: str, api_key: str
+    ) -> str:
+        """Translate a single text string via DeepSeek. Used as fallback."""
         prompt = (
-            f"Translate each item from English to {target_name}. "
+            f"Translate the following text from English to {target_name}. "
             "This is a children's storybook — keep the tone natural and age-appropriate. "
             "Preserve all HTML tags (<b>, <i>, <br/>) exactly as-is. "
-            'Return a JSON object with key "items" containing an array of translated '
-            "strings in the SAME ORDER as the input. No extra commentary.\n\n"
-            f"{numbered}"
+            'Return a JSON object: {"text": "<translated text>"}. No extra commentary.\n\n'
+            f"{text}"
         )
-
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             resp = await client.post(
                 "https://api.deepseek.com/v1/chat/completions",
                 headers={
@@ -174,19 +161,85 @@ class BookPageAudioService:
             )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
-
         data = json.loads(content)
-        # Unwrap: expect {"items": [...]}
-        items = data.get("items") or data.get("translations") or data.get("results")
-        if isinstance(items, list) and len(items) == len(texts):
-            return items
-        # Fallback: try to find any list key with correct length
-        for val in data.values():
-            if isinstance(val, list) and len(val) == len(texts):
-                return val
-        raise ValueError(
-            f"Translation response has unexpected structure or length: {list(data.keys())}"
+        return data.get("text") or data.get("translation") or text
+
+    async def _translate_batch_deepseek(
+        self, texts: List[str], source: str = "en", target: str = "vi"
+    ) -> List[str]:
+        """
+        Batch translate texts via DeepSeek API.
+        Texts are sent as a numbered list; returns same-length list.
+        Falls back to one-by-one if batch JSON is truncated or mismatched.
+        """
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not set in environment")
+
+        lang_names = {"vi": "Vietnamese", "en": "English"}
+        target_name = lang_names.get(target, target)
+
+        # Single item — use simple format
+        if len(texts) == 1:
+            result = await self._translate_single_deepseek(texts[0], target_name, api_key)
+            return [result]
+
+        numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(texts))
+        prompt = (
+            f"Translate each item from English to {target_name}. "
+            "This is a children's storybook — keep the tone natural and age-appropriate. "
+            "Preserve all HTML tags (<b>, <i>, <br/>) exactly as-is. "
+            'Return a JSON object with key "items" containing an array of translated '
+            "strings in the SAME ORDER as the input. No extra commentary.\n\n"
+            f"{numbered}"
         )
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                resp = await client.post(
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "temperature": 0.1,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+
+            data = json.loads(content)
+            # Unwrap: expect {"items": [...]}
+            items = data.get("items") or data.get("translations") or data.get("results")
+            if isinstance(items, list) and len(items) == len(texts):
+                return items
+            # Fallback: try to find any list key with correct length
+            for val in data.values():
+                if isinstance(val, list) and len(val) == len(texts):
+                    return val
+            # Length mismatch — fall through to one-by-one
+            logger.warning(
+                f"Batch translation length mismatch (got {len(items) if isinstance(items, list) else '?'}, "
+                f"expected {len(texts)}) — falling back to one-by-one"
+            )
+        except (json.JSONDecodeError, Exception) as e:
+            logger.warning(f"Batch translation failed ({e}) — falling back to one-by-one")
+
+        # Fallback: translate each text individually
+        results = []
+        for i, text in enumerate(texts):
+            try:
+                translated = await self._translate_single_deepseek(text, target_name, api_key)
+                results.append(translated)
+                await asyncio.sleep(0.3)  # brief pause between calls
+            except Exception as e:
+                logger.warning(f"Single translation failed for item {i+1}: {e} — using original")
+                results.append(text)  # keep original on failure
+        return results
 
     async def translate_pages_to_vi(
         self, book_id: str, force: bool = False
