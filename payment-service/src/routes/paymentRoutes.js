@@ -33,6 +33,14 @@ router.post(
     asyncHandler(paymentController.createBookPurchase)
 );
 
+// Create combo purchase - REQUIRES AUTHENTICATION
+router.post(
+    '/checkout/combos',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    validateBody(schemas.comboPurchase),
+    asyncHandler(paymentController.createComboPurchase)
+);
+
 // Create song learning subscription - REQUIRES AUTHENTICATION (NEW)
 router.post(
     '/song-learning/checkout',

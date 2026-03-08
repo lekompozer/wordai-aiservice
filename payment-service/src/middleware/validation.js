@@ -45,6 +45,12 @@ const schemas = {
         return_url: Joi.string().uri().optional(), // Optional return URL for redirect after payment
     }),
 
+    // Combo purchase request
+    comboPurchase: Joi.object({
+        order_id: Joi.string().pattern(/^COMBO-/).required(),
+        return_url: Joi.string().uri().optional(),
+    }),
+
     // Song learning subscription (NEW)
     songLearningCheckout: Joi.object({
         plan_id: Joi.string().valid('monthly', '6_months', 'yearly').required(),

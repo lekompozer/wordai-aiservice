@@ -70,6 +70,12 @@ async function handleWebhook(req, res) {
             return await handleBookOrderWebhook(db, payload, res);
         }
 
+        // Check if this is a combo order (format: COMBO-{timestamp}-{user_short})
+        if (order_invoice_number.startsWith('COMBO-')) {
+            logger.info(`📦 Detected combo order: ${order_invoice_number}`);
+            return await handleComboOrderWebhook(db, payload, res);
+        }
+
         // Regular payment (subscription or points)
         const paymentsCollection = db.collection('payments');
         const payment = await paymentsCollection.findOne({ order_invoice_number });
@@ -478,6 +484,132 @@ async function handleBookOrderWebhook(db, payload, res) {
         logger.error(`❌ Book order webhook error: ${error.message}`);
 
         // Always return 200 to prevent SePay retries
+        return res.status(200).json({
+            success: false,
+            error: error.message
+        });
+    }
+}
+
+/**
+ * Handle combo order webhook (format: COMBO-{timestamp}-{user_short})
+ * Mirrors handleBookOrderWebhook but for combo_cash_orders collection
+ */
+async function handleComboOrderWebhook(db, payload, res) {
+    try {
+        const { notification_type, order, transaction } = payload;
+        const order_id = order.order_invoice_number;
+
+        logger.info(`📦 Processing combo order webhook: ${order_id}`);
+
+        const comboOrdersCollection = db.collection('combo_cash_orders');
+        const comboOrder = await comboOrdersCollection.findOne({ order_id });
+
+        if (!comboOrder) {
+            logger.error(`Combo order not found: ${order_id}`);
+            return res.status(200).json({
+                success: false,
+                error: 'Combo order not found'
+            });
+        }
+
+        if (comboOrder.status === 'completed' && comboOrder.access_granted) {
+            logger.info(`Combo order already completed: ${order_id}`);
+            return res.status(200).json({
+                success: true,
+                message: 'Already processed'
+            });
+        }
+
+        if (notification_type === 'ORDER_PAID') {
+            logger.info(`💰 Combo order paid: ${order_id}`);
+
+            await comboOrdersCollection.updateOne(
+                { order_id },
+                {
+                    $set: {
+                        status: 'completed',
+                        transaction_id: transaction?.transaction_id || null,
+                        paid_at: new Date(),
+                        webhook_payload: payload,
+                        updated_at: new Date()
+                    }
+                }
+            );
+
+            logger.info(`✅ Combo order marked as completed: ${order_id}`);
+
+            try {
+                logger.info(`🔓 Calling Python service to grant combo access...`);
+
+                const grantResponse = await axios.post(
+                    `${config.pythonService.url}/api/v1/books/combos/grant-access-from-order`,
+                    { order_id },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Service-Secret': config.security.apiSecretKey
+                        },
+                        timeout: config.pythonService.timeout
+                    }
+                );
+
+                logger.info(`🎉 Combo access granted: ${JSON.stringify(grantResponse.data)}`);
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'Combo order processed and access granted',
+                    data: grantResponse.data
+                });
+
+            } catch (error) {
+                logger.error(`❌ Failed to grant combo access: ${error.message}`);
+
+                if (error.response) {
+                    logger.error(`Python service error: ${JSON.stringify(error.response.data)}`);
+                }
+
+                await comboOrdersCollection.updateOne(
+                    { order_id },
+                    {
+                        $set: {
+                            access_granted: false,
+                            grant_error: error.message,
+                            grant_error_details: error.response?.data || null,
+                            updated_at: new Date()
+                        }
+                    }
+                );
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'Combo order completed, access grant pending retry'
+                });
+            }
+
+        } else {
+            logger.info(`ℹ️  Combo order notification: ${notification_type}`);
+
+            await comboOrdersCollection.updateOne(
+                { order_id },
+                {
+                    $set: {
+                        webhook_payload: payload,
+                        webhook_received_at: new Date(),
+                        updated_at: new Date()
+                    }
+                }
+            );
+
+            return res.status(200).json({
+                success: true,
+                message: 'Combo order webhook received'
+            });
+        }
+
+    } catch (error) {
+        logger.error(`❌ Combo order webhook error: ${error.message}`);
+
         return res.status(200).json({
             success: false,
             error: error.message
