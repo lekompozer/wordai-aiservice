@@ -4,7 +4,7 @@ Book combos allow grouping multiple books and selling them as a bundle.
 """
 
 from pydantic import BaseModel, Field, field_validator, model_validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 
@@ -74,6 +74,63 @@ class ComboBookItem(BaseModel):
     is_available: bool = Field(
         True, description="False if book was unpublished/deleted"
     )
+
+
+class BookAccessConfigSnapshot(BaseModel):
+    """Book's own pricing config — shown inside combo modal so user can compare"""
+
+    one_time_view_points: int = 0
+    forever_view_points: int = 0
+    download_pdf_points: Optional[int] = None
+    is_one_time_enabled: bool = False
+    is_forever_enabled: bool = True
+    is_download_enabled: bool = False
+
+
+class ComboBookFullItem(BaseModel):
+    """Rich book info for combo detail modal (card + pricing per book)"""
+
+    book_id: str
+    title: str
+    slug: str
+    cover_image_url: Optional[str] = None
+    description: Optional[str] = None
+    author_name: Optional[str] = None
+    category: Optional[str] = None
+    chapter_count: int = 0
+    view_count: int = 0
+    average_rating: float = 0.0
+    total_purchases: int = 0
+    # Each book's individual price (original, before combo discount)
+    book_access_config: Optional[BookAccessConfigSnapshot] = None
+    is_available: bool = Field(
+        True, description="False if book was unpublished/deleted"
+    )
+
+
+class ComboFullResponse(BaseModel):
+    """Full combo detail response with rich per-book info — for modal UI"""
+
+    combo_id: str
+    owner_user_id: str
+    title: str
+    description: Optional[str] = None
+    cover_image_url: Optional[str] = None
+
+    book_ids: List[str]
+    book_count: int
+    books: List[ComboBookFullItem] = Field(
+        default_factory=list, description="All books with full details"
+    )
+
+    access_config: ComboAccessConfig
+    stats: ComboStats = Field(default_factory=ComboStats)
+
+    is_published: bool = True
+    is_deleted: bool = False
+
+    created_at: datetime
+    updated_at: datetime
 
 
 # ==============================================================================
@@ -290,3 +347,58 @@ class MyPublishedCombosResponse(BaseModel):
     page: int
     limit: int
     total_pages: int
+
+
+# ==============================================================================
+# SEPAY COMBO PAYMENT
+# ==============================================================================
+
+
+class CreateComboPaymentOrderRequest(BaseModel):
+    """Request to create a SePay payment order for a combo purchase"""
+
+    purchase_type: ComboPurchaseType = Field(
+        ..., description="one_time | lifetime | pdf_download"
+    )
+
+
+class ComboOrderStatus(str, Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+
+
+class ComboOrderStatusResponse(BaseModel):
+    """Status of a combo SePay payment order"""
+
+    order_id: str
+    combo_id: str
+    combo_title: str
+    purchase_type: ComboPurchaseType
+    status: ComboOrderStatus
+    price_vnd: int
+    transaction_id: Optional[str] = None
+    paid_at: Optional[datetime] = None
+    access_granted: bool = False
+    purchase_id: Optional[str] = None
+    created_at: datetime
+    expires_at: datetime
+
+
+class GrantComboAccessRequest(BaseModel):
+    """Internal request to grant combo access from completed SePay order"""
+
+    order_id: str = Field(..., description="Order ID from combo_cash_orders")
+
+
+class GrantComboAccessResponse(BaseModel):
+    """Response after granting combo access from SePay payment"""
+
+    success: bool
+    message: str
+    order_id: str
+    purchase_id: Optional[str] = None
+    user_id: str
+    combo_id: str
