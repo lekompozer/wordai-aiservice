@@ -125,10 +125,15 @@ async def list_combos(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     search: Optional[str] = Query(None, description="Search by title"),
+    sort: Optional[str] = Query(
+        None, description="Sort order: popular (by total_purchases), newest (default)"
+    ),
 ):
     """
     Browse all published combos (public, no auth required).
     Returns lightweight list with first 4 book previews.
+    - ?sort=popular — sort by total_purchases desc
+    - ?sort=newest (default) — sort by created_at desc
     """
     query: Dict[str, Any] = {"is_published": True, "is_deleted": False}
     if search:
@@ -136,9 +141,9 @@ async def list_combos(
 
     total = db.book_combos.count_documents(query)
     skip = (page - 1) * limit
-    docs = list(
-        db.book_combos.find(query).sort("created_at", -1).skip(skip).limit(limit)
-    )
+
+    sort_field = "stats.total_purchases" if sort == "popular" else "created_at"
+    docs = list(db.book_combos.find(query).sort(sort_field, -1).skip(skip).limit(limit))
 
     items = []
     for doc in docs:
@@ -411,7 +416,8 @@ async def purchase_combo(
         points_map = {
             ComboPurchaseType.ONE_TIME: access_config.get("one_time_view_points") or 0,
             ComboPurchaseType.FOREVER: access_config.get("forever_view_points") or 0,
-            ComboPurchaseType.PDF_DOWNLOAD: access_config.get("download_pdf_points") or 0,
+            ComboPurchaseType.PDF_DOWNLOAD: access_config.get("download_pdf_points")
+            or 0,
         }
         enabled_map = {
             ComboPurchaseType.ONE_TIME: access_config.get("is_one_time_enabled", False),

@@ -3,7 +3,7 @@ Pydantic Models for Book Combo System
 Book combos allow grouping multiple books and selling them as a bundle.
 """
 
-from pydantic import BaseModel, Field, validator, root_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from typing import Optional, List
 from datetime import datetime
 from enum import Enum
@@ -34,7 +34,8 @@ class ComboAccessConfig(BaseModel):
     is_forever_enabled: bool = Field(True)
     is_download_enabled: bool = Field(False)
 
-    @validator("download_pdf_points")
+    @field_validator("download_pdf_points", mode="before")
+    @classmethod
     def pdf_points_non_negative(cls, v):
         if v is not None and v < 0:
             raise ValueError("download_pdf_points must be >= 0")
@@ -87,21 +88,22 @@ class CreateComboRequest(BaseModel):
     description: Optional[str] = Field(None, max_length=5000)
     cover_image_url: Optional[str] = None
     book_ids: List[str] = Field(
-        ..., min_items=2, max_items=50, description="At least 2 books required"
+        ..., min_length=2, max_length=50, description="At least 2 books required"
     )
     access_config: ComboAccessConfig
 
-    @validator("book_ids")
+    @field_validator("book_ids")
+    @classmethod
     def book_ids_unique(cls, v):
         if len(v) != len(set(v)):
             raise ValueError("book_ids must be unique")
         return v
 
-    @root_validator
-    def access_config_has_pricing(cls, values):
-        cfg = values.get("access_config")
+    @model_validator(mode="after")
+    def access_config_has_pricing(self):
+        cfg = self.access_config
         if cfg is None:
-            return values
+            return self
         has_forever = cfg.is_forever_enabled and cfg.forever_view_points > 0
         has_one_time = cfg.is_one_time_enabled and cfg.one_time_view_points > 0
         if not has_forever and not has_one_time:
@@ -110,7 +112,7 @@ class CreateComboRequest(BaseModel):
                 "forever_view_points > 0 với is_forever_enabled=true, "
                 "hoặc one_time_view_points > 0 với is_one_time_enabled=true"
             )
-        return values
+        return self
 
 
 class UpdateComboRequest(BaseModel):
