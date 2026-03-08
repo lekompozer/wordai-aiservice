@@ -538,7 +538,7 @@ async def grant_combo_access_from_order(request: GrantComboAccessRequest):
             },
         )
 
-        # Credit owner 80%
+        # Credit owner 80% — earnings_points (same as book purchase, separate from spendable)
         owner_id = combo.get("owner_user_id")
         if owner_id and owner_id != user_id and owner_reward > 0:
             cash_earnings_vnd = int(order["price_vnd"] * 0.8)
@@ -546,8 +546,7 @@ async def grant_combo_access_from_order(request: GrantComboAccessRequest):
                 {"user_id": owner_id},
                 {
                     "$inc": {
-                        "points_remaining": owner_reward,
-                        "points_earned": owner_reward,
+                        "earnings_points": owner_reward,
                         "cash_earnings_vnd": cash_earnings_vnd,
                     },
                     "$set": {"updated_at": now},
@@ -808,16 +807,13 @@ async def purchase_combo(
             },
         )
 
-        # Credit owner earnings (80%)
+        # Credit owner earnings (80%) — earnings_points is separate from spendable points
         owner_id = combo.get("owner_user_id")
         if owner_id and owner_id != user_id and owner_reward > 0:
             db.user_subscriptions.update_one(
                 {"user_id": owner_id},
                 {
-                    "$inc": {
-                        "points_remaining": owner_reward,
-                        "points_earned": owner_reward,
-                    },
+                    "$inc": {"earnings_points": owner_reward},
                     "$set": {"updated_at": now},
                 },
             )
