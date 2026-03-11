@@ -57,6 +57,14 @@ router.post(
     asyncHandler(paymentController.createConversationLearningCheckout)
 );
 
+// Create AI Bundle subscription - REQUIRES AUTHENTICATION
+router.post(
+    '/ai-bundle/checkout',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    validateBody(schemas.aiBundleCheckout),
+    asyncHandler(paymentController.createAiBundleCheckout)
+);
+
 // Get payment status
 router.get(
     '/status/:order_invoice_number',

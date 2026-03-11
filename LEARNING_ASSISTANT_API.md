@@ -162,7 +162,7 @@ Start an AI grading job. The AI scores the student's work, explains mistakes in 
 | `student_answer_text` | `string` | Conditional | Typed student answer |
 | `subject` | `string` | No | See Subject Values. Default: `other` |
 | `grade_level` | `string` | No | See Grade Level Values. Default: `other` |
-| `language` | `string` | No | `vi` (default) or `en` |
+| `language` | `string` | No | BCP-47 / ISO 639-1 language code. Default: `vi`. See [Supported Languages](#supported-languages) |
 
 #### Response — 200 OK (job started)
 
@@ -272,7 +272,7 @@ Common fields on every item:
 | `type` | `string` | `"solve"` or `"grade"` |
 | `subject` | `string` | Subject |
 | `grade_level` | `string` | Grade level |
-| `language` | `string` | `vi` or `en` |
+| `language` | `string` | Language code used for this job |
 | `points_deducted` | `integer` | `1` |
 | `created_at` | `string` | ISO 8601 timestamp |
 
@@ -305,6 +305,39 @@ Additional fields for `type: "grade"` items:
 | `improvement_plan` | `string[]` | Concrete next steps |
 | `study_plan` | `object[]` | Weekly study plan |
 | `recommended_materials` | `string[]` | Topics to review |
+
+---
+
+## Supported Languages
+
+The `language` parameter accepts any BCP-47 / ISO 639-1 code that Gemini supports.
+The AI will respond entirely in the specified language, including all explanations, study tips, and study plans.
+
+| Code | Language |
+|------|----------|
+| `vi` | Tiếng Việt (Vietnamese) — **default** |
+| `en` | English |
+| `ja` | 日本語 (Japanese) |
+| `ko` | 한국어 (Korean) |
+| `zh` | 中文简体 (Chinese Simplified) |
+| `zh-tw` | 中文繁體 (Chinese Traditional) |
+| `fr` | Français (French) |
+| `de` | Deutsch (German) |
+| `es` | Español (Spanish) |
+| `pt` | Português (Portuguese) |
+| `ru` | Русский (Russian) |
+| `ar` | العربية (Arabic) |
+| `th` | ภาษาไทย (Thai) |
+| `id` | Bahasa Indonesia |
+| `ms` | Bahasa Melayu (Malay) |
+| `hi` | हिंदी (Hindi) |
+| `tr` | Türkçe (Turkish) |
+| `it` | Italiano (Italian) |
+| `nl` | Nederlands (Dutch) |
+| `pl` | Polski (Polish) |
+| `uk` | Українська (Ukrainian) |
+
+Any other valid BCP-47 code is also accepted — the AI will attempt to respond in that language.
 
 ---
 

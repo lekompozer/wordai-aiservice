@@ -18,6 +18,7 @@ from src.middleware.firebase_auth import get_current_user
 from src.queue.queue_manager import QueueManager, set_job_status, get_job_status
 from src.services.points_service import get_points_service
 from src.database.db_manager import DBManager
+from src.middleware.ai_bundle_quota import check_ai_bundle_quota
 from src.models.learning_assistant_models import (
     SolveHomeworkRequest,
     SolveHomeworkResponse,
@@ -44,6 +45,7 @@ def get_db():
 async def start_solve_homework(
     request: SolveHomeworkRequest,
     user: dict = Depends(get_current_user),
+    db=Depends(get_db),
 ):
     """
     Start AI homework solving job.
@@ -63,22 +65,30 @@ async def start_solve_homework(
     user_id = user["uid"]
     points_service = get_points_service()
 
-    # Check & deduct points up-front
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=POINTS_COST,
-            service="learning_assistant_solve",
-            description=f"AI giải bài tập – môn {request.subject}, lớp {request.grade_level}",
-        )
-    except Exception as exc:
-        if "Không đủ điểm" in str(exc) or "insufficient" in str(exc).lower():
-            balance = await points_service.get_points_balance(user_id)
-            raise HTTPException(
-                status_code=403,
-                detail=f"Không đủ điểm. Cần: {POINTS_COST}, Còn lại: {balance['points_remaining']}",
+    # Check AI Bundle quota first — skip points if user has an active bundle
+    has_bundle = await check_ai_bundle_quota(user_id, db)
+
+    transaction = None
+    new_balance = None
+
+    if not has_bundle:
+        # Check & deduct points up-front
+        try:
+            transaction = await points_service.deduct_points(
+                user_id=user_id,
+                amount=POINTS_COST,
+                service="learning_assistant_solve",
+                description=f"AI giải bài tập – môn {request.subject}, lớp {request.grade_level}",
             )
-        raise HTTPException(status_code=500, detail=str(exc))
+            new_balance = transaction.balance_after
+        except Exception as exc:
+            if "Không đủ điểm" in str(exc) or "insufficient" in str(exc).lower():
+                balance = await points_service.get_points_balance(user_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Không đủ điểm. Cần: {POINTS_COST}, Còn lại: {balance['points_remaining']}",
+                )
+            raise HTTPException(status_code=500, detail=str(exc))
 
     job_id = f"solve_{uuid.uuid4().hex[:12]}"
     queue = QueueManager(queue_name="learning_assistant_solve")
@@ -110,8 +120,8 @@ async def start_solve_homework(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=POINTS_COST,
-        new_balance=transaction.balance_after,
+        points_deducted=0 if has_bundle else POINTS_COST,
+        new_balance=new_balance,
     )
 
 
@@ -153,6 +163,7 @@ async def get_solve_status(job_id: str, user: dict = Depends(get_current_user)):
 async def start_grade_and_tips(
     request: GradeRequest,
     user: dict = Depends(get_current_user),
+    db=Depends(get_db),
 ):
     """
     Start AI grading + personalised study plan job.
@@ -178,22 +189,30 @@ async def start_grade_and_tips(
     user_id = user["uid"]
     points_service = get_points_service()
 
-    # Check & deduct points up-front
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=POINTS_COST,
-            service="learning_assistant_grade",
-            description=f"AI chấm bài – môn {request.subject}, lớp {request.grade_level}",
-        )
-    except Exception as exc:
-        if "Không đủ điểm" in str(exc) or "insufficient" in str(exc).lower():
-            balance = await points_service.get_points_balance(user_id)
-            raise HTTPException(
-                status_code=403,
-                detail=f"Không đủ điểm. Cần: {POINTS_COST}, Còn lại: {balance['points_remaining']}",
+    # Check AI Bundle quota first — skip points if user has an active bundle
+    has_bundle = await check_ai_bundle_quota(user_id, db)
+
+    transaction = None
+    new_balance = None
+
+    if not has_bundle:
+        # Check & deduct points up-front
+        try:
+            transaction = await points_service.deduct_points(
+                user_id=user_id,
+                amount=POINTS_COST,
+                service="learning_assistant_grade",
+                description=f"AI chấm bài – môn {request.subject}, lớp {request.grade_level}",
             )
-        raise HTTPException(status_code=500, detail=str(exc))
+            new_balance = transaction.balance_after
+        except Exception as exc:
+            if "Không đủ điểm" in str(exc) or "insufficient" in str(exc).lower():
+                balance = await points_service.get_points_balance(user_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Không đủ điểm. Cần: {POINTS_COST}, Còn lại: {balance['points_remaining']}",
+                )
+            raise HTTPException(status_code=500, detail=str(exc))
 
     job_id = f"grade_{uuid.uuid4().hex[:12]}"
     queue = QueueManager(queue_name="learning_assistant_grade")
@@ -230,8 +249,8 @@ async def start_grade_and_tips(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=POINTS_COST,
-        new_balance=transaction.balance_after,
+        points_deducted=0 if has_bundle else POINTS_COST,
+        new_balance=new_balance,
     )
 
 

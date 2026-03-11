@@ -40,6 +40,19 @@ const SONG_LEARNING_PRICING = {
     'yearly': { duration_months: 12, amount: 250000 },
 };
 
+// AI Bundle subscription pricing
+// Mirrors Python: src/models/ai_bundle_subscription.py
+const AI_BUNDLE_PRICING = {
+    no_code: { basic: 449000, advanced: 899000 },
+    tier_2: { basic: 399000, advanced: 799000 },
+    tier_1: { basic: 359000, advanced: 719000 },
+};
+
+function calculateAiBundlePrice(priceTier, plan) {
+    const tier = AI_BUNDLE_PRICING[priceTier] || AI_BUNDLE_PRICING.no_code;
+    return tier[plan] || tier.basic;
+}
+
 // Conversation Learning subscription pricing
 // Mirrors Python: src/models/conversation_subscription.py
 const CONVERSATION_PRICING = {
@@ -715,6 +728,124 @@ async function createConversationLearningCheckout(req, res) {
     }
 }
 
+/**
+ * Create AI Bundle subscription checkout
+ * REQUIRES AUTHENTICATION
+ * Body: { plan, price_tier, amount, affiliate_code? }
+ */
+async function createAiBundleCheckout(req, res) {
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const user_id = authenticatedUser.uid;
+    const user_email = authenticatedUser.email;
+    const user_name = authenticatedUser.name || (authenticatedUser.email || '').split('@')[0];
+
+    const { plan, price_tier, affiliate_code, amount } = req.body;
+
+    try {
+        // Recompute price server-side
+        const expectedAmount = calculateAiBundlePrice(price_tier, plan);
+
+        if (Math.abs(amount - expectedAmount) > 1) {
+            throw new AppError(
+                `Amount mismatch. Expected ${expectedAmount} VND, received ${amount} VND`,
+                400
+            );
+        }
+
+        const db = getDb();
+        const paymentsCollection = db.collection('payments');
+
+        // Validate affiliate code against ai_bundle_affiliates
+        if (affiliate_code) {
+            const aibAffiliatesCollection = db.collection('ai_bundle_affiliates');
+            const aff = await aibAffiliatesCollection.findOne(
+                { code: affiliate_code.toUpperCase() },
+                { projection: { is_active: 1, user_id: 1 } }
+            );
+            if (!aff) {
+                throw new AppError('Mã đại lý AI Bundle không tồn tại.', 404);
+            }
+            if (!aff.is_active) {
+                throw new AppError('Đại lý AI Bundle chưa được kích hoạt.', 403);
+            }
+            if (!aff.user_id) {
+                throw new AppError('Đại lý AI Bundle chưa đăng nhập hệ thống. Vui lòng yêu cầu đại lý đăng nhập trước.', 403);
+            }
+        }
+
+        // Order invoice: AIB-{timestamp}-{user_short}
+        const timestamp = Date.now();
+        const userShort = user_id.substring(0, 8);
+        const orderInvoiceNumber = `AIB-${timestamp}-${userShort}`;
+
+        const planLabels = { basic: 'Gói Cơ Bản', advanced: 'Gói Nâng Cao' };
+
+        const paymentDoc = {
+            user_id,
+            order_invoice_number: orderInvoiceNumber,
+            plan_type: 'ai_bundle',
+            plan,
+            price_tier,
+            affiliate_code: affiliate_code ? affiliate_code.toUpperCase() : null,
+            price: expectedAmount,
+            status: 'pending',
+            payment_method: 'SEPAY_BANK_TRANSFER',
+            user_email: user_email || null,
+            user_name: user_name || null,
+            sepay_transaction_id: null,
+            created_at: new Date(),
+            updated_at: new Date(),
+        };
+
+        const result = await paymentsCollection.insertOne(paymentDoc);
+        const paymentId = result.insertedId.toString();
+
+        logger.info(
+            `Created AI Bundle payment: ${paymentId} ` +
+            `user: ${user_id} plan: ${plan} tier: ${price_tier} amount: ${expectedAmount}`
+        );
+
+        const descParts = [`WordAI AI Bundle - ${planLabels[plan] || plan}`];
+        if (affiliate_code) descParts.push(`Ma: ${affiliate_code.toUpperCase()}`);
+
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: expectedAmount.toString(),
+            currency: 'VND',
+            order_invoice_number: orderInvoiceNumber,
+            order_description: descParts.join(' - '),
+            customer_id: user_id,
+            success_url: `https://wordai.pro/ai-tools/ai-bundle?tab=subscription`,
+            error_url: `https://wordai.pro/ai-tools/ai-bundle?tab=subscription`,
+            cancel_url: `https://wordai.pro/ai-tools/ai-bundle?tab=subscription`,
+        };
+
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
+
+        logger.info(`Generated AI Bundle checkout: ${orderInvoiceNumber}`);
+
+        res.status(201).json({
+            payment_url: config.sepay.checkoutUrl,
+            order_invoice_number: orderInvoiceNumber,
+            payment_id: paymentId,
+            form_fields: formFields,
+            amount: expectedAmount,
+            plan,
+            price_tier,
+        });
+    } catch (error) {
+        logger.error(`AI Bundle checkout error: ${error.message}`);
+        throw error;
+    }
+}
+
 async function createComboPurchase(req, res) {
     const authenticatedUser = req.user;
 
@@ -804,6 +935,7 @@ module.exports = {
     createComboPurchase,
     createSongLearningCheckout,
     createConversationLearningCheckout,
+    createAiBundleCheckout,
     getPaymentStatus,
     getUserPayments,
 };

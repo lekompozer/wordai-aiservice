@@ -11,6 +11,7 @@ import json
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
 from src.services.points_service import get_points_service
+from src.middleware.ai_bundle_quota import check_ai_bundle_quota
 from src.models.software_lab_ai_models import (
     GenerateCodeRequest,
     GenerateCodeResponse,
@@ -32,6 +33,12 @@ router = APIRouter(prefix="/software-lab/ai", tags=["Software Lab AI"])
 POINTS_COST_GLM = 1  # generate / explain / transform  (GLM-5 MaaS)
 POINTS_COST_GEMINI = 2  # analyze-architecture / scaffold  (Gemini Pro)
 
+
+def get_db():
+    db_manager = DBManager()
+    return db_manager.db
+
+
 # ========================================
 # FEATURE 1: GENERATE CODE
 # ========================================
@@ -39,7 +46,9 @@ POINTS_COST_GEMINI = 2  # analyze-architecture / scaffold  (Gemini Pro)
 
 @router.post("/generate", response_model=GenerateCodeResponse)
 async def start_generate_code(
-    request: GenerateCodeRequest, user: dict = Depends(get_current_user)
+    request: GenerateCodeRequest,
+    user: dict = Depends(get_current_user),
+    db=Depends(get_db),
 ):
     """
     Start AI code generation job.
@@ -49,23 +58,31 @@ async def start_generate_code(
     user_id = user["uid"]
     points_service = get_points_service()
 
-    # Check and deduct points using points_service
-    try:
-        await points_service.deduct_points(
-            user_id=user_id,
-            amount=POINTS_COST_GLM,
-            service="ai_code_generate",
-            description=f"Generate code: {request.query[:50]}...",
-        )
-    except Exception as e:
-        # Check if insufficient points error
-        if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
-            balance = await points_service.get_points_balance(user_id)
-            raise HTTPException(
-                status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
+    # Check AI Bundle quota first — skip points if user has an active bundle
+    has_bundle = await check_ai_bundle_quota(user_id, db)
+
+    transaction = None
+    new_balance = None
+
+    if not has_bundle:
+        # Check and deduct points using points_service
+        try:
+            transaction = await points_service.deduct_points(
+                user_id=user_id,
+                amount=POINTS_COST_GLM,
+                service="ai_code_generate",
+                description=f"Generate code: {request.query[:50]}...",
             )
-        raise HTTPException(status_code=500, detail=str(e))
+            new_balance = transaction.balance_after
+        except Exception as e:
+            # Check if insufficient points error
+            if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
+                balance = await points_service.get_points_balance(user_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
+                )
+            raise HTTPException(status_code=500, detail=str(e))
 
     # Create job
     job_id = f"gen_{uuid.uuid4().hex[:12]}"
@@ -109,8 +126,8 @@ async def start_generate_code(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=POINTS_COST_GLM,
-        new_balance=balance,
+        points_deducted=0 if has_bundle else POINTS_COST_GLM,
+        new_balance=new_balance,
     )
 
 
@@ -151,7 +168,9 @@ async def get_generate_code_status(job_id: str, user: dict = Depends(get_current
 
 @router.post("/explain", response_model=ExplainCodeResponse)
 async def start_explain_code(
-    request: ExplainCodeRequest, user: dict = Depends(get_current_user)
+    request: ExplainCodeRequest,
+    user: dict = Depends(get_current_user),
+    db=Depends(get_db),
 ):
     """
     Start AI code explanation job.
@@ -161,22 +180,30 @@ async def start_explain_code(
     user_id = user["uid"]
     points_service = get_points_service()
 
-    # Check and deduct points using points_service
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=POINTS_COST_GLM,
-            service="ai_code_explain",
-            description=f"Explain code: file {request.file_id or request.local_file.path if request.local_file else 'local'}",
-        )
-    except Exception as e:
-        if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
-            balance = await points_service.get_points_balance(user_id)
-            raise HTTPException(
-                status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
+    # Check AI Bundle quota first — skip points if user has an active bundle
+    has_bundle = await check_ai_bundle_quota(user_id, db)
+
+    transaction = None
+    new_balance = None
+
+    if not has_bundle:
+        # Check and deduct points using points_service
+        try:
+            transaction = await points_service.deduct_points(
+                user_id=user_id,
+                amount=POINTS_COST_GLM,
+                service="ai_code_explain",
+                description=f"Explain code: file {request.file_id or request.local_file.path if request.local_file else 'local'}",
             )
-        raise HTTPException(status_code=500, detail=str(e))
+            new_balance = transaction.balance_after
+        except Exception as e:
+            if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
+                balance = await points_service.get_points_balance(user_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
+                )
+            raise HTTPException(status_code=500, detail=str(e))
 
     # Create job
     job_id = f"exp_{uuid.uuid4().hex[:12]}"
@@ -211,8 +238,8 @@ async def start_explain_code(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=POINTS_COST_GLM,
-        new_balance=transaction.balance_after,
+        points_deducted=0 if has_bundle else POINTS_COST_GLM,
+        new_balance=new_balance,
     )
 
 
@@ -254,7 +281,9 @@ async def get_explain_code_status(job_id: str, user: dict = Depends(get_current_
 
 @router.post("/transform", response_model=TransformCodeResponse)
 async def start_transform_code(
-    request: TransformCodeRequest, user: dict = Depends(get_current_user)
+    request: TransformCodeRequest,
+    user: dict = Depends(get_current_user),
+    db=Depends(get_db),
 ):
     """
     Start AI code transformation job.
@@ -264,22 +293,30 @@ async def start_transform_code(
     user_id = user["uid"]
     points_service = get_points_service()
 
-    # Check and deduct points using points_service
-    try:
-        transaction = await points_service.deduct_points(
-            user_id=user_id,
-            amount=POINTS_COST_GLM,
-            service="ai_code_transform",
-            description=f"Transform code: {request.transformation_type}",
-        )
-    except Exception as e:
-        if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
-            balance = await points_service.get_points_balance(user_id)
-            raise HTTPException(
-                status_code=403,
-                detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
+    # Check AI Bundle quota first — skip points if user has an active bundle
+    has_bundle = await check_ai_bundle_quota(user_id, db)
+
+    transaction = None
+    new_balance = None
+
+    if not has_bundle:
+        # Check and deduct points using points_service
+        try:
+            transaction = await points_service.deduct_points(
+                user_id=user_id,
+                amount=POINTS_COST_GLM,
+                service="ai_code_transform",
+                description=f"Transform code: {request.transformation_type}",
             )
-        raise HTTPException(status_code=500, detail=str(e))
+            new_balance = transaction.balance_after
+        except Exception as e:
+            if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
+                balance = await points_service.get_points_balance(user_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Insufficient points. Required: {POINTS_COST_GLM}, Available: {balance['points_remaining']}",
+                )
+            raise HTTPException(status_code=500, detail=str(e))
 
     # Create job
     job_id = f"trf_{uuid.uuid4().hex[:12]}"
@@ -314,8 +351,8 @@ async def start_transform_code(
         success=True,
         job_id=job_id,
         status="pending",
-        points_deducted=POINTS_COST_GLM,
-        new_balance=transaction.balance_after,
+        points_deducted=0 if has_bundle else POINTS_COST_GLM,
+        new_balance=new_balance,
     )
 
 

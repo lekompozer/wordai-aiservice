@@ -181,7 +181,9 @@ class BookPageAudioService:
 
         # Single item — use simple format
         if len(texts) == 1:
-            result = await self._translate_single_deepseek(texts[0], target_name, api_key)
+            result = await self._translate_single_deepseek(
+                texts[0], target_name, api_key
+            )
             return [result]
 
         numbered = "\n".join(f"{i + 1}. {t}" for i, t in enumerate(texts))
@@ -227,17 +229,23 @@ class BookPageAudioService:
                 f"expected {len(texts)}) — falling back to one-by-one"
             )
         except (json.JSONDecodeError, Exception) as e:
-            logger.warning(f"Batch translation failed ({e}) — falling back to one-by-one")
+            logger.warning(
+                f"Batch translation failed ({e}) — falling back to one-by-one"
+            )
 
         # Fallback: translate each text individually
         results = []
         for i, text in enumerate(texts):
             try:
-                translated = await self._translate_single_deepseek(text, target_name, api_key)
+                translated = await self._translate_single_deepseek(
+                    text, target_name, api_key
+                )
                 results.append(translated)
                 await asyncio.sleep(0.3)  # brief pause between calls
             except Exception as e:
-                logger.warning(f"Single translation failed for item {i+1}: {e} — using original")
+                logger.warning(
+                    f"Single translation failed for item {i+1}: {e} — using original"
+                )
                 results.append(text)  # keep original on failure
         return results
 

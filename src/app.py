@@ -1104,6 +1104,23 @@ def create_app() -> FastAPI:
 
     app.include_router(admin_portal_router, tags=["Admin Portal"])
 
+    # ✅ ADDED: AI Bundle Subscription + Affiliate/Supervisor/Admin Portals
+    from src.api.ai_bundle_subscription_routes import (
+        router as ai_bundle_subscription_router,
+    )
+    from src.api.ai_bundle_affiliate_routes import router as ai_bundle_affiliate_router
+    from src.api.ai_bundle_supervisor_routes import (
+        router as ai_bundle_supervisor_router,
+    )
+    from src.api.ai_bundle_admin_routes import router as ai_bundle_admin_router
+    from src.api.partners_routes import router as partners_router
+
+    app.include_router(ai_bundle_subscription_router, tags=["AI Bundle Subscription"])
+    app.include_router(ai_bundle_affiliate_router, tags=["AI Bundle Affiliate"])
+    app.include_router(ai_bundle_supervisor_router, tags=["AI Bundle Supervisor"])
+    app.include_router(ai_bundle_admin_router, tags=["AI Bundle Admin"])
+    app.include_router(partners_router, tags=["Partners"])
+
     # ✅ ADDED: Learning Path API - Phase 2: Smart personalized 100-conversation path
     from src.api.learning_path_routes import router as learning_path_router
 

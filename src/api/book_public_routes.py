@@ -1003,12 +1003,16 @@ def _build_book_preview_response(
                         # Ensure expires_at is timezone-aware for comparison
                         if expires_at and expires_at.tzinfo is None:
                             expires_at = expires_at.replace(tzinfo=timezone.utc)
-                        is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+                        is_expired = expires_at and expires_at < datetime.now(
+                            timezone.utc
+                        )
 
                         user_access = {
                             "has_access": not is_expired,
                             "access_type": "one_time",
-                            "expires_at": (expires_at.isoformat() if expires_at else None),
+                            "expires_at": (
+                                expires_at.isoformat() if expires_at else None
+                            ),
                         }
                     else:
                         # Check combo one-time access
@@ -1023,11 +1027,15 @@ def _build_book_preview_response(
                             expires_at = combo_one_time.get("access_expires_at")
                             if expires_at and expires_at.tzinfo is None:
                                 expires_at = expires_at.replace(tzinfo=timezone.utc)
-                            is_expired = expires_at and expires_at < datetime.now(timezone.utc)
+                            is_expired = expires_at and expires_at < datetime.now(
+                                timezone.utc
+                            )
                             user_access = {
                                 "has_access": not is_expired,
                                 "access_type": "one_time",
-                                "expires_at": (expires_at.isoformat() if expires_at else None),
+                                "expires_at": (
+                                    expires_at.isoformat() if expires_at else None
+                                ),
                             }
 
     # Build response

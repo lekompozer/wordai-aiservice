@@ -230,6 +230,49 @@ async function handleWebhook(req, res) {
                     });
                 }
 
+                // ── AI Bundle subscription: push to Redis queue ──────────────
+                if (payment.plan_type === 'ai_bundle') {
+                    try {
+                        const redis = getRedisClient();
+                        const queuePayload = JSON.stringify({
+                            event_type: 'ai_bundle_subscription_paid',
+                            payment_id: payment._id.toString(),
+                            order_invoice_number,
+                            user_id: payment.user_id,
+                            plan: payment.plan,
+                            price_tier: payment.price_tier,
+                            amount_paid: payment.price,
+                            payment_method: 'SEPAY_BANK_TRANSFER',
+                            affiliate_code: payment.affiliate_code || null,
+                            queued_at: new Date().toISOString(),
+                        });
+
+                        await redis.rpush(PAYMENT_EVENTS_QUEUE, queuePayload);
+
+                        await paymentsCollection.updateOne(
+                            { order_invoice_number },
+                            {
+                                $set: {
+                                    subscription_queued: true,
+                                    subscription_queued_at: new Date(),
+                                    updated_at: new Date(),
+                                },
+                            }
+                        );
+
+                        logger.info(
+                            `✅ AI Bundle subscription queued for worker: ${order_invoice_number}`
+                        );
+                    } catch (err) {
+                        logger.error(`Failed to queue AI Bundle payment event: ${err.message}`);
+                    }
+
+                    return res.status(200).json({
+                        success: true,
+                        message: 'Payment confirmed, AI Bundle subscription activation queued',
+                    });
+                }
+
                 // ── Song Learning / Legacy subscriptions: direct HTTP call ──
                 try {
                     logger.info(`Activating subscription for user: ${payment.user_id}`);

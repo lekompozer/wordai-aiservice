@@ -58,6 +58,14 @@ const schemas = {
         amount: Joi.number().valid(29000, 150000, 250000).required(),
     }),
 
+    // AI Bundle subscription
+    aiBundleCheckout: Joi.object({
+        plan: Joi.string().valid('basic', 'advanced').required(),
+        price_tier: Joi.string().valid('no_code', 'tier_1', 'tier_2').required(),
+        amount: Joi.number().integer().min(100000).required(),
+        affiliate_code: Joi.string().alphanum().max(30).optional().allow(null, ''),
+    }),
+
     // Conversation Learning subscription
     conversationLearningCheckout: Joi.object({
         package_id: Joi.string().valid('3_months', '6_months', '12_months').required(),
