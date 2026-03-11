@@ -225,6 +225,7 @@ async def create_ai_bundle_affiliate(
 async def list_ai_bundle_affiliates(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
+    search: Optional[str] = Query(default=None),
     tier: Optional[int] = Query(default=None),
     is_active: Optional[bool] = Query(default=None),
     _: bool = Depends(verify_admin),
@@ -235,6 +236,11 @@ async def list_ai_bundle_affiliates(
         query["tier"] = tier
     if is_active is not None:
         query["is_active"] = is_active
+    if search:
+        import re
+
+        pattern = re.compile(re.escape(search.strip()), re.IGNORECASE)
+        query["$or"] = [{"code": pattern}, {"name": pattern}, {"email": pattern}]
 
     total = db["ai_bundle_affiliates"].count_documents(query)
     skip = (page - 1) * page_size
@@ -560,6 +566,7 @@ async def create_ai_bundle_supervisor(
 async def list_ai_bundle_supervisors(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=200),
+    search: Optional[str] = Query(default=None),
     is_active: Optional[bool] = Query(default=None),
     _: bool = Depends(verify_admin),
     db=Depends(get_db),
@@ -567,6 +574,11 @@ async def list_ai_bundle_supervisors(
     query: dict = {}
     if is_active is not None:
         query["is_active"] = is_active
+    if search:
+        import re
+
+        pattern = re.compile(re.escape(search.strip()), re.IGNORECASE)
+        query["$or"] = [{"code": pattern}, {"name": pattern}, {"email": pattern}]
 
     total = db["ai_bundle_supervisors"].count_documents(query)
     skip = (page - 1) * page_size
