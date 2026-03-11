@@ -38,6 +38,10 @@ AI_BUNDLE_REQUESTS_LIMIT = {
     "advanced": 200,
 }
 
+# 15-day free trial
+TRIAL_DAYS = 15
+TRIAL_REQUESTS_LIMIT = 20  # total requests during the trial period
+
 PLAN_LABELS = {
     "basic": "Gói Cơ Bản",
     "advanced": "Gói Nâng Cao",

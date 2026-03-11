@@ -2,9 +2,11 @@
 AI Bundle Subscription Routes
 
 Endpoints:
-- GET  /api/v1/ai-bundle/plans          — Available plans (optionally priced by affiliate code)
-- GET  /api/v1/ai-bundle/me             — Current user's subscription status + quota
-- POST /api/v1/ai-bundle/activate       — Activate after payment (internal, X-Service-Secret)
+- GET  /api/v1/ai-bundle/plans           — Available plans (optionally priced by affiliate code)
+- GET  /api/v1/ai-bundle/validate-code   — Validate affiliate code + get discounted prices
+- GET  /api/v1/ai-bundle/me              — Current user's subscription status + quota
+- POST /api/v1/ai-bundle/trial/activate  — Activate 15-day free trial (auth required)
+- POST /api/v1/ai-bundle/activate        — Activate after payment (internal, X-Service-Secret)
 """
 
 import os
@@ -21,6 +23,8 @@ from src.models.ai_bundle_subscription import (
     AI_BUNDLE_REQUESTS_LIMIT,
     PLAN_LABELS,
     AFFILIATE_COMMISSION_RATES,
+    TRIAL_DAYS,
+    TRIAL_REQUESTS_LIMIT,
     get_price,
     ActivateAiBundleSubscriptionRequest,
     ActivateAiBundleSubscriptionResponse,
@@ -213,13 +217,18 @@ async def get_my_ai_bundle_subscription(
     user_id = current_user["uid"]
     now = datetime.now(timezone.utc)
 
+    # Prefer paid subscription over trial when both exist; active only
     sub = db["user_ai_bundle_subscriptions"].find_one(
         {"user_id": user_id, "status": "active"},
-        sort=[("created_at", -1)],
+        sort=[("is_trial", 1), ("created_at", -1)],  # False < True → paid first
     )
 
     if not sub:
-        return {"is_active": False}
+        # Return whether the user has ever activated a trial (so UI knows)
+        had_trial = db["user_ai_bundle_subscriptions"].find_one(
+            {"user_id": user_id, "is_trial": True}
+        )
+        return {"is_active": False, "is_trial": False, "trial_used": bool(had_trial)}
 
     # Check expiry
     expires_at = sub.get("expires_at")
@@ -253,10 +262,22 @@ async def get_my_ai_bundle_subscription(
     )
     used = sub.get("requests_used_this_month", 0)
 
+    is_trial = sub.get("is_trial", False)
+    trial_days_remaining = None
+    if is_trial and expires_at:
+        trial_days_remaining = max(0, (expires_at - now).days)
+
     return {
         "is_active": True,
+        "is_trial": is_trial,
+        "trial_days_remaining": trial_days_remaining,
+        "trial_used": True if is_trial else None,  # None = paid user (irrelevant)
         "plan": sub.get("plan"),
-        "plan_label": PLAN_LABELS.get(sub.get("plan", ""), ""),
+        "plan_label": (
+            PLAN_LABELS.get(sub.get("plan", ""), "Dùng thử")
+            if not is_trial
+            else "Dùng thử (15 ngày)"
+        ),
         "requests_monthly_limit": limit,
         "requests_used_this_month": used,
         "requests_remaining": max(0, limit - used),
@@ -267,6 +288,90 @@ async def get_my_ai_bundle_subscription(
         ),
         "started_at": sub["started_at"].isoformat() if sub.get("started_at") else None,
         "expires_at": expires_at.isoformat() if expires_at else None,
+        "features": {
+            "learning_assistant": True,
+            "code_studio_basic": True,
+        },
+    }
+
+
+# ============================================================================
+# POST /trial/activate  — AUTH REQUIRED (one-time 15-day free trial)
+# ============================================================================
+
+
+@router.post("/trial/activate")
+async def activate_ai_bundle_trial(
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Activate a 15-day free trial of AI Bundle.
+    - Each Firebase account can only activate once (even after trial expires).
+    - Blocked if user already has an active paid subscription.
+    - Trial gives TRIAL_REQUESTS_LIMIT requests total (no monthly reset within trial period).
+    """
+    user_id = current_user["uid"]
+    now = datetime.now(timezone.utc)
+
+    # One-time only: reject if trial ever activated (any status)
+    already_used = db["user_ai_bundle_subscriptions"].find_one(
+        {"user_id": user_id, "is_trial": True}
+    )
+    if already_used:
+        raise HTTPException(
+            status_code=409,
+            detail="Bạn đã sử dụng dùng thử AI Bundle. Mỗi tài khoản chỉ được dùng thử 1 lần.",
+        )
+
+    # Don't create trial if already has active paid subscription
+    paid_sub = db["user_ai_bundle_subscriptions"].find_one(
+        {"user_id": user_id, "status": "active", "is_trial": {"$ne": True}}
+    )
+    if paid_sub:
+        raise HTTPException(
+            status_code=409,
+            detail="Bạn đã có gói AI Bundle đang hoạt động.",
+        )
+
+    expires_at = now + timedelta(days=TRIAL_DAYS)
+
+    # Set reset_date AFTER expires_at so auto-reset in quota middleware never fires.
+    # 20 requests is a hard cap for the full 15-day period — no mid-trial reset.
+    reset_date = expires_at + timedelta(days=1)
+
+    sub_doc = {
+        "user_id": user_id,
+        "plan": "trial",
+        "status": "active",
+        "is_trial": True,
+        "price_tier": "no_code",
+        "amount_paid": 0,
+        "payment_id": None,
+        "order_invoice_number": None,
+        "payment_method": None,
+        "affiliate_code": None,
+        "requests_monthly_limit": TRIAL_REQUESTS_LIMIT,
+        "requests_used_this_month": 0,
+        "requests_reset_date": reset_date,
+        "started_at": now,
+        "expires_at": expires_at,
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = db["user_ai_bundle_subscriptions"].insert_one(sub_doc)
+    logger.info(
+        f"[ai_bundle] 🎁 Trial activated user={user_id} expires={expires_at.date()}"
+    )
+
+    return {
+        "success": True,
+        "message": f"Kích hoạt dùng thử AI Bundle thành công! Bạn có {TRIAL_DAYS} ngày và {TRIAL_REQUESTS_LIMIT} lượt sử dụng.",
+        "plan": "trial",
+        "is_trial": True,
+        "requests_limit": TRIAL_REQUESTS_LIMIT,
+        "trial_days_remaining": TRIAL_DAYS,
+        "expires_at": expires_at.isoformat(),
         "features": {
             "learning_assistant": True,
             "code_studio_basic": True,

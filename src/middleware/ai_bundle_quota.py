@@ -84,6 +84,7 @@ async def check_ai_bundle_quota(user_id: str, db) -> bool:
             "requests_monthly_limit": 1,
             "requests_reset_date": 1,
             "plan": 1,
+            "is_trial": 1,
         },
     )
 
@@ -98,6 +99,16 @@ async def check_ai_bundle_quota(user_id: str, db) -> bool:
         )
 
     # Bundle exists and is active but quota is full
+    is_trial = sub.get("is_trial", False)
+    if is_trial:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Bạn đã dùng hết {sub['requests_monthly_limit']} lượt dùng thử AI Bundle. "
+                f"Vui lòng mua gói để tiếp tục sử dụng."
+            ),
+        )
+
     reset_date = sub.get("requests_reset_date")
     reset_str = reset_date.strftime("%d/%m/%Y") if reset_date else "đầu tháng sau"
     raise HTTPException(
