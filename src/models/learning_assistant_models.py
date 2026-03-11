@@ -73,10 +73,18 @@ class SolveHomeworkRequest(BaseModel):
         description=f"Grade level: {', '.join(GRADE_LEVELS)}",
     )
 
-    # Optional: language hint for response
+    # Optional: language for AI response
     language: Optional[str] = Field(
         "vi",
-        description="Response language hint: vi (Vietnamese) or en (English)",
+        description=(
+            "BCP-47 / ISO 639-1 language code for the AI's response. "
+            "Any language Gemini supports is accepted. "
+            "Examples: vi (Vietnamese), en (English), ja (Japanese), ko (Korean), "
+            "zh (Chinese Simplified), zh-tw (Chinese Traditional), fr (French), "
+            "de (German), es (Spanish), pt (Portuguese), ru (Russian), ar (Arabic), "
+            "th (Thai), id (Indonesian), hi (Hindi), tr (Turkish). "
+            "Default: vi."
+        ),
     )
 
     class Config:
@@ -109,6 +117,24 @@ class SolveHomeworkRequest(BaseModel):
                         "subject": "math",
                         "grade_level": "middle_school",
                         "language": "vi",
+                    },
+                },
+                "english_response": {
+                    "summary": "Answer in English",
+                    "value": {
+                        "question_text": "Find the derivative of f(x) = x^3 - 2x + 1",
+                        "subject": "math",
+                        "grade_level": "high_school",
+                        "language": "en",
+                    },
+                },
+                "japanese_response": {
+                    "summary": "Answer in Japanese",
+                    "value": {
+                        "question_text": "f(x) = x^3 - 2x + 1 の導関数を求めよ",
+                        "subject": "math",
+                        "grade_level": "high_school",
+                        "language": "ja",
                     },
                 },
             }
@@ -213,7 +239,15 @@ class GradeRequest(BaseModel):
     # Optional
     language: Optional[str] = Field(
         "vi",
-        description="Response language: vi or en",
+        description=(
+            "BCP-47 / ISO 639-1 language code for the AI's response. "
+            "Any language Gemini supports is accepted. "
+            "Examples: vi (Vietnamese), en (English), ja (Japanese), ko (Korean), "
+            "zh (Chinese Simplified), zh-tw (Chinese Traditional), fr (French), "
+            "de (German), es (Spanish), pt (Portuguese), ru (Russian), ar (Arabic), "
+            "th (Thai), id (Indonesian), hi (Hindi), tr (Turkish). "
+            "Default: vi."
+        ),
     )
 
     class Config:

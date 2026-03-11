@@ -13,15 +13,43 @@ from typing import Optional, Dict, Any, List, Union
 
 logger = logging.getLogger(__name__)
 
-# Prompt language helpers
-_LANG_INSTRUCTION = {
+# Prompt language helpers — common codes for clear native phrasing
+_LANG_INSTRUCTION: dict[str, str] = {
     "vi": "Trả lời **bằng tiếng Việt**.",
     "en": "Respond **in English**.",
+    "ja": "**日本語**で回答してください。",
+    "ko": "**한국어**로 답변해 주세요.",
+    "zh": "请用**中文（简体）**回答。",
+    "zh-tw": "請用**中文（繁體）**回答。",
+    "fr": "Répondez **en français**.",
+    "de": "Antworten Sie **auf Deutsch**.",
+    "es": "Responde **en español**.",
+    "pt": "Responda **em português**.",
+    "ru": "Ответьте **на русском языке**.",
+    "ar": "أجب **باللغة العربية**.",
+    "th": "กรุณาตอบ**เป็นภาษาไทย**.",
+    "id": "Jawab **dalam bahasa Indonesia**.",
+    "ms": "Jawab **dalam bahasa Melayu**.",
+    "hi": "**हिंदी में** उत्तर दें।",
+    "tr": "**Türkçe** yanıtlayın.",
+    "it": "Rispondi **in italiano**.",
+    "nl": "Antwoord **in het Nederlands**.",
+    "pl": "Odpowiedz **po polsku**.",
+    "uk": "Відповідайте **українською мовою**.",
 }
 
 
 def _lang_hint(language: Optional[str]) -> str:
-    return _LANG_INSTRUCTION.get(language or "vi", _LANG_INSTRUCTION["vi"])
+    """Return a language instruction for the prompt.
+
+    Falls back to a generic instruction for any language code not in the map,
+    so callers can pass any BCP-47 code that Gemini understands.
+    """
+    lang = (language or "vi").strip().lower()
+    if lang in _LANG_INSTRUCTION:
+        return _LANG_INSTRUCTION[lang]
+    # Generic fallback — Gemini interprets the BCP-47 / ISO 639 code directly
+    return f"Respond **in the language with code '{lang}'** (use that language for the entire reply)."
 
 
 class LearningAssistantService:
