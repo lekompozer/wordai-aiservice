@@ -899,7 +899,7 @@ async def check_book_access(
                 purchase_details=None,
             )
 
-        # Check if user is owner
+        # Check if user is owner (original book uploader)
         is_owner = book.get("user_id") == user_id
         if is_owner:
             return BookAccessResponse(
@@ -909,6 +909,24 @@ async def check_book_access(
                 can_download_pdf=True,
                 is_owner=True,
                 purchase_details=None,
+            )
+
+        # Check if user is owner of a combo that contains this book
+        combo_owned = db.book_combos.find_one(
+            {"owner_user_id": user_id, "book_ids": book_id, "is_deleted": {"$ne": True}}
+        )
+        if combo_owned:
+            return BookAccessResponse(
+                has_access=True,
+                access_type="owner",
+                expires_at=None,
+                can_download_pdf=True,
+                is_owner=False,
+                purchase_details={
+                    "source": "combo_owner",
+                    "combo_id": combo_owned.get("combo_id"),
+                    "combo_title": combo_owned.get("title"),
+                },
             )
 
         # Check book visibility

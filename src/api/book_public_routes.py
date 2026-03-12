@@ -1516,6 +1516,16 @@ async def get_chapter_with_content(
             logger.info(f"📄 Owner {user_id} accessed chapter: {chapter_id}")
             return ChapterResponse(**chapter)
 
+        # Check if user is owner of a combo that contains this book
+        combo_owned = db.book_combos.find_one(
+            {"owner_user_id": user_id, "book_ids": book_id, "is_deleted": {"$ne": True}}
+        )
+        if combo_owned:
+            logger.info(
+                f"📄 Combo owner {user_id} accessed chapter: {chapter_id} via combo {combo_owned.get('combo_id')}"
+            )
+            return ChapterResponse(**chapter)
+
         # ✅ Book is already checked for free access above for anonymous users
         # For authenticated users with free books, allow access
         if (
@@ -1778,6 +1788,16 @@ async def get_chapter_content_by_slug(
             # Owner has full access
             logger.info(
                 f"📄 Owner {user_id} accessed chapter (slug): {book_slug}/{chapter_slug}"
+            )
+            return ChapterResponse(**chapter)
+
+        # Check if user is owner of a combo that contains this book
+        combo_owned = db.book_combos.find_one(
+            {"owner_user_id": user_id, "book_ids": book_id, "is_deleted": {"$ne": True}}
+        )
+        if combo_owned:
+            logger.info(
+                f"📄 Combo owner {user_id} accessed chapter (slug): {book_slug}/{chapter_slug} via combo {combo_owned.get('combo_id')}"
             )
             return ChapterResponse(**chapter)
 
