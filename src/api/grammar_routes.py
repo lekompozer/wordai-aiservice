@@ -88,8 +88,19 @@ async def grammar_check_text(
     """
     user_id = current_user["uid"]
     body = await request.json()
+    logger.info(
+        f"[grammar/check-sentences] body keys: {list(body.keys())}, body={body}"
+    )
 
-    text: str = body.get("text", "").strip()
+    # Accept both "text" and "sentences" (array or string)
+    text = body.get("text") or body.get("sentence") or ""
+    sentences_raw = body.get("sentences")
+    if sentences_raw and not text:
+        if isinstance(sentences_raw, list):
+            text = " ".join(str(s) for s in sentences_raw)
+        else:
+            text = str(sentences_raw)
+    text = text.strip()
     language: str = body.get("language", "vi").strip()
 
     if not text:
@@ -196,30 +207,50 @@ async def grammar_check_audio(
     db=Depends(get_db),
 ):
     """
-    Transcribe audio then check grammar using Gemini AI.
+    Pronunciation check: compare user's audio against a reference text.
+
+    Frontend flow:
+      1. STT (speech-to-text) on device → get transcribed_text to display
+      2. Send audio + reference_text together → AI evaluates pronunciation accuracy
 
     Request Body:
-      audio_base64 (str, required): Base64-encoded audio data.
-      audio_mime_type (str, optional): MIME type of audio. Default "audio/webm".
-      language (str, optional): Target language for feedback. Default "vi".
+      audio_base64     (str, required): Base64-encoded audio (single file, frontend merges if multi-sentence).
+      reference_text   (str, required): The target text the user was supposed to say.
+                                        Can be one sentence or multiple sentences separated by newlines / periods.
+      audio_mime_type  (str, optional): Default "audio/webm". Supports webm, mp4, wav, ogg.
+      language         (str, optional): Feedback language. Default "vi". Supports vi/en/ja/ko/zh/fr/de/es.
 
     Response:
-      transcribed_text (str): What was heard in the audio.
-      is_correct (bool)
-      feedback_vi (str): 1-3 sentence feedback in Vietnamese.
-      corrected_text (str|null): Corrected version if errors found, else null.
-      errors (list[str])
-      points_deducted (int)
+      transcribed_text  (str): What AI actually heard in the audio.
+      overall_score     (int): 0-100 pronunciation accuracy score.
+      is_correct        (bool): true if overall_score >= 80.
+      feedback          (str): Overall 1-3 sentence summary in requested language.
+      sentences         (list): Per-sentence breakdown — see structure below.
+      points_deducted   (int)
+      new_balance       (int|null)
+
+    sentences[] structure:
+      {
+        "reference":       "The original sentence",
+        "transcribed":     "What was heard for this sentence",
+        "score":           85,          // 0-100
+        "is_correct":      true,
+        "mispronounced":   ["word1"],   // words pronounced incorrectly
+        "feedback":        "Short note in requested language"
+      }
     """
     user_id = current_user["uid"]
     body = await request.json()
 
     audio_base64: str = body.get("audio_base64", "").strip()
+    reference_text: str = body.get("reference_text", "").strip()
     audio_mime_type: str = body.get("audio_mime_type", "audio/webm").strip()
     language: str = body.get("language", "vi").strip()
 
     if not audio_base64:
         raise HTTPException(status_code=400, detail="audio_base64 is required")
+    if not reference_text:
+        raise HTTPException(status_code=400, detail="reference_text is required")
 
     # ── AI Bundle quota or points ─────────────────────────────────────────
     has_bundle = await check_ai_bundle_quota(user_id, db)
@@ -232,7 +263,7 @@ async def grammar_check_audio(
                 user_id=user_id,
                 amount=POINTS_COST_AUDIO,
                 service="grammar_check_audio",
-                description="Kiểm tra ngữ pháp qua giọng nói",
+                description="Đánh giá phát âm qua giọng nói",
             )
             new_balance = transaction.balance_after
         except Exception as e:
@@ -244,7 +275,7 @@ async def grammar_check_audio(
                 )
             raise HTTPException(status_code=500, detail=str(e))
 
-    # ── Gemini call (gemini-2.5-flash-lite-preview via new google.genai SDK) ──
+    # ── Gemini call ───────────────────────────────────────────────────────
     try:
         from google import genai as genai_new
         from google.genai import types as genai_types
@@ -258,19 +289,59 @@ async def grammar_check_audio(
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid base64 audio data")
 
-        feedback_instruction = _feedback_lang_instruction(language)
+        feedback_lang = _feedback_lang_instruction(language)
 
-        prompt = (
-            "1. Transcribe exactly what was said in the audio.\n"
-            "2. Check the transcribed text for English grammar, spelling, and pronunciation errors.\n"
-            f"3. {feedback_instruction}\n"
-            "4. Return ONLY valid JSON (no markdown):\n"
-            '{"transcribed_text": "...", '
-            '"is_correct": true/false, '
-            '"feedback": "1-3 sentence feedback in the requested language", '
-            '"corrected_text": null_or_corrected_string, '
-            '"errors": ["short error 1", ...]}'
-        )
+        prompt = f"""You are a professional English pronunciation coach. The user has already done speech-to-text on their device. Your job is to listen to their audio and evaluate pronunciation accuracy in detail — word by word and sentence by sentence — comparing against the reference text.
+
+REFERENCE TEXT (what the user was supposed to say):
+\"\"\"{reference_text}\"\"\"
+
+INSTRUCTIONS:
+1. Transcribe exactly what you hear in the audio.
+2. Split the reference text into individual sentences (split on . ! ? or newlines).
+3. For each sentence evaluate:
+   a. The sentence-level pronunciation score (0-100).
+   b. Every word in the sentence — mark each as correct or mispronounced.
+   c. For mispronounced words: describe HOW they were mispronounced (wrong vowel, missing consonant, stress error, etc.) and provide the correct IPA or simple phonetic hint.
+4. Compute overall_score = average of sentence scores.
+5. {feedback_lang}
+6. Return ONLY valid JSON (no markdown, no extra text):
+
+{{
+  "transcribed_text": "full transcription of what was heard",
+  "overall_score": 85,
+  "feedback": "overall 1-3 sentence summary in the requested language",
+  "sentences": [
+    {{
+      "reference": "The original sentence",
+      "transcribed": "What was heard for this sentence",
+      "score": 90,
+      "words": [
+        {{
+          "word": "school",
+          "correct": true,
+          "issue": null,
+          "hint": null
+        }},
+        {{
+          "word": "environment",
+          "correct": false,
+          "issue": "stress on wrong syllable — said en-VI-ron-ment instead of en-vi-RON-ment",
+          "hint": "en-vi-RON-ment"
+        }}
+      ],
+      "feedback": "1-2 sentence comment about this sentence in the requested language"
+    }}
+  ]
+}}
+
+SCORING GUIDE:
+- 90-100: Excellent, near-native
+- 75-89: Good, minor issues
+- 60-74: Acceptable, noticeable errors
+- 40-59: Poor, many errors
+- 0-39: Very poor, hard to understand
+"""
 
         def _call():
             client = genai_new.Client(api_key=gemini_key)
@@ -296,12 +367,13 @@ async def grammar_check_audio(
             status_code=503, detail="AI service temporarily unavailable"
         )
 
+    overall_score = int(result.get("overall_score", 0))
     return {
         "transcribed_text": result.get("transcribed_text", ""),
-        "is_correct": bool(result.get("is_correct", False)),
+        "overall_score": overall_score,
+        "is_correct": overall_score >= 80,
         "feedback": result.get("feedback", ""),
-        "corrected_text": result.get("corrected_text") or None,
-        "errors": result.get("errors") or [],
+        "sentences": result.get("sentences") or [],
         "points_deducted": 0 if has_bundle else POINTS_COST_AUDIO,
         "new_balance": new_balance,
     }
