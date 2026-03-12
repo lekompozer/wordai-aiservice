@@ -92,11 +92,15 @@ async def check_ai_bundle_quota(user_id: str, db) -> bool:
         # No active bundle at all — caller should fall through to points
         return False
 
-    if sub.get("expires_at") and sub["expires_at"] <= now:
-        raise HTTPException(
-            status_code=403,
-            detail="Gói AI Bundle của bạn đã hết hạn. Vui lòng gia hạn để tiếp tục.",
-        )
+    if sub.get("expires_at"):
+        ea = sub["expires_at"]
+        if ea.tzinfo is None:
+            ea = ea.replace(tzinfo=timezone.utc)
+        if ea <= now:
+            raise HTTPException(
+                status_code=403,
+                detail="Gói AI Bundle của bạn đã hết hạn. Vui lòng gia hạn để tiếp tục.",
+            )
 
     # Bundle exists and is active but quota is full
     is_trial = sub.get("is_trial", False)

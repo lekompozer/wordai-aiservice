@@ -230,8 +230,10 @@ async def get_my_ai_bundle_subscription(
         )
         return {"is_active": False, "is_trial": False, "trial_used": bool(had_trial)}
 
-    # Check expiry
+    # Check expiry (MongoDB stores datetimes as naive UTC — make aware if needed)
     expires_at = sub.get("expires_at")
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at and expires_at <= now:
         # Mark expired
         db["user_ai_bundle_subscriptions"].update_one(
@@ -242,6 +244,8 @@ async def get_my_ai_bundle_subscription(
 
     # Auto-reset monthly counter if past reset date
     reset_date = sub.get("requests_reset_date")
+    if reset_date and reset_date.tzinfo is None:
+        reset_date = reset_date.replace(tzinfo=timezone.utc)
     if reset_date and reset_date <= now:
         new_reset = _first_day_next_month(now)
         db["user_ai_bundle_subscriptions"].update_one(
@@ -266,7 +270,10 @@ async def get_my_ai_bundle_subscription(
     is_trial = sub.get("is_trial", False)
     trial_days_remaining = None
     if is_trial and expires_at:
-        trial_days_remaining = max(0, (expires_at - now).days)
+        ea = (
+            expires_at if expires_at.tzinfo else expires_at.replace(tzinfo=timezone.utc)
+        )
+        trial_days_remaining = max(0, (ea - now).days)
 
     return {
         "is_active": True,
