@@ -1121,6 +1121,10 @@ def create_app() -> FastAPI:
     app.include_router(ai_bundle_admin_router, tags=["AI Bundle Admin"])
     app.include_router(partners_router, tags=["Partners"])
 
+    # ✅ ADDED: Grammar Check API - text & audio grammar checking
+    from src.api.grammar_routes import router as grammar_router
+    app.include_router(grammar_router, tags=["Grammar Check"])
+
     # ✅ ADDED: Learning Path API - Phase 2: Smart personalized 100-conversation path
     from src.api.learning_path_routes import router as learning_path_router
 
