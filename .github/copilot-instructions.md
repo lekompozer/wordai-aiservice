@@ -23,6 +23,26 @@ This file contains:
 - Claude API: `claude-sonnet-4-6`
 - DO NOT use Claude 3.5 Sonnet, claude-sonnet-4-5, or any other version
 
+### 1b. Gemini Model Version (MANDATORY)
+
+**MUST use `gemini-3.1-flash-lite-preview`** — latest Gemini model in production
+- Audio input: use `google.genai` new SDK (`genai.Client` + `client.models.generate_content`)
+- DO NOT use `google.generativeai` (old SDK) for new code
+- DO NOT use `gemini-2.5-flash`, `gemini-2.5-flash-lite-preview-06-17`, or any older version
+```python
+from google import genai
+from google.genai import types as genai_types
+
+client = genai.Client(api_key=gemini_key)
+response = client.models.generate_content(
+    model="gemini-3.1-flash-lite-preview",
+    contents=[
+        genai_types.Part.from_bytes(data=audio_bytes, mime_type="audio/webm"),
+        prompt_text,
+    ],
+)
+```
+
 ### 2. Database Connection (MANDATORY)
 
 **MUST use DBManager pattern:**

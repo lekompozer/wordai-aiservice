@@ -275,7 +275,7 @@ async def grammar_check_audio(
         def _call():
             client = genai_new.Client(api_key=gemini_key)
             response = client.models.generate_content(
-                model="gemini-2.5-flash-lite-preview-06-17",
+                model="gemini-3.1-flash-lite-preview",
                 contents=[
                     genai_types.Part.from_bytes(
                         data=audio_bytes, mime_type=audio_mime_type
