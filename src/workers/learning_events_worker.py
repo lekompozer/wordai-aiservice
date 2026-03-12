@@ -25,7 +25,7 @@ from datetime import datetime, date, timedelta
 
 from src.database.db_manager import DBManager
 from src.queue.queue_manager import QueueManager
-from src.workers.payment_events_worker import _handle_conversation_subscription_paid
+from src.workers.payment_events_worker import _handle_conversation_subscription_paid, _handle_ai_bundle_subscription_paid
 
 logger = logging.getLogger(__name__)
 
@@ -780,6 +780,8 @@ class LearningEventsWorker:
                     _handle_song_completed(db, redis_sync, event)
                 elif event_type == "conversation_subscription_paid":
                     _handle_conversation_subscription_paid(db, event)
+                elif event_type == "ai_bundle_subscription_paid":
+                    _handle_ai_bundle_subscription_paid(db, event)
                 else:
                     logger.warning(
                         f"[{self.worker_id}] Unknown event_type: {event_type}"

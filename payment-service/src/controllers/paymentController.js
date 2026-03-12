@@ -822,9 +822,9 @@ async function createAiBundleCheckout(req, res) {
             order_invoice_number: orderInvoiceNumber,
             order_description: descParts.join(' - '),
             customer_id: user_id,
-            success_url: `https://wordai.pro/ai-tools/ai-bundle?tab=subscription`,
-            error_url: `https://wordai.pro/ai-tools/ai-bundle?tab=subscription`,
-            cancel_url: `https://wordai.pro/ai-tools/ai-bundle?tab=subscription`,
+            success_url: `https://wordai.pro/usage?tab=upgrade`,
+            error_url: `https://wordai.pro/usage?tab=upgrade`,
+            cancel_url: `https://wordai.pro/usage?tab=upgrade`,
         };
 
         formFields.signature = generateSignature(formFields, config.sepay.secretKey);
