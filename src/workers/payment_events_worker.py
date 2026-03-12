@@ -288,7 +288,7 @@ def _handle_ai_bundle_subscription_paid(db, event: dict):
 
     # ── 1. Create / extend AI Bundle subscription ─────────────────────────────
     existing = db["user_ai_bundle_subscriptions"].find_one(
-        {"user_id": user_id, "status": "active", "expires_at": {"$gt": now}}
+        {"user_id": user_id, "is_active": True, "expires_at": {"$gt": now}}
     )
 
     if existing:
@@ -314,6 +314,7 @@ def _handle_ai_bundle_subscription_paid(db, event: dict):
             "user_id": user_id,
             "plan": plan,
             "status": "active",
+            "is_active": True,
             "price_tier": price_tier,
             "amount_paid": amount_paid,
             "payment_id": payment_id,

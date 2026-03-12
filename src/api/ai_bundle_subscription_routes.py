@@ -219,7 +219,7 @@ async def get_my_ai_bundle_subscription(
 
     # Prefer paid subscription over trial when both exist; active only
     sub = db["user_ai_bundle_subscriptions"].find_one(
-        {"user_id": user_id, "status": "active"},
+        {"user_id": user_id, "is_active": True},
         sort=[("is_trial", 1), ("created_at", -1)],  # False < True → paid first
     )
 
@@ -235,7 +235,8 @@ async def get_my_ai_bundle_subscription(
     if expires_at and expires_at <= now:
         # Mark expired
         db["user_ai_bundle_subscriptions"].update_one(
-            {"_id": sub["_id"]}, {"$set": {"status": "expired"}}
+            {"_id": sub["_id"]},
+            {"$set": {"is_active": False, "status": "expired", "updated_at": now}},
         )
         return {"is_active": False}
 
@@ -326,7 +327,7 @@ async def activate_ai_bundle_trial(
 
     # Don't create trial if already has active paid subscription
     paid_sub = db["user_ai_bundle_subscriptions"].find_one(
-        {"user_id": user_id, "status": "active", "is_trial": {"$ne": True}}
+        {"user_id": user_id, "is_active": True, "is_trial": {"$ne": True}}
     )
     if paid_sub:
         raise HTTPException(
@@ -344,6 +345,7 @@ async def activate_ai_bundle_trial(
         "user_id": user_id,
         "plan": "trial",
         "status": "active",
+        "is_active": True,
         "is_trial": True,
         "price_tier": "no_code",
         "amount_paid": 0,
@@ -407,7 +409,7 @@ async def activate_ai_bundle_subscription(
 
     # Check for existing active subscription
     existing = db["user_ai_bundle_subscriptions"].find_one(
-        {"user_id": user_id, "status": "active", "expires_at": {"$gt": now}}
+        {"user_id": user_id, "is_active": True, "expires_at": {"$gt": now}}
     )
 
     if existing:
@@ -436,6 +438,7 @@ async def activate_ai_bundle_subscription(
             "user_id": user_id,
             "plan": plan,
             "status": "active",
+            "is_active": True,
             "price_tier": body.price_tier,
             "amount_paid": body.amount_paid,
             "payment_id": body.payment_id,

@@ -45,7 +45,7 @@ async def check_ai_bundle_quota(user_id: str, db) -> bool:
     db["user_ai_bundle_subscriptions"].update_many(
         {
             "user_id": user_id,
-            "status": "active",
+            "is_active": True,
             "requests_reset_date": {"$lte": now},
         },
         {
@@ -60,7 +60,7 @@ async def check_ai_bundle_quota(user_id: str, db) -> bool:
     updated = db["user_ai_bundle_subscriptions"].find_one_and_update(
         {
             "user_id": user_id,
-            "status": "active",
+            "is_active": True,
             "expires_at": {"$gt": now},
             "$expr": {"$lt": ["$requests_used_this_month", "$requests_monthly_limit"]},
         },
@@ -77,7 +77,7 @@ async def check_ai_bundle_quota(user_id: str, db) -> bool:
 
     # ── Step 3: Diagnose why update failed ────────────────────────────────
     sub = db["user_ai_bundle_subscriptions"].find_one(
-        {"user_id": user_id, "status": "active"},
+        {"user_id": user_id, "is_active": True},
         {
             "expires_at": 1,
             "requests_used_this_month": 1,
