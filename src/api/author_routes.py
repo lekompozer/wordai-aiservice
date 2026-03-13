@@ -11,6 +11,7 @@ from datetime import datetime
 
 # Authentication
 from src.middleware.firebase_auth import get_current_user, get_current_user_optional
+from src.middleware.query_protection import protect_query
 
 # Models
 from src.models.author_models import (
