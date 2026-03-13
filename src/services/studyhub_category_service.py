@@ -487,6 +487,104 @@ class StudyHubCategoryService:
             "enrollment_id": enrollment_id,
         }
 
+    def _subject_to_course_dict(self, subject: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize a System A studyhub_subject (marketplace_status=published) to a course-like dict."""
+        sid = str(subject["_id"])
+        valid_categories = {
+            "it",
+            "business",
+            "finance",
+            "certificates",
+            "languages",
+            "personal-dev",
+            "lifestyle",
+            "academics",
+            "science",
+            "skill",
+        }
+        raw_cat = subject.get("marketplace_category") or subject.get("category") or ""
+        category_id = raw_cat if raw_cat in valid_categories else "it"
+
+        is_free = subject.get("marketplace_is_free", True)
+        price_type = PriceType.FREE if is_free else PriceType.PAID
+
+        raw_level = subject.get("marketplace_level", "beginner")
+        try:
+            level = CourseLevel(raw_level)
+        except ValueError:
+            level = CourseLevel.BEGINNER
+
+        now = datetime.now(timezone.utc)
+        published_at = subject.get("marketplace_published_at") or now
+        return {
+            "_id": sid,
+            "id": sid,
+            "category_id": category_id,
+            "category_subject_id": subject.get("community_subject_id") or "",
+            "source_subject_id": sid,
+            "user_id": subject.get("owner_id") or "",
+            "title": subject.get("title") or "",
+            "description": subject.get("marketplace_description")
+            or subject.get("description")
+            or "-",
+            "cover_image_url": subject.get("marketplace_cover_image_url")
+            or subject.get("cover_image_url"),
+            "language": subject.get("language", "vi"),
+            "level": level,
+            "price_type": price_type,
+            "price_points": subject.get("marketplace_price_points", 0),
+            "original_price_points": subject.get("marketplace_price_points", 0),
+            "discount_percentage": 0,
+            "module_count": subject.get("module_count", 0),
+            "total_content_count": subject.get("total_content_count", 0),
+            "estimated_duration_hours": subject.get("marketplace_estimated_hours") or 0,
+            "stats": {
+                "enrollment_count": 0,
+                "completion_count": 0,
+                "completion_rate": 0.0,
+                "average_rating": 0.0,
+                "rating_count": 0,
+                "view_count": 0,
+            },
+            "status": CourseStatus.APPROVED,
+            "visibility": CourseVisibility.PUBLIC,
+            "published_at": published_at,
+            "approved_at": published_at,
+            "approved_by": "system",
+            "rejection_reason": None,
+            "tags": subject.get("marketplace_tags") or [],
+            "what_you_will_learn": subject.get("what_you_will_learn") or [],
+            "requirements": subject.get("requirements") or [],
+            "target_audience": subject.get("target_audience") or [],
+            "last_synced_at": now,
+            "sync_status": "up-to-date",
+            "sync_available": False,
+            "created_at": subject.get("created_at") or now,
+            "updated_at": subject.get("updated_at") or now,
+        }
+
+    def _get_published_subjects_as_courses(
+        self,
+        extra_query: Optional[Dict[str, Any]] = None,
+        exclude_subject_ids: Optional[set] = None,
+        limit: int = 20,
+    ) -> List[Dict[str, Any]]:
+        """Query System A published subjects and normalize to course dicts."""
+        query: Dict[str, Any] = {"marketplace_status": "published"}
+        if extra_query:
+            query.update(extra_query)
+        subjects = list(
+            self.subjects.find(query)
+            .sort("marketplace_published_at", DESCENDING)
+            .limit(limit)
+        )
+        result = []
+        for subj in subjects:
+            if exclude_subject_ids and str(subj["_id"]) in exclude_subject_ids:
+                continue
+            result.append(self._subject_to_course_dict(subj))
+        return result
+
     def get_courses(
         self,
         filters: Dict[str, Any],
@@ -523,14 +621,29 @@ class StudyHubCategoryService:
         # Sort
         sort_field = self._get_sort_field(sort)
 
-        total = self.courses.count_documents(query)
-
         courses = list(
             self.courses.find(query)
             .sort(*sort_field)
             .skip((page - 1) * limit)
             .limit(limit)
         )
+
+        # Fallback: include System A published subjects (marketplace)
+        existing_source_ids = {c.get("source_subject_id", "") for c in courses}
+        subj_query: Dict[str, Any] = {}
+        if filters.get("category_id"):
+            subj_query["marketplace_category"] = filters["category_id"]
+        if filters.get("level"):
+            subj_query["marketplace_level"] = filters["level"]
+        if filters.get("free_only") or filters.get("price_type") == PriceType.FREE:
+            subj_query["marketplace_is_free"] = True
+        fallback_subjects = self._get_published_subjects_as_courses(
+            extra_query=subj_query,
+            exclude_subject_ids=existing_source_ids,
+            limit=limit,
+        )
+        courses = courses + fallback_subjects
+        total = len(courses)
 
         return courses, total
 
@@ -660,19 +773,25 @@ class StudyHubCategoryService:
 
     def get_top_courses(self, limit: int = 8) -> List[Dict[str, Any]]:
         """Get top courses across all categories"""
-        return list(
+        courses = list(
             self.courses.find(
                 {"status": CourseStatus.APPROVED, "visibility": CourseVisibility.PUBLIC}
             )
             .sort("stats.enrollment_count", DESCENDING)
             .limit(limit)
         )
+        if len(courses) < limit:
+            existing_ids = {c.get("source_subject_id", "") for c in courses}
+            fallback = self._get_published_subjects_as_courses(
+                exclude_subject_ids=existing_ids,
+                limit=limit - len(courses),
+            )
+            courses = courses + fallback
+        return courses
 
     def get_trending_courses(self, limit: int = 8) -> List[Dict[str, Any]]:
         """Get trending courses (simplified version)"""
-        # Would need better trending algorithm with time-based metrics
-        # For now: recent + high activity
-        return list(
+        courses = list(
             self.courses.find(
                 {
                     "status": CourseStatus.APPROVED,
@@ -690,6 +809,14 @@ class StudyHubCategoryService:
             )
             .limit(limit)
         )
+        if len(courses) < limit:
+            existing_ids = {c.get("source_subject_id", "") for c in courses}
+            fallback = self._get_published_subjects_as_courses(
+                exclude_subject_ids=existing_ids,
+                limit=limit - len(courses),
+            )
+            courses = courses + fallback
+        return courses
 
     # ========================================================================
     # Enrollment & Progress
