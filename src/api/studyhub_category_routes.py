@@ -282,7 +282,10 @@ async def get_course_detail(
     service = StudyHubCategoryService()
     user_id = user_data["uid"] if user_data else None
 
-    result = service.get_course_detail(course_id, user_id)
+    try:
+        result = service.get_course_detail(course_id, user_id)
+    except ValueError:
+        result = None
 
     if not result:
         raise HTTPException(
