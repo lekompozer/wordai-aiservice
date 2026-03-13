@@ -251,6 +251,26 @@ async def warmup_trending_today():
 
         top_today = list(db.book_view_sessions.aggregate(pipeline))
 
+        # If no view sessions today, fallback to top books by community_config.total_views
+        if not top_today:
+            logger.info(
+                "📊 No view sessions today in warmup, falling back to community_config.total_views"
+            )
+            fallback_cursor = (
+                db.online_books.find(
+                    {"community_config.is_public": True, "deleted_at": None}
+                )
+                .sort("community_config.total_views", -1)
+                .limit(5)
+            )
+            top_today = [
+                {
+                    "_id": b["book_id"],
+                    "views_today": b.get("community_config", {}).get("total_views", 0),
+                }
+                for b in fallback_cursor
+            ]
+
         books = []
         for item in top_today:
             book_id = item["_id"]
@@ -288,6 +308,7 @@ async def warmup_trending_today():
                         "parent_category": community_config.get("parent_category"),
                         "total_views": community_config.get("total_views", 0),
                         "average_rating": community_config.get("average_rating", 0.0),
+                        "total_purchases": community_config.get("total_purchases", 0),
                         "views_today": item["views_today"],
                     }
                 )

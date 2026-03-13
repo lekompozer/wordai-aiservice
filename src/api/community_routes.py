@@ -869,6 +869,26 @@ async def get_featured_books_week():
 
         top_viewed = list(db.book_view_sessions.aggregate(views_pipeline))
 
+        # If no view sessions data (e.g. new deployment), fallback to top books by total_views
+        if not top_viewed:
+            logger.info(
+                "📊 No view sessions this week, falling back to community_config.total_views"
+            )
+            fallback_cursor = (
+                db.online_books.find(
+                    {"community_config.is_public": True, "deleted_at": None}
+                )
+                .sort("community_config.total_views", -1)
+                .limit(2)
+            )
+            top_viewed = [
+                {
+                    "_id": b["book_id"],
+                    "views_count": b.get("community_config", {}).get("total_views", 0),
+                }
+                for b in fallback_cursor
+            ]
+
         for item in top_viewed:
             book_id = item["_id"]
             if book_id in used_book_ids:
@@ -915,8 +935,8 @@ async def get_featured_books_week():
                     )
                 )
 
-            # Calculate total purchases
-            total_purchases = (
+            # Calculate total purchases — prefer community_config (boosted) over stats (real count)
+            total_purchases = community_config.get("total_purchases") or (
                 stats.get("forever_purchases", 0)
                 + stats.get("one_time_purchases", 0)
                 + stats.get("pdf_downloads", 0)
@@ -960,6 +980,28 @@ async def get_featured_books_week():
         ]
 
         top_purchased = list(db.book_purchases.aggregate(purchases_pipeline))
+
+        # If no purchase data, fallback to top books by community_config.total_purchases
+        if not top_purchased:
+            logger.info(
+                "📊 No purchases this week, falling back to community_config.total_purchases"
+            )
+            fallback_cursor = (
+                db.online_books.find(
+                    {"community_config.is_public": True, "deleted_at": None}
+                )
+                .sort("community_config.total_purchases", -1)
+                .limit(10)
+            )
+            top_purchased = [
+                {
+                    "_id": b["book_id"],
+                    "purchase_count": b.get("community_config", {}).get(
+                        "total_purchases", 0
+                    ),
+                }
+                for b in fallback_cursor
+            ]
 
         # Find first book not already in featured_books
         for item in top_purchased:
@@ -1008,8 +1050,8 @@ async def get_featured_books_week():
                     )
                 )
 
-            # Calculate total purchases
-            total_purchases = (
+            # Calculate total purchases — prefer community_config (boosted) over stats (real count)
+            total_purchases = community_config.get("total_purchases") or (
                 stats.get("forever_purchases", 0)
                 + stats.get("one_time_purchases", 0)
                 + stats.get("pdf_downloads", 0)
@@ -1113,6 +1155,26 @@ async def get_trending_books_today():
 
         top_today = list(db.book_view_sessions.aggregate(pipeline))
 
+        # If no view sessions today, fallback to top books by community_config.total_views
+        if not top_today:
+            logger.info(
+                "📊 No view sessions today, falling back to community_config.total_views"
+            )
+            fallback_cursor = (
+                db.online_books.find(
+                    {"community_config.is_public": True, "deleted_at": None}
+                )
+                .sort("community_config.total_views", -1)
+                .limit(5)
+            )
+            top_today = [
+                {
+                    "_id": b["book_id"],
+                    "views_today": b.get("community_config", {}).get("total_views", 0),
+                }
+                for b in fallback_cursor
+            ]
+
         trending_books = []
 
         for item in top_today:
@@ -1159,8 +1221,8 @@ async def get_trending_books_today():
                     )
                 )
 
-            # Calculate total purchases
-            total_purchases = (
+            # Calculate total purchases — prefer community_config (boosted) over stats (real count)
+            total_purchases = community_config.get("total_purchases") or (
                 stats.get("forever_purchases", 0)
                 + stats.get("one_time_purchases", 0)
                 + stats.get("pdf_downloads", 0)
