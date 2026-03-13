@@ -925,11 +925,15 @@ def _build_book_preview_response(
     stats_data = book.get("stats", {})
 
     # Build stats object (guaranteed non-null with defaults)
+    # total_purchases: prefer community_config (boosted display value) over raw stats counters
+    _real_purchases = (
+        stats_data.get("forever_purchases", 0)
+        + stats_data.get("one_time_purchases", 0)
+        + stats_data.get("pdf_downloads", 0)
+    )
     stats = PreviewStats(
         total_views=community_config.get("total_views", 0),
-        total_purchases=stats_data.get("forever_purchases", 0)
-        + stats_data.get("one_time_purchases", 0)
-        + stats_data.get("pdf_downloads", 0),
+        total_purchases=community_config.get("total_purchases") or _real_purchases,
         forever_purchases=stats_data.get("forever_purchases", 0),
         one_time_purchases=stats_data.get("one_time_purchases", 0),
         pdf_downloads=stats_data.get("pdf_downloads", 0),
