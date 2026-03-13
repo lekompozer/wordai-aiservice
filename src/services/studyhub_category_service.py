@@ -420,11 +420,20 @@ class StudyHubCategoryService:
     def get_course_detail(
         self, course_id: str, user_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
-        """Get course details with full context"""
+        """Get course details with full context.
+        Falls back to System A published subject if not found in studyhub_courses."""
         course = self.courses.find_one({"_id": ObjectId(course_id)})
-        if not course:
-            return None
 
+        if not course:
+            # Fallback: look up System A subject
+            subject = self.subjects.find_one(
+                {"_id": ObjectId(course_id), "marketplace_status": "published"}
+            )
+            if not subject:
+                return None
+            return self._get_subject_detail(subject, user_id)
+
+        # ---- System B course path ----
         # Get category
         category = self.categories.find_one({"category_id": course["category_id"]})
 
@@ -437,11 +446,14 @@ class StudyHubCategoryService:
             return None
 
         # Get modules from source subject
-        modules = list(
-            self.modules.find(
-                {"subject_id": ObjectId(course["source_subject_id"])}
-            ).sort("order_index", ASCENDING)
-        )
+        source_id = course.get("source_subject_id", "")
+        modules = []
+        if source_id:
+            modules = list(
+                self.modules.find({"subject_id": ObjectId(source_id)}).sort(
+                    "order_index", ASCENDING
+                )
+            )
 
         module_summaries = [
             {
@@ -453,28 +465,123 @@ class StudyHubCategoryService:
             for m in modules
         ]
 
-        # Get instructor info (simplified, would need user service)
         instructor = {
             "user_id": course["user_id"],
-            "display_name": "Instructor",  # Fetch from user service
+            "display_name": "Instructor",
             "profile_image": None,
+            "course_count": 1,
+            "total_learners": course.get("stats", {}).get("enrollment_count", 0),
         }
 
-        # Check enrollment
         is_enrolled = False
         enrollment_id = None
-
         if user_id:
             enrollment = self.enrollments.find_one(
                 {"course_id": str(course["_id"]), "user_id": user_id}
             )
-
             if enrollment:
                 is_enrolled = True
                 enrollment_id = str(enrollment["_id"])
 
-        # Can enroll check
         can_enroll = not is_enrolled and course["status"] == CourseStatus.APPROVED
+
+        return {
+            "course": course,
+            "category": category,
+            "category_subject": cat_subject,
+            "instructor": instructor,
+            "modules": module_summaries,
+            "is_enrolled": is_enrolled,
+            "can_enroll": can_enroll,
+            "enrollment_id": enrollment_id,
+        }
+
+    def _get_subject_detail(
+        self, subject: Dict[str, Any], user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Build CourseDetailResponse-compatible dict from a System A subject."""
+        subject_id = str(subject["_id"])
+        course = self._subject_to_course_dict(subject)
+
+        # Build synthetic category
+        category_id = course["category_id"]
+        category = self.categories.find_one({"category_id": category_id}) or {
+            "category_id": category_id,
+            "name_en": category_id.replace("-", " ").title(),
+            "name_vi": category_id.replace("-", " ").title(),
+            "icon": "📚",
+            "description_en": "",
+            "description_vi": "",
+            "color": "#6366F1",
+            "order_index": 99,
+            "is_active": True,
+        }
+
+        # Build synthetic category_subject from community_subject_id
+        community_slug = subject.get("community_subject_id", "")
+        cat_subject = {
+            "_id": community_slug,
+            "category_id": category_id,
+            "subject_name_en": community_slug.replace("-", " ").title(),
+            "subject_name_vi": community_slug.replace("-", " ").title(),
+            "slug": community_slug,
+            "total_learners": subject.get("metadata", {}).get("total_learners", 0),
+            "total_courses": 1,
+            "is_approved": True,
+        }
+
+        # Get modules
+        modules = list(
+            self.modules.find({"subject_id": ObjectId(subject_id)}).sort(
+                "order_index", ASCENDING
+            )
+        )
+        module_summaries = [
+            {
+                "module_id": str(m["_id"]),
+                "title": m["title"],
+                "content_count": len(m.get("contents", [])),
+                "order_index": m.get("order_index", 0),
+            }
+            for m in modules
+        ]
+
+        instructor = {
+            "user_id": subject.get("owner_id", ""),
+            "display_name": "Instructor",
+            "profile_image": None,
+            "course_count": 1,
+            "total_learners": subject.get("metadata", {}).get("total_learners", 0),
+        }
+
+        # Check enrollment (System A: studyhub_enrollments)
+        is_enrolled = False
+        enrollment_id = None
+        if user_id:
+            enrollment = self.db["studyhub_enrollments"].find_one(
+                {
+                    "user_id": user_id,
+                    "subject_id": ObjectId(subject_id),
+                    "status": {"$ne": "dropped"},
+                }
+            )
+            if enrollment:
+                is_enrolled = True
+                enrollment_id = str(enrollment["_id"])
+            else:
+                # Also check purchases (paid)
+                purchase = self.db["studyhub_purchases"].find_one(
+                    {
+                        "user_id": user_id,
+                        "subject_id": ObjectId(subject_id),
+                        "status": "active",
+                    }
+                )
+                if purchase:
+                    is_enrolled = True
+
+        is_free = subject.get("marketplace_is_free", True)
+        can_enroll = not is_enrolled
 
         return {
             "course": course,

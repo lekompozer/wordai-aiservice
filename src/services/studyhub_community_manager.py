@@ -135,7 +135,7 @@ class StudyHubCommunityManager:
                 self.subjects.find(
                     {"community_subject_id": slug, "marketplace_status": "published"}
                 )
-                .sort("total_students", -1)
+                .sort("metadata.total_learners", -1)
                 .limit(3)
             )
 
@@ -145,11 +145,21 @@ class StudyHubCommunityManager:
                     {
                         "id": str(course["_id"]),
                         "title": course["title"],
-                        "thumbnail_url": course.get("thumbnail_url", ""),
-                        "creator_name": course.get("creator_name", "Unknown"),
-                        "total_students": course.get("total_students", 0),
-                        "average_rating": course.get("average_rating", 0.0),
-                        "total_reviews": course.get("total_reviews", 0),
+                        "thumbnail_url": course.get("marketplace_cover_image_url")
+                        or course.get("cover_image_url", ""),
+                        "creator_name": course.get("owner_id", "Unknown"),
+                        "total_students": course.get("metadata", {}).get(
+                            "total_learners", 0
+                        ),
+                        "average_rating": course.get("metadata", {}).get(
+                            "average_rating", 0.0
+                        ),
+                        "total_reviews": course.get("metadata", {}).get(
+                            "total_reviews", 0
+                        ),
+                        "level": course.get("marketplace_level", "beginner"),
+                        "is_free": course.get("marketplace_is_free", True),
+                        "price_points": course.get("marketplace_price_points", 0),
                     }
                 )
 
@@ -194,8 +204,8 @@ class StudyHubCommunityManager:
 
             # Sort mapping
             sort_field_map = {
-                "popularity": ("total_students", -1),
-                "rating": ("average_rating", -1),
+                "popularity": ("metadata.total_learners", -1),
+                "rating": ("metadata.average_rating", -1),
                 "newest": ("marketplace_published_at", -1),
                 "oldest": ("marketplace_published_at", 1),
             }
@@ -219,19 +229,29 @@ class StudyHubCommunityManager:
                     {
                         "id": str(doc["_id"]),
                         "title": doc["title"],
-                        "description": doc.get("description", ""),
-                        "thumbnail_url": doc.get("thumbnail_url", ""),
-                        "creator_id": doc.get("creator_id", ""),
-                        "creator_name": doc.get("creator_name", "Unknown"),
-                        "total_students": doc.get("total_students", 0),
-                        "average_rating": doc.get("average_rating", 0.0),
-                        "total_reviews": doc.get("total_reviews", 0),
-                        "price": doc.get("price", 0),
-                        "currency": doc.get("currency", "VND"),
-                        "organization": doc.get("organization", ""),
-                        "is_verified_organization": doc.get(
-                            "is_verified_organization", False
+                        "description": doc.get("marketplace_description")
+                        or doc.get("description", ""),
+                        "thumbnail_url": doc.get("marketplace_cover_image_url")
+                        or doc.get("cover_image_url", ""),
+                        "creator_id": doc.get("owner_id", ""),
+                        "creator_name": doc.get("owner_id", "Unknown"),
+                        "total_students": doc.get("metadata", {}).get(
+                            "total_learners", 0
                         ),
+                        "average_rating": doc.get("metadata", {}).get(
+                            "average_rating", 0.0
+                        ),
+                        "total_reviews": doc.get("metadata", {}).get(
+                            "total_reviews", 0
+                        ),
+                        "is_free": doc.get("marketplace_is_free", True),
+                        "price_points": doc.get("marketplace_price_points", 0),
+                        "price_vnd": doc.get("marketplace_price_points", 0) * 1000,
+                        "currency": "VND",
+                        "level": doc.get("marketplace_level", "beginner"),
+                        "tags": doc.get("marketplace_tags") or [],
+                        "estimated_hours": doc.get("marketplace_estimated_hours", 0),
+                        "organization": doc.get("organization", ""),
                         "marketplace_published_at": doc.get("marketplace_published_at"),
                     }
                 )

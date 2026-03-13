@@ -120,6 +120,82 @@ async def _create_enrollment_after_purchase(
 
 
 @router.post(
+    "/subjects/{subject_id}/enroll",
+    summary="Enroll in free course",
+)
+async def enroll_free_course(
+    subject_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    **Enroll in a FREE community course (no payment needed)**
+
+    - Only works for free courses (`marketplace_is_free = true`)
+    - Creates `studyhub_enrollments` record
+    - No points deducted
+
+    **Returns**:
+    ```json
+    {
+        "success": true,
+        "subject_id": "...",
+        "subject_title": "Python for Beginners",
+        "enrolled_at": "2026-03-13T..."
+    }
+    ```
+    """
+    try:
+        user_id = current_user["uid"]
+
+        subject, price_points, is_free = _get_subject_price(subject_id)
+
+        if not is_free:
+            raise HTTPException(
+                status_code=400,
+                detail="This course is paid — use the purchase endpoint instead",
+            )
+
+        if subject.get("marketplace_status") != "published":
+            raise HTTPException(status_code=400, detail="Course is not published")
+
+        # Check already enrolled
+        existing = db.studyhub_enrollments.find_one(
+            {
+                "user_id": user_id,
+                "subject_id": ObjectId(subject_id),
+                "status": {"$ne": "dropped"},
+            }
+        )
+        if existing:
+            return {
+                "success": True,
+                "subject_id": subject_id,
+                "subject_title": subject["title"],
+                "enrolled_at": existing["enrolled_at"].isoformat(),
+                "message": "Already enrolled",
+            }
+
+        await _create_enrollment_after_purchase(user_id, subject_id, subject)
+        now = datetime.now(timezone.utc)
+
+        logger.info(f"🎓 User {user_id} enrolled free in subject {subject_id}")
+
+        return {
+            "success": True,
+            "subject_id": subject_id,
+            "subject_title": subject["title"],
+            "enrolled_at": now.isoformat(),
+            "message": "Enrolled successfully",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to enroll in free course: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to enroll")
+
+
+@router.post(
     "/subjects/{subject_id}/purchase",
     summary="Purchase course with Points",
 )
