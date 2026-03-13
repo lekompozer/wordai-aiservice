@@ -297,9 +297,7 @@ class StudyHubCommunityManager:
             if not subject:
                 raise ValueError("Subject not found or you don't have permission")
 
-            # Check if already published to community
-            if subject.get("marketplace_status") == "published":
-                raise ValueError("Subject is already published to community")
+            already_published = subject.get("marketplace_status") == "published"
 
             # Verify or auto-create community subject (lookup by slug)
             community_subject = self.community_subjects.find_one(
@@ -356,11 +354,12 @@ class StudyHubCommunityManager:
             if update_result.modified_count == 0:
                 raise ValueError("Failed to publish subject")
 
-            # Increment community subject total_courses (lookup by slug)
-            self.community_subjects.update_one(
-                {"slug": community_subject_id},
-                {"$inc": {"total_courses": 1}, "$set": {"updated_at": now}},
-            )
+            # Increment community subject total_courses only on first publish
+            if not already_published:
+                self.community_subjects.update_one(
+                    {"slug": community_subject_id},
+                    {"$inc": {"total_courses": 1}, "$set": {"updated_at": now}},
+                )
 
             # Return updated subject
             updated_subject = self.subjects.find_one({"_id": ObjectId(subject_id)})
