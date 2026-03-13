@@ -519,6 +519,7 @@ class StudyHubCategoryService:
 
         # Build synthetic category_subject from community_subject_id
         community_slug = subject.get("community_subject_id", "")
+        now = datetime.utcnow()
         cat_subject = {
             "_id": community_slug,
             "category_id": category_id,
@@ -528,6 +529,10 @@ class StudyHubCategoryService:
             "total_learners": subject.get("metadata", {}).get("total_learners", 0),
             "total_courses": 1,
             "is_approved": True,
+            "created_by": "user",
+            "creator_id": subject.get("owner_id"),
+            "created_at": subject.get("created_at", now),
+            "updated_at": subject.get("last_modified_at", now),
         }
 
         # Get modules
