@@ -144,6 +144,9 @@ class TrendingBooksResponse(BaseModel):
 )
 async def search_community_books(
     q: Optional[str] = Query(None, description="Search by title or author name"),
+    author: Optional[str] = Query(
+        None, description="Filter by author ID (e.g. @Storybook) or author name"
+    ),
     category: Optional[str] = Query(None, description="Filter by category"),
     tags: Optional[str] = Query(None, description="Filter by tags (comma-separated)"),
     skip: int = Query(0, ge=0),
@@ -156,6 +159,7 @@ async def search_community_books(
     **Search and filter community books**
 
     - Search by book title or author name
+    - Filter by specific author: use `author` param (author_id like `@Storybook` or registered display name)
     - Filter by category and tags
     - Sort by: updated (latest chapter), views, rating, newest
 
@@ -170,11 +174,47 @@ async def search_community_books(
 
         # Search by title or author name
         if q:
-            # Search in title or authors array
-            query["$or"] = [
-                {"title": {"$regex": q, "$options": "i"}},
-                {"authors": {"$regex": q, "$options": "i"}},  # Search author_id
+            # Find author IDs whose registered name matches the query
+            matching_author_ids = [
+                doc["author_id"]
+                for doc in db.book_authors.find(
+                    {"name": {"$regex": q, "$options": "i"}},
+                    {"author_id": 1},
+                )
+                if doc.get("author_id")
             ]
+
+            or_conditions = [
+                {"title": {"$regex": q, "$options": "i"}},
+                {
+                    "authors": {"$regex": q, "$options": "i"}
+                },  # Match raw author_id (e.g. @Storybook)
+            ]
+            if matching_author_ids:
+                or_conditions.append({"authors": {"$in": matching_author_ids}})
+
+            query["$or"] = or_conditions
+
+        # Filter by specific author (author_id or display name)
+        if author:
+            if author.startswith("@"):
+                # Direct author_id match
+                query["authors"] = author
+            else:
+                # Look up author by display name → get author_id(s)
+                author_id_matches = [
+                    doc["author_id"]
+                    for doc in db.book_authors.find(
+                        {"name": {"$regex": author, "$options": "i"}},
+                        {"author_id": 1},
+                    )
+                    if doc.get("author_id")
+                ]
+                if author_id_matches:
+                    query["authors"] = {"$in": author_id_matches}
+                else:
+                    # Fallback: try regex on raw author_id field
+                    query["authors"] = {"$regex": author, "$options": "i"}
 
         # Filter by category
         if category:
