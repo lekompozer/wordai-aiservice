@@ -58,6 +58,29 @@ class StudyHubEnrollmentManager:
         if existing:
             raise HTTPException(status_code=400, detail="Already enrolled in subject")
 
+        # Check if course is paid (requires purchase first)
+        price_points = subject.get("marketplace_price_points", 0) or 0
+        is_free = subject.get("marketplace_is_free", True)
+        if not is_free and price_points > 0:
+            # Check if user has a valid purchase
+            purchase = self.db.studyhub_purchases.find_one(
+                {
+                    "user_id": user_id,
+                    "subject_id": ObjectId(subject_id),
+                    "status": "active",
+                }
+            )
+            if not purchase:
+                raise HTTPException(
+                    status_code=402,
+                    detail={
+                        "code": "PAYMENT_REQUIRED",
+                        "message": "Course requires payment before enrollment",
+                        "price_points": price_points,
+                        "price_vnd": price_points * 1000,
+                    },
+                )
+
         # Create enrollment
         now = datetime.now(timezone.utc)
         enrollment_doc = {

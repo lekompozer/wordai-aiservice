@@ -122,39 +122,89 @@ class CoursesInSubjectResponse(BaseModel):
 
 # ==================== Publishing Models ====================
 
+# Supported categories for StudyHub courses
+VALID_CATEGORIES = [
+    "cong-nghe-thong-tin",  # Công nghệ thông tin
+    "kinh-doanh",  # Kinh doanh
+    "tai-chinh",  # Tài chính
+    "chung-chi",  # Chứng chỉ
+    "ngon-ngu",  # Ngôn ngữ
+    "phat-trien-ban-than",  # Phát triển bản thân
+    "loi-song",  # Lối sống
+    "hoc-thuat",  # Học thuật
+    "khoa-hoc",  # Khoa học
+    "ky-nang",  # Kỹ năng
+]
+
+CATEGORY_LABELS = {
+    "cong-nghe-thong-tin": "Công nghệ thông tin",
+    "kinh-doanh": "Kinh doanh",
+    "tai-chinh": "Tài chính",
+    "chung-chi": "Chứng chỉ",
+    "ngon-ngu": "Ngôn ngữ",
+    "phat-trien-ban-than": "Phát triển bản thân",
+    "loi-song": "Lối sống",
+    "hoc-thuat": "Học thuật",
+    "khoa-hoc": "Khoa học",
+    "ky-nang": "Kỹ năng",
+}
+
 
 class PublishToCommunityRequest(BaseModel):
     """Request to publish subject to community marketplace"""
 
-    community_subject_slug: str = Field(
-        ..., description="Slug of community subject (e.g., 'python-programming')"
+    # ID của community subject (slug như 'cong-nghe-thong-tin')
+    community_subject_id: str = Field(
+        ..., description="Community subject slug (e.g., 'cong-nghe-thong-tin')"
     )
-    category: str = Field(..., description="Category: it/business/academics/etc.")
-    tags: List[str] = Field(..., min_items=1, max_items=10, description="Subject tags")
-    level: str = Field(
-        ..., description="Difficulty level: beginner/intermediate/advanced"
+    # Category: one of VALID_CATEGORIES
+    category: str = Field(
+        ...,
+        description=(
+            "Category slug: cong-nghe-thong-tin / kinh-doanh / tai-chinh / "
+            "chung-chi / ngon-ngu / phat-trien-ban-than / loi-song / hoc-thuat / "
+            "khoa-hoc / ky-nang"
+        ),
+    )
+    tags: Optional[List[str]] = Field(
+        default_factory=list, max_items=10, description="Search tags (optional)"
+    )
+    level: Optional[str] = Field(
+        "beginner", description="Difficulty: beginner/intermediate/advanced"
     )
 
-    cover_image_url: Optional[str] = Field(None, description="Cover image URL")
+    # Cover image URL — nếu không truyền, tự dùng cover_image_url của môn học
+    cover_image_url: Optional[str] = Field(
+        None, description="Cover image URL (auto-uses subject cover if not provided)"
+    )
     organization: Optional[str] = Field(
         None, description="Organization name (e.g., 'MIT', 'Google')"
     )
+
+    # Định giá bằng Points (1 point = 1000 VND)
+    # is_free=True và price_points=0 → miễn phí
+    # is_free=False và price_points>0 → trả phí
     is_free: bool = Field(True, description="Whether course is free")
-    price: Optional[float] = Field(None, ge=0, description="Course price (if not free)")
+    price_points: Optional[int] = Field(
+        None,
+        ge=1,
+        description="Course price in points (1 point = 1000 VND). Required if is_free=False",
+    )
     estimated_hours: Optional[int] = Field(None, ge=1, description="Estimated hours")
+    description: Optional[str] = Field(
+        None, max_length=5000, description="Short course description for marketplace"
+    )
 
     class Config:
         schema_extra = {
             "example": {
-                "community_subject_slug": "python-programming",
-                "category": "it",
-                "tags": ["python", "programming", "beginner"],
+                "community_subject_id": "cong-nghe-thong-tin",
+                "category": "cong-nghe-thong-tin",
+                "tags": ["python", "lap-trinh", "beginner"],
                 "level": "beginner",
-                "cover_image_url": "https://example.com/cover.jpg",
-                "organization": "MIT",
                 "is_free": False,
-                "price": 49.99,
-                "estimated_hours": 40,
+                "price_points": 50,
+                "estimated_hours": 20,
             }
         }
 
@@ -169,7 +219,7 @@ class PublishToCommunityResponse(BaseModel):
 class UpdateMarketplaceInfoRequest(BaseModel):
     """Request to update marketplace info for published subject"""
 
-    community_subject_slug: Optional[str] = Field(
+    community_subject_id: Optional[str] = Field(
         None, description="Change community subject"
     )
     category: Optional[str] = None
@@ -177,5 +227,7 @@ class UpdateMarketplaceInfoRequest(BaseModel):
     level: Optional[str] = None
     cover_image_url: Optional[str] = None
     organization: Optional[str] = None
-    price: Optional[float] = Field(None, ge=0)
+    is_free: Optional[bool] = None
+    price_points: Optional[int] = Field(None, ge=1)
     estimated_hours: Optional[int] = Field(None, ge=1)
+    description: Optional[str] = Field(None, max_length=5000)

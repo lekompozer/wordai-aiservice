@@ -254,7 +254,19 @@ class StudyHubCommunityManager:
             raise
 
     async def publish_subject_to_community(
-        self, subject_id: str, community_subject_id: str, user_id: str
+        self,
+        subject_id: str,
+        community_subject_id: str,
+        user_id: str,
+        category: str = "",
+        tags: list = None,
+        level: str = "beginner",
+        cover_image_url: str = None,
+        organization: str = None,
+        is_free: bool = True,
+        price_points: int = 0,
+        estimated_hours: int = None,
+        description: str = None,
     ) -> Dict[str, Any]:
         """
         Publish a subject (course) to community marketplace
@@ -262,51 +274,78 @@ class StudyHubCommunityManager:
         Args:
             subject_id: StudyHub subject ID
             community_subject_id: Community subject slug to publish to
-            user_id: Creator user ID (for ownership verification)
+            user_id: Owner user ID (for ownership verification)
+            category: Category slug
+            tags: Search tags
+            level: Difficulty level
+            cover_image_url: Cover image URL (auto-uses subject's if not provided)
+            organization: Organization name
+            is_free: Whether course is free
+            price_points: Price in points (1 point = 1000 VND, 0 if free)
+            estimated_hours: Estimated hours
+            description: Short description for marketplace
 
         Returns:
             Updated subject document
         """
         try:
-            # Verify subject exists and user owns it
+            # Verify subject exists and user owns it (subjects use owner_id)
             subject = self.subjects.find_one(
-                {"_id": ObjectId(subject_id), "creator_id": user_id}
+                {"_id": ObjectId(subject_id), "owner_id": user_id}
             )
 
             if not subject:
                 raise ValueError("Subject not found or you don't have permission")
 
-            # Check if already published
+            # Subject must be published to list in marketplace
+            if subject.get("status") != "published":
+                raise ValueError(
+                    "Subject must be published (status=published) before listing in marketplace"
+                )
+
+            # Check if already published to community
             if subject.get("marketplace_status") == "published":
                 raise ValueError("Subject is already published to community")
 
-            # Verify community subject exists
+            # Verify community subject exists (lookup by slug)
             community_subject = self.community_subjects.find_one(
-                {"_id": community_subject_id}
+                {"slug": community_subject_id}
             )
             if not community_subject:
                 raise ValueError(f"Community subject not found: {community_subject_id}")
 
-            # Update subject to published
+            # Auto-use subject's existing cover if not provided
+            effective_cover = cover_image_url or subject.get("cover_image_url")
+
+            # Update subject to published in marketplace
             now = datetime.utcnow()
+            update_fields = {
+                "community_subject_id": community_subject_id,
+                "marketplace_status": "published",
+                "marketplace_published_at": now,
+                "marketplace_category": category,
+                "marketplace_tags": tags or [],
+                "marketplace_level": level,
+                "marketplace_cover_image_url": effective_cover,
+                "marketplace_is_free": is_free,
+                "marketplace_price_points": price_points if not is_free else 0,
+                "marketplace_estimated_hours": estimated_hours,
+                "marketplace_description": description,
+                "updated_at": now,
+            }
+            if organization is not None:
+                update_fields["organization"] = organization
+
             update_result = self.subjects.update_one(
-                {"_id": ObjectId(subject_id)},
-                {
-                    "$set": {
-                        "community_subject_id": community_subject_id,
-                        "marketplace_status": "published",
-                        "marketplace_published_at": now,
-                        "updated_at": now,
-                    }
-                },
+                {"_id": ObjectId(subject_id)}, {"$set": update_fields}
             )
 
             if update_result.modified_count == 0:
                 raise ValueError("Failed to publish subject")
 
-            # Increment community subject total_courses
+            # Increment community subject total_courses (lookup by slug)
             self.community_subjects.update_one(
-                {"_id": community_subject_id},
+                {"slug": community_subject_id},
                 {"$inc": {"total_courses": 1}, "$set": {"updated_at": now}},
             )
 
@@ -315,7 +354,7 @@ class StudyHubCommunityManager:
             updated_subject["id"] = str(updated_subject["_id"])
 
             logger.info(
-                f"✅ Published subject {subject_id} to community {community_subject_id}"
+                f"✅ Published subject {subject_id} to community {community_subject_id} by user {user_id}"
             )
 
             return updated_subject
@@ -340,7 +379,7 @@ class StudyHubCommunityManager:
             subject = self.subjects.find_one(
                 {
                     "_id": ObjectId(subject_id),
-                    "creator_id": user_id,
+                    "owner_id": user_id,
                     "marketplace_status": "published",
                 }
             )
@@ -365,10 +404,10 @@ class StudyHubCommunityManager:
             if update_result.modified_count == 0:
                 raise ValueError("Failed to unpublish subject")
 
-            # Decrement community subject total_courses
+            # Decrement community subject total_courses (lookup by slug)
             if community_subject_id:
                 self.community_subjects.update_one(
-                    {"_id": community_subject_id},
+                    {"slug": community_subject_id},
                     {"$inc": {"total_courses": -1}, "$set": {"updated_at": now}},
                 )
 
@@ -388,47 +427,73 @@ class StudyHubCommunityManager:
         self,
         subject_id: str,
         user_id: str,
+        community_subject_id: Optional[str] = None,
+        category: Optional[str] = None,
+        tags: Optional[list] = None,
+        level: Optional[str] = None,
+        cover_image_url: Optional[str] = None,
         organization: Optional[str] = None,
-        is_verified_organization: Optional[bool] = None,
+        is_free: Optional[bool] = None,
+        price_points: Optional[int] = None,
+        estimated_hours: Optional[int] = None,
+        description: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Update marketplace-specific information for a subject
 
         Args:
             subject_id: StudyHub subject ID
-            user_id: Creator user ID (for ownership verification)
-            organization: Organization/company name
-            is_verified_organization: Whether organization is verified
+            user_id: Owner user ID (for ownership verification)
 
         Returns:
             Updated subject document
         """
         try:
-            # Verify subject exists and user owns it
+            # Verify subject exists and user owns it (subjects use owner_id)
             subject = self.subjects.find_one(
-                {"_id": ObjectId(subject_id), "creator_id": user_id}
+                {"_id": ObjectId(subject_id), "owner_id": user_id}
             )
 
             if not subject:
                 raise ValueError("Subject not found or you don't have permission")
 
             # Build update fields
-            update_fields: Dict[str, Any] = {"updated_at": datetime.utcnow()}
+            now = datetime.utcnow()
+            update_fields: Dict[str, Any] = {"updated_at": now}
 
+            if community_subject_id is not None:
+                # Verify new community subject exists
+                cs = self.community_subjects.find_one({"slug": community_subject_id})
+                if not cs:
+                    raise ValueError(
+                        f"Community subject not found: {community_subject_id}"
+                    )
+                update_fields["community_subject_id"] = community_subject_id
+            if category is not None:
+                update_fields["marketplace_category"] = category
+            if tags is not None:
+                update_fields["marketplace_tags"] = tags
+            if level is not None:
+                update_fields["marketplace_level"] = level
+            if cover_image_url is not None:
+                update_fields["marketplace_cover_image_url"] = cover_image_url
             if organization is not None:
                 update_fields["organization"] = organization
-
-            if is_verified_organization is not None:
-                update_fields["is_verified_organization"] = is_verified_organization
+            if is_free is not None:
+                update_fields["marketplace_is_free"] = is_free
+                if is_free:
+                    update_fields["marketplace_price_points"] = 0
+            if price_points is not None:
+                update_fields["marketplace_price_points"] = price_points
+            if estimated_hours is not None:
+                update_fields["marketplace_estimated_hours"] = estimated_hours
+            if description is not None:
+                update_fields["marketplace_description"] = description
 
             # Update subject
-            update_result = self.subjects.update_one(
+            self.subjects.update_one(
                 {"_id": ObjectId(subject_id)}, {"$set": update_fields}
             )
-
-            if update_result.modified_count == 0:
-                # No changes made (fields already had these values)
-                pass
 
             # Return updated subject
             updated_subject = self.subjects.find_one({"_id": ObjectId(subject_id)})

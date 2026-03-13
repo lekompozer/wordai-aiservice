@@ -236,7 +236,11 @@ async def publish_to_community(
     **Request Body:**
     ```json
     {
-        "community_subject_id": "python-programming"
+        "community_subject_id": "cong-nghe-thong-tin",
+        "category": "cong-nghe-thong-tin",
+        "level": "beginner",
+        "is_free": false,
+        "price_points": 50
     }
     ```
 
@@ -244,19 +248,26 @@ async def publish_to_community(
     Updated subject with `marketplace_status: "published"`
 
     **Permissions:**
-    - Must be the creator of the subject
-    - Subject must not already be published
+    - Must be the owner of the subject
+    - Subject must be published (status=published)
     """
     try:
-        user_id = current_user.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="User ID not found in token")
+        user_id = current_user["uid"]
 
         manager = StudyHubCommunityManager()
         result = await manager.publish_subject_to_community(
             subject_id=subject_id,
             community_subject_id=request.community_subject_id,
             user_id=user_id,
+            category=request.category,
+            tags=request.tags or [],
+            level=request.level or "beginner",
+            cover_image_url=request.cover_image_url,
+            organization=request.organization,
+            is_free=request.is_free,
+            price_points=request.price_points if not request.is_free else 0,
+            estimated_hours=request.estimated_hours,
+            description=request.description,
         )
 
         return {
@@ -297,9 +308,7 @@ async def unpublish_from_community(
     - Subject must be currently published
     """
     try:
-        user_id = current_user.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="User ID not found in token")
+        user_id = current_user["uid"]
 
         manager = StudyHubCommunityManager()
         result = await manager.unpublish_subject(subject_id=subject_id, user_id=user_id)
@@ -350,16 +359,21 @@ async def update_marketplace_info(
     - Must be the creator of the subject
     """
     try:
-        user_id = current_user.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="User ID not found in token")
+        user_id = current_user["uid"]
 
         manager = StudyHubCommunityManager()
         result = await manager.update_marketplace_info(
             subject_id=subject_id,
             user_id=user_id,
+            category=request.category,
+            tags=request.tags,
+            level=request.level,
+            cover_image_url=request.cover_image_url,
             organization=request.organization,
-            is_verified_organization=request.is_verified_organization,
+            is_free=request.is_free,
+            price_points=request.price_points,
+            estimated_hours=request.estimated_hours,
+            description=request.description,
         )
 
         return {"message": "Marketplace info updated successfully", "subject": result}
