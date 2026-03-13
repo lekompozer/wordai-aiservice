@@ -297,22 +297,35 @@ class StudyHubCommunityManager:
             if not subject:
                 raise ValueError("Subject not found or you don't have permission")
 
-            # Subject must be published to list in marketplace
-            if subject.get("status") != "published":
-                raise ValueError(
-                    "Subject must be published (status=published) before listing in marketplace"
-                )
-
             # Check if already published to community
             if subject.get("marketplace_status") == "published":
                 raise ValueError("Subject is already published to community")
 
-            # Verify community subject exists (lookup by slug)
+            # Verify or auto-create community subject (lookup by slug)
             community_subject = self.community_subjects.find_one(
                 {"slug": community_subject_id}
             )
             if not community_subject:
-                raise ValueError(f"Community subject not found: {community_subject_id}")
+                now_cs = datetime.utcnow()
+                title = community_subject_id.replace("-", " ").title()
+                new_cs = {
+                    "slug": community_subject_id,
+                    "title": title,
+                    "title_vi": title,
+                    "category": category or community_subject_id,
+                    "icon": "📚",
+                    "total_courses": 0,
+                    "total_students": 0,
+                    "is_featured": False,
+                    "display_order": 999,
+                    "created_at": now_cs,
+                    "updated_at": now_cs,
+                }
+                self.community_subjects.insert_one(new_cs)
+                community_subject = new_cs
+                logger.info(
+                    f"✅ Auto-created community subject: {community_subject_id}"
+                )
 
             # Auto-use subject's existing cover if not provided
             effective_cover = cover_image_url or subject.get("cover_image_url")
