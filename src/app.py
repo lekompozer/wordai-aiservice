@@ -1123,6 +1123,7 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Grammar Check API - text & audio grammar checking
     from src.api.grammar_routes import router as grammar_router
+
     app.include_router(grammar_router, tags=["Grammar Check"])
 
     # ✅ ADDED: Learning Path API - Phase 2: Smart personalized 100-conversation path
