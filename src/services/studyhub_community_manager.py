@@ -365,6 +365,7 @@ class StudyHubCommunityManager:
             # Return updated subject
             updated_subject = self.subjects.find_one({"_id": ObjectId(subject_id)})
             updated_subject["id"] = str(updated_subject["_id"])
+            updated_subject["_id"] = str(updated_subject["_id"])
 
             logger.info(
                 f"✅ Published subject {subject_id} to community {community_subject_id} by user {user_id}"
@@ -427,6 +428,7 @@ class StudyHubCommunityManager:
             # Return updated subject
             updated_subject = self.subjects.find_one({"_id": ObjectId(subject_id)})
             updated_subject["id"] = str(updated_subject["_id"])
+            updated_subject["_id"] = str(updated_subject["_id"])
 
             logger.info(f"✅ Unpublished subject {subject_id} from community")
 
@@ -511,6 +513,7 @@ class StudyHubCommunityManager:
             # Return updated subject
             updated_subject = self.subjects.find_one({"_id": ObjectId(subject_id)})
             updated_subject["id"] = str(updated_subject["_id"])
+            updated_subject["_id"] = str(updated_subject["_id"])
 
             logger.info(f"✅ Updated marketplace info for subject {subject_id}")
 
