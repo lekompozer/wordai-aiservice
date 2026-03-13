@@ -141,25 +141,16 @@ class StudyHubCommunityManager:
 
             top_courses = []
             for course in top_courses_cursor:
+                metadata = course.get("metadata", {})
                 top_courses.append(
                     {
                         "id": str(course["_id"]),
                         "title": course["title"],
-                        "thumbnail_url": course.get("marketplace_cover_image_url")
-                        or course.get("cover_image_url", ""),
+                        "cover_image": course.get("marketplace_cover_image_url")
+                        or course.get("cover_image_url"),
                         "creator_name": course.get("owner_id", "Unknown"),
-                        "total_students": course.get("metadata", {}).get(
-                            "total_learners", 0
-                        ),
-                        "average_rating": course.get("metadata", {}).get(
-                            "average_rating", 0.0
-                        ),
-                        "total_reviews": course.get("metadata", {}).get(
-                            "total_reviews", 0
-                        ),
-                        "level": course.get("marketplace_level", "beginner"),
-                        "is_free": course.get("marketplace_is_free", True),
-                        "price_points": course.get("marketplace_price_points", 0),
+                        "students_count": metadata.get("total_learners", 0),
+                        "rating": metadata.get("average_rating", 0.0),
                     }
                 )
 
@@ -225,34 +216,35 @@ class StudyHubCommunityManager:
 
             courses = []
             for doc in cursor:
+                metadata = doc.get("metadata", {})
+                published_at = (
+                    doc.get("marketplace_published_at")
+                    or doc.get("created_at")
+                    or datetime.utcnow()
+                )
+                updated_at = (
+                    doc.get("last_modified_at") or doc.get("updated_at") or published_at
+                )
                 courses.append(
                     {
                         "id": str(doc["_id"]),
                         "title": doc["title"],
                         "description": doc.get("marketplace_description")
                         or doc.get("description", ""),
-                        "thumbnail_url": doc.get("marketplace_cover_image_url")
-                        or doc.get("cover_image_url", ""),
+                        "cover_image_url": doc.get("marketplace_cover_image_url")
+                        or doc.get("cover_image_url"),
                         "creator_id": doc.get("owner_id", ""),
                         "creator_name": doc.get("owner_id", "Unknown"),
-                        "total_students": doc.get("metadata", {}).get(
-                            "total_learners", 0
-                        ),
-                        "average_rating": doc.get("metadata", {}).get(
-                            "average_rating", 0.0
-                        ),
-                        "total_reviews": doc.get("metadata", {}).get(
-                            "total_reviews", 0
-                        ),
+                        "students_count": metadata.get("total_learners", 0),
+                        "rating": metadata.get("average_rating", 0.0),
+                        "reviews_count": metadata.get("total_reviews", 0),
                         "is_free": doc.get("marketplace_is_free", True),
-                        "price_points": doc.get("marketplace_price_points", 0),
-                        "price_vnd": doc.get("marketplace_price_points", 0) * 1000,
-                        "currency": "VND",
+                        "price": doc.get("marketplace_price_points", 0) * 1000,
                         "level": doc.get("marketplace_level", "beginner"),
                         "tags": doc.get("marketplace_tags") or [],
-                        "estimated_hours": doc.get("marketplace_estimated_hours", 0),
                         "organization": doc.get("organization", ""),
-                        "marketplace_published_at": doc.get("marketplace_published_at"),
+                        "published_at": published_at,
+                        "updated_at": updated_at,
                     }
                 )
 
@@ -261,12 +253,7 @@ class StudyHubCommunityManager:
                 "total": total,
                 "skip": skip,
                 "limit": limit,
-                "community_subject": {
-                    "id": subject["_id"],
-                    "slug": subject["slug"],
-                    "title": subject["title"],
-                    "title_vi": subject["title_vi"],
-                },
+                "community_subject": slug,
             }
 
         except Exception as e:
