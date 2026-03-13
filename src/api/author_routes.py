@@ -836,7 +836,7 @@ async def get_author_stats(
                 "$group": {
                     "_id": None,
                     "total_reads": {"$sum": "$community_config.total_views"},
-                    "revenue_points": {"$sum": "$community_config.total_purchases"},
+                    "revenue_points": {"$sum": "$stats.total_revenue_points"},
                 }
             },
         ]
