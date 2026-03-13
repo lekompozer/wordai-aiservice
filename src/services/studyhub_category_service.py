@@ -185,6 +185,7 @@ class StudyHubCategoryService:
         return [
             {
                 "user_id": r["_id"],
+                "display_name": "",
                 "course_count": r["course_count"],
                 "total_learners": r["total_learners"],
                 "average_rating": round(r["avg_rating"], 2),
@@ -324,7 +325,7 @@ class StudyHubCategoryService:
         """Publish user's subject as course"""
         # 1. Check source subject exists and user owns it
         source_subject = self.subjects.find_one(
-            {"_id": ObjectId(subject_id), "user_id": user_id}
+            {"_id": ObjectId(subject_id), "owner_id": user_id}
         )
 
         if not source_subject:
@@ -431,6 +432,9 @@ class StudyHubCategoryService:
         cat_subject = self.category_subjects.find_one(
             {"_id": ObjectId(course["category_subject_id"])}
         )
+
+        if not category or not cat_subject:
+            return None
 
         # Get modules from source subject
         modules = list(
@@ -762,11 +766,10 @@ class StudyHubCategoryService:
             course = self.courses.find_one({"_id": ObjectId(enrollment["course_id"])})
             if course:
                 course["progress"] = {
-                    "completed_modules": len(enrollment["completed_modules"]),
+                    "completed_modules": enrollment["completed_modules"],
                     "total_modules": course["module_count"],
                     "progress_percentage": enrollment["progress_percentage"],
                     "current_module_id": enrollment.get("current_module_id"),
-                    "last_accessed_at": enrollment["last_accessed_at"],
                 }
                 course["enrollment"] = enrollment
                 result.append(course)

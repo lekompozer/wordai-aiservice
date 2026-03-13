@@ -9,7 +9,7 @@ Endpoints for:
 - Search
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Header, status
 from typing import Optional, List
 from datetime import datetime
 
@@ -43,6 +43,18 @@ from src.models.studyhub_category_models import (
 
 
 router = APIRouter(prefix="/api/studyhub", tags=["StudyHub Categories & Courses"])
+
+
+async def get_optional_user(
+    request: Request, authorization: Optional[str] = Header(None)
+) -> Optional[dict]:
+    """Return current user dict if Bearer token present, otherwise None."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    try:
+        return await verify_firebase_token(request, authorization)
+    except HTTPException:
+        return None
 
 
 # ============================================================================
@@ -254,7 +266,7 @@ async def publish_subject_as_course(
 
 @router.get("/courses/{course_id}", response_model=CourseDetailResponse)
 async def get_course_detail(
-    course_id: str, user_data: Optional[dict] = Depends(verify_firebase_token)
+    course_id: str, user_data: Optional[dict] = Depends(get_optional_user)
 ):
     """
     Get course details
@@ -522,7 +534,15 @@ async def get_enrolled_courses(
         user_id=user_data["uid"], page=page, limit=limit
     )
 
-    return {"courses": courses, "total": total, "page": page, "limit": limit}
+    total_pages = (total + limit - 1) // limit
+
+    return {
+        "courses": courses,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "total_pages": total_pages,
+    }
 
 
 @router.put("/enrollments/{enrollment_id}/progress")

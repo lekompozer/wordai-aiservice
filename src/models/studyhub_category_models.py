@@ -419,6 +419,7 @@ class EnrolledCoursesResponse(BaseModel):
     total: int
     page: int
     limit: int
+    total_pages: int
 
 
 class UpdateProgressRequest(BaseModel):
