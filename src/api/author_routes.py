@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 
 # Authentication
-from src.middleware.firebase_auth import get_current_user
+from src.middleware.firebase_auth import get_current_user, get_current_user_optional
 
 # Models
 from src.models.author_models import (
@@ -784,7 +784,7 @@ async def list_author_books(
 )
 async def get_author_stats(
     author_id: str,
-    user: Optional[Dict[str, Any]] = Depends(get_current_user),
+    user: Optional[Dict[str, Any]] = Depends(get_current_user_optional),
 ):
     """
     **Get author profile statistics for profile card**
@@ -822,7 +822,7 @@ async def get_author_stats(
             }
         )
 
-        # Get total reads (sum of total_views from all public books)
+        # Get total reads + revenue_points in one aggregation (single DB roundtrip)
         pipeline = [
             {
                 "$match": {
@@ -835,14 +835,13 @@ async def get_author_stats(
                 "$group": {
                     "_id": None,
                     "total_reads": {"$sum": "$community_config.total_views"},
+                    "revenue_points": {"$sum": "$community_config.total_purchases"},
                 }
             },
         ]
-        reads_result = list(db.online_books.aggregate(pipeline))
-        total_reads = reads_result[0]["total_reads"] if reads_result else 0
-
-        # Get revenue points from author document
-        revenue_points = author.get("total_revenue_points", 0)
+        agg_result = list(db.online_books.aggregate(pipeline))
+        total_reads = agg_result[0]["total_reads"] if agg_result else 0
+        revenue_points = agg_result[0]["revenue_points"] if agg_result else 0
 
         # Get total followers
         total_followers = db.author_follows.count_documents({"author_id": author_id})
