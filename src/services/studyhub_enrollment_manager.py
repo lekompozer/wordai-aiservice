@@ -756,6 +756,7 @@ class StudyHubEnrollmentManager:
                     "content_type": alt["content_type"],
                     "title": alt["title"],
                     "url": alt.get("url"),
+                    "is_presentation": False,
                     "priority": alt.get("presentation_priority", 99),
                 }
                 for alt in alternatives
