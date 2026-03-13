@@ -335,6 +335,10 @@ async def warmup_featured_week():
     logger.info("🔥 Warming up: Featured books (week)...")
 
     try:
+        # Delete stale cache first so get_featured_books_week() recomputes from DB
+        cache = get_cache_client()
+        await cache.delete("books:featured:week")
+
         from src.api.community_routes import get_featured_books_week
 
         result = await get_featured_books_week()
@@ -355,6 +359,10 @@ async def warmup_featured_authors():
     logger.info("🔥 Warming up: Featured authors...")
 
     try:
+        # Delete stale cache first so get_featured_authors() recomputes from DB
+        cache = get_cache_client()
+        await cache.delete("authors:featured")
+
         from src.api.community_routes import get_featured_authors
 
         result = await get_featured_authors()
@@ -375,6 +383,10 @@ async def warmup_popular_tags():
     logger.info("🔥 Warming up: Popular tags...")
 
     try:
+        # Delete stale cache first so get_popular_tags() recomputes from DB
+        cache = get_cache_client()
+        await cache.delete("tags:popular")
+
         from src.api.community_routes import get_popular_tags
 
         result = await get_popular_tags()
