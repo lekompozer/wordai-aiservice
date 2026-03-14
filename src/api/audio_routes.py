@@ -5,10 +5,12 @@ Endpoints for audio-related operations not tied to specific books/chapters
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Form, Query
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from src.middleware.firebase_auth import get_current_user
 from src.services.google_tts_service import GoogleTTSService
 from src.services.r2_storage_service import R2StorageService
+from src.database.db_manager import DBManager
+from src.services.library_manager import LibraryManager
 import io
 import uuid
 from datetime import datetime, timedelta
@@ -20,8 +22,18 @@ router = APIRouter(
     tags=["Audio"],
 )
 
+ai_audio_router = APIRouter(
+    prefix="/ai/audio",
+    tags=["Audio AI"],
+)
+
 google_tts_service = GoogleTTSService()
 r2_service = R2StorageService()
+
+# Initialize DB + library (lazy-shared across requests)
+_db_manager = DBManager()
+_db = _db_manager.db
+_library_manager = LibraryManager(_db, s3_client=r2_service.s3_client)
 
 
 @router.get(
@@ -250,4 +262,148 @@ async def preview_tts_voice(
         raise
     except Exception as e:
         logger.error(f"❌ Failed to generate preview: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------------------------------------------------------------------------
+# AI Audio router — prefix /api/ai/audio  (mounted in app.py with prefix /api)
+# ---------------------------------------------------------------------------
+
+
+@ai_audio_router.post(
+    "/generate",
+    summary="Generate TTS audio and save to Library",
+    description="Generate AI text-to-speech audio, upload to R2, and save to the user's Library Audio.",
+)
+async def generate_audio_to_library(
+    text: str = Form(..., description="Text to convert to speech"),
+    voice: Optional[str] = Form(
+        default=None,
+        description="Voice name (e.g. Algenib, Despina, Aoede). Defaults to Enceladus.",
+    ),
+    voice_names: Optional[str] = Form(
+        default=None,
+        description="Comma-separated voice names (alternative to `voice`). First voice is used.",
+    ),
+    language: str = Form(default="vi", description="Language code (vi, en, zh, ...)"),
+    speed: float = Form(default=1.0, description="Speaking rate (0.25–4.0)"),
+    speaking_rate: float = Form(default=1.0, description="Alias for speed"),
+    use_pro_model: bool = Form(
+        default=False, description="Use gemini-2.5-pro-preview-tts (higher quality)"
+    ),
+    prompt: Optional[str] = Form(
+        default=None, description="Optional voice style instruction"
+    ),
+    filename: Optional[str] = Form(
+        default=None, description="Optional custom filename for library entry"
+    ),
+    user: Dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Generate standalone TTS audio and save to Library Audio.
+
+    **Authentication:** Required
+
+    **Features:**
+    - Converts text to speech using Gemini TTS
+    - Saves audio file to user's Library Audio
+    - Returns public URL + library metadata
+    - Supports all Gemini voices (Algenib, Despina, Aoede, Enceladus, etc.)
+
+    **Points:** Free (no points deducted)
+    """
+    try:
+        user_id = user["uid"]
+
+        if not text or not text.strip():
+            raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+        # Resolve voice name: `voice` takes priority, then first of `voice_names`
+        resolved_voice: Optional[str] = None
+        if voice and voice.strip():
+            resolved_voice = voice.strip()
+        elif voice_names and voice_names.strip():
+            resolved_voice = voice_names.split(",")[0].strip() or None
+
+        # Use the higher of speed / speaking_rate (in case frontend sends one or both)
+        effective_rate = max(speed, speaking_rate)
+
+        logger.info(
+            f"🎙️ Generate audio: user={user_id}, voice={resolved_voice}, "
+            f"lang={language}, rate={effective_rate}, pro={use_pro_model}, "
+            f"{len(text)} chars"
+        )
+
+        # Generate TTS audio
+        audio_content, metadata = await google_tts_service.generate_audio(
+            text=text,
+            language=language,
+            voice_name=resolved_voice,
+            speaking_rate=effective_rate,
+            prompt=prompt,
+            use_pro_model=use_pro_model,
+        )
+
+        # Upload to R2
+        audio_id = str(uuid.uuid4())
+        r2_key = f"audio/library/{user_id}/{audio_id}.wav"
+        audio_file = io.BytesIO(audio_content)
+        audio_url = await r2_service.upload_file(
+            file=audio_file, key=r2_key, content_type="audio/wav"
+        )
+
+        # Determine library filename
+        text_preview = text.strip()[:40].replace("/", "-").replace("\\", "-")
+        lib_filename = (
+            filename.strip() if filename and filename.strip() else f"{text_preview}.wav"
+        )
+
+        # Save to library_audio collection
+        library_doc = _library_manager.save_library_file(
+            user_id=user_id,
+            filename=lib_filename,
+            file_type="audio",
+            category="audio",
+            r2_url=audio_url,
+            r2_key=r2_key,
+            file_size=len(audio_content),
+            mime_type="audio/wav",
+            metadata={
+                "source_type": "tts_standalone",
+                "voice_name": metadata.get("voice_name") or resolved_voice,
+                "language": language,
+                "speaking_rate": effective_rate,
+                "use_pro_model": use_pro_model,
+                "model": metadata.get("model"),
+                "text_preview": text.strip()[:100],
+                "word_count": metadata.get("word_count", 0),
+                "duration": metadata.get("duration", 0),
+            },
+        )
+
+        library_id = library_doc.get("library_id") or library_doc.get("file_id")
+
+        logger.info(
+            f"✅ Audio saved to library: {library_id} for user {user_id}, "
+            f"voice={metadata.get('voice_name')}, ~{metadata.get('duration', 0):.1f}s"
+        )
+
+        return {
+            "success": True,
+            "audio_url": audio_url,
+            "library_id": library_id,
+            "filename": lib_filename,
+            "duration": metadata.get("duration", 0),
+            "format": "wav",
+            "voice_name": metadata.get("voice_name") or resolved_voice,
+            "language": language,
+            "model": metadata.get("model"),
+            "file_size": len(audio_content),
+            "message": "Audio generated and saved to library",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to generate audio: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))

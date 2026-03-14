@@ -263,7 +263,7 @@ from src.api.book_chapter_audio_routes import router as book_chapter_audio_route
 from src.api.book_page_routes import router as book_page_router
 
 # ✅ ADDED: Standalone Audio API - Voices and preview endpoints (not tied to book/chapter)
-from src.api.audio_routes import router as audio_router
+from src.api.audio_routes import router as audio_router, ai_audio_router
 
 # ✅ ADDED: Book Cover AI - Generate covers using OpenAI gpt-image-1
 from src.api.book_cover_ai_routes import router as book_cover_ai_router
@@ -1332,6 +1332,13 @@ def create_app() -> FastAPI:
     app.include_router(
         audio_router,
         tags=["Audio", "TTS", "Voice Preview"],
+    )
+
+    # ✅ NEW: AI Audio - Standalone TTS generate + save to library (/api/ai/audio/generate)
+    app.include_router(
+        ai_audio_router,
+        prefix="/api",
+        tags=["Audio AI"],
     )
 
     # ✅ NEW: Book Cover AI - Generate covers using OpenAI gpt-image-1
