@@ -729,8 +729,18 @@ async def generate_library_download_url(
         if not file_doc:
             raise HTTPException(status_code=404, detail="Library file not found")
 
-        # Generate signed URL
+        # Audio files: return CDN URL for direct streaming/playback (no presigned)
         s3_client = get_r2_client()
+        if file_doc.get("category") == "audio" or file_doc.get("file_type") == "audio":
+            stream_url = f"{R2_PUBLIC_URL}/{file_doc['r2_key'].lstrip('/')}"
+            return {
+                "download_url": stream_url,
+                "filename": file_doc["filename"],
+                "file_size": file_doc["file_size"],
+                "expires_in": None,
+            }
+
+        # Non-audio files: presigned URL for attachment download
         download_url = s3_client.generate_presigned_url(
             "get_object",
             Params={
