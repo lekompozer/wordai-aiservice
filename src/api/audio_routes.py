@@ -5,6 +5,7 @@ Endpoints for audio-related operations not tied to specific books/chapters
 
 import logging
 from fastapi import APIRouter, Depends, HTTPException, Form, Query
+from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
 from src.middleware.firebase_auth import get_current_user
 from src.services.google_tts_service import GoogleTTSService
@@ -234,10 +235,12 @@ async def preview_tts_voice(
         preview_key = f"audio/previews/{preview_filename}"
 
         # Upload audio to R2
-        audio_file = io.BytesIO(audio_content)
-        audio_url = await r2_service.upload_file(
-            file=audio_file, key=preview_key, content_type="audio/wav"
+        upload_result = await r2_service.upload_file(
+            file_content=audio_content,
+            r2_key=preview_key,
+            content_type="audio/wav",
         )
+        audio_url = upload_result.get("public_url") or upload_result.get("url")
 
         # Calculate expiration time (15 minutes)
         expires_at = datetime.utcnow() + timedelta(minutes=15)
@@ -270,35 +273,36 @@ async def preview_tts_voice(
 # ---------------------------------------------------------------------------
 
 
+class GenerateAudioRequest(BaseModel):
+    text: str
+    voice: Optional[str] = None
+    voice_names: Optional[str] = None  # comma-separated, first value used
+    language: str = "vi"
+    speed: float = 1.0
+    speaking_rate: float = 1.0  # alias for speed
+    use_pro_model: bool = False
+    prompt: Optional[str] = None
+    filename: Optional[str] = None
+
+
 @ai_audio_router.post(
     "/generate",
     summary="Generate TTS audio and save to Library",
     description="Generate AI text-to-speech audio, upload to R2, and save to the user's Library Audio.",
 )
 async def generate_audio_to_library(
-    text: str = Form(..., description="Text to convert to speech"),
-    voice: Optional[str] = Form(
-        default=None,
-        description="Voice name (e.g. Algenib, Despina, Aoede). Defaults to Enceladus.",
-    ),
-    voice_names: Optional[str] = Form(
-        default=None,
-        description="Comma-separated voice names (alternative to `voice`). First voice is used.",
-    ),
-    language: str = Form(default="vi", description="Language code (vi, en, zh, ...)"),
-    speed: float = Form(default=1.0, description="Speaking rate (0.25–4.0)"),
-    speaking_rate: float = Form(default=1.0, description="Alias for speed"),
-    use_pro_model: bool = Form(
-        default=False, description="Use gemini-2.5-pro-preview-tts (higher quality)"
-    ),
-    prompt: Optional[str] = Form(
-        default=None, description="Optional voice style instruction"
-    ),
-    filename: Optional[str] = Form(
-        default=None, description="Optional custom filename for library entry"
-    ),
+    body: GenerateAudioRequest,
     user: Dict = Depends(get_current_user),
 ) -> Dict[str, Any]:
+    text = body.text
+    voice = body.voice
+    voice_names = body.voice_names
+    language = body.language
+    speed = body.speed
+    speaking_rate = body.speaking_rate
+    use_pro_model = body.use_pro_model
+    prompt = body.prompt
+    filename = body.filename
     """
     Generate standalone TTS audio and save to Library Audio.
 
@@ -347,9 +351,13 @@ async def generate_audio_to_library(
         # Upload to R2
         audio_id = str(uuid.uuid4())
         r2_key = f"audio/library/{user_id}/{audio_id}.wav"
-        audio_file = io.BytesIO(audio_content)
-        audio_url = await r2_service.upload_file(
-            file=audio_file, key=r2_key, content_type="audio/wav"
+        upload_result = await r2_service.upload_file(
+            file_content=audio_content,
+            r2_key=r2_key,
+            content_type="audio/wav",
+        )
+        audio_url: str = (
+            upload_result.get("public_url") or upload_result.get("url") or audio_id
         )
 
         # Determine library filename
