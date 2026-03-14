@@ -16,8 +16,23 @@ from src.services.library_manager import LibraryManager
 from src.services.subscription_service import get_subscription_service
 from src.models.subscription import SubscriptionUsageUpdate
 from config.config import get_r2_client, get_mongodb, R2_BUCKET_NAME
+import os
 
 logger = logging.getLogger(__name__)
+
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+
+
+def _resolve_file_url(file_doc: dict, s3_client) -> str:
+    """Return public CDN URL for audio files, presigned URL for everything else."""
+    if file_doc.get("category") == "audio" or file_doc.get("file_type") == "audio":
+        return f"{R2_PUBLIC_URL}/{file_doc['r2_key'].lstrip('/')}"
+    return s3_client.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": R2_BUCKET_NAME, "Key": file_doc["r2_key"]},
+        ExpiresIn=3600,
+    )
+
 
 router = APIRouter(prefix="/api/library", tags=["Library Files"])
 
@@ -314,14 +329,10 @@ async def list_library_files(
             offset=offset,
         )
 
-        # Generate fresh signed URLs
+        # Generate fresh signed URLs (or CDN URL for audio)
         s3_client = get_r2_client()
         for file_doc in files:
-            file_doc["file_url"] = s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": R2_BUCKET_NAME, "Key": file_doc["r2_key"]},
-                ExpiresIn=3600,
-            )
+            file_doc["file_url"] = _resolve_file_url(file_doc, s3_client)
 
         return [LibraryFileResponse(**doc) for doc in files]
 
@@ -349,13 +360,9 @@ async def get_library_file(
         if not file_doc:
             raise HTTPException(status_code=404, detail="Library file not found")
 
-        # Generate fresh signed URL
+        # Generate fresh signed URL (or CDN URL for audio)
         s3_client = get_r2_client()
-        file_doc["file_url"] = s3_client.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": R2_BUCKET_NAME, "Key": file_doc["r2_key"]},
-            ExpiresIn=3600,
-        )
+        file_doc["file_url"] = _resolve_file_url(file_doc, s3_client)
 
         return LibraryFileResponse(**file_doc)
 
@@ -456,14 +463,10 @@ async def list_library_trash(
             offset=offset,
         )
 
-        # Generate fresh signed URLs
+        # Generate fresh signed URLs (or CDN URL for audio)
         s3_client = get_r2_client()
         for file_doc in files:
-            file_doc["file_url"] = s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": R2_BUCKET_NAME, "Key": file_doc["r2_key"]},
-                ExpiresIn=3600,
-            )
+            file_doc["file_url"] = _resolve_file_url(file_doc, s3_client)
 
         return [LibraryFileResponse(**doc) for doc in files]
 
@@ -624,14 +627,10 @@ async def search_library_files(
             limit=limit,
         )
 
-        # Generate fresh signed URLs
+        # Generate fresh signed URLs (or CDN URL for audio)
         s3_client = get_r2_client()
         for file_doc in files:
-            file_doc["file_url"] = s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": R2_BUCKET_NAME, "Key": file_doc["r2_key"]},
-                ExpiresIn=3600,
-            )
+            file_doc["file_url"] = _resolve_file_url(file_doc, s3_client)
 
         return [LibraryFileResponse(**doc) for doc in files]
 
