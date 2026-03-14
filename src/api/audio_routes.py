@@ -276,7 +276,7 @@ async def preview_tts_voice(
 class GenerateAudioRequest(BaseModel):
     text: str
     voice: Optional[str] = None
-    voice_names: Optional[str] = None  # comma-separated, first value used
+    voice_names: Optional[Any] = None  # str OR list[str] — first value used
     language: str = "vi"
     speed: float = 1.0
     speaking_rate: float = 1.0  # alias for speed
@@ -323,11 +323,15 @@ async def generate_audio_to_library(
             raise HTTPException(status_code=400, detail="Text cannot be empty")
 
         # Resolve voice name: `voice` takes priority, then first of `voice_names`
+        # voice_names can be a list ["Algenib"] or a comma-separated string "Algenib,Kore"
         resolved_voice: Optional[str] = None
-        if voice and voice.strip():
-            resolved_voice = voice.strip()
-        elif voice_names and voice_names.strip():
-            resolved_voice = voice_names.split(",")[0].strip() or None
+        if voice and str(voice).strip():
+            resolved_voice = str(voice).strip()
+        elif voice_names:
+            if isinstance(voice_names, list):
+                resolved_voice = str(voice_names[0]).strip() if voice_names else None
+            elif isinstance(voice_names, str) and voice_names.strip():
+                resolved_voice = voice_names.split(",")[0].strip() or None
 
         # Use the higher of speed / speaking_rate (in case frontend sends one or both)
         effective_rate = max(speed, speaking_rate)
