@@ -352,7 +352,10 @@ async def get_post(
     Fetch full post by slug.
     Published posts are public. Drafts visible to admin only.
     """
+    # Support lookup by either slug or post_id (for edit modals)
     doc = _db.blog_posts.find_one({"slug": slug})
+    if not doc:
+        doc = _db.blog_posts.find_one({"post_id": slug})
     if not doc:
         raise HTTPException(status_code=404, detail="Post not found")
 
