@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import uuid
+from unidecode import unidecode
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -143,7 +144,7 @@ _r2 = R2StorageService()
 
 
 def _slugify(text: str) -> str:
-    text = text.lower().strip()
+    text = unidecode(text).lower().strip()
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s_-]+", "-", text)
     return text[:120]
@@ -167,6 +168,11 @@ def _serialize_post(doc: dict) -> dict:
 
 class CreatePostRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=500)
+    slug: Optional[str] = Field(
+        None,
+        max_length=120,
+        description="Custom slug (auto-generated from title if omitted)",
+    )
     content: str = Field(..., description="Full post content (Markdown or HTML)")
     excerpt: Optional[str] = Field(
         None, max_length=2000, description="Short summary shown in listings"
@@ -190,6 +196,9 @@ class CreatePostRequest(BaseModel):
 
 class UpdatePostRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=500)
+    slug: Optional[str] = Field(
+        None, max_length=120, description="Custom slug override"
+    )
     content: Optional[str] = None
     excerpt: Optional[str] = Field(None, max_length=2000)
     cover_image: Optional[str] = None
@@ -378,7 +387,7 @@ async def create_post(
             detail=f"Invalid language code: {language}. Supported: {sorted(VALID_LANGUAGE_CODES)}",
         )
 
-    base_slug = _slugify(body.title)
+    base_slug = _slugify(body.slug) if body.slug else _slugify(body.title)
     slug = base_slug
     # Ensure slug uniqueness
     suffix = 1
@@ -441,16 +450,26 @@ async def update_post(
     now = datetime.now(timezone.utc)
     updates: Dict[str, Any] = {"updated_at": now}
 
-    if body.title is not None:
-        updates["title"] = body.title
-        # Re-slug only when title changes
-        base_slug = _slugify(body.title)
+    if body.slug is not None:
+        base_slug = _slugify(body.slug)
         slug = base_slug
         suffix = 1
         while _db.blog_posts.find_one({"slug": slug, "post_id": {"$ne": post_id}}):
             slug = f"{base_slug}-{suffix}"
             suffix += 1
         updates["slug"] = slug
+
+    if body.title is not None:
+        updates["title"] = body.title
+        # Re-slug from title only when no explicit slug provided
+        if body.slug is None:
+            base_slug = _slugify(body.title)
+            slug = base_slug
+            suffix = 1
+            while _db.blog_posts.find_one({"slug": slug, "post_id": {"$ne": post_id}}):
+                slug = f"{base_slug}-{suffix}"
+                suffix += 1
+            updates["slug"] = slug
 
     for field in (
         "content",
