@@ -1,0 +1,366 @@
+"""
+Blog Posts API
+CRUD + listing for WordAI homepage & landing page blog posts.
+
+Admin: tienhoi.lh@gmail.com only (create / update / delete / upload images)
+Public: anyone can list and read published posts (no auth required)
+"""
+
+import logging
+import os
+import re
+import uuid
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
+
+from src.database.db_manager import DBManager
+from src.middleware.firebase_auth import get_current_user, get_current_user_optional
+from src.services.r2_storage_service import R2StorageService
+
+logger = logging.getLogger("chatbot")
+
+router = APIRouter(prefix="/api/blog", tags=["Blog"])
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+ADMIN_EMAIL = "tienhoi.lh@gmail.com"
+
+BLOG_CATEGORIES = [
+    {"slug": "ai-code-studio",        "name": "AI Code Studio",           "description": "Code smarter with AI assistance"},
+    {"slug": "community-tests",       "name": "Community Tests",          "description": "Create tests from any document"},
+    {"slug": "ai-learning-assistant", "name": "AI Learning Assistant",    "description": "Personalized AI learning assistant"},
+    {"slug": "create-edit-documents", "name": "Create & Edit Documents",  "description": "AI create, rewrite, translate"},
+    {"slug": "reading-ai-chat",       "name": "Reading & AI Chat",        "description": "Read PDF · Chat AI beside document"},
+    {"slug": "community-books",       "name": "Community Books",          "description": "Publish books · Earn 80% revenue"},
+    {"slug": "ai-images",             "name": "AI Images",                "description": "10 tools for image creation & editing"},
+    {"slug": "ai-audio",              "name": "AI Audio",                 "description": "Text-to-speech · Podcast · Natural voice"},
+    {"slug": "ai-slide-studio",       "name": "AI Slide Studio",          "description": "Create slides from PDF + Audio + Subtitles"},
+    {"slug": "studyhub",              "name": "StudyHub",                 "description": "Learn · Teach · Earn from courses"},
+    {"slug": "ai-software-lab",       "name": "AI Software Lab",          "description": "Deploy apps without coding"},
+    {"slug": "wordai-os",             "name": "WordAI OS",                "description": "Linux + Zero-Knowledge · Enterprise"},
+    {"slug": "listen-learn",          "name": "Listen & Learn",           "description": "Listen & learn new languages"},
+    {"slug": "wordai-appstore",       "name": "WordAI Appstore",          "description": "AI app store · Discover & share"},
+    {"slug": "ai-agents",             "name": "AI Agents",                "description": "AI agents that automate your work"},
+    {"slug": "secret-documents",      "name": "Secret Documents",         "description": "Zero-Knowledge · AES-256"},
+]
+
+VALID_CATEGORY_SLUGS = {c["slug"] for c in BLOG_CATEGORIES}
+
+R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "wordai-documents")
+
+# Shared services
+_db_manager = DBManager()
+_db = _db_manager.db
+_r2 = R2StorageService()
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _slugify(text: str) -> str:
+    text = text.lower().strip()
+    text = re.sub(r"[^\w\s-]", "", text)
+    text = re.sub(r"[\s_-]+", "-", text)
+    return text[:120]
+
+
+def _require_admin(user: Optional[Dict]) -> None:
+    if not user or user.get("email") != ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Admin only")
+
+
+def _serialize_post(doc: dict) -> dict:
+    doc = dict(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+# ---------------------------------------------------------------------------
+# Pydantic models
+# ---------------------------------------------------------------------------
+
+class CreatePostRequest(BaseModel):
+    title: str = Field(..., min_length=3, max_length=500)
+    content: str = Field(..., description="Full post content (Markdown or HTML)")
+    excerpt: Optional[str] = Field(None, max_length=500, description="Short summary shown in listings")
+    cover_image: Optional[str] = Field(None, description="CDN URL of cover image")
+    category: str = Field(..., description="Category slug (must be one of the 16 valid slugs)")
+    tags: List[str] = Field(default_factory=list, description="Free-form tags")
+    status: str = Field("draft", pattern="^(draft|published)$")
+    seo_title: Optional[str] = Field(None, max_length=200)
+    seo_description: Optional[str] = Field(None, max_length=500)
+
+
+class UpdatePostRequest(BaseModel):
+    title: Optional[str] = Field(None, min_length=3, max_length=500)
+    content: Optional[str] = None
+    excerpt: Optional[str] = Field(None, max_length=500)
+    cover_image: Optional[str] = None
+    category: Optional[str] = None
+    tags: Optional[List[str]] = None
+    status: Optional[str] = Field(None, pattern="^(draft|published)$")
+    seo_title: Optional[str] = Field(None, max_length=200)
+    seo_description: Optional[str] = Field(None, max_length=500)
+
+
+# ---------------------------------------------------------------------------
+# Public: list + read
+# ---------------------------------------------------------------------------
+
+@router.get("/posts", summary="List blog posts (public)")
+async def list_posts(
+    category: Optional[str] = Query(None, description="Filter by category slug"),
+    tag: Optional[str] = Query(None, description="Filter by tag"),
+    q: Optional[str] = Query(None, description="Search in title (case-insensitive)"),
+    status: Optional[str] = Query("published", description="published | draft | all (admin only)"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    user: Optional[Dict] = Depends(get_current_user_optional),
+) -> Dict[str, Any]:
+    """
+    List blog posts.
+
+    - **Public** users only see `status=published` posts.
+    - **Admin** can pass `status=draft` or `status=all` to see drafts too.
+    - Filter by `category` (slug), `tag`, or free-text search `q` (title).
+    """
+    is_admin = user and user.get("email") == ADMIN_EMAIL
+
+    # Non-admin can only see published posts
+    if not is_admin:
+        status = "published"
+
+    query: Dict[str, Any] = {}
+
+    if status == "all":
+        pass  # no status filter
+    else:
+        query["status"] = status
+
+    if category:
+        if category not in VALID_CATEGORY_SLUGS:
+            raise HTTPException(status_code=400, detail=f"Invalid category slug: {category}")
+        query["category"] = category
+
+    if tag:
+        query["tags"] = tag  # MongoDB matches if array contains value
+
+    if q:
+        query["title"] = {"$regex": re.escape(q), "$options": "i"}
+
+    skip = (page - 1) * limit
+    total = _db.blog_posts.count_documents(query)
+    posts = list(
+        _db.blog_posts.find(query, {"content": 0})  # omit full content in listing
+        .sort("published_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+
+    return {
+        "success": True,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": (total + limit - 1) // limit,
+        "posts": [_serialize_post(p) for p in posts],
+    }
+
+
+@router.get("/posts/{slug}", summary="Get single post by slug (public)")
+async def get_post(
+    slug: str,
+    user: Optional[Dict] = Depends(get_current_user_optional),
+) -> Dict[str, Any]:
+    """
+    Fetch full post by slug.
+    Published posts are public. Drafts visible to admin only.
+    """
+    doc = _db.blog_posts.find_one({"slug": slug})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    is_admin = user and user.get("email") == ADMIN_EMAIL
+    if doc["status"] != "published" and not is_admin:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    return {"success": True, "post": _serialize_post(doc)}
+
+
+# ---------------------------------------------------------------------------
+# Admin: CRUD
+# ---------------------------------------------------------------------------
+
+@router.post("/posts", summary="Create post (admin only)", status_code=201)
+async def create_post(
+    body: CreatePostRequest,
+    user: Dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_admin(user)
+
+    if body.category not in VALID_CATEGORY_SLUGS:
+        raise HTTPException(status_code=400, detail=f"Invalid category slug: {body.category}")
+
+    base_slug = _slugify(body.title)
+    slug = base_slug
+    # Ensure slug uniqueness
+    suffix = 1
+    while _db.blog_posts.find_one({"slug": slug}):
+        slug = f"{base_slug}-{suffix}"
+        suffix += 1
+
+    now = datetime.now(timezone.utc)
+    post_id = f"post_{uuid.uuid4().hex[:12]}"
+
+    doc = {
+        "post_id": post_id,
+        "slug": slug,
+        "title": body.title,
+        "content": body.content,
+        "excerpt": body.excerpt or "",
+        "cover_image": body.cover_image or "",
+        "category": body.category,
+        "tags": body.tags,
+        "status": body.status,
+        "author_email": ADMIN_EMAIL,
+        "seo_title": body.seo_title or body.title,
+        "seo_description": body.seo_description or body.excerpt or "",
+        "published_at": now if body.status == "published" else None,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+    _db.blog_posts.insert_one(doc)
+    logger.info(f"✅ Blog post created: {post_id} '{body.title}'")
+
+    return {"success": True, "post": _serialize_post(doc)}
+
+
+@router.put("/posts/{post_id}", summary="Update post (admin only)")
+async def update_post(
+    post_id: str,
+    body: UpdatePostRequest,
+    user: Dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_admin(user)
+
+    doc = _db.blog_posts.find_one({"post_id": post_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    if body.category and body.category not in VALID_CATEGORY_SLUGS:
+        raise HTTPException(status_code=400, detail=f"Invalid category slug: {body.category}")
+
+    now = datetime.now(timezone.utc)
+    updates: Dict[str, Any] = {"updated_at": now}
+
+    if body.title is not None:
+        updates["title"] = body.title
+        # Re-slug only when title changes
+        base_slug = _slugify(body.title)
+        slug = base_slug
+        suffix = 1
+        while _db.blog_posts.find_one({"slug": slug, "post_id": {"$ne": post_id}}):
+            slug = f"{base_slug}-{suffix}"
+            suffix += 1
+        updates["slug"] = slug
+
+    for field in ("content", "excerpt", "cover_image", "category", "tags",
+                  "seo_title", "seo_description"):
+        val = getattr(body, field, None)
+        if val is not None:
+            updates[field] = val
+
+    if body.status is not None:
+        updates["status"] = body.status
+        if body.status == "published" and doc.get("status") != "published":
+            updates["published_at"] = now
+
+    _db.blog_posts.update_one({"post_id": post_id}, {"$set": updates})
+    updated = _db.blog_posts.find_one({"post_id": post_id})
+    logger.info(f"✅ Blog post updated: {post_id}")
+
+    return {"success": True, "post": _serialize_post(updated)}
+
+
+@router.delete("/posts/{post_id}", summary="Delete post (admin only)")
+async def delete_post(
+    post_id: str,
+    user: Dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    _require_admin(user)
+
+    result = _db.blog_posts.delete_one({"post_id": post_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    logger.info(f"🗑️ Blog post deleted: {post_id}")
+    return {"success": True, "message": f"Post {post_id} deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Admin: Image upload to R2 (presigned PUT, host-side, public)
+# ---------------------------------------------------------------------------
+
+@router.post("/images/upload-url", summary="Get presigned PUT URL for blog image (admin only)")
+async def get_image_upload_url(
+    filename: str = Query(..., description="Original filename (e.g. hero.jpg)"),
+    content_type: str = Query("image/jpeg", description="MIME type of the image"),
+    user: Dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Returns a **presigned PUT URL** that the frontend can use to upload an image
+    directly to R2 from the browser — no proxy through the backend server.
+
+    **Flow:**
+    1. Call this endpoint → get `upload_url` (presigned PUT) + `public_url` (CDN).
+    2. Frontend: `PUT upload_url` with the file bytes in the request body.
+    3. Use `public_url` as the `cover_image` or inline image link in the post content.
+
+    **Auth:** Admin only (`tienhoi.lh@gmail.com`)
+    """
+    _require_admin(user)
+
+    # Sanitise filename and build R2 key
+    safe_name = re.sub(r"[^\w.\-]", "_", filename)
+    ext = safe_name.rsplit(".", 1)[-1].lower() if "." in safe_name else "jpg"
+    r2_key = f"blog/images/{uuid.uuid4().hex}.{ext}"
+
+    # Presigned PUT URL (1 hour)
+    upload_url = _r2.s3_client.generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": R2_BUCKET_NAME,
+            "Key": r2_key,
+            "ContentType": content_type,
+        },
+        ExpiresIn=3600,
+        HttpMethod="PUT",
+    )
+
+    public_url = _r2.get_public_url(r2_key)
+
+    return {
+        "success": True,
+        "upload_url": upload_url,
+        "public_url": public_url,
+        "r2_key": r2_key,
+        "expires_in": 3600,
+        "instructions": "PUT the file bytes directly to upload_url, then use public_url in your post.",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Public: categories list
+# ---------------------------------------------------------------------------
+
+@router.get("/categories", summary="List all blog categories (public)")
+async def list_categories() -> Dict[str, Any]:
+    return {"success": True, "categories": BLOG_CATEGORIES}

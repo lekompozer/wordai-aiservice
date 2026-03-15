@@ -294,6 +294,9 @@ from src.api.slide_narration_routes import router as slide_narration_router
 # ✅ ADDED: Lyria Music Generation API - AI-powered music from text prompts
 from src.api.lyria_routes import router as lyria_router
 
+# ✅ ADDED: Blog Posts API - CRUD for WordAI homepage & landing page posts
+from src.api.blog_routes import router as blog_router
+
 # ✅ ADDED: Feedback & Review API - User reviews with social sharing rewards
 from src.api.feedback_routes import router as feedback_router
 
@@ -1406,6 +1409,12 @@ def create_app() -> FastAPI:
     app.include_router(
         lyria_router,
         tags=["Lyria Music", "AI Tools", "Music Generation"],
+    )
+
+    # ✅ NEW: Blog Posts API - CRUD for homepage & landing page blog posts
+    app.include_router(
+        blog_router,
+        tags=["Blog"],
     )
 
     # ✅ NEW: Feedback & Review API - User reviews with social sharing rewards
