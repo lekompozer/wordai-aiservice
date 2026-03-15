@@ -180,22 +180,23 @@ async def generate_test_cover_ai(
             )[:30]
             filename = f"test_cover_{safe_title}_{int(time.time())}.png"
 
-            # Upload to R2
+            # Upload to CF Images / R2
             upload_result = await gemini_service.upload_to_r2(
                 image_bytes=image_bytes,
                 user_id=user_id,
                 filename=filename,
             )
 
-            logger.info(f"☁️  Uploaded test cover to R2: {upload_result['file_url']}")
+            logger.info(f"☁️  Uploaded test cover: {upload_result['file_url']}")
 
             # Save to library
             library_doc = await gemini_service.save_to_library(
                 user_id=user_id,
                 filename=filename,
                 file_size=file_size,
-                r2_key=upload_result["r2_key"],
+                r2_key=upload_result.get("r2_key"),
                 file_url=upload_result["file_url"],
+                cf_image_id=upload_result.get("cf_image_id"),
                 title=request.title,
                 description=request.description,
                 style=request.style,

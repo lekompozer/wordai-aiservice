@@ -211,21 +211,34 @@ class GeminiTestCoverService:
         self, image_bytes: bytes, user_id: str, filename: str
     ) -> Dict[str, str]:
         """
-        Upload generated test cover to R2 storage
+        Upload generated test cover — Cloudflare Images first, R2 fallback.
 
-        Args:
-            image_bytes: PNG image data
-            user_id: User ID for organizing files
-            filename: Original filename
-
-        Returns:
-            Dict with r2_key and file_url
+        Returns dict with keys: file_url, cf_image_id (or None), r2_key (or None)
         """
+        # --- Cloudflare Images (preferred) ---
         try:
-            # Generate R2 key for test covers
+            from src.services.cloudflare_images_service import (
+                get_cloudflare_images_service,
+            )
+
+            cf = get_cloudflare_images_service()
+            if cf.enabled:
+                cf_result = await cf.upload_image(image_bytes)
+                logger.info(
+                    f"✅ Test cover uploaded to Cloudflare Images: {cf_result['id']}"
+                )
+                return {
+                    "file_url": cf_result["public_url"],
+                    "cf_image_id": cf_result["id"],
+                    "r2_key": None,
+                }
+        except Exception as cf_err:
+            logger.warning(f"⚠️ CF Images upload failed, falling back to R2: {cf_err}")
+
+        # --- R2 fallback ---
+        try:
             r2_key = f"test_covers/{user_id}/{filename}"
 
-            # Upload to R2
             self.s3_client.put_object(
                 Bucket=self.r2_bucket,
                 Key=r2_key,
@@ -233,32 +246,28 @@ class GeminiTestCoverService:
                 ContentType="image/png",
             )
 
-            # Build public URL
             file_url = f"{self.r2_public_url}/{r2_key}"
-
             logger.info(f"☁️  Uploaded test cover to R2: {r2_key}")
 
-            return {
-                "r2_key": r2_key,
-                "file_url": file_url,
-            }
+            return {"r2_key": r2_key, "file_url": file_url, "cf_image_id": None}
 
         except Exception as e:
             logger.error(f"❌ R2 upload failed: {e}", exc_info=True)
-            raise ValueError(f"Failed to upload to R2: {str(e)}")
+            raise ValueError(f"Failed to upload: {str(e)}")
 
     async def save_to_library(
         self,
         user_id: str,
         filename: str,
         file_size: int,
-        r2_key: str,
+        r2_key: Optional[str],
         file_url: str,
         title: str,
         description: str,
         style: Optional[str],
         prompt_used: str,
         db: Any,
+        cf_image_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Save generated test cover metadata to library_files collection
@@ -291,6 +300,7 @@ class GeminiTestCoverService:
                 "file_type": "test-cover",  # New type for test covers
                 "r2_key": r2_key,
                 "file_url": file_url,
+                "cf_image_id": cf_image_id,
                 "is_public": False,
                 "created_at": now,
                 "updated_at": now,

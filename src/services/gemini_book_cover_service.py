@@ -223,24 +223,37 @@ class GeminiBookCoverService:
         self, image_bytes: bytes, user_id: str, filename: str
     ) -> Dict[str, str]:
         """
-        Upload generated book cover to R2 storage
+        Upload generated book cover — Cloudflare Images first, R2 fallback.
 
-        Args:
-            image_bytes: Image data as bytes
-            user_id: Firebase user ID
-            filename: Filename for the image
-
-        Returns:
-            Dict with r2_key and file_url
+        Returns dict with keys: file_url, cf_image_id (or None), r2_key (or None)
         """
+        # --- Cloudflare Images (preferred) ---
         try:
-            # Generate R2 key for book covers
+            from src.services.cloudflare_images_service import (
+                get_cloudflare_images_service,
+            )
+
+            cf = get_cloudflare_images_service()
+            if cf.enabled:
+                cf_result = await cf.upload_image(image_bytes)
+                logger.info(
+                    f"✅ Book cover uploaded to Cloudflare Images: {cf_result['id']}"
+                )
+                return {
+                    "file_url": cf_result["public_url"],
+                    "cf_image_id": cf_result["id"],
+                    "r2_key": None,
+                }
+        except Exception as cf_err:
+            logger.warning(f"⚠️ CF Images upload failed, falling back to R2: {cf_err}")
+
+        # --- R2 fallback ---
+        try:
             unique_id = uuid.uuid4().hex[:12]
             r2_key = f"ai-generated-images/{user_id}/{unique_id}_{filename}"
 
             logger.info(f"☁️  Uploading book cover to R2: {r2_key}")
 
-            # Upload to R2
             self.s3_client.put_object(
                 Bucket=self.r2_bucket,
                 Key=r2_key,
@@ -248,23 +261,21 @@ class GeminiBookCoverService:
                 ContentType="image/png",
             )
 
-            # Generate public URL
             file_url = f"{self.r2_public_url}/{r2_key}"
-
             logger.info(f"✅ Book cover uploaded to R2: {file_url}")
 
-            return {"r2_key": r2_key, "file_url": file_url}
+            return {"r2_key": r2_key, "file_url": file_url, "cf_image_id": None}
 
         except Exception as e:
-            logger.error(f"❌ Failed to upload book cover to R2: {e}")
-            raise Exception(f"R2 upload failed: {str(e)}")
+            logger.error(f"❌ Failed to upload book cover: {e}")
+            raise Exception(f"Upload failed: {str(e)}")
 
     async def save_to_library(
         self,
         user_id: str,
         filename: str,
         file_size: int,
-        r2_key: str,
+        r2_key: Optional[str],
         file_url: str,
         title: str,
         author: str,
@@ -272,6 +283,7 @@ class GeminiBookCoverService:
         style: Optional[str],
         prompt_used: str,
         db,
+        cf_image_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Save generated book cover metadata to library_files collection
@@ -322,6 +334,7 @@ class GeminiBookCoverService:
                 "folder_id": None,
                 "r2_key": r2_key,
                 "file_url": file_url,
+                "cf_image_id": cf_image_id,
                 "category": "images",
                 "description": f"Book cover for '{title}' by {author}",
                 "tags": ["ai-generated", "book-cover", title, author],

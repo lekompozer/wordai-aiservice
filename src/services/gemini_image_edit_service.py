@@ -597,8 +597,8 @@ class GeminiImageEditService:
             generation_time = time.time() - start_time
             logger.info(f"⏱️ Generation time: {generation_time:.2f}s")
 
-            # Upload to R2 and save to library
-            logger.info("📤 Uploading to R2...")
+            # Upload to CF Images / R2 and save to library
+            logger.info("📤 Uploading image...")
             file_data = await self.upload_to_r2(image_bytes, user_id)
             file_size = len(image_bytes)
 
@@ -616,7 +616,8 @@ class GeminiImageEditService:
             library_data = await self.save_to_library(
                 user_id=user_id,
                 file_url=file_data["file_url"],
-                r2_key=file_data["r2_key"],
+                r2_key=file_data.get("r2_key"),
+                cf_image_id=file_data.get("cf_image_id"),
                 file_size=file_size,
                 edit_type=edit_type,
                 metadata={
@@ -657,25 +658,39 @@ class GeminiImageEditService:
                 status_code=500, detail=f"Image editing failed: {str(e)}"
             )
 
-    async def upload_to_r2(self, image_bytes: bytes, user_id: str) -> Dict[str, str]:
+    async def upload_to_r2(self, image_bytes: bytes, user_id: str) -> Dict[str, Any]:
         """
-        Upload edited image to Cloudflare R2 storage
+        Upload edited image — Cloudflare Images first, R2 fallback.
 
-        Args:
-            image_bytes: Image data as bytes
-            user_id: User ID for folder organization
-
-        Returns:
-            Dict with file_url and r2_key
+        Returns dict with keys: file_url, cf_image_id (or None), r2_key (or None)
         """
+        # --- Cloudflare Images (preferred) ---
         try:
-            # Generate unique filename
+            from src.services.cloudflare_images_service import (
+                get_cloudflare_images_service,
+            )
+
+            cf = get_cloudflare_images_service()
+            if cf.enabled:
+                cf_result = await cf.upload_image(image_bytes)
+                logger.info(
+                    f"✅ AI-edited image uploaded to Cloudflare Images: {cf_result['id']}"
+                )
+                return {
+                    "file_url": cf_result["public_url"],
+                    "cf_image_id": cf_result["id"],
+                    "r2_key": None,
+                }
+        except Exception as cf_err:
+            logger.warning(f"⚠️ CF Images upload failed, falling back to R2: {cf_err}")
+
+        # --- R2 fallback ---
+        try:
             filename = f"{int(time.time())}_{uuid.uuid4().hex[:8]}.jpg"
             r2_key = f"ai-edited-images/{user_id}/{filename}"
 
             logger.info(f"☁️ Uploading to R2: {r2_key}")
 
-            # Upload to R2
             self.r2_client.put_object(
                 Bucket=self.r2_bucket_name,
                 Key=r2_key,
@@ -683,28 +698,24 @@ class GeminiImageEditService:
                 ContentType="image/jpeg",
             )
 
-            # Construct public URL
             file_url = f"{self.r2_public_url}/{r2_key}"
-
             logger.info(f"✅ R2 upload complete: {file_url}")
 
-            return {
-                "file_url": file_url,
-                "r2_key": r2_key,
-            }
+            return {"file_url": file_url, "r2_key": r2_key, "cf_image_id": None}
 
         except ClientError as e:
             logger.error(f"❌ R2 upload failed: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"R2 upload failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
     async def save_to_library(
         self,
         user_id: str,
         file_url: str,
-        r2_key: str,
+        r2_key: Optional[str],
         file_size: int,
         edit_type: str,
         metadata: Dict[str, Any],
+        cf_image_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Save edited image metadata to user's library
@@ -723,16 +734,22 @@ class GeminiImageEditService:
         try:
             file_id = f"file_{uuid.uuid4().hex}"
 
+            _filename = (
+                r2_key.split("/")[-1]
+                if r2_key
+                else file_url.split("/")[-1].split("?")[0] or "image.jpg"
+            )
             library_doc = {
                 "file_id": file_id,
                 "library_id": file_id,
                 "user_id": user_id,
-                "filename": r2_key.split("/")[-1],
-                "original_name": r2_key.split("/")[-1],
+                "filename": _filename,
+                "original_name": _filename,
                 "file_type": "image/jpeg",
                 "file_size": file_size,
                 "folder_id": None,
                 "r2_key": r2_key,
+                "cf_image_id": cf_image_id,
                 "file_url": file_url,
                 "category": "images",
                 "sub_category": "ai_edited",

@@ -21,12 +21,21 @@ import os
 logger = logging.getLogger(__name__)
 
 R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+CF_IMAGES_DELIVERY_URL = os.getenv(
+    "CLOUDFLARE_IMAGES_DELIVERY_URL",
+    "https://imagedelivery.net/Pw2WK7nSZVnnzk4LKnBfXQ",
+)
 
 
 def _resolve_file_url(file_doc: dict, s3_client) -> str:
-    """Return public CDN URL for audio files, presigned URL for everything else."""
+    """Return appropriate URL: CF Images delivery, public CDN for audio, presigned for rest."""
+    # CF Images: permanent, auto-optimised delivery
+    if file_doc.get("cf_image_id"):
+        return f"{CF_IMAGES_DELIVERY_URL}/{file_doc['cf_image_id']}/public"
+    # Audio: public R2 CDN
     if file_doc.get("category") == "audio" or file_doc.get("file_type") == "audio":
         return f"{R2_PUBLIC_URL}/{file_doc['r2_key'].lstrip('/')}"
+    # Others: R2 presigned URL
     return s3_client.generate_presigned_url(
         "get_object",
         Params={"Bucket": R2_BUCKET_NAME, "Key": file_doc["r2_key"]},

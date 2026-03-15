@@ -445,12 +445,12 @@ async def delete_post(
 
 
 # ---------------------------------------------------------------------------
-# Admin: Image upload to R2 (presigned PUT, host-side, public)
+# Admin: Image upload via Cloudflare Images (with R2 fallback)
 # ---------------------------------------------------------------------------
 
 
 @router.post(
-    "/images/upload-url", summary="Get presigned PUT URL for blog image (admin only)"
+    "/images/upload-url", summary="Get Cloudflare Images direct upload URL (admin only)"
 )
 async def get_image_upload_url(
     filename: str = Query(..., description="Original filename (e.g. hero.jpg)"),
@@ -458,24 +458,52 @@ async def get_image_upload_url(
     user: Dict = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """
-    Returns a **presigned PUT URL** that the frontend can use to upload an image
-    directly to R2 from the browser — no proxy through the backend server.
+    Returns a **one-time Cloudflare Images direct upload URL** for browser-side upload.
 
-    **Flow:**
-    1. Call this endpoint → get `upload_url` (presigned PUT) + `public_url` (CDN).
-    2. Frontend: `PUT upload_url` with the file bytes in the request body.
-    3. Use `public_url` as the `cover_image` or inline image link in the post content.
+    **Flow (Cloudflare Images):**
+    1. Call this endpoint → get `upload_url` (one-time) + `public_url` (permanent CDN).
+    2. Frontend: `POST upload_url` with the image as a multipart `file` field.
+    3. Use `public_url` as `cover_image` when creating/updating a blog post.
+
+    **Fallback (R2):** If Cloudflare Images is unavailable, returns a presigned
+    `PUT` URL for direct R2 upload (same `upload_url` / `public_url` shape).
 
     **Auth:** Admin only (`tienhoi.lh@gmail.com`)
     """
     _require_admin(user)
 
-    # Sanitise filename and build R2 key
+    # --- Try Cloudflare Images Direct Creator Upload first ---
+    try:
+        from src.services.cloudflare_images_service import get_cloudflare_images_service
+
+        cf = get_cloudflare_images_service()
+        if cf.enabled:
+            result = await cf.get_direct_upload_url(
+                metadata={
+                    "source": "blog",
+                    "uploaded_by": user.get("email", "admin"),
+                }
+            )
+            return {
+                "success": True,
+                "provider": "cloudflare",
+                "image_id": result["id"],
+                "upload_url": result["upload_url"],
+                "public_url": result["public_url"],
+                "expires_in": 3600,
+                "instructions": (
+                    "POST the image file to upload_url as multipart 'file' field, "
+                    "then use public_url as cover_image in your post."
+                ),
+            }
+    except Exception as cf_err:
+        logger.warning(f"⚠️ CF Images unavailable, falling back to R2: {cf_err}")
+
+    # --- Fallback: R2 presigned PUT URL ---
     safe_name = re.sub(r"[^\w.\-]", "_", filename)
     ext = safe_name.rsplit(".", 1)[-1].lower() if "." in safe_name else "jpg"
     r2_key = f"blog/images/{uuid.uuid4().hex}.{ext}"
 
-    # Presigned PUT URL (1 hour)
     upload_url = _r2.s3_client.generate_presigned_url(
         "put_object",
         Params={
@@ -486,11 +514,11 @@ async def get_image_upload_url(
         ExpiresIn=3600,
         HttpMethod="PUT",
     )
-
     public_url = _r2.get_public_url(r2_key)
 
     return {
         "success": True,
+        "provider": "r2",
         "upload_url": upload_url,
         "public_url": public_url,
         "r2_key": r2_key,

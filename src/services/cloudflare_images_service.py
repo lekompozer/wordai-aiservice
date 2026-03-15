@@ -310,6 +310,64 @@ class CloudflareImagesService:
 
         return url
 
+    async def get_direct_upload_url(
+        self,
+        metadata: Optional[Dict[str, str]] = None,
+        expiry_seconds: int = 3600,
+    ) -> Dict[str, Any]:
+        """
+        Create a CF Images Direct Creator Upload URL (v2).
+        The frontend POSTs the image file directly to the returned `upload_url`.
+
+        Flow:
+          1. Call this method to get {id, upload_url, public_url}
+          2. Frontend POSTs image as multipart `file` field to upload_url
+          3. Image is live at public_url immediately after upload
+
+        Returns:
+            {"id": "...", "upload_url": "...", "public_url": "..."}
+        """
+        if not self.enabled:
+            raise ValueError("Cloudflare Images is not enabled")
+
+        from datetime import datetime, timezone, timedelta
+        import json
+
+        expiry = (
+            datetime.now(timezone.utc) + timedelta(seconds=expiry_seconds)
+        ).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        form_data: Dict[str, str] = {"expiry": expiry}
+        if metadata:
+            form_data["metadata"] = json.dumps(metadata)
+
+        direct_upload_api = (
+            f"https://api.cloudflare.com/client/v4/accounts/{self.account_id}"
+            "/images/v2/direct_upload"
+        )
+        headers = {"Authorization": f"Bearer {self.api_token}"}
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                direct_upload_api, headers=headers, data=form_data
+            )
+            result = response.json() if response.text else {}
+
+            if response.status_code != 200 or not result.get("success"):
+                errors = result.get("errors", [])
+                raise Exception(f"Failed to create direct upload URL: {errors}")
+
+            image_id = result["result"]["id"]
+            upload_url = result["result"]["uploadURL"]
+            public_url = f"{self.delivery_url}/{image_id}/public"
+
+            logger.info(f"✅ CF Images direct upload URL created: {image_id}")
+            return {
+                "id": image_id,
+                "upload_url": upload_url,
+                "public_url": public_url,
+            }
+
 
 # Singleton instance
 _cloudflare_images_service: Optional[CloudflareImagesService] = None
