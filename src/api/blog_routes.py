@@ -115,6 +115,19 @@ BLOG_CATEGORIES = [
 
 VALID_CATEGORY_SLUGS = {c["slug"] for c in BLOG_CATEGORIES}
 
+# 8 languages supported by Listen & Learn
+SUPPORTED_LANGUAGES = [
+    {"code": "vi", "name": "Tiếng Việt", "name_en": "Vietnamese", "flag": "🇻🇳"},
+    {"code": "en", "name": "English", "name_en": "English", "flag": "🇬🇧"},
+    {"code": "ja", "name": "日本語", "name_en": "Japanese", "flag": "🇯🇵"},
+    {"code": "ko", "name": "한국어", "name_en": "Korean", "flag": "🇰🇷"},
+    {"code": "zh", "name": "中文", "name_en": "Chinese", "flag": "🇨🇳"},
+    {"code": "fr", "name": "Français", "name_en": "French", "flag": "🇫🇷"},
+    {"code": "de", "name": "Deutsch", "name_en": "German", "flag": "🇩🇪"},
+    {"code": "es", "name": "Español", "name_en": "Spanish", "flag": "🇪🇸"},
+]
+VALID_LANGUAGE_CODES = {l["code"] for l in SUPPORTED_LANGUAGES}
+
 R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
 R2_BUCKET_NAME = os.getenv("R2_BUCKET_NAME", "wordai-documents")
 
@@ -162,6 +175,10 @@ class CreatePostRequest(BaseModel):
     category: str = Field(
         ..., description="Category slug (must be one of the 16 valid slugs)"
     )
+    language: str = Field(
+        "vi",
+        description="Language code: vi | en | ja | ko | zh | fr | de | es",
+    )
     tags: List[str] = Field(default_factory=list, description="Free-form tags")
     status: str = Field("draft", pattern="^(draft|published)$")
     seo_title: Optional[str] = Field(None, max_length=200)
@@ -174,6 +191,10 @@ class UpdatePostRequest(BaseModel):
     excerpt: Optional[str] = Field(None, max_length=500)
     cover_image: Optional[str] = None
     category: Optional[str] = None
+    language: Optional[str] = Field(
+        None,
+        description="Language code: vi | en | ja | ko | zh | fr | de | es",
+    )
     tags: Optional[List[str]] = None
     status: Optional[str] = Field(None, pattern="^(draft|published)$")
     seo_title: Optional[str] = Field(None, max_length=200)
@@ -188,6 +209,10 @@ class UpdatePostRequest(BaseModel):
 @router.get("/posts", summary="List blog posts (public)")
 async def list_posts(
     category: Optional[str] = Query(None, description="Filter by category slug"),
+    lang: Optional[str] = Query(
+        "vi",
+        description="Filter by language code (vi | en | ja | ko | zh | fr | de | es). Pass 'all' to skip filter.",
+    ),
     tag: Optional[str] = Query(None, description="Filter by tag"),
     q: Optional[str] = Query(None, description="Search in title (case-insensitive)"),
     status: Optional[str] = Query(
@@ -202,7 +227,9 @@ async def list_posts(
 
     - **Public** users only see `status=published` posts.
     - **Admin** can pass `status=draft` or `status=all` to see drafts too.
-    - Filter by `category` (slug), `tag`, or free-text search `q` (title).
+    - Filter by `lang` (language code, default `vi`), `category` (slug), `tag`,
+      or free-text search `q` (title).
+    - Pass `lang=all` to retrieve posts in all languages.
     """
     is_admin = user and user.get("email") == ADMIN_EMAIL
 
@@ -216,6 +243,15 @@ async def list_posts(
         pass  # no status filter
     else:
         query["status"] = status
+
+    # Language filter (default vi; pass 'all' to skip)
+    if lang and lang != "all":
+        if lang not in VALID_LANGUAGE_CODES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid language code: {lang}. Supported: {sorted(VALID_LANGUAGE_CODES)}",
+            )
+        query["language"] = lang
 
     if category:
         if category not in VALID_CATEGORY_SLUGS:
@@ -245,6 +281,7 @@ async def list_posts(
         "page": page,
         "limit": limit,
         "pages": (total + limit - 1) // limit,
+        "language": lang,
         "posts": [_serialize_post(p) for p in posts],
     }
 
@@ -286,6 +323,13 @@ async def create_post(
             status_code=400, detail=f"Invalid category slug: {body.category}"
         )
 
+    language = body.language or "vi"
+    if language not in VALID_LANGUAGE_CODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid language code: {language}. Supported: {sorted(VALID_LANGUAGE_CODES)}",
+        )
+
     base_slug = _slugify(body.title)
     slug = base_slug
     # Ensure slug uniqueness
@@ -305,6 +349,7 @@ async def create_post(
         "excerpt": body.excerpt or "",
         "cover_image": body.cover_image or "",
         "category": body.category,
+        "language": language,
         "tags": body.tags,
         "status": body.status,
         "author_email": ADMIN_EMAIL,
@@ -338,6 +383,12 @@ async def update_post(
             status_code=400, detail=f"Invalid category slug: {body.category}"
         )
 
+    if body.language and body.language not in VALID_LANGUAGE_CODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid language code: {body.language}. Supported: {sorted(VALID_LANGUAGE_CODES)}",
+        )
+
     now = datetime.now(timezone.utc)
     updates: Dict[str, Any] = {"updated_at": now}
 
@@ -357,6 +408,7 @@ async def update_post(
         "excerpt",
         "cover_image",
         "category",
+        "language",
         "tags",
         "seo_title",
         "seo_description",
@@ -455,3 +507,13 @@ async def get_image_upload_url(
 @router.get("/categories", summary="List all blog categories (public)")
 async def list_categories() -> Dict[str, Any]:
     return {"success": True, "categories": BLOG_CATEGORIES}
+
+
+# ---------------------------------------------------------------------------
+# Public: languages list
+# ---------------------------------------------------------------------------
+
+
+@router.get("/languages", summary="List supported blog languages (public)")
+async def list_languages() -> Dict[str, Any]:
+    return {"success": True, "languages": SUPPORTED_LANGUAGES}
