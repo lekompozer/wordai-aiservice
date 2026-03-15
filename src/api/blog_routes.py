@@ -31,22 +31,86 @@ router = APIRouter(prefix="/api/blog", tags=["Blog"])
 ADMIN_EMAIL = "tienhoi.lh@gmail.com"
 
 BLOG_CATEGORIES = [
-    {"slug": "ai-code-studio",        "name": "AI Code Studio",           "description": "Code smarter with AI assistance"},
-    {"slug": "community-tests",       "name": "Community Tests",          "description": "Create tests from any document"},
-    {"slug": "ai-learning-assistant", "name": "AI Learning Assistant",    "description": "Personalized AI learning assistant"},
-    {"slug": "create-edit-documents", "name": "Create & Edit Documents",  "description": "AI create, rewrite, translate"},
-    {"slug": "reading-ai-chat",       "name": "Reading & AI Chat",        "description": "Read PDF · Chat AI beside document"},
-    {"slug": "community-books",       "name": "Community Books",          "description": "Publish books · Earn 80% revenue"},
-    {"slug": "ai-images",             "name": "AI Images",                "description": "10 tools for image creation & editing"},
-    {"slug": "ai-audio",              "name": "AI Audio",                 "description": "Text-to-speech · Podcast · Natural voice"},
-    {"slug": "ai-slide-studio",       "name": "AI Slide Studio",          "description": "Create slides from PDF + Audio + Subtitles"},
-    {"slug": "studyhub",              "name": "StudyHub",                 "description": "Learn · Teach · Earn from courses"},
-    {"slug": "ai-software-lab",       "name": "AI Software Lab",          "description": "Deploy apps without coding"},
-    {"slug": "wordai-os",             "name": "WordAI OS",                "description": "Linux + Zero-Knowledge · Enterprise"},
-    {"slug": "listen-learn",          "name": "Listen & Learn",           "description": "Listen & learn new languages"},
-    {"slug": "wordai-appstore",       "name": "WordAI Appstore",          "description": "AI app store · Discover & share"},
-    {"slug": "ai-agents",             "name": "AI Agents",                "description": "AI agents that automate your work"},
-    {"slug": "secret-documents",      "name": "Secret Documents",         "description": "Zero-Knowledge · AES-256"},
+    {
+        "slug": "ai-code-studio",
+        "name": "AI Code Studio",
+        "description": "Code smarter with AI assistance",
+    },
+    {
+        "slug": "community-tests",
+        "name": "Community Tests",
+        "description": "Create tests from any document",
+    },
+    {
+        "slug": "ai-learning-assistant",
+        "name": "AI Learning Assistant",
+        "description": "Personalized AI learning assistant",
+    },
+    {
+        "slug": "create-edit-documents",
+        "name": "Create & Edit Documents",
+        "description": "AI create, rewrite, translate",
+    },
+    {
+        "slug": "reading-ai-chat",
+        "name": "Reading & AI Chat",
+        "description": "Read PDF · Chat AI beside document",
+    },
+    {
+        "slug": "community-books",
+        "name": "Community Books",
+        "description": "Publish books · Earn 80% revenue",
+    },
+    {
+        "slug": "ai-images",
+        "name": "AI Images",
+        "description": "10 tools for image creation & editing",
+    },
+    {
+        "slug": "ai-audio",
+        "name": "AI Audio",
+        "description": "Text-to-speech · Podcast · Natural voice",
+    },
+    {
+        "slug": "ai-slide-studio",
+        "name": "AI Slide Studio",
+        "description": "Create slides from PDF + Audio + Subtitles",
+    },
+    {
+        "slug": "studyhub",
+        "name": "StudyHub",
+        "description": "Learn · Teach · Earn from courses",
+    },
+    {
+        "slug": "ai-software-lab",
+        "name": "AI Software Lab",
+        "description": "Deploy apps without coding",
+    },
+    {
+        "slug": "wordai-os",
+        "name": "WordAI OS",
+        "description": "Linux + Zero-Knowledge · Enterprise",
+    },
+    {
+        "slug": "listen-learn",
+        "name": "Listen & Learn",
+        "description": "Listen & learn new languages",
+    },
+    {
+        "slug": "wordai-appstore",
+        "name": "WordAI Appstore",
+        "description": "AI app store · Discover & share",
+    },
+    {
+        "slug": "ai-agents",
+        "name": "AI Agents",
+        "description": "AI agents that automate your work",
+    },
+    {
+        "slug": "secret-documents",
+        "name": "Secret Documents",
+        "description": "Zero-Knowledge · AES-256",
+    },
 ]
 
 VALID_CATEGORY_SLUGS = {c["slug"] for c in BLOG_CATEGORIES}
@@ -63,6 +127,7 @@ _r2 = R2StorageService()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _slugify(text: str) -> str:
     text = text.lower().strip()
@@ -86,12 +151,17 @@ def _serialize_post(doc: dict) -> dict:
 # Pydantic models
 # ---------------------------------------------------------------------------
 
+
 class CreatePostRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=500)
     content: str = Field(..., description="Full post content (Markdown or HTML)")
-    excerpt: Optional[str] = Field(None, max_length=500, description="Short summary shown in listings")
+    excerpt: Optional[str] = Field(
+        None, max_length=500, description="Short summary shown in listings"
+    )
     cover_image: Optional[str] = Field(None, description="CDN URL of cover image")
-    category: str = Field(..., description="Category slug (must be one of the 16 valid slugs)")
+    category: str = Field(
+        ..., description="Category slug (must be one of the 16 valid slugs)"
+    )
     tags: List[str] = Field(default_factory=list, description="Free-form tags")
     status: str = Field("draft", pattern="^(draft|published)$")
     seo_title: Optional[str] = Field(None, max_length=200)
@@ -114,12 +184,15 @@ class UpdatePostRequest(BaseModel):
 # Public: list + read
 # ---------------------------------------------------------------------------
 
+
 @router.get("/posts", summary="List blog posts (public)")
 async def list_posts(
     category: Optional[str] = Query(None, description="Filter by category slug"),
     tag: Optional[str] = Query(None, description="Filter by tag"),
     q: Optional[str] = Query(None, description="Search in title (case-insensitive)"),
-    status: Optional[str] = Query("published", description="published | draft | all (admin only)"),
+    status: Optional[str] = Query(
+        "published", description="published | draft | all (admin only)"
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     user: Optional[Dict] = Depends(get_current_user_optional),
@@ -146,7 +219,9 @@ async def list_posts(
 
     if category:
         if category not in VALID_CATEGORY_SLUGS:
-            raise HTTPException(status_code=400, detail=f"Invalid category slug: {category}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid category slug: {category}"
+            )
         query["category"] = category
 
     if tag:
@@ -198,6 +273,7 @@ async def get_post(
 # Admin: CRUD
 # ---------------------------------------------------------------------------
 
+
 @router.post("/posts", summary="Create post (admin only)", status_code=201)
 async def create_post(
     body: CreatePostRequest,
@@ -206,7 +282,9 @@ async def create_post(
     _require_admin(user)
 
     if body.category not in VALID_CATEGORY_SLUGS:
-        raise HTTPException(status_code=400, detail=f"Invalid category slug: {body.category}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid category slug: {body.category}"
+        )
 
     base_slug = _slugify(body.title)
     slug = base_slug
@@ -256,7 +334,9 @@ async def update_post(
         raise HTTPException(status_code=404, detail="Post not found")
 
     if body.category and body.category not in VALID_CATEGORY_SLUGS:
-        raise HTTPException(status_code=400, detail=f"Invalid category slug: {body.category}")
+        raise HTTPException(
+            status_code=400, detail=f"Invalid category slug: {body.category}"
+        )
 
     now = datetime.now(timezone.utc)
     updates: Dict[str, Any] = {"updated_at": now}
@@ -272,8 +352,15 @@ async def update_post(
             suffix += 1
         updates["slug"] = slug
 
-    for field in ("content", "excerpt", "cover_image", "category", "tags",
-                  "seo_title", "seo_description"):
+    for field in (
+        "content",
+        "excerpt",
+        "cover_image",
+        "category",
+        "tags",
+        "seo_title",
+        "seo_description",
+    ):
         val = getattr(body, field, None)
         if val is not None:
             updates[field] = val
@@ -309,7 +396,10 @@ async def delete_post(
 # Admin: Image upload to R2 (presigned PUT, host-side, public)
 # ---------------------------------------------------------------------------
 
-@router.post("/images/upload-url", summary="Get presigned PUT URL for blog image (admin only)")
+
+@router.post(
+    "/images/upload-url", summary="Get presigned PUT URL for blog image (admin only)"
+)
 async def get_image_upload_url(
     filename: str = Query(..., description="Original filename (e.g. hero.jpg)"),
     content_type: str = Query("image/jpeg", description="MIME type of the image"),
@@ -360,6 +450,7 @@ async def get_image_upload_url(
 # ---------------------------------------------------------------------------
 # Public: categories list
 # ---------------------------------------------------------------------------
+
 
 @router.get("/categories", summary="List all blog categories (public)")
 async def list_categories() -> Dict[str, Any]:
