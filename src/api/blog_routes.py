@@ -169,7 +169,7 @@ class CreatePostRequest(BaseModel):
     title: str = Field(..., min_length=3, max_length=500)
     content: str = Field(..., description="Full post content (Markdown or HTML)")
     excerpt: Optional[str] = Field(
-        None, max_length=500, description="Short summary shown in listings"
+        None, max_length=2000, description="Short summary shown in listings"
     )
     cover_image: Optional[str] = Field(None, description="CDN URL of cover image")
     category: str = Field(
@@ -188,7 +188,7 @@ class CreatePostRequest(BaseModel):
 class UpdatePostRequest(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=500)
     content: Optional[str] = None
-    excerpt: Optional[str] = Field(None, max_length=500)
+    excerpt: Optional[str] = Field(None, max_length=2000)
     cover_image: Optional[str] = None
     category: Optional[str] = None
     language: Optional[str] = Field(
