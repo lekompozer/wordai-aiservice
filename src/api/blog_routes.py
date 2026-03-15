@@ -218,7 +218,7 @@ async def list_posts(
     status: Optional[str] = Query(
         "published", description="published | draft | all (admin only)"
     ),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=0),
     limit: int = Query(20, ge=1, le=100),
     user: Optional[Dict] = Depends(get_current_user_optional),
 ) -> Dict[str, Any]:
@@ -230,7 +230,9 @@ async def list_posts(
     - Filter by `lang` (language code, default `vi`), `category` (slug), `tag`,
       or free-text search `q` (title).
     - Pass `lang=all` to retrieve posts in all languages.
+    - `page` is 1-based; `page=0` is accepted and treated as page 1.
     """
+    page = max(page, 1)  # treat 0 as page 1 (frontend compat)
     is_admin = user and user.get("email") == ADMIN_EMAIL
 
     # Non-admin can only see published posts
