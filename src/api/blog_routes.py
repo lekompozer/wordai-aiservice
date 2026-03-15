@@ -181,6 +181,9 @@ class CreatePostRequest(BaseModel):
     )
     tags: List[str] = Field(default_factory=list, description="Free-form tags")
     status: str = Field("draft", pattern="^(draft|published)$")
+    is_featured: bool = Field(
+        False, description="Mark as featured (global or within category)"
+    )
     seo_title: Optional[str] = Field(None, max_length=200)
     seo_description: Optional[str] = Field(None, max_length=500)
 
@@ -197,6 +200,7 @@ class UpdatePostRequest(BaseModel):
     )
     tags: Optional[List[str]] = None
     status: Optional[str] = Field(None, pattern="^(draft|published)$")
+    is_featured: Optional[bool] = Field(None, description="Mark as featured")
     seo_title: Optional[str] = Field(None, max_length=200)
     seo_description: Optional[str] = Field(None, max_length=500)
 
@@ -288,6 +292,48 @@ async def list_posts(
     }
 
 
+@router.get("/posts/featured", summary="Get featured posts (public)")
+async def get_featured_posts(
+    category: Optional[str] = Query(None, description="Filter by category slug"),
+    lang: Optional[str] = Query(
+        "vi",
+        description="Language filter. Pass 'all' to skip.",
+    ),
+    limit: int = Query(10, ge=1, le=50),
+    user: Optional[Dict] = Depends(get_current_user_optional),
+) -> Dict[str, Any]:
+    """
+    Returns published featured posts, sorted by `published_at` desc.
+    - Filter by `lang` (default `vi`) or `category`.
+    - Pass `lang=all` to get featured posts across all languages.
+    """
+    query: Dict[str, Any] = {"status": "published", "is_featured": True}
+
+    if lang and lang != "all":
+        if lang not in VALID_LANGUAGE_CODES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid language code: {lang}. Supported: {sorted(VALID_LANGUAGE_CODES)}",
+            )
+        query["language"] = lang
+
+    if category:
+        if category not in VALID_CATEGORY_SLUGS:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid category slug: {category}"
+            )
+        query["category"] = category
+
+    posts = list(
+        _db.blog_posts.find(query, {"content": 0}).sort("published_at", -1).limit(limit)
+    )
+    return {
+        "success": True,
+        "total": len(posts),
+        "posts": [_serialize_post(p) for p in posts],
+    }
+
+
 @router.get("/posts/{slug}", summary="Get single post by slug (public)")
 async def get_post(
     slug: str,
@@ -357,6 +403,7 @@ async def create_post(
         "author_email": ADMIN_EMAIL,
         "seo_title": body.seo_title or body.title,
         "seo_description": body.seo_description or body.excerpt or "",
+        "is_featured": body.is_featured,
         "published_at": now if body.status == "published" else None,
         "created_at": now,
         "updated_at": now,
@@ -419,6 +466,9 @@ async def update_post(
         if val is not None:
             updates[field] = val
 
+    if body.is_featured is not None:
+        updates["is_featured"] = body.is_featured
+
     if body.status is not None:
         updates["status"] = body.status
         if body.status == "published" and doc.get("status") != "published":
@@ -444,6 +494,38 @@ async def delete_post(
 
     logger.info(f"🗑️ Blog post deleted: {post_id}")
     return {"success": True, "message": f"Post {post_id} deleted"}
+
+
+@router.patch("/posts/{post_id}/featured", summary="Set featured status (admin only)")
+async def set_featured(
+    post_id: str,
+    is_featured: bool = Query(..., description="true to feature, false to unfeature"),
+    user: Dict = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """
+    Toggle the `is_featured` flag on a post. Admin only.
+
+    A featured post appears in `GET /api/blog/posts/featured`.
+    Filter by category on that endpoint to get per-category featured posts.
+    """
+    _require_admin(user)
+
+    doc = _db.blog_posts.find_one({"post_id": post_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    _db.blog_posts.update_one(
+        {"post_id": post_id},
+        {
+            "$set": {
+                "is_featured": is_featured,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+    action = "featured" if is_featured else "unfeatured"
+    logger.info(f"⭐ Blog post {action}: {post_id}")
+    return {"success": True, "post_id": post_id, "is_featured": is_featured}
 
 
 # ---------------------------------------------------------------------------
