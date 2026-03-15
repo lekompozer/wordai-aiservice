@@ -348,8 +348,11 @@ class CloudflareImagesService:
         headers = {"Authorization": f"Bearer {self.api_token}"}
 
         async with httpx.AsyncClient(timeout=30.0) as client:
+            # CF Images v2 requires multipart/form-data (not x-www-form-urlencoded)
+            # Passing files= forces httpx to use multipart even for plain text fields
+            multipart_fields = {k: (None, v) for k, v in form_data.items()}
             response = await client.post(
-                direct_upload_api, headers=headers, data=form_data
+                direct_upload_api, headers=headers, files=multipart_fields
             )
             result = response.json() if response.text else {}
 
