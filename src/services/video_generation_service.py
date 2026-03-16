@@ -1,0 +1,534 @@
+"""
+AI Video Generation Service — Step-by-Step Pipeline
+
+Each step runs independently; intermediate results (images, audio) are stored in R2.
+Final render (Playwright + FFmpeg) is handled by video_generation_worker.
+
+Duration presets:  15s=2 scenes | 30s=4 scenes | 45s=6 scenes | 60s=8 scenes
+Frame format: 9:16 portrait (1080x1920) — TikTok / Reels / Shorts style
+"""
+
+import asyncio
+import json
+import logging
+import os
+import re
+import subprocess
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import httpx
+import soundfile as sf
+
+# ─────────────────────────────────────────────
+# Duration presets
+# ─────────────────────────────────────────────
+DURATION_PRESETS: Dict[int, Dict[str, int]] = {
+    18: {"n_scenes": 3, "seconds_per_scene": 6},
+    30: {"n_scenes": 5, "seconds_per_scene": 6},
+    42: {"n_scenes": 7, "seconds_per_scene": 6},
+    60: {"n_scenes": 10, "seconds_per_scene": 6},
+}
+
+logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────
+# HTML frame template (1080x1920 portrait)
+# ─────────────────────────────────────────────
+FRAME_TEMPLATE = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{
+    width: 1080px; height: 1920px;
+    overflow: hidden; position: relative;
+    font-family: 'Segoe UI', Arial, sans-serif;
+  }}
+  .bg {{
+    position: absolute; inset: 0;
+    background-image: url('file://{image_path}');
+    background-size: cover; background-position: center;
+  }}
+  .overlay {{
+    position: absolute; inset: 0;
+    background: linear-gradient(
+      to bottom,
+      rgba(0,0,0,0.15) 0%,
+      rgba(0,0,0,0.05) 40%,
+      rgba(0,0,0,0.6) 70%,
+      rgba(0,0,0,0.85) 100%
+    );
+  }}
+  .top-bar {{
+    position: absolute; top: 60px; left: 60px; right: 60px;
+    display: flex; align-items: center; gap: 16px;
+  }}
+  .brand {{
+    color: #fff; font-size: 32px; font-weight: 700;
+    letter-spacing: 2px; opacity: 0.9;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  }}
+  .scene-num {{
+    margin-left: auto;
+    color: rgba(255,255,255,0.7); font-size: 28px; font-weight: 500;
+  }}
+  .bottom {{
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 60px 70px 90px;
+  }}
+  .title-label {{
+    color: rgba(255,255,255,0.75);
+    font-size: 30px; font-weight: 600;
+    letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 22px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+  }}
+  .main-text {{
+    color: #fff;
+    font-size: {font_size}px;
+    font-weight: 700;
+    line-height: 1.45;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.9);
+    letter-spacing: 0.3px;
+  }}
+  .progress-bar {{
+    position: absolute; bottom: 0; left: 0; right: 0;
+    height: 6px; background: rgba(255,255,255,0.2);
+  }}
+  .progress-fill {{
+    height: 100%; width: {progress}%;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  }}
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="overlay"></div>
+  <div class="top-bar">
+    <span class="brand">WordAI</span>
+    <span class="scene-num">{scene_num}/{total_scenes}</span>
+  </div>
+  <div class="bottom">
+    <div class="title-label">{video_title}</div>
+    <div class="main-text">{text}</div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill"></div></div>
+</body>
+</html>"""
+
+
+def _calc_font_size(text: str) -> int:
+    """Adaptive font size based on text length."""
+    n = len(text)
+    if n < 80:
+        return 52
+    if n < 120:
+        return 46
+    if n < 180:
+        return 40
+    return 36
+
+
+# ─────────────────────────────────────────────
+# Main service class
+# ─────────────────────────────────────────────
+
+
+class VideoGenerationService:
+    """End-to-end pipeline for short-form AI video generation."""
+
+    # ── Script generation ──────────────────────────────────────────────────
+
+    async def generate_script(
+        self,
+        topic: str,
+        n_scenes: int = 6,
+        language: str = "vi",
+    ) -> Dict[str, Any]:
+        """
+        One DeepSeek call → title + scenes (narration + image_prompt + text_overlay).
+
+        Returns dict: {title, scenes: [{narration, image_prompt, text_overlay}]}
+        """
+        prompt = f"""Bạn là nhà sản xuất nội dung video ngắn chuyên nghiệp.
+Hãy tạo kịch bản cho một video ngắn theo phong cách TikTok/Reels về chủ đề: "{topic}"
+
+Yêu cầu:
+- Số cảnh (scenes): {n_scenes}
+- Ngôn ngữ narration: {"Tiếng Việt" if language == "vi" else "English"}
+- Mỗi cảnh: 15-20 giây, 1-3 câu ngắn gọn, súc tích, hấp dẫn
+- image_prompt: mô tả hình ảnh bằng TIẾNG ANH, chi tiết, phù hợp phong cách cinematic 9:16
+- text_overlay: 1 câu hook ngắn (tối đa 15 từ) hiển thị trên màn hình, cùng ngôn ngữ narration
+
+Trả về JSON CHÍNH XÁC theo format sau (không có text ngoài JSON):
+{{
+  "title": "Tiêu đề video",
+  "scenes": [
+    {{
+      "narration": "Lời thuyết minh cho cảnh này...",
+      "image_prompt": "Cinematic wide shot of ..., 9:16 vertical, dramatic lighting, photorealistic",
+      "text_overlay": "Hook text ngắn"
+    }}
+  ]
+}}
+
+QUAN TRỌNG: Chỉ trả về JSON, không có markdown, không có giải thích thêm."""
+
+        try:
+            api_key = os.getenv("DEEPSEEK_API_KEY")
+            if not api_key:
+                raise ValueError("DEEPSEEK_API_KEY not set")
+
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(
+                    "https://api.deepseek.com/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": "deepseek-chat",
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 4000,
+                        "temperature": 0.8,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                resp.raise_for_status()
+                content = resp.json()["choices"][0]["message"]["content"]
+
+            # Parse JSON (strip markdown fences if any)
+            content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
+            script = json.loads(content)
+
+            # Validate structure
+            assert "title" in script and "scenes" in script, "Missing title or scenes"
+            assert len(script["scenes"]) >= 1, "No scenes generated"
+
+            logger.info(
+                f"✅ Script generated: '{script['title']}', {len(script['scenes'])} scenes"
+            )
+            return script
+
+        except Exception as e:
+            logger.error(f"❌ Script generation failed: {e}")
+            raise
+
+    # ── Image generation ───────────────────────────────────────────────────
+
+    async def generate_scene_image(
+        self,
+        prompt: str,
+        scene_index: int,
+        task_dir: Path,
+    ) -> Path:
+        """Generate one scene image via Gemini image model → save as PNG."""
+        from google import genai
+        from google.genai import types as genai_types
+
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not set")
+
+        client = genai.Client(api_key=api_key)
+
+        # Ensure portrait 9:16 aspect
+        full_prompt = (
+            f"{prompt.rstrip('.')}. "
+            "Vertical 9:16 portrait format, cinematic composition, high quality, photorealistic."
+        )
+
+        result = client.models.generate_content(
+            model="gemini-3.1-flash-image-preview",
+            contents=full_prompt,
+            config=genai_types.GenerateContentConfig(
+                response_modalities=["IMAGE", "TEXT"],
+            ),
+        )
+
+        image_data = None
+        for part in result.candidates[0].content.parts:
+            if hasattr(part, "inline_data") and part.inline_data:
+                image_data = part.inline_data.data
+                break
+
+        if not image_data:
+            raise ValueError(f"No image returned for scene {scene_index}")
+
+        import base64
+
+        raw = (
+            base64.b64decode(image_data) if isinstance(image_data, str) else image_data
+        )
+        out_path = task_dir / f"scene_{scene_index:02d}_image.png"
+
+        # Resize to exactly 1080x1920 via Pillow
+        from PIL import Image
+        from io import BytesIO
+
+        img = Image.open(BytesIO(raw)).convert("RGB")
+        img = img.resize((1080, 1920), Image.Resampling.LANCZOS)
+        img.save(str(out_path), "PNG")
+
+        logger.info(
+            f"  🖼  Scene {scene_index} image: {out_path.name} ({out_path.stat().st_size // 1024}KB)"
+        )
+        return out_path
+
+    # ── TTS audio ──────────────────────────────────────────────────────────
+
+    async def generate_scene_audio(
+        self,
+        text: str,
+        scene_index: int,
+        task_dir: Path,
+        tts_provider: str = "valtec",  # "valtec" | "edge" | "gemini"
+        voice: str = "NM1",  # valtec: NM1/NF/SF/SM/NM2
+        edge_voice: str = "vi-VN-NamMinhNeural",  # edge-tts voice
+    ) -> Path:
+        """Generate TTS audio for one scene → WAV file."""
+        out_path = task_dir / f"scene_{scene_index:02d}_audio.wav"
+
+        if tts_provider == "valtec":
+            await self._tts_valtec(text, voice, out_path)
+        elif tts_provider == "edge":
+            await self._tts_edge(text, edge_voice, out_path)
+        elif tts_provider == "gemini":
+            await self._tts_gemini(text, scene_index, task_dir, out_path)
+        else:
+            # fallback chain: valtec → edge
+            try:
+                await self._tts_valtec(text, voice, out_path)
+            except Exception as e:
+                logger.warning(
+                    f"  ⚠️  valtec-tts failed ({e}), falling back to edge-tts"
+                )
+                await self._tts_edge(text, edge_voice, out_path)
+
+        logger.info(f"  🔊 Scene {scene_index} audio: {out_path.name}")
+        return out_path
+
+    async def _tts_valtec(self, text: str, speaker: str, out_path: Path) -> None:
+        """Use valtec-tts (Vietnamese, CPU, free, ~285MB model)."""
+        from valtec_tts import TTS  # type: ignore
+
+        # TTS is CPU-bound — run in executor to avoid blocking event loop
+        loop = asyncio.get_event_loop()
+
+        def _run():
+            tts = TTS()  # model is cached after first download
+            audio, sr = tts.synthesize(text, speaker=speaker)
+            sf.write(str(out_path), audio, sr)
+
+        await loop.run_in_executor(None, _run)
+
+    async def _tts_edge(self, text: str, voice: str, out_path: Path) -> None:
+        """Use edge-tts (free Microsoft TTS, multi-language)."""
+        import edge_tts  # type: ignore
+
+        communicate = edge_tts.Communicate(text, voice)
+        # edge-tts saves as MP3 → convert to WAV with ffmpeg
+        mp3_path = out_path.with_suffix(".mp3")
+        await communicate.save(str(mp3_path))
+        subprocess.run(
+            ["ffmpeg", "-y", "-i", str(mp3_path), str(out_path)],
+            check=True,
+            capture_output=True,
+        )
+        mp3_path.unlink(missing_ok=True)
+
+    async def _tts_gemini(
+        self, text: str, scene_index: int, task_dir: Path, out_path: Path
+    ) -> None:
+        """Use Gemini TTS (existing google_tts_service, highest quality)."""
+        from src.services.google_tts_service import GoogleTTSService
+
+        tts_service = GoogleTTSService()
+        audio_data, metadata = await tts_service.generate_audio(
+            text=text,
+            language="vi-VN",
+            voice_name="Enceladus",
+            use_pro_model=False,
+        )
+        out_path.write_bytes(audio_data)
+
+    # ── HTML frame render ──────────────────────────────────────────────────
+
+    async def render_frame(
+        self,
+        image_path: Path,
+        text_overlay: str,
+        scene_index: int,
+        total_scenes: int,
+        video_title: str,
+        task_dir: Path,
+    ) -> Path:
+        """Render HTML frame (image + text overlay) → PNG via Playwright."""
+        from playwright.async_api import async_playwright
+
+        out_path = task_dir / f"scene_{scene_index:02d}_frame.png"
+
+        html = FRAME_TEMPLATE.format(
+            image_path=str(image_path.resolve()),
+            text=text_overlay.replace("<", "&lt;").replace(">", "&gt;"),
+            font_size=_calc_font_size(text_overlay),
+            scene_num=scene_index + 1,
+            total_scenes=total_scenes,
+            video_title=video_title[:40].replace("<", "&lt;").replace(">", "&gt;"),
+            progress=int((scene_index + 1) / total_scenes * 100),
+        )
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+            )
+            page = await browser.new_page(viewport={"width": 1080, "height": 1920})
+            await page.set_content(html, wait_until="networkidle")
+            await page.screenshot(path=str(out_path), type="png")
+            await browser.close()
+
+        logger.info(
+            f"  🎨 Scene {scene_index} frame: {out_path.name} ({out_path.stat().st_size // 1024}KB)"
+        )
+        return out_path
+
+    # ── FFmpeg ─────────────────────────────────────────────────────────────
+
+    def create_video_segment(
+        self,
+        frame_path: Path,
+        audio_path: Path,
+        scene_index: int,
+        task_dir: Path,
+    ) -> Path:
+        """Combine static frame PNG + audio → MP4 segment."""
+        out_path = task_dir / f"scene_{scene_index:02d}_segment.mp4"
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-loop",
+            "1",
+            "-i",
+            str(frame_path),
+            "-i",
+            str(audio_path),
+            "-c:v",
+            "libx264",
+            "-tune",
+            "stillimage",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-pix_fmt",
+            "yuv420p",
+            "-shortest",
+            "-movflags",
+            "+faststart",
+            str(out_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg segment failed: {result.stderr[-500:]}")
+
+        logger.info(f"  🎬 Scene {scene_index} segment: {out_path.name}")
+        return out_path
+
+    def concat_segments(
+        self,
+        segments: List[Path],
+        task_dir: Path,
+        fade_duration: float = 0.3,
+    ) -> Path:
+        """Concatenate all segments → final.mp4 with smooth cuts."""
+        out_path = task_dir / "final.mp4"
+
+        # Write concat file list
+        list_path = task_dir / "filelist.txt"
+        with open(list_path, "w") as f:
+            for seg in segments:
+                f.write(f"file '{str(seg.resolve())}'\n")
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_path),
+            "-c:v",
+            "libx264",
+            "-c:a",
+            "aac",
+            "-movflags",
+            "+faststart",
+            str(out_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg concat failed: {result.stderr[-500:]}")
+
+        size_mb = out_path.stat().st_size / 1_048_576
+        logger.info(f"  ✂️  Final video: {out_path.name} ({size_mb:.1f}MB)")
+        return out_path
+
+    # ── R2 upload ──────────────────────────────────────────────────────────
+
+    async def upload_to_r2(
+        self,
+        video_path: Path,
+        task_id: str,
+        user_id: str,
+    ) -> str:
+        """Upload final.mp4 to R2 → return public URL."""
+        from src.services.r2_storage_service import get_r2_service
+
+        r2 = get_r2_service()
+        r2_key = f"videos/{user_id}/{task_id}/final.mp4"
+
+        with open(video_path, "rb") as f:
+            video_bytes = f.read()
+
+        result = await r2.upload_file(
+            file_content=video_bytes,
+            r2_key=r2_key,
+            content_type="video/mp4",
+        )
+        return result["public_url"]
+
+    async def upload_asset_to_r2(
+        self,
+        local_path: Path,
+        r2_key: str,
+        content_type: str,
+    ) -> str:
+        """Upload an intermediate asset (image/audio) to R2 → return public URL."""
+        from src.services.r2_storage_service import get_r2_service
+
+        r2 = get_r2_service()
+        data = local_path.read_bytes()
+        result = await r2.upload_file(
+            file_content=data,
+            r2_key=r2_key,
+            content_type=content_type,
+        )
+        return result["public_url"]
+
+
+# ─────────────────────────────────────────────
+# Singleton
+# ─────────────────────────────────────────────
+_service_instance: Optional[VideoGenerationService] = None
+
+
+def get_video_generation_service() -> VideoGenerationService:
+    global _service_instance
+    if _service_instance is None:
+        _service_instance = VideoGenerationService()
+    return _service_instance

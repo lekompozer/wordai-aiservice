@@ -270,9 +270,10 @@ services:
       retries: 3
 
   # ============================================================================
-  # Slide Format Worker - AI slide layout optimization
+  # Slide Format Worker - AI slide layout optimization (TEMPORARILY DISABLED - saves ~512M RAM)
   # ============================================================================
   slide-format-worker:
+    profiles: [ "disabled" ]
     container_name: slide-format-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     command: python -m src.workers.slide_format_worker
@@ -307,9 +308,10 @@ services:
       retries: 3
 
   # ============================================================================
-  # Book Processing Worker - Chapter Translation + PDF Chapter (combined, saves ~512M RAM)
+  # Book Processing Worker - Chapter Translation + PDF Chapter (TEMPORARILY DISABLED - saves ~2G RAM)
   # ============================================================================
   book-processing-worker:
+    profiles: [ "disabled" ]
     container_name: book-processing-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     env_file:
@@ -402,9 +404,10 @@ services:
       retries: 3
 
   # ============================================================================
-  # Slide Generation Worker - AI slide creation from analysis
+  # Slide Generation Worker - AI slide creation from analysis (TEMPORARILY DISABLED - saves ~512M RAM)
   # ============================================================================
   slide-generation-worker:
+    profiles: [ "disabled" ]
     container_name: slide-generation-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     command: python -m src.workers.slide_generation_worker
@@ -449,9 +452,10 @@ services:
       retries: 3
 
   # ============================================================================
-  # Slide Narration Worker - Audio (TTS) + Subtitle generation (combined, saves ~512M RAM)
+  # Slide Narration Worker - Audio (TTS) + Subtitle generation (TEMPORARILY DISABLED - saves ~512M RAM)
   # ============================================================================
   slide-narration-worker:
+    profiles: [ "disabled" ]
     container_name: slide-narration-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     env_file:
@@ -668,9 +672,9 @@ services:
   #     timeout: 10s
   #     retries: 3
 
-  # AI Assistant GLM-5 Worker - Combined replacement for generate/explain/transform workers
-  # Uses GLM-5 (zai-org/glm-5-maas) via Vertex AI instead of Claude (TEST)
+  # AI Assistant GLM-5 Worker (TEMPORARILY DISABLED - saves ~512M RAM)
   ai-assistant-glm5-worker:
+    profiles: [ "disabled" ]
     container_name: ai-assistant-glm5-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     env_file:
@@ -985,6 +989,52 @@ services:
       resources:
         limits:
           memory: 512M # Reduced from 2G - RAM optimization (8GB server total)
+          cpus: "1.5"
+
+  # ============================================================================
+  # Video Generation Worker - AI Short Video (script→images→audio→render→encode)
+  # Playwright + FFmpeg for final render/encode of TikTok/Reels/Shorts style videos
+  # ============================================================================
+  video-generation-worker:
+    container_name: video-generation-worker
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    command: python -m src.workers.video_generation_worker
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - REDIS_URL=redis://redis-server:6379
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+    depends_on:
+      - redis-server
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'video_generation_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 1G # Playwright (~400MB) + FFmpeg + Python overhead
           cpus: "1.5"
 
   # ============================================================================
