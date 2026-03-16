@@ -139,14 +139,15 @@ ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./
 - ✅ Pulls latest code from main branch
 - ✅ Rebuilds all containers (app, workers, nginx)
 
-**Python-only deployment (FASTER — only when `src/` Python code changed, NOT payment-service/docker-compose):**
+**Python-only deployment (FASTER — only when `src/` code changed in `ai-chatbot-rag` ONLY, e.g. API routes, services):**
 ```bash
 ssh root@104.248.147.155 "su - hoile -c 'cd /home/hoile/wordai && git pull && ./deploy-app-only.sh'"
 ```
 - ✅ Only recreates `ai-chatbot-rag` container, all other containers untouched
 - ✅ Initial delay 30s (vs 150s for full deploy)
 - ✅ Automatic rollback if health check fails
-- ❌ DO NOT use for: payment-service changes, docker-compose changes, new workers, nginx changes
+- ❌ DO NOT use for: **worker code changes** (`src/workers/`), payment-service changes, docker-compose changes, new workers, nginx changes
+- ⚠️ **CRITICAL:** If ANY worker file (`src/workers/*.py`) was changed → MUST use full deploy `./deploy-compose-with-rollback.sh` because workers run in separate containers and `deploy-app-only.sh` does NOT restart them!
 
 **Alternative (ONLY for nginx config changes):**
 ```bash
@@ -515,8 +516,11 @@ git push
 ❌ New endpoint without deployment
 ✅ Deploy first, then test: `curl http://localhost:8000/api/v1/...`
 
-❌ Full deploy for Python-only changes (slow, 150s wait)
-✅ `./deploy-app-only.sh` when only `src/` Python changed (30s, no worker restart)
+❌ Full deploy when ONLY `src/api/` or `src/services/` changed (slow, 150s wait)
+✅ `./deploy-app-only.sh` when only API/service code changed (30s) — NOT for worker changes
+
+❌ `./deploy-app-only.sh` when `src/workers/*.py` changed (workers won't get new code!)
+✅ `./deploy-compose-with-rollback.sh` when ANY worker file changed (rebuilds all containers)
 
 ❌ MongoDB projection missing fields: `{"code": 1, "is_active": 1}` → `doc.get("user_id")` always None
 ✅ Always include every field you access in the projection!
