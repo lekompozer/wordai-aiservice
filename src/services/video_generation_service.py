@@ -409,7 +409,7 @@ Chỉ trả về JSON, KHÔNG có gì khác."""
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "aurora",
+                    "model": "grok-imagine-image",
                     "prompt": full_prompt,
                     "n": 1,
                     "response_format": "b64_json",
@@ -433,6 +433,93 @@ Chỉ trả về JSON, KHÔNG có gì khác."""
             f"  🖼  Scene {scene_index} xAI image: {out_path.name} ({out_path.stat().st_size // 1024}KB)"
         )
         return out_path
+
+    async def generate_scene_video_xai(
+        self,
+        prompt: str,
+        scene_index: int,
+        task_dir: Path,
+        style_anchor: str = "",
+        poll_interval: float = 8.0,
+        max_wait: float = 300.0,
+    ) -> Path:
+        """
+        Generate a real AI video clip via xAI grok-imagine-video:
+        1. POST /v1/videos/generations → {request_id}
+        2. Poll GET /v1/videos/{request_id} until status=done
+        3. Download MP4 → save to task_dir
+
+        Returns path to downloaded .mp4 file.
+        """
+        import time
+
+        api_key = os.getenv("XAI_API_KEY")
+        if not api_key:
+            raise ValueError("XAI_API_KEY not set")
+
+        full_prompt = prompt
+        if style_anchor and style_anchor[:25] not in prompt:
+            full_prompt = f"{style_anchor}. {prompt}"
+        if "9:16" not in full_prompt and "portrait" not in full_prompt.lower():
+            full_prompt += ". Vertical 9:16 portrait, cinematic motion."
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        async with httpx.AsyncClient(timeout=max_wait + 30) as client:
+            # Submit job
+            resp = await client.post(
+                "https://api.x.ai/v1/videos/generations",
+                headers=headers,
+                json={"model": "grok-imagine-video", "prompt": full_prompt, "n": 1},
+            )
+            resp.raise_for_status()
+            request_id = resp.json()["request_id"]
+            logger.info(f"  🎬 Scene {scene_index} xAI video submitted: {request_id}")
+
+            # Poll for completion
+            start = time.time()
+            while time.time() - start < max_wait:
+                await asyncio.sleep(poll_interval)
+                poll = await client.get(
+                    f"https://api.x.ai/v1/videos/{request_id}",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                poll.raise_for_status()
+                result = poll.json()
+                status = result.get("status", "pending")
+
+                if status == "failed":
+                    raise RuntimeError(f"xAI video gen failed: {result}")
+
+                if status == "done":
+                    video_url = result["video"]["url"]
+                    duration = result["video"].get("duration", 0)
+                    logger.info(
+                        f"  🎬 Scene {scene_index} xAI video ready: {duration}s  → downloading"
+                    )
+
+                    # Download MP4
+                    dl = await client.get(video_url, timeout=120.0)
+                    dl.raise_for_status()
+                    out_path = task_dir / f"scene_{scene_index:02d}_xai_video.mp4"
+                    out_path.write_bytes(dl.content)
+                    size_mb = len(dl.content) / 1_048_576
+                    logger.info(
+                        f"  ✅ Scene {scene_index} xAI video: {out_path.name} ({size_mb:.1f}MB)"
+                    )
+                    return out_path
+
+                elapsed = time.time() - start
+                logger.info(
+                    f"  ⏳ Scene {scene_index} video generating... ({elapsed:.0f}s / {max_wait:.0f}s)"
+                )
+
+        raise TimeoutError(
+            f"xAI video for scene {scene_index} timed out after {max_wait}s"
+        )
 
     # ── TTS audio ──────────────────────────────────────────────────────────
 
@@ -662,6 +749,57 @@ Chỉ trả về JSON, KHÔNG có gì khác."""
             raise RuntimeError(f"FFmpeg Ken Burns failed: {result.stderr[-500:]}")
 
         logger.info(f"  🎬 Scene {scene_index} Ken Burns: {out_path.name}")
+        return out_path
+
+    def merge_video_with_audio(
+        self,
+        video_path: Path,
+        audio_path: Path,
+        scene_index: int,
+        task_dir: Path,
+    ) -> Path:
+        """
+        Merge an xAI-generated video clip with TTS audio.
+        Re-encodes to 1080x1920 portrait, AAC audio, stops at the shorter of the two streams.
+        """
+        out_path = task_dir / f"scene_{scene_index:02d}_segment.mp4"
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(video_path),
+            "-i",
+            str(audio_path),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-vf",
+            "scale=1080:1920:force_original_aspect_ratio=decrease,"
+            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "fast",
+            "-crf",
+            "23",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-shortest",
+            "-movflags",
+            "+faststart",
+            str(out_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg merge failed: {result.stderr[-500:]}")
+        logger.info(
+            f"  🎬 Scene {scene_index} merged (xAI video+audio): {out_path.name}"
+        )
         return out_path
 
     def concat_segments(

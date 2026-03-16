@@ -113,71 +113,108 @@ class VideoGenerationWorker:
             step1 = task.get("step1", {})
             step2 = task.get("step2", [])
             step3 = task.get("step3", [])
+            mode = task.get("mode", "slideshow")
+            style_anchor = step1.get("style_anchor", "")
             video_title = step1.get("title", "WordAI Video")
             scenes = step1.get("scenes", [])
             n_scenes = len(scenes)
 
-            # Validate all images/audio are ready
+            # Validate audio is ready for all scenes
             for i in range(n_scenes):
-                img = step2[i] if i < len(step2) else {}
                 aud = step3[i] if i < len(step3) else {}
-                if img.get("status") != "done":
-                    raise ValueError(
-                        f"Scene {i} image not ready (status: {img.get('status')})"
-                    )
                 if aud.get("status") != "done":
                     raise ValueError(
                         f"Scene {i} audio not ready (status: {aud.get('status')})"
                     )
 
-            # ── Download images and audio ──────────────────────────────────
-            logger.info(f"[{task_id[:8]}] Downloading {n_scenes} images + audio...")
+            if mode != "ai_video":
+                # Validate images are ready for slideshow mode
+                for i in range(n_scenes):
+                    img = step2[i] if i < len(step2) else {}
+                    if img.get("status") != "done":
+                        raise ValueError(
+                            f"Scene {i} image not ready (status: {img.get('status')})"
+                        )
+
             import httpx
 
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            if mode == "ai_video":
+                # ── AI VIDEO MODE: xAI grok-imagine-video per scene ────────
+                logger.info(
+                    f"[{task_id[:8]}] [ai_video] Downloading {n_scenes} audio files..."
+                )
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    for i in range(n_scenes):
+                        aud_url = step3[i]["audio_url"]
+                        aud_resp = await client.get(aud_url)
+                        aud_resp.raise_for_status()
+                        aud_path = task_dir / f"scene_{i:02d}_audio.wav"
+                        aud_path.write_bytes(aud_resp.content)
+
+                logger.info(
+                    f"[{task_id[:8]}] [ai_video] Generating {n_scenes} xAI video clips..."
+                )
+                segments = []
+                for i, scene in enumerate(scenes):
+                    xai_clip = await self.svc.generate_scene_video_xai(
+                        prompt=scene.get("visual_prompt", scene.get("narration", "")),
+                        scene_index=i,
+                        task_dir=task_dir,
+                        style_anchor=style_anchor,
+                    )
+                    seg = self.svc.merge_video_with_audio(
+                        video_path=xai_clip,
+                        audio_path=task_dir / f"scene_{i:02d}_audio.wav",
+                        scene_index=i,
+                        task_dir=task_dir,
+                    )
+                    segments.append(seg)
+
+            else:
+                # ── SLIDESHOW MODE: Ken Burns effect ───────────────────────
+                logger.info(f"[{task_id[:8]}] Downloading {n_scenes} images + audio...")
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    for i in range(n_scenes):
+                        img_url = step2[i]["image_url"]
+                        aud_url = step3[i]["audio_url"]
+
+                        img_resp = await client.get(img_url)
+                        img_resp.raise_for_status()
+                        img_path = task_dir / f"scene_{i:02d}_image.png"
+                        img_path.write_bytes(img_resp.content)
+
+                        aud_resp = await client.get(aud_url)
+                        aud_resp.raise_for_status()
+                        aud_path = task_dir / f"scene_{i:02d}_audio.wav"
+                        aud_path.write_bytes(aud_resp.content)
+
+                logger.info(
+                    f"[{task_id[:8]}] Rendering {n_scenes} frames via Playwright..."
+                )
+                frame_paths = []
+                for i, scene in enumerate(scenes):
+                    fp = await self.svc.render_frame(
+                        image_path=task_dir / f"scene_{i:02d}_image.png",
+                        text_overlay=scene.get("text_overlay", ""),
+                        scene_index=i,
+                        total_scenes=n_scenes,
+                        video_title=video_title,
+                        task_dir=task_dir,
+                    )
+                    frame_paths.append(fp)
+
+                logger.info(
+                    f"[{task_id[:8]}] Encoding {n_scenes} Ken Burns segments via FFmpeg..."
+                )
+                segments = []
                 for i in range(n_scenes):
-                    img_url = step2[i]["image_url"]
-                    aud_url = step3[i]["audio_url"]
-
-                    img_resp = await client.get(img_url)
-                    img_resp.raise_for_status()
-                    img_path = task_dir / f"scene_{i:02d}_image.png"
-                    img_path.write_bytes(img_resp.content)
-
-                    aud_resp = await client.get(aud_url)
-                    aud_resp.raise_for_status()
-                    aud_path = task_dir / f"scene_{i:02d}_audio.wav"
-                    aud_path.write_bytes(aud_resp.content)
-
-            # ── Render frames ──────────────────────────────────────────────
-            logger.info(
-                f"[{task_id[:8]}] Rendering {n_scenes} frames via Playwright..."
-            )
-            frame_paths = []
-            for i, scene in enumerate(scenes):
-                fp = await self.svc.render_frame(
-                    image_path=task_dir / f"scene_{i:02d}_image.png",
-                    text_overlay=scene.get("text_overlay", ""),
-                    scene_index=i,
-                    total_scenes=n_scenes,
-                    video_title=video_title,
-                    task_dir=task_dir,
-                )
-                frame_paths.append(fp)
-
-            # ── Encode segments (Ken Burns motion effect) ──────────────────
-            logger.info(
-                f"[{task_id[:8]}] Encoding {n_scenes} Ken Burns segments via FFmpeg..."
-            )
-            segments = []
-            for i in range(n_scenes):
-                seg = self.svc.create_video_segment_ken_burns(
-                    frame_path=frame_paths[i],
-                    audio_path=task_dir / f"scene_{i:02d}_audio.wav",
-                    scene_index=i,
-                    task_dir=task_dir,
-                )
-                segments.append(seg)
+                    seg = self.svc.create_video_segment_ken_burns(
+                        frame_path=frame_paths[i],
+                        audio_path=task_dir / f"scene_{i:02d}_audio.wav",
+                        scene_index=i,
+                        task_dir=task_dir,
+                    )
+                    segments.append(seg)
 
             # ── Concat ────────────────────────────────────────────────────
             logger.info(f"[{task_id[:8]}] Concatenating segments...")
