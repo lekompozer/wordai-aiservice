@@ -297,6 +297,9 @@ from src.api.lyria_routes import router as lyria_router
 # ✅ ADDED: Blog Posts API - CRUD for WordAI homepage & landing page posts
 from src.api.blog_routes import router as blog_router
 
+# ✅ ADDED: AI Video Generation API - Short-form video pipeline (DeepSeek+Gemini+valtec-tts+FFmpeg)
+from src.api.video_routes import router as video_router
+
 # ✅ ADDED: Feedback & Review API - User reviews with social sharing rewards
 from src.api.feedback_routes import router as feedback_router
 
@@ -1415,6 +1418,12 @@ def create_app() -> FastAPI:
     app.include_router(
         blog_router,
         tags=["Blog"],
+    )
+
+    # ✅ NEW: AI Video Generation API - TikTok/Reels style short video
+    app.include_router(
+        video_router,
+        tags=["AI Video Generation"],
     )
 
     # ✅ NEW: Feedback & Review API - User reviews with social sharing rewards
