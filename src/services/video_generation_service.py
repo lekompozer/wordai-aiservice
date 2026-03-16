@@ -49,7 +49,7 @@ FRAME_TEMPLATE = """<!DOCTYPE html>
   }}
   .bg {{
     position: absolute; inset: 0;
-    background-image: url('file://{image_path}');
+    background-image: url('{image_path}');
     background-size: cover; background-position: center;
   }}
   .overlay {{
@@ -217,6 +217,108 @@ QUAN TRỌNG: Chỉ trả về JSON, không có markdown, không có giải thí
             logger.error(f"❌ Script generation failed: {e}")
             raise
 
+    # ── Storyboard variants (multi-script) ─────────────────────────────────
+
+    async def generate_storyboards(
+        self,
+        topic: str,
+        n_scenes: int = 5,
+        language: str = "vi",
+        video_style: str = "cinematic",
+        target_audience: str = "general",
+        n_variants: int = 2,
+    ) -> List[Dict[str, Any]]:
+        """
+        DeepSeek Reasoner → 2-3 storyboard variants, each with a style_anchor
+        for consistent AI image generation across all scenes.
+        """
+        style_desc = {
+            "cinematic": "phong cách điện ảnh chuyên nghiệp, ánh sáng dramatic, góc quay cinematic",
+            "anime": "phong cách anime Nhật Bản, màu sắc sống động, nét vẽ anime",
+            "ads": "phong cách quảng cáo hiện đại, sạch sẽ, chuyên nghiệp, màu sắc tươi sáng",
+            "documentary": "phong cách tài liệu thực tế, hình ảnh chân thực, ánh sáng tự nhiên",
+            "cartoon": "phong cách hoạt hình 2D/3D, màu sắc vui tươi, nhân vật dễ thương",
+        }.get(video_style, video_style)
+
+        prompt = f"""Bạn là chuyên gia sản xuất nội dung video ngắn viral chuyên nghiệp.
+
+Chủ đề video: \"{topic}\"
+Phong cách: {style_desc} ({video_style})
+Đối tượng khán giả: {target_audience}
+Số cảnh: {n_scenes}
+Ngôn ngữ narration: {"Tiếng Việt" if language == "vi" else "English"}
+
+Hãy tạo {n_variants} kịch bản video KHÁC NHAU với góc tiếp cận hoàn toàn khác nhau.
+
+QUAN TRỌNG:
+1. style_anchor: Mô tả chi tiết bằng TIẾNG ANH về phong cách hình ảnh NHẤT QUÁN xuyên suốt video.
+   - Màu sắc chủ đạo, ánh sáng, kết cấu, phong cách nghệ thuật ({video_style})
+   - Nếu có nhân vật: mô tả ngoại hình nhất quán (màu tóc, trang phục, tuổi)
+   - VD: "Cinematic 9:16, deep blue and amber tones, moody dramatic lighting, shallow depth of field"
+   - VD: "Anime style, vibrant colors, young Vietnamese student with black hair and school uniform"
+2. image_prompt của MỖI CẢNH phải BẮT ĐẦU bằng style_anchor đã chọn để đảm bảo ĐỒNG NHẤT hình ảnh.
+
+Trả về JSON (CHÍNH XÁC, không có markdown):
+{{
+  "variants": [
+    {{
+      "variant_id": 0,
+      "title": "Tiêu đề video hấp dẫn",
+      "style_anchor": "Detailed visual style in English for consistent AI image generation...",
+      "mood": "Tense and eye-opening",
+      "scenes": [
+        {{
+          "scene_index": 0,
+          "narration": "Lời thuyết minh 1-3 câu súc tích...",
+          "image_prompt": "[PASTE style_anchor here]. Scene-specific description. Vertical 9:16.",
+          "text_overlay": "Hook ngắn tối đa 12 từ"
+        }}
+      ]
+    }}
+  ]
+}}
+
+Chỉ trả về JSON, KHÔNG có gì khác."""
+
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not set")
+
+        async with httpx.AsyncClient(timeout=180.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-reasoner",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 8000,
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        msg = data["choices"][0]["message"]
+        content = msg["content"]
+        reasoning = msg.get("reasoning_content", "")
+        if reasoning:
+            logger.info(f"  🧠 Storyboard thinking: {len(reasoning)} chars")
+
+        content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
+        result = json.loads(content)
+        variants = result.get("variants", [])
+        assert len(variants) >= 1, "No storyboard variants returned"
+
+        for v in variants:
+            v["scenes"] = v["scenes"][:n_scenes]
+            for i, s in enumerate(v["scenes"]):
+                s["scene_index"] = i
+
+        logger.info(f"✅ {len(variants)} storyboard variants generated for '{topic}'")
+        return variants
+
     # ── Image generation ───────────────────────────────────────────────────
 
     async def generate_scene_image(
@@ -275,6 +377,60 @@ QUAN TRỌNG: Chỉ trả về JSON, không có markdown, không có giải thí
 
         logger.info(
             f"  🖼  Scene {scene_index} image: {out_path.name} ({out_path.stat().st_size // 1024}KB)"
+        )
+        return out_path
+
+    async def generate_scene_image_xai(
+        self,
+        prompt: str,
+        scene_index: int,
+        task_dir: Path,
+        style_anchor: str = "",
+    ) -> Path:
+        """Generate one scene image via xAI Grok Aurora → save as PNG (1080×1920)."""
+        import base64 as _b64
+
+        api_key = os.getenv("XAI_API_KEY")
+        if not api_key:
+            raise ValueError("XAI_API_KEY not set")
+
+        # Prepend style_anchor if not already embedded
+        full_prompt = prompt
+        if style_anchor and style_anchor[:25] not in prompt:
+            full_prompt = f"{style_anchor}. {prompt}"
+        if "9:16" not in full_prompt and "portrait" not in full_prompt.lower():
+            full_prompt += ". Vertical 9:16 portrait format, high quality."
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                "https://api.x.ai/v1/images/generations",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "aurora",
+                    "prompt": full_prompt,
+                    "n": 1,
+                    "response_format": "b64_json",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        img_b64 = data["data"][0]["b64_json"]
+        raw = _b64.b64decode(img_b64)
+        out_path = task_dir / f"scene_{scene_index:02d}_image.png"
+
+        from PIL import Image
+        from io import BytesIO
+
+        img = Image.open(BytesIO(raw)).convert("RGB")
+        img = img.resize((1080, 1920), Image.Resampling.LANCZOS)
+        img.save(str(out_path), "PNG")
+
+        logger.info(
+            f"  🖼  Scene {scene_index} xAI image: {out_path.name} ({out_path.stat().st_size // 1024}KB)"
         )
         return out_path
 
@@ -371,8 +527,13 @@ QUAN TRỌNG: Chỉ trả về JSON, không có markdown, không có giải thí
 
         out_path = task_dir / f"scene_{scene_index:02d}_frame.png"
 
+        import base64 as _b64
+
+        with open(image_path, "rb") as _imgf:
+            _data_uri = "data:image/png;base64," + _b64.b64encode(_imgf.read()).decode()
+
         html = FRAME_TEMPLATE.format(
-            image_path=str(image_path.resolve()),
+            image_path=_data_uri,
             text=text_overlay.replace("<", "&lt;").replace(">", "&gt;"),
             font_size=_calc_font_size(text_overlay),
             scene_num=scene_index + 1,
@@ -436,6 +597,71 @@ QUAN TRỌNG: Chỉ trả về JSON, không có markdown, không có giải thí
             raise RuntimeError(f"FFmpeg segment failed: {result.stderr[-500:]}")
 
         logger.info(f"  🎬 Scene {scene_index} segment: {out_path.name}")
+        return out_path
+
+    # Ken Burns motion filter chains: scale to 1.25x then crop with time-varying position
+    # FFmpeg crop auto-clamps x/y to valid range — no explicit min/max needed
+    _KEN_BURNS = [
+        # zoom-in feel: start top-left, drift to center
+        "scale=1350:2400,crop=w=1080:h=1920:x=135-t*27:y=240-t*48",
+        # zoom-out feel: start center, drift to bottom-right
+        "scale=1350:2400,crop=w=1080:h=1920:x=t*27:y=t*48",
+        # pan right (L→R)
+        "scale=1350:2400,crop=w=1080:h=1920:x=t*54:y=240",
+        # pan left (R→L)
+        "scale=1350:2400,crop=w=1080:h=1920:x=270-t*54:y=240",
+        # tilt up (B→T)
+        "scale=1350:2400,crop=w=1080:h=1920:x=135:y=480-t*96",
+    ]
+
+    def create_video_segment_ken_burns(
+        self,
+        frame_path: Path,
+        audio_path: Path,
+        scene_index: int,
+        task_dir: Path,
+    ) -> Path:
+        """
+        Convert rendered frame PNG to motion video using Ken Burns effect.
+        Scale to 1.25× then time-varying crop → real camera movement.
+        Audio duration determines clip length (-shortest).
+        """
+        out_path = task_dir / f"scene_{scene_index:02d}_segment.mp4"
+        vf = self._KEN_BURNS[scene_index % len(self._KEN_BURNS)]
+
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-loop",
+            "1",
+            "-i",
+            str(frame_path),
+            "-i",
+            str(audio_path),
+            "-filter_complex",
+            f"[0:v]{vf}[v]",
+            "-map",
+            "[v]",
+            "-map",
+            "1:a",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            "aac",
+            "-b:a",
+            "128k",
+            "-shortest",
+            "-movflags",
+            "+faststart",
+            str(out_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg Ken Burns failed: {result.stderr[-500:]}")
+
+        logger.info(f"  🎬 Scene {scene_index} Ken Burns: {out_path.name}")
         return out_path
 
     def concat_segments(

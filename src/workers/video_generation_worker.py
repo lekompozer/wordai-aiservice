@@ -165,11 +165,13 @@ class VideoGenerationWorker:
                 )
                 frame_paths.append(fp)
 
-            # ── Encode segments ────────────────────────────────────────────
-            logger.info(f"[{task_id[:8]}] Encoding {n_scenes} segments via FFmpeg...")
+            # ── Encode segments (Ken Burns motion effect) ──────────────────
+            logger.info(
+                f"[{task_id[:8]}] Encoding {n_scenes} Ken Burns segments via FFmpeg..."
+            )
             segments = []
             for i in range(n_scenes):
-                seg = self.svc.create_video_segment(
+                seg = self.svc.create_video_segment_ken_burns(
                     frame_path=frame_paths[i],
                     audio_path=task_dir / f"scene_{i:02d}_audio.wav",
                     scene_index=i,

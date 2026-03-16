@@ -62,12 +62,40 @@ class CreateTaskRequest(BaseModel):
         description="Giọng đọc valtec: NM1/NM2 (Nam Bắc) | NF (Nữ Bắc) | SM (Nam Nam) | SF (Nữ Nam)",
     )
     language: str = Field(default="vi", description="Ngôn ngữ: vi | en")
+    mode: str = Field(
+        default="slideshow",
+        description="slideshow (Ken Burns + audio + subtitles) | ai_video (xAI images + Ken Burns)",
+    )
+    video_style: str = Field(
+        default="cinematic",
+        description="cinematic | anime | ads | documentary | cartoon",
+    )
+    target_audience: str = Field(
+        default="general",
+        description="Đối tượng khán giả (VD: học sinh phổ thông, công sở, ...)",
+    )
+    image_provider: str = Field(
+        default="gemini",
+        description="gemini (flash-image-preview) | xai (Grok Aurora)",
+    )
+    n_storyboards: int = Field(
+        default=2,
+        ge=1,
+        le=3,
+        description="Số kịch bản để chọn: 1 (single), 2–3 (có nhiều lựa chọn)",
+    )
 
 
 class EditScriptRequest(BaseModel):
-    title: str = Field(..., min_length=1, max_length=200)
-    scenes: List[Dict[str, str]] = Field(
-        ...,
+    # Pick a storyboard variant (exclusive with title/scenes editing)
+    variant_id: Optional[int] = Field(
+        None,
+        description="Chọn variant kịch bản (0/1/2) — khi status là 'step1_picking'",
+    )
+    # Direct script editing (requires title + scenes together)
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    scenes: Optional[List[Dict[str, str]]] = Field(
+        None,
         description="List of scenes with narration, image_prompt, text_overlay",
     )
 
@@ -105,6 +133,8 @@ async def _bg_generate_images(task_id: str, user_id: str) -> None:
 
     scenes = task["step1"]["scenes"]
     n_scenes = len(scenes)
+    image_provider = task.get("image_provider", "gemini")
+    style_anchor = (task.get("step1") or {}).get("style_anchor", "")
     task_dir = Path(tempfile.mkdtemp(prefix=f"video_img_{task_id}_"))
 
     try:
@@ -120,11 +150,19 @@ async def _bg_generate_images(task_id: str, user_id: str) -> None:
                     },
                 )
 
-                img_path = await svc.generate_scene_image(
-                    prompt=scene["image_prompt"],
-                    scene_index=i,
-                    task_dir=task_dir,
-                )
+                if image_provider == "xai":
+                    img_path = await svc.generate_scene_image_xai(
+                        prompt=scene["image_prompt"],
+                        scene_index=i,
+                        task_dir=task_dir,
+                        style_anchor=style_anchor,
+                    )
+                else:
+                    img_path = await svc.generate_scene_image(
+                        prompt=scene["image_prompt"],
+                        scene_index=i,
+                        task_dir=task_dir,
+                    )
 
                 r2_key = f"video-assets/{user_id}/{task_id}/scene_{i:02d}.png"
                 image_url = await svc.upload_asset_to_r2(img_path, r2_key, "image/png")
@@ -373,6 +411,10 @@ async def create_task(
         raise HTTPException(400, f"tts_provider must be one of: {VALID_TTS}")
     if request.voice.upper() not in VALID_VOICES:
         raise HTTPException(400, f"voice must be one of: {VALID_VOICES}")
+    if request.image_provider not in ("gemini", "xai"):
+        raise HTTPException(400, "image_provider must be 'gemini' or 'xai'")
+    if request.mode not in ("slideshow", "ai_video"):
+        raise HTTPException(400, "mode must be 'slideshow' or 'ai_video'")
 
     n_scenes = DURATION_PRESETS[request.duration_preset]["n_scenes"]
     task_id = str(uuid.uuid4())
@@ -389,7 +431,13 @@ async def create_task(
             "tts_provider": request.tts_provider,
             "voice": request.voice.upper(),
             "language": request.language,
+            "mode": request.mode,
+            "video_style": request.video_style,
+            "target_audience": request.target_audience,
+            "image_provider": request.image_provider,
+            "n_storyboards": request.n_storyboards,
             "status": "created",
+            "storyboards": None,
             "step1": None,
             "step2": None,
             "step3": None,
@@ -401,7 +449,7 @@ async def create_task(
     )
 
     logger.info(
-        f"🎬 New video task {task_id} — topic='{request.topic}', {request.duration_preset}s/{n_scenes} scenes"
+        f"🎬 New video task {task_id} — topic='{request.topic}', {request.duration_preset}s/{n_scenes} scenes, mode={request.mode}, provider={request.image_provider}"
     )
 
     return {
@@ -413,6 +461,10 @@ async def create_task(
         "tts_provider": request.tts_provider,
         "voice": request.voice.upper(),
         "language": request.language,
+        "mode": request.mode,
+        "video_style": request.video_style,
+        "image_provider": request.image_provider,
+        "n_storyboards": request.n_storyboards,
         "created_at": now.isoformat(),
     }
 
@@ -441,7 +493,7 @@ async def generate_script(
     task = db.video_tasks.find_one({"task_id": task_id, "user_id": user_id})
     if not task:
         raise HTTPException(404, "Task not found")
-    if task["status"] not in ("created", "step1_done", "step1_failed"):
+    if task["status"] not in ("created", "step1_done", "step1_picking", "step1_failed"):
         raise HTTPException(400, f"Cannot run step1 from status '{task['status']}'")
 
     db.video_tasks.update_one(
@@ -453,37 +505,67 @@ async def generate_script(
         from src.services.video_generation_service import get_video_generation_service
 
         svc = get_video_generation_service()
-        script = await svc.generate_script(
-            topic=task["topic"],
-            n_scenes=task["n_scenes"],
-            language=task.get("language", "vi"),
-        )
+        n_storyboards = task.get("n_storyboards", 1)
 
-        # Cap scenes to n_scenes
-        scenes = script["scenes"][: task["n_scenes"]]
-        for i, s in enumerate(scenes):
-            s["scene_index"] = i
+        if n_storyboards > 1:
+            # Generate multiple storyboard variants with DeepSeek Reasoner
+            variants = await svc.generate_storyboards(
+                topic=task["topic"],
+                n_scenes=task["n_scenes"],
+                language=task.get("language", "vi"),
+                video_style=task.get("video_style", "cinematic"),
+                target_audience=task.get("target_audience", "general"),
+                n_variants=n_storyboards,
+            )
+            db.video_tasks.update_one(
+                {"task_id": task_id},
+                {
+                    "$set": {
+                        "storyboards": variants,
+                        "step1": None,
+                        "status": "step1_picking",
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+            logger.info(f"[{task_id[:8]}] Step1 picking: {len(variants)} variants")
+            return {
+                "task_id": task_id,
+                "status": "step1_picking",
+                "storyboards": variants,
+                "message": f'Có {len(variants)} kịch bản. Dùng PUT /{task_id}/step1 với {{"variant_id": 0}} để chọn.',
+            }
+        else:
+            # Single script generation
+            script = await svc.generate_script(
+                topic=task["topic"],
+                n_scenes=task["n_scenes"],
+                language=task.get("language", "vi"),
+            )
 
-        step1 = {"title": script["title"], "scenes": scenes}
-        db.video_tasks.update_one(
-            {"task_id": task_id},
-            {
-                "$set": {
-                    "step1": step1,
-                    "status": "step1_done",
-                    "updated_at": datetime.utcnow(),
-                }
-            },
-        )
-        logger.info(
-            f"[{task_id[:8]}] Step1 done: '{script['title']}' ({len(scenes)} scenes)"
-        )
+            scenes = script["scenes"][: task["n_scenes"]]
+            for i, s in enumerate(scenes):
+                s["scene_index"] = i
 
-        return {
-            "task_id": task_id,
-            "status": "step1_done",
-            "step1": step1,
-        }
+            step1 = {"title": script["title"], "style_anchor": "", "scenes": scenes}
+            db.video_tasks.update_one(
+                {"task_id": task_id},
+                {
+                    "$set": {
+                        "step1": step1,
+                        "status": "step1_done",
+                        "updated_at": datetime.utcnow(),
+                    }
+                },
+            )
+            logger.info(
+                f"[{task_id[:8]}] Step1 done: '{script['title']}' ({len(scenes)} scenes)"
+            )
+            return {
+                "task_id": task_id,
+                "status": "step1_done",
+                "step1": step1,
+            }
 
     except Exception as e:
         logger.error(f"[{task_id[:8]}] Step1 failed: {e}")
@@ -516,25 +598,69 @@ async def update_script(
     task = db.video_tasks.find_one({"task_id": task_id, "user_id": user_id})
     if not task:
         raise HTTPException(404, "Task not found")
-    if task["status"] not in (
+
+    valid_statuses = (
         "step1_done",
+        "step1_picking",
         "step2_generating",
         "step2_done",
         "step2_partial",
         "step2_failed",
-    ):
+    )
+    if task["status"] not in valid_statuses:
         raise HTTPException(400, f"Cannot edit step1 from status '{task['status']}'")
 
-    # Validate: must have same number of scenes as n_scenes
+    # ── Option 1: Pick storyboard variant ──────────────────────────────────
+    if body.variant_id is not None:
+        storyboards = task.get("storyboards") or []
+        if body.variant_id >= len(storyboards):
+            raise HTTPException(
+                400,
+                f"variant_id {body.variant_id} out of range (have {len(storyboards)})",
+            )
+        chosen = storyboards[body.variant_id]
+        step1 = {
+            "title": chosen["title"],
+            "style_anchor": chosen.get("style_anchor", ""),
+            "mood": chosen.get("mood", ""),
+            "scenes": chosen["scenes"],
+        }
+        db.video_tasks.update_one(
+            {"task_id": task_id},
+            {
+                "$set": {
+                    "step1": step1,
+                    "status": "step1_done",
+                    "updated_at": datetime.utcnow(),
+                }
+            },
+        )
+        logger.info(
+            f"[{task_id[:8]}] Step1: picked variant {body.variant_id} '{chosen['title']}'"
+        )
+        return {"task_id": task_id, "status": "step1_done", "step1": step1}
+
+    # ── Option 2: Direct script edit (title + scenes) ──────────────────────
+    if not body.title or not body.scenes:
+        raise HTTPException(
+            400,
+            "Provide either variant_id (to pick storyboard) or both title + scenes (to edit)",
+        )
+
     if len(body.scenes) != task["n_scenes"]:
         raise HTTPException(
             400,
             f"Expected {task['n_scenes']} scenes, got {len(body.scenes)}",
         )
 
-    # Ensure scene_index field is set
+    # Preserve existing style_anchor if not provided in edit
+    existing_style_anchor = (task.get("step1") or {}).get("style_anchor", "")
     scenes = [dict(s, scene_index=i) for i, s in enumerate(body.scenes)]
-    step1 = {"title": body.title, "scenes": scenes}
+    step1 = {
+        "title": body.title,
+        "style_anchor": existing_style_anchor,
+        "scenes": scenes,
+    }
 
     db.video_tasks.update_one(
         {"task_id": task_id},
@@ -659,11 +785,21 @@ async def regenerate_image(
     try:
         task_dir = Path(tempfile.mkdtemp(prefix=f"video_regen_{task_id}_"))
         try:
-            img_path = await svc.generate_scene_image(
-                prompt=scene["image_prompt"],
-                scene_index=scene_index,
-                task_dir=task_dir,
-            )
+            image_provider = task.get("image_provider", "gemini")
+            style_anchor = (task.get("step1") or {}).get("style_anchor", "")
+            if image_provider == "xai":
+                img_path = await svc.generate_scene_image_xai(
+                    prompt=scene["image_prompt"],
+                    scene_index=scene_index,
+                    task_dir=task_dir,
+                    style_anchor=style_anchor,
+                )
+            else:
+                img_path = await svc.generate_scene_image(
+                    prompt=scene["image_prompt"],
+                    scene_index=scene_index,
+                    task_dir=task_dir,
+                )
             r2_key = f"video-assets/{user_id}/{task_id}/scene_{scene_index:02d}.png"
             image_url = await svc.upload_asset_to_r2(img_path, r2_key, "image/png")
         finally:
@@ -757,11 +893,21 @@ async def update_image_prompt(
     try:
         task_dir = Path(tempfile.mkdtemp(prefix=f"video_regen_{task_id}_"))
         try:
-            img_path = await svc.generate_scene_image(
-                prompt=body.image_prompt,
-                scene_index=scene_index,
-                task_dir=task_dir,
-            )
+            image_provider = task.get("image_provider", "gemini")
+            style_anchor = (task.get("step1") or {}).get("style_anchor", "")
+            if image_provider == "xai":
+                img_path = await svc.generate_scene_image_xai(
+                    prompt=body.image_prompt,
+                    scene_index=scene_index,
+                    task_dir=task_dir,
+                    style_anchor=style_anchor,
+                )
+            else:
+                img_path = await svc.generate_scene_image(
+                    prompt=body.image_prompt,
+                    scene_index=scene_index,
+                    task_dir=task_dir,
+                )
             r2_key = f"video-assets/{user_id}/{task_id}/scene_{scene_index:02d}.png"
             image_url = await svc.upload_asset_to_r2(img_path, r2_key, "image/png")
         finally:
