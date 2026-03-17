@@ -25,10 +25,13 @@ import soundfile as sf
 # Duration presets
 # ─────────────────────────────────────────────
 DURATION_PRESETS: Dict[int, Dict[str, int]] = {
+    12: {"n_scenes": 2, "seconds_per_scene": 6},  # NEW
     18: {"n_scenes": 3, "seconds_per_scene": 6},
     30: {"n_scenes": 5, "seconds_per_scene": 6},
     42: {"n_scenes": 7, "seconds_per_scene": 6},
     60: {"n_scenes": 10, "seconds_per_scene": 6},
+    90: {"n_scenes": 15, "seconds_per_scene": 6},  # NEW
+    120: {"n_scenes": 20, "seconds_per_scene": 6},  # NEW
 }
 
 logger = logging.getLogger(__name__)
@@ -884,10 +887,353 @@ Chỉ trả về JSON, KHÔNG có gì khác."""
         )
         return result["public_url"]
 
+    # ── Video Studio AI Pipeline (generate-story / generate-narration / generate-script) ──
+
+    async def generate_story_from_brief(self, brief: dict) -> dict:
+        """
+        Step 1a: brief → story structure {title, hook, beats[], tone, pacing}
+        Model: deepseek-reasoner, timeout=120s
+        """
+        prompt = build_generate_story_prompt(brief)
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not set")
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-reasoner",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 2000,
+                },
+            )
+            resp.raise_for_status()
+
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        reasoning = data["choices"][0]["message"].get("reasoning_content", "")
+        if reasoning:
+            logger.info(f"  🧠 Story reasoning: {len(reasoning)} chars")
+
+        content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
+        story = json.loads(content)
+        assert "beats" in story and len(story["beats"]) > 0, "No beats returned"
+        assert "hook" in story, "No hook returned"
+        logger.info(
+            f"✅ Story generated: '{story.get('title')}', {len(story['beats'])} beats"
+        )
+        return story
+
+    async def generate_narration_from_story(self, story: dict, brief: dict) -> dict:
+        """
+        Step 1b: story beats → narration text {suggestedTitle, narration, hookStrengthScore}
+        Model: deepseek-reasoner, timeout=120s
+        """
+        prompt = build_generate_narration_prompt(story, brief)
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not set")
+
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-reasoner",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 3000,
+                },
+            )
+            resp.raise_for_status()
+
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        reasoning = data["choices"][0]["message"].get("reasoning_content", "")
+        if reasoning:
+            logger.info(f"  🧠 Narration reasoning: {len(reasoning)} chars")
+
+        content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
+        result = json.loads(content)
+        assert result.get("narration"), "Narration is empty"
+        logger.info(f"✅ Narration generated: {len(result['narration'])} chars")
+        return result
+
+    async def generate_script_from_brief(self, brief: dict, n_scenes: int) -> dict:
+        """
+        Step 2A: brief (with narration) → N scenes {title, style_anchor, mood, scenes[]}
+        Model: deepseek-reasoner, timeout=200s
+        """
+        assert brief.get(
+            "narration"
+        ), "narration is required in brief for generate_script_from_brief"
+        prompt = build_generate_script_prompt(brief, n_scenes)
+        api_key = os.getenv("DEEPSEEK_API_KEY")
+        if not api_key:
+            raise ValueError("DEEPSEEK_API_KEY not set")
+
+        async with httpx.AsyncClient(timeout=200.0) as client:
+            resp = await client.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": "deepseek-reasoner",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 8000,
+                },
+            )
+            resp.raise_for_status()
+
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        reasoning = data["choices"][0]["message"].get("reasoning_content", "")
+        if reasoning:
+            logger.info(f"  🧠 Script reasoning: {len(reasoning)} chars")
+
+        content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content.strip())
+        result = json.loads(content)
+        scenes = result.get("scenes", [])
+        assert len(scenes) > 0, "No scenes returned"
+        logger.info(
+            f"✅ Script generated: '{result.get('title')}', {len(scenes)} scenes"
+        )
+        return result
+
 
 # ─────────────────────────────────────────────
-# Singleton
+# Video Studio Prompt Builders
 # ─────────────────────────────────────────────
+
+PURPOSE_TONE = {
+    "ads": ("copywriter", "Hấp dẫn, benefit-driven, strong CTA"),
+    "storytelling": ("storyteller", "Kể chuyện, cảm xúc, narrative arc"),
+    "education": ("educator", "Rõ ràng, từng bước, dễ hiểu"),
+    "software_intro": ("product_demo", "Professional, feature-focused, clear"),
+    "corporate": ("communications", "Formal, authoritative, credible"),
+}
+
+VISUAL_STYLE_ANCHOR = {
+    "Realistic Film": "Shot on Sony A7IV, natural film grain, color graded, cinematic depth of field",
+    "Animation": "2D animated illustration, flat design, vibrant colors, clean lines",
+    "Cinematic": "Hollywood cinematic shot, dramatic lighting, IMAX quality, deep shadows",
+    "Documentary": "Documentary photography, natural lighting, candid, journalistic",
+    "Minimalist": "Clean minimalist design, white space, bold typography, simple shapes",
+    "Corporate": "Corporate photography, professional lighting, business setting, polished",
+}
+
+PLATFORM_GUIDANCE = {
+    "tiktok": "Hook mạnh ở 3 giây đầu (giật title). Tempo nhanh. Trending style.",
+    "youtube_shorts": "Hook ở 5 giây đầu. Mobile-first. Share-worthy ending.",
+    "instagram_reels": "Visually stunning. Aesthetic-first. Strong hook. Trend sounds.",
+    "youtube": "Intro rõ 15s. Chapters logic. CTA ở cuối. Watch-time optimize.",
+}
+
+BEAT_STRUCTURES = {
+    "ads": ["hook", "problem", "solution", "proof", "cta"],
+    "storytelling": ["hook", "setup", "confrontation", "resolution", "reflection"],
+    "education": ["hook", "concept", "explanation", "example", "summary"],
+    "software_intro": ["hook", "problem", "feature_demo", "benefit", "cta"],
+    "corporate": ["hook", "context", "key_message", "evidence", "conclusion"],
+}
+
+
+def build_generate_story_prompt(brief: dict) -> str:
+    purpose = brief["purpose"]
+    tone_role, tone_desc = PURPOSE_TONE.get(purpose, ("director", purpose))
+    platform = brief.get("platform", "tiktok")
+    platform_hint = PLATFORM_GUIDANCE.get(platform, "")
+    lang_name = "Tiếng Việt" if brief["language"] == "vi" else "English"
+    duration = brief["duration"]
+
+    beats = BEAT_STRUCTURES.get(
+        purpose, ["hook", "problem", "insight", "solution", "cta"]
+    )
+    beat_list = "\n".join([f"  - {b}" for b in beats])
+    beat_json_example = ",\n    ".join(
+        [f'{{"type": "{b}", "text": "..."}}' for b in beats]
+    )
+
+    return f"""You are a professional short-form video script director specializing in {tone_role} content.
+
+TASK: Create a story structure (kịch bản) for a {duration}s video on {platform}.
+
+VIDEO BRIEF:
+- Purpose: {purpose} — {tone_desc}
+- Main Idea: {brief["prompt"]}
+- Platform: {platform}
+- Duration: {duration}s
+- Language for text: {lang_name}
+
+PLATFORM GUIDANCE: {platform_hint}
+
+BEAT STRUCTURE to follow:
+{beat_list}
+
+RULES:
+- hook: MUST grab attention in first 2-3 seconds on {platform}
+- Each beat: 1-2 punchy concept sentences max (NOT full narration yet)
+- tone: overall emotional feel (examples: inspiring, urgent, playful, authoritative)
+- pacing: "fast" (TikTok/Shorts) | "medium" (Instagram, YouTube) | "slow" (educational)
+- All beat text in {lang_name}
+
+Return ONLY valid JSON:
+{{
+  "title": "Catchy video title in {lang_name}",
+  "hook": "Opening attention-grabber sentence",
+  "beats": [
+    {beat_json_example}
+  ],
+  "tone": "inspiring",
+  "pacing": "fast"
+}}"""
+
+
+def build_generate_narration_prompt(story: dict, brief: dict) -> str:
+    lang_name = "Tiếng Việt" if brief["language"] == "vi" else "English"
+    platform = brief.get("platform", "tiktok")
+    platform_hint = PLATFORM_GUIDANCE.get(platform, "")
+    duration = brief["duration"]
+    wpm = 120 if brief["language"] == "vi" else 150
+    target_words = int((duration / 60) * wpm)
+    beats_text = "\n".join(
+        [f"- {b['type'].upper()}: {b['text']}" for b in story.get("beats", [])]
+    )
+
+    character_clause = (
+        f"Main character/subject: {brief['character']}"
+        if brief.get("character")
+        else ""
+    )
+    music_clause = (
+        f"Background music mood: {brief['music']}" if brief.get("music") else ""
+    )
+
+    return f"""You are a professional voiceover writer.
+
+TASK: Convert a story structure into a natural voiceover narration script.
+
+STORY STRUCTURE:
+Title: {story.get("title", "")}
+Hook: {story.get("hook", "")}
+Beats:
+{beats_text}
+Tone: {story.get("tone", "")} | Pacing: {story.get("pacing", "")}
+{character_clause}
+{music_clause}
+
+TARGET:
+- Duration: {duration}s → target ~{target_words} words
+- Language: {lang_name} ONLY
+- Platform: {platform}
+
+PLATFORM GUIDANCE: {platform_hint}
+
+RULES:
+- Write CONTINUOUS narration (không chia scene)
+- Follow the beat structure — KHÔNG thay đổi ý nghĩa hoặc bỏ beat nào
+- Natural spoken language, không phải văn viết formal
+- Opening line MUST use the hook as the attention-grabber
+
+Return ONLY valid JSON:
+{{
+  "suggestedTitle": "{story.get("title", "")}",
+  "narration": "Full continuous narration text here...",
+  "hookStrengthScore": 0.85
+}}"""
+
+
+def build_generate_script_prompt(brief: dict, n_scenes: int) -> str:
+    purpose = brief["purpose"]
+    tone_role, tone_desc = PURPOSE_TONE.get(purpose, ("director", purpose))
+    visual_base = VISUAL_STYLE_ANCHOR.get(
+        brief.get("visualStyle", ""), brief.get("visualStyle", "cinematic")
+    )
+    platform = brief.get("platform", "tiktok")
+    platform_hint = PLATFORM_GUIDANCE.get(platform, "")
+    lang_name = "Tiếng Việt" if brief["language"] == "vi" else "English"
+    aspect = brief.get("aspectRatio", "9:16")
+    duration = brief["duration"]
+
+    character_clause = (
+        f"Main character/subject: {brief['character']}"
+        if brief.get("character")
+        else ""
+    )
+    music_clause = (
+        f"Background music mood: {brief['music']}" if brief.get("music") else ""
+    )
+    extra_clause = (
+        f"Additional instructions: {brief['extraInstructions']}"
+        if brief.get("extraInstructions")
+        else ""
+    )
+
+    return f"""You are a professional short-form video scriptwriter specializing in {tone_role} content.
+
+VIDEO BRIEF:
+- Purpose: {purpose} ({tone_desc})
+- Main Idea: {brief["prompt"]}
+- Platform: {platform} | Aspect Ratio: {aspect}
+- Visual Style: {brief.get("visualStyle", "Cinematic")} — Base: "{visual_base}"
+- Duration: {duration}s | Scenes: {n_scenes} (each ~{duration // n_scenes}s)
+- Language for narration: {lang_name}
+{character_clause}
+{music_clause}
+{extra_clause}
+
+PLATFORM GUIDANCE: {platform_hint}
+
+NARRATION (pre-written, do NOT change):
+---
+{brief["narration"]}
+---
+
+TASK: Split the narration into exactly {n_scenes} scenes and generate visual details for each.
+
+STYLE_ANCHOR RULES:
+- Write 1 English sentence describing CONSISTENT visual style for ALL scenes
+- Include: visual_style aesthetic, aspect ratio ({aspect}), color palette, character appearance (if any)
+- All image_prompt MUST START with this style_anchor
+
+SCENE RULES:
+- narration: {lang_name}. Assign a logical portion of the full narration. Do NOT change meaning.
+- image_prompt: English only. Start with [style_anchor]. Add scene-specific visual description.
+- text_overlay: {lang_name}. Max 12 words. Key phrase from this scene.
+- camera_motion: one of: static | slow_zoom_in | slow_zoom_out | pan_left | pan_right | tilt_up
+- emotion: emotional tone of this scene (e.g. curious, confident, inspired, urgent)
+- duration_estimate: integer seconds (~{duration // n_scenes})
+
+SPECIAL: Scene 0 MUST have a strong hook/attention-grabber for {platform}.
+
+Return ONLY valid JSON (no markdown, no explanation):
+{{
+  "title": "Video title in {lang_name}",
+  "style_anchor": "...",
+  "mood": "overall mood in English",
+  "scenes": [
+    {{
+      "scene_index": 0,
+      "narration": "...",
+      "image_prompt": "[style_anchor]. Scene-specific description...",
+      "text_overlay": "...",
+      "camera_motion": "slow_zoom_in",
+      "emotion": "curious",
+      "duration_estimate": {duration // n_scenes}
+    }}
+  ]
+}}"""
+
+
 _service_instance: Optional[VideoGenerationService] = None
 
 

@@ -1038,6 +1038,53 @@ services:
           cpus: "1.5"
 
   # ============================================================================
+  # Video Studio Worker - AI Interactive Pipeline (story→narration→script→media)
+  # Handles: generate_story, generate_narration, generate_script, generate_image, TTS
+  # ============================================================================
+  video-studio-worker:
+    container_name: video-studio-worker
+    image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
+    command: python -m src.workers.video_studio_worker
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    environment:
+      - TZ=Asia/Ho_Chi_Minh
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - REDIS_URL=redis://redis-server:6379
+      - MONGODB_URI_AUTH=mongodb://${MONGODB_APP_USERNAME}:${MONGODB_APP_PASSWORD}@mongodb:27017/${MONGODB_NAME}?authSource=admin
+      - MONGODB_NAME=${MONGODB_NAME:-ai_service_db}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - XAI_API_KEY=${XAI_API_KEY}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - R2_ENDPOINT=${R2_ENDPOINT}
+      - R2_PUBLIC_URL=${R2_PUBLIC_URL}
+    depends_on:
+      - redis-server
+      - mongodb
+    restart: unless-stopped
+    networks:
+      - ai-chatbot-network
+    healthcheck:
+      test: [ "CMD-SHELL", "ps aux | grep 'video_studio_worker' | grep -v grep || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "1.0"
+
+  # ============================================================================
   # NGINX - API Gateway and Reverse Proxy
   # ============================================================================
   nginx:

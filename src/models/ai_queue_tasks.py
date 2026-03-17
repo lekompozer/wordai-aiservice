@@ -4,7 +4,7 @@ Pydantic models for AI tasks in Redis queue
 """
 
 from pydantic import BaseModel, Field
-from typing import Dict, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime
 
 
@@ -301,4 +301,44 @@ class TestGenerationTask(BaseModel):
     created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
     priority: int = Field(default=1, description="1=normal, 2=high, 3=urgent")
     max_retries: int = Field(default=2, description="Max retries before failure")
+    retry_count: int = Field(default=0)
+
+
+class VideoStudioTask(BaseModel):
+    """Task for Video Studio queue — handles story/narration/script/image/tts jobs"""
+
+    task_id: str = Field(..., description="Unique task ID (same as job_id)")
+    job_id: str = Field(..., description="Job ID for Redis status tracking")
+    user_id: str = Field(..., description="Firebase UID")
+    task_type: str = Field(
+        ...,
+        description="generate_story | generate_narration | generate_script | generate_image | tts",
+    )
+    project_id: str = Field(..., description="Frontend project ID (localStorage key)")
+
+    # Payload — varies by task_type (all optional at model level, validated in worker)
+    brief: Optional[Dict[str, Any]] = (
+        None  # Video brief: purpose, prompt, duration, language, platform, ...
+    )
+    story: Optional[Dict[str, Any]] = (
+        None  # Story structure from generate-story step (for narration step)
+    )
+    n_scenes: Optional[int] = None  # Number of scenes (for generate_script)
+
+    # For generate_image
+    scene_index: Optional[int] = None
+    image_prompt: Optional[str] = None
+    visual_style: Optional[str] = None
+    aspect_ratio: Optional[str] = None
+    model_hint: Optional[str] = None  # gemini | xai
+
+    # For tts
+    scene_text: Optional[str] = None  # Narration text for this scene
+    narrator: Optional[str] = None  # Narrator key: Hà Nữ | Nam | Glen | Sara
+    language: Optional[str] = None
+
+    # Task metadata
+    created_at: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    priority: int = Field(default=1)
+    max_retries: int = Field(default=2)
     retry_count: int = Field(default=0)

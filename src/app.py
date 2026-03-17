@@ -300,6 +300,9 @@ from src.api.blog_routes import router as blog_router
 # ✅ ADDED: AI Video Generation API - Short-form video pipeline (DeepSeek+Gemini+valtec-tts+FFmpeg)
 from src.api.video_routes import router as video_router
 
+# ✅ ADDED: AI Video Studio API - Interactive 4-step pipeline with Redis Queue
+from src.api.video_studio_routes import router as video_studio_router
+
 # ✅ ADDED: Feedback & Review API - User reviews with social sharing rewards
 from src.api.feedback_routes import router as feedback_router
 
@@ -1424,6 +1427,12 @@ def create_app() -> FastAPI:
     app.include_router(
         video_router,
         tags=["AI Video Generation"],
+    )
+
+    # ✅ NEW: AI Video Studio API - Interactive scene-by-scene pipeline
+    app.include_router(
+        video_studio_router,
+        tags=["AI Video Studio"],
     )
 
     # ✅ NEW: Feedback & Review API - User reviews with social sharing rewards

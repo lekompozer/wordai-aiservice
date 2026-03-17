@@ -24,6 +24,7 @@ _slide_narration_audio_queue: Optional[QueueManager] = None
 _video_export_queue: Optional[QueueManager] = None
 _lyria_music_queue: Optional[QueueManager] = None
 _test_generation_queue: Optional[QueueManager] = None
+_video_studio_queue: Optional[QueueManager] = None
 
 
 async def get_extraction_queue() -> QueueManager:
@@ -234,13 +235,29 @@ async def get_test_generation_queue() -> QueueManager:
     return _test_generation_queue
 
 
+async def get_video_studio_queue() -> QueueManager:
+    """Get Redis queue manager for AI Video Studio tasks (story/narration/script/image/tts)"""
+    global _video_studio_queue
+    if _video_studio_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
+        _video_studio_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="video_studio",
+            status_expiry_hours=48,  # Keep longer — AI jobs can take time
+            max_queue_size=1000,
+        )
+        await _video_studio_queue.connect()
+        logger.info("✅ Video Studio queue manager connected")
+    return _video_studio_queue
+
+
 async def cleanup_queues():
     """Cleanup queue connections on shutdown"""
     global _extraction_queue, _document_queue, _storage_queue
     global _ai_editor_queue, _slide_generation_queue, _translation_queue
     global _slide_format_queue, _chapter_translation_queue
     global _slide_narration_subtitle_queue, _slide_narration_audio_queue
-    global _video_export_queue, _lyria_music_queue, _test_generation_queue  # Add test_generation
+    global _video_export_queue, _lyria_music_queue, _test_generation_queue, _video_studio_queue
 
     if _extraction_queue:
         await _extraction_queue.disconnect()
@@ -306,3 +323,8 @@ async def cleanup_queues():
         await _test_generation_queue.disconnect()
         _test_generation_queue = None
         logger.info("🧹 Test Generation queue disconnected")
+
+    if _video_studio_queue:
+        await _video_studio_queue.disconnect()
+        _video_studio_queue = None
+        logger.info("🧹 Video Studio queue disconnected")
