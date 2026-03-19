@@ -531,45 +531,23 @@ Chỉ trả về JSON, KHÔNG có gì khác."""
         text: str,
         scene_index: int,
         task_dir: Path,
-        tts_provider: str = "valtec",  # "valtec" | "edge" | "gemini"
-        voice: str = "NM1",  # valtec: NM1/NF/SF/SM/NM2
+        tts_provider: str = "edge",  # "edge" | "gemini"
+        voice: str = "NM1",  # edge voice key (mapped in EDGE_VOICE_MAP)
         edge_voice: str = "vi-VN-NamMinhNeural",  # edge-tts voice
     ) -> Path:
         """Generate TTS audio for one scene → WAV file."""
         out_path = task_dir / f"scene_{scene_index:02d}_audio.wav"
 
-        if tts_provider == "valtec":
-            await self._tts_valtec(text, voice, out_path)
-        elif tts_provider == "edge":
+        if tts_provider == "edge":
             await self._tts_edge(text, edge_voice, out_path)
         elif tts_provider == "gemini":
             await self._tts_gemini(text, scene_index, task_dir, out_path)
         else:
-            # fallback chain: valtec → edge
-            try:
-                await self._tts_valtec(text, voice, out_path)
-            except Exception as e:
-                logger.warning(
-                    f"  ⚠️  valtec-tts failed ({e}), falling back to edge-tts"
-                )
-                await self._tts_edge(text, edge_voice, out_path)
+            # fallback to edge-tts
+            await self._tts_edge(text, edge_voice, out_path)
 
         logger.info(f"  🔊 Scene {scene_index} audio: {out_path.name}")
         return out_path
-
-    async def _tts_valtec(self, text: str, speaker: str, out_path: Path) -> None:
-        """Use valtec-tts (Vietnamese, CPU, free, ~285MB model)."""
-        from valtec_tts import TTS  # type: ignore
-
-        # TTS is CPU-bound — run in executor to avoid blocking event loop
-        loop = asyncio.get_event_loop()
-
-        def _run():
-            tts = TTS()  # model is cached after first download
-            audio, sr = tts.synthesize(text, speaker=speaker)
-            sf.write(str(out_path), audio, sr)
-
-        await loop.run_in_executor(None, _run)
 
     async def _tts_edge(self, text: str, voice: str, out_path: Path) -> None:
         """Use edge-tts (free Microsoft TTS, multi-language)."""

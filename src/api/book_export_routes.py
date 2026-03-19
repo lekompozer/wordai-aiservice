@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Literal, Dict, Any
 from enum import Enum
 from datetime import datetime
+import httpx
+import base64
 
 from src.middleware.firebase_auth import require_auth
 from src.services.book_chapter_manager import GuideBookBookChapterManager
@@ -23,6 +25,27 @@ router = APIRouter(prefix="/api/v1/books", tags=["Book Export"])
 
 
 # ============ HELPER FUNCTIONS ============
+
+
+async def _fetch_image_as_base64(url: str) -> str:
+    """
+    Download an image URL and return it as a base64 data URI.
+    Used to embed images directly in PDF HTML so Playwright doesn't need
+    to fetch external URLs (avoids Docker network issues on render).
+    Falls back to the original URL if download fails.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            content_type = response.headers.get("content-type", "image/jpeg").split(
+                ";"
+            )[0]
+            b64 = base64.b64encode(response.content).decode("utf-8")
+            return f"data:{content_type};base64,{b64}"
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to embed image as base64 for PDF: {url[:80]} - {e}")
+        return url  # Fall back to original URL
 
 
 def render_background_css(background_config: Optional[Dict[str, Any]]):
@@ -480,6 +503,7 @@ async def export_book(
 
         # 1. Cover page (optional) - Full page image only, no text
         if request.include_cover and book_cover_url:
+            cover_src = await _fetch_image_as_base64(book_cover_url)
             cover_html = f"""
             <div class="book-cover" style="
                 position: relative;
@@ -490,7 +514,7 @@ async def export_book(
                 padding: 0;
                 overflow: hidden;
             ">
-                <img src="{book_cover_url}" style="
+                <img src="{cover_src}" style="
                     width: 100%;
                     height: 100%;
                     object-fit: cover;
@@ -583,8 +607,10 @@ async def export_book(
                 isinstance(background_result, dict)
                 and background_result.get("type") == "image"
             ):
-                # Image background with overlay - use layered divs with background attachment
+                # Image background with overlay - embed image as base64 so Playwright
+                # doesn't need to fetch external URLs (avoids Docker network issues)
                 image_url = background_result["image_url"]
+                image_src = await _fetch_image_as_base64(image_url)
                 overlay_color = background_result["overlay_color"]
                 overlay_opacity = background_result["overlay_opacity"]
 
@@ -606,11 +632,12 @@ async def export_book(
                     padding: 0;
                     background-image:
                         linear-gradient({overlay_rgba}, {overlay_rgba}),
-                        url('{image_url}');
+                        url('{image_src}');
                     background-size: cover;
                     background-position: center;
-                    background-repeat: repeat;
-                    background-attachment: local;
+                    background-repeat: no-repeat;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
                 ">
                     <div class="chapter-content" style="
                         position: relative;
@@ -650,10 +677,16 @@ async def export_book(
             <meta charset="UTF-8">
             <title>{book_title}</title>
             <style>
+                @page {{
+                    size: A4;
+                    margin: 0;
+                }}
                 * {{
                     margin: 0;
                     padding: 0;
                     box-sizing: border-box;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
                 }}
                 html, body {{
                     width: 100%;
@@ -749,10 +782,6 @@ async def export_book(
                         margin: 0;
                         padding: 0;
                     }}
-                    @page {{
-                        size: A4;
-                        margin: 0;
-                    }}
                 }}
             </style>
         </head>
@@ -786,7 +815,7 @@ async def export_book(
             html_content=final_html,
             title=safe_title,
             format=request.format.value,
-            document_type="doc",  # Books are treated as documents for export
+            document_type="book",  # Full-bleed A4 — book manages its own margins/backgrounds
         )
 
         logger.info(

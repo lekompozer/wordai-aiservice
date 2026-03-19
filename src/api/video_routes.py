@@ -36,7 +36,7 @@ router = APIRouter(prefix="/api/v1/video", tags=["AI Video Generation"])
 # ─────────────────────────────────────────────
 
 VALID_DURATIONS = list(DURATION_PRESETS.keys())  # [18, 30, 42, 60]
-VALID_TTS = {"valtec", "edge", "gemini"}
+VALID_TTS = {"edge", "gemini"}
 VALID_VOICES = {"NM1", "NM2", "NF", "SM", "SF"}
 EDGE_VOICE_MAP = {
     "NM1": "vi-VN-NamMinhNeural",
@@ -55,11 +55,11 @@ class CreateTaskRequest(BaseModel):
     )
     tts_provider: str = Field(
         default="edge",
-        description="TTS: valtec (free VI) | edge (free multi-lang) | gemini (paid)",
+        description="TTS: edge (free multi-lang) | gemini (paid)",
     )
     voice: str = Field(
         default="NM1",
-        description="Giọng đọc valtec: NM1/NM2 (Nam Bắc) | NF (Nữ Bắc) | SM (Nam Nam) | SF (Nữ Nam)",
+        description="Giọng đọc: NM1/NM2 → vi-VN-NamMinhNeural | NF/SF → vi-VN-HoaiMyNeural",
     )
     language: str = Field(default="vi", description="Ngôn ngữ: vi | en")
     mode: str = Field(

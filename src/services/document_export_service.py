@@ -381,6 +381,14 @@ class DocumentExportService:
                 """
                 logger.info(f"📄 Using Playwright with FullHD (1920x1080) for slides")
 
+            elif document_type == "book":
+                # Full-bleed A4 book export — no margin wrapper, book manages its own CSS
+                width = "210mm"
+                height = "297mm"
+                landscape = False
+                enhanced_css = ""  # Book HTML already has complete CSS
+                logger.info("📄 Using Playwright with full-bleed A4 for book export")
+
             else:
                 # A4 for documents and notes
                 width = "210mm"
@@ -456,8 +464,30 @@ class DocumentExportService:
             except Exception as e:
                 logger.warning(f"⚠️ Failed to extract fonts from HTML: {e}")
 
-            # Wrap HTML with proper structure (preserve fonts)
-            full_html = f"""<!DOCTYPE html>
+            # Build full HTML for Playwright
+            if document_type == "book":
+                # Book HTML is already a complete document — inject print-color-adjust only,
+                # do NOT double-wrap (would break @page margin:0 and background-image CSS)
+                try:
+                    soup_doc = BeautifulSoup(html_content, "html.parser")
+                    head_tag = soup_doc.find("head")
+                    if head_tag:
+                        inject_tag = soup_doc.new_tag("style")
+                        inject_tag.string = (
+                            "* { -webkit-print-color-adjust: exact !important;"
+                            " print-color-adjust: exact !important; }"
+                        )
+                        head_tag.insert(0, inject_tag)
+                    full_html = str(soup_doc)
+                    logger.info("📖 Using book HTML directly (no double-wrap)")
+                except Exception as e_inject:
+                    logger.warning(
+                        f"⚠️ Could not inject print style into book HTML: {e_inject}"
+                    )
+                    full_html = html_content
+            else:
+                # Wrap HTML with proper structure (preserve fonts)
+                full_html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
@@ -514,7 +544,7 @@ class DocumentExportService:
                         landscape=landscape,
                         margin=(
                             {"top": "0", "right": "0", "bottom": "0", "left": "0"}
-                            if document_type == "slide"
+                            if document_type in ("slide", "book")
                             else {
                                 "top": "20mm",
                                 "right": "20mm",
