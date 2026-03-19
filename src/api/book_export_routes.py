@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Literal, Dict, Any
 from enum import Enum
 from datetime import datetime
+import asyncio
 import httpx
 import base64
 
@@ -46,6 +47,36 @@ async def _fetch_image_as_base64(url: str) -> str:
     except Exception as e:
         logger.warning(f"⚠️ Failed to embed image as base64 for PDF: {url[:80]} - {e}")
         return url  # Fall back to original URL
+
+
+async def _embed_all_images_in_html(html: str) -> str:
+    """
+    Replace all <img src="http..."> URLs in an HTML string with inline base64
+    data URIs so Playwright doesn't need to fetch any external images.
+    Downloads are done concurrently for speed.
+    """
+    from bs4 import BeautifulSoup
+
+    try:
+        soup = BeautifulSoup(html, "html.parser")
+        img_tags = [
+            tag for tag in soup.find_all("img") if tag.get("src", "").startswith("http")
+        ]
+        if not img_tags:
+            return html
+
+        # Download all images concurrently
+        srcs = [tag["src"] for tag in img_tags]
+        embedded = await asyncio.gather(*[_fetch_image_as_base64(url) for url in srcs])
+
+        for tag, data_uri in zip(img_tags, embedded):
+            tag["src"] = data_uri
+
+        logger.info(f"🖼️ Embedded {len(img_tags)} inline image(s) as base64 for PDF")
+        return str(soup)
+    except Exception as e:
+        logger.warning(f"⚠️ Failed to embed inline images: {e}")
+        return html
 
 
 def render_background_css(background_config: Optional[Dict[str, Any]]):
@@ -592,6 +623,10 @@ async def export_book(
             if not content_html:
                 logger.warning(f"⚠️ Chapter {chapter_id} has no content")
                 content_html = "<p><em>No content</em></p>"
+
+            # Embed all inline <img> URLs as base64 so Playwright doesn't need
+            # to fetch external CDN images (avoids Docker network issues)
+            content_html = await _embed_all_images_in_html(content_html)
 
             # Get background config (chapter overrides book)
             chapter_background = chapter_with_content.get("background_config")
