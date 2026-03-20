@@ -672,9 +672,8 @@ services:
   #     timeout: 10s
   #     retries: 3
 
-  # AI Assistant GLM-5 Worker (TEMPORARILY DISABLED - saves ~512M RAM)
+  # AI Assistant GLM-5 Worker
   ai-assistant-glm5-worker:
-    profiles: [ "disabled" ]
     container_name: ai-assistant-glm5-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     env_file:
@@ -712,8 +711,9 @@ services:
       retries: 3
       start_period: 30s
 
-  # Gemini AI Worker - Combined Architecture Analysis + Project Scaffolding (using Gemini 3 Pro)
+  # Gemini AI Worker - Combined Architecture Analysis + Project Scaffolding (TEMPORARILY DISABLED - saves ~512M RAM)
   gemini-ai-worker:
+    profiles: [ "disabled" ]
     container_name: gemini-ai-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     env_file:
@@ -941,9 +941,10 @@ services:
           cpus: "0.5"
 
   # ============================================================================
-  # Video Export Worker - Playwright screenshot + FFmpeg encoding
+  # Video Export Worker - Playwright screenshot + FFmpeg encoding (TEMPORARILY DISABLED - saves ~512M RAM)
   # ============================================================================
   video-export-worker:
+    profiles: [ "disabled" ]
     container_name: video-export-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     command: python -m src.workers.video_export_worker
@@ -992,10 +993,10 @@ services:
           cpus: "1.5"
 
   # ============================================================================
-  # Video Generation Worker - AI Short Video (script→images→audio→render→encode)
-  # Playwright + FFmpeg for final render/encode of TikTok/Reels/Shorts style videos
+  # Video Generation Worker - AI Short Video (TEMPORARILY DISABLED - saves ~1G RAM)
   # ============================================================================
   video-generation-worker:
+    profiles: [ "disabled" ]
     container_name: video-generation-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     command: python -m src.workers.video_generation_worker
@@ -1038,10 +1039,10 @@ services:
           cpus: "1.5"
 
   # ============================================================================
-  # Video Studio Worker - AI Interactive Pipeline (story→narration→script→media)
-  # Handles: generate_story, generate_narration, generate_script, generate_image, TTS
+  # Video Studio Worker - AI Interactive Pipeline (TEMPORARILY DISABLED - saves ~512M RAM)
   # ============================================================================
   video-studio-worker:
+    profiles: [ "disabled" ]
     container_name: video-studio-worker
     image: ${DOCKER_HUB_USERNAME:-lekompozer}/wordai-aiservice:${IMAGE_TAG:-latest}
     command: python -m src.workers.video_studio_worker
