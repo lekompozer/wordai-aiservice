@@ -342,10 +342,19 @@ async def generate_in_session(
 
     # ── Generate ─────────────────────────────────────────────────────────────
     gemini_service = get_gemini_image_service()
+    # If there are character refs, auto-apply face mode so Gemini preserves identity
+    has_refs = bool(pil_refs)
+    auto_reference_mode = (
+        "face" if all_chars else ("general" if has_refs else "general")
+    )
     result = await gemini_service.generate_image(
         prompt=prompt,
         generation_type="general",
-        user_options={"negative_prompt": negative_prompt},
+        user_options={
+            "negative_prompt": negative_prompt,
+            "reference_mode": auto_reference_mode,
+            "has_reference_images": has_refs,
+        },
         aspect_ratio=aspect_ratio,
         reference_images=pil_refs if pil_refs else None,
     )
