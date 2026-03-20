@@ -188,7 +188,7 @@ echo "🩺 Performing health checks..."
 echo "   Initial delay: ${HEALTH_CHECK_DELAY}s"
 echo "   Max retries: $MAX_HEALTH_RETRIES"
 echo "   Interval: ${HEALTH_CHECK_INTERVAL}s"
-echo "   Checking: Main app + active workers (5 workers disabled via profiles)"
+echo "   Checking: Main app + active workers (8 workers disabled via profiles)"
 
 sleep $HEALTH_CHECK_DELAY
 
@@ -233,8 +233,9 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
         # Check all workers are running (excluding disabled workers with profiles:[disabled])
         echo "🔍 Checking workers status..."
         # Disabled (profiles:[disabled]): slide-format-worker, book-processing-worker,
-        #   slide-generation-worker, slide-narration-worker, ai-assistant-glm5-worker
-        WORKERS=("gemini-ai-worker" "test-generation-worker" "video-export-worker" "ai-editor-worker" "learning-events-worker" "video-generation-worker")
+        #   slide-generation-worker, slide-narration-worker, gemini-ai-worker,
+        #   video-export-worker, video-generation-worker, video-studio-worker
+        WORKERS=("ai-assistant-glm5-worker" "test-generation-worker" "ai-editor-worker" "learning-events-worker" "learning-assistant-worker" "community-cache-updater")
 
         ALL_WORKERS_OK=true
         for worker in "${WORKERS[@]}"; do
@@ -247,7 +248,7 @@ while [ $RETRY_COUNT -lt $MAX_HEALTH_RETRIES ]; do
         done
 
         if [ "$ALL_WORKERS_OK" = true ]; then
-            echo "✅ All active workers healthy (5 workers disabled via profiles to save ~2GB RAM)"
+            echo "✅ All active workers healthy (8 workers disabled via profiles to save ~3GB RAM)"
 
             # Clear Redis cache to remove stale cached data after deployment
             echo ""
