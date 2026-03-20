@@ -149,34 +149,29 @@ class GeminiImageService:
             prompt_parts.append(f"{panel_count}-panel comic strip in {style} style.")
 
         elif generation_type == "general":
-            reference_mode = user_options.get("reference_mode", "general")
+            reference_mode = user_options.get("reference_mode", "object")
 
-            if reference_mode == "face" and user_options.get("has_reference_images"):
-                prompt_parts.insert(
-                    0,
-                    "IMPORTANT: The reference image(s) show the exact person/character whose facial identity "
-                    "must be STRICTLY PRESERVED in every detail — identical facial bone structure, eye shape "
-                    "and color, nose shape, lip shape, skin tone, hair color and texture. "
-                    "Generate a new image following the description below while maintaining 100% facial likeness.",
-                )
-            elif reference_mode == "style" and user_options.get("has_reference_images"):
-                prompt_parts.insert(
-                    0,
-                    "Use the reference image(s) as the exact style, color palette, and aesthetic guide. "
-                    "Replicate the visual style precisely while generating new content as described below.",
-                )
-            elif reference_mode == "edit" and user_options.get("has_reference_images"):
-                prompt_parts.insert(
-                    0,
-                    "Edit the provided reference image according to the instructions below. "
-                    "Preserve all unchanged areas as close to the original as possible.",
-                )
-            elif user_options.get("has_reference_images"):
-                # default: use reference as inspiration/context
-                prompt_parts.insert(
-                    0,
-                    "Use the reference image(s) as context and visual guidance for the generation below.",
-                )
+            if user_options.get("has_reference_images"):
+                if reference_mode in ["face", "character"]:
+                    prompt_parts.insert(
+                        0,
+                        "[CRITICAL INSTRUCTION: EDIT HUMAN CHARACTER & SCENE]\n"
+                        "You must STRICTLY preserve the reference image. Keep the human character's face, identity, exact clothing/outfit, pose, "
+                        "AND the entire surrounding environment/background EXACTLY the same as the reference. "
+                        "Do NOT generate a different person, do NOT change the background or clothes unless explicitly requested. "
+                        "ONLY modify or add details according to the specific user input below.\n"
+                        "USER INPUT TO APPLY:",
+                    )
+                else:
+                    prompt_parts.insert(
+                        0,
+                        "[CRITICAL INSTRUCTION: EDIT OBJECT/CARTOON & SCENE]\n"
+                        "You must STRICTLY preserve the reference image. Keep the object, cartoon character, textures, patterns, shapes, "
+                        "AND the entire surrounding environment/background EXACTLY the same as the reference. "
+                        "Do NOT hallucinate a new background or redesign the main subjects unless explicitly requested. "
+                        "ONLY modify or add details according to the specific user input below.\n"
+                        "USER INPUT TO APPLY:",
+                    )
 
             if user_options.get("negative_prompt"):
                 prompt_parts.append(f"Avoid: {user_options['negative_prompt']}.")
