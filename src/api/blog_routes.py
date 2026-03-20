@@ -232,7 +232,7 @@ async def list_posts(
         "published", description="published | draft | all (admin only)"
     ),
     page: int = Query(1, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(20, ge=1, le=1000),
     user: Optional[Dict] = Depends(get_current_user_optional),
 ) -> Dict[str, Any]:
     """
