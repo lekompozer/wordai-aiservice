@@ -148,6 +148,11 @@ class GeminiImageService:
             panel_count = user_options.get("panel_count", 1)
             prompt_parts.append(f"{panel_count}-panel comic strip in {style} style.")
 
+        elif generation_type == "general":
+            # General purpose — no special system instructions, just pass prompt as-is
+            if user_options.get("negative_prompt"):
+                prompt_parts.append(f"Avoid: {user_options['negative_prompt']}.")
+
         return " ".join(prompt_parts)
 
     async def generate_image(

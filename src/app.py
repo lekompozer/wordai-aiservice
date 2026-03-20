@@ -335,6 +335,7 @@ from src.api.image_generation_routes import router as image_generation_router
 from src.api.image_generation_phase2_routes import (
     router as image_generation_phase2_router,
 )
+from src.api.image_session_routes import router as image_session_router
 
 # ✅ ADDED: StudyHub Subject API - Learning platform core subject management (Milestone 1.1)
 from src.api.studyhub_subject_routes import router as studyhub_subject_router
@@ -1497,6 +1498,9 @@ def create_app() -> FastAPI:
     app.include_router(
         image_generation_phase2_router, tags=["AI Image Generation - Phase 2"]
     )
+
+    # ✅ ADDED: Image Sessions API - Persistent sessions for consistent multi-image generation
+    app.include_router(image_session_router, tags=["AI Image Sessions"])
 
     # ✅ ADDED: Image Editing API - Style Transfer, Object Edit, Inpainting, Composition
     app.include_router(image_editing_router, tags=["AI Image Editing"])

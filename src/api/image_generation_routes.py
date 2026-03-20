@@ -18,6 +18,7 @@ from src.models.image_generation_models import (
     StylizedResponse,
     LogoRequest,
     LogoResponse,
+    GeneralImageResponse,
     ImageGenerationMetadata,
 )
 
@@ -530,6 +531,163 @@ async def generate_logo_image(
         raise
     except Exception as e:
         logger.error(f"❌ Error generating logo: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Image generation failed: {str(e)}"
+        )
+
+
+@router.post(
+    "/general",
+    response_model=GeneralImageResponse,
+    summary="Generate image from text and/or up to 14 reference images (general purpose)",
+)
+async def generate_general_image(
+    prompt: str = Form(..., description="Mô tả chi tiết ảnh cần tạo"),
+    aspect_ratio: str = Form(
+        "1:1", description="Tỷ lệ khung hình: 1:1 | 16:9 | 9:16 | 4:3 | 3:4"
+    ),
+    negative_prompt: Optional[str] = Form(None, description="Những yếu tố cần tránh"),
+    reference_images: List[UploadFile] = File(
+        default=[],
+        description="Ảnh tham chiếu tùy chọn, tối đa 14 ảnh (image-to-image)",
+    ),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    **Tạo ảnh đa năng từ text và/hoặc nhiều ảnh đầu vào (tối đa 14 ảnh)**
+
+    Endpoint tổng quát không giới hạn loại ảnh. Người dùng cung cấp prompt mô tả,
+    tùy chọn đính kèm tối đa 14 ảnh tham chiếu (giới hạn của Gemini API) để AI
+    dùng làm cơ sở chỉnh sửa, kết hợp phong cách, hoặc lấy cảm hứng.
+
+    **Authentication:** Bắt buộc (tốn 2 điểm mỗi lần tạo)
+
+    **Request Body (form-data):**
+    - `prompt` (text, bắt buộc): Mô tả chi tiết ảnh cần tạo
+    - `aspect_ratio` (text, tuỳ chọn): "1:1" | "16:9" | "9:16" | "4:3" | "3:4" (mặc định: "1:1")
+    - `negative_prompt` (text, tuỳ chọn): Các yếu tố muốn tránh trong ảnh
+    - `reference_images` (files, tuỳ chọn): 1–14 ảnh gốc để AI sử dụng (image-to-image)
+      - Định dạng hỗ trợ: PNG, JPEG, WebP, HEIC, HEIF
+      - Dung lượng tối đa mỗi file: 7 MB
+
+    **Response:**
+    - `file_url`: URL trực tiếp tải ảnh
+    - `file_id`: ID trong thư viện của người dùng
+    - `reference_images_count`: Số ảnh tham chiếu đã dùng
+    - `prompt_used`: Prompt đầy đủ gửi tới Gemini
+    """
+    user_id = current_user.get("uid")
+
+    try:
+        points_service = get_points_service()
+        check = await points_service.check_sufficient_points(
+            user_id=user_id,
+            points_needed=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+        )
+
+        if not check["has_points"]:
+            raise HTTPException(
+                status_code=402,
+                detail={
+                    "error": "insufficient_points",
+                    "message": f"Không đủ điểm. Cần: {POINTS_PER_GENERATION}, Còn: {check['points_available']}",
+                    "points_needed": POINTS_PER_GENERATION,
+                    "points_available": check["points_available"],
+                },
+            )
+
+        # Validate reference images count (Gemini API limit: 14 images per prompt)
+        MAX_REFERENCE_IMAGES = 14
+        if len(reference_images) > MAX_REFERENCE_IMAGES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Tối đa {MAX_REFERENCE_IMAGES} ảnh tham chiếu mỗi lần tạo (Gemini API limit)",
+            )
+
+        # Process reference images if provided
+        pil_reference_images = None
+        if reference_images:
+            if not PIL_AVAILABLE:
+                raise HTTPException(
+                    status_code=500, detail="PIL not installed for image processing"
+                )
+            pil_reference_images = []
+            for uploaded_file in reference_images:
+                raw = await uploaded_file.read()
+                pil_reference_images.append(Image.open(BytesIO(raw)))
+            logger.info(
+                f"📸 {len(pil_reference_images)} reference image(s) provided for general generation"
+            )
+
+        user_options = {"negative_prompt": negative_prompt}
+
+        gemini_service = get_gemini_image_service()
+        result = await gemini_service.generate_image(
+            prompt=prompt,
+            generation_type="general",
+            user_options=user_options,
+            aspect_ratio=aspect_ratio,
+            reference_images=pil_reference_images,
+        )
+
+        filename = f"general_{aspect_ratio.replace(':', 'x')}.png"
+        upload_result = await gemini_service.upload_to_r2(
+            image_bytes=result["image_bytes"],
+            user_id=user_id,
+            filename=filename,
+        )
+
+        metadata = ImageGenerationMetadata(
+            source="gemini-3.1-flash-image-preview",
+            generation_type="general",
+            prompt=prompt,
+            aspect_ratio=aspect_ratio,
+            generation_time_ms=result["generation_time_ms"],
+            model_version="gemini-3.1-flash-image-preview",
+            reference_images_count=result["reference_images_count"],
+            user_options=user_options,
+        )
+
+        library_doc = await gemini_service.save_to_library(
+            user_id=user_id,
+            filename=filename,
+            file_size=result["image_size"],
+            r2_key=upload_result["r2_key"],
+            file_url=upload_result["file_url"],
+            generation_metadata=metadata,
+            db=db,
+        )
+
+        logger.info(f"✅ General image generated: {library_doc['file_id']}")
+
+        await points_service.deduct_points(
+            user_id=user_id,
+            amount=POINTS_PER_GENERATION,
+            service="ai_image_generation",
+            description=f"General image: {prompt[:50]}",
+        )
+
+        logger.info(f"✅ Deducted {POINTS_PER_GENERATION} points from {user_id}")
+
+        return GeneralImageResponse(
+            success=True,
+            file_id=library_doc["file_id"],
+            filename=filename,
+            file_url=upload_result["file_url"],
+            r2_key=upload_result["r2_key"],
+            prompt_used=result["prompt_used"],
+            aspect_ratio=aspect_ratio,
+            reference_images_count=result["reference_images_count"],
+            generation_time_ms=result["generation_time_ms"],
+            points_deducted=POINTS_PER_GENERATION,
+            metadata=metadata,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ Error generating general image: {e}")
         raise HTTPException(
             status_code=500, detail=f"Image generation failed: {str(e)}"
         )

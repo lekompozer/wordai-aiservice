@@ -220,3 +220,22 @@ class SequentialResponse(BaseModel):
     generation_time_ms: int
     points_deducted: int = 2
     metadata: ImageGenerationMetadata
+
+
+# ==================== GENERAL IMAGE GENERATION ====================
+
+
+class GeneralImageResponse(BaseModel):
+    """Response from general image generation (text + optional images input)"""
+
+    success: bool
+    file_id: str
+    filename: str
+    file_url: str
+    r2_key: str
+    prompt_used: str
+    aspect_ratio: str
+    reference_images_count: int
+    generation_time_ms: int
+    points_deducted: int = 2
+    metadata: ImageGenerationMetadata
