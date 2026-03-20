@@ -210,32 +210,29 @@ class GeminiImageService:
             # Build enhanced prompt
             full_prompt = self._build_prompt(prompt, generation_type, user_options)
 
-            # Prepare contents for API call
-            # CRITICAL: reference images MUST be types.Part.from_bytes(), not PIL objects.
-            # PIL objects passed directly are silently ignored by the SDK.
-            # Images must come BEFORE the text prompt so Gemini processes visual context first.
-            contents = []
+            # Prepare contents for API call.
+            # Per official Gemini docs: text prompt FIRST, then PIL Image objects directly.
+            # Reference: https://ai.google.dev/gemini-api/docs/imagen
+            # contents = [prompt_text, Image.open(...), Image.open(...), ...]
+            # PIL Image objects are natively supported — no conversion needed.
+            contents: list = [full_prompt]
             if reference_images:
-                for pil_img in reference_images:
-                    buf = BytesIO()
-                    # Convert to RGB first (handles RGBA/palette modes)
-                    img_rgb = pil_img.convert("RGB")
-                    img_rgb.save(buf, format="PNG")
-                    contents.append(
-                        types.Part.from_bytes(
-                            data=buf.getvalue(), mime_type="image/png"
-                        )
+                # Ensure RGBA/palette images are converted to RGB (PNG/JPEG compatible)
+                for i, pil_img in enumerate(reference_images):
+                    img_rgb = (
+                        pil_img.convert("RGB") if pil_img.mode != "RGB" else pil_img
                     )
-                logger.info(
-                    f"📸 {len(reference_images)} reference image(s) added as types.Part"
-                )
-            contents.append(full_prompt)
+                    contents.append(img_rgb)
+                    logger.info(
+                        f"   📎 ref_image[{i}]: mode={pil_img.mode} size={pil_img.size}"
+                    )
 
             logger.info(f"🎨 Generating {generation_type} image with Gemini...")
-            logger.info(f"   Prompt: {full_prompt[:100]}...")
+            logger.info(f"   Prompt (first 200 chars): {full_prompt[:200]}")
             logger.info(f"   Aspect ratio: {aspect_ratio}")
             logger.info(
-                f"   Contents parts: {len(contents)} ({len(contents)-1} images + 1 prompt)"
+                f"   Contents: 1 prompt + {len(reference_images) if reference_images else 0} reference images"
+                f" = {len(contents)} parts total"
             )
 
             import asyncio
@@ -279,6 +276,7 @@ class GeminiImageService:
                         ),
                     )
                     if response.candidates and response.candidates[0].content:
+                        logger.info(f"✅ Gemini responded on attempt {attempt+1}")
                         break
                     finish_reason = (
                         response.candidates[0].finish_reason
@@ -289,18 +287,29 @@ class GeminiImageService:
                         f"⚠️ Attempt {attempt+1} no content, finish_reason={finish_reason}"
                     )
                     if attempt < max_retries - 1:
-                        import asyncio as _asyncio
-
-                        await _asyncio.sleep(1)
+                        await asyncio.sleep(1)
                 except Exception as e:
                     logger.error(f"❌ Attempt {attempt+1} exception: {e}")
                     if attempt == max_retries - 1:
                         raise
-                    import asyncio as _asyncio
+                    await asyncio.sleep(1)
 
-                    await _asyncio.sleep(1)
+            # Guard: all retries exhausted without valid content
+            if (
+                response is None
+                or not response.candidates
+                or not response.candidates[0].content
+            ):
+                finish = (
+                    response.candidates[0].finish_reason
+                    if response and response.candidates
+                    else "NO_RESPONSE"
+                )
+                raise Exception(
+                    f"Gemini returned no image content after {max_retries} attempts. finish_reason={finish}"
+                )
 
-            # Extract image from response (same pattern as book_cover_service)
+            # Extract image from response
             image_bytes = None
             text_response = None
 
