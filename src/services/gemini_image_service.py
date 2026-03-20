@@ -149,7 +149,35 @@ class GeminiImageService:
             prompt_parts.append(f"{panel_count}-panel comic strip in {style} style.")
 
         elif generation_type == "general":
-            # General purpose — no special system instructions, just pass prompt as-is
+            reference_mode = user_options.get("reference_mode", "general")
+
+            if reference_mode == "face" and user_options.get("has_reference_images"):
+                prompt_parts.insert(
+                    0,
+                    "IMPORTANT: The reference image(s) show the exact person/character whose facial identity "
+                    "must be STRICTLY PRESERVED in every detail — identical facial bone structure, eye shape "
+                    "and color, nose shape, lip shape, skin tone, hair color and texture. "
+                    "Generate a new image following the description below while maintaining 100% facial likeness.",
+                )
+            elif reference_mode == "style" and user_options.get("has_reference_images"):
+                prompt_parts.insert(
+                    0,
+                    "Use the reference image(s) as the exact style, color palette, and aesthetic guide. "
+                    "Replicate the visual style precisely while generating new content as described below.",
+                )
+            elif reference_mode == "edit" and user_options.get("has_reference_images"):
+                prompt_parts.insert(
+                    0,
+                    "Edit the provided reference image according to the instructions below. "
+                    "Preserve all unchanged areas as close to the original as possible.",
+                )
+            elif user_options.get("has_reference_images"):
+                # default: use reference as inspiration/context
+                prompt_parts.insert(
+                    0,
+                    "Use the reference image(s) as context and visual guidance for the generation below.",
+                )
+
             if user_options.get("negative_prompt"):
                 prompt_parts.append(f"Avoid: {user_options['negative_prompt']}.")
 
@@ -183,9 +211,12 @@ class GeminiImageService:
             full_prompt = self._build_prompt(prompt, generation_type, user_options)
 
             # Prepare contents for API call
-            contents = [full_prompt]
+            # IMPORTANT: reference images must come BEFORE the text prompt
+            # so Gemini processes visual context first
+            contents = []
             if reference_images:
                 contents.extend(reference_images)
+            contents.append(full_prompt)
 
             logger.info(f"🎨 Generating {generation_type} image with Gemini...")
             logger.info(f"   Prompt: {full_prompt[:100]}...")

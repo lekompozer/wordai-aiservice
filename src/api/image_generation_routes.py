@@ -547,6 +547,16 @@ async def generate_general_image(
         "1:1", description="Tỷ lệ khung hình: 1:1 | 16:9 | 9:16 | 4:3 | 3:4"
     ),
     negative_prompt: Optional[str] = Form(None, description="Những yếu tố cần tránh"),
+    reference_mode: str = Form(
+        "general",
+        description=(
+            "Cách sử dụng ảnh tham chiếu: "
+            "'face' = giữ nguyên khuôn mặt/nhân vật (identity consistency), "
+            "'style' = copy phong cách/màu sắc, "
+            "'edit' = chỉnh sửa ảnh gốc theo prompt, "
+            "'general' = dùng làm nguồn cảm hứng (mặc định)"
+        ),
+    ),
     reference_images: List[UploadFile] = File(
         default=[],
         description="Ảnh tham chiếu tùy chọn, tối đa 14 ảnh (image-to-image)",
@@ -620,7 +630,11 @@ async def generate_general_image(
                 f"📸 {len(pil_reference_images)} reference image(s) provided for general generation"
             )
 
-        user_options = {"negative_prompt": negative_prompt}
+        user_options = {
+            "negative_prompt": negative_prompt,
+            "reference_mode": reference_mode,
+            "has_reference_images": bool(reference_images),
+        }
 
         gemini_service = get_gemini_image_service()
         result = await gemini_service.generate_image(
