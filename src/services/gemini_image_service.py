@@ -211,35 +211,94 @@ class GeminiImageService:
             full_prompt = self._build_prompt(prompt, generation_type, user_options)
 
             # Prepare contents for API call
-            # IMPORTANT: reference images must come BEFORE the text prompt
-            # so Gemini processes visual context first
+            # CRITICAL: reference images MUST be types.Part.from_bytes(), not PIL objects.
+            # PIL objects passed directly are silently ignored by the SDK.
+            # Images must come BEFORE the text prompt so Gemini processes visual context first.
             contents = []
             if reference_images:
-                contents.extend(reference_images)
+                for pil_img in reference_images:
+                    buf = BytesIO()
+                    # Convert to RGB first (handles RGBA/palette modes)
+                    img_rgb = pil_img.convert("RGB")
+                    img_rgb.save(buf, format="PNG")
+                    contents.append(
+                        types.Part.from_bytes(
+                            data=buf.getvalue(), mime_type="image/png"
+                        )
+                    )
+                logger.info(
+                    f"📸 {len(reference_images)} reference image(s) added as types.Part"
+                )
             contents.append(full_prompt)
 
             logger.info(f"🎨 Generating {generation_type} image with Gemini...")
             logger.info(f"   Prompt: {full_prompt[:100]}...")
             logger.info(f"   Aspect ratio: {aspect_ratio}")
+            logger.info(
+                f"   Contents parts: {len(contents)} ({len(contents)-1} images + 1 prompt)"
+            )
 
-            # Call Gemini API (same pattern as book_cover_service)
-            # Run in thread pool to avoid blocking event loop
             import asyncio
 
             loop = asyncio.get_event_loop()
-            response = await loop.run_in_executor(
-                None,
-                lambda: self.client.models.generate_content(
-                    model=GEMINI_MODEL,
-                    contents=contents,
-                    config=types.GenerateContentConfig(
-                        response_modalities=["TEXT", "IMAGE"],
-                        image_config=types.ImageConfig(
-                            aspect_ratio=aspect_ratio,
+
+            # Retry logic — face/person images can occasionally hit safety filters
+            max_retries = 2
+            response = None
+            for attempt in range(max_retries):
+                try:
+                    response = await loop.run_in_executor(
+                        None,
+                        lambda: self.client.models.generate_content(
+                            model=GEMINI_MODEL,
+                            contents=contents,
+                            config=types.GenerateContentConfig(
+                                response_modalities=["TEXT", "IMAGE"],
+                                image_config=types.ImageConfig(
+                                    aspect_ratio=aspect_ratio,
+                                ),
+                                safety_settings=[
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_HATE_SPEECH",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                    types.SafetySetting(
+                                        category="HARM_CATEGORY_HARASSMENT",
+                                        threshold="BLOCK_ONLY_HIGH",
+                                    ),
+                                ],
+                            ),
                         ),
-                    ),
-                ),
-            )
+                    )
+                    if response.candidates and response.candidates[0].content:
+                        break
+                    finish_reason = (
+                        response.candidates[0].finish_reason
+                        if response.candidates
+                        else "UNKNOWN"
+                    )
+                    logger.warning(
+                        f"⚠️ Attempt {attempt+1} no content, finish_reason={finish_reason}"
+                    )
+                    if attempt < max_retries - 1:
+                        import asyncio as _asyncio
+
+                        await _asyncio.sleep(1)
+                except Exception as e:
+                    logger.error(f"❌ Attempt {attempt+1} exception: {e}")
+                    if attempt == max_retries - 1:
+                        raise
+                    import asyncio as _asyncio
+
+                    await _asyncio.sleep(1)
 
             # Extract image from response (same pattern as book_cover_service)
             image_bytes = None
