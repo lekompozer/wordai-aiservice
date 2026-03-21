@@ -212,14 +212,20 @@ class GeminiImageService:
             # PIL Image objects are natively supported — no conversion needed.
             contents: list = [full_prompt]
             if reference_images:
-                # Ensure RGBA/palette images are converted to RGB (PNG/JPEG compatible)
+                # Convert PIL Images to bytes Parts — SDK requires Part.from_bytes,
+                # passing raw PIL objects directly is NOT supported reliably.
                 for i, pil_img in enumerate(reference_images):
                     img_rgb = (
                         pil_img.convert("RGB") if pil_img.mode != "RGB" else pil_img
                     )
-                    contents.append(img_rgb)
+                    buf = BytesIO()
+                    img_rgb.save(buf, format="JPEG", quality=90)
+                    img_bytes = buf.getvalue()
+                    contents.append(
+                        types.Part.from_bytes(data=img_bytes, mime_type="image/jpeg")
+                    )
                     logger.info(
-                        f"   📎 ref_image[{i}]: mode={pil_img.mode} size={pil_img.size}"
+                        f"   📎 ref_image[{i}]: mode={pil_img.mode} size={pil_img.size} bytes={len(img_bytes)}"
                     )
 
             logger.info(f"🎨 Generating {generation_type} image with Gemini...")
@@ -312,10 +318,15 @@ class GeminiImageService:
                 if part.text is not None:
                     text_response = part.text
                     logger.info(f"📝 Gemini response text: {text_response[:100]}...")
-                elif image := part.as_image():
-                    # Get bytes directly from Gemini Image object
-                    image_bytes = image.image_bytes
-                    logger.info(f"✅ Image generated ({len(image_bytes)} bytes)")
+                elif (
+                    hasattr(part, "inline_data")
+                    and part.inline_data
+                    and part.inline_data.data
+                ):
+                    image_bytes = part.inline_data.data
+                    logger.info(
+                        f"✅ Image extracted via inline_data ({len(image_bytes)} bytes)"
+                    )
                     break
 
             if not image_bytes:
