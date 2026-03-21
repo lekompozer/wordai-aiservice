@@ -73,15 +73,48 @@ def _get_or_404(session_id: str, user_id: str) -> dict:
     return doc
 
 
-async def _download_pil(url: str) -> Optional["Image.Image"]:
-    """Download image from a public URL and return as PIL Image. Returns None on failure."""
+async def _download_pil(
+    url: str, r2_key: Optional[str] = None
+) -> Optional["Image.Image"]:
+    """Download image and return as PIL Image.
+    Prefers direct R2 S3 download (bypasses CDN 403) when r2_key is provided.
+    Falls back to HTTPS with browser headers.
+    """
+    loop = asyncio.get_event_loop()
+
+    # ── Fast path: download from R2 directly via S3 API (no CDN 403 issues) ──
+    if r2_key:
+        try:
+            gemini_service = get_gemini_image_service()
+
+            def _r2_fetch():
+                resp = gemini_service.s3_client.get_object(
+                    Bucket=gemini_service.r2_bucket,
+                    Key=r2_key,
+                )
+                return resp["Body"].read()
+
+            data = await loop.run_in_executor(None, _r2_fetch)
+            return Image.open(BytesIO(data)).convert("RGB")
+        except Exception as exc:
+            logger.warning(
+                f"⚠️ R2 direct download failed for {r2_key}: {exc} — falling back to HTTP"
+            )
+
+    # ── Fallback: HTTP with browser-like headers ──────────────────────────────
     import urllib.request
 
-    loop = asyncio.get_event_loop()
     try:
 
         def _fetch():
-            with urllib.request.urlopen(url, timeout=15) as resp:
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (compatible; WordAI-ImageGen/1.0)",
+                    "Referer": "https://www.wordai.pro/",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=15) as resp:
                 return resp.read()
 
         data = await loop.run_in_executor(None, _fetch)
@@ -303,7 +336,7 @@ async def generate_in_session(
 
     # ── Download session images concurrently ─────────────────────────────────
     downloaded = await asyncio.gather(
-        *[_download_pil(img["file_url"]) for img in selected]
+        *[_download_pil(img["file_url"], img.get("r2_key")) for img in selected]
     )
 
     char_refs: List["Image.Image"] = []
