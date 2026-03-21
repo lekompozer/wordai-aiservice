@@ -43,7 +43,7 @@ PACKAGE_MONTHS = {
 
 AFFILIATE_COMMISSION_RATES = {
     1: 0.40,  # Tier-1 affiliate: 40%
-    2: 0.25,  # Tier-2 affiliate: 25%
+    2: 0.30,  # Tier-2 affiliate: 30% (KOL/KOC — tạm tăng từ 25%)
 }
 
 # Supervisor earns 10% of gross revenue from all affiliates they manage
