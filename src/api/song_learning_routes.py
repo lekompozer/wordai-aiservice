@@ -1307,32 +1307,48 @@ async def get_song_vocabulary(
     db=Depends(get_db),
 ):
     """
-    Get vocabulary + grammar points from song lyrics. Always costs 1 point.
+    Get vocabulary + grammar points from song lyrics.
 
-    Backend logic (transparent to frontend):
-    - If already generated → return from DB (fast, no AI call)
-    - If not yet generated → call DeepSeek, save to DB, return result
+    Pricing rules:
+    - AI Bundle → always free (0 points)
+    - Same user calling again for the same song → free (already paid)
+    - First time for this user → deduct 1 point
 
-    Either way: 1 point deducted (or AI Bundle used).
+    Backend handles DB cache vs DeepSeek generation transparently.
+    Same format as GET /conversations/{id}/vocabulary.
     """
     from src.services.points_service import get_points_service
     from src.middleware.ai_bundle_quota import check_ai_bundle_quota
 
     user_id = current_user["uid"]
 
-    # ── 1. Deduct 1 point upfront (AI Bundle first, else points) ─────────
     has_bundle = await check_ai_bundle_quota(user_id, db)
 
+    # ── 1. Check if this user already paid for this song ──────────────────
+    # song_vocabulary doc stores paid_user_ids[] so repeat views are free
+    existing = db["song_vocabulary"].find_one(
+        {"song_id": song_id},
+        {
+            "_id": 0,
+            "vocabulary": 1,
+            "grammar_points": 1,
+            "generated_by": 1,
+            "paid_user_ids": 1,
+        },
+    )
+    already_paid = has_bundle or (
+        existing is not None and user_id in (existing.get("paid_user_ids") or [])
+    )
+
+    # ── 2. Deduct 1 point only if needed ──────────────────────────────────
     new_balance = None
-    song_title_for_log = song_id  # fallback for description
-    if not has_bundle:
-        # Need song title for the transaction description — fetch song first
+    if not already_paid:
+        # Fetch song title for transaction description (404 check included)
         song_meta = db["song_lyrics"].find_one(
             {"song_id": song_id}, {"_id": 0, "title": 1, "artist": 1}
         )
         if not song_meta:
             raise HTTPException(status_code=404, detail="Song not found")
-        song_title_for_log = song_meta.get("title", song_id)
 
         points_service = get_points_service()
         try:
@@ -1340,31 +1356,38 @@ async def get_song_vocabulary(
                 user_id=user_id,
                 amount=POINTS_COST_SONG_VOCAB,
                 service="song_vocabulary",
-                description=f"Xem từ vựng bài hát: {song_title_for_log[:50]}",
+                description=f"Xem từ vựng bài hát: {song_meta.get('title', song_id)[:50]}",
             )
             new_balance = transaction.balance_after
         except Exception as e:
             if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
-                balance = await points_service.get_points_balance(user_id)
+                balance = await get_points_service().get_points_balance(user_id)
                 raise HTTPException(
                     status_code=403,
                     detail=f"Không đủ điểm. Cần: {POINTS_COST_SONG_VOCAB}, Còn lại: {balance['points_remaining']}",
                 )
             raise HTTPException(status_code=500, detail=str(e))
 
-    # ── 2. Check DB cache ─────────────────────────────────────────────────
-    cached = db["song_vocabulary"].find_one({"song_id": song_id}, {"_id": 0})
-    if cached:
+    points_deducted = 0 if (has_bundle or already_paid) else POINTS_COST_SONG_VOCAB
+
+    # ── 3. Return from cache if available ────────────────────────────────
+    if existing and existing.get("vocabulary"):
+        # Register this user as paid (so next time is free) — only if not already in list
+        if not has_bundle and not (user_id in (existing.get("paid_user_ids") or [])):
+            db["song_vocabulary"].update_one(
+                {"song_id": song_id},
+                {"$addToSet": {"paid_user_ids": user_id}},
+            )
         return {
             "song_id": song_id,
-            "vocabulary": cached.get("vocabulary", []),
-            "grammar_points": cached.get("grammar_points", []),
-            "generated_by": cached.get("generated_by", "deepseek-chat"),
-            "points_deducted": 0 if has_bundle else POINTS_COST_SONG_VOCAB,
+            "vocabulary": existing.get("vocabulary", []),
+            "grammar_points": existing.get("grammar_points", []),
+            "generated_by": existing.get("generated_by", "deepseek-chat"),
+            "points_deducted": points_deducted,
             "new_balance": new_balance,
         }
 
-    # ── 3. Not cached — fetch full lyrics and call DeepSeek ──────────────
+    # ── 4. Not cached — fetch lyrics and call DeepSeek ───────────────────
     song = db["song_lyrics"].find_one(
         {"song_id": song_id},
         {"_id": 0, "title": 1, "artist": 1, "english_lyrics": 1},
@@ -1409,37 +1432,38 @@ async def get_song_vocabulary(
         raise
     except Exception as e:
         logger.error(f"[song/{song_id}/vocabulary] DeepSeek error: {e}")
-        raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
+        raise HTTPException(
+            status_code=503, detail="AI service temporarily unavailable"
+        )
 
     vocabulary = result.get("vocabulary") or []
     grammar_points = result.get("grammar_points") or []
 
-    # ── 4. Save to DB so next user gets it instantly ──────────────────────
+    # ── 5. Save to DB (future users get it instantly) ────────────────────
     now = datetime.utcnow()
-    db["song_vocabulary"].update_one(
-        {"song_id": song_id},
-        {
-            "$set": {
-                "song_id": song_id,
-                "title": song.get("title"),
-                "artist": song.get("artist"),
-                "vocabulary": vocabulary,
-                "grammar_points": grammar_points,
-                "generated_by": "deepseek-chat",
-                "first_generated_by": user_id,
-                "generated_at": now,
-                "updated_at": now,
-            }
-        },
-        upsert=True,
-    )
+    save_update: dict = {
+        "$set": {
+            "song_id": song_id,
+            "title": song.get("title"),
+            "artist": song.get("artist"),
+            "vocabulary": vocabulary,
+            "grammar_points": grammar_points,
+            "generated_by": "deepseek-chat",
+            "first_generated_by": user_id,
+            "generated_at": now,
+            "updated_at": now,
+        }
+    }
+    if not has_bundle:
+        save_update["$addToSet"] = {"paid_user_ids": user_id}
+    db["song_vocabulary"].update_one({"song_id": song_id}, save_update, upsert=True)
 
     return {
         "song_id": song_id,
         "vocabulary": vocabulary,
         "grammar_points": grammar_points,
         "generated_by": "deepseek-chat",
-        "points_deducted": 0 if has_bundle else POINTS_COST_SONG_VOCAB,
+        "points_deducted": points_deducted,
         "new_balance": new_balance,
     }
 
