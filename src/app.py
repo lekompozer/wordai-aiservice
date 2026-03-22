@@ -211,6 +211,9 @@ from src.api.song_learning_routes import router as song_learning_router
 from src.api.conversation_learning_routes import router as conversation_learning_router
 import src.api.conversation_detail_routes  # noqa: F401 — registers routes on shared router
 
+# ✅ ADDED: Conversation Public API - No-auth SSR/SEO endpoints for Googlebot
+from src.api.conversation_public_routes import router as conversation_public_router
+
 # ✅ ADDED: Song Subscription API - Premium subscription for unlimited songs
 from src.api.song_subscription_routes import router as song_subscription_router
 
@@ -1085,6 +1088,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Song Learning API - English learning through music (Phase 3-5 complete)
     app.include_router(song_learning_router, tags=["Song Learning"])
+
+    # ✅ ADDED: Conversation Public API - SSR/SEO (no auth) — MUST be before conversation_learning_router
+    app.include_router(conversation_public_router, tags=["SEO Public - Conversations"])
 
     # ✅ ADDED: Conversation Learning API - English learning through conversations
     app.include_router(conversation_learning_router, tags=["Conversation Learning"])
