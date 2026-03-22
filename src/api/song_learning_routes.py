@@ -24,6 +24,11 @@ import json
 import redis
 import re
 import unicodedata
+import asyncio
+import os
+import logging
+
+logger = logging.getLogger("chatbot")
 
 from src.database.db_manager import DBManager
 from src.models.song_models import (
@@ -1256,6 +1261,188 @@ async def get_daily_streak(
         "streak_status": streak_status,
         "last_7_days": last_7_days,
         "note": "Complete at least 1 learning activity with score ≥60% per day to maintain streak",
+    }
+
+
+POINTS_COST_SONG_VOCAB = 2  # DeepSeek vocabulary generation for songs
+
+_SONG_VOCAB_PROMPT = """You are an expert English language teacher.
+
+Given the English lyrics of a song below, extract:
+1. vocabulary: 10-15 useful/interesting English words from the lyrics (excluding very basic words like "I", "the", "a", etc.)
+2. grammar_points: 3-5 grammar patterns found in the lyrics
+
+Return ONLY valid JSON, no markdown fences:
+{{
+  "vocabulary": [
+    {{
+      "word": "the exact word as used in lyrics",
+      "definition_en": "clear English definition",
+      "definition_vi": "Vietnamese translation of the word",
+      "example": "the exact lyric line containing this word",
+      "pos_tag": "NOUN|VERB|ADJ|ADV|PHRASE"
+    }}
+  ],
+  "grammar_points": [
+    {{
+      "pattern": "grammar pattern name (e.g., 'used to + verb')",
+      "explanation_en": "brief English explanation",
+      "explanation_vi": "Vietnamese explanation",
+      "example": "exact lyric line showing this pattern"
+    }}
+  ]
+}}
+
+Song: "{title}" by {artist}
+
+Lyrics:
+{lyrics}
+"""
+
+
+@router.post("/{song_id}/vocabulary")
+async def generate_song_vocabulary(
+    song_id: str,
+    current_user: dict = Depends(get_current_user),
+    db=Depends(get_db),
+):
+    """
+    Generate (or return cached) vocabulary + grammar points from song lyrics.
+
+    - First call: sends lyrics to DeepSeek, costs 2 points, saves result.
+    - Subsequent calls (any user): returns cached result, NO points deducted.
+
+    Response includes: vocabulary[], grammar_points[], cached (bool), points_deducted.
+    """
+    from src.services.points_service import get_points_service
+    from src.middleware.ai_bundle_quota import check_ai_bundle_quota
+
+    user_id = current_user["uid"]
+
+    # ── 1. Cache check ────────────────────────────────────────────────────
+    cached = db["song_vocabulary"].find_one({"song_id": song_id}, {"_id": 0})
+    if cached:
+        return {
+            "song_id": song_id,
+            "vocabulary": cached.get("vocabulary", []),
+            "grammar_points": cached.get("grammar_points", []),
+            "generated_by": cached.get("generated_by", "deepseek-chat"),
+            "cached": True,
+            "points_deducted": 0,
+            "new_balance": None,
+        }
+
+    # ── 2. Fetch song ─────────────────────────────────────────────────────
+    song = db["song_lyrics"].find_one(
+        {"song_id": song_id},
+        {"_id": 0, "title": 1, "artist": 1, "english_lyrics": 1},
+    )
+    if not song:
+        raise HTTPException(status_code=404, detail="Song not found")
+
+    english_lyrics = (song.get("english_lyrics") or "").strip()
+    if not english_lyrics:
+        raise HTTPException(status_code=422, detail="Song has no lyrics to analyze")
+
+    # ── 3. Deduct points (AI Bundle first, else points) ───────────────────
+    has_bundle = await check_ai_bundle_quota(user_id, db)
+
+    new_balance = None
+    if not has_bundle:
+        points_service = get_points_service()
+        try:
+            transaction = await points_service.deduct_points(
+                user_id=user_id,
+                amount=POINTS_COST_SONG_VOCAB,
+                service="song_vocabulary",
+                description=f"Tạo từ vựng bài hát: {song.get('title', '')[:50]}",
+            )
+            new_balance = transaction.balance_after
+        except Exception as e:
+            if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
+                from src.services.points_service import get_points_service as _gps
+
+                balance = await _gps().get_points_balance(user_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Không đủ điểm. Cần: {POINTS_COST_SONG_VOCAB}, Còn lại: {balance['points_remaining']}",
+                )
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # ── 4. Call DeepSeek ──────────────────────────────────────────────────
+    try:
+        from openai import OpenAI as _OpenAI
+
+        deepseek_key = os.getenv("DEEPSEEK_API_KEY", "")
+        if not deepseek_key:
+            raise HTTPException(status_code=503, detail="DeepSeek API not configured")
+
+        # Truncate very long lyrics to ~3000 chars to stay within token budget
+        lyrics_text = english_lyrics[:3000]
+
+        prompt = _SONG_VOCAB_PROMPT.format(
+            title=song.get("title", ""),
+            artist=song.get("artist", ""),
+            lyrics=lyrics_text,
+        )
+
+        def _call_deepseek():
+            client = _OpenAI(
+                api_key=deepseek_key, base_url="https://api.deepseek.com/v1"
+            )
+            resp = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=2048,
+            )
+            return resp.choices[0].message.content.strip()
+
+        raw = await asyncio.to_thread(_call_deepseek)
+
+        # Strip markdown fences if present
+        raw = re.sub(r"^```[a-z]*\n?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
+        result = json.loads(raw)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[song/{song_id}/vocabulary] DeepSeek error: {e}")
+        raise HTTPException(
+            status_code=503, detail="AI service temporarily unavailable"
+        )
+
+    vocabulary = result.get("vocabulary") or []
+    grammar_points = result.get("grammar_points") or []
+
+    # ── 5. Persist to DB (any future user gets it for free) ───────────────
+    now = datetime.utcnow()
+    db["song_vocabulary"].update_one(
+        {"song_id": song_id},
+        {
+            "$set": {
+                "song_id": song_id,
+                "title": song.get("title"),
+                "artist": song.get("artist"),
+                "vocabulary": vocabulary,
+                "grammar_points": grammar_points,
+                "generated_by": "deepseek-chat",
+                "generated_by_user": user_id,
+                "generated_at": now,
+                "updated_at": now,
+            }
+        },
+        upsert=True,
+    )
+
+    return {
+        "song_id": song_id,
+        "vocabulary": vocabulary,
+        "grammar_points": grammar_points,
+        "generated_by": "deepseek-chat",
+        "cached": False,
+        "points_deducted": 0 if has_bundle else POINTS_COST_SONG_VOCAB,
+        "new_balance": new_balance,
     }
 
 
