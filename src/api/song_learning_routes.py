@@ -1264,7 +1264,7 @@ async def get_daily_streak(
     }
 
 
-POINTS_COST_SONG_VOCAB = 2  # DeepSeek vocabulary generation for songs
+POINTS_COST_SONG_VOCAB = 1  # 1 điểm mỗi lần xem/tạo từ vựng bài hát
 
 _SONG_VOCAB_PROMPT = """You are an expert English language teacher.
 
@@ -1300,26 +1300,59 @@ Lyrics:
 """
 
 
-@router.post("/{song_id}/vocabulary")
-async def generate_song_vocabulary(
+@router.get("/{song_id}/vocabulary")
+async def get_song_vocabulary(
     song_id: str,
     current_user: dict = Depends(get_current_user),
     db=Depends(get_db),
 ):
     """
-    Generate (or return cached) vocabulary + grammar points from song lyrics.
+    Get vocabulary + grammar points from song lyrics. Always costs 1 point.
 
-    - First call: sends lyrics to DeepSeek, costs 2 points, saves result.
-    - Subsequent calls (any user): returns cached result, NO points deducted.
+    Backend logic (transparent to frontend):
+    - If already generated → return from DB (fast, no AI call)
+    - If not yet generated → call DeepSeek, save to DB, return result
 
-    Response includes: vocabulary[], grammar_points[], cached (bool), points_deducted.
+    Either way: 1 point deducted (or AI Bundle used).
     """
     from src.services.points_service import get_points_service
     from src.middleware.ai_bundle_quota import check_ai_bundle_quota
 
     user_id = current_user["uid"]
 
-    # ── 1. Cache check ────────────────────────────────────────────────────
+    # ── 1. Deduct 1 point upfront (AI Bundle first, else points) ─────────
+    has_bundle = await check_ai_bundle_quota(user_id, db)
+
+    new_balance = None
+    song_title_for_log = song_id  # fallback for description
+    if not has_bundle:
+        # Need song title for the transaction description — fetch song first
+        song_meta = db["song_lyrics"].find_one(
+            {"song_id": song_id}, {"_id": 0, "title": 1, "artist": 1}
+        )
+        if not song_meta:
+            raise HTTPException(status_code=404, detail="Song not found")
+        song_title_for_log = song_meta.get("title", song_id)
+
+        points_service = get_points_service()
+        try:
+            transaction = await points_service.deduct_points(
+                user_id=user_id,
+                amount=POINTS_COST_SONG_VOCAB,
+                service="song_vocabulary",
+                description=f"Xem từ vựng bài hát: {song_title_for_log[:50]}",
+            )
+            new_balance = transaction.balance_after
+        except Exception as e:
+            if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
+                balance = await points_service.get_points_balance(user_id)
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Không đủ điểm. Cần: {POINTS_COST_SONG_VOCAB}, Còn lại: {balance['points_remaining']}",
+                )
+            raise HTTPException(status_code=500, detail=str(e))
+
+    # ── 2. Check DB cache ─────────────────────────────────────────────────
     cached = db["song_vocabulary"].find_one({"song_id": song_id}, {"_id": 0})
     if cached:
         return {
@@ -1327,12 +1360,11 @@ async def generate_song_vocabulary(
             "vocabulary": cached.get("vocabulary", []),
             "grammar_points": cached.get("grammar_points", []),
             "generated_by": cached.get("generated_by", "deepseek-chat"),
-            "cached": True,
-            "points_deducted": 0,
-            "new_balance": None,
+            "points_deducted": 0 if has_bundle else POINTS_COST_SONG_VOCAB,
+            "new_balance": new_balance,
         }
 
-    # ── 2. Fetch song ─────────────────────────────────────────────────────
+    # ── 3. Not cached — fetch full lyrics and call DeepSeek ──────────────
     song = db["song_lyrics"].find_one(
         {"song_id": song_id},
         {"_id": 0, "title": 1, "artist": 1, "english_lyrics": 1},
@@ -1344,32 +1376,6 @@ async def generate_song_vocabulary(
     if not english_lyrics:
         raise HTTPException(status_code=422, detail="Song has no lyrics to analyze")
 
-    # ── 3. Deduct points (AI Bundle first, else points) ───────────────────
-    has_bundle = await check_ai_bundle_quota(user_id, db)
-
-    new_balance = None
-    if not has_bundle:
-        points_service = get_points_service()
-        try:
-            transaction = await points_service.deduct_points(
-                user_id=user_id,
-                amount=POINTS_COST_SONG_VOCAB,
-                service="song_vocabulary",
-                description=f"Tạo từ vựng bài hát: {song.get('title', '')[:50]}",
-            )
-            new_balance = transaction.balance_after
-        except Exception as e:
-            if "Không đủ điểm" in str(e) or "insufficient" in str(e).lower():
-                from src.services.points_service import get_points_service as _gps
-
-                balance = await _gps().get_points_balance(user_id)
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Không đủ điểm. Cần: {POINTS_COST_SONG_VOCAB}, Còn lại: {balance['points_remaining']}",
-                )
-            raise HTTPException(status_code=500, detail=str(e))
-
-    # ── 4. Call DeepSeek ──────────────────────────────────────────────────
     try:
         from openai import OpenAI as _OpenAI
 
@@ -1377,13 +1383,10 @@ async def generate_song_vocabulary(
         if not deepseek_key:
             raise HTTPException(status_code=503, detail="DeepSeek API not configured")
 
-        # Truncate very long lyrics to ~3000 chars to stay within token budget
-        lyrics_text = english_lyrics[:3000]
-
         prompt = _SONG_VOCAB_PROMPT.format(
             title=song.get("title", ""),
             artist=song.get("artist", ""),
-            lyrics=lyrics_text,
+            lyrics=english_lyrics[:3000],
         )
 
         def _call_deepseek():
@@ -1399,8 +1402,6 @@ async def generate_song_vocabulary(
             return resp.choices[0].message.content.strip()
 
         raw = await asyncio.to_thread(_call_deepseek)
-
-        # Strip markdown fences if present
         raw = re.sub(r"^```[a-z]*\n?|```$", "", raw.strip(), flags=re.MULTILINE).strip()
         result = json.loads(raw)
 
@@ -1408,14 +1409,12 @@ async def generate_song_vocabulary(
         raise
     except Exception as e:
         logger.error(f"[song/{song_id}/vocabulary] DeepSeek error: {e}")
-        raise HTTPException(
-            status_code=503, detail="AI service temporarily unavailable"
-        )
+        raise HTTPException(status_code=503, detail="AI service temporarily unavailable")
 
     vocabulary = result.get("vocabulary") or []
     grammar_points = result.get("grammar_points") or []
 
-    # ── 5. Persist to DB (any future user gets it for free) ───────────────
+    # ── 4. Save to DB so next user gets it instantly ──────────────────────
     now = datetime.utcnow()
     db["song_vocabulary"].update_one(
         {"song_id": song_id},
@@ -1427,7 +1426,7 @@ async def generate_song_vocabulary(
                 "vocabulary": vocabulary,
                 "grammar_points": grammar_points,
                 "generated_by": "deepseek-chat",
-                "generated_by_user": user_id,
+                "first_generated_by": user_id,
                 "generated_at": now,
                 "updated_at": now,
             }
@@ -1440,7 +1439,6 @@ async def generate_song_vocabulary(
         "vocabulary": vocabulary,
         "grammar_points": grammar_points,
         "generated_by": "deepseek-chat",
-        "cached": False,
         "points_deducted": 0 if has_bundle else POINTS_COST_SONG_VOCAB,
         "new_balance": new_balance,
     }
