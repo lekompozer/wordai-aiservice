@@ -1291,8 +1291,6 @@ async def get_song_public(identifier: str, db=Depends(get_db)):
         {"song_id": song_id},
         {
             "_id": 0,
-            "english_lyrics": 0,
-            "vietnamese_lyrics": 0,
             "source_url": 0,
             "is_processed": 0,
             "has_profanity": 0,
@@ -1301,6 +1299,15 @@ async def get_song_public(identifier: str, db=Depends(get_db)):
 
     if not song:
         raise HTTPException(status_code=404, detail="Song not found")
+
+    # Build paired lyrics array for SEO bilingual display
+    en_lines = [
+        l for l in (song.pop("english_lyrics", "") or "").split("\n") if l.strip()
+    ]
+    vi_lines = [
+        l for l in (song.pop("vietnamese_lyrics", "") or "").split("\n") if l.strip()
+    ]
+    lyrics = [{"en": en, "vi": vi} for en, vi in zip(en_lines, vi_lines)]
 
     slug = _generate_slug(song.get("title", ""), song.get("artist", ""))
     return {
@@ -1314,6 +1321,7 @@ async def get_song_public(identifier: str, db=Depends(get_db)):
         "view_count": song.get("view_count", 0),
         "slug": slug,
         "canonical_url": f"/songs/{song.get('song_id')}-{slug}",
+        "lyrics": lyrics,
     }
 
 
