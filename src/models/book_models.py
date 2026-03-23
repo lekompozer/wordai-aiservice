@@ -627,6 +627,7 @@ class PurchaseType(str, Enum):
 
     ONE_TIME = "one_time"  # One-time view access
     FOREVER = "lifetime"  # Permanent view access
+    FOREVER_ALIAS = "forever"  # alias for "lifetime", for client compatibility
     PDF_DOWNLOAD = "pdf_download"  # PDF download
 
 

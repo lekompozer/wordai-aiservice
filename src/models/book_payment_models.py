@@ -31,6 +31,7 @@ class PurchaseType(str, Enum):
 
     ONE_TIME = "one_time"
     FOREVER = "lifetime"
+    FOREVER_ALIAS = "forever"  # alias — same as lifetime, for client compatibility
     PDF_DOWNLOAD = "pdf_download"
 
 
@@ -43,8 +44,15 @@ class CreatePaymentOrderRequest(BaseModel):
     """Request to create payment order (before SePay checkout)"""
 
     purchase_type: PurchaseType = Field(
-        ..., description="Type of purchase: one_time | forever | pdf_download"
+        ...,
+        description="Type of purchase: one_time | lifetime | forever | pdf_download",
     )
+
+    def normalized_purchase_type(self) -> str:
+        """Normalize 'forever' alias → 'lifetime' for DB storage."""
+        if self.purchase_type == PurchaseType.FOREVER_ALIAS:
+            return PurchaseType.FOREVER.value
+        return self.purchase_type.value
 
 
 class GrantAccessRequest(BaseModel):

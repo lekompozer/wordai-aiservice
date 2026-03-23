@@ -691,6 +691,10 @@ async def purchase_book(
                 detail="Book access config not found",
             )
 
+        # Normalize 'forever' alias → 'lifetime'
+        if purchase_type == PurchaseType.FOREVER_ALIAS:
+            purchase_type = PurchaseType.FOREVER
+
         # Determine points cost
         points_map = {
             PurchaseType.ONE_TIME: access_config.get("one_time_view_points", 0),
