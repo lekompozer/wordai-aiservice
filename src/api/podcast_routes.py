@@ -402,16 +402,42 @@ async def list_podcasts(
     limit: int = Query(default=20, ge=1, le=50),
     level: Optional[str] = Query(default=None),
     search: Optional[str] = Query(default=None),
+    topic: Optional[str] = Query(default=None),
+    category: Optional[str] = Query(default=None),
+    series: Optional[str] = Query(default=None),
     db=Depends(get_db),
 ):
     """
-    List BBC 6 Minute English podcast episodes.
+    List BBC podcast episodes (6min English + Work English).
     Public — no authentication required.
-    """
-    query: Dict[str, Any] = {"category": "bbc_6min_english"}
 
-    if level and level in ("beginner", "intermediate", "advanced"):
+    Filters:
+      ?level=intermediate
+      ?topic=science            — filter by topic tag
+      ?category=bbc_work_english — filter by category
+      ?series=office-english    — filter Work English section
+      ?search=cold              — search title/description
+    """
+    # Default: both 6min and work english; allow narrowing by category
+    VALID_CATEGORIES = {"bbc_6min_english", "bbc_work_english"}
+    if category and category in VALID_CATEGORIES:
+        query: Dict[str, Any] = {"category": category}
+    else:
+        query = {"category": {"$in": ["bbc_6min_english", "bbc_work_english"]}}
+
+    if level and level in (
+        "beginner",
+        "intermediate",
+        "upper-intermediate",
+        "advanced",
+    ):
         query["level"] = level
+
+    if topic and re.match(r"^[a-z]+$", topic):
+        query["topics"] = topic
+
+    if series and re.match(r"^[a-z0-9-]+$", series):
+        query["series"] = series
 
     if search:
         safe = re.escape(search.strip())[:100]
@@ -436,7 +462,12 @@ async def list_podcasts(
                 "image_url": 1,
                 "published_date": 1,
                 "level": 1,
+                "category": 1,
+                "series": 1,
+                "series_name": 1,
                 "audio_url": 1,
+                "topics": 1,
+                "main_topic": 1,
                 "vocabulary_raw": 1,
                 "transcript_turns": 1,
             },
@@ -457,7 +488,12 @@ async def list_podcasts(
                 "image_url": doc.get("image_url"),
                 "published_date": doc.get("published_date"),
                 "level": doc.get("level", "intermediate"),
+                "category": doc.get("category", "bbc_6min_english"),
+                "series": doc.get("series"),
+                "series_name": doc.get("series_name"),
                 "audio_url": doc.get("audio_url"),
+                "topics": doc.get("topics") or [],
+                "main_topic": doc.get("main_topic"),
                 "vocabulary_count": len(doc.get("vocabulary_raw") or []),
                 "transcript_turns_count": len(doc.get("transcript_turns") or []),
             }
@@ -470,6 +506,28 @@ async def list_podcasts(
         "limit": limit,
         "pages": max(1, (total + limit - 1) // limit),
     }
+
+
+# ---------------------------------------------------------------------------
+# ENDPOINT 1b: Available Topics (static route — before path params)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/topics")
+async def list_podcast_topics(db=Depends(get_db)):
+    """
+    Return all available topics with episode counts.
+    Public — no authentication required.
+    """
+    pipeline = [
+        {"$match": {"category": {"$in": ["bbc_6min_english", "bbc_work_english"]}}},
+        {"$unwind": "$topics"},
+        {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
+        {"$sort": {"count": -1}},
+        {"$project": {"_id": 0, "topic": "$_id", "count": 1}},
+    ]
+    topics = list(db["bbc_podcasts"].aggregate(pipeline))
+    return {"topics": topics}
 
 
 # ---------------------------------------------------------------------------
@@ -495,6 +553,9 @@ async def get_podcast_by_slug(
     turns = doc.get("transcript_turns") or []
     doc["transcript_turns_count"] = len(turns)
     doc.pop("transcript_turns", None)
+    # Ensure topics fields are present
+    doc.setdefault("topics", [])
+    doc.setdefault("main_topic", None)
 
     vocab_doc = db["podcast_vocabulary"].find_one(
         {"podcast_id": doc["podcast_id"]},
@@ -537,6 +598,10 @@ async def get_podcast_detail(
     turns = doc.get("transcript_turns") or []
     doc["transcript_turns_count"] = len(turns)
     doc.pop("transcript_turns", None)
+
+    # Ensure topics fields are present
+    doc.setdefault("topics", [])
+    doc.setdefault("main_topic", None)
 
     # Attach transcript_vi preview from vocabulary collection (no auth needed)
     vocab_doc = db["podcast_vocabulary"].find_one(
