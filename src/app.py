@@ -207,6 +207,9 @@ from src.api.learning_routes import router as learning_router
 # ✅ ADDED: Song Learning API - English learning through song lyrics with gap-fill exercises
 from src.api.song_learning_routes import router as song_learning_router
 
+# ✅ ADDED: BBC Podcast Learning API - English learning through BBC 6 Minute English
+from src.api.podcast_routes import router as podcast_router
+
 # ✅ ADDED: Conversation Learning API - English learning through conversations with gap-fill exercises
 from src.api.conversation_learning_routes import router as conversation_learning_router
 import src.api.conversation_detail_routes  # noqa: F401 — registers routes on shared router
@@ -1088,6 +1091,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Song Learning API - English learning through music (Phase 3-5 complete)
     app.include_router(song_learning_router, tags=["Song Learning"])
+
+    # ✅ ADDED: BBC Podcast Learning API - English learning through BBC 6 Minute English
+    app.include_router(podcast_router, tags=["BBC Podcast Learning"])
 
     # ✅ ADDED: Conversation Public API - SSR/SEO (no auth) — MUST be before conversation_learning_router
     app.include_router(conversation_public_router, tags=["SEO Public - Conversations"])
