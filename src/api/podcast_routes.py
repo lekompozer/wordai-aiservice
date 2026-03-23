@@ -431,6 +431,7 @@ async def list_podcasts(
                 "_id": 0,
                 "podcast_id": 1,
                 "title": 1,
+                "slug": 1,
                 "description": 1,
                 "image_url": 1,
                 "published_date": 1,
@@ -451,6 +452,7 @@ async def list_podcasts(
             {
                 "podcast_id": doc.get("podcast_id"),
                 "title": doc.get("title"),
+                "slug": doc.get("slug", ""),
                 "description": doc.get("description"),
                 "image_url": doc.get("image_url"),
                 "published_date": doc.get("published_date"),
@@ -471,7 +473,40 @@ async def list_podcasts(
 
 
 # ---------------------------------------------------------------------------
-# ENDPOINT 2: Episode Detail
+# ENDPOINT 2: Episode by Slug (must be before /{podcast_id})
+# ---------------------------------------------------------------------------
+
+
+@router.get("/by-slug/{slug}")
+async def get_podcast_by_slug(
+    slug: str,
+    db=Depends(get_db),
+):
+    """
+    Get episode detail by URL slug.
+    e.g. /by-slug/how-do-we-adapt-to-the-cold
+    Public — no authentication required.
+    """
+    doc = db["bbc_podcasts"].find_one({"slug": slug}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Podcast episode not found")
+
+    doc.pop("transcript", None)
+    turns = doc.get("transcript_turns") or []
+    doc["transcript_turns_count"] = len(turns)
+    doc.pop("transcript_turns", None)
+
+    vocab_doc = db["podcast_vocabulary"].find_one(
+        {"podcast_id": doc["podcast_id"]},
+        {"_id": 0, "transcript_vi": 1},
+    )
+    doc["transcript_vi"] = (vocab_doc or {}).get("transcript_vi", "")
+
+    return doc
+
+
+# ---------------------------------------------------------------------------
+# ENDPOINT 3: Episode Detail by podcast_id
 # ---------------------------------------------------------------------------
 
 
@@ -511,6 +546,11 @@ async def get_podcast_detail(
     doc["transcript_vi"] = (vocab_doc or {}).get("transcript_vi", "")
 
     return doc
+
+
+# ---------------------------------------------------------------------------
+# ENDPOINT 3b: Vocabulary & Grammar (numbering kept for reference)
+# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
