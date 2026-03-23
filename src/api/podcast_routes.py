@@ -418,12 +418,13 @@ async def list_podcasts(
       ?series=office-english    — filter Work English section
       ?search=cold              — search title/description
     """
-    # Default: both 6min and work english; allow narrowing by category
-    VALID_CATEGORIES = {"bbc_6min_english", "bbc_work_english"}
+    # Default: all BBC categories; allow narrowing by category
+    VALID_CATEGORIES = {"bbc_6min_english", "bbc_work_english", "bbc_news_english"}
+    ALL_CATEGORIES = ["bbc_6min_english", "bbc_work_english", "bbc_news_english"]
     if category and category in VALID_CATEGORIES:
         query: Dict[str, Any] = {"category": category}
     else:
-        query = {"category": {"$in": ["bbc_6min_english", "bbc_work_english"]}}
+        query = {"category": {"$in": ALL_CATEGORIES}}
 
     if level and level in (
         "beginner",
@@ -520,7 +521,13 @@ async def list_podcast_topics(db=Depends(get_db)):
     Public — no authentication required.
     """
     pipeline = [
-        {"$match": {"category": {"$in": ["bbc_6min_english", "bbc_work_english"]}}},
+        {
+            "$match": {
+                "category": {
+                    "$in": ["bbc_6min_english", "bbc_work_english", "bbc_news_english"]
+                }
+            }
+        },
         {"$unwind": "$topics"},
         {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
