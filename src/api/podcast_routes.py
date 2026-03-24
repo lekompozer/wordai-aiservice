@@ -639,7 +639,8 @@ async def get_podcast_by_slug(
     doc = db["bbc_podcasts"].find_one({"slug": slug}, {"_id": 0})
 
     if doc:
-        doc.pop("transcript", None)
+        # Expose raw transcript as transcript_en (useful for News English which has no turns)
+        doc["transcript_en"] = doc.pop("transcript", "") or ""
         # Return transcript_turns for frontend display (not stripped here)
         turns = doc.get("transcript_turns") or []
         doc["transcript_turns_count"] = len(turns)
@@ -652,6 +653,7 @@ async def get_podcast_by_slug(
             {"_id": 0, "vocabulary": 1, "grammar_points": 1, "transcript_vi": 1},
         )
         doc["transcript_vi"] = (vocab_doc or {}).get("transcript_vi", "")
+        doc["grammar_points"] = (vocab_doc or {}).get("grammar_points") or []
         # Return enriched vocabulary (with definition_vi) if available, else raw
         enriched_vocab = (vocab_doc or {}).get("vocabulary") or []
         if enriched_vocab and enriched_vocab[0].get("definition_vi"):
