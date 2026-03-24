@@ -640,23 +640,44 @@ async def get_podcast_by_slug(
 
     if doc:
         doc.pop("transcript", None)
+        # Return transcript_turns for frontend display (not stripped here)
         turns = doc.get("transcript_turns") or []
         doc["transcript_turns_count"] = len(turns)
-        doc.pop("transcript_turns", None)
+        # transcript_turns stays in doc for frontend
         doc.setdefault("topics", [])
         doc.setdefault("main_topic", None)
+        # Lookup enriched vocabulary + transcript_vi from podcast_vocabulary
         vocab_doc = db["podcast_vocabulary"].find_one(
             {"podcast_id": doc["podcast_id"]},
-            {"_id": 0, "transcript_vi": 1},
+            {"_id": 0, "vocabulary": 1, "grammar_points": 1, "transcript_vi": 1},
         )
         doc["transcript_vi"] = (vocab_doc or {}).get("transcript_vi", "")
+        # Return enriched vocabulary (with definition_vi) if available, else raw
+        enriched_vocab = (vocab_doc or {}).get("vocabulary") or []
+        if enriched_vocab and enriched_vocab[0].get("definition_vi"):
+            doc["vocabulary"] = enriched_vocab
+        else:
+            doc["vocabulary"] = doc.get("vocabulary_raw") or []
         return doc
 
     # Fall back to TED Talks
     ted = db["ted_talks"].find_one({"slug": slug}, {"_id": 0})
     if ted:
+        talk_id = ted.get("talk_id") or ted.get("youtube_id")
+        # Lookup enriched vocabulary + grammar from podcast_vocabulary
+        vocab_doc = db["podcast_vocabulary"].find_one(
+            {"podcast_id": talk_id},
+            {"_id": 0, "vocabulary": 1, "grammar_points": 1},
+        )
+        vocabulary = (vocab_doc or {}).get("vocabulary") or []
+        grammar_points = (vocab_doc or {}).get("grammar_points") or []
+
+        transcripts = ted.get("transcripts") or {}
+        en_cues = transcripts.get("en") or []
+        vi_cues = transcripts.get("vi") or []
+
         return {
-            "podcast_id": ted.get("talk_id"),
+            "podcast_id": talk_id,
             "slug": ted.get("slug"),
             "title": ted.get("title"),
             "description": ted.get("description"),
@@ -676,12 +697,15 @@ async def get_podcast_by_slug(
             "duration_seconds": ted.get("duration_seconds"),
             "view_count": ted.get("view_count", 0),
             "available_languages": ted.get("available_languages") or [],
-            "transcripts": ted.get("transcripts") or {},
-            "transcript_vi": "",
-            "vocabulary_raw": [],
-            "transcript_turns_count": len(
-                (ted.get("transcripts") or {}).get("en") or []
+            "transcripts": transcripts,
+            # transcript_vi convenience field (VI cues joined as plain text)
+            "transcript_vi": (
+                " ".join(c.get("text", "") for c in vi_cues) if vi_cues else ""
             ),
+            "vocabulary": vocabulary,
+            "vocabulary_raw": vocabulary,  # alias for compatibility
+            "grammar_points": grammar_points,
+            "transcript_turns_count": len(en_cues),
         }
 
     raise HTTPException(status_code=404, detail="Podcast episode not found")
