@@ -408,52 +408,116 @@ async def list_podcasts(
     db=Depends(get_db),
 ):
     """
-    List BBC podcast episodes (6min English + Work English).
+    List podcast/talk episodes (BBC + TED Talks).
     Public — no authentication required.
 
     Filters:
       ?level=intermediate
       ?topic=science            — filter by topic tag
       ?category=bbc_work_english — filter by category
+      ?category=ted_talks        — filter TED Talks only
       ?series=office-english    — filter Work English section
       ?search=cold              — search title/description
     """
-    # Default: all BBC categories; allow narrowing by category
-    VALID_CATEGORIES = {"bbc_6min_english", "bbc_work_english", "bbc_news_english"}
-    ALL_CATEGORIES = ["bbc_6min_english", "bbc_work_english", "bbc_news_english"]
-    if category and category in VALID_CATEGORIES:
-        query: Dict[str, Any] = {"category": category}
+    BBC_CATEGORIES = {"bbc_6min_english", "bbc_work_english", "bbc_news_english"}
+    VALID_CATEGORIES = BBC_CATEGORIES | {"ted_talks"}
+
+    VALID_LEVELS = {"beginner", "intermediate", "upper-intermediate", "advanced"}
+
+    def _build_search_filter(base_query: Dict[str, Any]) -> Dict[str, Any]:
+        q = dict(base_query)
+        if level and level in VALID_LEVELS:
+            q["level"] = level
+        if topic and re.match(r"^[a-z][a-z ]*$", topic):
+            q["topics"] = topic
+        if search:
+            safe = re.escape(search.strip())[:100]
+            q["$or"] = [
+                {"title": {"$regex": safe, "$options": "i"}},
+                {"description": {"$regex": safe, "$options": "i"}},
+            ]
+        return q
+
+    # ── TED Talks only ─────────────────────────────────────────────────────
+    if category == "ted_talks":
+        ted_query = _build_search_filter({"category": "ted_talks"})
+        ted_col = db["ted_talks"]
+        total = ted_col.count_documents(ted_query)
+        skip = (page - 1) * limit
+        docs = list(
+            ted_col.find(
+                ted_query,
+                {
+                    "_id": 0,
+                    "talk_id": 1,
+                    "slug": 1,
+                    "title": 1,
+                    "description": 1,
+                    "thumbnail_url": 1,
+                    "published_at": 1,
+                    "level": 1,
+                    "category": 1,
+                    "youtube_url": 1,
+                    "topics": 1,
+                    "speaker": 1,
+                    "duration_seconds": 1,
+                    "view_count": 1,
+                    "available_languages": 1,
+                },
+            )
+            .sort("view_count", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        podcasts = []
+        for doc in docs:
+            podcasts.append(
+                {
+                    "podcast_id": doc.get("talk_id"),
+                    "title": doc.get("title"),
+                    "slug": doc.get("slug", ""),
+                    "description": doc.get("description"),
+                    "image_url": doc.get("thumbnail_url"),
+                    "published_date": doc.get("published_at"),
+                    "level": doc.get("level"),
+                    "category": "ted_talks",
+                    "series": None,
+                    "series_name": None,
+                    "audio_url": doc.get("youtube_url"),
+                    "topics": doc.get("topics") or [],
+                    "main_topic": (doc.get("topics") or [None])[0],
+                    "speaker": doc.get("speaker"),
+                    "duration_seconds": doc.get("duration_seconds"),
+                    "view_count": doc.get("view_count", 0),
+                    "available_languages": doc.get("available_languages") or [],
+                    "vocabulary_count": 0,
+                    "transcript_turns_count": 0,
+                }
+            )
+        return {
+            "podcasts": podcasts,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "pages": max(1, (total + limit - 1) // limit),
+        }
+
+    # ── BBC only (specific category) or all (default) ──────────────────────
+    if category and category in BBC_CATEGORIES:
+        bbc_query = _build_search_filter({"category": category})
     else:
-        query = {"category": {"$in": ALL_CATEGORIES}}
-
-    if level and level in (
-        "beginner",
-        "intermediate",
-        "upper-intermediate",
-        "advanced",
-    ):
-        query["level"] = level
-
-    if topic and re.match(r"^[a-z]+$", topic):
-        query["topics"] = topic
+        bbc_query = _build_search_filter({"category": {"$in": list(BBC_CATEGORIES)}})
 
     if series and re.match(r"^[a-z0-9-]+$", series):
-        query["series"] = series
-
-    if search:
-        safe = re.escape(search.strip())[:100]
-        query["$or"] = [
-            {"title": {"$regex": safe, "$options": "i"}},
-            {"description": {"$regex": safe, "$options": "i"}},
-        ]
+        bbc_query["series"] = series
 
     col = db["bbc_podcasts"]
-    total = col.count_documents(query)
+    total = col.count_documents(bbc_query)
     skip = (page - 1) * limit
 
     docs = list(
         col.find(
-            query,
+            bbc_query,
             {
                 "_id": 0,
                 "podcast_id": 1,
@@ -515,25 +579,43 @@ async def list_podcasts(
 
 
 @router.get("/topics")
-async def list_podcast_topics(db=Depends(get_db)):
+async def list_podcast_topics(
+    category: Optional[str] = Query(default=None),
+    db=Depends(get_db),
+):
     """
     Return all available topics with episode counts.
+    Pass ?category=ted_talks to get TED topics only.
     Public — no authentication required.
     """
-    pipeline = [
-        {
-            "$match": {
-                "category": {
-                    "$in": ["bbc_6min_english", "bbc_work_english", "bbc_news_english"]
+    if category == "ted_talks":
+        pipeline = [
+            {"$match": {"category": "ted_talks"}},
+            {"$unwind": "$topics"},
+            {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$project": {"_id": 0, "topic": "$_id", "count": 1}},
+        ]
+        topics = list(db["ted_talks"].aggregate(pipeline))
+    else:
+        pipeline = [
+            {
+                "$match": {
+                    "category": {
+                        "$in": [
+                            "bbc_6min_english",
+                            "bbc_work_english",
+                            "bbc_news_english",
+                        ]
+                    }
                 }
-            }
-        },
-        {"$unwind": "$topics"},
-        {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-        {"$project": {"_id": 0, "topic": "$_id", "count": 1}},
-    ]
-    topics = list(db["bbc_podcasts"].aggregate(pipeline))
+            },
+            {"$unwind": "$topics"},
+            {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$project": {"_id": 0, "topic": "$_id", "count": 1}},
+        ]
+        topics = list(db["bbc_podcasts"].aggregate(pipeline))
     return {"topics": topics}
 
 
