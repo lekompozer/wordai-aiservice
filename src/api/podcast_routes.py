@@ -632,27 +632,59 @@ async def get_podcast_by_slug(
     """
     Get episode detail by URL slug.
     e.g. /by-slug/how-do-we-adapt-to-the-cold
+    Also resolves TED talk slugs from ted_talks collection.
     Public — no authentication required.
     """
+    # Try BBC podcasts first
     doc = db["bbc_podcasts"].find_one({"slug": slug}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Podcast episode not found")
 
-    doc.pop("transcript", None)
-    turns = doc.get("transcript_turns") or []
-    doc["transcript_turns_count"] = len(turns)
-    doc.pop("transcript_turns", None)
-    # Ensure topics fields are present
-    doc.setdefault("topics", [])
-    doc.setdefault("main_topic", None)
+    if doc:
+        doc.pop("transcript", None)
+        turns = doc.get("transcript_turns") or []
+        doc["transcript_turns_count"] = len(turns)
+        doc.pop("transcript_turns", None)
+        doc.setdefault("topics", [])
+        doc.setdefault("main_topic", None)
+        vocab_doc = db["podcast_vocabulary"].find_one(
+            {"podcast_id": doc["podcast_id"]},
+            {"_id": 0, "transcript_vi": 1},
+        )
+        doc["transcript_vi"] = (vocab_doc or {}).get("transcript_vi", "")
+        return doc
 
-    vocab_doc = db["podcast_vocabulary"].find_one(
-        {"podcast_id": doc["podcast_id"]},
-        {"_id": 0, "transcript_vi": 1},
-    )
-    doc["transcript_vi"] = (vocab_doc or {}).get("transcript_vi", "")
+    # Fall back to TED Talks
+    ted = db["ted_talks"].find_one({"slug": slug}, {"_id": 0})
+    if ted:
+        return {
+            "podcast_id": ted.get("talk_id"),
+            "slug": ted.get("slug"),
+            "title": ted.get("title"),
+            "description": ted.get("description"),
+            "image_url": ted.get("thumbnail_url"),
+            "published_date": ted.get("published_at"),
+            "level": ted.get("level"),
+            "category": "ted_talks",
+            "series": None,
+            "series_name": None,
+            "audio_url": ted.get("youtube_url"),
+            "youtube_id": ted.get("youtube_id"),
+            "topics": ted.get("topics") or [],
+            "main_topic": (ted.get("topics") or [None])[0],
+            "speaker": ted.get("speaker"),
+            "speaker_role": ted.get("speaker_role"),
+            "speaker_bio": ted.get("speaker_bio"),
+            "duration_seconds": ted.get("duration_seconds"),
+            "view_count": ted.get("view_count", 0),
+            "available_languages": ted.get("available_languages") or [],
+            "transcripts": ted.get("transcripts") or {},
+            "transcript_vi": "",
+            "vocabulary_raw": [],
+            "transcript_turns_count": len(
+                (ted.get("transcripts") or {}).get("en") or []
+            ),
+        }
 
-    return doc
+    raise HTTPException(status_code=404, detail="Podcast episode not found")
 
 
 # ---------------------------------------------------------------------------
