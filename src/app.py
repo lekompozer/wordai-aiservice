@@ -210,6 +210,9 @@ from src.api.song_learning_routes import router as song_learning_router
 # ✅ ADDED: BBC Podcast Learning API - English learning through BBC 6 Minute English
 from src.api.podcast_routes import router as podcast_router
 
+# ✅ ADDED: Pronunciation Assessment API - Whisper transcription + Wav2Vec2 phoneme scoring
+from src.api.pronunciation_routes import router as pronunciation_router
+
 # ✅ ADDED: Conversation Learning API - English learning through conversations with gap-fill exercises
 from src.api.conversation_learning_routes import router as conversation_learning_router
 import src.api.conversation_detail_routes  # noqa: F401 — registers routes on shared router
@@ -1094,6 +1097,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: BBC Podcast Learning API - English learning through BBC 6 Minute English
     app.include_router(podcast_router, tags=["BBC Podcast Learning"])
+
+    # ✅ ADDED: Pronunciation Assessment API - Whisper + Wav2Vec2 phoneme scoring
+    app.include_router(pronunciation_router, tags=["Pronunciation Assessment"])
 
     # ✅ ADDED: Conversation Public API - SSR/SEO (no auth) — MUST be before conversation_learning_router
     app.include_router(conversation_public_router, tags=["SEO Public - Conversations"])

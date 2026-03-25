@@ -537,6 +537,37 @@ git push
 ❌ Commit scripts that run against production DB directly to the repo
 ✅ Use `scripts/` folder locally, deploy only `src/` application code via git
 
+### 13. Pronunciation Assessment API
+
+**Endpoints:**
+- `POST /api/v1/pronunciation/transcribe` — Transcribe audio to text (1 point)
+- `POST /api/v1/pronunciation/score` — Full phoneme-level scoring (2 points)
+
+**Input format:**
+```json
+{"audio_base64": "<base64>", "expected_text": "hello world", "audio_mime_type": "audio/webm"}
+```
+
+**Models (lazy-loaded in `ai-chatbot-rag` container):**
+- `faster-whisper tiny (int8)` — already cached, used for transcription
+- `facebook/wav2vec2-lv-60-espeak-cv-ft` — phoneme recognition (~370MB, loads on first `/score` request)
+
+**Key dependency:** `eng_to_ipa>=0.0.2` — must be in `requirements.txt` for English→IPA reference pronunciation
+
+**Service file:** `src/services/pronunciation_service.py`
+**Routes file:** `src/api/pronunciation_routes.py`
+
+**Score output:** `overall_score` (0.0–1.0) + per-word + per-phoneme alignment (correct/substitution/deletion/insertion)
+
+**RAM impact:** Wav2Vec2 adds ~370MB to `ai-chatbot-rag` (limit 7GB, container typically ~2GB loaded)
+
+**Supports:** single word, phrase, or full sentence in English
+
+**Common mistakes:**
+- ❌ Using old `google.generativeai` SDK for Wav2Vec2 — it's a HuggingFace model loaded via `transformers`
+- ❌ Forgetting `eng_to_ipa` in requirements.txt — causes ImportError on first `/score` request
+- ✅ Models are lazy-loaded (singletons) — only loaded on first request, no startup cost
+
 ## Quick Reference Links
 
 - Full docs: `/SYSTEM_REFERENCE.md`
@@ -546,5 +577,5 @@ git push
 
 ---
 
-**Last Updated:** March 6, 2026
+**Last Updated:** March 26, 2026
 **For:** GitHub Copilot, Cursor AI, and other AI coding assistants

@@ -17,6 +17,7 @@ boto3>=1.35.0  # S3/R2 file storage
 google-genai>=0.3.0  # Gemini TTS for audio generation
 beautifulsoup4>=4.12.0  # HTML parsing for text extraction
 pydub>=0.25.1  # Audio manipulation and merging
+eng_to_ipa>=0.0.2  # English text → IPA phoneme conversion (pronunciation scoring)
 
 # Database connections
 pymongo==4.6.1
