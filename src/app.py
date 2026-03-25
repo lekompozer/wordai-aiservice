@@ -213,6 +213,9 @@ from src.api.podcast_routes import router as podcast_router
 # ✅ ADDED: Pronunciation Assessment API - Whisper transcription + Wav2Vec2 phoneme scoring
 from src.api.pronunciation_routes import router as pronunciation_router
 
+# ✅ ADDED: Daily Vocab by WordAI — free vocabulary learning cards
+from src.api.daily_vocab_routes import router as daily_vocab_router
+
 # ✅ ADDED: Conversation Learning API - English learning through conversations with gap-fill exercises
 from src.api.conversation_learning_routes import router as conversation_learning_router
 import src.api.conversation_detail_routes  # noqa: F401 — registers routes on shared router
@@ -1100,6 +1103,9 @@ def create_app() -> FastAPI:
 
     # ✅ ADDED: Pronunciation Assessment API - Whisper + Wav2Vec2 phoneme scoring
     app.include_router(pronunciation_router, tags=["Pronunciation Assessment"])
+
+    # ✅ ADDED: Daily Vocab by WordAI — free vocabulary learning cards
+    app.include_router(daily_vocab_router, tags=["Daily Vocab"])
 
     # ✅ ADDED: Conversation Public API - SSR/SEO (no auth) — MUST be before conversation_learning_router
     app.include_router(conversation_public_router, tags=["SEO Public - Conversations"])
