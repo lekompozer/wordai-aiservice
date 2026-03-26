@@ -9,7 +9,7 @@ Architecture:
 
 Endpoints (public unless noted):
   GET    /api/v1/daily-vocab/feed/today            — 6 cards + 18 related (set assigned by uid+date)
-  GET    /api/v1/daily-vocab/feed/next             — 5 cards infinite scroll
+  GET    /api/v1/daily-vocab/feed/next             — 3 cards infinite scroll
   GET    /api/v1/daily-vocab/feed/stats/{word_key} — like/save counts (public)
   POST   /api/v1/daily-vocab/like                  — Toggle like (auth required)
   POST   /api/v1/daily-vocab/save                  — Toggle save (auth required, persists to DB)
@@ -51,8 +51,8 @@ router = APIRouter(prefix="/api/v1/daily-vocab", tags=["Daily Vocab"])
 NUM_SETS = 500  # pre-built daily sets in Redis
 CARDS_PER_DAY = 6  # cards per daily set
 RELATED_PER_CARD = 3  # related words embedded per card
-SCROLL_BATCH = 5  # cards per /feed/next response
-SCROLL_POOL_SIZE = 50  # cards in Redis scroll pool per topic/level
+SCROLL_BATCH = 3  # cards per /feed/next response
+SCROLL_POOL_SIZE = 120  # cards in Redis scroll pool per topic/level
 
 # ---------------------------------------------------------------------------
 # Topic slug → music pool slug mapping + in-memory URL cache
@@ -139,7 +139,7 @@ GRAMMAR_PER_DAY = 3
 REDIS_TTL_DAILY = 86400  # 24h
 REDIS_TTL_TOPICS = 3600  # 1h
 REDIS_TTL_AUDIO = 86400 * 30  # 30 days
-REDIS_TTL_SCROLL = 3600  # 1h scroll pool
+REDIS_TTL_SCROLL = 86400 * 3  # 3 days scroll pool — reduces cold-start gaps
 REDIS_TTL_SETS = 86400 * 30  # 30 days pre-built sets
 
 EPOCH = date(2026, 1, 1)  # day-number reference
@@ -238,153 +238,99 @@ def _format_card(raw: dict) -> dict:
 
 def _enrich_related(cards: list, db) -> list:
     """
-    Attach full related word data to each card.
-    Strategy:
-      1. Try curated related_words lookup (1 batch MongoDB query).
-      2. Fill remaining slots with same topic+level $sample cards (1 query per unique
-         topic+level pair with < 3 related — usually 1-2 extra queries at most).
+    Attach full related word data to each card via $sample — always diverse.
+    Strategy: skip curated related_words (they cause repetition from small pools),
+    always sample randomly from same level across all topics.
+    Uses 1 query per unique level (usually 1-2 queries total for a feed).
     """
-    all_keys = list(
-        {
-            rw.get("word", "")
-            for c in cards
-            for rw in c.get("related_words", [])[:RELATED_PER_CARD]
-            if rw.get("word")
-        }
-    )
-    lookup: dict = {}
-    if all_keys:
-        for rdoc in db.vocab_cards.find(
-            {"word_key": {"$in": all_keys}},
-            {
-                "_id": 0,
-                "word_key": 1,
-                "word": 1,
-                "pos_tag": 1,
-                "definition_en": 1,
-                "definition_vi": 1,
-                "example": 1,
-                "image_url": 1,
-                "context_audio_url": 1,
-            },
-        ):
-            lookup[rdoc["word_key"]] = rdoc
-
-    cards_needing_fill = []
-    for c in cards:
-        c["related"] = []
-        existing_keys = {c.get("word_key", c.get("word", ""))}
-        for rw in c.get("related_words", [])[:RELATED_PER_CARD]:
-            rk = rw.get("word", "")
-            rd = lookup.get(rk, {})
-            if rd and rd.get("definition_en") and rk not in existing_keys:
-                c["related"].append(
-                    {
-                        "word_key": rd["word_key"],
-                        "word": rd["word"],
-                        "pos_tag": rw.get("pos_tag", rd.get("pos_tag", "")),
-                        "definition_en": rd.get("definition_en", ""),
-                        "definition_vi": rd.get("definition_vi", ""),
-                        "example": rd.get("example", ""),
-                        "image_url": rd.get("image_url", ""),
-                        "audio_url": rd.get("context_audio_url", ""),
-                    }
-                )
-                existing_keys.add(rk)
-        if len(c["related"]) < RELATED_PER_CARD:
-            cards_needing_fill.append(c)
-
-    # Fill missing related via $sample fallback.
-    # Strategy: try same topic+level first (diverse words from same theme);
-    # if topic is a "podcast" meta-slug (small pool) or still not enough → fall back
-    # to same level across ALL topics for maximum variety.
-    # Also exclude all word_keys already visible in the current feed.
     PODCAST_SLUGS = {
         "podcast_bbc",
         "podcast_bbc_6min_english",
         "podcast_bbc_news_english",
         "podcast_bbc_work_english",
     }
+    proj = {
+        "$project": {
+            "_id": 0,
+            "word_key": 1,
+            "word": 1,
+            "pos_tag": 1,
+            "definition_en": 1,
+            "definition_vi": 1,
+            "example": 1,
+            "image_url": 1,
+            "context_audio_url": 1,
+            "topic_slug": 1,
+        }
+    }
+    # All word_keys already showing in this feed — don't repeat them as related
     all_feed_keys = {c.get("word_key", c.get("word", "")) for c in cards}
+    sample_size = max(60, RELATED_PER_CARD * len(cards) * 4)
 
-    if cards_needing_fill:
-        sample_size = max(30, RELATED_PER_CARD * len(cards_needing_fill) * 3)
-        proj = {
-            "$project": {
-                "_id": 0,
-                "word_key": 1,
-                "word": 1,
-                "pos_tag": 1,
-                "definition_en": 1,
-                "definition_vi": 1,
-                "example": 1,
-                "image_url": 1,
-                "context_audio_url": 1,
-            }
-        }
-
-        # Build pool per (effective_slug, level) — podcast slugs use level-only pool
-        tl_pool: dict = {}
-        unique_pairs = {
-            (c.get("topic_slug", ""), c.get("level", "intermediate"))
-            for c in cards_needing_fill
-        }
-        for tslug, tlevel in unique_pairs:
-            use_slug = None if tslug in PODCAST_SLUGS else tslug
-            match: dict = {"definition_en": {"$exists": True, "$ne": ""}}
-            if use_slug:
-                match["topic_slug"] = use_slug
-            if tlevel:
-                match["level"] = tlevel
-            pool = list(
-                db.vocab_cards.aggregate(
-                    [
-                        {"$match": match},
-                        {"$sample": {"size": sample_size}},
-                        proj,
-                    ]
-                )
-            )
-            # If same-topic pool is tiny (< 10), supplement with cross-topic same-level
-            if len(pool) < 10:
-                cross_match: dict = {"definition_en": {"$exists": True, "$ne": ""}}
-                if tlevel:
-                    cross_match["level"] = tlevel
-                extra = list(
-                    db.vocab_cards.aggregate(
-                        [
-                            {"$match": cross_match},
-                            {"$sample": {"size": sample_size}},
-                            proj,
-                        ]
-                    )
-                )
-                seen = {d["word_key"] for d in pool}
-                pool += [d for d in extra if d.get("word_key") not in seen]
-            tl_pool[(tslug, tlevel)] = pool
-
-        for c in cards_needing_fill:
-            key = (c.get("topic_slug", ""), c.get("level", "intermediate"))
-            pool = tl_pool.get(key, [])
-            existing_keys = all_feed_keys | {r["word_key"] for r in c["related"]}
-            for candidate in pool:
-                if len(c["related"]) >= RELATED_PER_CARD:
-                    break
-                ck = candidate.get("word_key", "")
-                if ck and ck not in existing_keys and candidate.get("definition_en"):
-                    c["related"].append(
-                        {
-                            "word_key": ck,
-                            "word": candidate["word"],
-                            "pos_tag": candidate.get("pos_tag", ""),
-                            "definition_en": candidate.get("definition_en", ""),
-                            "definition_vi": candidate.get("definition_vi", ""),
-                            "example": candidate.get("example", ""),
-                            "image_url": candidate.get("image_url", ""),
-                            "audio_url": candidate.get("context_audio_url", ""),
+    # Build level-only pool (diverse topics) — 1 query per unique level
+    level_pool: dict[str, list] = {}
+    for level in {c.get("level", "intermediate") for c in cards}:
+        level_pool[level] = list(
+            db.vocab_cards.aggregate(
+                [
+                    {
+                        "$match": {
+                            "level": level,
+                            "definition_en": {"$exists": True, "$ne": ""},
                         }
-                    )
-                    existing_keys.add(ck)
+                    },
+                    {"$sample": {"size": sample_size}},
+                    proj,
+                ]
+            )
+        )
+
+    for c in cards:
+        c["related"] = []
+        level = c.get("level", "intermediate")
+        card_topic = c.get("topic_slug", "")
+        card_key = c.get("word_key", c.get("word", ""))
+        used_keys = all_feed_keys.copy()
+
+        pool = level_pool.get(level, [])
+        # Prefer same-topic candidates first (semantic relevance), then any topic
+        # Skip podcast meta-slugs — no useful same-topic pool exists for them
+        if card_topic and card_topic not in PODCAST_SLUGS:
+            same_topic = [
+                d
+                for d in pool
+                if d.get("topic_slug") == card_topic
+                and d.get("word_key") not in used_keys
+            ]
+            other_topic = [
+                d
+                for d in pool
+                if d.get("topic_slug") != card_topic
+                and d.get("word_key") not in used_keys
+            ]
+            # Use at most 1 same-topic word, then fill rest with other topics
+            candidates = same_topic[:1] + other_topic
+        else:
+            candidates = [d for d in pool if d.get("word_key") not in used_keys]
+
+        for candidate in candidates:
+            if len(c["related"]) >= RELATED_PER_CARD:
+                break
+            ck = candidate.get("word_key", "")
+            if ck and ck not in used_keys and candidate.get("definition_en"):
+                c["related"].append(
+                    {
+                        "word_key": ck,
+                        "word": candidate["word"],
+                        "pos_tag": candidate.get("pos_tag", ""),
+                        "definition_en": candidate.get("definition_en", ""),
+                        "definition_vi": candidate.get("definition_vi", ""),
+                        "example": candidate.get("example", ""),
+                        "image_url": candidate.get("image_url", ""),
+                        "audio_url": candidate.get("context_audio_url", ""),
+                    }
+                )
+                used_keys.add(ck)
 
     return cards
 
@@ -459,6 +405,26 @@ def _refill_scroll_pool(
         pipe.execute()
     except Exception as e:
         logger.error(f"_refill_scroll_pool error: {e}")
+
+
+def _warm_scroll_pool() -> None:
+    """
+    Called once at app startup — ensures the default scroll pool is pre-warmed
+    so the very first user request gets a Redis hit, not a cold MongoDB fallback.
+    """
+    try:
+        r = get_redis_client()
+        if not r:
+            return
+        pool_key = "vocab:scroll_pool:all:all"
+        if r.llen(pool_key) >= SCROLL_BATCH:
+            logger.info(f"✅ Scroll pool already warm ({r.llen(pool_key)} cards)")
+            return
+        db = get_db()
+        _refill_scroll_pool(pool_key, None, None, db, r)
+        logger.info(f"✅ Scroll pool pre-warmed at startup ({r.llen(pool_key)} cards)")
+    except Exception as e:
+        logger.warning(f"Scroll pool warmup failed (non-critical): {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -636,7 +602,7 @@ async def get_feed_next(
                         c["background_music_url"] = _get_background_music_url(
                             music_slug
                         )
-                if pool_len - limit < 10:
+                if pool_len - limit < 30:
                     background_tasks.add_task(
                         _refill_scroll_pool, pool_key, topic_slug, level, db, r
                     )

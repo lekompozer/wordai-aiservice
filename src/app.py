@@ -442,6 +442,18 @@ async def lifespan(app: FastAPI):
             logger = logging.getLogger("chatbot")
             logger.warning(f"⚠️ Cache warmup failed (non-critical): {e}")
 
+        # ✅ Pre-warm daily vocab scroll pool — so first user always hits Redis
+        try:
+            from src.api.daily_vocab_routes import _warm_scroll_pool
+            import asyncio
+
+            logger = logging.getLogger("chatbot")
+            logger.info("🔥 Pre-warming vocab scroll pool...")
+            await asyncio.get_event_loop().run_in_executor(None, _warm_scroll_pool)
+        except Exception as e:
+            logger = logging.getLogger("chatbot")
+            logger.warning(f"⚠️ Vocab scroll pool warmup failed (non-critical): {e}")
+
         # ✅ Log registered routes for debugging
         logger = logging.getLogger("chatbot")
         logger.info("=" * 80)
