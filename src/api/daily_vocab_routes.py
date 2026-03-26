@@ -263,8 +263,9 @@ def _enrich_related(cards: list, db) -> list:
             "topic_slug": 1,
         }
     }
-    # All word_keys already showing in this feed — don't repeat them as related
-    all_feed_keys = {c.get("word_key", c.get("word", "")) for c in cards}
+    # All word_keys already showing in this feed — don't repeat them as related.
+    # global_used accumulates ACROSS cards so each card gets unique related words.
+    global_used = {c.get("word_key", c.get("word", "")) for c in cards}
     sample_size = max(60, RELATED_PER_CARD * len(cards) * 4)
 
     # Build level-only pool (diverse topics) — 1 query per unique level
@@ -289,8 +290,6 @@ def _enrich_related(cards: list, db) -> list:
         c["related"] = []
         level = c.get("level", "intermediate")
         card_topic = c.get("topic_slug", "")
-        card_key = c.get("word_key", c.get("word", ""))
-        used_keys = all_feed_keys.copy()
 
         pool = level_pool.get(level, [])
         # Prefer same-topic candidates first (semantic relevance), then any topic
@@ -300,24 +299,24 @@ def _enrich_related(cards: list, db) -> list:
                 d
                 for d in pool
                 if d.get("topic_slug") == card_topic
-                and d.get("word_key") not in used_keys
+                and d.get("word_key") not in global_used
             ]
             other_topic = [
                 d
                 for d in pool
                 if d.get("topic_slug") != card_topic
-                and d.get("word_key") not in used_keys
+                and d.get("word_key") not in global_used
             ]
             # Use at most 1 same-topic word, then fill rest with other topics
             candidates = same_topic[:1] + other_topic
         else:
-            candidates = [d for d in pool if d.get("word_key") not in used_keys]
+            candidates = [d for d in pool if d.get("word_key") not in global_used]
 
         for candidate in candidates:
             if len(c["related"]) >= RELATED_PER_CARD:
                 break
             ck = candidate.get("word_key", "")
-            if ck and ck not in used_keys and candidate.get("definition_en"):
+            if ck and ck not in global_used and candidate.get("definition_en"):
                 c["related"].append(
                     {
                         "word_key": ck,
@@ -330,7 +329,7 @@ def _enrich_related(cards: list, db) -> list:
                         "audio_url": candidate.get("context_audio_url", ""),
                     }
                 )
-                used_keys.add(ck)
+                global_used.add(ck)
 
     return cards
 
