@@ -19,6 +19,7 @@ beautifulsoup4>=4.12.0  # HTML parsing for text extraction
 pydub>=0.25.1  # Audio manipulation and merging
 faster-whisper>=1.0.3  # Faster Whisper speech-to-text (transcription + timestamps)
 eng_to_ipa>=0.0.2  # English text → IPA phoneme conversion (pronunciation scoring)
+phonemizer>=3.2.2  # Required by Wav2Vec2PhonemeCTCTokenizer for phoneme-level scoring
 
 # Database connections
 pymongo==4.6.1
