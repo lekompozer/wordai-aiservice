@@ -1,25 +1,23 @@
 """
 Daily Vocab API — "Daily Vocab by WordAI"
 
-Free vocabulary learning app powered by WordAI's conversation & podcast content.
+Reads from the denormalized `vocab_cards` collection (built by build_vocab_cards.py)
+instead of joining conversation/podcast collections on every request.
 
-Endpoints:
-  GET  /api/v1/daily-vocab/today           — Today's vocab cards (random, related by topic)
-  GET  /api/v1/daily-vocab/random          — Random vocab card (optionally filter by topic/level)
-  GET  /api/v1/daily-vocab/topics          — List all topics with word counts (no auth)
-  GET  /api/v1/daily-vocab/grammar/today   — Today's grammar tip cards
-  POST /api/v1/daily-vocab/save            — Save/unsave a word (requires auth)
-  GET  /api/v1/daily-vocab/saved           — Get user's saved words (requires auth)
-  DELETE /api/v1/daily-vocab/saved/{word}  — Remove saved word (requires auth)
-
-Card structure returned per word:
-  word, pos_tag, definition_en, definition_vi, ipa (generated server-side),
-  example, source_type (conversation|podcast), source_id, source_title,
-  topic_slug, topic_en, level, audio_url, start_sec, end_sec,
-  image_url (Pixabay cached), related_words (same topic, different words)
+Endpoints (public unless noted):
+  GET  /api/v1/daily-vocab/topics               — All topics with word counts
+  GET  /api/v1/daily-vocab/today                — Today's 10-card set (deterministic)
+  GET  /api/v1/daily-vocab/random               — One random card
+  GET  /api/v1/daily-vocab/words/{word}         — Single word detail
+  GET  /api/v1/daily-vocab/topic-audio/{slug}   — Background music pool for a topic
+  GET  /api/v1/daily-vocab/grammar/today        — Today's 3 grammar tip cards
+  POST /api/v1/daily-vocab/save                 — Toggle save (requires auth)
+  GET  /api/v1/daily-vocab/saved                — User's saved words (requires auth)
+  DELETE /api/v1/daily-vocab/saved/{word}       — Remove saved word (requires auth)
 """
 
 import hashlib
+import json
 import logging
 import random
 import uuid
@@ -38,51 +36,18 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/daily-vocab", tags=["Daily Vocab"])
 
 # ---------------------------------------------------------------------------
-# CONSTANTS
+# Constants
 # ---------------------------------------------------------------------------
 
-CARDS_PER_DAY = 10  # words per daily set
-GRAMMAR_PER_DAY = 3  # grammar points per daily set
-REDIS_TTL_DAILY = 86400  # 24h cache for daily sets
-REDIS_TTL_TOPICS = 3600  # 1h cache for topic list
-
-# BBC podcast categories mapping to display labels
-PODCAST_CATEGORY_LABELS = {
-    "bbc_6min_english": "BBC 6 Minute English",
-    "bbc_work_english": "BBC Work English",
-    "bbc_news_english": "BBC News English",
-}
-
-# Topic → macro-category grouping (for filtering)
-TOPIC_CATEGORIES = {
-    "greetings_introductions": "Social",
-    "family_relationships": "Social",
-    "social_issues": "Social",
-    "events_celebrations": "Social",
-    "work_office": "Work & Career",
-    "finance_money": "Work & Career",
-    "technology_internet": "Technology",
-    "science_research": "Science",
-    "health_body": "Health & Wellness",
-    "sports_fitness": "Health & Wellness",
-    "food_drinks": "Lifestyle",
-    "shopping": "Lifestyle",
-    "travel_tourism": "Travel",
-    "transportation": "Travel",
-    "education_learning": "Education",
-    "philosophy_ethics": "Culture & Ideas",
-    "art_creativity": "Culture & Ideas",
-    "entertainment_media": "Culture & Ideas",
-    "politics_government": "Society",
-    "home_accommodation": "Daily Life",
-    "weather_seasons": "Daily Life",
-    "hobbies_interests": "Hobbies",
-    "emergency_safety": "Safety",
-}
+CARDS_PER_DAY   = 10
+GRAMMAR_PER_DAY = 3
+REDIS_TTL_DAILY  = 86400        # 24h
+REDIS_TTL_TOPICS = 3600         # 1h
+REDIS_TTL_AUDIO  = 86400 * 30  # 30 days
 
 
 # ---------------------------------------------------------------------------
-# DEPENDENCIES
+# Dependencies
 # ---------------------------------------------------------------------------
 
 
@@ -98,7 +63,7 @@ def get_redis_client():
 
 
 # ---------------------------------------------------------------------------
-# HELPERS
+# Helpers
 # ---------------------------------------------------------------------------
 
 
@@ -107,293 +72,59 @@ def _day_seed() -> str:
     return date.today().isoformat()
 
 
-def _word_image_key(word: str) -> str:
-    return f"vocab:img:{hashlib.md5(word.lower().encode()).hexdigest()[:8]}"
-
-
-def _get_cached_image(r, word: str) -> Optional[str]:
-    if not r:
-        return None
-    try:
-        return r.get(_word_image_key(word))
-    except Exception:
-        return None
-
-
-def _enrich_vocab_item(
-    item: dict,
-    source_type: str,
-    source_id: str,
-    source_title: str,
-    topic_slug: str,
-    topic_en: str,
-    level: str,
-    audio_url: Optional[str],
-    start_sec: Optional[float],
-    end_sec: Optional[float],
-    image_url: Optional[str],
-    related_words: list,
-) -> dict:
-    """Build a complete vocab card dict."""
-    return {
-        "word": item.get("word", ""),
-        "pos_tag": item.get("pos_tag", ""),
-        "definition_en": item.get("definition_en", ""),
-        "definition_vi": item.get("definition_vi", ""),
-        "example": item.get("example", ""),
-        # IPA hints: generated lazily on frontend using Web Speech API or
-        # a lightweight JS IPA library — not stored in DB today
-        "ipa": None,
-        # Source metadata for "Listen in context" button
-        "source_type": source_type,  # "conversation" | "podcast"
-        "source_id": source_id,
-        "source_title": source_title,
-        "topic_slug": topic_slug,
-        "topic_en": topic_en,
-        "topic_category": TOPIC_CATEGORIES.get(topic_slug, "General"),
-        "level": level,
-        # Audio context — frontend uses HTML5:
-        #   const a = new Audio(audio_url); a.currentTime = start_sec - 1.5; a.play();
-        "audio_url": audio_url,
-        "start_sec": start_sec,
-        "end_sec": end_sec,
-        # Image (pre-fetched by Pixabay caching script, stored in DB)
-        "image_url": image_url,
-        # Related words in same topic (word + pos_tag only for chips)
-        "related_words": related_words,
-    }
-
-
-def _fetch_vocab_from_conversations(
-    db, topic_slug: str, level: Optional[str], exclude_words: set, limit: int
+def _cards_query(
+    topic_slug: Optional[str],
+    level: Optional[str],
+    exclude_words: set,
+    limit: int,
+    db,
+    seed: Optional[str] = None,
 ) -> list:
     """
-    Pull vocabulary items from conversation_vocabulary + conversation_library.
-    Returns list of enriched card dicts.
+    Pull cards directly from vocab_cards (denormalized read model).
+    seed=None  → truly random via $sample
+    seed=str   → deterministic shuffle (same cards same day)
     """
-    # Find conversation IDs for this topic+level
-    conv_query: dict = {"topic_slug": topic_slug}
+    query: dict = {}
+    if topic_slug:
+        query["topic_slug"] = topic_slug
     if level:
-        conv_query["level"] = level
+        query["level"] = level
 
-    conv_ids = [
-        c["conversation_id"]
-        for c in db.conversation_library.find(
-            conv_query,
-            {
-                "conversation_id": 1,
-                "title": 1,
-                "topic_slug": 1,
-                "level": 1,
-                "audio_info": 1,
-            },
-        ).limit(50)
-    ]
-
-    if not conv_ids:
-        return []
-
-    # Build a lookup of conv metadata
-    conv_meta = {
-        c["conversation_id"]: c
-        for c in db.conversation_library.find(
-            {"conversation_id": {"$in": conv_ids}},
-            {
-                "conversation_id": 1,
-                "title": 1,
-                "topic_slug": 1,
-                "level": 1,
-                "audio_info": 1,
-            },
-        )
+    proj = {
+        "_id": 0,
+        "word": 1, "word_key": 1, "pos_tag": 1,
+        "definition_en": 1, "definition_vi": 1, "example": 1,
+        "topic_slug": 1, "topic_en": 1, "topic_category": 1, "level": 1,
+        "image_url": 1, "context_audio_url": 1,
+        "context_start_sec": 1, "context_end_sec": 1,
+        "sources": 1, "related_words": 1,
+        "like_count": 1, "save_count": 1,
     }
 
-    # Get vocabulary docs for those conversations
-    vocab_docs = list(
-        db.conversation_vocabulary.find(
-            {"conversation_id": {"$in": conv_ids}},
-            {"conversation_id": 1, "vocabulary": 1},
-        )
-    )
-
-    cards = []
-    for vdoc in vocab_docs:
-        cid = vdoc.get("conversation_id", "")
-        meta = conv_meta.get(cid, {})
-        title_obj = meta.get("title", {})
-        source_title = (
-            title_obj.get("en", cid) if isinstance(title_obj, dict) else str(title_obj)
-        )
-        conv_level = meta.get("level", "intermediate")
-        audio_info = meta.get("audio_info", {})
-        audio_url = audio_info.get("r2_url") if audio_info else None
-
-        for item in vdoc.get("vocabulary", []):
-            word = item.get("word", "").strip()
-            if not word or word.lower() in exclude_words:
-                continue
-            cards.append(
-                _enrich_vocab_item(
-                    item=item,
-                    source_type="conversation",
-                    source_id=cid,
-                    source_title=source_title,
-                    topic_slug=topic_slug,
-                    topic_en=topic_slug.replace("_", " ").title(),
-                    level=conv_level,
-                    audio_url=audio_url,
-                    start_sec=None,  # conversations don't have per-word timestamps
-                    end_sec=None,
-                    image_url=None,  # filled by caller from Redis cache
-                    related_words=[],  # filled by caller
-                )
-            )
-            if len(cards) >= limit * 3:  # over-fetch to allow shuffling
-                break
-        if len(cards) >= limit * 3:
-            break
-
-    return cards
-
-
-def _fetch_vocab_from_podcasts(
-    db, exclude_words: set, limit: int, category: Optional[str] = None
-) -> list:
-    """
-    Pull vocabulary items from podcast_vocabulary + bbc_podcasts (with timestamps).
-    Returns list of enriched card dicts.
-    """
-    podcast_query: dict = {"vocabulary.0": {"$exists": True}}
-    if category:
-        # Filter by podcast category via joining on podcast_id
-        podcast_ids = [
-            p["podcast_id"]
-            for p in db.bbc_podcasts.find(
-                {"category": category, "whisper_aligned": True}, {"podcast_id": 1}
-            ).limit(100)
+    if seed is not None:
+        pool = list(db.vocab_cards.find(query, proj).limit(limit * 5))
+        if not pool:
+            return []
+        rng = random.Random(seed + (topic_slug or "") + (level or ""))
+        rng.shuffle(pool)
+        filtered = [c for c in pool if c.get("word_key", c.get("word", "")).lower() not in exclude_words]
+        return filtered[:limit]
+    else:
+        pipeline: list = []
+        if query:
+            pipeline.append({"$match": query})
+        if exclude_words:
+            pipeline.append({"$match": {"word_key": {"$nin": list(exclude_words)}}})
+        pipeline += [
+            {"$sample": {"size": limit}},
+            {"$project": proj},
         ]
-        if podcast_ids:
-            podcast_query["podcast_id"] = {"$in": podcast_ids}
-
-    vocab_docs = list(
-        db.podcast_vocabulary.find(
-            podcast_query, {"podcast_id": 1, "vocabulary": 1}
-        ).limit(100)
-    )
-    if not vocab_docs:
-        return []
-
-    # Build podcast metadata lookup with transcript_turns for timestamps
-    podcast_ids = [d["podcast_id"] for d in vocab_docs]
-    podcasts = {
-        p["podcast_id"]: p
-        for p in db.bbc_podcasts.find(
-            {"podcast_id": {"$in": podcast_ids}},
-            {
-                "podcast_id": 1,
-                "title": 1,
-                "category": 1,
-                "level": 1,
-                "audio_url": 1,
-                "transcript_turns": 1,
-            },
-        )
-    }
-
-    cards = []
-    for vdoc in vocab_docs:
-        pid = vdoc.get("podcast_id", "")
-        podcast = podcasts.get(pid, {})
-        podcast_cat = podcast.get("category", "")
-        source_title = PODCAST_CATEGORY_LABELS.get(podcast_cat, "BBC Podcast")
-        podcast_title = podcast.get("title", "")
-        if podcast_title:
-            source_title = f"{source_title} — {podcast_title}"
-        level = podcast.get("level", "intermediate")
-        audio_url = podcast.get("audio_url")
-        turns = podcast.get("transcript_turns", [])
-
-        # Build word → (start_sec, end_sec) from transcript_turns
-        # Match example sentence to nearest turn
-        def find_turn_for_example(example_text: str):
-            if not turns or not example_text:
-                return None, None
-            ex_lower = example_text.lower()
-            best_turn = None
-            for t in turns:
-                if any(w in t.get("text", "").lower() for w in ex_lower.split()[:4]):
-                    best_turn = t
-                    break
-            if best_turn:
-                # DB stores timestamps as milliseconds
-                start_ms = best_turn.get("start_ms")
-                end_ms = best_turn.get("end_ms")
-                start_s = round(start_ms / 1000, 2) if start_ms is not None else None
-                end_s = round(end_ms / 1000, 2) if end_ms is not None else None
-                return start_s, end_s
-            return None, None
-
-        # Topic mapping for podcasts
-        topic_slug_short = podcast_cat.replace("bbc_", "").replace("_english", "")
-        topic_en_map = {
-            "6min": "BBC 6 Minute English",
-            "work": "Work & Office",
-            "news": "News & Current Affairs",
-        }
-        topic_en = topic_en_map.get(topic_slug_short, "BBC English")
-
-        for item in vdoc.get("vocabulary", []):
-            word = item.get("word", "").strip()
-            if not word or word.lower() in exclude_words:
-                continue
-            start_sec, end_sec = find_turn_for_example(item.get("example", ""))
-            cards.append(
-                _enrich_vocab_item(
-                    item=item,
-                    source_type="podcast",
-                    source_id=pid,
-                    source_title=source_title,
-                    topic_slug=podcast_cat,
-                    topic_en=topic_en,
-                    level=level,
-                    audio_url=audio_url,
-                    start_sec=start_sec,
-                    end_sec=end_sec,
-                    image_url=None,
-                    related_words=[],
-                )
-            )
-            if len(cards) >= limit * 3:
-                break
-        if len(cards) >= limit * 3:
-            break
-
-    return cards
-
-
-def _attach_images_and_related(
-    r, cards: list, db, topic_slug: str, source_type: str
-) -> list:
-    """Fill image_url from Redis and build related_words chips."""
-    # Build a pool of same-topic words for related chips
-    same_topic_words = [{"word": c["word"], "pos_tag": c["pos_tag"]} for c in cards]
-
-    for card in cards:
-        # Image from Redis cache
-        card["image_url"] = _get_cached_image(r, card["word"])
-
-        # Related words: 5 different words from same topic
-        related = [
-            w for w in same_topic_words if w["word"].lower() != card["word"].lower()
-        ]
-        random.shuffle(related)
-        card["related_words"] = related[:5]
-
-    return cards
+        return list(db.vocab_cards.aggregate(pipeline))
 
 
 # ---------------------------------------------------------------------------
-# ENDPOINTS
+# Endpoints — static paths BEFORE parametric /{word} routes
 # ---------------------------------------------------------------------------
 
 
@@ -403,98 +134,42 @@ async def get_vocab_topics(db=Depends(get_db), r=Depends(get_redis_client)):
     List all available topics with vocabulary counts.
     Public endpoint — no auth required.
     """
-    cache_key = "vocab:topics:v1"
+    cache_key = "vocab:topics:v2"
     if r:
         try:
             cached = r.get(cache_key)
             if cached:
-                import json
-
                 return json.loads(cached)
         except Exception:
             pass
 
-    # Group conversation_vocabulary by topic_slug via conversation_library
     pipeline = [
-        {
-            "$lookup": {
-                "from": "conversation_library",
-                "localField": "conversation_id",
-                "foreignField": "conversation_id",
-                "as": "conv",
-            }
-        },
-        {"$unwind": "$conv"},
-        {"$unwind": "$vocabulary"},
-        {
-            "$group": {
-                "_id": {
-                    "topic_slug": "$conv.topic_slug",
-                    "topic_en": {
-                        "$arrayElemAt": [{"$objectToArray": "$conv.topic"}, 0]
-                    },
-                    "level": "$conv.level",
-                },
-                "word_count": {"$sum": 1},
-            }
-        },
-        {"$sort": {"word_count": -1}},
+        {"$group": {
+            "_id": {
+                "topic_slug":     "$topic_slug",
+                "topic_en":       "$topic_en",
+                "topic_category": "$topic_category",
+            },
+            "total_words": {"$sum": 1},
+            "levels":      {"$addToSet": "$level"},
+        }},
+        {"$sort": {"total_words": -1}},
     ]
+    raw = list(db.vocab_cards.aggregate(pipeline))
 
-    raw = list(db.conversation_vocabulary.aggregate(pipeline))
-
-    topics: dict = {}
-    for r_item in raw:
-        slug = r_item["_id"].get("topic_slug", "")
-        level = r_item["_id"].get("level", "intermediate")
-        count = r_item["word_count"]
-        if slug not in topics:
-            topics[slug] = {
-                "topic_slug": slug,
-                "topic_en": slug.replace("_", " ").title(),
-                "topic_category": TOPIC_CATEGORIES.get(slug, "General"),
-                "levels": {},
-                "total_words": 0,
-            }
-        topics[slug]["levels"][level] = topics[slug]["levels"].get(level, 0) + count
-        topics[slug]["total_words"] += count
-
-    # Add BBC podcast topics
-    podcast_counts = list(
-        db.podcast_vocabulary.aggregate(
-            [
-                {"$unwind": "$vocabulary"},
-                {
-                    "$lookup": {
-                        "from": "bbc_podcasts",
-                        "localField": "podcast_id",
-                        "foreignField": "podcast_id",
-                        "as": "p",
-                    }
-                },
-                {"$unwind": "$p"},
-                {"$group": {"_id": "$p.category", "word_count": {"$sum": 1}}},
-            ]
-        )
-    )
-    for pc in podcast_counts:
-        cat = pc["_id"] or ""
-        label = PODCAST_CATEGORY_LABELS.get(cat, cat)
-        slug = f"podcast_{cat}"
-        topics[slug] = {
-            "topic_slug": slug,
-            "topic_en": label,
-            "topic_category": "BBC Podcast",
-            "levels": {"intermediate": pc["word_count"]},
-            "total_words": pc["word_count"],
+    result = [
+        {
+            "topic_slug":    r_["_id"]["topic_slug"],
+            "topic_en":      r_["_id"]["topic_en"],
+            "topic_category": r_["_id"]["topic_category"],
+            "total_words":   r_["total_words"],
+            "levels":        sorted(r_["levels"]),
         }
-
-    result = sorted(topics.values(), key=lambda x: -x["total_words"])
+        for r_ in raw if r_["_id"].get("topic_slug")
+    ]
 
     if r:
         try:
-            import json
-
             r.setex(cache_key, REDIS_TTL_TOPICS, json.dumps(result))
         except Exception:
             pass
@@ -506,7 +181,6 @@ async def get_vocab_topics(db=Depends(get_db), r=Depends(get_redis_client)):
 async def get_today_vocab(
     topic_slug: Optional[str] = Query(None, description="Filter by topic slug"),
     level: Optional[str] = Query(None, description="beginner|intermediate|advanced"),
-    source: Optional[str] = Query(None, description="conversation|podcast"),
     db=Depends(get_db),
     r=Depends(get_redis_client),
     current_user: Optional[dict] = Depends(get_current_user_optional),
@@ -516,91 +190,42 @@ async def get_today_vocab(
     Same cards for same topic/level/day (deterministic seed).
     No auth required — free feature.
     """
-    seed_key = f"{_day_seed()}:{topic_slug or 'all'}:{level or 'all'}:{source or 'all'}"
-    cache_key = f"vocab:daily:{hashlib.md5(seed_key.encode()).hexdigest()[:12]}"
+    seed      = _day_seed()
+    cache_key = f"vocab:daily:v2:{hashlib.md5(f'{seed}:{topic_slug}:{level}'.encode()).hexdigest()[:12]}"
 
     if r:
         try:
             cached = r.get(cache_key)
             if cached:
-                import json
-
                 return json.loads(cached)
         except Exception:
             pass
 
-    exclude_words: set = set()
-    cards: list = []
-
-    # Determine sources to pull from
-    use_conv = source in (None, "conversation")
-    use_podcast = source in (None, "podcast")
-
-    if use_conv:
-        if topic_slug:
-            cards += _fetch_vocab_from_conversations(
-                db, topic_slug, level, exclude_words, CARDS_PER_DAY
-            )
-        else:
-            # Pick random topic for today using day seed
-            rng = random.Random(_day_seed())
-            topics_available = [
-                t["topic_slug"]
-                for t in db.conversation_library.aggregate(
-                    [
-                        {"$group": {"_id": "$topic_slug"}},
-                    ]
-                )
-            ]
-            if topics_available:
-                chosen_topic = rng.choice(topics_available)
-                cards += _fetch_vocab_from_conversations(
-                    db, chosen_topic, level, exclude_words, CARDS_PER_DAY
-                )
-
-    if use_podcast and len(cards) < CARDS_PER_DAY:
-        remaining = CARDS_PER_DAY - len(cards)
-        podcast_cat = None
-        if topic_slug and topic_slug.startswith("podcast_"):
-            podcast_cat = topic_slug.replace("podcast_", "")
-        cards += _fetch_vocab_from_podcasts(db, exclude_words, remaining, podcast_cat)
-
-    if not cards:
-        raise HTTPException(
-            status_code=404, detail="No vocabulary found for this filter"
-        )
-
-    # Deduplicate by word
-    seen: set = set()
-    unique_cards: list = []
-    for c in cards:
-        w = c["word"].lower()
-        if w not in seen:
-            seen.add(w)
-            unique_cards.append(c)
-
-    # Shuffle deterministically by day seed
-    rng = random.Random(_day_seed() + (topic_slug or "") + (level or ""))
-    rng.shuffle(unique_cards)
-    result_cards = unique_cards[:CARDS_PER_DAY]
-
-    # Fill images and related words
-    result_cards = _attach_images_and_related(
-        r, result_cards, db, topic_slug or "", source or "conversation"
+    cards = _cards_query(
+        topic_slug=topic_slug, level=level, exclude_words=set(),
+        limit=CARDS_PER_DAY, db=db, seed=seed,
     )
 
+    if not cards:
+        # Fallback: any topic
+        cards = _cards_query(
+            topic_slug=None, level=level, exclude_words=set(),
+            limit=CARDS_PER_DAY, db=db, seed=seed,
+        )
+
+    if not cards:
+        raise HTTPException(status_code=404, detail="No vocabulary found for this filter")
+
     response = {
-        "date": _day_seed(),
+        "date":       seed,
         "topic_slug": topic_slug,
-        "level": level,
-        "total": len(result_cards),
-        "cards": result_cards,
+        "level":      level,
+        "total":      len(cards),
+        "cards":      cards,
     }
 
     if r:
         try:
-            import json
-
             r.setex(cache_key, REDIS_TTL_DAILY, json.dumps(response))
         except Exception:
             pass
@@ -612,12 +237,8 @@ async def get_today_vocab(
 async def get_random_vocab(
     topic_slug: Optional[str] = Query(None),
     level: Optional[str] = Query(None),
-    source: Optional[str] = Query(None, description="conversation|podcast"),
-    exclude: Optional[str] = Query(
-        None, description="Comma-separated words to exclude"
-    ),
+    exclude: Optional[str] = Query(None, description="Comma-separated words to exclude"),
     db=Depends(get_db),
-    r=Depends(get_redis_client),
 ):
     """
     Return a single random vocabulary card.
@@ -626,50 +247,21 @@ async def get_random_vocab(
     """
     exclude_words = {w.strip().lower() for w in (exclude or "").split(",") if w.strip()}
 
-    cards: list = []
-    use_conv = source in (None, "conversation")
-    use_podcast = source in (None, "podcast")
-
-    if use_conv and topic_slug and not topic_slug.startswith("podcast_"):
-        cards += _fetch_vocab_from_conversations(
-            db, topic_slug, level, exclude_words, 5
-        )
-
-    if use_podcast and (not cards or topic_slug and topic_slug.startswith("podcast_")):
-        podcast_cat = None
-        if topic_slug and topic_slug.startswith("podcast_"):
-            podcast_cat = topic_slug.replace("podcast_", "")
-        cards += _fetch_vocab_from_podcasts(db, exclude_words, 5, podcast_cat)
-
-    if not cards:
-        # Fallback: any topic
-        cards += _fetch_vocab_from_conversations(
-            db, "technology_internet", level, exclude_words, 10
-        )
+    cards = _cards_query(
+        topic_slug=topic_slug, level=level,
+        exclude_words=exclude_words, limit=1, db=db, seed=None,
+    )
 
     if not cards:
         raise HTTPException(status_code=404, detail="No vocabulary found")
 
-    card = random.choice(cards)
-    card["image_url"] = _get_cached_image(r, card["word"])
-
-    # Related words
-    same_words = [
-        {"word": c["word"], "pos_tag": c["pos_tag"]}
-        for c in cards
-        if c["word"] != card["word"]
-    ]
-    random.shuffle(same_words)
-    card["related_words"] = same_words[:5]
-
-    return card
+    return cards[0]
 
 
 @router.get("/grammar/today")
 async def get_today_grammar(
     topic_slug: Optional[str] = Query(None),
     level: Optional[str] = Query(None),
-    source: Optional[str] = Query(None, description="conversation|podcast"),
     db=Depends(get_db),
     r=Depends(get_redis_client),
 ):
@@ -678,24 +270,21 @@ async def get_today_grammar(
     Each card has: pattern, explanation_en, explanation_vi, example, source link.
     No auth required.
     """
-    seed_key = f"grammar:{_day_seed()}:{topic_slug or 'all'}:{level or 'all'}"
-    cache_key = f"vocab:grammar:{hashlib.md5(seed_key.encode()).hexdigest()[:12]}"
+    seed      = _day_seed()
+    cache_key = f"vocab:grammar:v2:{hashlib.md5(f'{seed}:{topic_slug}:{level}'.encode()).hexdigest()[:12]}"
 
     if r:
         try:
             cached = r.get(cache_key)
             if cached:
-                import json
-
                 return json.loads(cached)
         except Exception:
             pass
 
     grammar_items: list = []
 
-    # Pull from conversation_vocabulary
-    conv_query: dict = {}
-    if topic_slug and not topic_slug.startswith("podcast_"):
+    conv_query: dict = {"grammar_points.0": {"$exists": True}}
+    if topic_slug:
         conv_ids = [
             c["conversation_id"]
             for c in db.conversation_library.find(
@@ -705,60 +294,25 @@ async def get_today_grammar(
         ]
         conv_query["conversation_id"] = {"$in": conv_ids}
 
-    conv_vocab_docs = list(
-        db.conversation_vocabulary.find(
-            {"grammar_points.0": {"$exists": True}, **conv_query},
-            {"conversation_id": 1, "grammar_points": 1},
-        ).limit(50)
-    )
-
-    for vdoc in conv_vocab_docs:
-        cid = vdoc.get("conversation_id", "")
+    for vdoc in db.conversation_vocabulary.find(conv_query, {"conversation_id": 1, "grammar_points": 1}).limit(50):
         for gp in vdoc.get("grammar_points", []):
-            grammar_items.append(
-                {
-                    **gp,
-                    "source_type": "conversation",
-                    "source_id": cid,
-                }
-            )
+            grammar_items.append({**gp, "source_type": "conversation", "source_id": vdoc.get("conversation_id", "")})
 
-    # Pull from podcast_vocabulary
-    podcast_grammar_docs = list(
-        db.podcast_vocabulary.find(
-            {"grammar_points.0": {"$exists": True}},
-            {"podcast_id": 1, "grammar_points": 1},
-        ).limit(50)
-    )
-    for vdoc in podcast_grammar_docs:
-        pid = vdoc.get("podcast_id", "")
+    for vdoc in db.podcast_vocabulary.find({"grammar_points.0": {"$exists": True}}, {"podcast_id": 1, "grammar_points": 1}).limit(50):
         for gp in vdoc.get("grammar_points", []):
-            grammar_items.append(
-                {
-                    **gp,
-                    "source_type": "podcast",
-                    "source_id": pid,
-                }
-            )
+            grammar_items.append({**gp, "source_type": "podcast", "source_id": vdoc.get("podcast_id", "")})
 
     if not grammar_items:
         raise HTTPException(status_code=404, detail="No grammar data found")
 
-    # Deterministic shuffle by day
-    rng = random.Random(_day_seed() + (topic_slug or "") + (level or ""))
+    rng = random.Random(seed + (topic_slug or "") + (level or ""))
     rng.shuffle(grammar_items)
     selected = grammar_items[:GRAMMAR_PER_DAY]
 
-    response = {
-        "date": _day_seed(),
-        "total": len(selected),
-        "grammar": selected,
-    }
+    response = {"date": seed, "total": len(selected), "grammar": selected}
 
     if r:
         try:
-            import json
-
             r.setex(cache_key, REDIS_TTL_DAILY, json.dumps(response))
         except Exception:
             pass
@@ -766,8 +320,44 @@ async def get_today_grammar(
     return response
 
 
+@router.get("/topic-audio/{slug}")
+async def get_topic_audio(
+    slug: str,
+    db=Depends(get_db),
+    r=Depends(get_redis_client),
+):
+    """
+    Return background music pool for a topic (hosted on static.aivungtau.com).
+    Frontend shuffles and loops through the pool.
+    No auth required.
+    """
+    redis_key = f"vocab:topic_audio_pool:{slug}"
+
+    if r:
+        try:
+            cached = r.get(redis_key)
+            if cached:
+                return {"topic_slug": slug, "pool": json.loads(cached)}
+        except Exception:
+            pass
+
+    doc = db.vocab_topic_audio.find_one({"topic_slug": slug}, {"_id": 0, "pool": 1})
+    if not doc or not doc.get("pool"):
+        raise HTTPException(status_code=404, detail=f"No audio pool for topic '{slug}'")
+
+    pool = doc["pool"]
+
+    if r:
+        try:
+            r.setex(redis_key, REDIS_TTL_AUDIO, json.dumps(pool))
+        except Exception:
+            pass
+
+    return {"topic_slug": slug, "pool": pool}
+
+
 # ---------------------------------------------------------------------------
-# SAVED WORDS (requires auth)
+# Saved words — requires auth
 # ---------------------------------------------------------------------------
 
 
@@ -876,3 +466,39 @@ async def delete_saved_word(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Word not in saved list")
     return {"deleted": True, "word": word}
+
+
+# ---------------------------------------------------------------------------
+# Word detail — MUST be last (parametric, catches any slug)
+# ---------------------------------------------------------------------------
+
+@router.get("/words/{word}")
+async def get_word_detail(
+    word: str,
+    db=Depends(get_db),
+    r=Depends(get_redis_client),
+):
+    """
+    Full detail for a single word including all sources.
+    No auth required.
+    """
+    cache_key = f"vocab:word:{word.lower()}"
+    if r:
+        try:
+            cached = r.get(cache_key)
+            if cached:
+                return json.loads(cached)
+        except Exception:
+            pass
+
+    doc = db.vocab_cards.find_one({"word_key": word.lower()}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail=f"Word '{word}' not found")
+
+    if r:
+        try:
+            r.setex(cache_key, REDIS_TTL_DAILY, json.dumps(doc, default=str))
+        except Exception:
+            pass
+
+    return doc
