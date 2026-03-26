@@ -522,6 +522,15 @@ async def get_feed_today(
             raw = r.get(set_key)
             if raw:
                 cards = json.loads(raw)
+                # Backfill background_music_url for cards cached before this field existed
+                for c in cards:
+                    if "background_music_url" not in c:
+                        music_slug = _TOPIC_SLUG_TO_MUSIC.get(
+                            c.get("topic_slug", ""), "daily_life_routines"
+                        )
+                        c["background_music_url"] = _get_background_music_url(
+                            music_slug
+                        )
         except Exception:
             pass
 
@@ -588,6 +597,15 @@ async def get_feed_next(
                 raw_cards = r.lrange(pool_key, 0, limit - 1)
                 r.ltrim(pool_key, limit, -1)
                 cards = [json.loads(c) for c in raw_cards]
+                # Backfill background_music_url for cards cached before this field existed
+                for c in cards:
+                    if "background_music_url" not in c:
+                        music_slug = _TOPIC_SLUG_TO_MUSIC.get(
+                            c.get("topic_slug", ""), "daily_life_routines"
+                        )
+                        c["background_music_url"] = _get_background_music_url(
+                            music_slug
+                        )
                 if pool_len - limit < 10:
                     background_tasks.add_task(
                         _refill_scroll_pool, pool_key, topic_slug, level, db, r
