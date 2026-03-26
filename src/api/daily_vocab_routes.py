@@ -153,7 +153,10 @@ def _format_card(raw: dict) -> dict:
 def _enrich_related(cards: list, db) -> list:
     """
     Attach full related word data to each card.
-    Collects all related word_keys → 1 MongoDB query for the whole batch.
+    Strategy:
+      1. Try curated related_words lookup (1 batch MongoDB query).
+      2. Fill remaining slots with same topic+level $sample cards (1 query per unique
+         topic+level pair with < 3 related — usually 1-2 extra queries at most).
     """
     all_keys = list(
         {
@@ -181,23 +184,92 @@ def _enrich_related(cards: list, db) -> list:
         ):
             lookup[rdoc["word_key"]] = rdoc
 
+    cards_needing_fill = []
     for c in cards:
         c["related"] = []
+        existing_keys = {c.get("word_key", c.get("word", ""))}
         for rw in c.get("related_words", [])[:RELATED_PER_CARD]:
             rk = rw.get("word", "")
             rd = lookup.get(rk, {})
-            c["related"].append(
+            if rd and rd.get("definition_en") and rk not in existing_keys:
+                c["related"].append(
+                    {
+                        "word_key": rd["word_key"],
+                        "word": rd["word"],
+                        "pos_tag": rw.get("pos_tag", rd.get("pos_tag", "")),
+                        "definition_en": rd.get("definition_en", ""),
+                        "definition_vi": rd.get("definition_vi", ""),
+                        "example": rd.get("example", ""),
+                        "image_url": rd.get("image_url", ""),
+                        "audio_url": rd.get("context_audio_url", ""),
+                    }
+                )
+                existing_keys.add(rk)
+        if len(c["related"]) < RELATED_PER_CARD:
+            cards_needing_fill.append(c)
+
+    # Fill missing related via same topic+level $sample (1 query per unique pair)
+    if cards_needing_fill:
+        topic_level_pairs = list(
+            {
+                (c.get("topic_slug", ""), c.get("level", "intermediate"))
+                for c in cards_needing_fill
+            }
+        )
+        sample_size = max(20, RELATED_PER_CARD * len(cards_needing_fill) + 5)
+        tl_pool: dict = {}
+        for tslug, tlevel in topic_level_pairs:
+            match: dict = {}
+            if tslug:
+                match["topic_slug"] = tslug
+            if tlevel:
+                match["level"] = tlevel
+            pipeline = []
+            if match:
+                pipeline.append({"$match": match})
+            pipeline += [
+                {"$sample": {"size": sample_size}},
                 {
-                    "word_key": rk,
-                    "word": rd.get("word", rk),
-                    "pos_tag": rw.get("pos_tag", rd.get("pos_tag", "")),
-                    "definition_en": rd.get("definition_en", ""),
-                    "definition_vi": rd.get("definition_vi", ""),
-                    "example": rd.get("example", ""),
-                    "image_url": rd.get("image_url", ""),
-                    "audio_url": rd.get("context_audio_url", ""),
-                }
-            )
+                    "$project": {
+                        "_id": 0,
+                        "word_key": 1,
+                        "word": 1,
+                        "pos_tag": 1,
+                        "definition_en": 1,
+                        "definition_vi": 1,
+                        "example": 1,
+                        "image_url": 1,
+                        "context_audio_url": 1,
+                    }
+                },
+            ]
+            tl_pool[(tslug, tlevel)] = list(db.vocab_cards.aggregate(pipeline))
+
+        for c in cards_needing_fill:
+            key = (c.get("topic_slug", ""), c.get("level", "intermediate"))
+            pool = tl_pool.get(key, [])
+            existing_keys = {c.get("word_key", c.get("word", ""))} | {
+                r["word_key"] for r in c["related"]
+            }
+            for candidate in pool:
+                if len(c["related"]) >= RELATED_PER_CARD:
+                    break
+                ck = candidate.get("word_key", "")
+                if ck and ck not in existing_keys and candidate.get("definition_en"):
+                    c["related"].append(
+                        {
+                            "word_key": ck,
+                            "word": candidate["word"],
+                            "pos_tag": candidate.get("pos_tag", ""),
+                            "definition_en": candidate.get("definition_en", ""),
+                            "definition_vi": candidate.get("definition_vi", ""),
+                            "example": candidate.get("example", ""),
+                            "image_url": candidate.get("image_url", ""),
+                            "audio_url": candidate.get("context_audio_url", ""),
+                        }
+                    )
+                    existing_keys.add(ck)
+
     return cards
 
 
