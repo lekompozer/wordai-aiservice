@@ -294,49 +294,79 @@ def _enrich_related(cards: list, db) -> list:
         if len(c["related"]) < RELATED_PER_CARD:
             cards_needing_fill.append(c)
 
-    # Fill missing related via same topic+level $sample (1 query per unique pair)
+    # Fill missing related via $sample fallback.
+    # Strategy: try same topic+level first (diverse words from same theme);
+    # if topic is a "podcast" meta-slug (small pool) or still not enough → fall back
+    # to same level across ALL topics for maximum variety.
+    # Also exclude all word_keys already visible in the current feed.
+    PODCAST_SLUGS = {
+        "podcast_bbc",
+        "podcast_bbc_6min_english",
+        "podcast_bbc_news_english",
+        "podcast_bbc_work_english",
+    }
+    all_feed_keys = {c.get("word_key", c.get("word", "")) for c in cards}
+
     if cards_needing_fill:
-        topic_level_pairs = list(
-            {
-                (c.get("topic_slug", ""), c.get("level", "intermediate"))
-                for c in cards_needing_fill
+        sample_size = max(30, RELATED_PER_CARD * len(cards_needing_fill) * 3)
+        proj = {
+            "$project": {
+                "_id": 0,
+                "word_key": 1,
+                "word": 1,
+                "pos_tag": 1,
+                "definition_en": 1,
+                "definition_vi": 1,
+                "example": 1,
+                "image_url": 1,
+                "context_audio_url": 1,
             }
-        )
-        sample_size = max(20, RELATED_PER_CARD * len(cards_needing_fill) + 5)
+        }
+
+        # Build pool per (effective_slug, level) — podcast slugs use level-only pool
         tl_pool: dict = {}
-        for tslug, tlevel in topic_level_pairs:
-            match: dict = {}
-            if tslug:
-                match["topic_slug"] = tslug
+        unique_pairs = {
+            (c.get("topic_slug", ""), c.get("level", "intermediate"))
+            for c in cards_needing_fill
+        }
+        for tslug, tlevel in unique_pairs:
+            use_slug = None if tslug in PODCAST_SLUGS else tslug
+            match: dict = {"definition_en": {"$exists": True, "$ne": ""}}
+            if use_slug:
+                match["topic_slug"] = use_slug
             if tlevel:
                 match["level"] = tlevel
-            pipeline = []
-            if match:
-                pipeline.append({"$match": match})
-            pipeline += [
-                {"$sample": {"size": sample_size}},
-                {
-                    "$project": {
-                        "_id": 0,
-                        "word_key": 1,
-                        "word": 1,
-                        "pos_tag": 1,
-                        "definition_en": 1,
-                        "definition_vi": 1,
-                        "example": 1,
-                        "image_url": 1,
-                        "context_audio_url": 1,
-                    }
-                },
-            ]
-            tl_pool[(tslug, tlevel)] = list(db.vocab_cards.aggregate(pipeline))
+            pool = list(
+                db.vocab_cards.aggregate(
+                    [
+                        {"$match": match},
+                        {"$sample": {"size": sample_size}},
+                        proj,
+                    ]
+                )
+            )
+            # If same-topic pool is tiny (< 10), supplement with cross-topic same-level
+            if len(pool) < 10:
+                cross_match: dict = {"definition_en": {"$exists": True, "$ne": ""}}
+                if tlevel:
+                    cross_match["level"] = tlevel
+                extra = list(
+                    db.vocab_cards.aggregate(
+                        [
+                            {"$match": cross_match},
+                            {"$sample": {"size": sample_size}},
+                            proj,
+                        ]
+                    )
+                )
+                seen = {d["word_key"] for d in pool}
+                pool += [d for d in extra if d.get("word_key") not in seen]
+            tl_pool[(tslug, tlevel)] = pool
 
         for c in cards_needing_fill:
             key = (c.get("topic_slug", ""), c.get("level", "intermediate"))
             pool = tl_pool.get(key, [])
-            existing_keys = {c.get("word_key", c.get("word", ""))} | {
-                r["word_key"] for r in c["related"]
-            }
+            existing_keys = all_feed_keys | {r["word_key"] for r in c["related"]}
             for candidate in pool:
                 if len(c["related"]) >= RELATED_PER_CARD:
                     break
