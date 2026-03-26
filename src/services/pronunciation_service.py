@@ -72,7 +72,8 @@ def _get_wav2vec2():
         MODEL_ID = "facebook/wav2vec2-lv-60-espeak-cv-ft"
         logger.info(f"Loading Wav2Vec2 phoneme model ({MODEL_ID})...")
         _wav2vec2_processor = Wav2Vec2Processor.from_pretrained(MODEL_ID)
-        _wav2vec2_model = Wav2Vec2ForCTC.from_pretrained(MODEL_ID)
+        # use_safetensors=True avoids torch.load (CVE-2025-32434) without upgrading torch
+        _wav2vec2_model = Wav2Vec2ForCTC.from_pretrained(MODEL_ID, use_safetensors=True)
         _wav2vec2_model.eval()
         logger.info("✅ Wav2Vec2 phoneme model ready (~370 MB)")
     return _wav2vec2_processor, _wav2vec2_model

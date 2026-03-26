@@ -20,6 +20,7 @@ pydub>=0.25.1  # Audio manipulation and merging
 faster-whisper>=1.0.3  # Faster Whisper speech-to-text (transcription + timestamps)
 eng_to_ipa>=0.0.2  # English text → IPA phoneme conversion (pronunciation scoring)
 phonemizer>=3.2.2  # Required by Wav2Vec2PhonemeCTCTokenizer for phoneme-level scoring
+safetensors>=0.4.3  # Safe model loading for Wav2Vec2 — avoids torch.load CVE-2025-32434
 
 # Database connections
 pymongo==4.6.1
