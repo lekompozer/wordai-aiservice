@@ -39,11 +39,11 @@ router = APIRouter(prefix="/api/v1/daily-vocab", tags=["Daily Vocab"])
 # Constants
 # ---------------------------------------------------------------------------
 
-CARDS_PER_DAY   = 10
+CARDS_PER_DAY = 10
 GRAMMAR_PER_DAY = 3
-REDIS_TTL_DAILY  = 86400        # 24h
-REDIS_TTL_TOPICS = 3600         # 1h
-REDIS_TTL_AUDIO  = 86400 * 30  # 30 days
+REDIS_TTL_DAILY = 86400  # 24h
+REDIS_TTL_TOPICS = 3600  # 1h
+REDIS_TTL_AUDIO = 86400 * 30  # 30 days
 
 
 # ---------------------------------------------------------------------------
@@ -93,13 +93,24 @@ def _cards_query(
 
     proj = {
         "_id": 0,
-        "word": 1, "word_key": 1, "pos_tag": 1,
-        "definition_en": 1, "definition_vi": 1, "example": 1,
-        "topic_slug": 1, "topic_en": 1, "topic_category": 1, "level": 1,
-        "image_url": 1, "context_audio_url": 1,
-        "context_start_sec": 1, "context_end_sec": 1,
-        "sources": 1, "related_words": 1,
-        "like_count": 1, "save_count": 1,
+        "word": 1,
+        "word_key": 1,
+        "pos_tag": 1,
+        "definition_en": 1,
+        "definition_vi": 1,
+        "example": 1,
+        "topic_slug": 1,
+        "topic_en": 1,
+        "topic_category": 1,
+        "level": 1,
+        "image_url": 1,
+        "context_audio_url": 1,
+        "context_start_sec": 1,
+        "context_end_sec": 1,
+        "sources": 1,
+        "related_words": 1,
+        "like_count": 1,
+        "save_count": 1,
     }
 
     if seed is not None:
@@ -108,7 +119,11 @@ def _cards_query(
             return []
         rng = random.Random(seed + (topic_slug or "") + (level or ""))
         rng.shuffle(pool)
-        filtered = [c for c in pool if c.get("word_key", c.get("word", "")).lower() not in exclude_words]
+        filtered = [
+            c
+            for c in pool
+            if c.get("word_key", c.get("word", "")).lower() not in exclude_words
+        ]
         return filtered[:limit]
     else:
         pipeline: list = []
@@ -144,28 +159,31 @@ async def get_vocab_topics(db=Depends(get_db), r=Depends(get_redis_client)):
             pass
 
     pipeline = [
-        {"$group": {
-            "_id": {
-                "topic_slug":     "$topic_slug",
-                "topic_en":       "$topic_en",
-                "topic_category": "$topic_category",
-            },
-            "total_words": {"$sum": 1},
-            "levels":      {"$addToSet": "$level"},
-        }},
+        {
+            "$group": {
+                "_id": {
+                    "topic_slug": "$topic_slug",
+                    "topic_en": "$topic_en",
+                    "topic_category": "$topic_category",
+                },
+                "total_words": {"$sum": 1},
+                "levels": {"$addToSet": "$level"},
+            }
+        },
         {"$sort": {"total_words": -1}},
     ]
     raw = list(db.vocab_cards.aggregate(pipeline))
 
     result = [
         {
-            "topic_slug":    r_["_id"]["topic_slug"],
-            "topic_en":      r_["_id"]["topic_en"],
+            "topic_slug": r_["_id"]["topic_slug"],
+            "topic_en": r_["_id"]["topic_en"],
             "topic_category": r_["_id"]["topic_category"],
-            "total_words":   r_["total_words"],
-            "levels":        sorted(r_["levels"]),
+            "total_words": r_["total_words"],
+            "levels": sorted(r_["levels"]),
         }
-        for r_ in raw if r_["_id"].get("topic_slug")
+        for r_ in raw
+        if r_["_id"].get("topic_slug")
     ]
 
     if r:
@@ -190,7 +208,7 @@ async def get_today_vocab(
     Same cards for same topic/level/day (deterministic seed).
     No auth required — free feature.
     """
-    seed      = _day_seed()
+    seed = _day_seed()
     cache_key = f"vocab:daily:v2:{hashlib.md5(f'{seed}:{topic_slug}:{level}'.encode()).hexdigest()[:12]}"
 
     if r:
@@ -202,26 +220,36 @@ async def get_today_vocab(
             pass
 
     cards = _cards_query(
-        topic_slug=topic_slug, level=level, exclude_words=set(),
-        limit=CARDS_PER_DAY, db=db, seed=seed,
+        topic_slug=topic_slug,
+        level=level,
+        exclude_words=set(),
+        limit=CARDS_PER_DAY,
+        db=db,
+        seed=seed,
     )
 
     if not cards:
         # Fallback: any topic
         cards = _cards_query(
-            topic_slug=None, level=level, exclude_words=set(),
-            limit=CARDS_PER_DAY, db=db, seed=seed,
+            topic_slug=None,
+            level=level,
+            exclude_words=set(),
+            limit=CARDS_PER_DAY,
+            db=db,
+            seed=seed,
         )
 
     if not cards:
-        raise HTTPException(status_code=404, detail="No vocabulary found for this filter")
+        raise HTTPException(
+            status_code=404, detail="No vocabulary found for this filter"
+        )
 
     response = {
-        "date":       seed,
+        "date": seed,
         "topic_slug": topic_slug,
-        "level":      level,
-        "total":      len(cards),
-        "cards":      cards,
+        "level": level,
+        "total": len(cards),
+        "cards": cards,
     }
 
     if r:
@@ -237,7 +265,9 @@ async def get_today_vocab(
 async def get_random_vocab(
     topic_slug: Optional[str] = Query(None),
     level: Optional[str] = Query(None),
-    exclude: Optional[str] = Query(None, description="Comma-separated words to exclude"),
+    exclude: Optional[str] = Query(
+        None, description="Comma-separated words to exclude"
+    ),
     db=Depends(get_db),
 ):
     """
@@ -248,8 +278,12 @@ async def get_random_vocab(
     exclude_words = {w.strip().lower() for w in (exclude or "").split(",") if w.strip()}
 
     cards = _cards_query(
-        topic_slug=topic_slug, level=level,
-        exclude_words=exclude_words, limit=1, db=db, seed=None,
+        topic_slug=topic_slug,
+        level=level,
+        exclude_words=exclude_words,
+        limit=1,
+        db=db,
+        seed=None,
     )
 
     if not cards:
@@ -270,7 +304,7 @@ async def get_today_grammar(
     Each card has: pattern, explanation_en, explanation_vi, example, source link.
     No auth required.
     """
-    seed      = _day_seed()
+    seed = _day_seed()
     cache_key = f"vocab:grammar:v2:{hashlib.md5(f'{seed}:{topic_slug}:{level}'.encode()).hexdigest()[:12]}"
 
     if r:
@@ -294,13 +328,29 @@ async def get_today_grammar(
         ]
         conv_query["conversation_id"] = {"$in": conv_ids}
 
-    for vdoc in db.conversation_vocabulary.find(conv_query, {"conversation_id": 1, "grammar_points": 1}).limit(50):
+    for vdoc in db.conversation_vocabulary.find(
+        conv_query, {"conversation_id": 1, "grammar_points": 1}
+    ).limit(50):
         for gp in vdoc.get("grammar_points", []):
-            grammar_items.append({**gp, "source_type": "conversation", "source_id": vdoc.get("conversation_id", "")})
+            grammar_items.append(
+                {
+                    **gp,
+                    "source_type": "conversation",
+                    "source_id": vdoc.get("conversation_id", ""),
+                }
+            )
 
-    for vdoc in db.podcast_vocabulary.find({"grammar_points.0": {"$exists": True}}, {"podcast_id": 1, "grammar_points": 1}).limit(50):
+    for vdoc in db.podcast_vocabulary.find(
+        {"grammar_points.0": {"$exists": True}}, {"podcast_id": 1, "grammar_points": 1}
+    ).limit(50):
         for gp in vdoc.get("grammar_points", []):
-            grammar_items.append({**gp, "source_type": "podcast", "source_id": vdoc.get("podcast_id", "")})
+            grammar_items.append(
+                {
+                    **gp,
+                    "source_type": "podcast",
+                    "source_id": vdoc.get("podcast_id", ""),
+                }
+            )
 
     if not grammar_items:
         raise HTTPException(status_code=404, detail="No grammar data found")
@@ -471,6 +521,7 @@ async def delete_saved_word(
 # ---------------------------------------------------------------------------
 # Word detail — MUST be last (parametric, catches any slug)
 # ---------------------------------------------------------------------------
+
 
 @router.get("/words/{word}")
 async def get_word_detail(
