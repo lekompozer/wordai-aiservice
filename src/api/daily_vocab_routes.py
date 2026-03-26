@@ -53,6 +53,50 @@ CARDS_PER_DAY = 6  # cards per daily set
 RELATED_PER_CARD = 3  # related words embedded per card
 SCROLL_BATCH = 5  # cards per /feed/next response
 SCROLL_POOL_SIZE = 50  # cards in Redis scroll pool per topic/level
+
+# ---------------------------------------------------------------------------
+# Topic slug → music pool slug mapping
+# Maps each card's topic_slug to the corresponding vocab_topic_audio slug.
+# 16 slugs match exactly; 18 need remapping; empty slug falls back to daily_life_routines.
+# ---------------------------------------------------------------------------
+_TOPIC_SLUG_TO_MUSIC: dict[str, str] = {
+    # 1:1 exact matches (already correct)
+    "education_learning": "education_learning",
+    "environment_nature": "environment_nature",
+    "family_relationships": "family_relationships",
+    "food_drinks": "food_drinks",
+    "greetings_introductions": "greetings_introductions",
+    "hobbies_interests": "hobbies_interests",
+    "law_justice": "law_justice",
+    "philosophy_ethics": "philosophy_ethics",
+    "politics_government": "politics_government",
+    "science_research": "science_research",
+    "social_issues": "social_issues",
+    "sports_fitness": "sports_fitness",
+    "technology_internet": "technology_internet",
+    "transportation": "transportation",
+    "travel_tourism": "travel_tourism",
+    "weather_seasons": "weather_seasons",
+    # remapped slugs
+    "art_creativity": "arts_culture",
+    "business_entrepreneurship": "business_economics",
+    "daily_routines": "daily_life_routines",
+    "emergency_safety": "social_issues",
+    "entertainment_media": "music_entertainment",
+    "events_celebrations": "holidays_celebrations",
+    "finance_money": "money_finance",
+    "future_innovation": "science_research",
+    "health_body": "health_medicine",
+    "history_culture": "history_heritage",
+    "home_accommodation": "housing_real_estate",
+    "medicine_healthcare": "health_medicine",
+    "podcast_bbc": "education_learning",
+    "podcast_bbc_6min_english": "education_learning",
+    "podcast_bbc_news_english": "politics_government",
+    "podcast_bbc_work_english": "work_careers",
+    "shopping": "shopping_consumer",
+    "work_office": "work_careers",
+}
 GRAMMAR_PER_DAY = 3
 REDIS_TTL_DAILY = 86400  # 24h
 REDIS_TTL_TOPICS = 3600  # 1h
@@ -131,6 +175,8 @@ def _card_proj() -> dict:
 
 def _format_card(raw: dict) -> dict:
     """Normalize card fields for API response. `example` = how to use the word."""
+    topic_slug = raw.get("topic_slug", "")
+    music_topic_slug = _TOPIC_SLUG_TO_MUSIC.get(topic_slug, "daily_life_routines")
     return {
         "word": raw.get("word", ""),
         "word_key": raw.get("word_key", raw.get("word", "")),
@@ -138,12 +184,13 @@ def _format_card(raw: dict) -> dict:
         "definition_en": raw.get("definition_en", ""),
         "definition_vi": raw.get("definition_vi", ""),
         "example": raw.get("example", ""),  # how_to_use — shown publicly
-        "topic_slug": raw.get("topic_slug", ""),
+        "topic_slug": topic_slug,
         "topic_en": raw.get("topic_en", ""),
         "topic_category": raw.get("topic_category", ""),
         "level": raw.get("level", "intermediate"),
         "image_url": raw.get("image_url", ""),
         "audio_url": raw.get("context_audio_url", ""),
+        "music_topic_slug": music_topic_slug,  # slug to use with /topic-audio/{slug}
         "sources": raw.get("sources", []),
         "like_count": raw.get("like_count", 0),
         "save_count": raw.get("save_count", 0),
