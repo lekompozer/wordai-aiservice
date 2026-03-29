@@ -6,16 +6,10 @@ Flow:
 1. Nhận TikTok/YouTube URL từ frontend
 2. yt-dlp download + extract MP3 vào /tmp
    - TikTok: download trực tiếp
-   - YouTube: dùng cookies (/app/yt-cookies.txt) + bgutil PO token provider sidecar
+   - YouTube: android_vr player client (không cần cookies hay JS runtime)
 3. shazamio nhận diện title/artist (timeout 30s)
 4. Upload MP3 lên R2  →  tiktok-audio/user-imports/{user_id}/{track_id}.mp3
 5. Trả về metadata để frontend lưu vào D1
-
-Setup cookies (one-time):
-1. Cài extension "Get cookies.txt LOCALLY" trên Chrome/Firefox
-2. Mở youtube.com khi đã login → export cookies
-3. Upload lên server: scp cookies.txt root@104.248.147.155:/tmp/yt-cookies.txt
-4. docker cp /tmp/yt-cookies.txt ai-chatbot-rag:/app/yt-cookies.txt
 """
 
 import asyncio
@@ -40,10 +34,6 @@ router = APIRouter(prefix="/api/v1/music", tags=["Music Import"])
 R2_STATIC = "https://static.aivungtau.com"
 TIKTOK_URL_RE = re.compile(r"tiktok\.com/.*?/video/(\d+)")
 YOUTUBE_URL_RE = re.compile(r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]{11})")
-
-YT_COOKIES_PATH = "/app/yt-cookies.txt"
-# bgutil PO token provider sidecar (docker container on same network)
-BGUTIL_URL = "http://bgutil-provider:4416"
 
 
 class ImportRequest(BaseModel):
@@ -88,8 +78,7 @@ def _ytdlp_cmd_base(out_template: str, extra_args: list[str] = None) -> list[str
 def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, Any]:
     """
     Run yt-dlp synchronously. Returns parsed metadata dict.
-    For YouTube: uses android_vr player client (no JS runtime / cookies needed).
-    Falls back to cookies + bgutil if android_vr fails.
+    For YouTube: uses android_vr player client (no JS runtime needed).
     """
     import json
 
@@ -259,7 +248,7 @@ async def import_youtube(
 ):
     """
     Import 1 YouTube video → MP3 → Shazam → R2.
-    Dùng android_vr player client — không cần cookies hay JS runtime.
+    Dùng android_vr player client.
     """
     url = body.url.strip()
     if "youtube.com" not in url and "youtu.be" not in url:
@@ -275,30 +264,3 @@ async def import_youtube(
     clean_url = f"https://www.youtube.com/watch?v={video_id}"
 
     return await _process_import(clean_url, "youtube", video_id, current_user["uid"])
-
-
-@router.get("/youtube-status")
-async def youtube_status():
-    """Check trạng thái YouTube import (public endpoint).
-    android_vr client không cần cookies — youtube_ready = True khi server reachable.
-    """
-    bgutil_ok = False
-    try:
-        import urllib.request
-        import urllib.error
-
-        try:
-            urllib.request.urlopen(f"{BGUTIL_URL}/", timeout=3)
-            bgutil_ok = True
-        except urllib.error.HTTPError:
-            # Server is up but returns 404 for root — that's fine
-            bgutil_ok = True
-    except Exception:
-        pass
-
-    return {
-        "player_client": "android_vr",
-        "cookies_required": False,
-        "bgutil_provider_running": bgutil_ok,
-        "youtube_ready": True,  # android_vr works without cookies/bgutil
-    }
