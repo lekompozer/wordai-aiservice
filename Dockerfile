@@ -60,6 +60,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     libxtst6 \
     xdg-utils \
     espeak-ng \
+    nodejs \
+    npm \
     --no-install-recommends
 
 # Copy requirements.txt trước để tận dụng Docker cache

@@ -119,11 +119,12 @@ def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, An
 
     if is_youtube:
         # mweb client + bgutil HTTP provider (PO token) + cookies (bypass LOGIN_REQUIRED on datacenter IP)
-        # bgutil handles BotGuard challenge serverside — cookies bypass IP-based auth requirement
-        extractor_args = (
-            f"youtube:player_client=mweb;youtubepot-bgutilhttp:base_url={BGUTIL_URL}"
-        )
-        extra_args += ["--extractor-args", extractor_args]
+        # NOTE: youtube: and youtubepot-bgutilhttp: are different extractors — need separate --extractor-args flags
+        extra_args += ["--extractor-args", "youtube:player_client=mweb"]
+        extra_args += [
+            "--extractor-args",
+            f"youtubepot-bgutilhttp:base_url={BGUTIL_URL}",
+        ]
         if os.path.exists(YT_COOKIES_PATH):
             extra_args += ["--cookies", YT_COOKIES_PATH]
 
