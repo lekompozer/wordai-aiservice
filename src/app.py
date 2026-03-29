@@ -306,6 +306,9 @@ from src.api.slide_narration_routes import router as slide_narration_router
 # ✅ ADDED: Lyria Music Generation API - AI-powered music from text prompts
 from src.api.lyria_routes import router as lyria_router
 
+# ✅ ADDED: Music Import API - TikTok/YouTube URL → MP3 → R2
+from src.api.music_import_routes import router as music_import_router
+
 # ✅ ADDED: Blog Posts API - CRUD for WordAI homepage & landing page posts
 from src.api.blog_routes import router as blog_router
 
@@ -1452,6 +1455,12 @@ def create_app() -> FastAPI:
     app.include_router(
         lyria_router,
         tags=["Lyria Music", "AI Tools", "Music Generation"],
+    )
+
+    # ✅ NEW: Music Import API - TikTok URL → MP3 → Shazam → R2
+    app.include_router(
+        music_import_router,
+        tags=["Music Import"],
     )
 
     # ✅ NEW: Blog Posts API - CRUD for homepage & landing page blog posts

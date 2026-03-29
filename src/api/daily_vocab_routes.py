@@ -336,15 +336,11 @@ def _enrich_related(cards: list, db) -> list:
 
 def _attach_user_status(cards: list, uid: Optional[str], r) -> list:
     """
-    Attach user_liked / user_saved flags to each card.
+    Attach user_liked / user_saved flags + real-time like_count / save_count per card.
     Uses a single Redis pipeline — O(1) per card regardless of count.
-    Always sets user_liked=False, user_saved=False for anon users.
+    Counts come from vocab:card_stats:{word_key} (updated on every like/save),
+    falling back to the baked-in value in the card JSON if no Redis stat exists yet.
     """
-    if not uid:
-        for c in cards:
-            c["user_liked"] = False
-            c["user_saved"] = False
-        return cards
     if not r:
         for c in cards:
             c["user_liked"] = False
@@ -354,12 +350,26 @@ def _attach_user_status(cards: list, uid: Optional[str], r) -> list:
         pipe = r.pipeline()
         for c in cards:
             wk = c.get("word_key", c.get("word", ""))
-            pipe.sismember(f"vocab:liked:{uid}", wk)
-            pipe.sismember(f"vocab:saved:{uid}", wk)
+            stats_key = f"vocab:card_stats:{wk}"
+            if uid:
+                pipe.sismember(f"vocab:liked:{uid}", wk)  # idx*4+0
+                pipe.sismember(f"vocab:saved:{uid}", wk)  # idx*4+1
+            else:
+                pipe.exists("__noop__")  # placeholder idx*4+0
+                pipe.exists("__noop__")  # placeholder idx*4+1
+            pipe.hget(stats_key, "like_count")  # idx*4+2
+            pipe.hget(stats_key, "save_count")  # idx*4+3
         results = pipe.execute()
         for i, c in enumerate(cards):
-            c["user_liked"] = bool(results[i * 2])
-            c["user_saved"] = bool(results[i * 2 + 1])
+            base = i * 4
+            c["user_liked"] = bool(results[base]) if uid else False
+            c["user_saved"] = bool(results[base + 1]) if uid else False
+            live_likes = results[base + 2]
+            live_saves = results[base + 3]
+            if live_likes is not None:
+                c["like_count"] = int(live_likes)
+            if live_saves is not None:
+                c["save_count"] = int(live_saves)
     except Exception:
         for c in cards:
             c["user_liked"] = False
@@ -697,6 +707,17 @@ async def toggle_like(
     stats_key = f"vocab:card_stats:{word_key}"
 
     try:
+        # Seed Redis stats from MongoDB if hash not yet initialized (cold cache)
+        if not r.hexists(stats_key, "like_count"):
+            doc = DBManager().db.vocab_cards.find_one(
+                {"word_key": word_key}, {"like_count": 1, "save_count": 1, "_id": 0}
+            )
+            if doc:
+                pipe_init = r.pipeline()
+                pipe_init.hsetnx(stats_key, "like_count", doc.get("like_count", 0))
+                pipe_init.hsetnx(stats_key, "save_count", doc.get("save_count", 0))
+                pipe_init.execute()
+
         if r.sismember(liked_key, word_key):
             r.srem(liked_key, word_key)
             new_count = max(0, int(r.hget(stats_key, "like_count") or 0) - 1)
@@ -768,6 +789,16 @@ async def toggle_save(
     currently_saved = False
     if r:
         try:
+            # Seed Redis stats from MongoDB if hash not yet initialized (cold cache)
+            if not r.hexists(stats_key, "save_count"):
+                doc = db.vocab_cards.find_one(
+                    {"word_key": word_key}, {"like_count": 1, "save_count": 1, "_id": 0}
+                )
+                if doc:
+                    pipe_init = r.pipeline()
+                    pipe_init.hsetnx(stats_key, "like_count", doc.get("like_count", 0))
+                    pipe_init.hsetnx(stats_key, "save_count", doc.get("save_count", 0))
+                    pipe_init.execute()
             currently_saved = bool(r.sismember(saved_key, word_key))
         except Exception:
             pass

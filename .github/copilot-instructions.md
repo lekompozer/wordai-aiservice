@@ -181,7 +181,22 @@ HGETALL "job:{job_id}"
 # List all jobs
 KEYS "job:*"
 ```
+## Server Operations (DevOps only)
 
+```bash
+# Build / rebuild 500 daily sets in Redis (required once after deploy)
+scp scripts/build_daily_sets.py root@104.248.147.155:/tmp/
+ssh root@104.248.147.155 "docker cp /tmp/build_daily_sets.py ai-chatbot-rag:/app/ && \
+  docker exec ai-chatbot-rag python3 /app/build_daily_sets.py"
+
+# Force rebuild
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag python3 /app/build_daily_sets.py --rebuild"
+
+# Check status
+ssh root@104.248.147.155 "docker exec ai-chatbot-rag python3 /app/build_daily_sets.py --check"
+
+# Add to cron (every 25 days at 3am)
+ssh root@104.248.147.155 "crontab -l | { cat; echo '0 3 */25 * * docker exec ai-chatbot-rag python3 /app/build_daily_sets.py'; } | crontab -"
 ### 8. Running One-Off Scripts (CRITICAL - No Rebuild Needed)
 
 **NEVER rebuild Docker just to run a script!**
@@ -540,8 +555,8 @@ git push
 ### 13. Pronunciation Assessment API
 
 **Endpoints:**
-- `POST /api/v1/pronunciation/transcribe` — Transcribe audio to text (1 point)
-- `POST /api/v1/pronunciation/score` — Full phoneme-level scoring (2 points)
+- `POST /api/v1/pronunciation/transcribe` — Transcribe audio to text (FREE, 10/day per user)
+- `POST /api/v1/pronunciation/score` — Full phoneme-level scoring (FREE, 10/day per user)
 
 **Input format:**
 ```json
