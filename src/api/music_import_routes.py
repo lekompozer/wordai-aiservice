@@ -113,35 +113,18 @@ def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, An
     Falls back to android_vr if bgutil not reachable.
     """
     import json
-    import shutil, tempfile
 
     out_template = out_mp3.replace(".mp3", ".%(ext)s")
     extra_args = []
-    tmp_cookies = None
 
     if is_youtube:
-        # mweb client + bgutil HTTP provider (PO token) + cookies (bypass LOGIN_REQUIRED on datacenter IP)
-        # EJS (External JS Solver): --js-runtimes node + yt-dlp-ejs package required for signature/n-challenge solving
-        # NOTE: youtube: and youtubepot-bgutilhttp: are different extractors — need separate --extractor-args flags
-        extra_args += ["--js-runtimes", "node"]
-        extra_args += ["--extractor-args", "youtube:player_client=mweb"]
-        extra_args += [
-            "--extractor-args",
-            f"youtubepot-bgutilhttp:base_url={BGUTIL_URL}",
-        ]
-        if os.path.exists(YT_COOKIES_PATH):
-            # Copy cookies to a temp file so yt-dlp's session updates don't corrupt the master file
-            tmp_cookies = tempfile.mktemp(suffix=".txt", prefix="yt_cookies_")
-            shutil.copy2(YT_COOKIES_PATH, tmp_cookies)
-            extra_args += ["--cookies", tmp_cookies]
+        # android client: works on datacenter IPs without cookies or PO token
+        # Uses YouTube's mobile API — harder to block, no login required
+        # GVS PO Token warning for https formats is harmless — falls back to format 18 (360p+audio)
+        extra_args += ["--extractor-args", "youtube:player_client=android"]
 
     cmd = _ytdlp_cmd_base(out_template, extra_args) + [url]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    finally:
-        # Clean up temp cookies copy (master file stays untouched)
-        if tmp_cookies and os.path.exists(tmp_cookies):
-            os.unlink(tmp_cookies)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
     if result.returncode != 0:
         # Filter out urllib3 warning noise, show the real error
