@@ -304,9 +304,14 @@ async def youtube_status():
     bgutil_ok = False
     try:
         import urllib.request
+        import urllib.error
 
-        urllib.request.urlopen(f"{BGUTIL_URL}/", timeout=3)
-        bgutil_ok = True
+        try:
+            urllib.request.urlopen(f"{BGUTIL_URL}/", timeout=3)
+            bgutil_ok = True
+        except urllib.error.HTTPError:
+            # Server is up but returns 404 for root — that's fine
+            bgutil_ok = True
     except Exception:
         pass
 
@@ -316,4 +321,3 @@ async def youtube_status():
         "youtube_ready": cookies_ok and bgutil_ok,
         "cookies_path": YT_COOKIES_PATH,
     }
-
