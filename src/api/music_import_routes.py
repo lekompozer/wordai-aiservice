@@ -71,6 +71,15 @@ class SearchResult(BaseModel):
     youtube_url: str
 
 
+class LyricsResult(BaseModel):
+    youtube_id: str
+    title: str
+    artist: str
+    english_lyrics: Optional[str]
+    vietnamese_lyrics: Optional[str]
+    has_lyrics: bool
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -364,6 +373,42 @@ async def search_youtube(
         raise HTTPException(status_code=500, detail="Lỗi khi tìm kiếm YouTube")
 
     return results
+
+
+@router.get("/lyrics/{youtube_id}", response_model=LyricsResult)
+async def get_lyrics(
+    youtube_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Lấy lyrics EN+VI cho bài hát theo youtube_id.
+    Tra cứu trong collection `song_lyrics` — trả 404 nếu không có.
+    """
+    db = _get_db()
+    doc = db.song_lyrics.find_one(
+        {"youtube_id": youtube_id},
+        {
+            "_id": 0,
+            "title": 1,
+            "artist": 1,
+            "youtube_id": 1,
+            "english_lyrics": 1,
+            "vietnamese_lyrics": 1,
+        },
+    )
+    if not doc:
+        raise HTTPException(
+            status_code=404, detail="Không tìm thấy lyrics cho bài hát này"
+        )
+
+    return LyricsResult(
+        youtube_id=doc["youtube_id"],
+        title=doc.get("title", ""),
+        artist=doc.get("artist", ""),
+        english_lyrics=doc.get("english_lyrics") or None,
+        vietnamese_lyrics=doc.get("vietnamese_lyrics") or None,
+        has_lyrics=bool(doc.get("english_lyrics")),
+    )
 
 
 @router.post("/import-tiktok", response_model=TrackMeta)
