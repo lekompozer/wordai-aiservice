@@ -1,15 +1,18 @@
 """
-Music Import API — POST /api/v1/music/import-tiktok
-                   POST /api/v1/music/import-youtube
+Music API:
+  GET  /api/v1/music/search              — tìm kiếm YouTube, trả về 10 kết quả (no download)
+  POST /api/v1/music/import-youtube      — download MP3 + lưu MongoDB cache + upload R2
+  POST /api/v1/music/import-tiktok       — download TikTok MP3 + upload R2 (per-user)
 
-Flow:
-1. Nhận TikTok/YouTube URL từ frontend
-2. yt-dlp download + extract MP3 vào /tmp
-   - TikTok: download trực tiếp
-   - YouTube: android_vr player client (không cần cookies hay JS runtime)
-3. shazamio nhận diện title/artist (timeout 30s)
-4. Upload MP3 lên R2  →  tiktok-audio/user-imports/{user_id}/{track_id}.mp3
-5. Trả về metadata để frontend lưu vào D1
+YouTube import flow:
+  1. Kiểm tra MongoDB collection `music_tracks` theo youtube_id
+     → Cache hit: trả về ngay, không download lại
+     → Cache miss: tiếp tục
+  2. yt-dlp download MP3 (android_vr client)
+  3. shazamio nhận diện title/artist (timeout 30s)
+  4. Upload lên R2 tại music/youtube/{video_id}.mp3  (shared, không phân theo user)
+  5. Lưu vào MongoDB `music_tracks`
+  6. Trả về TrackMeta
 """
 
 import asyncio
@@ -25,6 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from src.config.r2_storage import AIVungtauR2StorageConfig
+from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -34,6 +38,10 @@ router = APIRouter(prefix="/api/v1/music", tags=["Music Import"])
 R2_STATIC = "https://static.aivungtau.com"
 TIKTOK_URL_RE = re.compile(r"tiktok\.com/.*?/video/(\d+)")
 YOUTUBE_URL_RE = re.compile(r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]{11})")
+
+
+def _get_db():
+    return DBManager().db
 
 
 class ImportRequest(BaseModel):
@@ -51,6 +59,16 @@ class TrackMeta(BaseModel):
     source: str  # "tiktok" | "youtube"
     source_id: str
     shazam_matched: bool
+    from_cache: bool = False  # True nếu lấy từ MongoDB, không download lại
+
+
+class SearchResult(BaseModel):
+    youtube_id: str
+    title: str
+    artist: str  # uploader/channel name
+    duration_sec: int
+    thumbnail: Optional[str]
+    youtube_url: str
 
 
 # ---------------------------------------------------------------------------
@@ -161,13 +179,75 @@ async def _upload_to_r2(mp3_bytes: bytes, r2_key: str) -> str:
     return f"{R2_STATIC}/{r2_key}"
 
 
+def _search_youtube(query: str, limit: int) -> list:
+    """Synchronous: call yt-dlp flat-playlist search, return list of dicts."""
+    import json
+
+    cmd = [
+        "yt-dlp",
+        "--no-warnings",
+        "--print-json",
+        "--flat-playlist",
+        "--no-playlist",
+        f"ytsearch{limit}:{query}",
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    items = []
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            m = json.loads(line)
+            vid_id = m.get("id", "")
+            if not vid_id:
+                continue
+            items.append(
+                {
+                    "youtube_id": vid_id,
+                    "title": m.get("title") or "",
+                    "artist": m.get("uploader") or m.get("channel") or "",
+                    "duration_sec": int(m.get("duration") or 0),
+                    "thumbnail": m.get("thumbnail"),
+                    "youtube_url": f"https://www.youtube.com/watch?v={vid_id}",
+                }
+            )
+        except Exception:
+            pass
+    return items
+
+
 async def _process_import(
     url: str, source: str, video_id: str, user_id: str
 ) -> TrackMeta:
-    """Shared logic: download → shazam → upload R2."""
+    """Shared logic: (cache check for YouTube) → download → shazam → upload R2."""
     track_id = f"{'tt' if source == 'tiktok' else 'yt'}_{video_id}"
-    r2_key = f"tiktok-audio/user-imports/{user_id}/{track_id}.mp3"
     is_youtube = source == "youtube"
+
+    # ── YouTube: check MongoDB cache first ────────────────────────────────────
+    if is_youtube:
+        db = _get_db()
+        cached = db.music_tracks.find_one({"youtube_id": video_id}, {"_id": 0})
+        if cached:
+            logger.info(f"[music-import] cache hit: {video_id}")
+            return TrackMeta(
+                track_id=cached["track_id"],
+                title=cached.get("title"),
+                artist=cached.get("artist"),
+                audio_url=cached["audio_url"],
+                cover_url=cached.get("cover_url"),
+                duration_sec=cached.get("duration_sec", 0),
+                source="youtube",
+                source_id=video_id,
+                shazam_matched=cached.get("shazam_matched", False),
+                from_cache=True,
+            )
+
+    # YouTube tracks go to shared path; TikTok tracks are per-user
+    if is_youtube:
+        r2_key = f"music/youtube/{video_id}.mp3"
+    else:
+        r2_key = f"tiktok-audio/user-imports/{user_id}/{track_id}.mp3"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         mp3_path = os.path.join(tmpdir, f"{track_id}.mp3")
@@ -207,7 +287,7 @@ async def _process_import(
             logger.error(f"[music-import] R2 upload error: {e}")
             raise HTTPException(status_code=500, detail="Upload R2 thất bại")
 
-    return TrackMeta(
+    track = TrackMeta(
         track_id=track_id,
         title=title or None,
         artist=artist or None,
@@ -217,12 +297,62 @@ async def _process_import(
         source=source,
         source_id=video_id,
         shazam_matched=shazam_result["matched"],
+        from_cache=False,
     )
+
+    # ── Save to MongoDB cache (YouTube only) ──────────────────────────────────
+    if is_youtube:
+        try:
+            from datetime import datetime, timezone
+
+            db = _get_db()
+            db.music_tracks.update_one(
+                {"youtube_id": video_id},
+                {
+                    "$set": {
+                        **track.model_dump(),
+                        "youtube_id": video_id,
+                        "created_at": datetime.now(timezone.utc),
+                    }
+                },
+                upsert=True,
+            )
+            logger.info(f"[music-import] saved to music_tracks: {video_id}")
+        except Exception as e:
+            logger.warning(f"[music-import] MongoDB save failed (non-fatal): {e}")
+
+    return track
 
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.get("/search", response_model=list[SearchResult])
+async def search_youtube(
+    q: str,
+    limit: int = 10,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Tìm kiếm YouTube theo tên bài hát/nghệ sĩ.
+    Trả về tối đa `limit` kết quả (mặc định 10, tối đa 20).
+    Không download gì — chỉ trả metadata để frontend hiển thị.
+    """
+    q = q.strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="Query không được để trống")
+    limit = min(max(limit, 1), 20)
+
+    loop = asyncio.get_event_loop()
+    try:
+        results = await loop.run_in_executor(None, lambda: _search_youtube(q, limit))
+    except Exception as e:
+        logger.error(f"[music-search] error: {e}")
+        raise HTTPException(status_code=500, detail="Lỗi khi tìm kiếm YouTube")
+
+    return results
 
 
 @router.post("/import-tiktok", response_model=TrackMeta)
