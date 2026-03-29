@@ -119,7 +119,9 @@ def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, An
 
     if is_youtube:
         # mweb client + bgutil HTTP provider (PO token) + cookies (bypass LOGIN_REQUIRED on datacenter IP)
+        # EJS (External JS Solver): --js-runtimes node + yt-dlp-ejs package required for signature/n-challenge solving
         # NOTE: youtube: and youtubepot-bgutilhttp: are different extractors — need separate --extractor-args flags
+        extra_args += ["--js-runtimes", "node"]
         extra_args += ["--extractor-args", "youtube:player_client=mweb"]
         extra_args += [
             "--extractor-args",
