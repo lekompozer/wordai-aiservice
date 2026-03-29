@@ -279,8 +279,9 @@ async def import_youtube(
 
 @router.get("/youtube-status")
 async def youtube_status():
-    """Check xem YouTube cookies và bgutil provider có sẵn sàng không (public endpoint)."""
-    cookies_ok = os.path.exists(YT_COOKIES_PATH)
+    """Check trạng thái YouTube import (public endpoint).
+    android_vr client không cần cookies — youtube_ready = True khi server reachable.
+    """
     bgutil_ok = False
     try:
         import urllib.request
@@ -296,8 +297,8 @@ async def youtube_status():
         pass
 
     return {
-        "cookies_configured": cookies_ok,
+        "player_client": "android_vr",
+        "cookies_required": False,
         "bgutil_provider_running": bgutil_ok,
-        "youtube_ready": cookies_ok and bgutil_ok,
-        "cookies_path": YT_COOKIES_PATH,
+        "youtube_ready": True,  # android_vr works without cookies/bgutil
     }
