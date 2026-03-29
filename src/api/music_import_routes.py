@@ -118,12 +118,14 @@ def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, An
     extra_args = []
 
     if is_youtube:
-        # mweb client + bgutil HTTP provider plugin (auto-generates PO token per video)
-        # No cookies needed — bgutil handles BotGuard challenge serverside
-        extra_args += [
-            "--extractor-args",
-            f"youtube:player_client=mweb;youtubepot-bgutilhttp:base_url={BGUTIL_URL}",
-        ]
+        # mweb client + bgutil HTTP provider (PO token) + cookies (bypass LOGIN_REQUIRED on datacenter IP)
+        # bgutil handles BotGuard challenge serverside — cookies bypass IP-based auth requirement
+        extractor_args = (
+            f"youtube:player_client=mweb;youtubepot-bgutilhttp:base_url={BGUTIL_URL}"
+        )
+        extra_args += ["--extractor-args", extractor_args]
+        if os.path.exists(YT_COOKIES_PATH):
+            extra_args += ["--cookies", YT_COOKIES_PATH]
 
     cmd = _ytdlp_cmd_base(out_template, extra_args) + [url]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
