@@ -134,7 +134,13 @@ def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, An
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
     if result.returncode != 0:
-        raise RuntimeError(f"yt-dlp failed: {result.stderr[:500]}")
+        # Filter out urllib3 warning noise, show the real error
+        stderr_lines = [
+            l
+            for l in result.stderr.splitlines()
+            if "RequestsDependencyWarning" not in l and "warnings.warn(" not in l
+        ]
+        raise RuntimeError(f"yt-dlp failed: {chr(10).join(stderr_lines)[-1500:]}")
 
     meta = {}
     for line in result.stdout.splitlines():

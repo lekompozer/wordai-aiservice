@@ -31,7 +31,8 @@ services:
       # Mount credentials file from production server directory (not from repo)
       - /home/hoile/wordai/wordai-6779e-ed6189c466f1.json:/app/wordai-6779e-ed6189c466f1.json:ro
       # YouTube cookies for bot detection bypass (survives container rebuilds)
-      - /opt/yt-cookies.txt:/app/yt-cookies.txt:ro
+      # Must be writable: yt-dlp updates cookies after each session
+      - /opt/yt-cookies.txt:/app/yt-cookies.txt
     environment:
       - TZ=Asia/Ho_Chi_Minh
       - PYTHONPATH=/app
