@@ -123,6 +123,7 @@ json-repair==0.28.4  # Repair malformed JSON from LLM responses
 google-genai==1.47.0  # Gemini 3 Pro Image support
 docx2txt==0.9
 yt-dlp>=2024.0.0
+bgutil-ytdlp-pot-provider  # PO token provider plugin — auto-fetches tokens from bgutil-provider container
 
 # Book crawler dependencies
 selenium==4.15.0  # Web scraping

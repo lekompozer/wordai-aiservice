@@ -39,6 +39,10 @@ R2_STATIC = "https://static.aivungtau.com"
 TIKTOK_URL_RE = re.compile(r"tiktok\.com/.*?/video/(\d+)")
 YOUTUBE_URL_RE = re.compile(r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]{11})")
 
+YT_COOKIES_PATH = "/app/yt-cookies.txt"
+# bgutil PO token provider sidecar (docker container on same network)
+BGUTIL_URL = "http://bgutil-provider:4416"
+
 
 def _get_db():
     return DBManager().db
@@ -105,7 +109,8 @@ def _ytdlp_cmd_base(out_template: str, extra_args: list[str] = None) -> list[str
 def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, Any]:
     """
     Run yt-dlp synchronously. Returns parsed metadata dict.
-    For YouTube: uses android_vr player client (no JS runtime needed).
+    For YouTube: mweb client + bgutil-provider sidecar for PO token (auto via plugin).
+    Falls back to android_vr if bgutil not reachable.
     """
     import json
 
@@ -113,10 +118,11 @@ def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, An
     extra_args = []
 
     if is_youtube:
-        # android_vr client bypasses PO token & JS signature requirements on datacenter IPs
+        # mweb client + bgutil HTTP provider plugin (auto-generates PO token per video)
+        # No cookies needed — bgutil handles BotGuard challenge serverside
         extra_args += [
             "--extractor-args",
-            "youtube:player_client=android_vr",
+            f"youtube:player_client=mweb;youtubepot-bgutilhttp:base_url={BGUTIL_URL}",
         ]
 
     cmd = _ytdlp_cmd_base(out_template, extra_args) + [url]
@@ -450,3 +456,34 @@ async def import_youtube(
     clean_url = f"https://www.youtube.com/watch?v={video_id}"
 
     return await _process_import(clean_url, "youtube", video_id, current_user["uid"])
+
+
+@router.get("/youtube-status")
+async def youtube_status():
+    """Check trạng thái YouTube import (public endpoint).
+    Báo cáo: cookies có sẵn không + bgutil provider có chạy không.
+    """
+    cookies_ok = os.path.exists(YT_COOKIES_PATH)
+
+    bgutil_ok = False
+    try:
+        import urllib.request
+        import urllib.error
+
+        try:
+            urllib.request.urlopen(f"{BGUTIL_URL}/", timeout=3)
+            bgutil_ok = True
+        except urllib.error.HTTPError:
+            # Server is up but returns 404 for root — that's fine
+            bgutil_ok = True
+    except Exception:
+        pass
+
+    return {
+        "cookies_path": YT_COOKIES_PATH,
+        "cookies_present": cookies_ok,
+        "bgutil_url": BGUTIL_URL,
+        "bgutil_running": bgutil_ok,
+        "youtube_ready": cookies_ok and bgutil_ok,
+        "fallback_mode": not cookies_ok,  # True = dùng android_vr thay vì cookies+bgutil
+    }

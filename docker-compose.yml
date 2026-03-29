@@ -1111,6 +1111,25 @@ services:
       timeout: 5s
       retries: 3
 
+  # ============================================================================
+  # YouTube PO Token Provider (bgutil) - Lightweight Node.js sidecar ~100MB RAM
+  # Generates PO tokens so yt-dlp can download YouTube videos from server IPs
+  # ============================================================================
+  bgutil-provider:
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    container_name: bgutil-provider
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4416:4416" # only accessible from localhost
+    networks:
+      - ai-chatbot-network
+    healthcheck:
+      test: [ "CMD", "wget", "-qO-", "http://localhost:4416/" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
 # ============================================================================
 # Networks - Use external network created by deploy-manual.sh
 # ============================================================================
