@@ -407,3 +407,66 @@ aivungtau_r2_storage = AIVungtauR2StorageConfig()
 
 # Backward compatibility alias
 r2_storage = aivungtau_r2_storage
+
+
+class WordAiR2StorageConfig:
+    """WordAI R2 bucket (static.wordai.pro) — dùng cho music, slide, v.v."""
+
+    def __init__(self):
+        self.access_key_id = os.getenv("R2_ACCESS_KEY_ID")
+        self.secret_access_key = os.getenv("R2_SECRET_ACCESS_KEY")
+        self.bucket_name = os.getenv("R2_BUCKET_NAME", "wordai")
+        self.endpoint_url = os.getenv("R2_ENDPOINT", "")
+        self.public_url = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
+        self.s3_client = None
+        self._initialize_client()
+
+    def _initialize_client(self):
+        if not self.access_key_id or not self.secret_access_key:
+            logger.warning("⚠️ WordAI R2 credentials not configured")
+            return
+        try:
+            self.s3_client = boto3.client(
+                "s3",
+                endpoint_url=self.endpoint_url,
+                aws_access_key_id=self.access_key_id,
+                aws_secret_access_key=self.secret_access_key,
+                region_name="auto",
+            )
+            logger.info("✅ WordAI R2 S3 client initialized")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize WordAI R2 client: {e}")
+            self.s3_client = None
+
+    async def upload_file_from_buffer(
+        self,
+        file_buffer: bytes,
+        file_key: str,
+        content_type: str = "application/octet-stream",
+        metadata: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        if not self.s3_client:
+            raise Exception("WordAI R2 client not initialized")
+        upload_metadata = {
+            "uploaded_at": datetime.now().isoformat(),
+            "service": "wordai",
+        }
+        if metadata:
+            upload_metadata.update(metadata)
+        self.s3_client.put_object(
+            Bucket=self.bucket_name,
+            Key=file_key,
+            Body=file_buffer,
+            ContentType=content_type,
+            Metadata=upload_metadata,
+        )
+        logger.info(f"✅ File uploaded to WordAI R2: {file_key}")
+        return {
+            "success": True,
+            "file_key": file_key,
+            "bucket": self.bucket_name,
+            "size_bytes": len(file_buffer),
+            "content_type": content_type,
+            "public_url": f"{self.public_url}/{file_key}",
+            "static_url": f"{self.public_url}/{file_key}",
+        }

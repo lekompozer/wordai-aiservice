@@ -27,7 +27,7 @@ from typing import Any, Dict, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from src.config.r2_storage import AIVungtauR2StorageConfig
+from src.config.r2_storage import WordAiR2StorageConfig
 from src.database.db_manager import DBManager
 from src.middleware.firebase_auth import get_current_user
 
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/music", tags=["Music Import"])
 
-R2_STATIC = "https://static.aivungtau.com"
+R2_STATIC = "https://static.wordai.pro"
 TIKTOK_URL_RE = re.compile(r"tiktok\.com/.*?/video/(\d+)")
 YOUTUBE_URL_RE = re.compile(r"(?:youtube\.com/watch\?v=|youtu\.be/)([\w-]{11})")
 
@@ -194,7 +194,7 @@ async def _shazam_recognize(mp3_path: str) -> Dict[str, Any]:
 
 
 async def _upload_to_r2(mp3_bytes: bytes, r2_key: str) -> str:
-    r2 = AIVungtauR2StorageConfig()
+    r2 = WordAiR2StorageConfig()
     result = await r2.upload_file_from_buffer(
         file_buffer=mp3_bytes,
         file_key=r2_key,
