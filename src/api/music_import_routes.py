@@ -306,14 +306,25 @@ async def _process_import(
             from datetime import datetime, timezone
 
             db = _get_db()
+            doc = {
+                "track_id": track.track_id,
+                "youtube_id": video_id,
+                "youtube_url": f"https://www.youtube.com/watch?v={video_id}",
+                "audio_url": track.audio_url,  # R2 static URL
+                "cover_url": track.cover_url,
+                "title": track.title,
+                "artist": track.artist,
+                "duration_sec": track.duration_sec,
+                "source": "youtube",
+                "source_id": video_id,
+                "shazam_matched": track.shazam_matched,
+                "created_at": datetime.now(timezone.utc),
+            }
             db.music_tracks.update_one(
                 {"youtube_id": video_id},
                 {
-                    "$set": {
-                        **track.model_dump(),
-                        "youtube_id": video_id,
-                        "created_at": datetime.now(timezone.utc),
-                    }
+                    "$set": doc,
+                    "$setOnInsert": {"first_imported_at": datetime.now(timezone.utc)},
                 },
                 upsert=True,
             )
