@@ -88,7 +88,8 @@ def _ytdlp_cmd_base(out_template: str, extra_args: list[str] = None) -> list[str
 def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, Any]:
     """
     Run yt-dlp synchronously. Returns parsed metadata dict.
-    For YouTube: uses cookies file + bgutil PO token provider if available.
+    For YouTube: uses android_vr player client (no JS runtime / cookies needed).
+    Falls back to cookies + bgutil if android_vr fails.
     """
     import json
 
@@ -96,19 +97,10 @@ def _run_ytdlp(url: str, out_mp3: str, is_youtube: bool = False) -> Dict[str, An
     extra_args = []
 
     if is_youtube:
-        # Cookies: required for datacenter IPs
-        if os.path.exists(YT_COOKIES_PATH):
-            extra_args += ["--cookies", YT_COOKIES_PATH]
-            logger.info("[music-import] Using YouTube cookies file")
-        else:
-            logger.warning(
-                f"[music-import] No cookies at {YT_COOKIES_PATH} — YouTube may fail"
-            )
-
-        # bgutil PO token provider sidecar
+        # android_vr client bypasses PO token & JS signature requirements on datacenter IPs
         extra_args += [
             "--extractor-args",
-            f"youtubepot-bgutilhttp:base_url={BGUTIL_URL}",
+            "youtube:player_client=android_vr",
         ]
 
     cmd = _ytdlp_cmd_base(out_template, extra_args) + [url]
@@ -267,10 +259,7 @@ async def import_youtube(
 ):
     """
     Import 1 YouTube video → MP3 → Shazam → R2.
-
-    Yêu cầu:
-    - File cookies YouTube tại /app/yt-cookies.txt (xem docstring module)
-    - bgutil-provider container đang chạy (docker-compose service)
+    Dùng android_vr player client — không cần cookies hay JS runtime.
     """
     url = body.url.strip()
     if "youtube.com" not in url and "youtu.be" not in url:
@@ -284,15 +273,6 @@ async def import_youtube(
         )
     video_id = m.group(1)
     clean_url = f"https://www.youtube.com/watch?v={video_id}"
-
-    if not os.path.exists(YT_COOKIES_PATH):
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "YouTube cookies chưa được cấu hình trên server. "
-                "Admin cần upload file cookies vào /app/yt-cookies.txt."
-            ),
-        )
 
     return await _process_import(clean_url, "youtube", video_id, current_user["uid"])
 
