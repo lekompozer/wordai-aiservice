@@ -16,7 +16,7 @@ import signal
 import uuid
 from datetime import datetime, timezone
 
-import aioredis
+import redis.asyncio as aioredis
 
 from src.database.db_manager import DBManager
 from src.queue.queue_manager import set_job_status
@@ -90,7 +90,9 @@ class SocialPlanWorker:
 
         try:
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 plan_id=plan_id,
                 step="starting",
@@ -104,7 +106,9 @@ class SocialPlanWorker:
 
             # ── Phase 1: Brand Extraction ──────────────────────────
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 step="brand_extraction",
                 progress=10,
@@ -123,7 +127,9 @@ class SocialPlanWorker:
 
             # ── Phase 2: TikTok Parsing ─────────────────────────────
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 step="tiktok_analysis",
                 progress=25,
@@ -134,8 +140,11 @@ class SocialPlanWorker:
             if tiktok_data:
                 try:
                     import base64
+
                     raw_bytes = base64.b64decode(tiktok_data["bytes_b64"])
-                    tiktok_posts = parse_tiktok_export(raw_bytes, tiktok_data["file_type"])
+                    tiktok_posts = parse_tiktok_export(
+                        raw_bytes, tiktok_data["file_type"]
+                    )
                 except Exception as e:
                     logger.warning(f"TikTok parsing failed (non-fatal): {e}")
 
@@ -144,16 +153,20 @@ class SocialPlanWorker:
             # Save raw data to MongoDB
             self.db["social_plans"].update_one(
                 {"plan_id": plan_id},
-                {"$set": {
-                    "brand_data.websites": brand_data.get("websites", []),
-                    "brand_data.tiktok_posts": tiktok_posts[:50],
-                    "updated_at": datetime.now(timezone.utc),
-                }},
+                {
+                    "$set": {
+                        "brand_data.websites": brand_data.get("websites", []),
+                        "brand_data.tiktok_posts": tiktok_posts[:50],
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
             )
 
             # ── Phase 3: Brand DNA ──────────────────────────────────
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 step="brand_dna",
                 progress=40,
@@ -165,21 +178,29 @@ class SocialPlanWorker:
             )
 
             # Merge primary_color from crawl data if brand_dna lacks it
-            if brand_data.get("primary_color") and not brand_dna.get("colors", {}).get("primary"):
-                brand_dna.setdefault("colors", {})["primary"] = brand_data["primary_color"]
+            if brand_data.get("primary_color") and not brand_dna.get("colors", {}).get(
+                "primary"
+            ):
+                brand_dna.setdefault("colors", {})["primary"] = brand_data[
+                    "primary_color"
+                ]
 
             self.db["social_plans"].update_one(
                 {"plan_id": plan_id},
-                {"$set": {
-                    "brand_dna": brand_dna,
-                    "status": "brand_dna_ready",
-                    "updated_at": datetime.now(timezone.utc),
-                }},
+                {
+                    "$set": {
+                        "brand_dna": brand_dna,
+                        "status": "brand_dna_ready",
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
             )
 
             # ── Phase 4: Plan Structure ─────────────────────────────
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 step="plan_structure",
                 progress=60,
@@ -190,17 +211,21 @@ class SocialPlanWorker:
 
             self.db["social_plans"].update_one(
                 {"plan_id": plan_id},
-                {"$set": {
-                    "posts": posts,
-                    "total_posts": len(posts),
-                    "status": "plan_ready",
-                    "updated_at": datetime.now(timezone.utc),
-                }},
+                {
+                    "$set": {
+                        "posts": posts,
+                        "total_posts": len(posts),
+                        "status": "plan_ready",
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
             )
 
             # ── Phase 5: Content Generation per Post ───────────────
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 step="content_generation",
                 progress=75,
@@ -213,16 +238,20 @@ class SocialPlanWorker:
 
             self.db["social_plans"].update_one(
                 {"plan_id": plan_id},
-                {"$set": {
-                    "posts": posts_with_content,
-                    "status": "content_ready",
-                    "updated_at": datetime.now(timezone.utc),
-                }},
+                {
+                    "$set": {
+                        "posts": posts_with_content,
+                        "status": "content_ready",
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
             )
 
             # ── Done ────────────────────────────────────────────────
             await set_job_status(
-                self.redis, job_id, "completed",
+                self.redis,
+                job_id,
+                "completed",
                 user_id=user_id,
                 plan_id=plan_id,
                 step="done",
@@ -238,14 +267,18 @@ class SocialPlanWorker:
             try:
                 self.db["social_plans"].update_one(
                     {"plan_id": plan_id},
-                    {"$set": {
-                        "status": "failed",
-                        "error": str(e),
-                        "updated_at": datetime.now(timezone.utc),
-                    }},
+                    {
+                        "$set": {
+                            "status": "failed",
+                            "error": str(e),
+                            "updated_at": datetime.now(timezone.utc),
+                        }
+                    },
                 )
                 await set_job_status(
-                    self.redis, job_id, "failed",
+                    self.redis,
+                    job_id,
+                    "failed",
                     user_id=user_id,
                     plan_id=plan_id,
                     step="failed",

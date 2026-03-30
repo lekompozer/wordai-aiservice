@@ -11,7 +11,7 @@ import os
 import signal
 from datetime import datetime, timezone
 
-import aioredis
+import redis.asyncio as aioredis
 
 from src.database.db_manager import DBManager
 from src.queue.queue_manager import set_job_status
@@ -83,7 +83,9 @@ class SocialImageWorker:
 
         try:
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 plan_id=plan_id,
                 post_id=post_id,
@@ -110,11 +112,13 @@ class SocialImageWorker:
             # Load brand assets
             asset_ids = plan.get("asset_ids", [])
             assets_doc = self.db["social_plan_assets"].find_one(
-                {"$or": [
-                    {"plan_id": plan_id},
-                    {"plan_draft_id": {"$in": asset_ids}},
-                    {"asset_id": {"$in": asset_ids}},
-                ]}
+                {
+                    "$or": [
+                        {"plan_id": plan_id},
+                        {"plan_draft_id": {"$in": asset_ids}},
+                        {"asset_id": {"$in": asset_ids}},
+                    ]
+                }
             )
             assets = []
             if assets_doc:
@@ -122,7 +126,9 @@ class SocialImageWorker:
 
             # Generate image
             await set_job_status(
-                self.redis, job_id, "processing",
+                self.redis,
+                job_id,
+                "processing",
                 user_id=user_id,
                 step="generating_image",
                 message="Đang tạo ảnh với Gemini...",
@@ -145,12 +151,14 @@ class SocialImageWorker:
             # Update MongoDB: social_plans.posts[].image_url
             self.db["social_plans"].update_one(
                 {"plan_id": plan_id, "posts.post_id": post_id},
-                {"$set": {
-                    "posts.$.image_url": image_url,
-                    "posts.$.image_job_id": job_id,
-                    "posts.$.image_generated_at": now,
-                    "updated_at": now,
-                }},
+                {
+                    "$set": {
+                        "posts.$.image_url": image_url,
+                        "posts.$.image_job_id": job_id,
+                        "posts.$.image_generated_at": now,
+                        "updated_at": now,
+                    }
+                },
             )
 
             # Increment images_generated counter
@@ -160,7 +168,9 @@ class SocialImageWorker:
             )
 
             await set_job_status(
-                self.redis, job_id, "completed",
+                self.redis,
+                job_id,
+                "completed",
                 user_id=user_id,
                 plan_id=plan_id,
                 post_id=post_id,
@@ -176,7 +186,9 @@ class SocialImageWorker:
 
             try:
                 await set_job_status(
-                    self.redis, job_id, "failed",
+                    self.redis,
+                    job_id,
+                    "failed",
                     user_id=user_id,
                     plan_id=plan_id,
                     post_id=post_id,
@@ -186,10 +198,12 @@ class SocialImageWorker:
                 # Update post to clear pending state
                 self.db["social_plans"].update_one(
                     {"plan_id": plan_id, "posts.post_id": post_id},
-                    {"$set": {
-                        "posts.$.image_job_id": None,
-                        "updated_at": datetime.now(timezone.utc),
-                    }},
+                    {
+                        "$set": {
+                            "posts.$.image_job_id": None,
+                            "updated_at": datetime.now(timezone.utc),
+                        }
+                    },
                 )
             except Exception as inner_e:
                 logger.error(f"Failed to update error status: {inner_e}")
