@@ -23,11 +23,11 @@ class SocialPlanService:
     """
 
     def __init__(self):
-        openai_key = os.getenv("OPENAI_API_KEY")
+        openai_key = os.getenv("CHATGPT_API_KEY") or os.getenv("OPENAI_API_KEY")
         deepseek_key = os.getenv("DEEPSEEK_API_KEY")
 
         if not openai_key:
-            raise ValueError("OPENAI_API_KEY not configured")
+            raise ValueError("CHATGPT_API_KEY not configured")
         if not deepseek_key:
             raise ValueError("DEEPSEEK_API_KEY not configured")
 
