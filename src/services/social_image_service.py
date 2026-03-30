@@ -36,7 +36,9 @@ class SocialImageService:
     """
 
     def __init__(self, gemini_api_key: Optional[str] = None):
-        self.gemini = GeminiImageService(api_key=gemini_api_key or os.getenv("GEMINI_API_KEY"))
+        self.gemini = GeminiImageService(
+            api_key=gemini_api_key or os.getenv("GEMINI_API_KEY")
+        )
 
         self.r2_access_key = os.getenv("R2_ACCESS_KEY_ID")
         self.r2_secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
@@ -85,8 +87,15 @@ class SocialImageService:
         # Categorize assets
         logo_assets = [a for a in assets if a.get("type") == "logo"]
         lifestyle_assets = [a for a in assets if a.get("type") == "lifestyle"]
-        product_assets = [a for a in assets if a.get("type") == "product"
-                          and (not product_ref or product_ref.lower() in (a.get("product_name", "") or "").lower())]
+        product_assets = [
+            a
+            for a in assets
+            if a.get("type") == "product"
+            and (
+                not product_ref
+                or product_ref.lower() in (a.get("product_name", "") or "").lower()
+            )
+        ]
 
         asset_map = {
             "logo": logo_assets[0] if logo_assets else None,
@@ -109,7 +118,9 @@ class SocialImageService:
             if len(reference_images) >= 3:
                 break
 
-        logger.info(f"📎 Loaded {len(reference_images)} reference images for pillar '{content_pillar}'")
+        logger.info(
+            f"📎 Loaded {len(reference_images)} reference images for pillar '{content_pillar}'"
+        )
         return reference_images
 
     def _build_image_prompt(
@@ -123,7 +134,9 @@ class SocialImageService:
         colors = brand_dna.get("colors", {})
         primary_color = colors.get("primary", "#000000")
         secondary_color = colors.get("secondary", "#ffffff")
-        base_prompt = post.get("image_prompt", f"TikTok post about: {post.get('topic', '')}")
+        base_prompt = post.get(
+            "image_prompt", f"TikTok post about: {post.get('topic', '')}"
+        )
         pillar = post.get("content_pillar", "educational")
 
         system_context = (

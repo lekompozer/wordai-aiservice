@@ -50,6 +50,7 @@ POINTS_REGEN_TEXT = 2
 # R2 Helper
 # ──────────────────────────────────────────────────────────
 
+
 def _get_s3_client():
     return boto3.client(
         "s3",
@@ -59,6 +60,7 @@ def _get_s3_client():
         config=Config(signature_version="s3v4"),
         region_name="auto",
     )
+
 
 R2_BUCKET = os.getenv("R2_BUCKET_NAME", "wordai")
 R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro")
@@ -70,17 +72,20 @@ def _get_db():
 
 async def _get_social_plan_queue():
     from src.queue.queue_dependencies import get_social_plan_queue
+
     return await get_social_plan_queue()
 
 
 async def _get_social_image_queue():
     from src.queue.queue_dependencies import get_social_image_queue
+
     return await get_social_image_queue()
 
 
 # ──────────────────────────────────────────────────────────
 # Pydantic Models
 # ──────────────────────────────────────────────────────────
+
 
 class RegenerateRequest(BaseModel):
     regenerate: str = "text"  # "text" | "image" | "both"
@@ -100,7 +105,10 @@ class BatchImageRequest(BaseModel):
 # ① STATIC ROUTES (must be before /{plan_id} param routes)
 # ──────────────────────────────────────────────────────────
 
-@router.post("/assets/upload", summary="Upload brand assets (logo, lifestyle, product photos)")
+
+@router.post(
+    "/assets/upload", summary="Upload brand assets (logo, lifestyle, product photos)"
+)
 async def upload_brand_assets(
     plan_draft_id: str = Form(...),
     image_style: str = Form("flat-design"),
@@ -144,14 +152,16 @@ async def upload_brand_assets(
         )
         file_url = f"{R2_PUBLIC_URL}/{r2_key}"
 
-        assets.append({
-            "asset_id": asset_id,
-            "type": asset_type,
-            "filename": file.filename,
-            "r2_key": r2_key,
-            "url": file_url,
-            "product_name": None,
-        })
+        assets.append(
+            {
+                "asset_id": asset_id,
+                "type": asset_type,
+                "filename": file.filename,
+                "r2_key": r2_key,
+                "url": file_url,
+                "product_name": None,
+            }
+        )
 
     # Save to MongoDB
     now = datetime.now(timezone.utc)
@@ -233,7 +243,10 @@ async def create_social_plan(
 
     # Validate package
     if package not in PACKAGE_POINT_MAP:
-        raise HTTPException(status_code=400, detail=f"Invalid package: {package}. Valid: {list(PACKAGE_POINT_MAP.keys())}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid package: {package}. Valid: {list(PACKAGE_POINT_MAP.keys())}",
+        )
 
     required_points = PACKAGE_POINT_MAP[package]
 
@@ -247,7 +260,10 @@ async def create_social_plan(
             description=f"Social Marketing Plan - {package}",
         )
     except InsufficientPointsError:
-        raise HTTPException(status_code=402, detail=f"Không đủ điểm. Cần {required_points} điểm cho gói {package}.")
+        raise HTTPException(
+            status_code=402,
+            detail=f"Không đủ điểm. Cần {required_points} điểm cho gói {package}.",
+        )
 
     # Parse fields
     try:
@@ -274,7 +290,9 @@ async def create_social_plan(
     if tiktok_data_file:
         try:
             content = await tiktok_data_file.read()
-            file_type = "json" if (tiktok_data_file.filename or "").endswith(".json") else "txt"
+            file_type = (
+                "json" if (tiktok_data_file.filename or "").endswith(".json") else "txt"
+            )
             tiktok_data = {
                 "bytes_b64": base64.b64encode(content).decode(),
                 "file_type": file_type,
@@ -330,18 +348,21 @@ async def create_social_plan(
 
     # Enqueue to Redis
     queue = await _get_social_plan_queue()
-    queue_payload = json.dumps({
-        "job_id": job_id,
-        "plan_id": plan_id,
-        "user_id": user_id,
-        "config": config,
-        "brand_asset_ids": asset_ids,
-        "tiktok_data": tiktok_data,
-    })
+    queue_payload = json.dumps(
+        {
+            "job_id": job_id,
+            "plan_id": plan_id,
+            "user_id": user_id,
+            "config": config,
+            "brand_asset_ids": asset_ids,
+            "tiktok_data": tiktok_data,
+        }
+    )
     await queue.redis_client.rpush("queue:social_plan_jobs", queue_payload)
 
     await set_job_status(
-        queue.redis_client, job_id,
+        queue.redis_client,
+        job_id,
         status="pending",
         user_id=user_id,
         plan_id=plan_id,
@@ -362,6 +383,7 @@ async def create_social_plan(
 # ──────────────────────────────────────────────────────────
 # ② STATUS ENDPOINT (static path — before /{plan_id})
 # ──────────────────────────────────────────────────────────
+
 
 @router.get("/status/{job_id}", summary="Check plan or image job status")
 async def get_plan_job_status(
@@ -396,6 +418,7 @@ async def get_plan_job_status(
 # ③ DYNAMIC ROUTES (plan_id param — MUST be AFTER static routes)
 # ──────────────────────────────────────────────────────────
 
+
 @router.get("/{plan_id}", summary="Get social plan with all posts")
 async def get_social_plan(
     plan_id: str,
@@ -415,7 +438,10 @@ async def get_social_plan(
     return plan
 
 
-@router.post("/{plan_id}/post/{post_id}/generate-image", summary="Generate image for a post (4 pts)")
+@router.post(
+    "/{plan_id}/post/{post_id}/generate-image",
+    summary="Generate image for a post (4 pts)",
+)
 async def generate_post_image(
     plan_id: str,
     post_id: str,
@@ -450,21 +476,27 @@ async def generate_post_image(
             description=f"Generate image for post {post_id}",
         )
     except InsufficientPointsError:
-        raise HTTPException(status_code=402, detail=f"Không đủ điểm. Cần {POINTS_REGEN_IMAGE} điểm để tạo ảnh.")
+        raise HTTPException(
+            status_code=402,
+            detail=f"Không đủ điểm. Cần {POINTS_REGEN_IMAGE} điểm để tạo ảnh.",
+        )
 
     job_id = f"img_{uuid.uuid4().hex[:16]}"
     queue = await _get_social_image_queue()
 
-    queue_payload = json.dumps({
-        "job_id": job_id,
-        "plan_id": plan_id,
-        "post_id": post_id,
-        "user_id": user_id,
-    })
+    queue_payload = json.dumps(
+        {
+            "job_id": job_id,
+            "plan_id": plan_id,
+            "post_id": post_id,
+            "user_id": user_id,
+        }
+    )
     await queue.redis_client.rpush("queue:social_image_jobs", queue_payload)
 
     await set_job_status(
-        queue.redis_client, job_id,
+        queue.redis_client,
+        job_id,
         status="pending",
         user_id=user_id,
         plan_id=plan_id,
@@ -482,7 +514,10 @@ async def generate_post_image(
     return {"job_id": job_id, "status": "queued", "points_spent": POINTS_REGEN_IMAGE}
 
 
-@router.post("/{plan_id}/generate-images-batch", summary="Batch generate images for multiple posts")
+@router.post(
+    "/{plan_id}/generate-images-batch",
+    summary="Batch generate images for multiple posts",
+)
 async def generate_images_batch(
     plan_id: str,
     body: BatchImageRequest,
@@ -534,15 +569,18 @@ async def generate_images_batch(
     for post in posts_to_gen:
         post_id = post["post_id"]
         job_id = f"img_{uuid.uuid4().hex[:16]}"
-        queue_payload = json.dumps({
-            "job_id": job_id,
-            "plan_id": plan_id,
-            "post_id": post_id,
-            "user_id": user_id,
-        })
+        queue_payload = json.dumps(
+            {
+                "job_id": job_id,
+                "plan_id": plan_id,
+                "post_id": post_id,
+                "user_id": user_id,
+            }
+        )
         await queue.redis_client.rpush("queue:social_image_jobs", queue_payload)
         await set_job_status(
-            queue.redis_client, job_id,
+            queue.redis_client,
+            job_id,
             status="pending",
             user_id=user_id,
             plan_id=plan_id,
@@ -563,7 +601,10 @@ async def generate_images_batch(
     }
 
 
-@router.post("/{plan_id}/post/{post_id}/regenerate", summary="Regenerate content or image for a post (2-4 pts)")
+@router.post(
+    "/{plan_id}/post/{post_id}/regenerate",
+    summary="Regenerate content or image for a post (2-4 pts)",
+)
 async def regenerate_post(
     plan_id: str,
     post_id: str,
@@ -592,7 +633,9 @@ async def regenerate_post(
 
     regen = body.regenerate
     if regen not in ("text", "image", "both"):
-        raise HTTPException(status_code=400, detail="regenerate must be 'text', 'image', or 'both'")
+        raise HTTPException(
+            status_code=400, detail="regenerate must be 'text', 'image', or 'both'"
+        )
 
     cost = 0
     if regen in ("text", "both"):
@@ -605,7 +648,11 @@ async def regenerate_post(
         await points_service.deduct_points(
             user_id=user_id,
             amount=cost,
-            service="social_plan_regenerate_text" if regen == "text" else "social_plan_regenerate_image",
+            service=(
+                "social_plan_regenerate_text"
+                if regen == "text"
+                else "social_plan_regenerate_image"
+            ),
             description=f"Regenerate {regen} for post {post_id}",
         )
     except InsufficientPointsError:
@@ -617,6 +664,7 @@ async def regenerate_post(
     if regen in ("text", "both"):
         try:
             from src.services.social_plan_service import SocialPlanService
+
             plan_service = SocialPlanService()
             new_content = await plan_service.generate_post_content(
                 brand_dna=plan.get("brand_dna", {}),
@@ -627,33 +675,40 @@ async def regenerate_post(
             now = datetime.now(timezone.utc)
             db["social_plans"].update_one(
                 {"plan_id": plan_id, "posts.post_id": post_id},
-                {"$set": {
-                    "posts.$.hook": new_content["hook"],
-                    "posts.$.caption": new_content["caption"],
-                    "posts.$.hashtags": new_content["hashtags"],
-                    "posts.$.image_prompt": new_content["image_prompt"],
-                    "posts.$.cta": new_content["cta"],
-                    "updated_at": now,
-                }},
+                {
+                    "$set": {
+                        "posts.$.hook": new_content["hook"],
+                        "posts.$.caption": new_content["caption"],
+                        "posts.$.hashtags": new_content["hashtags"],
+                        "posts.$.image_prompt": new_content["image_prompt"],
+                        "posts.$.cta": new_content["cta"],
+                        "updated_at": now,
+                    }
+                },
             )
             result["new_content"] = new_content
         except Exception as e:
             logger.error(f"Text regen failed for {post_id}: {e}")
-            raise HTTPException(status_code=500, detail=f"Content regeneration failed: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Content regeneration failed: {str(e)}"
+            )
 
     # Queue image generation
     if regen in ("image", "both"):
         job_id = f"img_{uuid.uuid4().hex[:16]}"
         queue = await _get_social_image_queue()
-        queue_payload = json.dumps({
-            "job_id": job_id,
-            "plan_id": plan_id,
-            "post_id": post_id,
-            "user_id": user_id,
-        })
+        queue_payload = json.dumps(
+            {
+                "job_id": job_id,
+                "plan_id": plan_id,
+                "post_id": post_id,
+                "user_id": user_id,
+            }
+        )
         await queue.redis_client.rpush("queue:social_image_jobs", queue_payload)
         await set_job_status(
-            queue.redis_client, job_id,
+            queue.redis_client,
+            job_id,
             status="pending",
             user_id=user_id,
             plan_id=plan_id,

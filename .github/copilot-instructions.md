@@ -23,6 +23,22 @@ This file contains:
 - Claude API: `claude-sonnet-4-6`
 - DO NOT use Claude 3.5 Sonnet, claude-sonnet-4-5, or any other version
 
+### 1c. ChatGPT / OpenAI Model Version (MANDATORY)
+
+**MUST use `gpt-5.4`** — latest ChatGPT model in production
+- Default in `src/clients/chatgpt_client.py`: `model = "gpt-5.4"`
+- Used for: brand analysis, 30-day social marketing plan structure, test generation fallback
+- DO NOT use `gpt-4o`, `gpt-4o-latest`, `gpt-4-turbo`, or any older version
+```python
+from src.clients.chatgpt_client import ChatGPTClient
+
+# Default usage (uses gpt-5.4)
+client = ChatGPTClient(api_key=openai_key)
+
+# Explicit
+client = ChatGPTClient(api_key=openai_key, model="gpt-5.4")
+```
+
 ### 1b. Gemini Model Version (MANDATORY)
 
 **MUST use `gemini-3.1-flash-lite-preview`** — latest Gemini model in production

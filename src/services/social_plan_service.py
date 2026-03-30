@@ -100,7 +100,10 @@ Trả về JSON (chỉ JSON, không có text khác):
         response = await self.chatgpt.chat.completions.create(
             model="gpt-5.4",
             messages=[
-                {"role": "system", "content": "Bạn là chuyên gia brand strategy và TikTok marketing. Luôn trả về JSON hợp lệ."},
+                {
+                    "role": "system",
+                    "content": "Bạn là chuyên gia brand strategy và TikTok marketing. Luôn trả về JSON hợp lệ.",
+                },
                 {"role": "user", "content": prompt},
             ],
             max_tokens=2000,
@@ -117,7 +120,9 @@ Trả về JSON (chỉ JSON, không có text khác):
         elif not brand_dna["colors"].get("primary"):
             brand_dna["colors"]["primary"] = primary_color
 
-        logger.info(f"✅ Brand DNA generated for '{brand_dna.get('brand_name', business_name)}'")
+        logger.info(
+            f"✅ Brand DNA generated for '{brand_dna.get('brand_name', business_name)}'"
+        )
         return brand_dna
 
     # ─────────────────────────────────────────
@@ -184,7 +189,10 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
             response = await self.chatgpt.chat.completions.create(
                 model="gpt-5.4",
                 messages=[
-                    {"role": "system", "content": "Bạn là chuyên gia TikTok marketing. Luôn trả về JSON array hợp lệ."},
+                    {
+                        "role": "system",
+                        "content": "Bạn là chuyên gia TikTok marketing. Luôn trả về JSON array hợp lệ.",
+                    },
                     {"role": "user", "content": prompt},
                 ],
                 max_tokens=3000,
@@ -197,12 +205,17 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
 
             # Handle both {"posts": [...]} and [...]
             if isinstance(parsed, dict):
-                chunk_posts = parsed.get("posts", parsed.get("items", list(parsed.values())[0] if parsed else []))
+                chunk_posts = parsed.get(
+                    "posts",
+                    parsed.get("items", list(parsed.values())[0] if parsed else []),
+                )
             else:
                 chunk_posts = parsed
 
             all_posts.extend(chunk_posts[:chunk_count])
-            logger.info(f"   📅 Generated structure for posts {chunk_start + 1}-{chunk_end}")
+            logger.info(
+                f"   📅 Generated structure for posts {chunk_start + 1}-{chunk_end}"
+            )
 
         # Normalize and add IDs
         import uuid
@@ -217,25 +230,27 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
         for i, p in enumerate(all_posts[:total_posts]):
             day = p.get("day", i + 1)
             post_date = base_date + timedelta(days=day - 1)
-            normalized.append({
-                "post_id": f"post_{uuid.uuid4().hex[:12]}",
-                "day": day,
-                "date": post_date.strftime("%Y-%m-%d"),
-                "content_pillar": p.get("content_pillar", "educational"),
-                "topic": p.get("topic", f"Post ngày {day}"),
-                "image_style_hint": p.get("image_style_hint", "lifestyle"),
-                "product_ref": p.get("product_ref"),
-                # Phase 5 fields (DeepSeek fills later)
-                "hook": None,
-                "caption": None,
-                "hashtags": None,
-                "image_prompt": None,
-                "cta": None,
-                # Phase 6 fields (image worker fills later)
-                "image_url": None,
-                "image_job_id": None,
-                "image_generated_at": None,
-            })
+            normalized.append(
+                {
+                    "post_id": f"post_{uuid.uuid4().hex[:12]}",
+                    "day": day,
+                    "date": post_date.strftime("%Y-%m-%d"),
+                    "content_pillar": p.get("content_pillar", "educational"),
+                    "topic": p.get("topic", f"Post ngày {day}"),
+                    "image_style_hint": p.get("image_style_hint", "lifestyle"),
+                    "product_ref": p.get("product_ref"),
+                    # Phase 5 fields (DeepSeek fills later)
+                    "hook": None,
+                    "caption": None,
+                    "hashtags": None,
+                    "image_prompt": None,
+                    "cta": None,
+                    # Phase 6 fields (image worker fills later)
+                    "image_url": None,
+                    "image_job_id": None,
+                    "image_generated_at": None,
+                }
+            )
 
         logger.info(f"✅ Plan structure generated: {len(normalized)} posts")
         return normalized
@@ -260,7 +275,9 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
         language = config.get("language", "vi")
         brand_dna_str = json.dumps(brand_dna, ensure_ascii=False)[:1500]
 
-        instruction_part = f"\nYêu cầu đặc biệt: {custom_instruction}" if custom_instruction else ""
+        instruction_part = (
+            f"\nYêu cầu đặc biệt: {custom_instruction}" if custom_instruction else ""
+        )
 
         prompt = f"""Bạn là copywriter chuyên TikTok.
 
@@ -287,7 +304,10 @@ Trả về JSON (chỉ JSON):
         response = await self.deepseek.chat.completions.create(
             model="deepseek-chat",
             messages=[
-                {"role": "system", "content": "You are a TikTok copywriter. Always return valid JSON."},
+                {
+                    "role": "system",
+                    "content": "You are a TikTok copywriter. Always return valid JSON.",
+                },
                 {"role": "user", "content": prompt},
             ],
             max_tokens=1000,
@@ -323,22 +343,28 @@ Trả về JSON (chỉ JSON):
         updated_posts = posts.copy()
 
         # Create batches
-        batches = [posts[i:i + batch_size] for i in range(0, len(posts), batch_size)]
-        logger.info(f"📝 Generating content for {len(posts)} posts in {len(batches)} batches...")
+        batches = [posts[i : i + batch_size] for i in range(0, len(posts), batch_size)]
+        logger.info(
+            f"📝 Generating content for {len(posts)} posts in {len(batches)} batches..."
+        )
 
         # Process batches in parallel groups
         batch_idx = 0
         while batch_idx < len(batches):
-            parallel_batches = batches[batch_idx:batch_idx + max_parallel]
+            parallel_batches = batches[batch_idx : batch_idx + max_parallel]
 
             async def process_batch(batch):
                 results = []
                 for post in batch:
                     try:
-                        content = await self.generate_post_content(brand_dna, post, config)
+                        content = await self.generate_post_content(
+                            brand_dna, post, config
+                        )
                         results.append((post["post_id"], content))
                     except Exception as e:
-                        logger.error(f"Failed to generate content for post {post.get('post_id')}: {e}")
+                        logger.error(
+                            f"Failed to generate content for post {post.get('post_id')}: {e}"
+                        )
                         results.append((post["post_id"], None))
                 return results
 
@@ -357,6 +383,8 @@ Trả về JSON (chỉ JSON):
                         updated_posts[idx].update(content)
 
             batch_idx += max_parallel
-            logger.info(f"   ✅ Processed {min(batch_idx * batch_size, len(posts))}/{len(posts)} posts")
+            logger.info(
+                f"   ✅ Processed {min(batch_idx * batch_size, len(posts))}/{len(posts)} posts"
+            )
 
         return updated_posts

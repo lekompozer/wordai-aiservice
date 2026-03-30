@@ -1000,7 +1000,7 @@ class TestGeneratorService:
 
             # Call ChatGPT with JSON mode
             response = await client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-5.4",
                 messages=messages,
                 response_format={"type": "json_object"},
                 temperature=0.3,

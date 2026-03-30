@@ -35,11 +35,14 @@ async def crawl_brand_url(url: str) -> Dict[str, Any]:
             try:
                 page = await browser.new_page()
                 await page.set_extra_http_headers({"Accept-Language": "en,vi;q=0.9"})
-                await page.goto(url, wait_until="domcontentloaded", timeout=CRAWL_TIMEOUT_MS)
+                await page.goto(
+                    url, wait_until="domcontentloaded", timeout=CRAWL_TIMEOUT_MS
+                )
                 await asyncio.sleep(1)
 
                 # Extract all data in parallel via JS evaluation
-                data = await page.evaluate("""
+                data = await page.evaluate(
+                    """
                 () => {
                     const meta = (name) => {
                         const el = document.querySelector(`meta[name="${name}"], meta[property="${name}"], meta[property="og:${name}"]`);
@@ -101,7 +104,8 @@ async def crawl_brand_url(url: str) -> Dict[str, Any]:
                         canonical_url: document.querySelector("link[rel='canonical']")?.href || ""
                     };
                 }
-                """)
+                """
+                )
 
                 return {
                     "url": url,
@@ -166,18 +170,20 @@ async def crawl_brand_urls(urls: List[str]) -> List[Dict[str, Any]]:
     for i, result in enumerate(results):
         if isinstance(result, Exception):
             logger.warning(f"Crawl failed for {urls[i]}: {result}")
-            output.append({
-                "url": urls[i],
-                "success": False,
-                "error": str(result),
-                "title": "",
-                "body_text": "",
-                "h1_texts": [],
-                "h2_texts": [],
-                "colors": {"primary": "#000000"},
-                "fonts": {},
-                "logo_url": "",
-            })
+            output.append(
+                {
+                    "url": urls[i],
+                    "success": False,
+                    "error": str(result),
+                    "title": "",
+                    "body_text": "",
+                    "h1_texts": [],
+                    "h2_texts": [],
+                    "colors": {"primary": "#000000"},
+                    "fonts": {},
+                    "logo_url": "",
+                }
+            )
         else:
             output.append(result)
 

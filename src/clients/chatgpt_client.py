@@ -8,11 +8,11 @@ logger = setup_logger()
 
 
 class ChatGPTClient:
-    def __init__(self, api_key: str, model: str = "gpt-4o"):
+    def __init__(self, api_key: str, model: str = "gpt-5.4"):
         self.client = openai.OpenAI(api_key=api_key)
         self.model = model
         self.reasoning_model = "o1-preview"  # Text-only reasoning
-        self.vision_reasoning_model = "gpt-4o"  # Multimodal reasoning
+        self.vision_reasoning_model = "gpt-5.4"  # Multimodal reasoning
         self.logger = logger
 
         # Test API key

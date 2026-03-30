@@ -39,11 +39,7 @@ def _parse_json_export(raw: bytes) -> List[Dict[str, Any]]:
     data = json.loads(raw)
 
     # Standard TikTok Data Export format
-    video_list = (
-        data.get("Video", {})
-        .get("Videos", {})
-        .get("VideoList", [])
-    )
+    video_list = data.get("Video", {}).get("Videos", {}).get("VideoList", [])
 
     # Also support flat array format (some export tools)
     if not video_list and isinstance(data, list):
@@ -54,12 +50,14 @@ def _parse_json_export(raw: bytes) -> List[Dict[str, Any]]:
         desc = v.get("Desc", "") or v.get("description", "") or v.get("caption", "")
         if not desc:
             continue
-        posts.append({
-            "date": v.get("Date") or v.get("date"),
-            "description": desc.strip(),
-            "likes": str(v.get("Likes", "") or v.get("likes", "0")),
-            "link": v.get("Link") or v.get("link", ""),
-        })
+        posts.append(
+            {
+                "date": v.get("Date") or v.get("date"),
+                "description": desc.strip(),
+                "likes": str(v.get("Likes", "") or v.get("likes", "0")),
+                "link": v.get("Link") or v.get("link", ""),
+            }
+        )
 
     logger.info(f"📱 Parsed {len(posts)} TikTok posts from JSON export")
     return posts
