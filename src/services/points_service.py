@@ -71,6 +71,18 @@ SERVICE_POINTS_COST = {
     # Other AI operations
     "quote_generation": 2,
     "test_generation": 2,
+    # Social Marketing Plan
+    "social_plan_package": 100,
+    "social_plan_package_30_0img": 100,
+    "social_plan_package_30_1img": 300,
+    "social_plan_package_30_2img": 500,
+    "social_plan_package_60_0img": 150,
+    "social_plan_package_60_1img": 600,
+    "social_plan_package_60_2img": 1000,
+    "social_plan_package_60_3img": 1400,
+    "social_plan_package_60_4img": 1800,
+    "social_plan_regenerate_image": 4,
+    "social_plan_regenerate_text": 2,
     "default": 2,  # Default cost for any AI operation
 }
 

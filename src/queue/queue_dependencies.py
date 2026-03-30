@@ -25,6 +25,8 @@ _video_export_queue: Optional[QueueManager] = None
 _lyria_music_queue: Optional[QueueManager] = None
 _test_generation_queue: Optional[QueueManager] = None
 _video_studio_queue: Optional[QueueManager] = None
+_social_plan_queue: Optional[QueueManager] = None
+_social_image_queue: Optional[QueueManager] = None
 
 
 async def get_extraction_queue() -> QueueManager:
@@ -251,6 +253,38 @@ async def get_video_studio_queue() -> QueueManager:
     return _video_studio_queue
 
 
+async def get_social_plan_queue() -> QueueManager:
+    """Get Redis queue manager for social marketing plan generation tasks"""
+    global _social_plan_queue
+    if _social_plan_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
+        _social_plan_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="social_plan_jobs",
+            status_expiry_hours=48,
+            max_queue_size=500,
+        )
+        await _social_plan_queue.connect()
+        logger.info("✅ Social Plan queue manager connected")
+    return _social_plan_queue
+
+
+async def get_social_image_queue() -> QueueManager:
+    """Get Redis queue manager for social plan image generation tasks"""
+    global _social_image_queue
+    if _social_image_queue is None:
+        redis_url = os.getenv("REDIS_URL", "redis://redis-server:6379")
+        _social_image_queue = QueueManager(
+            redis_url=redis_url,
+            queue_name="social_image_jobs",
+            status_expiry_hours=48,
+            max_queue_size=1000,
+        )
+        await _social_image_queue.connect()
+        logger.info("✅ Social Image queue manager connected")
+    return _social_image_queue
+
+
 async def cleanup_queues():
     """Cleanup queue connections on shutdown"""
     global _extraction_queue, _document_queue, _storage_queue
@@ -258,6 +292,7 @@ async def cleanup_queues():
     global _slide_format_queue, _chapter_translation_queue
     global _slide_narration_subtitle_queue, _slide_narration_audio_queue
     global _video_export_queue, _lyria_music_queue, _test_generation_queue, _video_studio_queue
+    global _social_plan_queue, _social_image_queue
 
     if _extraction_queue:
         await _extraction_queue.disconnect()
@@ -328,3 +363,13 @@ async def cleanup_queues():
         await _video_studio_queue.disconnect()
         _video_studio_queue = None
         logger.info("🧹 Video Studio queue disconnected")
+
+    if _social_plan_queue:
+        await _social_plan_queue.disconnect()
+        _social_plan_queue = None
+        logger.info("🧹 Social Plan queue disconnected")
+
+    if _social_image_queue:
+        await _social_image_queue.disconnect()
+        _social_image_queue = None
+        logger.info("🧹 Social Image queue disconnected")

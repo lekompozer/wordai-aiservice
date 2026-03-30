@@ -394,6 +394,9 @@ from src.api.font_routes import router as font_router
 # ✅ ADDED: Media Upload API - Pre-signed URL for direct R2 image uploads (documents/chapters)
 from src.api.media_routes import router as media_router
 
+# ✅ ADDED: AI Social Marketing Plan API - TikTok brand AI content generator
+from src.api.social_plan_routes import router as social_plan_router
+
 # Global startup time for uptime tracking
 startup_time = time.time()
 
@@ -1615,6 +1618,12 @@ def create_app() -> FastAPI:
     # ✅ Admin Task Status API
     app.include_router(
         task_status_router, prefix="/api/admin", tags=["Admin - Task Status"]
+    )
+
+    # ✅ AI Social Marketing Plan API
+    app.include_router(
+        social_plan_router,
+        tags=["AI Social Marketing Plan"],
     )
 
     print("✅ FastAPI application created with all routes")
