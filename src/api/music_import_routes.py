@@ -421,6 +421,62 @@ async def get_lyrics(
     )
 
 
+@router.post("/presigned-upload")
+async def get_presigned_upload_url(
+    body: dict,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """
+    Generate presigned PUT URL để frontend upload MP3 trực tiếp lên R2.
+
+    Request: {"filename": "mysong.mp3", "content_type": "audio/mpeg"}
+    Response: {"presigned_url": "...", "public_url": "https://static.wordai.pro/..."}
+
+    Frontend flow:
+      1. POST /api/v1/music/presigned-upload → nhận presigned_url + public_url
+      2. PUT presigned_url với file bytes (Content-Type phải khớp)
+      3. Dùng public_url làm audio source
+    """
+    import uuid as _uuid
+
+    filename = str(body.get("filename", "")).strip()
+    content_type = str(body.get("content_type", "audio/mpeg")).strip()
+
+    if not filename:
+        raise HTTPException(status_code=400, detail="filename is required")
+    if content_type not in (
+        "audio/mpeg",
+        "audio/mp3",
+        "audio/webm",
+        "audio/ogg",
+        "audio/wav",
+    ):
+        raise HTTPException(status_code=400, detail="content_type không hợp lệ")
+
+    user_id = current_user["uid"]
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "mp3"
+    safe_ext = ext if ext in ("mp3", "webm", "ogg", "wav") else "mp3"
+    r2_key = f"music/user-uploads/{user_id}/{_uuid.uuid4().hex}.{safe_ext}"
+
+    try:
+        r2 = WordAiR2StorageConfig()
+        presigned_url = r2.generate_presigned_upload_url(
+            file_key=r2_key,
+            content_type=content_type,
+            expiry_seconds=300,
+        )
+    except Exception as e:
+        logger.error(f"[presigned-upload] {e}")
+        raise HTTPException(status_code=500, detail="Không thể tạo presigned URL")
+
+    return {
+        "presigned_url": presigned_url,
+        "public_url": f"{R2_STATIC}/{r2_key}",
+        "r2_key": r2_key,
+        "expires_in": 300,
+    }
+
+
 @router.post("/import-tiktok", response_model=TrackMeta)
 async def import_tiktok(
     body: ImportRequest,

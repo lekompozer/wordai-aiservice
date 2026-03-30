@@ -470,3 +470,23 @@ class WordAiR2StorageConfig:
             "public_url": f"{self.public_url}/{file_key}",
             "static_url": f"{self.public_url}/{file_key}",
         }
+
+    def generate_presigned_upload_url(
+        self,
+        file_key: str,
+        content_type: str = "audio/mpeg",
+        expiry_seconds: int = 300,
+    ) -> str:
+        """Generate a presigned PUT URL for direct frontend upload to WordAI R2."""
+        if not self.s3_client:
+            raise Exception("WordAI R2 client not initialized")
+        presigned_url = self.s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": self.bucket_name,
+                "Key": file_key,
+                "ContentType": content_type,
+            },
+            ExpiresIn=expiry_seconds,
+        )
+        return presigned_url
