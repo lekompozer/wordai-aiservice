@@ -1626,6 +1626,11 @@ def create_app() -> FastAPI:
         tags=["AI Social Marketing Plan"],
     )
 
+    # ✅ NEW: Community Feed API - Trending, Top, Hot Channels (Redis-cached, proxied to Cloudflare D1)
+    from src.api.community_feed_routes import router as community_feed_router
+
+    app.include_router(community_feed_router, tags=["Community Feed"])
+
     print("✅ FastAPI application created with all routes")
     print("📌 AI Content Edit endpoints:")
     print("   POST /api/ai/content/edit - AI-powered content editing")
