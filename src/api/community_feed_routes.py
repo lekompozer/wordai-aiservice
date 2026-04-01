@@ -49,17 +49,19 @@ async def _cached(cache_key: str, ttl: int, fetch_fn) -> dict:
 
 @router.get("/posts/trending")
 async def get_trending_posts(
-    category: Optional[str] = Query(None),
+    channel: Optional[str] = Query(
+        None, description="Channel slug, e.g. hot-videos, gym, dance"
+    ),
     limit: int = Query(30, ge=1, le=50),
     userId: Optional[str] = Query(None),
 ):
     """Trending posts (7-day window, gravity decay score). Cached 5 min for anonymous requests."""
-    scope = category or "all"
+    scope = channel or "all"
     # Only cache anonymous requests (no userId)
     cache_key = f"cf:community:trending:{scope}:v1" if not userId else None
     params = {"limit": limit}
-    if category:
-        params["category"] = category
+    if channel:
+        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
     if userId:
         params["userId"] = userId
 
@@ -73,18 +75,20 @@ async def get_trending_posts(
 
 @router.get("/posts/top")
 async def get_top_posts(
-    category: Optional[str] = Query(None),
+    channel: Optional[str] = Query(
+        None, description="Channel slug, e.g. hot-videos, gym, dance"
+    ),
     limit: int = Query(30, ge=1, le=50),
     cursor: Optional[str] = Query(None),
     userId: Optional[str] = Query(None),
 ):
-    """Top posts by total likes (all-time). Cursor pagination. Page 1 cached 5 min."""
+    """Top posts by total engagement score (all-time). Cursor pagination. Page 1 cached 5 min."""
     is_page1 = not cursor and not userId
-    scope = category or "all"
+    scope = channel or "all"
     cache_key = f"cf:community:top:{scope}:v1" if is_page1 else None
     params = {"limit": limit}
-    if category:
-        params["category"] = category
+    if channel:
+        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
     if cursor:
         params["cursor"] = cursor
     if userId:
@@ -101,14 +105,14 @@ async def get_top_posts(
 @router.get("/channels/hot")
 async def get_hot_channels(
     limit: int = Query(15, ge=1, le=50),
-    category: Optional[str] = Query(None),
+    channel: Optional[str] = Query(None, description="Filter by channel slug"),
 ):
-    """Hot channels ranked by aggregate engagement (likes*3 + comments*2 + saves*2). Cached 10 min."""
-    scope = category or "all"
+    """Hot channels ranked by aggregate engagement (likes×1 + saves×2 + comments×3). Cached 10 min."""
+    scope = channel or "all"
     cache_key = f"cf:community:hot_channels:{scope}:v1"
     params = {"limit": limit}
-    if category:
-        params["category"] = category
+    if channel:
+        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
 
     async def fetch():
         return await _worker_get("/api/channels/hot", params)
