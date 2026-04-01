@@ -1,11 +1,15 @@
 """
 Social Plan Worker
 Consumes queue:social_plan_jobs and runs the full plan generation pipeline:
-  Phase 1: Brand Extraction (Playwright crawl)
-  Phase 2: TikTok Data Parsing
-  Phase 3: Brand DNA Generation (ChatGPT gpt-5.4)
-  Phase 4: Plan Structure (ChatGPT gpt-5.4)
-  Phase 5: Content Generation per Post (DeepSeek)
+  Phase 1:  Brand Extraction (Playwright crawl)
+  Phase 2:  TikTok Data Parsing
+  Phase 2b: Layer 1 parallel analyzers (new):
+              - CompetitorAnalyzer → per-competitor summaries
+              - BrandDocAnalyzer   → PDF/doc summaries
+              - ProductAnalyzer    → product catalog summary
+  Phase 3:  Brand DNA Generation (ChatGPT gpt-5.4) — uses all Layer 1 summaries
+  Phase 4:  Plan Structure (ChatGPT gpt-5.4) — informed by product + competitors
+  Phase 5:  Content Generation per Post (DeepSeek)
 """
 
 import asyncio
@@ -23,6 +27,9 @@ from src.queue.queue_manager import set_job_status
 from src.services.brand_crawler import crawl_brand_urls, merge_brand_data
 from src.services.tiktok_parser import parse_tiktok_export, extract_tiktok_insights
 from src.services.social_plan_service import SocialPlanService
+from src.services.competitor_analyzer import analyze_all_competitors
+from src.services.brand_doc_analyzer import fetch_and_analyze_brand_docs
+from src.services.product_analyzer import analyze_products
 
 logging.basicConfig(
     level=logging.INFO,
@@ -162,6 +169,80 @@ class SocialPlanWorker:
                 },
             )
 
+            # ── Phase 2b: Layer 1 Parallel Analyzers ───────────────
+            await set_job_status(
+                self.redis,
+                job_id,
+                "processing",
+                user_id=user_id,
+                step="analyzing_inputs",
+                progress=30,
+                message="Đang phân tích đối thủ, tài liệu và sản phẩm...",
+            )
+
+            competitors = config.get("competitors", [])
+            brand_context_asset_ids = config.get("brand_context_asset_ids", [])
+            products_list = config.get("products", [])
+
+            async def _empty_list():
+                return []
+
+            async def _empty_str():
+                return ""
+
+            # Run all Layer 1 analyzers in parallel
+            competitor_coro = (
+                analyze_all_competitors(competitors, self.plan_service.deepseek)
+                if competitors
+                else _empty_list()
+            )
+            brand_doc_coro = (
+                fetch_and_analyze_brand_docs(
+                    brand_context_asset_ids, self.db, self.plan_service.deepseek
+                )
+                if brand_context_asset_ids
+                else _empty_str()
+            )
+
+            # product_analyzer is sync — wrap in executor
+            loop = asyncio.get_event_loop()
+            product_task = loop.run_in_executor(None, analyze_products, products_list)
+
+            competitor_summaries, brand_doc_summary, product_analysis = (
+                await asyncio.gather(
+                    competitor_coro,
+                    brand_doc_coro,
+                    product_task,
+                    return_exceptions=True,
+                )
+            )
+
+            # Safely handle any analyzer failures (non-fatal)
+            if isinstance(competitor_summaries, Exception):
+                logger.error(f"Competitor analysis failed: {competitor_summaries}")
+                competitor_summaries = []
+            if isinstance(brand_doc_summary, Exception):
+                logger.error(f"Brand doc analysis failed: {brand_doc_summary}")
+                brand_doc_summary = ""
+            if isinstance(product_analysis, Exception):
+                logger.error(f"Product analysis failed: {product_analysis}")
+                product_analysis = None
+
+            # Save analysis summaries to MongoDB
+            self.db["social_plans"].update_one(
+                {"plan_id": plan_id},
+                {
+                    "$set": {
+                        "analysis_summaries": {
+                            "competitors": competitor_summaries or [],
+                            "brand_docs": brand_doc_summary or "",
+                            "products": (product_analysis or {}).get("summary", ""),
+                        },
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                },
+            )
+
             # ── Phase 3: Brand DNA ──────────────────────────────────
             await set_job_status(
                 self.redis,
@@ -174,7 +255,12 @@ class SocialPlanWorker:
             )
 
             brand_dna = await self.plan_service.generate_brand_dna(
-                brand_data, tiktok_insights, config
+                brand_data,
+                tiktok_insights,
+                config,
+                competitor_summaries=competitor_summaries or [],
+                brand_doc_summary=brand_doc_summary or "",
+                product_summary=(product_analysis or {}).get("summary", ""),
             )
 
             # Merge primary_color from crawl data if brand_dna lacks it
@@ -207,7 +293,9 @@ class SocialPlanWorker:
                 message="Đang tạo cấu trúc kế hoạch 30 ngày...",
             )
 
-            posts = await self.plan_service.generate_plan_structure(brand_dna, config)
+            posts = await self.plan_service.generate_plan_structure(
+                brand_dna, config, product_analysis=product_analysis
+            )
 
             self.db["social_plans"].update_one(
                 {"plan_id": plan_id},

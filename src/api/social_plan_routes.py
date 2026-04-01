@@ -98,6 +98,14 @@ class PostContentRegenRequest(BaseModel):
 
 class BatchImageRequest(BaseModel):
     post_ids: Optional[List[str]] = None
+
+
+class CompetitorInput(BaseModel):
+    name: str
+    description: Optional[str] = None
+    website_url: Optional[str] = None
+    facebook_url: Optional[str] = None
+    example_posts_text: Optional[str] = None
     max_concurrent: int = 3
 
 
@@ -105,80 +113,154 @@ class BatchImageRequest(BaseModel):
 # ① STATIC ROUTES (must be before /{plan_id} param routes)
 # ──────────────────────────────────────────────────────────
 
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_DOC_TYPES = {"application/pdf", "text/plain"}
+ASSET_TYPES = {"brand", "product", "style_reference", "competitor_example", "brand_doc"}
+
 
 @router.post(
-    "/assets/upload", summary="Upload brand assets (logo, lifestyle, product photos)"
+    "/assets/upload",
+    summary="Upload brand assets (images, PDFs, style references)",
 )
 async def upload_brand_assets(
     plan_draft_id: str = Form(...),
+    asset_type: str = Form(
+        "brand"
+    ),  # brand | product | style_reference | competitor_example | brand_doc
     image_style: str = Form("flat-design"),
-    images: List[UploadFile] = File(...),
+    files: List[UploadFile] = File(...),
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Upload brand images (logo, lifestyle, product) for a social plan.
-    Returns list of asset objects with URLs.
+    Upload brand assets for a social plan wizard.
+
+    asset_type values:
+      - brand: logo/lifestyle images used in Brand DNA
+      - product: product images (linked to products[].image_asset_id)
+      - style_reference: reference images for image style
+      - competitor_example: competitor content screenshots
+      - brand_doc: PDF/text brand documents (brand guide, product catalog, etc.)
+
     Files are stored on R2 at social-plan-assets/{draft_id}/.
     """
+    if asset_type not in ASSET_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid asset_type. Must be one of: {sorted(ASSET_TYPES)}",
+        )
+
     user_id = current_user["uid"]
     db = _get_db()
     s3_client = _get_s3_client()
 
+    is_doc_type = asset_type == "brand_doc"
+    max_size = 20 * 1024 * 1024 if is_doc_type else 10 * 1024 * 1024  # 20MB for PDFs
+
     assets = []
-    for file in images[:10]:  # Max 10 images
+    for file in files[:10]:  # Max 10 files per upload call
         content = await file.read()
-        if len(content) > 10 * 1024 * 1024:  # 10MB limit
+        if len(content) > max_size:
             continue
 
-        # Determine asset type from filename hint
-        name_lower = (file.filename or "").lower()
-        if "logo" in name_lower:
-            asset_type = "logo"
-        elif "product" in name_lower:
-            asset_type = "product"
-        else:
-            asset_type = "lifestyle"
+        content_type = file.content_type or ""
+        fname = file.filename or "asset"
+        ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "bin"
 
-        fname = file.filename or "asset.png"
-        ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "png"
+        # Validate MIME type
+        if is_doc_type:
+            # Allow PDF or plain text
+            if content_type not in ALLOWED_DOC_TYPES and ext not in (
+                "pdf",
+                "txt",
+                "md",
+            ):
+                continue
+        else:
+            if content_type not in ALLOWED_IMAGE_TYPES and ext not in (
+                "jpg",
+                "jpeg",
+                "png",
+                "webp",
+                "gif",
+            ):
+                continue
+
         asset_id = uuid.uuid4().hex[:12]
-        r2_key = f"social-plan-assets/{plan_draft_id}/{asset_id}.{ext}"
+        r2_key = f"social-plan-assets/{plan_draft_id}/{asset_type}/{asset_id}.{ext}"
 
         s3_client.put_object(
             Bucket=R2_BUCKET,
             Key=r2_key,
             Body=content,
-            ContentType=file.content_type or "image/png",
+            ContentType=content_type
+            or ("application/pdf" if ext == "pdf" else "application/octet-stream"),
         )
         file_url = f"{R2_PUBLIC_URL}/{r2_key}"
+
+        asset_doc = {
+            "asset_id": asset_id,
+            "type": asset_type,
+            "filename": fname,
+            "file_type": ext,
+            "r2_key": r2_key,
+            "url": file_url,
+            "plan_draft_id": plan_draft_id,
+            "plan_id": None,
+            "user_id": user_id,
+            "uploaded_at": datetime.now(timezone.utc),
+            "expires_at": datetime.fromtimestamp(
+                datetime.now(timezone.utc).timestamp() + 86400, tz=timezone.utc
+            ),
+        }
+
+        db["social_plan_assets"].insert_one({**asset_doc, "_id": uuid.uuid4().hex})
 
         assets.append(
             {
                 "asset_id": asset_id,
                 "type": asset_type,
-                "filename": file.filename,
-                "r2_key": r2_key,
+                "filename": fname,
                 "url": file_url,
-                "product_name": None,
             }
         )
 
-    # Save to MongoDB
-    now = datetime.now(timezone.utc)
-    assets_doc = {
+    return {
         "plan_draft_id": plan_draft_id,
-        "plan_id": None,
-        "user_id": user_id,
-        "uploaded_at": now,
+        "asset_type": asset_type,
         "assets": assets,
-        "image_style": image_style,
-        "expires_at": datetime.fromtimestamp(
-            now.timestamp() + 86400, tz=timezone.utc
-        ),  # 24h draft expiry
+        "count": len(assets),
     }
-    db["social_plan_assets"].insert_one(assets_doc)
 
-    return {"plan_draft_id": plan_draft_id, "assets": assets, "count": len(assets)}
+
+@router.get("/packages", summary="List available packages and pricing")
+async def list_packages(
+    current_user: dict = Depends(get_current_user),
+):
+    """Return available package options with point costs and descriptions."""
+    packages = [
+        {
+            "id": pkg_id,
+            "posts": int(
+                pkg_id.split("posts_")[0].replace("60", "60").replace("30", "30")
+            ),
+            "images_per_post": int(pkg_id.split("img")[0].rsplit("_", 1)[-1]),
+            "points_required": pts,
+            "label": _package_label(pkg_id),
+        }
+        for pkg_id, pts in PACKAGE_POINT_MAP.items()
+    ]
+    return {"packages": packages}
+
+
+def _package_label(pkg_id: str) -> str:
+    parts = pkg_id.split("_")
+    posts = parts[0]  # "30posts" or "60posts"
+    imgs = parts[1]  # "0img"..."4img"
+    img_count = imgs.replace("img", "")
+    posts_count = posts.replace("posts", "")
+    if img_count == "0":
+        return f"{posts_count} bài viết (không có ảnh AI)"
+    return f"{posts_count} bài viết + {img_count} ảnh AI/bài"
 
 
 @router.get("/list", summary="List user's social plans")
@@ -225,11 +307,21 @@ async def create_social_plan(
     posts_per_week: int = Form(5),
     campaign_goal: str = Form("awareness"),
     package: str = Form("30posts_0img"),
-    brand_asset_ids: Optional[str] = Form(None),  # JSON array of plan_draft_ids
-    products: Optional[str] = Form(None),  # JSON array
+    industry: Optional[str] = Form(None),  # NEW: ngành nghề
+    platforms: Optional[str] = Form(None),  # NEW: JSON array ["tiktok","facebook",...]
+    brand_asset_ids: Optional[str] = Form(None),  # JSON array of asset_ids (type=brand)
+    brand_context_asset_ids: Optional[str] = Form(
+        None
+    ),  # NEW: JSON array of asset_ids (type=brand_doc)
+    style_attachment_ids: Optional[str] = Form(
+        None
+    ),  # NEW: JSON array of asset_ids (type=style_reference)
+    products: Optional[str] = Form(None),  # JSON array with optional image_asset_id
+    competitors: Optional[str] = Form(None),  # NEW: JSON array of CompetitorInput
     target_audience: Optional[str] = Form(None),
     campaign_description: Optional[str] = Form(None),
     tone: Optional[str] = Form(None),
+    image_style: Optional[str] = Form("flat-design"),
     start_date: Optional[str] = Form(None),
     tiktok_data_file: Optional[UploadFile] = File(None),
     current_user: dict = Depends(get_current_user),
@@ -285,6 +377,54 @@ async def create_social_plan(
         except Exception:
             asset_ids = [brand_asset_ids]
 
+    brand_context_ids = []
+    if brand_context_asset_ids:
+        try:
+            brand_context_ids = json.loads(brand_context_asset_ids)
+        except Exception:
+            brand_context_ids = [brand_context_asset_ids]
+
+    style_ids = []
+    if style_attachment_ids:
+        try:
+            style_ids = json.loads(style_attachment_ids)
+        except Exception:
+            style_ids = [style_attachment_ids]
+
+    platforms_list = []
+    if platforms:
+        try:
+            platforms_list = json.loads(platforms)
+        except Exception:
+            platforms_list = [p.strip() for p in platforms.split(",") if p.strip()]
+
+    competitors_list = []
+    if competitors:
+        try:
+            raw = json.loads(competitors)
+            # Accept both list of dicts and list of CompetitorInput-compatible objects
+            competitors_list = [
+                {
+                    "name": c.get("name", "") if isinstance(c, dict) else str(c),
+                    "description": (
+                        c.get("description") if isinstance(c, dict) else None
+                    ),
+                    "website_url": (
+                        c.get("website_url") if isinstance(c, dict) else None
+                    ),
+                    "facebook_url": (
+                        c.get("facebook_url") if isinstance(c, dict) else None
+                    ),
+                    "example_posts_text": (
+                        c.get("example_posts_text") if isinstance(c, dict) else None
+                    ),
+                }
+                for c in raw
+                if c
+            ]
+        except Exception:
+            pass
+
     # Parse TikTok data file
     tiktok_data = None
     if tiktok_data_file:
@@ -312,17 +452,24 @@ async def create_social_plan(
         "posts_per_week": posts_per_week,
         "campaign_goal": campaign_goal,
         "tone": tone or "casual",
-        "image_style": "flat-design",
+        "image_style": image_style or "flat-design",
         "target_audience": target_audience or "",
         "campaign_description": campaign_description or "",
         "start_date": start_date or now.strftime("%Y-%m-%d"),
         "products": products_list,
+        # New fields
+        "industry": industry or "",
+        "platforms": platforms_list,
+        "competitors": competitors_list,
+        "brand_context_asset_ids": brand_context_ids,
+        "style_attachment_ids": style_ids,
     }
 
-    # Link asset draft to this plan
-    if asset_ids:
+    # Link asset drafts to this plan (brand images + brand docs + style refs)
+    all_asset_ids = asset_ids + brand_context_ids + style_ids
+    if all_asset_ids:
         db["social_plan_assets"].update_many(
-            {"plan_draft_id": {"$in": asset_ids}, "user_id": user_id},
+            {"asset_id": {"$in": all_asset_ids}, "user_id": user_id},
             {"$set": {"plan_id": plan_id}},
         )
 
@@ -336,7 +483,10 @@ async def create_social_plan(
         "config": config,
         "products": products_list,
         "asset_ids": asset_ids,
+        "brand_context_asset_ids": brand_context_ids,
+        "style_attachment_ids": style_ids,
         "brand_data": {"websites": [], "tiktok_posts": []},
+        "analysis_summaries": {},
         "brand_dna": {},
         "posts": [],
         "total_posts": 0,
@@ -436,6 +586,183 @@ async def get_social_plan(
         raise HTTPException(status_code=404, detail="Plan not found")
 
     return plan
+
+
+@router.post("/{plan_id}/duplicate", summary="Duplicate a social plan")
+async def duplicate_social_plan(
+    plan_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Create a copy of an existing plan with all posts, brand DNA, and config.
+    The duplicate starts with status='draft' and does NOT deduct points.
+    """
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    original = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {"_id": 0},
+    )
+    if not original:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    now = datetime.now(timezone.utc)
+    new_plan_id = f"plan_{uuid.uuid4().hex[:16]}"
+
+    new_plan = {
+        **original,
+        "plan_id": new_plan_id,
+        "created_at": now,
+        "updated_at": now,
+        "status": "draft",
+        "job_id": None,
+        "points_spent": 0,
+    }
+
+    # Re-generate post_ids to avoid duplicates
+    import copy
+
+    new_posts = []
+    for p in original.get("posts", []):
+        new_p = copy.deepcopy(p)
+        new_p["post_id"] = f"post_{uuid.uuid4().hex[:12]}"
+        new_p["image_url"] = None
+        new_p["image_job_id"] = None
+        new_p["custom_image_url"] = None
+        new_posts.append(new_p)
+    new_plan["posts"] = new_posts
+
+    db["social_plans"].insert_one(new_plan)
+
+    return {
+        "plan_id": new_plan_id,
+        "original_plan_id": plan_id,
+        "status": "draft",
+        "total_posts": len(new_posts),
+    }
+
+
+@router.get("/{plan_id}/export/csv", summary="Export plan posts as CSV")
+async def export_plan_csv(
+    plan_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Export all posts from a plan as a CSV file.
+    Columns: day, date, platform, content_pillar, topic, hook, caption, hashtags, cta, image_url
+    """
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {"_id": 0, "posts": 1, "config": 1},
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    posts = plan.get("posts", [])
+    business_name = plan.get("config", {}).get("business_name", "plan")
+
+    output = io.StringIO()
+    writer = csv.DictWriter(
+        output,
+        fieldnames=[
+            "day",
+            "date",
+            "platform",
+            "content_pillar",
+            "topic",
+            "hook",
+            "caption",
+            "hashtags",
+            "cta",
+            "image_url",
+        ],
+        extrasaction="ignore",
+    )
+    writer.writeheader()
+    for p in posts:
+        row = dict(p)
+        if isinstance(row.get("hashtags"), list):
+            row["hashtags"] = " ".join(row["hashtags"])
+        writer.writerow(row)
+
+    output.seek(0)
+    filename = f"{business_name.replace(' ', '_')}_{plan_id}_posts.csv"
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.post(
+    "/{plan_id}/post/{post_id}/upload-image",
+    summary="Upload a custom image for a post",
+)
+async def upload_post_custom_image(
+    plan_id: str,
+    post_id: str,
+    image: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Upload a custom image for a specific post (replaces AI-generated image).
+    Stored at social-plan-assets/{plan_id}/custom-images/{post_id}.{ext}
+    No points deducted.
+    """
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    plan = db["social_plans"].find_one(
+        {"plan_id": plan_id, "user_id": user_id},
+        {"posts.post_id": 1},
+    )
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    post_exists = any(p["post_id"] == post_id for p in plan.get("posts", []))
+    if not post_exists:
+        raise HTTPException(status_code=404, detail="Post not found in plan")
+
+    content = await image.read()
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Image too large (max 10MB)")
+
+    content_type = image.content_type or "image/jpeg"
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid image type")
+
+    fname = image.filename or "custom.jpg"
+    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "jpg"
+    r2_key = f"social-plan-assets/{plan_id}/custom-images/{post_id}.{ext}"
+
+    s3_client = _get_s3_client()
+    s3_client.put_object(
+        Bucket=R2_BUCKET,
+        Key=r2_key,
+        Body=content,
+        ContentType=content_type,
+    )
+    image_url = f"{R2_PUBLIC_URL}/{r2_key}"
+
+    db["social_plans"].update_one(
+        {"plan_id": plan_id, "posts.post_id": post_id},
+        {
+            "$set": {
+                "posts.$.custom_image_url": image_url,
+                "updated_at": datetime.now(timezone.utc),
+            }
+        },
+    )
+
+    return {"post_id": post_id, "custom_image_url": image_url}
 
 
 @router.post(

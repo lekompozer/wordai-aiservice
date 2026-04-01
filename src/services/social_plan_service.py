@@ -1,6 +1,17 @@
 """
 Social Plan Service
 Handles Brand DNA generation (ChatGPT gpt-5.4) and content generation per post (DeepSeek).
+
+Multi-layer analysis pipeline:
+  Layer 1 (parallel analyzers):
+    - Brand website crawler → website summary
+    - TikTok parser → TikTok insights
+    - CompetitorAnalyzer → per-competitor summaries
+    - BrandDocAnalyzer → PDF/doc summaries
+    - ProductAnalyzer → product catalog summary
+  Layer 2: Brand DNA synthesis (GPT-5.4, consumes only summaries)
+  Layer 3: Plan structure (GPT-5.4, chunked 15 posts)
+  Layer 4: Post content (DeepSeek, batched 5 posts)
 """
 
 import asyncio
@@ -45,28 +56,62 @@ class SocialPlanService:
         brand_data: Dict[str, Any],
         tiktok_insights: Dict[str, Any],
         config: Dict[str, Any],
+        competitor_summaries: Optional[List[Dict[str, Any]]] = None,
+        brand_doc_summary: Optional[str] = None,
+        product_summary: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Generate Brand DNA from crawled website data and TikTok posts.
+        Generate Brand DNA from all analysis layer summaries.
         Uses ChatGPT gpt-5.4.
+
+        New params (Layer 1 outputs):
+            competitor_summaries: list of compact competitor dicts
+            brand_doc_summary: merged PDF/doc summary string
+            product_summary: compact product catalog summary
 
         Returns:
             Dict with brand_name, brand_voice, core_values, usp, target_audience,
-            common_hashtags, suggested_topics, colors, etc.
+            common_hashtags, suggested_topics, colors, platforms, industry, etc.
         """
+        from src.services.competitor_analyzer import (
+            format_competitor_summaries_for_prompt,
+        )
+
         language = config.get("language", "vi")
         campaign_goal = config.get("campaign_goal", "awareness")
         target_audience = config.get("target_audience", "")
         business_name = config.get("business_name", "")
+        industry = config.get("industry", "")
+        platforms = config.get("platforms", [])
 
         website_text = brand_data.get("combined_text", "")[:3000]
         tiktok_text = tiktok_insights.get("combined_text", "")[:2000]
         primary_color = brand_data.get("primary_color", "#000000")
 
-        prompt = f"""Phân tích data sau và tạo Brand DNA cho chiến lược TikTok:
+        # Format optional context blocks
+        competitor_block = ""
+        if competitor_summaries:
+            competitor_block = f"\n=== PHÂN TÍCH ĐỐI THỦ ===\n{format_competitor_summaries_for_prompt(competitor_summaries)}"
+
+        brand_doc_block = ""
+        if brand_doc_summary and brand_doc_summary.strip():
+            brand_doc_block = (
+                f"\n=== TÀI LIỆU THƯƠNG HIỆU ===\n{brand_doc_summary[:1500]}"
+            )
+
+        product_block = ""
+        if product_summary and product_summary.strip():
+            product_block = f"\n=== SẢN PHẨM / DỊCH VỤ ===\n{product_summary[:800]}"
+
+        platforms_str = ", ".join(platforms) if platforms else "TikTok, Facebook"
+        industry_str = industry or "Chưa xác định"
+
+        prompt = f"""Phân tích data sau và tạo Brand DNA cho chiến lược nội dung mạng xã hội:
 
 === THÔNG TIN DOANH NGHIỆP ===
 Tên: {business_name}
+Ngành: {industry_str}
+Nền tảng target: {platforms_str}
 Mục tiêu chiến dịch: {campaign_goal}
 Đối tượng mục tiêu: {target_audience or "Chưa xác định"}
 Màu chính brand: {primary_color}
@@ -75,18 +120,23 @@ Màu chính brand: {primary_color}
 {website_text or "Không có dữ liệu website"}
 
 === TIKTOK CAPTIONS (50 bài gần nhất) ===
-{tiktok_text or "Không có dữ liệu TikTok"}
+{tiktok_text or "Không có dữ liệu TikTok"}{brand_doc_block}{product_block}{competitor_block}
 
 === YÊU CẦU ===
 Ngôn ngữ output: {language}
+Dựa trên phân tích đối thủ (nếu có), hãy xác định điểm khác biệt và cơ hội content.
 
 Trả về JSON (chỉ JSON, không có text khác):
 {{
   "brand_name": "tên brand",
+  "industry": "{industry_str}",
+  "target_platforms": {json.dumps(platforms if platforms else ["tiktok", "facebook"])},
   "brand_voice": "Mô tả giọng văn 2-3 câu",
   "core_values": ["giá trị 1", "giá trị 2"],
   "usp": "Unique Selling Proposition",
   "target_audience": "mô tả đối tượng",
+  "competitive_advantage": "Lợi thế cạnh tranh so với đối thủ (dựa trên phân tích)",
+  "content_opportunities": ["Cơ hội content 1", "Cơ hội content 2"],
   "typical_caption_structure": "cấu trúc caption điển hình",
   "common_hashtags": ["#hashtag1", "#hashtag2"],
   "topics_used": ["topic đã dùng"],
@@ -102,7 +152,7 @@ Trả về JSON (chỉ JSON, không có text khác):
             messages=[
                 {
                     "role": "system",
-                    "content": "Bạn là chuyên gia brand strategy và TikTok marketing. Luôn trả về JSON hợp lệ.",
+                    "content": "Bạn là chuyên gia brand strategy và social media marketing. Luôn trả về JSON hợp lệ.",
                 },
                 {"role": "user", "content": prompt},
             ],
@@ -133,22 +183,41 @@ Trả về JSON (chỉ JSON, không có text khác):
         self,
         brand_dna: Dict[str, Any],
         config: Dict[str, Any],
+        product_analysis: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Generate 30-day plan structure (topic + pillar only, no captions).
+        Generate 30/60-day plan structure (topic + pillar only, no captions).
         Uses ChatGPT gpt-5.4 in chunks of 15 posts.
 
+        Args:
+            product_analysis: output from ProductAnalyzer (optional, richer than raw products)
+
         Returns:
-            List of post dicts with day, date, content_pillar, topic, image_style_hint, product_ref
+            List of post dicts with day, date, content_pillar, topic, image_style_hint, product_ref,
+            platform (new)
         """
+        from src.services.product_analyzer import format_products_for_plan_prompt
+
         language = config.get("language", "vi")
         posts_per_week = config.get("posts_per_week", 5)
         total_posts = min(posts_per_week * 4, 60)  # 4 weeks
         products = config.get("products", [])
         start_date = config.get("start_date", "2026-04-01")
+        platforms = config.get("platforms", [])
 
-        product_names = [p.get("name", "") for p in products if p.get("name")]
-        product_list_str = ", ".join(product_names) if product_names else "Chưa có"
+        # Use richer product analysis if available
+        if product_analysis and product_analysis.get("product_list"):
+            product_list_str = format_products_for_plan_prompt(
+                product_analysis["product_list"]
+            )
+        else:
+            product_names = [p.get("name", "") for p in products if p.get("name")]
+            product_list_str = ", ".join(product_names) if product_names else "Chưa có"
+
+        platforms_str = ", ".join(platforms) if platforms else "TikTok"
+        # Include competitive advantage if available from brand DNA
+        competitive_advantage = brand_dna.get("competitive_advantage", "")
+        content_opportunities = brand_dna.get("content_opportunities", [])
 
         brand_dna_str = json.dumps(brand_dna, ensure_ascii=False)[:2000]
 
@@ -161,7 +230,22 @@ Trả về JSON (chỉ JSON, không có text khác):
             chunk_count = chunk_end - chunk_start
             existing_topics = [p.get("topic", "") for p in all_posts]
 
-            prompt = f"""Bạn là chuyên gia chiến lược nội dung TikTok.
+            competitive_hint = ""
+            if competitive_advantage or content_opportunities:
+                ops_str = (
+                    ", ".join(content_opportunities[:3])
+                    if content_opportunities
+                    else ""
+                )
+                competitive_hint = (
+                    f"\n- Khai thác lợi thế cạnh tranh: {competitive_advantage}"
+                )
+                if ops_str:
+                    competitive_hint += (
+                        f"\n- Cơ hội content từ phân tích đối thủ: {ops_str}"
+                    )
+
+            prompt = f"""Bạn là chuyên gia chiến lược nội dung mạng xã hội.
 
 === BRAND DNA ===
 {brand_dna_str}
@@ -170,10 +254,11 @@ Trả về JSON (chỉ JSON, không có text khác):
 {product_list_str}
 
 === YÊU CẦU ===
-Tạo CẤU TRÚC {chunk_count} bài TikTok (bài {chunk_start + 1} đến {chunk_end} trong tổng {total_posts} bài).
+Tạo CẤU TRÚC {chunk_count} bài (bài {chunk_start + 1} đến {chunk_end} trong tổng {total_posts} bài).
+- Nền tảng: {platforms_str}
 - Ngày bắt đầu: {start_date} (day=1)
 - Ngôn ngữ: {language}
-- Content mix: 40% educational, 20% promotional, 25% engagement, 15% entertaining
+- Content mix: 40% educational, 20% promotional, 25% engagement, 15% entertaining{competitive_hint}
 - KHÔNG viết caption, hook hay hashtags — chỉ lên kế hoạch chủ đề
 - KHÔNG lặp topic: {json.dumps(existing_topics[:20], ensure_ascii=False) if existing_topics else "Chưa có"}
 
@@ -183,6 +268,7 @@ Với mỗi bài, trả về:
 - topic (tiêu đề ngắn, gợi ý nội dung rõ ràng, không trùng lặp)
 - image_style_hint (educational_infographic / product_hero / lifestyle / fun_meme)
 - product_ref (tên sản phẩm nếu content_pillar=promotional, null nếu không)
+- platform (nền tảng phù hợp nhất: {platforms_str.split(",")[0].strip().lower() if platforms else "tiktok"})
 
 Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không text khác."""
 
@@ -191,7 +277,7 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
                 messages=[
                     {
                         "role": "system",
-                        "content": "Bạn là chuyên gia TikTok marketing. Luôn trả về JSON array hợp lệ.",
+                        "content": "Bạn là chuyên gia social media marketing. Luôn trả về JSON array hợp lệ.",
                     },
                     {"role": "user", "content": prompt},
                 ],
@@ -221,6 +307,8 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
         import uuid
         from datetime import datetime, timedelta
 
+        primary_platform = platforms[0].lower() if platforms else "tiktok"
+
         try:
             base_date = datetime.strptime(start_date, "%Y-%m-%d")
         except Exception:
@@ -235,6 +323,7 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
                     "post_id": f"post_{uuid.uuid4().hex[:12]}",
                     "day": day,
                     "date": post_date.strftime("%Y-%m-%d"),
+                    "platform": p.get("platform", primary_platform),
                     "content_pillar": p.get("content_pillar", "educational"),
                     "topic": p.get("topic", f"Post ngày {day}"),
                     "image_style_hint": p.get("image_style_hint", "lifestyle"),
@@ -249,6 +338,8 @@ Trả về JSON array với đúng {chunk_count} objects. Chỉ JSON, không tex
                     "image_url": None,
                     "image_job_id": None,
                     "image_generated_at": None,
+                    # Custom image (user upload)
+                    "custom_image_url": None,
                 }
             )
 
