@@ -161,7 +161,9 @@ async def fetch_social_posts(
             post["shares"] = item.get("shareCount")
             post["views"] = item.get("playCount")
             post["collects"] = item.get("collectCount")  # saves/bookmarks
-            post["is_video"] = not bool(item.get("isSlideshow", False))            post["is_pinned"] = bool(item.get("isPinned", False))            post["duration_sec"] = (item.get("videoMeta") or {}).get("duration")
+            post["is_video"] = not bool(item.get("isSlideshow", False))
+            post["is_pinned"] = bool(item.get("isPinned", False))
+            post["duration_sec"] = (item.get("videoMeta") or {}).get("duration")
             # Grab followers from authorMeta (same for every post from the same page)
             if page_followers is None:
                 page_followers = (item.get("authorMeta") or {}).get("fans")
@@ -218,8 +220,12 @@ async def fetch_social_posts(
         regular_posts = [p for p in posts if not p.get("is_pinned")]
         engagement_metrics = {
             "all": compute_engagement_metrics(posts),
-            "pinned": compute_engagement_metrics(pinned_posts) if pinned_posts else None,
-            "regular": compute_engagement_metrics(regular_posts) if regular_posts else None,
+            "pinned": (
+                compute_engagement_metrics(pinned_posts) if pinned_posts else None
+            ),
+            "regular": (
+                compute_engagement_metrics(regular_posts) if regular_posts else None
+            ),
             "has_pinned_split": True,
         }
     else:
