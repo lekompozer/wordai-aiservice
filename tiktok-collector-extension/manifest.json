@@ -1,0 +1,45 @@
+{
+    "manifest_version": 3,
+    "name": "WordAI TikTok Collector",
+    "version": "1.0.0",
+    "description": "Collect TikTok post captions, dates and stats for WordAI Content Engine analysis",
+    "permissions": [
+        "storage",
+        "scripting",
+        "tabs"
+    ],
+    "host_permissions": [
+        "https://www.tiktok.com/*",
+        "https://m.tiktok.com/*"
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "WordAI TikTok Collector",
+        "default_icon": {
+            "16": "icon.png",
+            "32": "icon.png",
+            "48": "icon.png",
+            "128": "icon.png"
+        }
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.tiktok.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "icons": {
+        "16": "icon.png",
+        "32": "icon.png",
+        "48": "icon.png",
+        "128": "icon.png"
+    }
+}

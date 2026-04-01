@@ -599,6 +599,51 @@ git push
 - ❌ Forgetting `eng_to_ipa` in requirements.txt — causes ImportError on first `/score` request
 - ✅ Models are lazy-loaded (singletons) — only loaded on first request, no startup cost
 
+## Cloudflare Worker — Community API (`/Users/user/Code/db-wordai-community`)
+
+### ⚠️ CRITICAL: Always deploy after pushing
+
+**`git push` alone does NOT deploy the worker.** Cloudflare Workers has NO CI/CD configured.
+
+After EVERY code change to `db-wordai-community`, you MUST run both:
+```bash
+cd /Users/user/Code/db-wordai-community
+git add -A && git commit -m "..." && git push
+npx wrangler deploy
+```
+
+**NEVER skip `npx wrangler deploy`** — without it, pushed code never goes live on Cloudflare.
+
+### Worker details
+- **URL**: `https://db-wordai-community.hoangnguyen358888.workers.dev`
+- **D1 Database**: `wordai_community` (id: `2059665e-e2a0-4dee-98f0-6f8e28f500b7`) — binding: `DB`
+- **Auth secret**: Cloudflare Secrets Store binding `SECRET`, store `76480feff5ab4442b3c347bb824b7654`, secret name `wordai` (see `wrangler.jsonc → secrets_store_secrets`)
+
+### ⚠️ CRITICAL: Worker secret env var
+
+All scripts that call `/query` or `/rest/*` on this worker **MUST** use `COMMUNITY_WORKER_SECRET` as the env var name:
+
+```bash
+# ✅ Correct — used by ALL community worker scripts
+COMMUNITY_WORKER_SECRET=<value> node scripts/seed-d1.js
+COMMUNITY_WORKER_SECRET=<value> node scripts/generate-fake-comments.js
+```
+
+The value to use is stored in Cloudflare Secrets Store. Retrieve it with:
+```bash
+cd /Users/user/Code/db-wordai-community
+npx wrangler secrets-store secret get --store-id 76480feff5ab4442b3c347bb824b7654 wordai
+```
+
+**NEVER use `D1_SECRET`, `WORKER_SECRET`, or any other name** — always `COMMUNITY_WORKER_SECRET`.
+
+The worker checks auth with:
+```ts
+const secret = await env.SECRET.get(); // fetched from Cloudflare Secrets Store at runtime
+if (token !== secret) return c.json({ error: 'Unauthorized' }, 401);
+```
+
+
 ## Quick Reference Links
 
 - Full docs: `/SYSTEM_REFERENCE.md`
