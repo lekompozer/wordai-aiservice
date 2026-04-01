@@ -162,3 +162,25 @@ async def get_channel_top(
     if cache_key:
         return await _cached(cache_key, TTL_TOP, fetch)
     return await fetch()
+
+
+@router.get("/posts/random")
+async def get_random_posts(
+    channel: Optional[str] = Query(
+        None, description="Channel slug, e.g. hot-videos, gym"
+    ),
+    limit: int = Query(20, ge=1, le=50),
+    exclude: Optional[str] = Query(
+        None, description="Comma-separated post IDs to exclude (max 200)"
+    ),
+    userId: Optional[str] = Query(None),
+):
+    """Random posts — fallback when nextCursor = null in Top feed. Not cached."""
+    params: dict = {"limit": limit}
+    if channel:
+        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
+    if exclude:
+        params["exclude"] = exclude
+    if userId:
+        params["userId"] = userId
+    return await _worker_get("/api/posts/random", params)
