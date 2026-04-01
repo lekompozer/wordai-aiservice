@@ -37,6 +37,7 @@ def _build_social_analysis_prompt(
     engagement_metrics: Optional[Dict[str, Any]] = None,
     followers_count: Optional[int] = None,
 ) -> str:
+    # Mark pinned posts in the posts block
     posts_block = ""
     for i, post in enumerate(posts[:MAX_POSTS_IN_PROMPT], 1):
         text = (post.get("text") or "").strip()[:MAX_POST_CHARS]
@@ -44,6 +45,8 @@ def _build_social_analysis_prompt(
         likes = post.get("likes", "")
         comments = post.get("comments", "")
         shares = post.get("shares", "")
+        views = post.get("views", "")
+        is_pinned = post.get("is_pinned", False)
         meta_parts = []
         if date:
             meta_parts.append(date)
@@ -53,13 +56,76 @@ def _build_social_analysis_prompt(
             meta_parts.append(f"{comments} comments")
         if shares != "":
             meta_parts.append(f"{shares} shares")
+        if views != "" and platform == "tiktok":
+            meta_parts.append(f"{views} views")
         meta_str = f" [{', '.join(meta_parts)}]" if meta_parts else ""
-        posts_block += f"{i}.{meta_str} {text}\n"
+        pin_label = " 📌[PINNED]" if is_pinned else ""
+        posts_block += f"{i}.{pin_label}{meta_str} {text}\n"
 
-    # Build engagement context block
+    # Build engagement context block — handle TikTok pinned/regular split
     engagement_block = ""
     m = engagement_metrics or {}
-    if m:
+
+    def _metric_lines(label: str, data: dict, fc: Optional[int] = None) -> List[str]:
+        lines = [f"  [{label}]"]
+        if fc:
+            lines.append(f"  - Followers: {fc:,}")
+        if data.get("posts_analyzed") is not None:
+            lines.append(f"  - Posts in sample: {data['posts_analyzed']}")
+        if data.get("avg_likes") is not None:
+            lines.append(f"  - Avg likes / post: {data['avg_likes']}")
+        if data.get("avg_comments") is not None:
+            lines.append(f"  - Avg comments / post: {data['avg_comments']}")
+        if data.get("avg_shares") is not None:
+            lines.append(f"  - Avg shares / post: {data['avg_shares']}")
+        if data.get("avg_views") is not None:
+            lines.append(f"  - Avg views / post: {data['avg_views']}")
+        if data.get("engagement_rate_pct") is not None:
+            lines.append(f"  - Engagement rate: {data['engagement_rate_pct']}%")
+        if data.get("top_post_by_likes"):
+            tp = data["top_post_by_likes"]
+            lines.append(
+                f"  - Top post ({tp['likes']} likes, {tp.get('views','?')} views): {(tp.get('text') or '')[:100]}"
+            )
+        return lines
+
+    if m.get("has_pinned_split"):
+        # TikTok with pinned posts — show three sections
+        all_lines: List[str] = []
+        if followers_count:
+            all_lines.append(f"- Followers: {followers_count:,}")
+        all_lines.append(
+            "⚠️ NOTE: This TikTok page has PINNED posts. Pinned posts are usually brand highlight/promo videos that accumulate views over months/years. They SKEW overall averages significantly."
+        )
+        all_lines.append(
+            "Use REGULAR post metrics to judge actual channel health and typical content performance."
+        )
+        all_lines.append("")
+
+        if m.get("pinned"):
+            all_lines += _metric_lines(
+                "PINNED POSTS (brand highlight / promo — NOT representative of daily performance)",
+                m["pinned"],
+            )
+            all_lines.append("")
+
+        if m.get("regular"):
+            all_lines += _metric_lines(
+                "REGULAR POSTS (actual daily channel performance)", m["regular"]
+            )
+            all_lines.append("")
+
+        if m.get("all"):
+            all_lines += _metric_lines(
+                "ALL POSTS COMBINED (skewed by pinned)", m["all"]
+            )
+
+        engagement_block = (
+            "\n=== ENGAGEMENT METRICS ===\n" + "\n".join(all_lines) + "\n"
+        )
+
+    elif m:
+        # Normal (no pinned split)
         lines = []
         if followers_count:
             lines.append(f"- Followers: {followers_count:,}")
@@ -93,6 +159,11 @@ def _build_social_analysis_prompt(
                 "\n=== ENGAGEMENT METRICS ===\n" + "\n".join(lines) + "\n"
             )
 
+    # Is TikTok with pinned split? Affects prompt instructions
+    has_pinned_split = isinstance(engagement_metrics, dict) and engagement_metrics.get(
+        "has_pinned_split"
+    )
+
     if language in ("en", "fr"):
         lang_instruction = (
             "Respond entirely in English."
@@ -108,8 +179,14 @@ def _build_social_analysis_prompt(
             "posting_schedule": "Typical posting times / days (if detectable from dates)",
             "post_frequency": "Estimated posting frequency (posts per day or week)",
             "content_themes": "Main content themes or topics",
-            "best_content_type": "Which content type gets the most engagement (video vs photo, promo vs educational, etc.) — base on likes/comments data",
-            "engagement_verdict": "Based on followers count and avg likes/comments — is this page highly engaged, average, or poorly engaged? Explain why.",
+            "best_content_type": "Which content type gets the most engagement — base on likes/comments/views data from REGULAR posts",
+            "engagement_verdict": (
+                "TikTok channel health based on REGULAR posts only (excluding pinned). Rate as High/Medium/Low/Very Low and explain. "
+                "Also explain what pinned posts reveal about their brand strategy."
+                if has_pinned_split
+                else "Based on followers count and avg likes/comments — is this page highly engaged, average, or poorly engaged? Explain why."
+            ),
+            "pinned_post_analysis": "Analysis of PINNED posts: what they reveal about the brand's top-performing content strategy, topic, and why they chose to pin it",
             "improvement_suggestions": "2-3 things we could do better than this competitor based on their weaknesses",
             "summary": "One-paragraph competitive intelligence summary",
         }
@@ -124,11 +201,24 @@ def _build_social_analysis_prompt(
             "posting_schedule": "Thời gian đăng bài thường là khi nào (nếu đọc được từ ngày đăng)",
             "post_frequency": "Tần suất đăng bài — một ngày đăng mấy bài, hay mấy bài / tuần",
             "content_themes": "Chủ đề nội dung chính họ thường đăng",
-            "best_content_type": "Dạng nội dung nào được like/comment nhiều nhất (video vs ảnh, khuyến mãi vs giáo dục, v.v.) — dựa trên dữ liệu likes/comments",
-            "engagement_verdict": "Nhận xét về mức độ thu hút thực sự của trang này dựa trên tỉ lệ like/comment so với số followers — có thực sự hiệu quả không?",
+            "best_content_type": "Dạng nội dung nào được like/comment/view nhiều nhất — dựa trên dữ liệu các bài THƯỜNG (không tính bài ghim)",
+            "engagement_verdict": (
+                "Sức khỏe kênh TikTok dựa trên các bài THƯỜNG (không tính bài ghim). "
+                "Đánh giá: Cao/Trung bình/Thấp/Rất thấp và giải thích tại sao. "
+                "Nêu rõ bài ghim cho thấy điều gì về chiến lược nội dung của họ."
+                if has_pinned_split
+                else "Nhận xét về mức độ thu hút thực sự của trang này dựa trên tỉ lệ like/comment so với số followers — có thực sự hiệu quả không?"
+            ),
+            "pinned_post_analysis": "Phân tích bài ghim (pinned posts): nội dung gì được ghim, tại sao họ chọn ghim, bài ghim thể hiện chiến lược nội dung gì của thương hiệu",
             "improvement_suggestions": "2-3 điều chúng ta có thể làm tốt hơn đối thủ này dựa trên điểm yếu của họ",
             "summary": "Tóm tắt một đoạn về đối thủ này dựa trên dữ liệu bài đăng",
         }
+
+    pinned_field = (
+        f',\n  "pinned_post_analysis": "{lbl["pinned_post_analysis"]}"'
+        if has_pinned_split
+        else ""
+    )
 
     return f"""{intro}
 
@@ -137,6 +227,7 @@ def _build_social_analysis_prompt(
 {engagement_block}
 === INSTRUCTIONS ===
 {lang_instruction}
+{"⚠️ IMPORTANT: This TikTok page has PINNED posts (marked 📌). Pinned posts accumulate views/likes over months and DO NOT represent typical daily content performance. Base your engagement_verdict and best_content_type on REGULAR posts only." if has_pinned_split else ""}
 Analyze these posts carefully and return JSON only (no other text):
 {{
   "target_audience": "{lbl['target_audience']}",
@@ -151,7 +242,7 @@ Analyze these posts carefully and return JSON only (no other text):
     "Theme 3"
   ],
   "best_content_type": "{lbl['best_content_type']}",
-  "engagement_verdict": "{lbl['engagement_verdict']}",
+  "engagement_verdict": "{lbl['engagement_verdict']}"{pinned_field},
   "improvement_suggestions": [
     "Suggestion 1",
     "Suggestion 2"

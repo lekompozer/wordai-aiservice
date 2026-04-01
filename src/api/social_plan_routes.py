@@ -828,12 +828,42 @@ async def competitor_social_demo(
     # TikTok: followers auto-scraped from authorMeta, no need to pass manually
     effective_followers = followers_count or scraped.get("page_followers")
 
-    # Recompute metrics including followers_count for engagement rate
-    metrics = scraped.get("engagement_metrics") or {}
+    # Recompute metrics with followers_count for engagement rate
+    # For TikTok with pinned posts: recompute the split with followers included
+    raw_metrics = scraped.get("engagement_metrics") or {}
     if effective_followers:
-        metrics = compute_engagement_metrics(
-            scraped["posts"], followers_count=effective_followers
-        )
+        posts = scraped["posts"]
+        platform = scraped["platform"]
+        has_pinned = any(p.get("is_pinned") for p in posts)
+        if platform == "tiktok" and has_pinned:
+            pinned_posts = [p for p in posts if p.get("is_pinned")]
+            regular_posts = [p for p in posts if not p.get("is_pinned")]
+            metrics = {
+                "all": compute_engagement_metrics(
+                    posts, followers_count=effective_followers
+                ),
+                "pinned": (
+                    compute_engagement_metrics(
+                        pinned_posts, followers_count=effective_followers
+                    )
+                    if pinned_posts
+                    else None
+                ),
+                "regular": (
+                    compute_engagement_metrics(
+                        regular_posts, followers_count=effective_followers
+                    )
+                    if regular_posts
+                    else None
+                ),
+                "has_pinned_split": True,
+            }
+        else:
+            metrics = compute_engagement_metrics(
+                posts, followers_count=effective_followers
+            )
+    else:
+        metrics = raw_metrics
 
     analysis = await analyze_social_posts(
         competitor_url=social_url,
