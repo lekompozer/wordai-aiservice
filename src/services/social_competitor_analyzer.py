@@ -249,7 +249,7 @@ async def analyze_multiple_social(
         platform = scraped.get("platform", "unknown")
         posts = scraped.get("posts", [])
         metrics = scraped.get("engagement_metrics")
-        fc = (followers_counts or {}).get(url)
+        fc = (followers_counts or {}).get(url) or scraped.get("page_followers")
 
         # If followers_count given, recompute metrics with it
         if fc and metrics:

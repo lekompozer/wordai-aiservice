@@ -57,8 +57,17 @@ def _extract_text_from_post(item: dict, platform: str) -> Optional[str]:
     if platform == "instagram":
         return item.get("caption") or item.get("text")
     if platform == "tiktok":
+        # TikTok text field is directly "text"
         return item.get("text") or item.get("desc") or item.get("description")
     return None
+
+
+def _extract_tiktok_username(url: str) -> str:
+    """Extract @username from a TikTok URL for the profiles input."""
+    import re as _re
+
+    m = _re.search(r"tiktok\.com/@([^/?#]+)", url)
+    return m.group(1) if m else url
 
 
 def _build_run_input(url: str, platform: str, limit: int) -> tuple[str, dict]:
@@ -76,11 +85,22 @@ def _build_run_input(url: str, platform: str, limit: int) -> tuple[str, dict]:
             "resultsLimit": limit,
             "addParentData": False,
         }
-    # tiktok
+    # TikTok — clockworks~tiktok-scraper
+    # profiles accepts @username strings, not full URLs
+    username = _extract_tiktok_username(url)
     return ACTOR_TIKTOK, {
-        "profiles": [url],
+        "profiles": [username],
         "resultsPerPage": limit,
-        "scrapeLastNDays": 90,
+        "profileScrapeSections": ["videos"],
+        "profileSorting": "latest",
+        "shouldDownloadVideos": False,
+        "shouldDownloadCovers": False,
+        "shouldDownloadAvatars": False,
+        "shouldDownloadSubtitles": False,
+        "shouldDownloadSlideshowImages": False,
+        "shouldDownloadMusicCovers": False,
+        "scrapeRelatedVideos": False,
+        "excludePinnedPosts": False,
     }
 
 
@@ -125,53 +145,69 @@ async def fetch_social_posts(
     raw_items = await _run_apify_actor(actor_id, run_input, token)
 
     posts = []
+    page_followers: Optional[int] = None  # extracted from TikTok authorMeta
+
     for item in raw_items[:limit]:
         text = _extract_text_from_post(item, platform)
         if not text or not text.strip():
             continue
         post: Dict[str, Any] = {"text": text.strip()}
 
-        # Human-readable date preferred, fallback to unix timestamp
-        for date_key in ("time", "date", "createdAt", "publishedAt", "timestamp"):
-            if item.get(date_key):
-                post["date"] = str(item[date_key])
-                break
+        if platform == "tiktok":
+            # TikTok has its own specific field names from clockworks~tiktok-scraper
+            post["date"] = item.get("createTimeISO") or str(item.get("createTime", ""))
+            post["likes"] = item.get("diggCount")  # likes = diggs on TikTok
+            post["comments"] = item.get("commentCount")
+            post["shares"] = item.get("shareCount")
+            post["views"] = item.get("playCount")
+            post["collects"] = item.get("collectCount")  # saves/bookmarks
+            post["is_video"] = not bool(item.get("isSlideshow", False))
+            post["duration_sec"] = (item.get("videoMeta") or {}).get("duration")
+            # Grab followers from authorMeta (same for every post from the same page)
+            if page_followers is None:
+                page_followers = (item.get("authorMeta") or {}).get("fans")
+        else:
+            # Human-readable date preferred, fallback to unix timestamp
+            for date_key in ("time", "date", "createdAt", "publishedAt", "timestamp"):
+                if item.get(date_key):
+                    post["date"] = str(item[date_key])
+                    break
 
-        # Facebook: likes = reactionLikeCount + other reactions (topReactionsCount is total)
-        # Use topReactionsCount as total reactions when available, else likes field
-        for likes_key in ("topReactionsCount", "likes", "likesCount", "likeCount"):
-            if item.get(likes_key) is not None:
-                post["likes"] = item[likes_key]
-                break
+            # Facebook: topReactionsCount = total reactions
+            for likes_key in ("topReactionsCount", "likes", "likesCount", "likeCount"):
+                if item.get(likes_key) is not None:
+                    post["likes"] = item[likes_key]
+                    break
 
-        for comments_key in (
-            "comments",
-            "commentsCount",
-            "commentCount",
-            "numComments",
-        ):
-            if item.get(comments_key) is not None:
-                post["comments"] = item[comments_key]
-                break
+            for comments_key in (
+                "comments",
+                "commentsCount",
+                "commentCount",
+                "numComments",
+            ):
+                if item.get(comments_key) is not None:
+                    post["comments"] = item[comments_key]
+                    break
 
-        for shares_key in ("shares", "sharesCount", "shareCount", "numShares"):
-            if item.get(shares_key) is not None:
-                post["shares"] = item[shares_key]
-                break
+            for shares_key in ("shares", "sharesCount", "shareCount", "numShares"):
+                if item.get(shares_key) is not None:
+                    post["shares"] = item[shares_key]
+                    break
 
-        # viewsCount is the exact Facebook field name from Apify
-        for views_key in (
-            "viewsCount",
-            "views",
-            "viewCount",
-            "videoViewCount",
-            "playCount",
-        ):
-            if item.get(views_key) is not None:
-                post["views"] = item[views_key]
-                break
+            # viewsCount is the exact Facebook field name from Apify
+            for views_key in (
+                "viewsCount",
+                "views",
+                "viewCount",
+                "videoViewCount",
+                "playCount",
+            ):
+                if item.get(views_key) is not None:
+                    post["views"] = item[views_key]
+                    break
 
-        post["is_video"] = bool(item.get("isVideo", False))
+            post["is_video"] = bool(item.get("isVideo", False))
+
         posts.append(post)
 
     logger.info(f"[Apify] Got {len(posts)} text posts from {url}")
@@ -181,6 +217,8 @@ async def fetch_social_posts(
         "posts": posts,
         "posts_count": len(posts),
         "engagement_metrics": compute_engagement_metrics(posts),
+        # For TikTok, followers scraped automatically from authorMeta
+        "page_followers": page_followers,
     }
 
 

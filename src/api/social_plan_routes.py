@@ -825,11 +825,14 @@ async def competitor_social_demo(
         logger.error("competitor_social_demo scrape error: %s", e)
         raise HTTPException(status_code=502, detail=f"Scrape failed: {e}")
 
-    # Recompute metrics with followers_count if provided
+    # TikTok: followers auto-scraped from authorMeta, no need to pass manually
+    effective_followers = followers_count or scraped.get("page_followers")
+
+    # Recompute metrics including followers_count for engagement rate
     metrics = scraped.get("engagement_metrics") or {}
-    if followers_count:
+    if effective_followers:
         metrics = compute_engagement_metrics(
-            scraped["posts"], followers_count=followers_count
+            scraped["posts"], followers_count=effective_followers
         )
 
     analysis = await analyze_social_posts(
@@ -838,14 +841,14 @@ async def competitor_social_demo(
         posts=scraped["posts"],
         language=language,
         engagement_metrics=metrics,
-        followers_count=followers_count,
+        followers_count=effective_followers,
     )
 
     return {
         "demo": True,
         "platform": scraped["platform"],
         "url": social_url,
-        "followers_count": followers_count,
+        "followers_count": effective_followers,
         "posts_fetched": scraped["posts_count"],
         "engagement_metrics": metrics,
         "posts": scraped["posts"],  # raw posts for UI display
