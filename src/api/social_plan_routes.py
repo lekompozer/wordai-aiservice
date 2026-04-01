@@ -531,7 +531,220 @@ async def create_social_plan(
 
 
 # ──────────────────────────────────────────────────────────
-# ② STATUS ENDPOINT (static path — before /{plan_id})
+# ② ANALYZE WEBSITE + BRAND PROFILES (static paths — before /{plan_id})
+# ──────────────────────────────────────────────────────────
+
+
+class BrandProfileUpdateRequest(BaseModel):
+    brand_name: Optional[str] = None
+    description: Optional[str] = None
+    problem_solved: Optional[str] = None
+    solution: Optional[str] = None
+    target_audience: Optional[str] = None
+    use_cases: Optional[List[str]] = None
+    key_features: Optional[List[str]] = None
+    competitive_advantages: Optional[List[str]] = None
+    competitors: Optional[List[dict]] = None
+    industry: Optional[str] = None
+    colors: Optional[dict] = None
+    logo_url: Optional[str] = None
+    website_url: Optional[str] = None
+
+
+@router.post(
+    "/analyze-website", summary="Analyze a brand website and save Brand Profile"
+)
+async def analyze_brand_website(
+    website_url: str = Form(...),
+    language: str = Form("vi"),
+    extra_hint: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Crawl a website URL, auto-discover sub-pages (About/Products/Pricing/Team),
+    then use GPT-5.4 to extract a structured Brand Profile card — similar to Cremyx
+    Content Engine's website analysis.
+
+    The profile is saved to the user's brand_profiles collection and can be edited.
+
+    Returns the full brand profile including:
+      brand_name, description, problem_solved, solution, target_audience,
+      use_cases, key_features, competitive_advantages, competitors (auto-detected),
+      industry, colors, logo_url, website_url
+    """
+    import uuid
+    from src.services.brand_analyzer import analyze_website_url
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    try:
+        brand_profile = await analyze_website_url(
+            url=website_url,
+            language=language,
+            extra_hint=extra_hint,
+        )
+    except Exception as e:
+        logger.error(f"[analyze-website] Failed for {website_url}: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Phân tích website thất bại: {str(e)}"
+        )
+
+    now = datetime.now(timezone.utc)
+    profile_id = f"bp_{uuid.uuid4().hex[:16]}"
+
+    doc = {
+        "_id": uuid.uuid4().hex,
+        "profile_id": profile_id,
+        "user_id": user_id,
+        "created_at": now,
+        "updated_at": now,
+        # Core brand fields (all editable)
+        "brand_name": brand_profile.get("brand_name", ""),
+        "website_url": brand_profile.get("website_url", website_url),
+        "logo_url": brand_profile.get("logo_url", ""),
+        "industry": brand_profile.get("industry", ""),
+        "description": brand_profile.get("description", ""),
+        "problem_solved": brand_profile.get("problem_solved", ""),
+        "solution": brand_profile.get("solution", ""),
+        "target_audience": brand_profile.get("target_audience", ""),
+        "use_cases": brand_profile.get("use_cases", []),
+        "key_features": brand_profile.get("key_features", []),
+        "competitive_advantages": brand_profile.get("competitive_advantages", []),
+        "competitors": brand_profile.get("competitors", []),
+        "colors": brand_profile.get(
+            "colors", {"primary": "#000000", "secondary": "", "tertiary": ""}
+        ),
+        # Analysis metadata
+        "_crawled_urls": brand_profile.get("_crawled_urls", [website_url]),
+        "_crawled_pages_count": brand_profile.get("_crawled_pages_count", 1),
+        "language": language,
+    }
+    db["brand_profiles"].insert_one(doc)
+
+    return {k: v for k, v in doc.items() if not k.startswith("_id")}
+
+
+@router.post(
+    "/analyze-website/compare",
+    summary="Compare GPT-5.4 vs DeepSeek R1 on same brand website",
+)
+async def compare_brand_analysis(
+    website_url: str = Form(...),
+    extra_hint: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Crawl the website once, then run both GPT-5.4 and DeepSeek R1 (thinking)
+    in parallel and return both results for side-by-side comparison.
+
+    Returns: { "gpt54": {...}, "deepseek_r1": {...}, "_crawled_urls": [...] }
+    """
+    from src.services.brand_analyzer import analyze_website_url_compare
+
+    try:
+        result = await analyze_website_url_compare(
+            url=website_url, extra_hint=extra_hint
+        )
+    except Exception as e:
+        logger.error("compare_brand_analysis error: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+    return result
+
+
+@router.get("/brand-profiles", summary="List user's saved brand profiles")
+async def list_brand_profiles(
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return all brand profiles the user has analyzed and saved."""
+    user_id = current_user["uid"]
+    db = _get_db()
+    skip = (page - 1) * limit
+    profiles = list(
+        db["brand_profiles"]
+        .find(
+            {"user_id": user_id},
+            {"_id": 0},
+        )
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    total = db["brand_profiles"].count_documents({"user_id": user_id})
+    return {"profiles": profiles, "total": total, "page": page, "limit": limit}
+
+
+@router.get("/brand-profiles/{profile_id}", summary="Get a single brand profile")
+async def get_brand_profile(
+    profile_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Retrieve a saved brand profile by ID."""
+    user_id = current_user["uid"]
+    db = _get_db()
+    profile = db["brand_profiles"].find_one(
+        {"profile_id": profile_id, "user_id": user_id}, {"_id": 0}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Brand profile not found")
+    return profile
+
+
+@router.put("/brand-profiles/{profile_id}", summary="Update / edit a brand profile")
+async def update_brand_profile(
+    profile_id: str,
+    body: BrandProfileUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Edit any field of a saved brand profile.
+    Only the fields provided in the request body are updated.
+    """
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    profile = db["brand_profiles"].find_one(
+        {"profile_id": profile_id, "user_id": user_id}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Brand profile not found")
+
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
+    updates["updated_at"] = datetime.now(timezone.utc)
+    db["brand_profiles"].update_one(
+        {"profile_id": profile_id, "user_id": user_id},
+        {"$set": updates},
+    )
+
+    updated = db["brand_profiles"].find_one(
+        {"profile_id": profile_id, "user_id": user_id}, {"_id": 0}
+    )
+    return updated
+
+
+@router.delete("/brand-profiles/{profile_id}", summary="Delete a brand profile")
+async def delete_brand_profile(
+    profile_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a saved brand profile."""
+    user_id = current_user["uid"]
+    db = _get_db()
+    result = db["brand_profiles"].delete_one(
+        {"profile_id": profile_id, "user_id": user_id}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Brand profile not found")
+    return {"deleted": True, "profile_id": profile_id}
+
+
+# ──────────────────────────────────────────────────────────
+# ③ STATUS ENDPOINT (static path — before /{plan_id})
 # ──────────────────────────────────────────────────────────
 
 
@@ -564,8 +777,180 @@ async def get_plan_job_status(
     }
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# ③ COMPETITOR SOCIAL ANALYSIS  (Apify + DeepSeek R1)
+#    All static paths — must stay BEFORE /{plan_id} dynamic route
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/competitor-social/demo",
+    summary="[FREE] Fetch & analyze 10 latest posts from 1 social page",
+)
+async def competitor_social_demo(
+    social_url: str = Form(..., description="URL of a Facebook / Instagram / TikTok page"),
+    language: str = Form("vi", description="Response language: vi, en, fr, …"),
+):
+    """
+    Demo endpoint — no auth required.
+    Fetches the 10 most recent text posts from the given page and returns a
+    DeepSeek R1 competitive-intelligence analysis so prospects can see value
+    before they subscribe.
+
+    Cost: ~$0.05 (10 posts × $5/1,000).
+    """
+    from src.services.apify_scraper import fetch_social_posts
+    from src.services.social_competitor_analyzer import analyze_social_posts
+
+    apify_token = os.getenv("APIFY_API_TOKEN")
+    if not apify_token:
+        raise HTTPException(status_code=503, detail="Apify integration not configured")
+
+    try:
+        scraped = await fetch_social_posts(social_url, limit=10, apify_token=apify_token)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error("competitor_social_demo scrape error: %s", e)
+        raise HTTPException(status_code=502, detail=f"Scrape failed: {e}")
+
+    analysis = await analyze_social_posts(
+        competitor_url=social_url,
+        platform=scraped["platform"],
+        posts=scraped["posts"],
+        language=language,
+    )
+
+    return {
+        "demo": True,
+        "platform": scraped["platform"],
+        "url": social_url,
+        "posts_fetched": scraped["posts_count"],
+        "posts": scraped["posts"],          # raw posts for UI display
+        "analysis": analysis,
+    }
+
+
+@router.post(
+    "/competitor-social/analyze",
+    summary="Fetch & analyze 15 posts × up to 3 competitors on one channel",
+)
+async def competitor_social_analyze(
+    social_urls: str = Form(
+        ...,
+        description='JSON array of up to 3 social URLs on the SAME platform, e.g. ["url1","url2","url3"]',
+    ),
+    language: str = Form("vi"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Paid analysis: scrape 15 posts from each URL (max 3), analyze with DeepSeek R1.
+    All URLs must be on the same platform (Facebook, Instagram, or TikTok).
+
+    Cost: ~$0.225 (15 posts × 3 competitors × $5/1,000).
+    Results are saved to `competitor_social_analyses` MongoDB collection.
+    """
+    import json as _json
+
+    from src.services.apify_scraper import fetch_multiple_competitors
+    from src.services.social_competitor_analyzer import analyze_multiple_social
+
+    apify_token = os.getenv("APIFY_API_TOKEN")
+    if not apify_token:
+        raise HTTPException(status_code=503, detail="Apify integration not configured")
+
+    try:
+        urls: List[str] = _json.loads(social_urls)
+        if not isinstance(urls, list) or not urls:
+            raise ValueError("social_urls must be a non-empty JSON array")
+        urls = urls[:3]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid social_urls: {e}")
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    # ── Scrape ──────────────────────────────────────────────────────────────
+    try:
+        scraped_list = await fetch_multiple_competitors(
+            urls, limit_per_url=15, apify_token=apify_token
+        )
+    except Exception as e:
+        logger.error("competitor_social_analyze scrape error: %s", e)
+        raise HTTPException(status_code=502, detail=f"Scrape failed: {e}")
+
+    # ── Analyze ─────────────────────────────────────────────────────────────
+    analyses = await analyze_multiple_social(scraped_list, language=language)
+
+    # ── Persist ─────────────────────────────────────────────────────────────
+    import uuid as _uuid
+    import datetime as _dt
+
+    analysis_id = f"ca_{_uuid.uuid4().hex[:16]}"
+    doc = {
+        "analysis_id": analysis_id,
+        "user_id": user_id,
+        "language": language,
+        "platform": scraped_list[0].get("platform") if scraped_list else "unknown",
+        "competitors": analyses,
+        "raw_posts": [
+            {"url": s["url"], "posts": s["posts"], "posts_count": s["posts_count"]}
+            for s in scraped_list
+        ],
+        "created_at": _dt.datetime.utcnow(),
+    }
+    db["competitor_social_analyses"].insert_one(doc)
+
+    return {
+        "analysis_id": analysis_id,
+        "competitors_analyzed": len(analyses),
+        "competitors": analyses,
+        "raw_posts": doc["raw_posts"],
+    }
+
+
+@router.get(
+    "/competitor-social/analyses",
+    summary="List saved competitor social analyses for the current user",
+)
+async def list_competitor_analyses(
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["uid"]
+    db = _get_db()
+    skip = (page - 1) * limit
+    items = list(
+        db["competitor_social_analyses"]
+        .find({"user_id": user_id}, {"_id": 0, "raw_posts": 0})
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    return {"page": page, "limit": limit, "items": items}
+
+
+@router.get(
+    "/competitor-social/analyses/{analysis_id}",
+    summary="Get a specific competitor social analysis",
+)
+async def get_competitor_analysis(
+    analysis_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    db = _get_db()
+    doc = db["competitor_social_analyses"].find_one(
+        {"analysis_id": analysis_id, "user_id": current_user["uid"]},
+        {"_id": 0},
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return doc
+
+
 # ──────────────────────────────────────────────────────────
-# ③ DYNAMIC ROUTES (plan_id param — MUST be AFTER static routes)
+# ④ DYNAMIC ROUTES (plan_id param — MUST be AFTER static routes)
 # ──────────────────────────────────────────────────────────
 
 
