@@ -788,8 +788,14 @@ async def get_plan_job_status(
     summary="[FREE] Fetch & analyze 10 latest posts from 1 social page",
 )
 async def competitor_social_demo(
-    social_url: str = Form(..., description="URL of a Facebook / Instagram / TikTok page"),
+    social_url: str = Form(
+        ..., description="URL of a Facebook / Instagram / TikTok page"
+    ),
     language: str = Form("vi", description="Response language: vi, en, fr, …"),
+    followers_count: Optional[int] = Form(
+        None,
+        description="Optional: follower count of the page (for engagement rate calculation)",
+    ),
 ):
     """
     Demo endpoint — no auth required.
@@ -799,7 +805,10 @@ async def competitor_social_demo(
 
     Cost: ~$0.05 (10 posts × $5/1,000).
     """
-    from src.services.apify_scraper import fetch_social_posts
+    from src.services.apify_scraper import (
+        compute_engagement_metrics,
+        fetch_social_posts,
+    )
     from src.services.social_competitor_analyzer import analyze_social_posts
 
     apify_token = os.getenv("APIFY_API_TOKEN")
@@ -807,26 +816,39 @@ async def competitor_social_demo(
         raise HTTPException(status_code=503, detail="Apify integration not configured")
 
     try:
-        scraped = await fetch_social_posts(social_url, limit=10, apify_token=apify_token)
+        scraped = await fetch_social_posts(
+            social_url, limit=10, apify_token=apify_token
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error("competitor_social_demo scrape error: %s", e)
         raise HTTPException(status_code=502, detail=f"Scrape failed: {e}")
 
+    # Recompute metrics with followers_count if provided
+    metrics = scraped.get("engagement_metrics") or {}
+    if followers_count:
+        metrics = compute_engagement_metrics(
+            scraped["posts"], followers_count=followers_count
+        )
+
     analysis = await analyze_social_posts(
         competitor_url=social_url,
         platform=scraped["platform"],
         posts=scraped["posts"],
         language=language,
+        engagement_metrics=metrics,
+        followers_count=followers_count,
     )
 
     return {
         "demo": True,
         "platform": scraped["platform"],
         "url": social_url,
+        "followers_count": followers_count,
         "posts_fetched": scraped["posts_count"],
-        "posts": scraped["posts"],          # raw posts for UI display
+        "engagement_metrics": metrics,
+        "posts": scraped["posts"],  # raw posts for UI display
         "analysis": analysis,
     }
 
@@ -841,6 +863,10 @@ async def competitor_social_analyze(
         description='JSON array of up to 3 social URLs on the SAME platform, e.g. ["url1","url2","url3"]',
     ),
     language: str = Form("vi"),
+    followers_counts: Optional[str] = Form(
+        None,
+        description='Optional JSON object mapping URL → follower count, e.g. {"https://fb.com/page": 316000}',
+    ),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -866,6 +892,13 @@ async def competitor_social_analyze(
         urls = urls[:3]
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid social_urls: {e}")
+
+    fc_map: dict = {}
+    if followers_counts:
+        try:
+            fc_map = _json.loads(followers_counts)
+        except Exception:
+            pass  # followers_counts is optional, ignore parse errors
 
     user_id = current_user["uid"]
     db = _get_db()
@@ -906,6 +939,10 @@ async def competitor_social_analyze(
         "competitors_analyzed": len(analyses),
         "competitors": analyses,
         "raw_posts": doc["raw_posts"],
+        "engagement_summary": [
+            {"url": s["url"], "metrics": s.get("engagement_metrics")}
+            for s in scraped_list
+        ],
     }
 
 
