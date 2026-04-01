@@ -61,7 +61,7 @@ async def get_trending_posts(
     cache_key = f"cf:community:trending:{scope}:v1" if not userId else None
     params = {"limit": limit}
     if channel:
-        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
+        params["channel"] = channel
     if userId:
         params["userId"] = userId
 
@@ -88,7 +88,7 @@ async def get_top_posts(
     cache_key = f"cf:community:top:{scope}:v1" if is_page1 else None
     params = {"limit": limit}
     if channel:
-        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
+        params["channel"] = channel
     if cursor:
         params["cursor"] = cursor
     if userId:
@@ -112,7 +112,7 @@ async def get_hot_channels(
     cache_key = f"cf:community:hot_channels:{scope}:v1"
     params = {"limit": limit}
     if channel:
-        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
+        params["channel"] = channel
 
     async def fetch():
         return await _worker_get("/api/channels/hot", params)
@@ -178,7 +178,7 @@ async def get_random_posts(
     """Random posts — fallback when nextCursor = null in Top feed. Not cached."""
     params: dict = {"limit": limit}
     if channel:
-        params["category"] = channel  # D1 Worker uses 'category' column = channel slug
+        params["channel"] = channel
     if exclude:
         params["exclude"] = exclude
     if userId:
