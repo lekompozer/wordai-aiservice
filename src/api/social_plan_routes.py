@@ -1164,8 +1164,8 @@ async def brand_compare_enqueue(
     try:
         await points_svc.deduct_points(
             user_id=user_id,
-            points=POINTS_BRAND_COMPARE,
-            action="brand_compare",
+            amount=POINTS_BRAND_COMPARE,
+            service="brand_compare",
             description=f"Brand vs competitors analysis: {my_url}",
         )
     except InsufficientPointsError as e:
