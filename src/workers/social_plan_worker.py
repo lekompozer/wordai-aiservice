@@ -529,40 +529,28 @@ class SocialPlanWorker:
             my_analysis = page_analyses[0] if page_analyses else {}
             competitor_analyses = page_analyses[1:]
 
-            # ── Step 3: Auto-screenshot + Batch ChatGPT Vision ────────
-            # ScreenshotAPI takes screenshots of all 4 pages, then ONE ChatGPT
-            # Vision call analyzes all pages together (cheaper, faster).
+            # ── Step 3: Design analysis via Apify post thumbnails ─────
+            # Use post cover URLs (TikTok coverUrl / Instagram displayUrl)
+            # already scraped — no CAPTCHA, better content insight.
             from src.services.brand_comparison_service import (
-                take_all_screenshots,
-                analyze_all_designs_batch,
+                analyze_all_designs_from_thumbnails,
                 run_brand_comparison,
             )
 
-            screenshot_api_key = os.getenv("SCREENSHOTAPI_API_KEY")
-            has_manual = any(u for u in screenshot_urls if u)
-            screenshots_b64: list = [None] * len(all_urls)
+            def _get_thumbnail_urls(scraped_data: dict) -> list:
+                em = scraped_data.get("engagement_metrics", {})
+                if isinstance(em, dict) and em.get("has_pinned_split"):
+                    for key in ("regular", "all"):
+                        urls = em.get(key, {}).get("thumbnail_urls")
+                        if urls:
+                            return urls
+                return em.get("thumbnail_urls", []) if isinstance(em, dict) else []
 
-            if screenshot_api_key and not has_manual:
-                await set_job_status(
-                    self.redis,
-                    job_id,
-                    "processing",
-                    user_id=user_id,
-                    step="screenshots",
-                    progress=65,
-                    message=f"Đang chụp ảnh {len(all_urls)} trang (ScreenshotAPI)...",
-                )
-                screenshots_b64 = await take_all_screenshots(
-                    all_urls, screenshot_api_key
-                )
-                taken = sum(1 for b in screenshots_b64 if b)
-                logger.info(
-                    f"[BrandCompare] Screenshots taken: {taken}/{len(all_urls)}"
-                )
-            else:
-                logger.info(
-                    "[BrandCompare] No SCREENSHOTAPI_API_KEY or manual screenshots provided — skipping Vision"
-                )
+            page_thumbnail_urls = [_get_thumbnail_urls(s) for s in scraped_all]
+            taken = sum(1 for t in page_thumbnail_urls if t)
+            logger.info(
+                f"[BrandCompare] Thumbnail URLs collected: {taken}/{len(all_urls)} pages"
+            )
 
             await set_job_status(
                 self.redis,
@@ -571,13 +559,12 @@ class SocialPlanWorker:
                 user_id=user_id,
                 step="design_analysis",
                 progress=70,
-                message="Đang phân tích phong cách thiết kế với ChatGPT Vision (batch)...",
+                message="Đang phân tích phong cách thiết kế với ChatGPT Vision (thumbnails)...",
             )
 
-            # One ChatGPT Vision call for all pages together
-            design_by_url = await analyze_all_designs_batch(
+            design_by_url = await analyze_all_designs_from_thumbnails(
                 page_urls=all_urls,
-                screenshots_b64=screenshots_b64,
+                page_thumbnail_urls=page_thumbnail_urls,
                 language=language,
             )
             design_analyses = [design_by_url.get(url) for url in all_urls]

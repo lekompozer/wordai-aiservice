@@ -164,6 +164,8 @@ async def fetch_social_posts(
             post["is_video"] = not bool(item.get("isSlideshow", False))
             post["is_pinned"] = bool(item.get("isPinned", False))
             post["duration_sec"] = (item.get("videoMeta") or {}).get("duration")
+            # Thumbnail cover image URL (available even when shouldDownloadCovers=False)
+            post["cover_url"] = (item.get("videoMeta") or {}).get("coverUrl")
             # Grab followers from authorMeta (same for every post from the same page)
             if page_followers is None:
                 page_followers = (item.get("authorMeta") or {}).get("fans")
@@ -320,6 +322,19 @@ def compute_engagement_metrics(
         ) / (n - len(video_posts))
         metrics["avg_likes_video"] = round(avg_likes_video, 1)
         metrics["avg_likes_photo"] = round(avg_likes_photo, 1)
+
+    # Top 6 thumbnail URLs for design analysis (TikTok coverUrl / Instagram displayUrl)
+    # Sorted by likes descending so we show the most popular posts
+    posts_with_cover = [
+        p
+        for p in sorted(posts, key=lambda p: p.get("likes") or 0, reverse=True)
+        if p.get("cover_url") or p.get("display_url")
+    ]
+    thumbnail_urls = [
+        p.get("cover_url") or p.get("display_url") for p in posts_with_cover[:6]
+    ]
+    if thumbnail_urls:
+        metrics["thumbnail_urls"] = thumbnail_urls
 
     return metrics
 

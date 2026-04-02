@@ -100,6 +100,154 @@ async def take_all_screenshots(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Step A1b — Use Apify post thumbnails instead of profile screenshots
+# TikTok/Instagram block headless browsers with CAPTCHA on profile pages.
+# Instead, use the top-posts cover images (already scraped by Apify) which
+# give better content-style insight than a blocked profile screenshot.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def analyze_all_designs_from_thumbnails(
+    page_urls: List[str],
+    page_thumbnail_urls: List[List[str]],  # list of lists: 6 thumbnail URLs per page
+    language: str = "vi",
+) -> Dict[str, Any]:
+    """
+    Analyze the visual/content style of each social page by sending their
+    top post thumbnail images to ChatGPT Vision in a single batch call.
+
+    page_thumbnail_urls[i] = list of up to 6 cover image URLs for page_urls[i].
+    Returns dict mapping page_url → design analysis dict.
+    """
+    openai_key = os.getenv("CHATGPT_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if not openai_key:
+        logger.warning(
+            "[BrandCompare] CHATGPT_API_KEY not set — skipping design analysis"
+        )
+        return {"_skipped": True, "reason": "CHATGPT_API_KEY not configured"}
+
+    # Only include pages that have at least 1 thumbnail
+    valid_indices = [i for i, thumbs in enumerate(page_thumbnail_urls) if thumbs]
+    if not valid_indices:
+        return {
+            "_skipped": True,
+            "reason": "No thumbnail URLs available from scraped posts",
+        }
+
+    labels = ["MY_PAGE"] + [f"COMPETITOR_{i}" for i in range(1, len(page_urls))]
+
+    if language == "en":
+        intro = (
+            "You are a social media content design analyst.\n"
+            "I'm sending you thumbnail images from multiple TikTok / social media pages "
+            "(top posts by likes for each page).\n\n"
+            "Pages and their thumbnail order:\n"
+        )
+        per_page_instruction = (
+            "For EACH page label, analyze the visual design and content style based "
+            "on all its thumbnails combined.\n"
+            "Return a single JSON object: {<label>: <analysis>, ...}\n"
+            "Return ONLY valid JSON, no markdown fences."
+        )
+    elif language == "fr":
+        intro = (
+            "Vous êtes analyste design contenu réseaux sociaux.\n"
+            "Je vous envoie des images miniatures de plusieurs pages TikTok (top posts).\n\n"
+            "Pages et ordre des miniatures:\n"
+        )
+        per_page_instruction = (
+            "Pour CHAQUE label de page, analysez le style visuel et de contenu.\n"
+            "Retournez un JSON: {<label>: <analyse>, ...}\n"
+            "JSON uniquement, pas de markdown."
+        )
+    else:
+        intro = (
+            "Bạn là chuyên gia phân tích phong cách thiết kế nội dung mạng xã hội.\n"
+            "Tôi gửi cho bạn các ảnh thumbnail của nhiều trang TikTok (top posts theo lượt like).\n\n"
+            "Các trang và thứ tự thumbnail:\n"
+        )
+        per_page_instruction = (
+            "Với MỖI label trang, phân tích phong cách thiết kế và nội dung dựa trên tất cả thumbnails của trang đó.\n"
+            "Trả về JSON: {<label>: <phân tích>, ...}\n"
+            "Chỉ trả về JSON hợp lệ, không có markdown."
+        )
+
+    schema = (
+        "{\n"
+        '  "visual_style": "minimalist | editorial | bold | product-focused | lifestyle | educational | meme | mixed",\n'
+        '  "uses_real_people": true/false,\n'
+        '  "uses_ai_generated": "yes | no | mixed | unclear",\n'
+        '  "content_format": "talking-head | infographic | product-shots | lifestyle | text-overlay | meme | mixed",\n'
+        '  "design_quality": "professional | amateur | mixed",\n'
+        '  "brand_colors": "dominant colors and palette description",\n'
+        '  "thumbnail_style": "text-heavy | face-close-up | product-demo | mascot-character | abstract | lifestyle | etc.",\n'
+        '  "hook_style": "how thumbnails grab attention: shock | humor | curiosity | beauty | authority | etc.",\n'
+        '  "summary": "2-3 sentence content design style summary"\n'
+        "}"
+    )
+
+    # Build page summary lines + image content items
+    page_lines = []
+    content_items: List[dict] = []
+
+    for i in valid_indices:
+        lbl = labels[i]
+        thumbs = page_thumbnail_urls[i]
+        url = page_urls[i]
+        page_lines.append(f"  - {lbl} ({url}): {len(thumbs)} thumbnails follow")
+
+    text_prompt = (
+        intro
+        + "\n".join(page_lines)
+        + f"\n\nAnalysis schema per page:\n{schema}\n\n"
+        + per_page_instruction
+    )
+    content_items.append({"type": "text", "text": text_prompt})
+
+    # Add thumbnails grouped by page (with text separator labels)
+    for i in valid_indices:
+        lbl = labels[i]
+        thumbs = page_thumbnail_urls[i]
+        content_items.append({"type": "text", "text": f"--- {lbl} thumbnails ---"})
+        for thumb_url in thumbs:
+            content_items.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": thumb_url, "detail": "low"},
+                }
+            )
+
+    client = openai.AsyncOpenAI(api_key=openai_key)
+    try:
+        logger.info(
+            f"[BrandCompare] Sending {sum(len(page_thumbnail_urls[i]) for i in valid_indices)} "
+            f"thumbnails across {len(valid_indices)} pages to ChatGPT Vision"
+        )
+        response = await client.chat.completions.create(
+            model="gpt-5.4",
+            messages=[{"role": "user", "content": content_items}],
+            max_completion_tokens=6000,
+        )
+        raw = (response.choices[0].message.content or "{}").strip()
+        if raw.startswith("```"):
+            parts = raw.split("```", 2)
+            raw = parts[1].lstrip("json").strip() if len(parts) >= 2 else raw
+
+        result_by_label = json.loads(raw)
+        result_by_url: Dict[str, Any] = {}
+        for i in valid_indices:
+            lbl = labels[i]
+            result_by_url[page_urls[i]] = result_by_label.get(lbl, {"_missing": True})
+        logger.info(
+            f"[BrandCompare] ✅ Thumbnail design analysis done for {len(valid_indices)} pages"
+        )
+        return result_by_url
+    except Exception as e:
+        logger.error(f"[BrandCompare] Thumbnail design analysis failed: {e}")
+        return {"_error": str(e)}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Step A2 — ChatGPT Vision: BATCH design analysis for all pages in ONE call
 # ─────────────────────────────────────────────────────────────────────────────
 

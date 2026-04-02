@@ -818,16 +818,18 @@ async def brand_compare_demo(
     queue = await _get_social_plan_queue()
     await queue.redis_client.lpush(
         "queue:social_plan_jobs",
-        _json.dumps({
-            "task_type": "brand_compare",
-            "job_id": job_id,
-            "user_id": "demo",
-            "my_url": my_url,
-            "competitor_urls": comp_urls,
-            "language": language,
-            "followers_counts": {},
-            "screenshot_urls": [],
-        }),
+        _json.dumps(
+            {
+                "task_type": "brand_compare",
+                "job_id": job_id,
+                "user_id": "demo",
+                "my_url": my_url,
+                "competitor_urls": comp_urls,
+                "language": language,
+                "followers_counts": {},
+                "screenshot_urls": [],
+            }
+        ),
     )
     await set_job_status(
         redis_client=queue.redis_client,
@@ -1199,16 +1201,18 @@ async def brand_compare_enqueue(
     queue = await _get_social_plan_queue()
     await queue.redis_client.lpush(
         "queue:social_plan_jobs",
-        _json.dumps({
-            "task_type": "brand_compare",
-            "job_id": job_id,
-            "user_id": user_id,
-            "my_url": my_url,
-            "competitor_urls": comp_urls,
-            "language": language,
-            "followers_counts": fc_map,
-            "screenshot_urls": screenshot_urls_list,
-        }),
+        _json.dumps(
+            {
+                "task_type": "brand_compare",
+                "job_id": job_id,
+                "user_id": user_id,
+                "my_url": my_url,
+                "competitor_urls": comp_urls,
+                "language": language,
+                "followers_counts": fc_map,
+                "screenshot_urls": screenshot_urls_list,
+            }
+        ),
     )
 
     await set_job_status(
