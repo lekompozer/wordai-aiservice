@@ -782,6 +782,8 @@ async def get_plan_job_status(
 #    All static paths — must stay BEFORE /{plan_id} dynamic route
 # ──────────────────────────────────────────────────────────────────────────────
 
+POINTS_BRAND_COMPARE = 100  # cost per brand-compare job
+
 
 @router.post(
     "/competitor-social/demo",
@@ -1017,6 +1019,191 @@ async def get_competitor_analysis(
     if not doc:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return doc
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ③b BRAND vs COMPETITORS (my page + 3 competitor pages, queue-based)
+#     100 pts — scrapes 4 pages + DeepSeek analysis + optional ChatGPT Vision
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/competitor-social/brand-compare",
+    summary="[100 pts] Analyze my brand vs up to 3 competitors with full report",
+)
+async def brand_compare_enqueue(
+    my_url: str = Form(..., description="My own social page URL"),
+    competitor_urls: str = Form(
+        ...,
+        description='JSON array of 1–3 competitor URLs (same or different platform), e.g. ["url1","url2"]',
+    ),
+    language: str = Form("vi", description="Response language: vi, en, fr, …"),
+    followers_counts: Optional[str] = Form(
+        None,
+        description='Optional JSON object mapping URL → follower count for engagement rate, e.g. {"https://fb.com/page": 50000}',
+    ),
+    screenshots: Optional[List[UploadFile]] = File(
+        None,
+        description="Optional screenshots (1 image per page, ordered: my page first then competitors). Sent to ChatGPT Vision for design analysis.",
+    ),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Queue a brand competitiveness analysis job.
+
+    The job:
+    1. Scrapes my page + each competitor page via Apify (15 posts each)
+    2. Analyzes each page individually with DeepSeek R1
+    3. If screenshots uploaded → ChatGPT Vision analyzes design style per page
+    4. Runs a final comparative analysis with DeepSeek R1:
+       → my_strengths, my_weaknesses, competitor_advantages,
+         strategic_gap, improvement_plan, content_strategy_recommendations,
+         design_recommendations (if screenshots), summary
+
+    Returns immediately with job_id. Poll GET /competitor-social/brand-compare/{job_id}.
+    Cost: -100 points.
+    """
+    import json as _json
+
+    user_id = current_user["uid"]
+
+    # ── Parse inputs ─────────────────────────────────────────────────────────
+    try:
+        comp_urls: List[str] = _json.loads(competitor_urls)
+        if not isinstance(comp_urls, list) or not comp_urls:
+            raise ValueError("must be a non-empty JSON array")
+        comp_urls = comp_urls[:3]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid competitor_urls: {e}")
+
+    fc_map: dict = {}
+    if followers_counts:
+        try:
+            fc_map = _json.loads(followers_counts)
+        except Exception:
+            pass
+
+    # ── Deduct points ─────────────────────────────────────────────────────────
+    points_svc = get_points_service()
+    try:
+        await points_svc.deduct_points(
+            user_id=user_id,
+            points=POINTS_BRAND_COMPARE,
+            action="brand_compare",
+            description=f"Brand vs competitors analysis: {my_url}",
+        )
+    except InsufficientPointsError as e:
+        raise HTTPException(status_code=402, detail=str(e))
+
+    # ── Upload screenshots to R2 (before enqueue, files can't go through Redis) ─
+    screenshot_urls_list: List[Optional[str]] = []
+    if screenshots:
+        s3_client = _get_s3_client()
+        for i, upload in enumerate(screenshots[:4]):  # max 4 (1 my + 3 competitors)
+            try:
+                content_bytes = await upload.read()
+                ext = (upload.filename or "").rsplit(".", 1)[-1].lower() or "jpg"
+                r2_key = f"brand-compare/{user_id}/{uuid.uuid4().hex}.{ext}"
+                s3_client.put_object(
+                    Bucket=R2_BUCKET,
+                    Key=r2_key,
+                    Body=content_bytes,
+                    ContentType=upload.content_type or "image/jpeg",
+                )
+                screenshot_urls_list.append(f"{R2_PUBLIC_URL}/{r2_key}")
+            except Exception as e:
+                logger.error("Screenshot upload failed (index %d): %s", i, e)
+                screenshot_urls_list.append(None)
+
+    # Pad to length of all_urls (my + competitors)
+    all_urls = [my_url] + comp_urls
+    while len(screenshot_urls_list) < len(all_urls):
+        screenshot_urls_list.append(None)
+
+    # ── Enqueue ───────────────────────────────────────────────────────────────
+    job_id = f"bc_{uuid.uuid4().hex[:16]}"
+    queue = await _get_social_plan_queue()
+    await queue.redis_client.lpush(
+        "queue:social_plan_jobs",
+        _json.dumps({
+            "task_type": "brand_compare",
+            "job_id": job_id,
+            "user_id": user_id,
+            "my_url": my_url,
+            "competitor_urls": comp_urls,
+            "language": language,
+            "followers_counts": fc_map,
+            "screenshot_urls": screenshot_urls_list,
+        }),
+    )
+
+    await set_job_status(
+        redis_client=queue.redis_client,
+        job_id=job_id,
+        status="pending",
+        user_id=user_id,
+        my_url=my_url,
+        competitor_urls=comp_urls,
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "my_url": my_url,
+        "competitor_urls": comp_urls,
+        "points_deducted": POINTS_BRAND_COMPARE,
+        "message": "Analysis queued. Poll /competitor-social/brand-compare/{job_id} for status.",
+    }
+
+
+@router.get(
+    "/competitor-social/brand-compare/{job_id}",
+    summary="Poll status of a brand-compare job",
+)
+async def brand_compare_status(
+    job_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Poll the status of a brand-compare job. Returns full result when completed."""
+    queue = await _get_social_plan_queue()
+    job = await get_job_status(queue.redis_client, job_id)
+
+    if not job:
+        # Try loading from MongoDB (Redis TTL may have expired)
+        db = _get_db()
+        doc = db["brand_comparisons"].find_one(
+            {"job_id": job_id, "user_id": current_user["uid"]},
+            {"_id": 0},
+        )
+        if doc:
+            return {"status": "completed", **doc}
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if job.get("user_id") and job["user_id"] != current_user["uid"]:
+        raise HTTPException(status_code=403, detail="Not your job")
+
+    return job
+
+
+@router.get(
+    "/competitor-social/brand-comparisons",
+    summary="List saved brand comparison reports for the current user",
+)
+async def list_brand_comparisons(
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+):
+    db = _get_db()
+    skip = (page - 1) * limit
+    items = list(
+        db["brand_comparisons"]
+        .find({"user_id": current_user["uid"]}, {"_id": 0})
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    return {"page": page, "limit": limit, "items": items}
 
 
 # ──────────────────────────────────────────────────────────

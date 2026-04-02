@@ -207,7 +207,17 @@ async def fetch_social_posts(
                     post["views"] = item[views_key]
                     break
 
-            post["is_video"] = bool(item.get("isVideo", False))
+            # Facebook uses isVideo bool; Instagram uses type: "Video"/"Image"/"Sidecar"
+            if platform == "instagram":
+                post["is_video"] = (item.get("type") or "").lower() == "video"
+                # Extract first image URL for design screenshot analysis
+                display_url = item.get("displayUrl") or (
+                    (item.get("displayResourceUrls") or [None])[0]
+                )
+                if display_url:
+                    post["display_url"] = display_url
+            else:
+                post["is_video"] = bool(item.get("isVideo", False))
 
         posts.append(post)
 
