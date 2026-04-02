@@ -37,23 +37,33 @@ async def take_screenshot_base64(page_url: str, api_key: str) -> Optional[str]:
     """
     Screenshot a URL using ScreenshotAPI.com.
     Returns base64-encoded PNG string, or None on failure.
+    Only minimal params — avoid extras that may cause API errors.
     """
     params = {
         "url": page_url,
         "apiKey": api_key,
         "width": 1280,
-        "height": 1920,
-        "delay": 3000,  # wait 3s for JS-heavy pages (TikTok, Instagram)
-        "fullPage": "false",
-        "blockAds": "true",
-        "output": "image",
+        "height": 1080,
+        "delay": 3000,   # wait 3s for JS-heavy pages (TikTok, Instagram)
     }
     try:
         async with httpx.AsyncClient(timeout=90) as client:
             resp = await client.get(SCREENSHOT_API_BASE, params=params)
             resp.raise_for_status()
-            if not resp.content:
-                logger.warning(f"[Screenshot] Empty response for {page_url}")
+            content_type = resp.headers.get("content-type", "")
+            # Must be a real image — reject tiny error responses / JSON / HTML
+            if not content_type.startswith("image/"):
+                logger.warning(
+                    f"[Screenshot] Non-image response for {page_url}: "
+                    f"content-type={content_type!r}, size={len(resp.content)} bytes, "
+                    f"body={resp.content[:200]}"
+                )
+                return None
+            if len(resp.content) < 5000:  # real screenshot is always > 5KB
+                logger.warning(
+                    f"[Screenshot] Suspiciously small response for {page_url}: "
+                    f"{len(resp.content)} bytes — likely an error"
+                )
                 return None
             logger.info(f"[Screenshot] ✅ {page_url} ({len(resp.content):,} bytes)")
             return base64.b64encode(resp.content).decode()
