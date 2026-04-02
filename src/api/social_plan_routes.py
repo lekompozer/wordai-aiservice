@@ -1105,19 +1105,30 @@ async def get_competitor_analysis(
 
 @router.get(
     "/competitor-social/brand-compare",
-    summary="List saved brand comparison reports for the current user",
+    summary="List saved brand comparison reports for the current user (summary only)",
 )
 async def list_brand_comparisons_alias(
     page: int = 1,
     limit: int = 20,
     current_user: dict = Depends(get_current_user),
 ):
-    """List all brand comparisons saved for the current user (alias for /brand-comparisons)."""
+    """List brand comparisons for current user — summary fields only (no heavy analysis data)."""
     db = _get_db()
     skip = (page - 1) * limit
+    # Only return lightweight summary fields for the list view
+    projection = {
+        "_id": 0,
+        "comparison_id": 1,
+        "job_id": 1,
+        "language": 1,
+        "my_url": 1,
+        "competitor_urls": 1,
+        "created_at": 1,
+        "engagement_summary": 1,
+    }
     items = list(
         db["brand_comparisons"]
-        .find({"user_id": current_user["uid"]}, {"_id": 0})
+        .find({"user_id": current_user["uid"]}, projection)
         .sort("created_at", -1)
         .skip(skip)
         .limit(limit)
@@ -1257,22 +1268,31 @@ async def brand_compare_enqueue(
 
 
 @router.get(
-    "/competitor-social/brand-compare/{job_id}",
-    summary="Poll status of a brand-compare job",
+    "/competitor-social/brand-compare/{id}",
+    summary="Get full detail of a brand-compare job (by job_id or comparison_id)",
 )
 async def brand_compare_status(
-    job_id: str,
+    id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    """Poll the status of a brand-compare job. Returns full result when completed."""
+    """
+    Get full detail of a brand-compare job.
+    Accepts either job_id (e.g. bc_xxx / bcd_xxx) or comparison_id (e.g. bc_xxx).
+    - If job is still in Redis (in-progress): returns live status.
+    - If completed/expired from Redis: loads full result from MongoDB.
+    """
     queue = await _get_social_plan_queue()
-    job = await get_job_status(queue.redis_client, job_id)
+    # Try Redis first (job may still be processing)
+    job = await get_job_status(queue.redis_client, id)
 
     if not job:
-        # Try loading from MongoDB (Redis TTL may have expired)
+        # Load from MongoDB — accept both job_id and comparison_id
         db = _get_db()
         doc = db["brand_comparisons"].find_one(
-            {"job_id": job_id, "user_id": current_user["uid"]},
+            {
+                "$or": [{"job_id": id}, {"comparison_id": id}],
+                "user_id": current_user["uid"],
+            },
             {"_id": 0},
         )
         if doc:
