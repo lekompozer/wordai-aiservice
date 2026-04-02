@@ -928,11 +928,94 @@ async function createComboPurchase(req, res) {
     }
 }
 
+/**
+ * Create Audit Purchase Checkout (Social Brand Compare)
+ * REQUIRES AUTHENTICATION
+ * Body: { order_id, return_url? }
+ * order_id must start with "AUDIT-" (created by Python service)
+ */
+async function createAuditPurchase(req, res) {
+    const authenticatedUser = req.user;
+
+    if (!authenticatedUser || !authenticatedUser.uid) {
+        throw new AppError('Authentication required', 401);
+    }
+
+    const user_id = authenticatedUser.uid;
+    const user_email = authenticatedUser.email;
+
+    const { order_id, return_url } = req.body;
+
+    if (!order_id || !order_id.startsWith('AUDIT-')) {
+        throw new AppError('Invalid audit order ID', 400);
+    }
+
+    try {
+        const db = getDb();
+        const auditOrdersCollection = db.collection('audit_cash_orders');
+
+        // Get order from audit_cash_orders (created by Python)
+        const order = await auditOrdersCollection.findOne({ order_id });
+        if (!order) {
+            throw new AppError('Audit order not found', 404);
+        }
+
+        // Verify ownership
+        if (order.user_id !== user_id) {
+            throw new AppError('Order belongs to a different user', 403);
+        }
+
+        // Verify not already paid
+        if (order.status === 'completed') {
+            throw new AppError('Order already paid', 400);
+        }
+
+        const AUDIT_PRICE = 100000; // 100,000 VND fixed price
+
+        const defaultSuccessUrl = return_url || `https://wordai.pro/social-audit`;
+        const defaultErrorUrl = return_url || `https://wordai.pro/social-audit`;
+        const defaultCancelUrl = return_url || `https://wordai.pro/social-audit`;
+
+        const formFields = {
+            merchant: config.sepay.merchantId,
+            operation: 'PURCHASE',
+            payment_method: 'BANK_TRANSFER',
+            order_amount: AUDIT_PRICE.toString(),
+            currency: 'VND',
+            order_invoice_number: order_id,  // AUDIT-xxx prefix triggers webhook routing
+            order_description: 'WordAI Social Audit - 1 lần phân tích',
+            customer_id: user_id,
+            success_url: defaultSuccessUrl,
+            error_url: defaultErrorUrl,
+            cancel_url: defaultCancelUrl,
+        };
+
+        formFields.signature = generateSignature(formFields, config.sepay.secretKey);
+
+        logger.info(`✅ Generated audit checkout: ${order_id} for user ${user_id}`);
+
+        res.status(201).json({
+            success: true,
+            data: {
+                order_id,
+                checkout_url: config.sepay.checkoutUrl,
+                form_fields: formFields,
+                amount: AUDIT_PRICE,
+                payment_type: 'audit_purchase',
+            },
+        });
+    } catch (error) {
+        logger.error(`Audit purchase checkout error: ${error.message}`);
+        throw error;
+    }
+}
+
 module.exports = {
     createCheckout,
     createPointsPurchase,
     createBookPurchase,
     createComboPurchase,
+    createAuditPurchase,
     createSongLearningCheckout,
     createConversationLearningCheckout,
     createAiBundleCheckout,

@@ -11,12 +11,12 @@ import json
 import logging
 import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 import boto3
 from botocore.client import Config
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
 from src.database.db_manager import DBManager
@@ -783,6 +783,248 @@ async def get_plan_job_status(
 # ──────────────────────────────────────────────────────────────────────────────
 
 POINTS_BRAND_COMPARE = 100  # cost per brand-compare job
+AUDIT_PRICE_VND = 100_000  # cash price per audit (SePay)
+
+
+# ── Helper: enqueue brand-compare job (shared between points & cash flows) ──
+
+
+async def _enqueue_brand_compare(
+    *,
+    user_id: str,
+    my_url: str,
+    comp_urls: list,
+    language: str,
+    fc_map: dict,
+    screenshot_urls_list: list,
+) -> str:
+    import json as _json
+
+    job_id = f"bc_{uuid.uuid4().hex[:16]}"
+    queue = await _get_social_plan_queue()
+    await queue.redis_client.lpush(
+        "queue:social_plan_jobs",
+        _json.dumps(
+            {
+                "task_type": "brand_compare",
+                "job_id": job_id,
+                "user_id": user_id,
+                "my_url": my_url,
+                "competitor_urls": comp_urls,
+                "language": language,
+                "followers_counts": fc_map,
+                "screenshot_urls": screenshot_urls_list,
+            }
+        ),
+    )
+    await set_job_status(
+        redis_client=queue.redis_client,
+        job_id=job_id,
+        status="pending",
+        user_id=user_id,
+        my_url=my_url,
+        competitor_urls=comp_urls,
+    )
+    return job_id
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUDIT CASH PAYMENT FLOW  (SePay 100,000 VND → 1 audit credit)
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+@router.post(
+    "/competitor-social/brand-compare-checkout",
+    summary="Create a cash payment order for 1 brand-compare audit (100,000 VND)",
+)
+async def brand_compare_checkout(
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Step 1 of the cash payment flow.
+    Creates an order in `audit_cash_orders` (status: pending) and returns order_id.
+    Frontend then calls payment-service POST /api/payment/audit-purchase with this order_id
+    to get the SePay checkout form.
+    """
+    import json as _json
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    timestamp = int(datetime.utcnow().timestamp())
+    user_short = user_id[:8]
+    order_id = f"AUDIT-{timestamp}-{user_short}"
+
+    order_doc = {
+        "order_id": order_id,
+        "user_id": user_id,
+        "user_email": current_user.get("email", ""),
+        "price_vnd": AUDIT_PRICE_VND,
+        "status": "pending",
+        "credit_granted": False,
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow(),
+        "expires_at": datetime.utcnow() + timedelta(hours=24),
+    }
+    db["audit_cash_orders"].insert_one(order_doc)
+
+    return {
+        "order_id": order_id,
+        "price_vnd": AUDIT_PRICE_VND,
+        "message": "Order created. Call payment-service POST /api/payment/audit-purchase with this order_id.",
+    }
+
+
+@router.get(
+    "/competitor-social/audit-credit",
+    summary="Get current audit credit balance for the logged-in user",
+)
+async def get_audit_credit(current_user: dict = Depends(get_current_user)):
+    """Returns available (unused) audit credits from completed SePay payments."""
+    db = _get_db()
+    credits = db["audit_cash_orders"].count_documents(
+        {
+            "user_id": current_user["uid"],
+            "status": "completed",
+            "credit_granted": True,
+            "credit_used": {"$ne": True},
+        }
+    )
+    return {"available_credits": credits}
+
+
+@router.post(
+    "/competitor-social/grant-audit-credit",
+    summary="[INTERNAL] Grant 1 audit credit after SePay payment confirmed",
+    include_in_schema=False,
+)
+async def grant_audit_credit(
+    order_id: str,
+    request: Request,
+):
+    """
+    Called internally by the Node.js payment-service webhook after SePay confirms ORDER_PAID.
+    Marks the order as credit_granted=True so the user can run 1 audit.
+    Protected by X-Service-Secret header.
+    """
+    secret = request.headers.get("X-Service-Secret", "")
+    expected = os.environ.get("API_SECRET_KEY", "")
+    if not expected or secret != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    db = _get_db()
+    order = db["audit_cash_orders"].find_one({"order_id": order_id})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.get("credit_granted"):
+        return {"success": True, "message": "Already granted"}
+
+    if order.get("status") != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Order status is '{order.get('status')}', expected 'completed'",
+        )
+
+    db["audit_cash_orders"].update_one(
+        {"order_id": order_id},
+        {"$set": {"credit_granted": True, "updated_at": datetime.utcnow()}},
+    )
+    logger.info(
+        f"✅ Audit credit granted for order {order_id}, user {order['user_id']}"
+    )
+    return {"success": True, "order_id": order_id, "user_id": order["user_id"]}
+
+
+@router.post(
+    "/competitor-social/brand-compare-with-credit",
+    summary="[CREDIT] Run brand-compare using 1 purchased audit credit (no points deducted)",
+)
+async def brand_compare_with_credit(
+    my_url: str = Form(...),
+    competitor_urls: str = Form(
+        ...,
+        description="JSON array of 1–3 competitor URLs",
+    ),
+    language: str = Form("vi"),
+    followers_counts: Optional[str] = Form(None),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Run a brand-compare using 1 purchased audit credit (from SePay cash payment).
+    Deducts 1 unused credit from audit_cash_orders.
+    Same result as the points-based flow.
+    """
+    import json as _json
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    # Find and claim one unused credit
+    result = db["audit_cash_orders"].find_one_and_update(
+        {
+            "user_id": user_id,
+            "status": "completed",
+            "credit_granted": True,
+            "credit_used": {"$ne": True},
+        },
+        {
+            "$set": {
+                "credit_used": True,
+                "credit_used_at": datetime.utcnow(),
+                "updated_at": datetime.utcnow(),
+            }
+        },
+        sort=[("created_at", 1)],  # use oldest credit first
+    )
+    if not result:
+        raise HTTPException(
+            status_code=402,
+            detail="No available audit credits. Please purchase an audit at /competitor-social/brand-compare-checkout.",
+        )
+
+    try:
+        comp_urls: List[str] = _json.loads(competitor_urls)
+        if not isinstance(comp_urls, list) or not comp_urls:
+            raise ValueError
+        comp_urls = comp_urls[:3]
+    except Exception:
+        raise HTTPException(
+            status_code=400, detail="Invalid competitor_urls JSON array"
+        )
+
+    fc_map = {}
+    if followers_counts:
+        try:
+            fc_map = _json.loads(followers_counts)
+        except Exception:
+            pass
+
+    all_urls = [my_url] + comp_urls
+
+    job_id = await _enqueue_brand_compare(
+        user_id=user_id,
+        my_url=my_url,
+        comp_urls=comp_urls,
+        language=language,
+        fc_map=fc_map,
+        screenshot_urls_list=[None] * len(all_urls),
+    )
+
+    # Link job to the order
+    db["audit_cash_orders"].update_one(
+        {"order_id": result["order_id"]},
+        {"$set": {"job_id": job_id}},
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "my_url": my_url,
+        "competitor_urls": comp_urls,
+        "credit_used": result["order_id"],
+        "message": "Analysis queued. Poll /competitor-social/brand-compare/{job_id} for status.",
+    }
 
 
 @router.post(
@@ -1256,31 +1498,13 @@ async def brand_compare_enqueue(
         screenshot_urls_list.append(None)
 
     # ── Enqueue ───────────────────────────────────────────────────────────────
-    job_id = f"bc_{uuid.uuid4().hex[:16]}"
-    queue = await _get_social_plan_queue()
-    await queue.redis_client.lpush(
-        "queue:social_plan_jobs",
-        _json.dumps(
-            {
-                "task_type": "brand_compare",
-                "job_id": job_id,
-                "user_id": user_id,
-                "my_url": my_url,
-                "competitor_urls": comp_urls,
-                "language": language,
-                "followers_counts": fc_map,
-                "screenshot_urls": screenshot_urls_list,
-            }
-        ),
-    )
-
-    await set_job_status(
-        redis_client=queue.redis_client,
-        job_id=job_id,
-        status="pending",
+    job_id = await _enqueue_brand_compare(
         user_id=user_id,
         my_url=my_url,
-        competitor_urls=comp_urls,
+        comp_urls=comp_urls,
+        language=language,
+        fc_map=fc_map,
+        screenshot_urls_list=screenshot_urls_list,
     )
 
     return {

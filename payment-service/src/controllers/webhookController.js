@@ -76,6 +76,12 @@ async function handleWebhook(req, res) {
             return await handleComboOrderWebhook(db, payload, res);
         }
 
+        // Check if this is an audit order (format: AUDIT-{timestamp}-{user_short})
+        if (order_invoice_number.startsWith('AUDIT-')) {
+            logger.info(`🔍 Detected audit order: ${order_invoice_number}`);
+            return await handleAuditOrderWebhook(db, payload, res);
+        }
+
         // Regular payment (subscription or points)
         const paymentsCollection = db.collection('payments');
         const payment = await paymentsCollection.findOne({ order_invoice_number });
@@ -657,6 +663,92 @@ async function handleComboOrderWebhook(db, payload, res) {
             success: false,
             error: error.message
         });
+    }
+}
+
+/**
+ * Handle audit order webhook (format: AUDIT-{timestamp}-{user_short})
+ * Marks order as completed → calls Python to grant 1 audit credit
+ */
+async function handleAuditOrderWebhook(db, payload, res) {
+    try {
+        const { notification_type, order, transaction } = payload;
+        const order_id = order.order_invoice_number;
+
+        logger.info(`🔍 Processing audit order webhook: ${order_id}`);
+
+        const auditOrdersCollection = db.collection('audit_cash_orders');
+        const auditOrder = await auditOrdersCollection.findOne({ order_id });
+
+        if (!auditOrder) {
+            logger.error(`Audit order not found: ${order_id}`);
+            return res.status(200).json({ success: false, error: 'Audit order not found' });
+        }
+
+        if (auditOrder.status === 'completed' && auditOrder.credit_granted) {
+            logger.info(`Audit order already completed: ${order_id}`);
+            return res.status(200).json({ success: true, message: 'Already processed' });
+        }
+
+        if (notification_type === 'ORDER_PAID') {
+            // Mark order as completed
+            await auditOrdersCollection.updateOne(
+                { order_id },
+                {
+                    $set: {
+                        status: 'completed',
+                        transaction_id: transaction?.transaction_id || null,
+                        paid_at: new Date(),
+                        webhook_payload: payload,
+                        updated_at: new Date(),
+                    },
+                }
+            );
+
+            logger.info(`✅ Audit order marked as completed: ${order_id}`);
+
+            // Call Python service to grant credit
+            try {
+                const grantResponse = await axios.post(
+                    `${config.pythonService.url}/api/v1/social-plan/competitor-social/grant-audit-credit?order_id=${order_id}`,
+                    {},
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Service-Secret': config.security.apiSecretKey,
+                        },
+                        timeout: config.pythonService.timeout,
+                    }
+                );
+
+                logger.info(`🎉 Audit credit granted: ${JSON.stringify(grantResponse.data)}`);
+
+                return res.status(200).json({
+                    success: true,
+                    message: 'Audit order processed and credit granted',
+                    data: grantResponse.data,
+                });
+            } catch (error) {
+                logger.error(`❌ Failed to grant audit credit: ${error.message}`);
+                if (error.response) {
+                    logger.error(`Python error: ${JSON.stringify(error.response.data)}`);
+                }
+                await auditOrdersCollection.updateOne(
+                    { order_id },
+                    { $set: { credit_error: error.message, updated_at: new Date() } }
+                );
+                return res.status(200).json({ success: true, message: 'Audit paid, credit grant pending retry' });
+            }
+        } else {
+            await auditOrdersCollection.updateOne(
+                { order_id },
+                { $set: { webhook_payload: payload, updated_at: new Date() } }
+            );
+            return res.status(200).json({ success: true, message: 'Audit order webhook received' });
+        }
+    } catch (error) {
+        logger.error(`❌ Audit order webhook error: ${error.message}`);
+        return res.status(200).json({ success: false, error: error.message });
     }
 }
 

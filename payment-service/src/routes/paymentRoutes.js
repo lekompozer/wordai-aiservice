@@ -65,6 +65,13 @@ router.post(
     asyncHandler(paymentController.createAiBundleCheckout)
 );
 
+// Create audit purchase (Social Brand Compare) - REQUIRES AUTHENTICATION
+router.post(
+    '/audit-purchase',
+    verifyFirebaseToken,  // ✅ Firebase auth middleware
+    asyncHandler(paymentController.createAuditPurchase)
+);
+
 // Get payment status
 router.get(
     '/status/:order_invoice_number',
