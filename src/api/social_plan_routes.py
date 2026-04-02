@@ -782,8 +782,11 @@ async def get_plan_job_status(
 #    All static paths — must stay BEFORE /{plan_id} dynamic route
 # ──────────────────────────────────────────────────────────────────────────────
 
-POINTS_BRAND_COMPARE = 100  # cost per brand-compare job
+POINTS_BRAND_COMPARE = (
+    200  # cost per brand-compare job (3 competitors, 1 channel) = 9.9 USDT
+)
 AUDIT_PRICE_VND = 100_000  # cash price per audit (SePay)
+ADMIN_EMAIL = "tienhoi.lh@gmail.com"
 
 
 # ── Helper: enqueue brand-compare job (shared between points & cash flows) ──
@@ -1025,6 +1028,142 @@ async def brand_compare_with_credit(
         "credit_used": result["order_id"],
         "message": "Analysis queued. Poll /competitor-social/brand-compare/{job_id} for status.",
     }
+
+
+@router.post(
+    "/competitor-social/audit-register",
+    summary="[FREE] Register business info and get 1 free social audit (1 competitor)",
+)
+async def audit_register(
+    company_name: str = Form(..., description="Tên doanh nghiệp / thương hiệu"),
+    job_title: str = Form(
+        ...,
+        description="Vị trí công việc (e.g. Social Media Manager, Marketing Director)",
+    ),
+    contact_email: str = Form(..., description="Email liên lạc"),
+    contact_linkedin: Optional[str] = Form(None, description="LinkedIn URL (tùy chọn)"),
+    my_url: str = Form(
+        ..., description="URL trang social của doanh nghiệp (TikTok, FB, IG)"
+    ),
+    competitor_url: str = Form(..., description="URL 1 đối thủ cần phân tích"),
+    language: str = Form("vi", description="Ngôn ngữ báo cáo: vi hoặc en"),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Đăng ký thông tin doanh nghiệp để nhận **1 lần phân tích Social Audit MIỄN PHÍ** (1 đối thủ).
+
+    - Lưu thông tin đăng ký vào `audit_registrations`
+    - Kiểm tra mỗi user chỉ được dùng free 1 lần
+    - Gửi email thông báo đến admin (tienhoi.lh@gmail.com)
+    - Enqueue job và trả về job_id để frontend poll kết quả
+
+    **Nâng cấp lên 3 đối thủ:** dùng endpoint `/competitor-social/brand-compare` với 200 điểm.
+    """
+    import json as _json
+
+    user_id = current_user["uid"]
+    db = _get_db()
+
+    # Check if user already used their free audit
+    existing = db["audit_registrations"].find_one(
+        {
+            "user_id": user_id,
+            "free_used": True,
+        }
+    )
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail="Bạn đã sử dụng lượt phân tích miễn phí. Vui lòng dùng điểm hoặc mua audit để tiếp tục.",
+        )
+
+    # Enqueue the free job (1 competitor only)
+    comp_urls = [competitor_url]
+    job_id = await _enqueue_brand_compare(
+        user_id=user_id,
+        my_url=my_url,
+        comp_urls=comp_urls,
+        language=language,
+        fc_map={},
+        screenshot_urls_list=[None, None],
+    )
+
+    # Save registration
+    now = datetime.utcnow()
+    reg_doc = {
+        "user_id": user_id,
+        "user_email": current_user.get("email", ""),
+        "company_name": company_name,
+        "job_title": job_title,
+        "contact_email": contact_email,
+        "contact_linkedin": contact_linkedin or "",
+        "my_url": my_url,
+        "competitor_url": competitor_url,
+        "language": language,
+        "job_id": job_id,
+        "free_used": True,
+        "created_at": now,
+    }
+    db["audit_registrations"].insert_one(reg_doc)
+
+    # Send admin notification (fire-and-forget)
+    try:
+        from src.services.brevo_email_service import get_brevo_service
+
+        brevo = get_brevo_service()
+        html_body = f"""
+<h2>🔍 Đăng ký Social Audit mới</h2>
+<table style="border-collapse:collapse;width:100%">
+  <tr><td style="padding:6px;font-weight:bold">Doanh nghiệp</td><td style="padding:6px">{company_name}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold">Vị trí</td><td style="padding:6px">{job_title}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold">Email</td><td style="padding:6px"><a href="mailto:{contact_email}">{contact_email}</a></td></tr>
+  <tr><td style="padding:6px;font-weight:bold">LinkedIn</td><td style="padding:6px">{contact_linkedin or "—"}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold">Trang của họ</td><td style="padding:6px"><a href="{my_url}">{my_url}</a></td></tr>
+  <tr><td style="padding:6px;font-weight:bold">Đối thủ</td><td style="padding:6px"><a href="{competitor_url}">{competitor_url}</a></td></tr>
+  <tr><td style="padding:6px;font-weight:bold">Ngôn ngữ</td><td style="padding:6px">{language}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold">Job ID</td><td style="padding:6px">{job_id}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold">User ID</td><td style="padding:6px">{user_id}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold">User Email</td><td style="padding:6px">{current_user.get("email", "")}</td></tr>
+  <tr><td style="padding:6px;font-weight:bold">Thời gian</td><td style="padding:6px">{now.strftime("%Y-%m-%d %H:%M UTC")}</td></tr>
+</table>
+"""
+        brevo.send_email(
+            to_email=ADMIN_EMAIL,
+            subject=f"[WordAI] Social Audit mới: {company_name} — {job_title}",
+            html_body=html_body,
+        )
+    except Exception as e:
+        logger.warning(f"Admin email failed (non-blocking): {e}")
+
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "message": "Đăng ký thành công! Phân tích đang được xử lý, poll kết quả tại /competitor-social/brand-compare-demo/{job_id}",
+        "my_url": my_url,
+        "competitor_url": competitor_url,
+        "upgrade_hint": "Để phân tích 3 đối thủ, dùng /competitor-social/brand-compare (200 điểm).",
+    }
+
+
+@router.get(
+    "/competitor-social/audit-register/check",
+    summary="Check if current user has used their free audit",
+)
+async def audit_register_check(current_user: dict = Depends(get_current_user)):
+    """Returns whether the user has already used their free social audit registration."""
+    db = _get_db()
+    reg = db["audit_registrations"].find_one(
+        {"user_id": current_user["uid"], "free_used": True},
+        {"_id": 0, "company_name": 1, "job_id": 1, "created_at": 1},
+    )
+    if reg:
+        return {
+            "free_used": True,
+            "company_name": reg.get("company_name"),
+            "job_id": reg.get("job_id"),
+            "registered_at": reg.get("created_at"),
+        }
+    return {"free_used": False}
 
 
 @router.post(
