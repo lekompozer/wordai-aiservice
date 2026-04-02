@@ -1103,6 +1103,28 @@ async def get_competitor_analysis(
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+@router.get(
+    "/competitor-social/brand-compare",
+    summary="List saved brand comparison reports for the current user",
+)
+async def list_brand_comparisons_alias(
+    page: int = 1,
+    limit: int = 20,
+    current_user: dict = Depends(get_current_user),
+):
+    """List all brand comparisons saved for the current user (alias for /brand-comparisons)."""
+    db = _get_db()
+    skip = (page - 1) * limit
+    items = list(
+        db["brand_comparisons"]
+        .find({"user_id": current_user["uid"]}, {"_id": 0})
+        .sort("created_at", -1)
+        .skip(skip)
+        .limit(limit)
+    )
+    return {"page": page, "limit": limit, "items": items}
+
+
 @router.post(
     "/competitor-social/brand-compare",
     summary="[100 pts] Analyze my brand vs up to 3 competitors with full report",
