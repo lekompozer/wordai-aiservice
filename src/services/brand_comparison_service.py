@@ -4,29 +4,192 @@ Brand vs Competitors Comparison Service
 Given analyses of my brand page + up to 3 competitor pages (already produced by
 social_competitor_analyzer), runs two additional AI steps:
 
-Step A (optional): ChatGPT gpt-5.4 Vision per page screenshot
-  → visual_style, uses_real_people, uses_ai_generated, content_format, design_quality
+Step A: Auto-screenshot pages with ScreenshotAPI → batch ChatGPT gpt-5.4 Vision
+  (all 4 pages in ONE call) → visual_style, uses_real_people, uses_ai_generated,
+  content_format, design_quality per page
 
 Step B: DeepSeek R1 comparative analysis (my page vs competitors)
   → my_strengths, my_weaknesses, competitor_advantages, strategic_gap,
     improvement_plan, content_strategy_recommendations, design_recommendations, summary
 """
 
+import base64
 import json
 import logging
 import os
 from typing import Any, Dict, List, Optional
 
+import httpx
 import openai
 
 logger = logging.getLogger(__name__)
 
 MAX_ANALYSIS_CHARS = 1500  # per-page analysis truncation for the comparison prompt
+SCREENSHOT_API_BASE = "https://api.screenshotapi.com/take"
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Step A — ChatGPT Vision: design style analysis
+# Step A1 — Auto-screenshot via ScreenshotAPI
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+async def take_screenshot_base64(page_url: str, api_key: str) -> Optional[str]:
+    """
+    Screenshot a URL using ScreenshotAPI.com.
+    Returns base64-encoded PNG string, or None on failure.
+    """
+    params = {
+        "url": page_url,
+        "apiKey": api_key,
+        "width": 1280,
+        "height": 1920,
+        "delay": 3000,  # wait 3s for JS-heavy pages (TikTok, Instagram)
+        "fullPage": "false",
+        "blockAds": "true",
+        "output": "image",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=90) as client:
+            resp = await client.get(SCREENSHOT_API_BASE, params=params)
+            resp.raise_for_status()
+            if not resp.content:
+                logger.warning(f"[Screenshot] Empty response for {page_url}")
+                return None
+            logger.info(f"[Screenshot] ✅ {page_url} ({len(resp.content):,} bytes)")
+            return base64.b64encode(resp.content).decode()
+    except Exception as e:
+        logger.error(f"[Screenshot] Failed for {page_url}: {e}")
+        return None
+
+
+async def take_all_screenshots(
+    page_urls: List[str], api_key: str
+) -> List[Optional[str]]:
+    """Take screenshots for all pages sequentially. Returns list of base64 strings."""
+    results = []
+    for url in page_urls:
+        b64 = await take_screenshot_base64(url, api_key)
+        results.append(b64)
+    return results
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step A2 — ChatGPT Vision: BATCH design analysis for all pages in ONE call
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def analyze_all_designs_batch(
+    page_urls: List[str],
+    screenshots_b64: List[Optional[str]],
+    language: str = "vi",
+) -> Dict[str, Any]:
+    """
+    Send ALL page screenshots in a SINGLE ChatGPT gpt-5.4 Vision call.
+    Returns dict mapping URL → design analysis dict.
+
+    Supports up to 4 images (1 my page + 3 competitors).
+    Falls back to empty dict if no valid screenshots.
+    """
+    openai_key = os.getenv("CHATGPT_API_KEY") or os.getenv("OPENAI_API_KEY")
+    if not openai_key:
+        logger.warning(
+            "[BrandCompare] CHATGPT_API_KEY not set — skipping design analysis"
+        )
+        return {"_skipped": True, "reason": "CHATGPT_API_KEY not configured"}
+
+    valid = [(url, b64) for url, b64 in zip(page_urls, screenshots_b64) if b64]
+    if not valid:
+        return {"_skipped": True, "reason": "No screenshots available"}
+
+    # Build label → URL mapping for cleaner JSON keys
+    labels = ["MY_PAGE"] + [f"COMPETITOR_{i}" for i in range(1, len(page_urls))]
+    valid_labels = [labels[page_urls.index(url)] for url, _ in valid]
+
+    label_desc = "\n".join(
+        f"  - {lbl}: {url}" for lbl, url in zip(valid_labels, [u for u, _ in valid])
+    )
+
+    if language == "en":
+        intro_text = (
+            f"You are a social media design analyst. "
+            f"I'm sending you {len(valid)} screenshots of TikTok / social media pages.\n"
+            f"Pages:\n{label_desc}\n\n"
+            "For EACH page, analyze the visual design style from the screenshot.\n"
+            "Return a JSON object where each key is the page label and value is the design analysis:\n"
+        )
+    elif language == "fr":
+        intro_text = (
+            f"Vous êtes analyste design réseaux sociaux. "
+            f"Je vous envoie {len(valid)} captures de pages TikTok / réseaux sociaux.\n"
+            f"Pages:\n{label_desc}\n\n"
+            "Pour CHAQUE page, analysez le style de design visuel.\n"
+            "Retournez un objet JSON avec chaque clé = label de page et valeur = analyse:\n"
+        )
+    else:
+        intro_text = (
+            f"Bạn là chuyên gia phân tích thiết kế mạng xã hội. "
+            f"Tôi gửi cho bạn {len(valid)} ảnh chụp màn hình của các trang TikTok / mạng xã hội.\n"
+            f"Các trang:\n{label_desc}\n\n"
+            "Với MỖI trang, phân tích phong cách thiết kế hình ảnh từ ảnh chụp.\n"
+            "Trả về JSON với key = label trang và value = phân tích thiết kế:\n"
+        )
+
+    schema_per_page = (
+        "{\n"
+        '  "visual_style": "minimalist | editorial | bold | product-focused | lifestyle | educational | mixed",\n'
+        '  "uses_real_people": true/false,\n'
+        '  "uses_ai_generated": "yes | no | mixed | unclear",\n'
+        '  "content_format": "talking-head | infographic | product-shots | lifestyle | text-overlay | meme | mixed",\n'
+        '  "design_quality": "professional | amateur | mixed",\n'
+        '  "brand_colors": "brief description of dominant colors seen",\n'
+        '  "thumbnail_style": "describe thumbnail style: text-heavy | face-close-up | product-demo | abstract | etc.",\n'
+        '  "summary": "1-2 sentence design style summary"\n'
+        "}"
+    )
+    example_keys = ", ".join(f'"{lbl}"' for lbl in valid_labels)
+    full_prompt = (
+        intro_text
+        + f"JSON format: {{{example_keys}: <analysis_object>}}\n\n"
+        + f"Analysis schema per page:\n{schema_per_page}\n\n"
+        + "Return ONLY valid JSON, no markdown fences or other text."
+    )
+
+    # Build content: text + one image per page
+    content: List[dict] = [{"type": "text", "text": full_prompt}]
+    for _url, b64 in valid:
+        content.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{b64}"},
+            }
+        )
+
+    client = openai.AsyncOpenAI(api_key=openai_key)
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-5.4",
+            messages=[{"role": "user", "content": content}],
+            max_tokens=8000,
+        )
+        raw = (response.choices[0].message.content or "{}").strip()
+        if raw.startswith("```"):
+            parts = raw.split("```", 2)
+            raw = parts[1].lstrip("json").strip() if len(parts) >= 2 else raw
+
+        result_by_label = json.loads(raw)
+        # Map labels back to URLs
+        result_by_url: Dict[str, Any] = {}
+        for lbl, (url, _) in zip(valid_labels, valid):
+            result_by_url[url] = result_by_label.get(lbl, {"_missing": True})
+        logger.info(
+            f"[BrandCompare] ✅ Batch design analysis done for {len(valid)} pages"
+        )
+        return result_by_url
+
+    except Exception as e:
+        logger.error(f"[BrandCompare] Batch design analysis failed: {e}")
+        return {"_error": str(e)}
+
 
 async def analyze_design_with_chatgpt(
     image_url: str,
@@ -34,13 +197,15 @@ async def analyze_design_with_chatgpt(
     language: str = "vi",
 ) -> Dict[str, Any]:
     """
-    Send a screenshot (public URL) to ChatGPT gpt-5.4 Vision.
-    Returns a dict describing the visual/design style of the page.
+    Send a single public-URL screenshot to ChatGPT gpt-5.4 Vision.
+    (Kept for backward compat — prefer analyze_all_designs_batch for batch).
     """
-    openai_key = os.getenv("OPENAI_API_KEY")
+    openai_key = os.getenv("CHATGPT_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not openai_key:
-        logger.warning("[BrandCompare] OPENAI_API_KEY not set — skipping design analysis")
-        return {"_skipped": True, "reason": "OPENAI_API_KEY not configured"}
+        logger.warning(
+            "[BrandCompare] CHATGPT_API_KEY not set — skipping design analysis"
+        )
+        return {"_skipped": True, "reason": "CHATGPT_API_KEY not configured"}
 
     if language == "en":
         lang_note = "Respond in English."
@@ -108,12 +273,14 @@ async def analyze_design_with_chatgpt(
             ],
             max_tokens=1000,
         )
-        content = (response.choices[0].message.content or "{}").strip()
-        if content.startswith("```"):
-            parts = content.split("```", 2)
-            content = parts[1].lstrip("json").strip() if len(parts) >= 2 else content
+        content_str = (response.choices[0].message.content or "{}").strip()
+        if content_str.startswith("```"):
+            parts = content_str.split("```", 2)
+            content_str = (
+                parts[1].lstrip("json").strip() if len(parts) >= 2 else content_str
+            )
 
-        result = json.loads(content)
+        result = json.loads(content_str)
         result["_image_url"] = image_url
         result["_page_url"] = page_url
         return result
@@ -126,6 +293,7 @@ async def analyze_design_with_chatgpt(
 # ─────────────────────────────────────────────────────────────────────────────
 # Step B — DeepSeek R1: comparative brand analysis
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _truncate(text: str, max_chars: int = MAX_ANALYSIS_CHARS) -> str:
     if len(text) <= max_chars:
@@ -148,24 +316,38 @@ def _build_comparison_prompt(
         if metrics.get("has_pinned_split"):
             reg = metrics.get("regular") or {}
             lines.append(f"Followers: {reg.get('followers_count', 'N/A')}")
-            lines.append(f"Engagement rate (regular posts): {reg.get('engagement_rate_pct', 'N/A')}%")
+            lines.append(
+                f"Engagement rate (regular posts): {reg.get('engagement_rate_pct', 'N/A')}%"
+            )
             lines.append(f"Avg likes (regular): {reg.get('avg_likes', 'N/A')}")
             lines.append(f"Avg views (regular): {reg.get('avg_views', 'N/A')}")
         elif metrics:
             lines.append(f"Followers: {metrics.get('followers_count', 'N/A')}")
-            lines.append(f"Engagement rate: {metrics.get('engagement_rate_pct', 'N/A')}%")
+            lines.append(
+                f"Engagement rate: {metrics.get('engagement_rate_pct', 'N/A')}%"
+            )
             lines.append(f"Avg likes: {metrics.get('avg_likes', 'N/A')}")
 
         # Key analysis fields
-        for key in ("target_audience", "problem_solved", "solution", "tone_of_voice",
-                    "posting_schedule", "post_frequency", "best_content_type", "engagement_verdict"):
+        for key in (
+            "target_audience",
+            "problem_solved",
+            "solution",
+            "tone_of_voice",
+            "posting_schedule",
+            "post_frequency",
+            "best_content_type",
+            "engagement_verdict",
+        ):
             val = analysis.get(key)
             if val:
                 lines.append(f"{key}: {_truncate(str(val), 300)}")
 
         themes = analysis.get("content_themes")
         if themes:
-            lines.append(f"content_themes: {', '.join(themes) if isinstance(themes, list) else str(themes)}")
+            lines.append(
+                f"content_themes: {', '.join(themes) if isinstance(themes, list) else str(themes)}"
+            )
 
         if design and not design.get("_skipped") and not design.get("_error"):
             lines.append("--- Design Style ---")
@@ -192,7 +374,11 @@ def _build_comparison_prompt(
     )
 
     if language in ("en", "fr"):
-        lang_instr = "Respond entirely in English." if language == "en" else "Répondez entièrement en français."
+        lang_instr = (
+            "Respond entirely in English."
+            if language == "en"
+            else "Répondez entièrement en français."
+        )
         intro = (
             "You are a senior social media strategist. "
             "Below is a structured analysis of MY BRAND PAGE and up to 3 COMPETITOR pages.\n"
@@ -205,7 +391,7 @@ def _build_comparison_prompt(
             "strategic_gap": "1-paragraph description of the biggest strategic gap my brand has vs competitors",
             "improvement_plan": (
                 "Array of 3-5 actionable improvement items, each: "
-                "{\"action\": \"...\", \"rationale\": \"...\", \"priority\": \"high|medium|low\"}"
+                '{"action": "...", "rationale": "...", "priority": "high|medium|low"}'
             ),
             "content_strategy_recommendations": "3-5 concrete content strategy recommendations for my brand based on competitor analysis",
         }
@@ -214,7 +400,9 @@ def _build_comparison_prompt(
                 "Based on design style analyses: recommend specific design/visual improvements for my brand "
                 "(visual style to adopt, whether to use real people vs AI, color palette, format)"
             )
-        output_fields["summary"] = "2-3 paragraph executive summary of my brand's competitive position and top priorities"
+        output_fields["summary"] = (
+            "2-3 paragraph executive summary of my brand's competitive position and top priorities"
+        )
 
     else:
         lang_instr = "Trả lời hoàn toàn bằng tiếng Việt."
@@ -230,7 +418,7 @@ def _build_comparison_prompt(
             "strategic_gap": "1 đoạn mô tả khoảng trống chiến lược lớn nhất của thương hiệu tôi so với đối thủ",
             "improvement_plan": (
                 "Mảng 3-5 hành động cải thiện, mỗi item: "
-                "{\"action\": \"...\", \"rationale\": \"...\", \"priority\": \"high|medium|low\"}"
+                '{"action": "...", "rationale": "...", "priority": "high|medium|low"}'
             ),
             "content_strategy_recommendations": "3-5 đề xuất chiến lược nội dung cụ thể dựa trên phân tích đối thủ",
         }
@@ -239,7 +427,9 @@ def _build_comparison_prompt(
                 "Dựa trên phân tích phong cách thiết kế: đề xuất cải thiện thiết kế/hình ảnh cho thương hiệu tôi "
                 "(phong cách hình ảnh nên dùng, có dùng người thật hay AI không, bảng màu, định dạng)"
             )
-        output_fields["summary"] = "Tóm tắt điều hành 2-3 đoạn về vị thế cạnh tranh và các ưu tiên hàng đầu"
+        output_fields["summary"] = (
+            "Tóm tắt điều hành 2-3 đoạn về vị thế cạnh tranh và các ưu tiên hàng đầu"
+        )
 
     fields_desc = "\n".join(f'  "{k}": {v}' for k, v in output_fields.items())
     output_schema = (

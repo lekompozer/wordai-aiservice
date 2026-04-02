@@ -786,6 +786,80 @@ POINTS_BRAND_COMPARE = 100  # cost per brand-compare job
 
 
 @router.post(
+    "/competitor-social/brand-compare-demo",
+    summary="[FREE TEST] Brand vs competitors — no auth, no points, just enqueues",
+)
+async def brand_compare_demo(
+    my_url: str = Form(..., description="My own social page URL"),
+    competitor_urls: str = Form(
+        ...,
+        description='JSON array of 1–3 competitor URLs, e.g. ["url1","url2","url3"]',
+    ),
+    language: str = Form("vi"),
+):
+    """
+    No-auth demo: enqueues a brand-compare job using the existing social_plan_worker.
+    Auto-screenshots all pages with SCREENSHOTAPI_API_KEY, then runs batch ChatGPT Vision
+    + DeepSeek R1 comparative analysis.
+
+    Poll with: GET /competitor-social/brand-compare-demo/{job_id}
+    """
+    import json as _json
+
+    try:
+        comp_urls: List[str] = _json.loads(competitor_urls)
+        if not isinstance(comp_urls, list) or not comp_urls:
+            raise ValueError("must be a non-empty JSON array")
+        comp_urls = comp_urls[:3]
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid competitor_urls: {e}")
+
+    job_id = f"bcd_{uuid.uuid4().hex[:14]}"
+    queue = await _get_social_plan_queue()
+    await queue.redis_client.lpush(
+        "queue:social_plan_jobs",
+        _json.dumps({
+            "task_type": "brand_compare",
+            "job_id": job_id,
+            "user_id": "demo",
+            "my_url": my_url,
+            "competitor_urls": comp_urls,
+            "language": language,
+            "followers_counts": {},
+            "screenshot_urls": [],
+        }),
+    )
+    await set_job_status(
+        redis_client=queue.redis_client,
+        job_id=job_id,
+        status="pending",
+        user_id="demo",
+        my_url=my_url,
+        competitor_urls=comp_urls,
+    )
+    return {
+        "job_id": job_id,
+        "status": "pending",
+        "my_url": my_url,
+        "competitor_urls": comp_urls,
+        "poll_url": f"/api/v1/social-plan/competitor-social/brand-compare-demo/{job_id}",
+    }
+
+
+@router.get(
+    "/competitor-social/brand-compare-demo/{job_id}",
+    summary="[FREE] Poll demo brand-compare job status (no auth)",
+)
+async def brand_compare_demo_status(job_id: str):
+    """Poll a demo brand-compare job by job_id (no auth required)."""
+    queue = await _get_social_plan_queue()
+    job = await get_job_status(queue.redis_client, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found or expired")
+    return job
+
+
+@router.post(
     "/competitor-social/demo",
     summary="[FREE] Fetch & analyze 10 latest posts from 1 social page",
 )

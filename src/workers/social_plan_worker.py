@@ -382,7 +382,6 @@ class SocialPlanWorker:
             except Exception as inner_e:
                 logger.error(f"Failed to update error status: {inner_e}")
 
-
     async def _process_brand_compare_job(self, job: dict):
         """
         Process a brand_compare job:
@@ -409,7 +408,10 @@ class SocialPlanWorker:
         apify_token = os.getenv("APIFY_API_TOKEN")
 
         try:
-            from src.services.apify_scraper import fetch_social_posts, compute_engagement_metrics
+            from src.services.apify_scraper import (
+                fetch_social_posts,
+                compute_engagement_metrics,
+            )
             from src.services.social_competitor_analyzer import analyze_social_posts
             from src.services.brand_comparison_service import (
                 analyze_design_with_chatgpt,
@@ -417,8 +419,12 @@ class SocialPlanWorker:
             )
 
             await set_job_status(
-                self.redis, job_id, "processing",
-                user_id=user_id, step="scraping", progress=5,
+                self.redis,
+                job_id,
+                "processing",
+                user_id=user_id,
+                step="scraping",
+                progress=5,
                 message=f"Đang scrape {1 + len(competitor_urls)} trang...",
             )
 
@@ -426,12 +432,18 @@ class SocialPlanWorker:
             scraped_all = []
             for i, url in enumerate(all_urls):
                 await set_job_status(
-                    self.redis, job_id, "processing",
-                    user_id=user_id, step="scraping", progress=5 + i * 10,
+                    self.redis,
+                    job_id,
+                    "processing",
+                    user_id=user_id,
+                    step="scraping",
+                    progress=5 + i * 10,
                     message=f"Đang scrape trang {i + 1}/{len(all_urls)}: {url}",
                 )
                 try:
-                    scraped = await fetch_social_posts(url, limit=15, apify_token=apify_token)
+                    scraped = await fetch_social_posts(
+                        url, limit=15, apify_token=apify_token
+                    )
                     # Apply followers_count for engagement rate
                     fc = fc_map.get(url) or scraped.get("page_followers")
                     if fc:
@@ -442,30 +454,63 @@ class SocialPlanWorker:
                             pinned_posts = [p for p in posts if p.get("is_pinned")]
                             regular_posts = [p for p in posts if not p.get("is_pinned")]
                             scraped["engagement_metrics"] = {
-                                "all": compute_engagement_metrics(posts, followers_count=fc),
-                                "pinned": compute_engagement_metrics(pinned_posts, followers_count=fc) if pinned_posts else None,
-                                "regular": compute_engagement_metrics(regular_posts, followers_count=fc) if regular_posts else None,
+                                "all": compute_engagement_metrics(
+                                    posts, followers_count=fc
+                                ),
+                                "pinned": (
+                                    compute_engagement_metrics(
+                                        pinned_posts, followers_count=fc
+                                    )
+                                    if pinned_posts
+                                    else None
+                                ),
+                                "regular": (
+                                    compute_engagement_metrics(
+                                        regular_posts, followers_count=fc
+                                    )
+                                    if regular_posts
+                                    else None
+                                ),
                                 "has_pinned_split": True,
                             }
                         else:
-                            scraped["engagement_metrics"] = compute_engagement_metrics(posts, followers_count=fc)
+                            scraped["engagement_metrics"] = compute_engagement_metrics(
+                                posts, followers_count=fc
+                            )
                         scraped["page_followers"] = fc
                     scraped_all.append(scraped)
                 except Exception as e:
                     logger.error(f"Scrape failed for {url}: {e}")
-                    scraped_all.append({"url": url, "platform": "unknown", "posts": [], "posts_count": 0, "_error": str(e)})
+                    scraped_all.append(
+                        {
+                            "url": url,
+                            "platform": "unknown",
+                            "posts": [],
+                            "posts_count": 0,
+                            "_error": str(e),
+                        }
+                    )
 
             # ── Step 2: Analyze each page ──────────────────────────
             await set_job_status(
-                self.redis, job_id, "processing",
-                user_id=user_id, step="analyzing_pages", progress=50,
+                self.redis,
+                job_id,
+                "processing",
+                user_id=user_id,
+                step="analyzing_pages",
+                progress=50,
                 message=f"Đang phân tích {len(scraped_all)} trang với DeepSeek R1...",
             )
 
             page_analyses = []
             for i, scraped in enumerate(scraped_all):
                 if not scraped.get("posts"):
-                    page_analyses.append({"_url": scraped["url"], "_error": scraped.get("_error", "No posts scraped")})
+                    page_analyses.append(
+                        {
+                            "_url": scraped["url"],
+                            "_error": scraped.get("_error", "No posts scraped"),
+                        }
+                    )
                     continue
                 try:
                     analysis = await analyze_social_posts(
@@ -484,34 +529,70 @@ class SocialPlanWorker:
             my_analysis = page_analyses[0] if page_analyses else {}
             competitor_analyses = page_analyses[1:]
 
-            # ── Step 3: Design analysis via ChatGPT Vision ─────────
-            design_analyses: list = [None] * len(all_urls)
-            has_screenshots = any(u for u in screenshot_urls if u)
-            if has_screenshots:
+            # ── Step 3: Auto-screenshot + Batch ChatGPT Vision ────────
+            # ScreenshotAPI takes screenshots of all 4 pages, then ONE ChatGPT
+            # Vision call analyzes all pages together (cheaper, faster).
+            from src.services.brand_comparison_service import (
+                take_all_screenshots,
+                analyze_all_designs_batch,
+                run_brand_comparison,
+            )
+
+            screenshot_api_key = os.getenv("SCREENSHOTAPI_API_KEY")
+            has_manual = any(u for u in screenshot_urls if u)
+            screenshots_b64: list = [None] * len(all_urls)
+
+            if screenshot_api_key and not has_manual:
                 await set_job_status(
-                    self.redis, job_id, "processing",
-                    user_id=user_id, step="design_analysis", progress=70,
-                    message="Đang phân tích phong cách thiết kế với ChatGPT Vision...",
+                    self.redis,
+                    job_id,
+                    "processing",
+                    user_id=user_id,
+                    step="screenshots",
+                    progress=65,
+                    message=f"Đang chụp ảnh {len(all_urls)} trang (ScreenshotAPI)...",
                 )
-                for i, img_url in enumerate(screenshot_urls[:len(all_urls)]):
-                    if img_url:
-                        try:
-                            design_analyses[i] = await analyze_design_with_chatgpt(
-                                image_url=img_url,
-                                page_url=all_urls[i],
-                                language=language,
-                            )
-                        except Exception as e:
-                            logger.error(f"Design analysis failed for index {i}: {e}")
-                            design_analyses[i] = {"_error": str(e)}
+                screenshots_b64 = await take_all_screenshots(
+                    all_urls, screenshot_api_key
+                )
+                taken = sum(1 for b in screenshots_b64 if b)
+                logger.info(
+                    f"[BrandCompare] Screenshots taken: {taken}/{len(all_urls)}"
+                )
+            else:
+                logger.info(
+                    "[BrandCompare] No SCREENSHOTAPI_API_KEY or manual screenshots provided — skipping Vision"
+                )
+
+            await set_job_status(
+                self.redis,
+                job_id,
+                "processing",
+                user_id=user_id,
+                step="design_analysis",
+                progress=70,
+                message="Đang phân tích phong cách thiết kế với ChatGPT Vision (batch)...",
+            )
+
+            # One ChatGPT Vision call for all pages together
+            design_by_url = await analyze_all_designs_batch(
+                page_urls=all_urls,
+                screenshots_b64=screenshots_b64,
+                language=language,
+            )
+            design_analyses = [design_by_url.get(url) for url in all_urls]
 
             my_design = design_analyses[0] if design_analyses else None
             competitor_designs = design_analyses[1:]
 
             # ── Step 4: Comparative analysis ──────────────────────
             await set_job_status(
-                self.redis, job_id, "processing",
-                user_id=user_id, step="comparative_analysis", progress=80,
+                self.redis,
+                job_id,
+                "processing",
+                user_id=user_id,
+                step="comparative_analysis",
+                progress=80,
                 message="Đang tổng hợp phân tích cạnh tranh toàn diện...",
             )
 
@@ -538,7 +619,11 @@ class SocialPlanWorker:
                 "design_analyses": [d for d in design_analyses if d],
                 "brand_comparison": brand_comparison,
                 "engagement_summary": [
-                    {"url": s["url"], "metrics": s.get("engagement_metrics"), "followers": s.get("page_followers")}
+                    {
+                        "url": s["url"],
+                        "metrics": s.get("engagement_metrics"),
+                        "followers": s.get("page_followers"),
+                    }
                     for s in scraped_all
                 ],
                 "created_at": datetime.now(timezone.utc),
@@ -546,10 +631,13 @@ class SocialPlanWorker:
             self.db["brand_comparisons"].insert_one(doc)
 
             await set_job_status(
-                self.redis, job_id, "completed",
+                self.redis,
+                job_id,
+                "completed",
                 user_id=user_id,
                 comparison_id=comparison_id,
-                step="done", progress=100,
+                step="done",
+                progress=100,
                 message="Phân tích hoàn tất!",
                 my_analysis=my_analysis,
                 competitor_analyses=competitor_analyses,
@@ -564,8 +652,12 @@ class SocialPlanWorker:
             logger.error(f"❌ brand_compare job {job_id} failed: {e}", exc_info=True)
             try:
                 await set_job_status(
-                    self.redis, job_id, "failed",
-                    user_id=user_id, step="failed", progress=0,
+                    self.redis,
+                    job_id,
+                    "failed",
+                    user_id=user_id,
+                    step="failed",
+                    progress=0,
                     message=f"Lỗi: {str(e)[:200]}",
                 )
             except Exception as inner_e:
