@@ -202,7 +202,7 @@ async def analyze_all_designs_batch(
         response = await client.chat.completions.create(
             model="gpt-5.4",
             messages=[{"role": "user", "content": content}],
-            max_tokens=8000,
+            max_completion_tokens=8000,
         )
         raw = (response.choices[0].message.content or "{}").strip()
         if raw.startswith("```"):
@@ -304,7 +304,7 @@ async def analyze_design_with_chatgpt(
                     ],
                 }
             ],
-            max_tokens=1000,
+            max_completion_tokens=1000,
         )
         content_str = (response.choices[0].message.content or "{}").strip()
         if content_str.startswith("```"):
