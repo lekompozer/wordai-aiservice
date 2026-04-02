@@ -861,6 +861,32 @@ async def brand_compare_demo_status(job_id: str):
     return job
 
 
+SHOWCASE_IDS = {
+    "en": "bc_8709907e93af49f7",
+    "vi": "bc_a3a0c534097c4722",
+}
+
+
+@router.get(
+    "/competitor-social/brand-compare-showcase",
+    summary="[PUBLIC] Get showcase brand-compare results (EN + VI) for landing page",
+)
+async def brand_compare_showcase():
+    """
+    Returns the two pre-computed showcase brand-compare reports (EN and VI).
+    No authentication required — used for the /social-audit landing page demo.
+    """
+    db = _get_db()
+    result = {}
+    for lang, cid in SHOWCASE_IDS.items():
+        doc = db["brand_comparisons"].find_one({"comparison_id": cid}, {"_id": 0})
+        if doc:
+            result[lang] = {"status": "completed", **doc}
+    if not result:
+        raise HTTPException(status_code=404, detail="Showcase data not available")
+    return result
+
+
 @router.post(
     "/competitor-social/demo",
     summary="[FREE] Fetch & analyze 10 latest posts from 1 social page",
