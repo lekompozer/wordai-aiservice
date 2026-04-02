@@ -33,53 +33,69 @@ SCREENSHOT_API_BASE = "https://api.screenshotapi.com/take"
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-async def take_screenshot_base64(page_url: str, api_key: str) -> Optional[str]:
+async def take_screenshot_url(page_url: str, api_key: str) -> Optional[str]:
     """
     Screenshot a URL using ScreenshotAPI.com.
-    Returns base64-encoded PNG string, or None on failure.
-    Only minimal params — avoid extras that may cause API errors.
+    Returns the public S3 image URL, or None on failure.
+    ScreenshotAPI default response: JSON {"outputUrl": "https://s3.amazonaws.com/..."}
     """
     params = {
         "url": page_url,
         "apiKey": api_key,
         "width": 1280,
         "height": 1080,
-        "delay": 3000,   # wait 3s for JS-heavy pages (TikTok, Instagram)
+        "delay": 3000,  # wait 3s for JS-heavy pages (TikTok, Instagram)
     }
     try:
         async with httpx.AsyncClient(timeout=90) as client:
             resp = await client.get(SCREENSHOT_API_BASE, params=params)
             resp.raise_for_status()
             content_type = resp.headers.get("content-type", "")
-            # Must be a real image — reject tiny error responses / JSON / HTML
-            if not content_type.startswith("image/"):
+
+            # JSON response: {"outputUrl": "https://s3.amazonaws.com/..."}
+            if "application/json" in content_type:
+                data = resp.json()
+                output_url = data.get("outputUrl") or data.get("url")
+                if output_url:
+                    logger.info(f"[Screenshot] ✅ {page_url} → {output_url}")
+                    return output_url
                 logger.warning(
-                    f"[Screenshot] Non-image response for {page_url}: "
-                    f"content-type={content_type!r}, size={len(resp.content)} bytes, "
-                    f"body={resp.content[:200]}"
+                    f"[Screenshot] No outputUrl in response for {page_url}: {data}"
                 )
                 return None
-            if len(resp.content) < 5000:  # real screenshot is always > 5KB
-                logger.warning(
-                    f"[Screenshot] Suspiciously small response for {page_url}: "
-                    f"{len(resp.content)} bytes — likely an error"
+
+            # Direct image response (if API returns raw bytes)
+            if content_type.startswith("image/") and len(resp.content) > 5000:
+                # Upload to R2 if needed, or just return a base64 data URL
+                b64 = base64.b64encode(resp.content).decode()
+                logger.info(
+                    f"[Screenshot] ✅ {page_url} (raw image, {len(resp.content):,} bytes)"
                 )
-                return None
-            logger.info(f"[Screenshot] ✅ {page_url} ({len(resp.content):,} bytes)")
-            return base64.b64encode(resp.content).decode()
+                return f"data:{content_type};base64,{b64}"
+
+            logger.warning(
+                f"[Screenshot] Unexpected response for {page_url}: "
+                f"content-type={content_type!r}, size={len(resp.content)} bytes"
+            )
+            return None
     except Exception as e:
         logger.error(f"[Screenshot] Failed for {page_url}: {e}")
         return None
 
 
+async def take_screenshot_base64(page_url: str, api_key: str) -> Optional[str]:
+    """Alias kept for compat — calls take_screenshot_url (which returns S3 URL or data URL)."""
+    return await take_screenshot_url(page_url, api_key)
+
+
 async def take_all_screenshots(
     page_urls: List[str], api_key: str
 ) -> List[Optional[str]]:
-    """Take screenshots for all pages sequentially. Returns list of base64 strings."""
+    """Take screenshots for all pages sequentially. Returns list of S3/data URLs (or None)."""
     results = []
     for url in page_urls:
-        b64 = await take_screenshot_base64(url, api_key)
-        results.append(b64)
+        img_url = await take_screenshot_url(url, api_key)
+        results.append(img_url)
     return results
 
 
@@ -164,15 +180,22 @@ async def analyze_all_designs_batch(
         + "Return ONLY valid JSON, no markdown fences or other text."
     )
 
+    def _to_image_url_item(img: str) -> dict:
+        """Convert screenshot value to OpenAI Vision image_url content item."""
+        if img.startswith("http://") or img.startswith("https://"):
+            return {"type": "image_url", "image_url": {"url": img}}
+        if img.startswith("data:"):
+            return {"type": "image_url", "image_url": {"url": img}}
+        # Raw base64 string — assume JPEG
+        return {
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{img}"},
+        }
+
     # Build content: text + one image per page
     content: List[dict] = [{"type": "text", "text": full_prompt}]
-    for _url, b64 in valid:
-        content.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/png;base64,{b64}"},
-            }
-        )
+    for _url, img in valid:
+        content.append(_to_image_url_item(img))
 
     client = openai.AsyncOpenAI(api_key=openai_key)
     try:
