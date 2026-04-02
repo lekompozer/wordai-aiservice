@@ -567,7 +567,13 @@ class SocialPlanWorker:
                 page_thumbnail_urls=page_thumbnail_urls,
                 language=language,
             )
-            design_analyses = [design_by_url.get(url) for url in all_urls]
+            # Stamp each design analysis with _url so frontend can identify per page
+            design_analyses = []
+            for url in all_urls:
+                d = design_by_url.get(url)
+                if d and isinstance(d, dict):
+                    d["_url"] = url
+                design_analyses.append(d)
 
             my_design = design_analyses[0] if design_analyses else None
             competitor_designs = design_analyses[1:]
