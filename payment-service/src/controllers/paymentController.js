@@ -998,6 +998,8 @@ async function createAuditPurchase(req, res) {
             success: true,
             data: {
                 order_id,
+                order_invoice_number: order_id,   // ← same key as all other payment flows
+                payment_url: config.sepay.checkoutUrl,
                 checkout_url: config.sepay.checkoutUrl,
                 form_fields: formFields,
                 amount: AUDIT_PRICE,
