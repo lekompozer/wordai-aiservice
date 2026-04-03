@@ -107,6 +107,24 @@ async def take_all_screenshots(
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+async def _url_to_data_uri(url: str, client: httpx.AsyncClient) -> Optional[str]:
+    """Download an image URL and return a base64 data URI.
+
+    Needed because Facebook CDN URLs are IP-restricted and cannot be fetched
+    directly by OpenAI servers. We proxy them through our server instead.
+    Returns None if download fails.
+    """
+    try:
+        resp = await client.get(url, timeout=15, follow_redirects=True)
+        if resp.status_code == 200:
+            content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0]
+            b64 = base64.b64encode(resp.content).decode()
+            return f"data:{content_type};base64,{b64}"
+    except Exception as e:
+        logger.warning(f"[BrandCompare] Failed to download thumbnail {url[:60]}: {e}")
+    return None
+
+
 async def analyze_all_designs_from_thumbnails(
     page_urls: List[str],
     page_thumbnail_urls: List[List[str]],  # list of lists: 6 thumbnail URLs per page
@@ -204,18 +222,27 @@ async def analyze_all_designs_from_thumbnails(
     )
     content_items.append({"type": "text", "text": text_prompt})
 
-    # Add thumbnails grouped by page (with text separator labels)
-    for i in valid_indices:
-        lbl = labels[i]
-        thumbs = page_thumbnail_urls[i]
-        content_items.append({"type": "text", "text": f"--- {lbl} thumbnails ---"})
-        for thumb_url in thumbs:
-            content_items.append(
-                {
-                    "type": "image_url",
-                    "image_url": {"url": thumb_url, "detail": "low"},
-                }
-            )
+    # Download thumbnail images server-side (Facebook CDN URLs are IP-restricted
+    # and cannot be fetched directly by OpenAI — proxy via base64 data URIs)
+    async with httpx.AsyncClient() as http_client:
+        # Add thumbnails grouped by page (with text separator labels)
+        for i in valid_indices:
+            lbl = labels[i]
+            thumbs = page_thumbnail_urls[i]
+            content_items.append({"type": "text", "text": f"--- {lbl} thumbnails ---"})
+            for thumb_url in thumbs:
+                data_uri = await _url_to_data_uri(thumb_url, http_client)
+                if data_uri:
+                    content_items.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": data_uri, "detail": "low"},
+                        }
+                    )
+                else:
+                    logger.warning(
+                        f"[BrandCompare] Skipping unreachable thumbnail: {thumb_url[:60]}"
+                    )
 
     client = openai.AsyncOpenAI(api_key=openai_key)
     try:
