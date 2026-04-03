@@ -552,22 +552,54 @@ class SocialPlanWorker:
             from src.services.brand_comparison_service import (
                 analyze_all_designs_from_thumbnails,
                 run_brand_comparison,
+                upload_thumbnails_to_r2,
             )
 
             def _get_thumbnail_urls(scraped_data: dict) -> list:
                 em = scraped_data.get("engagement_metrics", {})
-                if isinstance(em, dict) and em.get("has_pinned_split"):
-                    for key in ("regular", "all"):
-                        urls = em.get(key, {}).get("thumbnail_urls")
-                        if urls:
-                            return urls
-                return em.get("thumbnail_urls", []) if isinstance(em, dict) else []
+                if not isinstance(em, dict):
+                    return []
+                # Check nested sub-dicts first (covers pinned-split and nested 'all')
+                for key in ("regular", "all"):
+                    urls = em.get(key, {}).get("thumbnail_urls")
+                    if urls:
+                        return urls
+                return em.get("thumbnail_urls", [])
+
+            def _set_thumbnail_urls(scraped_data: dict, r2_urls: list) -> None:
+                """Replace thumbnail_urls in scraped_data with R2 URLs."""
+                em = scraped_data.get("engagement_metrics", {})
+                if not isinstance(em, dict):
+                    return
+                for key in ("regular", "all"):
+                    sub = em.get(key, {})
+                    if isinstance(sub, dict) and sub.get("thumbnail_urls"):
+                        sub["thumbnail_urls"] = r2_urls
+                        return
+                if "thumbnail_urls" in em:
+                    em["thumbnail_urls"] = r2_urls
 
             page_thumbnail_urls = [_get_thumbnail_urls(s) for s in scraped_all]
             taken = sum(1 for t in page_thumbnail_urls if t)
             logger.info(
                 f"[BrandCompare] Thumbnail URLs collected: {taken}/{len(all_urls)} pages"
             )
+
+            # ── Upload thumbnails to R2 for permanent storage ─────
+            # Facebook/Instagram CDN URLs expire; store permanently on R2.
+            r2_page_thumbnail_urls = []
+            for i, urls in enumerate(page_thumbnail_urls):
+                if urls:
+                    r2_urls = await upload_thumbnails_to_r2(
+                        urls,
+                        prefix=f"social-audit-thumbs/{job_id}",
+                    )
+                    r2_page_thumbnail_urls.append(r2_urls)
+                    _set_thumbnail_urls(scraped_all[i], r2_urls)
+                else:
+                    r2_page_thumbnail_urls.append(urls)
+            page_thumbnail_urls = r2_page_thumbnail_urls
+            logger.info(f"[BrandCompare] Thumbnails uploaded to R2 for {taken} pages")
 
             await set_job_status(
                 self.redis,

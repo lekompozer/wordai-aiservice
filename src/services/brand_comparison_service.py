@@ -14,6 +14,7 @@ Step B: DeepSeek R1 comparative analysis (my page vs competitors)
 """
 
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -26,6 +27,76 @@ logger = logging.getLogger(__name__)
 
 MAX_ANALYSIS_CHARS = 1500  # per-page analysis truncation for the comparison prompt
 SCREENSHOT_API_BASE = "https://api.screenshotapi.com/take"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# R2 Upload Helper — persist thumbnail URLs so they never expire
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+async def upload_thumbnails_to_r2(
+    thumbnail_urls: List[str],
+    prefix: str = "social-audit-thumbs",
+) -> List[str]:
+    """
+    Download each URL and re-upload to Cloudflare R2.
+    Returns a list of permanent R2 public URLs (same length as input;
+    original URL kept on download failure).
+    """
+    import boto3
+    from botocore.config import Config
+
+    endpoint = os.getenv("R2_ENDPOINT")
+    access_key = os.getenv("R2_ACCESS_KEY_ID")
+    secret_key = os.getenv("R2_SECRET_ACCESS_KEY")
+    bucket = os.getenv("R2_BUCKET_NAME", "wordai")
+    public_base = os.getenv("R2_PUBLIC_URL", "https://static.wordai.pro").rstrip("/")
+
+    if not (endpoint and access_key and secret_key):
+        logger.warning("[R2] R2 credentials not configured — skipping thumbnail upload")
+        return thumbnail_urls
+
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        config=Config(signature_version="s3v4"),
+        region_name="auto",
+    )
+
+    result = []
+    async with httpx.AsyncClient() as client:
+        for url in thumbnail_urls:
+            try:
+                resp = await client.get(url, timeout=15, follow_redirects=True)
+                if resp.status_code != 200:
+                    result.append(url)
+                    continue
+                content_type = resp.headers.get("content-type", "image/jpeg").split(
+                    ";"
+                )[0]
+                ext = {
+                    "image/jpeg": "jpg",
+                    "image/png": "png",
+                    "image/webp": "webp",
+                }.get(content_type, "jpg")
+                # Stable key based on URL hash so re-uploads are idempotent
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:16]
+                key = f"{prefix}/{url_hash}.{ext}"
+                s3.put_object(
+                    Bucket=bucket,
+                    Key=key,
+                    Body=resp.content,
+                    ContentType=content_type,
+                )
+                r2_url = f"{public_base}/{key}"
+                result.append(r2_url)
+                logger.debug(f"[R2] Uploaded thumbnail → {r2_url}")
+            except Exception as e:
+                logger.warning(f"[R2] Failed to upload {url[:60]}: {e}")
+                result.append(url)  # fallback to original
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────
