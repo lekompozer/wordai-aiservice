@@ -785,7 +785,7 @@ async def get_plan_job_status(
 POINTS_BRAND_COMPARE = (
     200  # cost per brand-compare job (3 competitors, 1 channel) = 9.9 USDT
 )
-AUDIT_PRICE_VND = 100_000  # cash price per audit (SePay)
+AUDIT_PRICE_VND = 200_000  # cash price per audit (SePay)
 ADMIN_EMAIL = "tienhoi.lh@gmail.com"
 
 

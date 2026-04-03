@@ -36,6 +36,7 @@ def _build_social_analysis_prompt(
     language: str,
     engagement_metrics: Optional[Dict[str, Any]] = None,
     followers_count: Optional[int] = None,
+    brand_name: Optional[str] = None,
 ) -> str:
     # Mark pinned posts in the posts block
     posts_block = ""
@@ -220,9 +221,10 @@ def _build_social_analysis_prompt(
         else ""
     )
 
+    page_label = brand_name if brand_name else competitor_url
     return f"""{intro}
 
-=== SOURCE: {platform.upper()} — {competitor_url} ===
+=== SOURCE: {platform.upper()} — {page_label} ({competitor_url}) ==="
 {posts_block.strip()}
 {engagement_block}
 === INSTRUCTIONS ===
@@ -258,6 +260,7 @@ async def analyze_social_posts(
     language: str = "vi",
     engagement_metrics: Optional[Dict[str, Any]] = None,
     followers_count: Optional[int] = None,
+    brand_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Analyze a competitor's social posts with DeepSeek R1 reasoning.
@@ -281,6 +284,7 @@ async def analyze_social_posts(
         language,
         engagement_metrics=engagement_metrics,
         followers_count=followers_count,
+        brand_name=brand_name,
     )
 
     client = openai.AsyncOpenAI(

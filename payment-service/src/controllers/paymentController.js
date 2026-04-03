@@ -970,7 +970,7 @@ async function createAuditPurchase(req, res) {
             throw new AppError('Order already paid', 400);
         }
 
-        const AUDIT_PRICE = 100000; // 100,000 VND fixed price
+        const AUDIT_PRICE = 200000; // 200,000 VND fixed price
 
         const defaultSuccessUrl = return_url || `https://wordai.pro/social-audit`;
         const defaultErrorUrl = return_url || `https://wordai.pro/social-audit`;

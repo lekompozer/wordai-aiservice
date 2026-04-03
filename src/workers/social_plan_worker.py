@@ -536,6 +536,7 @@ class SocialPlanWorker:
                         language=language,
                         engagement_metrics=scraped.get("engagement_metrics"),
                         followers_count=scraped.get("page_followers"),
+                        brand_name=brand_names.get(scraped["url"]),
                     )
                     page_analyses.append(analysis)
                 except Exception as e:
