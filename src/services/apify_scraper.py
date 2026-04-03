@@ -220,6 +220,15 @@ async def fetch_social_posts(
                     post["display_url"] = display_url
             else:
                 post["is_video"] = bool(item.get("isVideo", False))
+                # Facebook: extract image from media array (photo posts only)
+                media_list = item.get("media") or []
+                if media_list:
+                    first_media = media_list[0]
+                    display_url = (first_media.get("photo_image") or {}).get(
+                        "uri"
+                    ) or first_media.get("thumbnail")
+                    if display_url:
+                        post["display_url"] = display_url
 
         posts.append(post)
 
