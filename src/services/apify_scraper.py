@@ -263,6 +263,14 @@ async def fetch_social_posts(
     }
 
 
+def _safe_int(val) -> int:
+    """Cast a value to int safely; returns 0 for None/empty/non-numeric."""
+    try:
+        return int(val) if val is not None else 0
+    except (ValueError, TypeError):
+        return 0
+
+
 def compute_engagement_metrics(
     posts: List[dict], followers_count: Optional[int] = None
 ) -> Dict[str, Any]:
@@ -272,6 +280,12 @@ def compute_engagement_metrics(
     """
     if not posts:
         return {}
+
+    # Normalize numeric fields to int to guard against Apify returning strings
+    for p in posts:
+        for field in ("likes", "comments", "shares", "views"):
+            if p.get(field) is not None:
+                p[field] = _safe_int(p[field])
 
     total_likes = sum(p.get("likes") or 0 for p in posts)
     total_comments = sum(p.get("comments") or 0 for p in posts)
