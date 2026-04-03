@@ -398,6 +398,7 @@ class SocialPlanWorker:
         language = job.get("language", "vi")
         fc_map: dict = job.get("followers_counts") or {}
         screenshot_urls: list = job.get("screenshot_urls") or []
+        brand_names: dict = job.get("brand_names") or {}
 
         if not job_id or not my_url:
             logger.error(f"Invalid brand_compare payload: {job}")
@@ -474,10 +475,25 @@ class SocialPlanWorker:
                                 "has_pinned_split": True,
                             }
                         else:
-                            scraped["engagement_metrics"] = compute_engagement_metrics(
-                                posts, followers_count=fc
-                            )
+                            # Non-TikTok (Facebook, Instagram, etc.): wrap flat metrics
+                            scraped["engagement_metrics"] = {
+                                "has_pinned_split": False,
+                                "all": compute_engagement_metrics(
+                                    posts, followers_count=fc
+                                ),
+                            }
                         scraped["page_followers"] = fc
+                    else:
+                        # No followers count provided; still normalize flat metrics
+                        # so structure is always consistent (wrap under "all")
+                        existing_em = scraped.get("engagement_metrics")
+                        if existing_em and not isinstance(existing_em, dict):
+                            pass  # unexpected type, leave as is
+                        elif existing_em and "has_pinned_split" not in existing_em:
+                            scraped["engagement_metrics"] = {
+                                "has_pinned_split": False,
+                                "all": existing_em,
+                            }
                     scraped_all.append(scraped)
                 except Exception as e:
                     logger.error(f"Scrape failed for {url}: {e}")
@@ -607,6 +623,7 @@ class SocialPlanWorker:
                 "language": language,
                 "my_url": my_url,
                 "competitor_urls": competitor_urls,
+                "brand_names": brand_names,
                 "my_analysis": my_analysis,
                 "competitor_analyses": competitor_analyses,
                 "design_analyses": [d for d in design_analyses if d],
@@ -614,6 +631,8 @@ class SocialPlanWorker:
                 "engagement_summary": [
                     {
                         "url": s["url"],
+                        "brand_name": brand_names.get(s["url"]) or "",
+                        "platform": s.get("platform") or "",
                         "metrics": s.get("engagement_metrics"),
                         "followers": s.get("page_followers"),
                     }

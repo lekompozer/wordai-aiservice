@@ -792,6 +792,31 @@ ADMIN_EMAIL = "tienhoi.lh@gmail.com"
 # ── Helper: enqueue brand-compare job (shared between points & cash flows) ──
 
 
+def _normalize_engagement_metrics(em):
+    """Normalize metrics to always use nested structure {all, has_pinned_split}.
+    Old Facebook audits store flat metrics; this wraps them for consistent frontend access.
+    """
+    if em is None:
+        return {"has_pinned_split": False, "all": {}}
+    if isinstance(em, dict) and "has_pinned_split" in em:
+        return em  # Already normalized (TikTok with pinned split)
+    # Flat metrics from Facebook/Instagram → wrap under "all"
+    return {"has_pinned_split": False, "all": em}
+
+
+def _normalize_engagement_summary(summary: list) -> list:
+    """Ensure each engagement_summary item has normalized metrics structure."""
+    if not summary:
+        return summary
+    result = []
+    for item in summary:
+        item = dict(item)
+        if "metrics" in item:
+            item["metrics"] = _normalize_engagement_metrics(item["metrics"])
+        result.append(item)
+    return result
+
+
 async def _enqueue_brand_compare(
     *,
     user_id: str,
@@ -800,6 +825,7 @@ async def _enqueue_brand_compare(
     language: str,
     fc_map: dict,
     screenshot_urls_list: list,
+    brand_names: dict = {},
 ) -> str:
     import json as _json
 
@@ -817,6 +843,7 @@ async def _enqueue_brand_compare(
                 "language": language,
                 "followers_counts": fc_map,
                 "screenshot_urls": screenshot_urls_list,
+                "brand_names": brand_names,
             }
         ),
     )
@@ -951,6 +978,14 @@ async def brand_compare_with_credit(
     ),
     language: str = Form("vi"),
     followers_counts: Optional[str] = Form(None),
+    my_brand_name: Optional[str] = Form(
+        None,
+        description="Display name for your brand/page. Required for Facebook.",
+    ),
+    competitor_brand_names: Optional[str] = Form(
+        None,
+        description="JSON object mapping competitor URL → brand display name.",
+    ),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -1003,6 +1038,18 @@ async def brand_compare_with_credit(
         except Exception:
             pass
 
+    # Build brand names map
+    bn_map: dict = {}
+    if my_brand_name:
+        bn_map[my_url] = my_brand_name
+    if competitor_brand_names:
+        try:
+            parsed_bn = _json.loads(competitor_brand_names)
+            if isinstance(parsed_bn, dict):
+                bn_map.update(parsed_bn)
+        except Exception:
+            pass
+
     all_urls = [my_url] + comp_urls
 
     job_id = await _enqueue_brand_compare(
@@ -1012,6 +1059,7 @@ async def brand_compare_with_credit(
         language=language,
         fc_map=fc_map,
         screenshot_urls_list=[None] * len(all_urls),
+        brand_names=bn_map,
     )
 
     # Link job to the order
@@ -1047,6 +1095,13 @@ async def audit_register(
     ),
     competitor_url: str = Form(..., description="URL 1 đối thủ cần phân tích"),
     language: str = Form("vi", description="Ngôn ngữ báo cáo: vi hoặc en"),
+    followers_counts: Optional[str] = Form(
+        None,
+        description='JSON object mapping URL → follower count, e.g. {"https://fb.com/page": 50000, "https://fb.com/competitor": 120000}',
+    ),
+    competitor_brand_name: Optional[str] = Form(
+        None, description="Display name of the competitor brand"
+    ),
     current_user: dict = Depends(get_current_user),
 ):
     """
@@ -1079,13 +1134,28 @@ async def audit_register(
 
     # Enqueue the free job (1 competitor only)
     comp_urls = [competitor_url]
+    import json as _json
+
+    fc_map: dict = {}
+    if followers_counts:
+        try:
+            fc_map = _json.loads(followers_counts)
+        except Exception:
+            pass
+
+    # company_name doubles as brand display name for "my" page
+    bn_map: dict = {my_url: company_name}
+    if competitor_brand_name:
+        bn_map[competitor_url] = competitor_brand_name
+
     job_id = await _enqueue_brand_compare(
         user_id=user_id,
         my_url=my_url,
         comp_urls=comp_urls,
         language=language,
-        fc_map={},
+        fc_map=fc_map,
         screenshot_urls_list=[None, None],
+        brand_names=bn_map,
     )
 
     # Save registration
@@ -1558,6 +1628,14 @@ async def brand_compare_enqueue(
         None,
         description='Optional JSON object mapping URL → follower count for engagement rate, e.g. {"https://fb.com/page": 50000}',
     ),
+    my_brand_name: Optional[str] = Form(
+        None,
+        description="Display name for your brand/page (e.g. 'WordAI'). Required for Facebook pages where followers cannot be auto-scraped.",
+    ),
+    competitor_brand_names: Optional[str] = Form(
+        None,
+        description='Optional JSON object mapping competitor URL → brand display name, e.g. {"https://fb.com/page": "BrandX"}',
+    ),
     screenshots: Optional[List[UploadFile]] = File(
         None,
         description="Optional screenshots (1 image per page, ordered: my page first then competitors). Sent to ChatGPT Vision for design analysis.",
@@ -1596,6 +1674,18 @@ async def brand_compare_enqueue(
     if followers_counts:
         try:
             fc_map = _json.loads(followers_counts)
+        except Exception:
+            pass
+
+    # ── Build brand names map ─────────────────────────────────────────────────
+    bn_map: dict = {}
+    if my_brand_name:
+        bn_map[my_url] = my_brand_name
+    if competitor_brand_names:
+        try:
+            parsed_bn = _json.loads(competitor_brand_names)
+            if isinstance(parsed_bn, dict):
+                bn_map.update(parsed_bn)
         except Exception:
             pass
 
@@ -1644,6 +1734,7 @@ async def brand_compare_enqueue(
         language=language,
         fc_map=fc_map,
         screenshot_urls_list=screenshot_urls_list,
+        brand_names=bn_map,
     )
 
     return {
@@ -1685,11 +1776,22 @@ async def brand_compare_status(
             {"_id": 0},
         )
         if doc:
+            # Normalize engagement_summary metrics for backward compat (old flat Facebook data)
+            if "engagement_summary" in doc:
+                doc["engagement_summary"] = _normalize_engagement_summary(
+                    doc["engagement_summary"]
+                )
             return {"status": "completed", **doc}
         raise HTTPException(status_code=404, detail="Job not found")
 
     if job.get("user_id") and job["user_id"] != current_user["uid"]:
         raise HTTPException(status_code=403, detail="Not your job")
+
+    # Normalize in-Redis job too (completed jobs cached in Redis)
+    if job.get("engagement_summary"):
+        job["engagement_summary"] = _normalize_engagement_summary(
+            job["engagement_summary"]
+        )
 
     return job
 
