@@ -1315,6 +1315,7 @@ async def brand_compare_demo_status(job_id: str):
 SHOWCASE_IDS = {
     "en": "bc_8709907e93af49f7",
     "vi": "bc_a3a0c534097c4722",
+    "vi_facebook": "bc_1dbc7286f9594f6d",  # Chứng khoán SSI — Facebook demo
 }
 
 
